@@ -167,11 +167,6 @@ fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
         .collect()
 }
 
-/// Mirror the map into the [`TileGrid`] core carries, which is what physics
-/// reads: it may not see a render component, and both need the same cells.
-///
-/// A map whose tileset will not load carries no grid, so nothing collides
-/// with cells nobody can size.
 /// Resolve every painted cell through the tileset's rules.
 ///
 /// A map that carries a terrain grid has its cells derived from it, so an
@@ -230,39 +225,48 @@ fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
     if set.rules.is_empty() {
         return;
     }
-    let painted = map.terrain.clone();
-    let origin = map.origin;
-    let value_at = |x: i32, y: i32| -> Option<u32> {
-        let x = usize::try_from(x - origin[0]).ok()?;
-        let y = usize::try_from(y - origin[1]).ok()?;
-        painted.get(y)?.get(x).copied().flatten()
-    };
-    let inside = |x: i32, y: i32| {
-        let (Ok(x), Ok(y)) = (
-            usize::try_from(x - origin[0]),
-            usize::try_from(y - origin[1]),
-        ) else {
-            return false;
+    // How far a rule can see is how far the write reached: a 7-wide pattern
+    // three cells away was matched on the cell that just changed.
+    let radius = set
+        .rules
+        .iter()
+        .map(|rule| (rule.size / 2) as i32)
+        .max()
+        .unwrap_or(1);
+    // Read first and write after, so the resolver reads the painted grid in
+    // place rather than a copy of it taken for every cell of a stroke.
+    let mut resolved = Vec::new();
+    {
+        let painted = &map.terrain;
+        let origin = map.origin;
+        let value_at = |x: i32, y: i32| -> Option<u32> {
+            let x = usize::try_from(x - origin[0]).ok()?;
+            let y = usize::try_from(y - origin[1]).ok()?;
+            painted.get(y)?.get(x).copied().flatten()
         };
-        painted.get(y).is_some_and(|line| x < line.len())
-    };
-    for dy in -1..=1 {
-        for dx in -1..=1 {
-            let (x, y) = (column + dx, row + dy);
-            let resolved =
-                balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed);
-            match resolved {
-                Some((tile, flags)) => {
-                    write_cell(map, x, y, Some(tile));
-                    write_flags(map, x, y, flags);
+        let inside = |x: i32, y: i32| {
+            let (Ok(x), Ok(y)) = (
+                usize::try_from(x - origin[0]),
+                usize::try_from(y - origin[1]),
+            ) else {
+                return false;
+            };
+            painted.get(y).is_some_and(|line| x < line.len())
+        };
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                let (x, y) = (column + dx, row + dy);
+                match balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed) {
+                    Some((tile, flags)) => resolved.push((x, y, Some(tile), flags)),
+                    None if value_at(x, y).is_none() => resolved.push((x, y, None, 0)),
+                    None => {}
                 }
-                None if value_at(x, y).is_none() => {
-                    write_cell(map, x, y, None);
-                    write_flags(map, x, y, 0);
-                }
-                None => {}
             }
         }
+    }
+    for (x, y, tile, flags) in resolved {
+        write_cell(map, x, y, tile);
+        write_flags(map, x, y, flags);
     }
 }
 
@@ -322,6 +326,7 @@ fn grid_of(map: &Tilemap, set: &TileSet) -> balaur_core::tiles::TileGrid {
         rows: map.grid.clone(),
         origin: map.origin,
         flags: map.flags.clone(),
+        layout: set.layout,
         tile_world: [
             set.tile_size[0] / map.pixels_per_unit,
             set.tile_size[1] / map.pixels_per_unit,
@@ -347,31 +352,52 @@ fn write_cell(map: &mut Tilemap, column: i32, row: i32, tile: Option<u32>) -> bo
 /// Grow the stored rows until they hold a coordinate, moving the origin
 /// rather than the node.
 fn grow_to(map: &mut Tilemap, column: i32, row: i32) {
+    if grid_index(map, column, row).is_some() {
+        return;
+    }
     let columns = map.grid.iter().map(Vec::len).max().unwrap_or(0) as i32;
     let rows = map.grid.len() as i32;
     let left = (map.origin[0] - column).max(0);
     let up = (map.origin[1] - row).max(0);
     let right = (column - (map.origin[0] + columns - 1)).max(0);
     let down = (row - (map.origin[1] + rows - 1)).max(0);
-    if left > 0 || right > 0 {
-        for line in &mut map.grid {
-            let mut grown = vec![None; left as usize];
-            grown.append(line);
-            grown.resize((columns + left + right) as usize, None);
-            *line = grown;
-        }
-        map.origin[0] -= left;
+    let width = (columns + left + right).max(0) as usize;
+    let height = (rows + up + down).max(0) as usize;
+    let (left, up) = (left as usize, up as usize);
+    // Growing left or up moves every stored cell along, so the flags and the
+    // painted values move with it: a grid the map keeps per cell that grew
+    // only at its far edge would answer for the wrong cell from then on.
+    grow_rows(&mut map.grid, None, left, up, width, height);
+    if !map.terrain.is_empty() {
+        grow_rows(&mut map.terrain, None, left, up, width, height);
     }
-    let width = map.grid.iter().map(Vec::len).max().unwrap_or(0);
-    if up > 0 {
-        let mut grown = vec![vec![None; width]; up as usize];
-        grown.append(&mut map.grid);
-        map.grid = grown;
-        map.origin[1] -= up;
+    if !map.flags.is_empty() {
+        grow_rows(&mut map.flags, 0, left, up, width, height);
     }
-    for _ in 0..down {
-        map.grid.push(vec![None; width]);
+    map.origin[0] -= left as i32;
+    map.origin[1] -= up as i32;
+}
+
+/// Grow one of a map's per-cell grids to `width` by `height`, putting `left`
+/// new columns before the stored ones and `up` new rows above them.
+fn grow_rows<T: Clone>(
+    rows: &mut Vec<Vec<T>>,
+    empty: T,
+    left: usize,
+    up: usize,
+    width: usize,
+    height: usize,
+) {
+    for line in rows.iter_mut() {
+        let mut grown = vec![empty.clone(); left];
+        grown.append(line);
+        grown.resize(width, empty.clone());
+        *line = grown;
     }
+    let mut grown = vec![vec![empty.clone(); width]; up];
+    grown.append(rows);
+    *rows = grown;
+    rows.resize(height, vec![empty; width]);
 }
 
 /// Where a coordinate sits in the stored rows.
@@ -381,6 +407,11 @@ fn grid_index(map: &Tilemap, column: i32, row: i32) -> Option<(usize, usize)> {
     (y < map.grid.len() && x < map.grid[y].len()).then_some((x, y))
 }
 
+/// Mirror the map into the [`TileGrid`] core carries, which is what physics
+/// reads: it may not see a render component, and both need the same cells.
+///
+/// A map whose tileset will not load carries no grid, so nothing collides
+/// with cells nobody can size.
 fn sync_grid(eng: &Engine, entity: Entity) {
     let (tileset, rows, origin, flags, ppu, version) = {
         let world = eng.world();
@@ -430,9 +461,15 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
     let fresh = {
         let world = eng.world_mut();
         if let Ok(mut map) = world.get::<&mut Tilemap>(entity) {
+            // Everything the mesh or the collider is built from: an origin
+            // moves every cell, and a flag turns one.
             let changed = map.tileset != next.tileset
                 || map.grid != next.grid
                 || map.material != next.material
+                || map.origin != next.origin
+                || map.flags != next.flags
+                || map.terrain != next.terrain
+                || map.seed != next.seed
                 || map.pixels_per_unit.to_bits() != next.pixels_per_unit.to_bits();
             let version = map.version + u64::from(changed);
             *map = next;
@@ -912,4 +949,54 @@ fn tile_uvs(
         corners.swap(1, 2);
     }
     corners
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Tilemap, grid_index, write_flags, write_terrain};
+
+    fn map() -> Tilemap {
+        Tilemap {
+            tileset: "set".into(),
+            cells: toml::Value::String(String::new()),
+            material: String::new(),
+            grid: vec![vec![Some(0)]],
+            origin: [0, 0],
+            flags: Vec::new(),
+            terrain: Vec::new(),
+            seed: 0,
+            pixels_per_unit: 100.0,
+            version: 0,
+        }
+    }
+
+    /// A map grows left and up by moving its origin, and everything it keeps
+    /// per cell has to move with the cells or answer for the wrong one.
+    #[test]
+    fn what_a_cell_carries_stays_with_it_when_the_map_grows() {
+        let mut map = map();
+        write_terrain(&mut map, 0, 0, Some(7));
+        write_flags(&mut map, 0, 0, 3);
+        write_terrain(&mut map, -2, -1, Some(9));
+        assert_eq!(map.origin, [-2, -1], "the map grew left and up");
+
+        let at = |map: &Tilemap, column, row| {
+            grid_index(map, column, row).map(|(x, y)| (map.terrain[y][x], map.flags[y][x]))
+        };
+        assert_eq!(at(&map, 0, 0), Some((Some(7), 3)), "the first cell painted");
+        assert_eq!(
+            at(&map, -2, -1),
+            Some((Some(9), 0)),
+            "and the one that grew"
+        );
+    }
+
+    /// Painting the same value twice is not an edit, so it costs no undo step
+    /// and no rebuild.
+    #[test]
+    fn painting_a_cell_the_value_it_holds_changes_nothing() {
+        let mut map = map();
+        assert!(write_terrain(&mut map, 1, 1, Some(2)));
+        assert!(!write_terrain(&mut map, 1, 1, Some(2)));
+    }
 }

@@ -102,6 +102,19 @@ pub enum Group {
     OneWay,
 }
 
+/// How a map's cells are laid out in the world.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Layout {
+    /// A square grid, which is what most maps are.
+    #[default]
+    Orthogonal,
+    /// Diamonds: a column steps half a cell down, a row half a cell across.
+    Isometric,
+    /// Pointy-top hexagons in odd-r offset rows, which is how every hex sheet
+    /// is drawn.
+    Hex,
+}
+
 /// A parsed `tileset`: how the image is cut, and what each tile is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileSet {
@@ -115,6 +128,8 @@ pub struct TileSet {
     pub margin: f32,
     /// Tiles per texture row.
     pub columns: u32,
+    /// How a map of these tiles is laid out.
+    pub layout: Layout,
     /// Keyed by tile id, ordered so two runs build a collider the same way.
     pub tiles: BTreeMap<u32, Tile>,
     /// What a painted value is called, and how its tiles are chosen.
@@ -183,6 +198,14 @@ pub fn parse_tileset(value: &toml::Value) -> Result<TileSet> {
         spacing: gap("spacing")?,
         margin: gap("margin")?,
         columns: columns as u32,
+        layout: match value.get("layout").and_then(toml::Value::as_str) {
+            None | Some("orthogonal") => Layout::Orthogonal,
+            Some("isometric") => Layout::Isometric,
+            Some("hex") => Layout::Hex,
+            Some(other) => {
+                bail!("a tileset's `layout` is orthogonal, isometric or hex, not '{other}'")
+            }
+        },
         tiles: parse_tiles(value)?,
         terrains,
         rules,
@@ -336,6 +359,8 @@ pub struct TileGrid {
     pub flags: Vec<Vec<u8>>,
     /// One cell in world units.
     pub tile_world: [f32; 2],
+    /// How the cells are laid out, from the tileset.
+    pub layout: Layout,
     /// Bumped when the content changes, so a backend knows to rebuild.
     pub version: u64,
 }
@@ -422,10 +447,21 @@ impl TileGrid {
     /// The centre of a cell in the node's own space.
     #[must_use]
     pub fn cell_centre(&self, column: i32, row: i32) -> Vec2 {
-        Vec2::new(
-            (column as f32 + 0.5) * self.tile_world[0],
-            -(row as f32 + 0.5) * self.tile_world[1],
-        )
+        let [w, h] = self.tile_world;
+        let (column, row) = (column as f32, row as f32);
+        match self.layout {
+            Layout::Orthogonal => Vec2::new((column + 0.5) * w, -(row + 0.5) * h),
+            // A diamond: one step east is half a cell right and half down.
+            Layout::Isometric => Vec2::new(
+                (column - row) * w / 2.0,
+                -(column + row) * h / 2.0 - h / 2.0,
+            ),
+            // Pointy-top, odd rows pushed half a cell right.
+            Layout::Hex => Vec2::new(
+                (column + if row.rem_euclid(2.0) == 1.0 { 1.0 } else { 0.5 }) * w,
+                -(row * 0.75 + 0.5) * h,
+            ),
+        }
     }
 
     /// The cell a point in the node's own space falls in. Outside the grid is
@@ -433,9 +469,23 @@ impl TileGrid {
     /// there.
     #[must_use]
     pub fn cell_at(&self, local: Vec2) -> (i32, i32) {
-        let column = (local.x / self.tile_world[0]).floor();
-        let row = (-local.y / self.tile_world[1]).floor();
-        (column as i32, row as i32)
+        let [w, h] = self.tile_world;
+        match self.layout {
+            Layout::Orthogonal => ((local.x / w).floor() as i32, (-local.y / h).floor() as i32),
+            Layout::Isometric => {
+                let x = local.x / w;
+                let y = -local.y / h - 0.5;
+                ((y + x).floor() as i32, (y - x).floor() as i32)
+            }
+            // Near enough for a painter: the nearest row, then the nearest
+            // cell along it, which is what a hex hit test comes to.
+            Layout::Hex => {
+                let row = ((-local.y / h - 0.5) / 0.75).round();
+                let shift = if row.rem_euclid(2.0) == 1.0 { 1.0 } else { 0.5 };
+                let column = (local.x / w - shift).round();
+                (column as i32, row as i32)
+            }
+        }
     }
 
     /// A cell as a voxel-grid key: the same lattice, counted up rather than
@@ -665,6 +715,40 @@ mod tests {
             small.cell_centre(0, 0),
             wide.cell_centre(0, 0),
             "a map anchored on its node does not slide when it grows"
+        );
+    }
+
+    #[test]
+    fn an_isometric_map_steps_half_a_cell_at_a_time() {
+        let mut map = grid(&[&[0, 0], &[0, 0]]);
+        map.layout = Layout::Isometric;
+        let first = map.cell_centre(0, 0);
+        let east = map.cell_centre(1, 0);
+        assert!(
+            (east.x - first.x - 0.5).abs() < 1e-5 && (east.y - first.y + 0.5).abs() < 1e-5,
+            "one step east is half a cell right and half a cell down ({east:?})"
+        );
+        for row in 0..2 {
+            for column in 0..2 {
+                assert_eq!(
+                    map.cell_at(map.cell_centre(column, row)),
+                    (column, row),
+                    "a diamond's centre is in it"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_hex_row_is_pushed_half_a_cell_across() {
+        let mut map = grid(&[&[0, 0], &[0, 0]]);
+        map.layout = Layout::Hex;
+        let top = map.cell_centre(0, 0);
+        let below = map.cell_centre(0, 1);
+        assert!(below.x > top.x, "odd rows sit half a cell to the right");
+        assert!(
+            (top.y - below.y - 0.75).abs() < 1e-5,
+            "and three quarters of a cell down ({below:?})"
         );
     }
 
