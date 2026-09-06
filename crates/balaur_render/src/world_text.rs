@@ -438,6 +438,26 @@ mod backend {
     }
 }
 
+/// The size `text` shapes to, in the same pixels as `style.size`.
+///
+/// Deterministic: the project's fonts and the bundled ones, never a system
+/// face, so every platform answers the same. Without the shaper — a headless
+/// run with no UI plugin — this reports rather than guessing.
+pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
+    #[cfg(feature = "kiss3d")]
+    {
+        let shaped = shape(eng, text, style)?;
+        Ok([shaped.size.x, shaped.size.y])
+    }
+    #[cfg(not(feature = "kiss3d"))]
+    {
+        let _ = (eng, text, style);
+        Err(anyhow::anyhow!(
+            "no text shaper: this build has no ui plugin, so nothing can measure text"
+        ))
+    }
+}
+
 /// How far in front of the layer behind it each layer sits. Small enough to
 /// read as one block, large enough for the depth buffer to tell them apart.
 #[cfg(feature = "kiss3d")]

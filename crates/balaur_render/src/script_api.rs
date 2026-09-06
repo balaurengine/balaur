@@ -276,6 +276,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels."),
         ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes `size`, `weight`, `italic`, `color`, `align`, `markup`, `max_width` and `pixels_per_unit`."),
         ("draw_text", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
+        ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
@@ -358,6 +359,14 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         "draw_text",
         |eng: &Engine, (x, y, z, text, opts): (f32, f32, f32, String, Option<Value>)| {
             push_text(eng, [x, y, z], text, opts, true)
+        },
+    );
+    m.function(
+        "text_size",
+        |eng: &Engine, (text, opts): (String, Option<Value>)| {
+            let style = crate::world_text::style_of(opts)?;
+            let [w, h] = crate::world_text::measure(eng, &text, &style)?;
+            Ok((w, h))
         },
     );
     // One 2D world-space line for one frame; width in pixels.

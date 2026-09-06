@@ -324,9 +324,9 @@ pub(crate) struct TextSlot {
     shaped: String,
 }
 
+#[cfg(feature = "kiss3d")]
 impl TextSlot {
     /// Drop every node this slot made.
-    #[cfg(feature = "kiss3d")]
     fn detach(&mut self) {
         for mut node in self.two_d.drain(..) {
             node.detach();
