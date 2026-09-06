@@ -98,8 +98,25 @@ pub(crate) mod words {
 
     pub(crate) const POINT: &str = "point";
     pub(crate) const DIRECTIONAL: &str = "directional";
+    pub(crate) const SPOT: &str = "spot";
     /// The 2D lights.
     pub(crate) const LIGHT_KINDS: &[&str] = &[POINT, DIRECTIONAL];
+    /// The 3D lights, which add the cone the 2D ones have no room for.
+    pub(crate) const LIGHT_KINDS_3D: &[&str] = &[DIRECTIONAL, POINT, SPOT];
+
+    pub(crate) const LINEAR: &str = "linear";
+    pub(crate) const EXPONENTIAL: &str = "exponential";
+    pub(crate) const EXPONENTIAL_SQUARED: &str = "exponential_squared";
+    pub(crate) const NONE: &str = "none";
+    /// How fog thickens with distance, plus the word for no fog at all.
+    pub(crate) const FOG_KINDS: &[&str] = &[NONE, LINEAR, EXPONENTIAL, EXPONENTIAL_SQUARED];
+
+    pub(crate) const ACES: &str = "aces";
+    pub(crate) const REINHARD: &str = "reinhard";
+    pub(crate) const AGX: &str = "agx";
+    pub(crate) const NEUTRAL: &str = "neutral";
+    /// The curves an `environment` maps its HDR film through.
+    pub(crate) const TONEMAPS: &[&str] = &[NONE, ACES, REINHARD, AGX, NEUTRAL];
 }
 
 /// The words as script constants, so a script writes `render.SHAPE_BALL`
@@ -126,6 +143,16 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("CAMERA_2D", words::ORTHOGRAPHIC),
     ("LIGHT_POINT", words::POINT),
     ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
+    ("LIGHT_SPOT", words::SPOT),
+    ("FOG_NONE", words::NONE),
+    ("FOG_LINEAR", words::LINEAR),
+    ("FOG_EXPONENTIAL", words::EXPONENTIAL),
+    ("FOG_EXPONENTIAL_SQUARED", words::EXPONENTIAL_SQUARED),
+    ("TONEMAP_NONE", words::NONE),
+    ("TONEMAP_ACES", words::ACES),
+    ("TONEMAP_REINHARD", words::REINHARD),
+    ("TONEMAP_AGX", words::AGX),
+    ("TONEMAP_NEUTRAL", words::NEUTRAL),
 ];
 
 /// Every property key the render components spell, so a schema line and the
@@ -200,6 +227,28 @@ pub(crate) mod keys {
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const ROWS: &str = "rows";
+    pub(crate) const SHADOWS: &str = "shadows";
+    pub(crate) const RESOLUTION: &str = "resolution";
+    pub(crate) const SOFTNESS: &str = "softness";
+    pub(crate) const LAYERS: &str = "layers";
+    pub(crate) const INNER: &str = "inner";
+    pub(crate) const OUTER: &str = "outer";
+    pub(crate) const SKY: &str = "sky";
+    pub(crate) const SKY_INTENSITY: &str = "sky_intensity";
+    pub(crate) const SKY_ROTATION: &str = "sky_rotation";
+    pub(crate) const SHOW_SKY: &str = "show_sky";
+    pub(crate) const FOG: &str = "fog";
+    pub(crate) const FOG_COLOR: &str = "fog_color";
+    pub(crate) const FOG_DENSITY: &str = "fog_density";
+    pub(crate) const FOG_START: &str = "fog_start";
+    pub(crate) const FOG_END: &str = "fog_end";
+    pub(crate) const FOG_HEIGHT_FALLOFF: &str = "fog_height_falloff";
+    pub(crate) const EXPOSURE: &str = "exposure";
+    pub(crate) const TONEMAP: &str = "tonemap";
+    pub(crate) const SATURATION: &str = "saturation";
+    pub(crate) const CONTRAST: &str = "contrast";
+    pub(crate) const GAMMA: &str = "gamma";
+    pub(crate) const SHADOW_DISTANCE: &str = "shadow_distance";
     pub(crate) const SHADOW_COLOR: &str = "shadow_color";
     pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
     pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
@@ -259,6 +308,8 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                     (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -266,6 +317,7 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
             apply: Box::new(|eng, entity, params| {
                 set_shape(eng, entity, shape_from_params(params)?)?;
                 set_color(eng, entity, color_from_params(params))?;
+                crate::lighting_from_params(eng, entity, params)?;
                 crate::material::set_material_3d(
                     eng,
                     entity,
@@ -289,6 +341,11 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                     map.insert(
                         "material".into(),
                         toml::Value::String(renderable.material.clone()),
+                    );
+                    map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                    map.insert(
+                        k::LAYERS.into(),
+                        toml::Value::Integer(i64::from(renderable.layers as i32)),
                     );
                 }
                 Some(params)

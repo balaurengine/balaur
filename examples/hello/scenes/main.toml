@@ -116,6 +116,37 @@ source = "#ring"
 kind = "trimesh"
 mesh = "#ring"
 
+# The scene lights itself: a key light with a shadow, and the environment it
+# sits in. Without these the engine's own sun draws it, which is what every
+# scene got before `light3d` existed.
+[[nodes]]
+id = "n_key"
+name = "KeyLight"
+parent = "n_world"
+position = [4, 7, 4]
+rotation_euler = [-50, 40, 0]
+
+[nodes.light3d]
+kind = "spot"
+color = "#fff2e0"
+intensity = 6
+radius = 30
+inner = 25
+outer = 45
+
+[[nodes]]
+id = "n_env"
+name = "Environment"
+parent = ""
+
+[nodes.environment]
+ambient = "#20242a"
+tonemap = "neutral"
+exposure = 1.1
+fog = "exponential"
+fog_color = "#9fb4c8"
+fog_density = 0.012
+
 [[nodes]]
 id = "n_hud"
 name = "Hud"

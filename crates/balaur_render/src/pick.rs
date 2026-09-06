@@ -268,6 +268,8 @@ mod tests {
             skeleton: String::new(),
             texture: String::new(),
             material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
             version: 0,
         }
     }

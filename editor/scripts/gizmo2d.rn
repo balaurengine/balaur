@@ -453,7 +453,7 @@ pub fn update(S, vp) {
 
     // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover, no
     // camera drag.
-    if S.tool == "bone" || S.tool == "polygon" || S.tool == "tiles" {
+    if S.tool == "bone" || S.tool == "polygon" || S.tool == "tiles" || S.tool == "pen" {
         S.gizmo.hover = None;
         S.gizmo.drag = None;
         render::set_camera_input(false);
@@ -461,6 +461,8 @@ pub fn update(S, vp) {
             rig::update(S, over_viewport, mx, my);
         } else if S.tool == "polygon" {
             polygon::update(S, over_viewport, mx, my);
+        } else if S.tool == "pen" {
+            crate::pen::update(S, over_viewport, mx, my);
         } else {
             crate::tiles::update(S, over_viewport, mx, my);
         }
@@ -469,6 +471,7 @@ pub fn update(S, vp) {
     S.rig.hover = None;
     S.polygon.hover = None;
     S.tiles.hover = None;
+    S.pen.hover = None;
 
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {

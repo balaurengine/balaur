@@ -22,6 +22,7 @@ mod debug_view;
 mod draw_2d;
 mod instancing;
 pub mod light;
+pub mod light3d;
 pub mod material;
 pub mod mesh;
 #[cfg(feature = "kiss3d")]
@@ -47,6 +48,7 @@ pub use camera::{Camera, CameraKind};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use light3d::{Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap};
 pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
@@ -390,6 +392,11 @@ pub struct Renderable {
     pub texture: String,
     /// The `material` asset this draws with; empty means the built-in one.
     pub material: String,
+    /// Whether this node casts a shadow from the lights that cast.
+    pub shadows: bool,
+    /// Which light layers reach this node. A light lights it when their masks
+    /// share a bit; `u32::MAX` is every layer.
+    pub layers: u32,
     /// Bumped when `shape` changes so backends know to rebuild their node.
     pub version: u64,
 }
@@ -597,10 +604,42 @@ pub(crate) fn set_mesh(
                 skeleton,
                 texture,
                 material: String::new(),
+                shadows: true,
+                layers: u32::MAX,
                 version: 0,
             },
         )
         .map_err(|_| anyhow!("node is dead"))
+}
+
+/// Whether this node casts, and which light layers reach it. A component's
+/// `apply` calls this after setting the shape, so a node with neither key
+/// keeps the defaults: it casts, and every light finds it.
+pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: u32) -> Result<()> {
+    let world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
+        r.shadows = shadows;
+        r.layers = layers;
+    }
+    Ok(())
+}
+
+/// The `shadows` and `layers` keys a 3D renderable component offers, applied
+/// to whatever renderable the node just gained.
+pub(crate) fn lighting_from_params(
+    eng: &Engine,
+    entity: Entity,
+    params: &toml::Value,
+) -> Result<()> {
+    let shadows = params
+        .get("shadows")
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(true);
+    let layers = params
+        .get("layers")
+        .and_then(balaur_core::components::as_f64)
+        .map_or(u32::MAX, |v| v as i64 as u32);
+    set_lighting(eng, entity, shadows, layers)
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
@@ -626,6 +665,8 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
                 skeleton: String::new(),
                 texture: String::new(),
                 material: String::new(),
+                shadows: true,
+                layers: u32::MAX,
                 version: 0,
             },
         )
@@ -806,6 +847,20 @@ pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
     [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)]
 }
 
+/// A colour property read by name, with its own default per channel: what
+/// `color_from_params` does for the one property called `color`.
+pub(crate) fn color_from_key(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
+    let c = |i: usize| {
+        params
+            .get(key)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .map_or(fallback[i], |v| v as f32)
+    };
+    [c(0), c(1), c(2), c(3)]
+}
+
 /// The `color` property, for a component's `get`.
 pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
     toml::Value::Array(
@@ -906,6 +961,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         polygon::register_polygon_component(reg);
         camera::register_camera_component(reg);
         light::register_light2d_component(reg);
+        light3d::register_light3d_component(reg);
+        light3d::register_environment_component(reg);
         light::register_occluder2d_component(reg);
         boolean::register_boolean3d_component(reg);
         boolean::register_boolean2d_component(reg);

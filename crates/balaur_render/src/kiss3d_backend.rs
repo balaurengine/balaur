@@ -89,6 +89,11 @@ struct Frontend {
     camera_buttons: CameraButtons,
     /// What the display says, measured frame by frame.
     device: crate::device::Probe,
+    /// One node per authored `light3d`, and the default sun they retire.
+    lights: crate::light3d::LightSlots,
+    /// The environment last pushed to the window, so an unchanged one costs
+    /// no sky decode and no shadow-map resize.
+    environment: Option<crate::light3d::Environment>,
     /// The asset generation the nodes below were built at. A saved texture,
     /// model or tileset moves it, and every node built from a file is built
     /// again — the material caches watch the same counter for their shaders.
@@ -98,9 +103,12 @@ struct Frontend {
 impl Frontend {
     fn new() -> Self {
         let mut scene = SceneNode3d::empty();
-        scene
-            .add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)))
-            .set_position(Vec3::new(5.0, 10.0, 5.0));
+        let mut lights = crate::light3d::LightSlots::default();
+        let mut sun = scene.add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)));
+        sun.set_position(Vec3::new(5.0, 10.0, 5.0));
+        // Kept rather than forgotten: the first authored `light3d` hides it,
+        // and a scene that removes its lights gets it back.
+        lights.adopt_sun(sun);
         let camera = OrbitCamera3d::default();
         let camera_2d = PanZoomCamera2d::default();
         let camera_buttons = CameraButtons {
@@ -120,6 +128,8 @@ impl Frontend {
             materials: crate::shader_material::MaterialCache::default(),
             materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
             light_map: crate::light_map::LightMap::new(),
+            lights,
+            environment: None,
             order_2d: Vec::new(),
             transients: Vec::new(),
             text: crate::world_text::Frame::default(),
@@ -171,6 +181,8 @@ impl Frontend {
             &mut self.materials_3d,
             reloaded,
         );
+        self.lights.sync(app, &mut self.scene);
+        crate::light3d::sync_environment(app, window, &mut self.environment);
         sync_2d(
             app,
             &mut self.scene_2d,
@@ -589,7 +601,9 @@ fn sync(
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)
             .set_color(Color::new(r, g, b, a))
-            .set_visible(visible);
+            .set_visible(visible)
+            .set_casts_shadows(renderable.shadows)
+            .set_light_layers(renderable.layers);
         // How far the mesh is blended towards each of its shapes, this tick.
         if let Ok(morphs) = world.get::<&crate::MorphWeights>(entity) {
             slot.node.set_morph_weights(&morphs.weights);

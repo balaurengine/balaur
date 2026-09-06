@@ -96,6 +96,8 @@ fn commands(S) {
         command("Lock or unlock selection", icons::ui("lock"), "⌘L", || crate::arrange::toggle_locked(S)),
         command("Unlock every node", icons::ui("unlock"), "⇧⌘L", || crate::arrange::unlock_all(S)),
         command("Isolate the selection", icons::ui("isolate"), "/", || crate::arrange::toggle_isolate(S)),
+        command("New path to draw with the Pen", icons::ui("pen"), "", || crate::pen::new_path(S)),
+        command("Close or open the selected path", icons::ui("path"), "", || crate::pen::toggle_closed(S)),
         command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
         command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
