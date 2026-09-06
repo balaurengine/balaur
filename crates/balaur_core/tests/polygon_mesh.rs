@@ -139,17 +139,37 @@ fn a_loop_with_no_area_or_too_few_points_is_refused() {
 }
 
 #[test]
-fn a_self_crossing_loop_still_yields_a_triangulation() {
-    // Two edges cross, so it is not simple, but it has area and the walk
-    // must still finish with n - 2 triangles.
+fn a_self_crossing_loop_is_refused_where_it_crosses() {
+    // Filling this correctly needs a vertex at the crossing, and the caller
+    // wrote no such vertex: there is nowhere to put its uv or its weights.
     let points = [
         Vec2::new(0.0, 0.0),
         Vec2::new(3.0, 0.0),
         Vec2::new(0.0, 1.0),
         Vec2::new(1.0, 2.0),
     ];
-    let triangles = triangulate(&points, &[0, 1, 2, 3]).unwrap();
+    let why = triangulate(&points, &[0, 1, 2, 3]).unwrap_err().to_string();
+    assert!(why.contains("crosses itself at"), "{why}");
+}
+
+#[test]
+fn a_shape_fill_returns_the_vertex_a_crossing_needed() {
+    let crossing = vec![vec![[0.0, 0.0], [3.0, 0.0], [0.0, 1.0], [1.0, 2.0]]];
+    let (points, triangles) = balaur_core::triangulate::triangulate_shape(&crossing);
     assert_eq!(triangles.len(), 2);
+    assert_eq!(points.len(), 5, "the four written, and the crossing");
+}
+
+#[test]
+fn an_outline_with_a_hole_leaves_the_hole_empty() {
+    let ring = vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]];
+    let hole = vec![[1.0, 1.0], [1.0, 3.0], [3.0, 3.0], [3.0, 1.0]];
+    let (_, triangles) = balaur_core::triangulate::triangulate_shape(&[ring, hole]);
+    assert!(
+        triangles.len() >= 8,
+        "a square ring is eight triangles or more, got {}",
+        triangles.len()
+    );
 }
 
 #[test]

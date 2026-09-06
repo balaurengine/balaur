@@ -173,10 +173,9 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             loop {
                 let next = match (targeted.peek(), any.peek()) {
                     (Some(t), Some(a)) if t.seq <= a.seq => targeted.next(),
-                    (Some(_), Some(_)) => any.next(),
                     (Some(_), None) => targeted.next(),
-                    (None, Some(_)) => any.next(),
                     (None, None) => break,
+                    _ => any.next(),
                 };
                 if let Some(listener) = next {
                     merged.push(listener.entity);
@@ -295,7 +294,11 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "emitted_from",
         |eng: &Engine, (node, name): (NodeId, String)| {
-            Ok(Value::List(delivered_from(eng, crate::entity_of(node)?, &name)))
+            Ok(Value::List(delivered_from(
+                eng,
+                crate::entity_of(node)?,
+                &name,
+            )))
         },
     );
 }

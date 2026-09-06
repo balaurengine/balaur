@@ -203,7 +203,7 @@ stay square — the grid is square, the view is rotated — so 3 × 3 holds.
 
 | Need | Decision |
 | --- | --- |
-| Collision from tiles | Step 1: `[tiles.<id>] collision = "full"` or polygons in tile pixels; a `tile_collision` component building one rapier `Voxels` collider per material group and one ordinary collider per shaped tile, with the `collider2d` material keys and `one_way` per tile. `collider2d` gains `kind = "voxels"` in the same step, which `docs/PLAN-rapier.md` item 5 already owes 2D |
+| Collision from tiles | Step 1: `[tiles.<id>] collision = "full"` or polygons in tile pixels; a `tile_collision` component building one rapier `Voxels` collider per material group and one ordinary collider per shaped tile, with the `collider2d` material keys and `one_way` per tile. `collider2d`'s `kind = "voxels"`, built 2026-09-06, is what it stands on |
 | Non-square tiles, spacing, margin | Step 1: `tile_size = [w, h]`, `spacing`, `margin` on the tileset |
 | Tiles that are not a grid | Step 1: a tileset may name a `sprite_sheet` instead of a grid — the Tiled image-collection case, and what `balaur import x.aseprite` already writes |
 | Painting left and up | Step 2: `origin = [col, row]` on the map, which replaces the node-shifting the tool does today |
@@ -346,10 +346,9 @@ prove a brush feels right; the showcase clip is where a person checks.
 
 1. **A tile map on a dynamic body** has no mass model — nothing says what a
    tile weighs. Static and kinematic only, and the error says so.
-2. **One-way tiles wait on a defect.** A one-way platform fires only when
-   its collider is `collider1` of the pair, in both dimensions
-   (`docs/PLAN-rapier.md` item 5), so a one-way tile group works on about
-   half the bodies that meet it until that is fixed.
+2. **A tile's friction and its one-way flag are per group.** parry's voxel
+   shape carries no data per cell, so each material — solid, icy, one-way —
+   is a collider of its own. Nothing says how many groups is too many.
 3. **Chunk size.** Thirty-two is a guess; the benchmark project gets a
    tile-map case before step 2 picks a number.
 4. **Stacked rule output** — one rule writing into a second layer, which is

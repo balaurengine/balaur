@@ -54,10 +54,10 @@
    `effective_dominance`, `is_moving`, `potential_energy`,
    `predict_position_with_forces`, `set_collider`, `solve_ik`, `voxel`,
    `voxel_at`, `set_voxel` — and `collider2d` the `voxels`, `voxelized_mesh`,
-   `convex_decomposition` and `fit` kinds. One is owed to a plan:
-   `docs/PLAN-tilemap.md` step 1 builds tile collision out of the 2D
-   `voxels` kind, for the internal-edge handling that keeps a body from
-   catching on a seam.
+   `convex_decomposition` and `fit` kinds. *`voxels` shipped 2026-09-06*, with
+   `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in
+   the 2D digest, because `docs/PLAN-tilemap.md` step 1 builds tile collision
+   on it.
 
    The four defects this item listed were re-audited on 2026-09-06 and are
    gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook
@@ -66,12 +66,11 @@
    (`dim2/collider.rs:244-261`), `body2d` never advertised `gyroscopic`, and
    a script physics hook is gone by design with the threaded solver (item 4).
 
-   One defect is real, in **both** dimensions: a one-way platform fires only
-   when it is `collider1` of the pair. `update_as_oneway_platform` reads the
-   axis in `collider1`'s local frame, and both hooks test that collider alone
-   (`events.rs:215-218`, `dim2/events.rs:166-176`), so which body falls
-   through a platform depends on the order rapier happens to give the pair.
-   Both sides need testing, with the axis flipped for `collider2`.
+   One defect was real, in both dimensions, and is *fixed 2026-09-06*: a
+   one-way platform fired only when it was `collider1` of the pair, because
+   `update_as_oneway_platform` reads the axis in `collider1`'s frame and both
+   hooks tested that collider alone. They now test the other side too, turning
+   its axis into the first's frame and reversing it.
 6. **What rapier 0.35 still has that no scene or script reaches.** The rule
    is wrap everything and state the constraint, so each of these is a phase
    when someone asks: `IntegrationParameters.friction_model` and
@@ -103,20 +102,17 @@
    handles after a free, wheel state outside the snapshot — are
    `docs/PLAN-hardening.md` phase 1.
 
-7. **Internal edges are fixed on one shape in four.** A 3D `trimesh`
-   collider sets `TriMeshFlags::FIX_INTERNAL_EDGES` by default
-   (`collider.rs:44-46`), which is what keeps a character from catching on
-   the seam between two triangles of a flat floor. The other three shapes
-   with the same problem do not:
-
-   | Shape | Today | Should be |
-   | --- | --- | --- |
-   | `collider3d` `heightfield` | `ColliderBuilder::heightfield(grid, extent)` (`collider.rs:166`) | `heightfield_with_flags` with `HeightFieldFlags::FIX_INTERNAL_EDGES`, on by default like the trimesh |
-   | `collider2d` `trimesh` | `ColliderBuilder2::trimesh` (`dim2/collider.rs:131`) | `trimesh_with_flags`; the flag is not dimension-gated |
-   | `collider2d` `polyline` | `ColliderBuilder2::polyline(points, None)` (`dim2/collider.rs:142`) | `PolylineFlags::ORIENTED`, which parry documents as removing "the spurious sideways push a body gets at a convex corner" — the 2D form of the same defect, on the shape a side-scroller's ground uses |
+7. **Internal edges. Fixed 2026-09-06.** A 3D `trimesh` collider already set
+   `TriMeshFlags::FIX_INTERNAL_EDGES` by default; the three shapes with the
+   same problem now do too. `collider3d`'s `heightfield` builds through
+   `heightfield_with_flags` with `HeightFieldFlags::FIX_INTERNAL_EDGES`,
+   defaulted on and turned off with `fix_internal_edges = false`;
+   `collider2d`'s `trimesh` takes the same three flag keys 3D takes; and
+   `collider2d` gained `oriented`, which builds an `oriented_polyline` —
+   opt-in, because the winding decides which side is solid.
 
    A 2D `heightfield` has no flags to set: parry's 2D heightfield is a
-   polyline of segments, so `ORIENTED` on the polyline is the whole story.
+   polyline of segments, so `oriented` on the polyline is the whole story.
    The same family is why `docs/PLAN-tilemap.md` step 1 builds tile collision
    out of parry's `Voxels` rather than a row of cuboids, and why
    `docs/PLAN-voxels.md` needs no fix at all — the voxel shape classifies its
@@ -133,31 +129,31 @@
    `i_overlay` (parry has polygon intersection alone) and its convex hull
    stay as they are.
 
-   Three follow-ups when that lands:
+   Two follow-ups shipped 2026-09-06: `balaur_render`'s `pick` now casts
+   against the triangles (below), and `csg.rs` keeps only its real reason.
 
-   - `balaur_render`'s `pick` is bounds-only and becomes an exact ray cast
-     against the mesh, over a `Bvh` (`docs/PLAN-editor-ergonomics.md`).
-   - `crates/balaur_core/src/csg.rs` opens with a rationale that says core
-     "should not learn to" depend on parry, which is no longer the rule — the
-     paragraph keeps its real reason, that parry cannot do union or
-     difference at all.
-   - **Triangulation consolidates onto `i_triangle`.** parry's ear clipper is
-     `pub(crate)` and cannot be called, so the duplication to remove is our
-     own: `balaur_core::triangulate` and the `i_triangle` that
-     `balaur_ui::glyph` already fills glyph outlines with. `i_triangle`
-     depends on `i_overlay`, which core has, so it costs two small crates.
-     The work: `uncheck_triangulate` for a `mesh` asset's authored
-     `polygons`, whose vertices carry uvs, colours and skin weights that an
-     inserted point would not have — assert it returns the input points
-     before relying on it, and interpolate attributes for any it does add;
-     `triangulate`, which resolves self-intersections, for the paths that
-     take a loop from a tool or a boolean, where
-     `a_self_crossing_loop_still_yields_a_triangulation` is the behaviour to
-     keep; holes become real, so `mesh::triangulated` stops filling every
-     ring on its own; `crates/balaur_core/src/triangulate.rs` and its 120
-     lines go, and `tests/polygon_mesh.rs` asserts through `mesh` and
-     `geometry2d.triangulate` instead. Every polygon mesh's triangle list
-     moves, so the fixtures and the digests are part of the same commit.
+   **Triangulation does not consolidate, and here is the evidence.** parry's
+   ear clipper is `pub(crate)`, so the duplication to remove was our own:
+   `balaur_core::triangulate` and the `i_triangle` that `balaur_ui::glyph`
+   fills glyph outlines with. Both of `i_triangle`'s entry points were tried
+   against `tests/polygon_mesh.rs` and neither can stand behind
+   `triangulate(points, ring) -> [u32; 3]`:
+
+   - `triangulate` validates, and resolves a self-crossing loop by inventing
+     a point at the crossing. A vertex invented there has no index in the
+     caller's list, and so no uv, colour or skin weight — every triangle
+     leaning on it has to be dropped, which leaves
+     `a_self_crossing_loop_still_yields_a_triangulation` with nothing.
+   - `uncheck_triangulate` preserves the points and **aborts** on a
+     clockwise loop: `slice::get_unchecked_mut` out of bounds inside
+     `i_tree`, a hard abort, not an error. Unvalidated input is not
+     something authored polygons can promise.
+
+   So the swap needs an API that carries points as well as indices, and
+   `mesh::triangulated` has to interpolate uvs, colours and weights for the
+   vertices the triangulator adds. That is a change to what a `mesh` asset
+   means, not a refactor, and it wants its own commit with the fixtures and
+   digests it moves.
 
    Everything else already wraps rapier or parry: the character and vehicle
    controllers, the debug render pipeline, the query pipeline, and

@@ -1,23 +1,22 @@
-//! Ear clipping: one hand-drawn loop of vertices into triangles.
+//! Loops of vertices into triangles, through `i_triangle`.
 //!
-//! Written out rather than taken from a crate because the result has to be
-//! the same on every platform — it is `f32` arithmetic and comparisons, no
-//! transcendentals — and because a polygon someone traced over a sprite is
-//! small enough that the quadratic walk never shows up.
+//! One triangulator in the tree, and this is where it is named: it works in
+//! fixed point, so a fill lands on the same triangles on every platform, and
+//! it takes an outline with holes, which is what a letter's counters need.
 
 use anyhow::{Result, bail};
 use glamx::Vec2;
+use i_triangle::float::triangulator::Triangulator;
 
-/// Triangulate the loop `ring` (indices into `points`, in outline order)
-/// into counter-clockwise triangles.
-///
-/// A clockwise loop is turned around first, so either winding is fine. A
-/// loop that crosses itself gets *some* triangulation rather than an error:
-/// the walk clips whatever it can and never stalls.
+/// Triangulate the loop `ring` (indices into `points`, in outline order) into
+/// counter-clockwise triangles over those same points. Either winding is fine.
 ///
 /// # Errors
 /// If an index is out of range, or fewer than three distinct points remain
-/// once repeated ones are dropped, or the loop has no area.
+/// once repeated ones are dropped, or the loop has no area. And if the loop
+/// crosses itself: filling one correctly needs a vertex at the crossing, and
+/// this form can only name vertices the caller wrote — [`triangulate_shape`]
+/// is the form that returns the points a fill needed.
 pub fn triangulate(points: &[Vec2], ring: &[u32]) -> Result<Vec<[u32; 3]>> {
     for &index in ring {
         if index as usize >= points.len() {
@@ -27,28 +26,98 @@ pub fn triangulate(points: &[Vec2], ring: &[u32]) -> Result<Vec<[u32; 3]>> {
             );
         }
     }
-    let mut ring = without_repeats(points, ring);
+    let ring = without_repeats(points, ring);
     if ring.len() < 3 {
         bail!("a polygon needs at least three distinct vertices");
     }
-    let area = signed_area(points, &ring);
-    if area == 0.0 {
+    if signed_area(points, &ring) == 0.0 {
         bail!("a polygon has no area, so there is nothing to fill");
     }
-    if area < 0.0 {
-        ring.reverse();
+    let contour: Vec<[f32; 2]> = ring
+        .iter()
+        .map(|&index| points[index as usize].to_array())
+        .collect();
+    let (filled, triangles) = fill(&[contour]);
+    let mapped: Vec<Option<u32>> = filled
+        .iter()
+        .map(|point| index_of(points, &ring, *point))
+        .collect();
+    let mut out = Vec::with_capacity(triangles.len());
+    for corners in triangles {
+        let mut resolved = [0u32; 3];
+        for (slot, corner) in resolved.iter_mut().zip(corners) {
+            let Some(index) = mapped[corner as usize] else {
+                let [x, y] = filled[corner as usize];
+                bail!(
+                    "this loop crosses itself at ({x}, {y}), and filling it needs a vertex there: \
+                     draw it as loops that do not cross"
+                );
+            };
+            *slot = index;
+        }
+        if resolved[0] == resolved[1] || resolved[1] == resolved[2] || resolved[2] == resolved[0] {
+            continue;
+        }
+        out.push(counter_clockwise(points, resolved));
     }
-    let mut out = Vec::with_capacity(ring.len() - 2);
-    while ring.len() > 3 {
-        let ear = (0..ring.len())
-            .find(|&i| is_ear(points, &ring, i))
-            .or_else(|| (0..ring.len()).find(|&i| is_convex(points, &ring, i)))
-            .unwrap_or(0);
-        out.push(triangle_at(&ring, ear));
-        ring.remove(ear);
+    if out.is_empty() {
+        bail!("a polygon has no area, so there is nothing to fill");
     }
-    out.push([ring[0], ring[1], ring[2]]);
     Ok(out)
+}
+
+/// Fill one outline and its holes together, and report the points the fill
+/// needed: the ones given, and any the triangulator had to add where two
+/// edges cross.
+///
+/// Contours go in together so a hole is subtracted rather than filled over.
+#[must_use]
+pub fn triangulate_shape(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32; 3]>) {
+    fill(contours)
+}
+
+fn fill(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32; 3]>) {
+    let mut triangulator: Triangulator<u32, i32> = Triangulator::default();
+    let filled = triangulator.triangulate(&contours.to_vec());
+    let triangles = filled.indices.as_chunks::<3>().0.to_vec();
+    (filled.points, triangles)
+}
+
+/// The ring vertex a filled point came from. Exact first, because the
+/// triangulator hands back the coordinates it was given; then nearest, for a
+/// point far enough from the origin that its fixed-point form rounds.
+fn index_of(points: &[Vec2], ring: &[u32], point: [f32; 2]) -> Option<u32> {
+    if let Some(&index) = ring
+        .iter()
+        .find(|&&index| points[index as usize].to_array() == point)
+    {
+        return Some(index);
+    }
+    let target = Vec2::new(point[0], point[1]);
+    let scale = ring
+        .iter()
+        .map(|&index| points[index as usize].abs().max_element())
+        .fold(1.0f32, f32::max);
+    let mut best: Option<(u32, f32)> = None;
+    for &index in ring {
+        let distance = (points[index as usize] - target).length_squared();
+        if best.is_none_or(|(_, so_far)| distance < so_far) {
+            best = Some((index, distance));
+        }
+    }
+    let tolerance = scale * 1.0e-5;
+    best.filter(|(_, distance)| *distance <= tolerance * tolerance)
+        .map(|(index, _)| index)
+}
+
+/// The triangle wound counter-clockwise, whichever way it arrived.
+fn counter_clockwise(points: &[Vec2], corners: [u32; 3]) -> [u32; 3] {
+    let [a, b, c] = corners.map(|index| points[index as usize]);
+    if cross(a, b, c) < 0.0 {
+        [corners[0], corners[2], corners[1]]
+    } else {
+        corners
+    }
 }
 
 /// The loop with consecutive coincident vertices dropped, and the closing
@@ -83,38 +152,6 @@ fn signed_area(points: &[Vec2], ring: &[u32]) -> f32 {
     sum
 }
 
-fn triangle_at(ring: &[u32], i: usize) -> [u32; 3] {
-    let n = ring.len();
-    [ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]]
-}
-
 fn cross(o: Vec2, a: Vec2, b: Vec2) -> f32 {
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
-}
-
-/// Whether the corner at `i` turns left, on a counter-clockwise ring.
-fn is_convex(points: &[Vec2], ring: &[u32], i: usize) -> bool {
-    let [p, c, n] = triangle_at(ring, i).map(|index| points[index as usize]);
-    cross(p, c, n) > 0.0
-}
-
-/// A convex corner whose triangle holds no other vertex of the ring. A
-/// vertex on the triangle's edge counts as inside, so a clipped ear never
-/// leaves a zero-area sliver behind.
-fn is_ear(points: &[Vec2], ring: &[u32], i: usize) -> bool {
-    if !is_convex(points, ring, i) {
-        return false;
-    }
-    let corners = triangle_at(ring, i);
-    let [p, c, n] = corners.map(|index| points[index as usize]);
-    ring.iter()
-        .filter(|index| !corners.contains(index))
-        .map(|&index| points[index as usize])
-        .filter(|&q| q != p && q != c && q != n)
-        .all(|q| !inside(p, c, n, q))
-}
-
-/// Whether `q` is inside or on the counter-clockwise triangle `a b c`.
-fn inside(a: Vec2, b: Vec2, c: Vec2, q: Vec2) -> bool {
-    cross(a, b, q) >= 0.0 && cross(b, c, q) >= 0.0 && cross(c, a, q) >= 0.0
 }

@@ -27,7 +27,6 @@ swash = "0.2.10"
 # Triangulation with holes: the ear clipper in core takes one ring, and a
 # letter's counters are rings of their own. `i_overlay`'s sibling, and it
 # scales to integers the same way.
-i_triangle = "0.48"
 
 [dev-dependencies]
 balaur.workspace = true

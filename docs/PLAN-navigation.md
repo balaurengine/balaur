@@ -11,9 +11,8 @@
   `tilemap` cells (`docs/PLAN-tilemap.md` step 1 gives them collision),
   `mesh`, `heightfield` and `voxels` assets.
 - What a baker computes with exists: `geometry2d.union`, `difference` and
-  `convex_hull` over `i_overlay`, the ear-clipper in core — moving to
-  `i_triangle`, ARCHITECTURE.md "parry: geometry every crate may use" —
-  `libm`, ordered collections.
+  `convex_hull` over `i_overlay`, the ear-clipper in core, `libm`, ordered
+  collections.
 - The fixed step, the digest and the snapshot are where an agent's state
   has to live, because where an agent goes decides the game.
 - In the registry: `polyanya` (any-angle pathfinding over a navmesh, pure

@@ -14,6 +14,7 @@ notes are that version's section.
 - Modules from disk and packs; `balaur api`.
 - Hot reload.
 - Self-documenting script API.
+- Named events between scripts, scoped to one emitter or heard from anyone.
 
 ### Scenes and assets
 
@@ -89,6 +90,11 @@ notes are that version's section.
 - Recorded platform facts: platform, device id, time, focus, dark mode, locale.
 
 ### UI and text
+
+- Text in the world: `text2d` and `text3d` shaped by the engine the widgets use, with outline, shadow, markup, a font chain, wrapping, billboarding and `text_key` localisation.
+- `render.draw_text` and `render.draw_text_2d` for a label a tool draws in one frame, and `render.text_size` to measure one.
+- AngelCode `.fnt` bitmap fonts, so a pixel face ships as the artist drew it.
+- A measurement and a text mesh see the project's fonts and the bundled ones only, never the machine's, so every platform answers the same.
 
 - `ui.set_lazy`: the UI pass runs only when something asks for it; the editor turns it on.
 - Containers, layout, focus, themes, presets and surfaces.
