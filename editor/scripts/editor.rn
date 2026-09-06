@@ -22,6 +22,7 @@ mod importer;
 mod inputview;
 mod inspector;
 mod layout;
+mod library;
 mod left;
 mod lint;
 mod model;
@@ -155,6 +156,7 @@ pub fn init(this) {
         search: #{},
         showcase: showcase::state(),
         inputview: inputview::state(),
+        library: library::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
         plugins: #{},

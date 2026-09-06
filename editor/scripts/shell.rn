@@ -602,6 +602,7 @@ fn states() {
         "seldemo": crate::selftest::selecting,
         "dropdemo": crate::selftest::dropping,
         "eventsdemo": crate::selftest::eventviews,
+        "librarydemo": crate::selftest::librarydemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
         "counterdemo": crate::selftest::plugin_docks,

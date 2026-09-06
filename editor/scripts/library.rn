@@ -1,0 +1,222 @@
+// The library dock: stock materials, lighting setups and project templates,
+// listed from `editor/library/manifest.toml`.
+//
+// Nothing at run time reads the library. Placing an entry copies its files
+// into the edited project and then does what dropping the same file would do,
+// so a library row and a drag from the desktop end in the same place.
+
+use crate::dropin;
+use crate::icons;
+use crate::model;
+use crate::style;
+use crate::util;
+
+pub fn state() {
+    #{ kind: "material", catalogue: () }
+}
+
+/// The kinds the dock filters by, in the order the chips offer them.
+fn kinds() {
+    [["material", "Materials"], ["scene", "Lighting"], ["template", "Templates"]]
+}
+
+/// The library's own directory, inside the editor project rather than the
+/// edited one: `fs` resolves a bare path against the editor.
+const ROOT = "library";
+
+/// The manifest, read once per session. A library that fails to parse is
+/// reported once and treated as empty.
+fn catalogue(S) {
+    let held = S.library.catalogue;
+    if held is Object {
+        return held;
+    }
+    let text = fs::read(ROOT + "/manifest.toml");
+    if !(text is String) {
+        log::warn("no library manifest at " + ROOT);
+        S.library.catalogue = #{ entries: [], templates: [] };
+        return S.library.catalogue;
+    }
+    let (ok, parsed) = script::attempt(|| toml::parse(text));
+    if !ok {
+        log::warn("the library manifest does not parse");
+        S.library.catalogue = #{ entries: [], templates: [] };
+        return S.library.catalogue;
+    }
+    let table = util::obj(parsed);
+    S.library.catalogue = #{
+        entries: util::vec(table.get("entries").unwrap_or([])),
+        templates: util::vec(table.get("templates").unwrap_or([])),
+    };
+    S.library.catalogue
+}
+
+/// Copy one library file into the edited project, keeping its directory.
+/// Answers the project-relative path, or `None` when it could not be read.
+fn install(S, rel) {
+    let from = ROOT + "/" + rel;
+    if !fs::exists(from) {
+        log::warn("the library has no " + rel);
+        return None;
+    }
+    // Rune's `String` has no `rsplit_once`; the directory is everything up to
+    // the last separator, which one split gives.
+    let parts = rel.split('/').collect::<Vec>();
+    let dir = if parts.len() > 1 {
+        util::join(parts[..parts.len() - 1], "/")
+    } else {
+        ""
+    };
+    if dir != "" {
+        fs::mkdir(S.game_root + "/" + dir);
+    }
+    fs::copy(from, S.game_root + "/" + rel);
+    model::forget(S, None);
+    Some(rel)
+}
+
+/// Put an entry into the project: its own file, then whatever it needs.
+pub fn place(S, entry) {
+    for needed in util::vec(entry.get("needs").unwrap_or([])) {
+        install(S, needed);
+    }
+    let rel = match install(S, entry.file) {
+        Some(rel) => rel,
+        None => return,
+    };
+    match entry.kind {
+        // A lighting setup is a scene: instanced where a dropped one would be.
+        "scene" => dropin::take(S, S.game_root + "/" + rel),
+        // A material is a file the inspector then points a node at, so the
+        // placing is the copy and the log line says where it landed.
+        _ => log::info("added " + rel),
+    }
+}
+
+/// Point the selected node's 3D shape at a library material, which is what a
+/// designer means by dropping one onto something.
+pub fn apply_material(S, entry) {
+    for needed in util::vec(entry.get("needs").unwrap_or([])) {
+        install(S, needed);
+    }
+    let rel = match install(S, entry.file) {
+        Some(rel) => rel,
+        None => return,
+    };
+    let node = S.doc[S.sel];
+    let key = if node.contains_key("mesh") {
+        "mesh"
+    } else if node.contains_key("shape3d") {
+        "shape3d"
+    } else {
+        log::info("select a node with a 3D shape to give it " + entry.name);
+        return;
+    };
+    model::set_component_prop(S, key, "material", rel);
+    log::info(format!("{} is now {}", node.name, entry.name));
+}
+
+const CARD_W = 132.0;
+const CARD_H = 62.0;
+
+fn card(S, k, title, note, on_click) {
+    ui::frame(#{ fill: k.sunken, radius: 8, padding_x: 8, padding_y: 6 }, || {
+        ui::vertical(|| {
+            ui::spacing(2, 2);
+            ui::horizontal(#{ height: 20, width: CARD_W }, || {
+                if ui::pill(title, #{
+                    height: 20, size: 11.5, strong: true, align: ui::ALIGN_LEFT,
+                    min_width: CARD_W, color: k.text,
+                }) {
+                    on_click();
+                }
+            });
+            ui::horizontal(#{ height: 26, width: CARD_W }, || {
+                ui::label(note, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
+            });
+        });
+    });
+}
+
+/// The dock. One chip row, then a grid of cards for the chosen kind.
+pub fn panel(S, k) {
+    let known = catalogue(S);
+    ui::add_space(6);
+    ui::horizontal(#{ height: 22 }, || {
+        ui::add_space(8);
+        ui::spacing(4, 0);
+        for chip in kinds() {
+            let id = chip[0];
+            let on = S.library.kind == id;
+            if ui::pill(chip[1], #{
+                height: 20, size: 10.5, radius: 4,
+                fill: if on { k.accent_soft } else { k.sunken },
+                color: if on { k.accent } else { k.faint },
+            }) {
+                S.library.kind = id;
+            }
+        }
+    });
+    ui::add_space(6);
+    if S.library.kind == "template" {
+        templates(S, k, known);
+        return;
+    }
+    let shown = [];
+    for entry in known.entries {
+        if util::obj(entry).get("kind").unwrap_or("") == S.library.kind {
+            shown.push(util::obj(entry));
+        }
+    }
+    if shown.len() == 0 {
+        style::empty(k, "nothing of that kind in the library");
+        return;
+    }
+    ui::scroll("library", (), || {
+        ui::horizontal(#{ height: CARD_H + 8.0 }, || {
+            ui::add_space(8);
+            ui::spacing(8, 0);
+            for entry in shown {
+                let held = entry;
+                card(S, k, held.name, held.get("note").unwrap_or(""), || {
+                    if held.kind == "material" {
+                        apply_material(S, held);
+                    } else {
+                        place(S, held);
+                    }
+                });
+            }
+        });
+    });
+}
+
+/// The templates a new project starts from. Listed rather than placed: a
+/// template makes a project, and the editor is already in one.
+fn templates(S, k, known) {
+    if known.templates.len() == 0 {
+        style::empty(k, "no templates in the library");
+        return;
+    }
+    ui::scroll("library-templates", (), || {
+        for row in known.templates {
+            let entry = util::obj(row);
+            ui::horizontal(#{ height: 26 }, || {
+                ui::add_space(8);
+                ui::horizontal(#{ height: 26, width: 130 }, || {
+                    ui::label(entry.name, style::mono(k.text));
+                });
+                ui::label(entry.get("note").unwrap_or(""), style::mono_sm(k.faint));
+                ui::right(|| {
+                    ui::add_space(8);
+                    if ui::pill(icons::ui("copy") + "  copy command", #{
+                        height: 20, size: 10, fill: k.sunken, color: k.sage,
+                    }) {
+                        let command = format!("balaur new my-game --template {}", entry.id);
+                        ui::set_clipboard(command);
+                        log::info("copied: " + command);
+                    }
+                });
+            });
+        }
+    });
+}

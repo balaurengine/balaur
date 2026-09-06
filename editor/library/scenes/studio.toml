@@ -1,0 +1,48 @@
+# Three lights and the room they sit in: the setup a product shot starts from.
+
+[[nodes]]
+name = "Studio"
+
+[nodes.environment]
+ambient = "#1c2026"
+tonemap = "neutral"
+exposure = 1.0
+
+[[nodes]]
+name = "Key"
+parent = "Studio"
+position = [4, 6, 4]
+rotation_euler = [-45, 40, 0]
+
+[nodes.light3d]
+kind = "spot"
+color = "#fff4e6"
+intensity = 8
+radius = 40
+inner = 25
+outer = 50
+
+[[nodes]]
+name = "Fill"
+parent = "Studio"
+position = [-5, 3, 3]
+rotation_euler = [-25, -50, 0]
+
+[nodes.light3d]
+kind = "point"
+color = "#dce8ff"
+intensity = 2.5
+radius = 25
+shadows = false
+
+[[nodes]]
+name = "Rim"
+parent = "Studio"
+position = [0, 4, -6]
+rotation_euler = [-25, 180, 0]
+
+[nodes.light3d]
+kind = "directional"
+color = "#ffffff"
+intensity = 2
+shadows = false

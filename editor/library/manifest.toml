@@ -1,0 +1,65 @@
+# What the library dock lists, and what dropping a row copies into a project.
+#
+# One row per entry: the file it copies, the kind it is, and the line the card
+# reads. Nothing at run time reads this; it is the editor's own catalogue.
+
+[[entries]]
+id = "pbr_metal"
+kind = "material"
+name = "Brushed metal"
+file = "materials/metal.toml"
+needs = ["shaders/pbr_surface.wesl"]
+note = "Fully metallic, medium roughness."
+
+[[entries]]
+id = "pbr_plastic"
+kind = "material"
+name = "Plastic"
+file = "materials/plastic.toml"
+needs = ["shaders/pbr_surface.wesl"]
+note = "Dielectric, glossy, tinted by the node's colour."
+
+[[entries]]
+id = "pbr_rubber"
+kind = "material"
+name = "Rubber"
+file = "materials/rubber.toml"
+needs = ["shaders/pbr_surface.wesl"]
+note = "Dielectric and rough; almost no highlight."
+
+[[entries]]
+id = "pbr_emissive"
+kind = "material"
+name = "Emissive"
+file = "materials/emissive.toml"
+needs = ["shaders/pbr_surface.wesl"]
+note = "Lit from inside; a lamp's own surface."
+
+[[entries]]
+id = "studio_light"
+kind = "scene"
+name = "Studio lights"
+file = "scenes/studio.toml"
+note = "A key, a fill and a rim, with an environment under them."
+
+[[entries]]
+id = "sun_sky"
+kind = "scene"
+name = "Sun and sky"
+file = "scenes/daylight.toml"
+note = "One directional light and a neutral environment."
+
+[[templates]]
+id = "empty"
+name = "Empty"
+note = "One node and a script."
+
+[[templates]]
+id = "platformer"
+name = "2D platformer"
+note = "A character, a floor and a camera that follows."
+
+[[templates]]
+id = "viewer"
+name = "3D viewer"
+note = "An orbit camera over a lit turntable."

@@ -1,0 +1,23 @@
+# One sun and the sky it comes out of.
+
+[[nodes]]
+name = "Daylight"
+
+[nodes.environment]
+ambient = "#33404f"
+tonemap = "neutral"
+exposure = 1.2
+fog = "exponential"
+fog_color = "#b8ccdd"
+fog_density = 0.008
+
+[[nodes]]
+name = "Sun"
+parent = "Daylight"
+position = [10, 20, 10]
+rotation_euler = [-55, 35, 0]
+
+[nodes.light3d]
+kind = "directional"
+color = "#fff3dd"
+intensity = 4

@@ -1,0 +1,8 @@
+pub fn init(this) {
+    println!("hello from {}", this.node.name());
+    this.elapsed = 0.0;
+}
+
+pub fn update(this, dt) {
+    this.elapsed += dt;
+}

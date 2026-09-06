@@ -1,0 +1,3 @@
+[[nodes]]
+name = "Hello"
+script = "scripts/hello.rn"

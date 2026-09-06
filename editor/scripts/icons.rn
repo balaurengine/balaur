@@ -115,6 +115,7 @@ pub fn ui(name) {
         "library" => "\u{e468}",
         "viewmode" => "\u{e744}",
         "bookmark" => "\u{e0e8}",
+        "copy" => "\u{e1cc}",
         _ => "\u{ecde}",
     }
 }

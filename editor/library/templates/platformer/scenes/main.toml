@@ -1,0 +1,54 @@
+# A character on a floor, and a camera that follows it.
+
+[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_world"
+position = [0, 0, 10]
+
+[nodes.camera]
+kind = "2d"
+current = true
+zoom = 48
+
+[[nodes]]
+id = "n_ground"
+name = "Ground"
+parent = "n_world"
+position = [0, -3, 0]
+body2d = "static"
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [12, 0.5]
+color = "#3c4a3a"
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [12, 0.5]
+
+[[nodes]]
+id = "n_player"
+name = "Player"
+parent = "n_world"
+position = [0, 0, 0]
+script = "scripts/player.rn"
+
+[nodes.shape2d]
+kind = "capsule"
+radius = 0.4
+height = 1.2
+color = "#e8c37a"
+
+[nodes.character2d]
+height = 1.2
+radius = 0.4
+
+[nodes.collider2d]
+kind = "capsule"
+radius = 0.4
+height = 1.2

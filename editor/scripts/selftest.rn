@@ -7,6 +7,7 @@ use crate::dock;
 use crate::dropin;
 use crate::events;
 use crate::importer;
+use crate::library;
 use crate::history;
 use crate::lint;
 use crate::model;
@@ -1515,4 +1516,41 @@ pub fn eventviews(S) {
         "and the actions");
     check(mirror_resolves(S), "the mirror still resolves");
     log::info("selftest eventviews: done");
+}
+
+
+/// The library: what the manifest lists, what placing an entry copies, and
+/// that a material lands on the selected node.
+pub fn librarydemo(S) {
+    let root = S.game_root + "/";
+    let metal = #{
+        id: "pbr_metal", kind: "material", name: "Brushed metal",
+        file: "materials/metal.toml", needs: ["shaders/pbr_surface.wesl"],
+    };
+    // A node with a 3D shape, so the material has somewhere to land.
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("shape3d") && target.is_none() {
+            target = Some(i);
+        }
+    }
+    let at = match target {
+        Some(at) => at,
+        None => {
+            log::info("selftest librarydemo: no 3D node here, skipping");
+            return;
+        }
+    };
+    selection::only(S, at);
+    library::apply_material(S, metal);
+    check(fs::exists(root + "materials/metal.toml"), "placing a material copies its file");
+    check(fs::exists(root + "shaders/pbr_surface.wesl"), "and the shader it needs");
+    let shape = util::obj(S.doc[at].get("shape3d").unwrap_or(#{}));
+    check(shape.get("material") == Some("materials/metal.toml"),
+        "and points the selected node at it");
+    check(mirror_resolves(S), "the mirror still resolves");
+
+    fs::remove(root + "materials/metal.toml");
+    fs::remove(root + "shaders/pbr_surface.wesl");
+    log::info("selftest librarydemo: done");
 }
