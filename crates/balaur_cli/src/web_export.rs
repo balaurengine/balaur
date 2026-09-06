@@ -1,7 +1,7 @@
 //! `export.*` in a browser: the exports a tab can finish by itself.
 //!
-//! Producing a pack is file work — every script compiled and checked, scenes
-//! and manifest gathered, no linker involved — so it runs here exactly as it
+//! Producing a pack is file work: every script compiled and checked, scenes
+//! and manifest gathered, no linker involved, so it runs here exactly as it
 //! does on a desktop. So does a web bundle, which is that pack zipped beside
 //! the glue, the module and a shell page this tab already fetched to be
 //! running at all. Every other target fuses a pack onto a native runtime
@@ -154,7 +154,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     );
     m.describe(&[
         ("targets", &[], "()", "Every target this tab can build, each `{ name, bundle, installed, fetchable, note }`."),
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)` — or the `on_event` method the options name — called as each export starts, finishes or fails."),
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails."),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "The file name an export for this target produces."),
         ("running", &[], "()", "How many exports are in flight."),

@@ -2,7 +2,7 @@
 //!
 //! Two audiences. The editor lists everything, renders each setting from its
 //! spec and writes the two files back. A game reads a setting it cares about,
-//! changes one at run time, or defines its own — which is the same call the
+//! changes one at run time, or defines its own: which is the same call the
 //! engine's own plugins make, so a game's setting is not a lesser kind.
 
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -31,7 +31,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
         "Every setting the engine, its plugins and this game declare, \
          addressed by path: `physics/solver_iterations`, `netcode/faults`, \
          `editor/appearance/theme`. The first segment is the category, the \
-         last is the key, and the path is also where the value is stored — \
+         last is the key, and the path is also where the value is stored: \
          `physics/solver_iterations` is `[physics] solver_iterations` in \
          project.toml. A project setting ships with the game; an editor one \
          stays on the machine that set it. Define your own with `define` and \

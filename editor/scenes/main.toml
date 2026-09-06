@@ -29,9 +29,19 @@ id = "head"
 name = "Head"
 parent = "shell"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+text = ""
 height = 36
 gap = 0
+
+[[nodes]]
+id = "head_body"
+name = "HeadBody"
+parent = "head"
+[nodes.widget]
+kind = "draw"
+draw = "draw_top_bar"
+grow = 1
 
 [[nodes]]
 id = "body"
@@ -104,7 +114,8 @@ id = "bottom"
 name = "Bottom"
 parent = "centre"
 [nodes.widget]
-kind = "column"
+kind = "panel"
+text = ""
 height = 174
 gap = 0
 
@@ -115,7 +126,8 @@ id = "dockbody"
 name = "DockBody"
 parent = "bottom"
 [nodes.widget]
-kind = "column"
+kind = "draw"
+draw = "draw_dock_bottom"
 grow = 1
 
 [[nodes]]
@@ -123,7 +135,8 @@ id = "status"
 name = "Status"
 parent = "bottom"
 [nodes.widget]
-kind = "row"
+kind = "draw"
+draw = "draw_status"
 height = 24
 
 [[nodes]]

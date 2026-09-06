@@ -3,13 +3,13 @@
 //! One module over every store, so a script that unlocks an achievement says
 //! the same thing on Game Center, on Play Games and on Steam. What only one
 //! platform has stays in that platform's own module (`apple.*`), and with no
-//! backend loaded — the editor, a desktop dev run, a replay — every call here
+//! backend loaded (the editor, a desktop dev run, a replay) every call here
 //! resolves to a `kind = "unsupported"` event rather than an error, so the
 //! script still runs.
 //!
 //! Delivery is the engine's usual one: a call returns an id immediately, the
 //! backend reports on a channel, and [`ExternalIo`] lands the result at
-//! [`Stage::First`] of a later tick — recorded, replayable, and dispatched to
+//! [`Stage::First`] of a later tick: recorded, replayable, and dispatched to
 //! the node's `on_platform` method as well as to whoever awaits the id.
 //!
 //! ```rune
@@ -90,7 +90,7 @@ impl Call {
 
     /// Whether this call changes something a rollback cannot take back.
     ///
-    /// A read may be issued from a tick that is re-run later — the worst it
+    /// A read may be issued from a tick that is re-run later: the worst it
     /// costs is a second read. An unlock may not: the achievement is in the
     /// player's profile and the correction cannot remove it.
     #[must_use]
@@ -199,7 +199,7 @@ pub enum PlatformEvent {
         request: u64,
         message: String,
     },
-    /// The loaded backend — or the absence of one — does not have this call.
+    /// The loaded backend, or the absence of one, does not have this call.
     Unsupported {
         request: u64,
         call: String,
@@ -235,7 +235,7 @@ pub trait PlatformBackend {
     fn pump(&mut self, _report: &Sender<PlatformEvent>) {}
 
     /// Called instead of [`PlatformBackend::pump`] on a tick the engine may
-    /// not reach the outside world on — a replay, or a re-simulation. What
+    /// not reach the outside world on: a replay, or a re-simulation. What
     /// arrived meanwhile is not this run's to deliver.
     fn discard(&mut self) {}
 }
@@ -251,8 +251,8 @@ pub struct PlatformState {
     /// rolled back. See [`Call::writes`].
     pending: Vec<(u64, u64, Call)>,
     /// Handlers a sign-in left subscribed. Signing in is the one call whose
-    /// answer can change again later — the player signs out in the OS, or
-    /// signs in as someone else — and the method that took the first answer
+    /// answer can change again later: the player signs out in the OS, or
+    /// signs in as someone else, and the method that took the first answer
     /// is the one that should hear about it.
     watchers: Vec<Handler>,
     player: Option<Player>,
@@ -277,7 +277,7 @@ impl PlatformState {
         self.player.as_ref()
     }
 
-    /// Start a call under `id` — an [`Engine::next_token`] value, so awaiting
+    /// Start a call under `id`: an [`Engine::next_token`] value, so awaiting
     /// it cannot collide with another subsystem's ids.
     ///
     /// A write made on a tick that a late input could still roll back waits
@@ -354,7 +354,7 @@ pub struct PlatformSnapshot {
 }
 
 /// Drain the backend's reports, record them in the frame's snapshot, then
-/// dispatch each to its handler — in arrival order throughout.
+/// dispatch each to its handler, in arrival order throughout.
 fn pump_platform_system(eng: &Engine, _: f32) {
     let clock = balaur_core::rollback::clock(eng);
     let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
@@ -592,8 +592,8 @@ fn install_platform_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Store services every platform shares: sign-in, achievements, \
          leaderboards and cloud saves. A call returns an id and answers on a \
-         later tick, as a map carrying `kind` — `signed_in`, `done`, \
-         `scores`, `read`, `failed` or `unsupported` — both to the node's \
+         later tick, as a map carrying `kind`: `signed_in`, `done`, \
+         `scores`, `read`, `failed` or `unsupported`: both to the node's \
          `on_platform` method and to whoever awaits the id. With no store \
          loaded every call answers `unsupported`, so a script written against \
          this runs anywhere. What only one platform has lives in that \

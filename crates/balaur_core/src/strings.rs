@@ -7,7 +7,7 @@
 //! ```
 //!
 //! `strings.tr("menu.play")` reads the current locale, falls back to the
-//! project's fallback locale, and failing both answers with the key itself —
+//! project's fallback locale, and failing both answers with the key itself:
 //! visible in the game rather than blank, because a missing string is a bug
 //! to notice and an empty label is a bug to miss.
 

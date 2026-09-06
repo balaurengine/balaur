@@ -7,7 +7,7 @@
 //!
 //! Everything is keyed by `StableId`, because core's `nodes` source
 //! respawns a freed node as a *new* entity and every later source has to find
-//! it again; a node with no id — a tree built by hand in a test — falls back
+//! it again; a node with no id, a tree built by hand in a test, falls back
 //! to the entity it was recorded under, the same fallback core's own sources
 //! make.
 //!

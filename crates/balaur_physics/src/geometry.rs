@@ -2,8 +2,8 @@
 //! triangles.
 //!
 //! Nothing here touches the world. They are the operations a game needs
-//! *around* physics rather than in it — cut a mesh in two, work out its convex
-//! pieces, turn it into voxels — and together with `collider_mesh` they are
+//! *around* physics rather than in it: cut a mesh in two, work out its convex
+//! pieces, turn it into voxels, and together with `collider_mesh` they are
 //! the destruction toolkit: slice a crate, spawn each piece as a body with a
 //! `convex_decomposition` collider, dig the voxel terrain underneath.
 //!
@@ -103,7 +103,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("convex_hull", &[], "(mesh: any)", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
         ("convex_decomposition", &[], "(mesh: any, opts: table?)", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
-        ("voxelize", &[], "(mesh: any, opts: table?)", "The mesh as a voxel grid — `#{ size, cells }`, ready to be a `voxels` asset — so a model can become destructible terrain."),
+        ("voxelize", &[], "(mesh: any, opts: table?)", "The mesh as a voxel grid (`#{ size, cells }`, ready to be a `voxels` asset) so a model can become destructible terrain."),
     ]);
     m.function("convex_hull", |eng: &Engine, mesh: Value| {
         let (points, _) = mesh_of(eng, Some(&mesh))?;

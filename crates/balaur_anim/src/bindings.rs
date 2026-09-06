@@ -16,8 +16,8 @@ use crate::tween::{self, TweenId};
 /// Declare `animation` into a binding group.
 pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Clip playback on a node's `animation` component — starting, holding, \
-         seeking — and tweens, short clips generated from a table of steps and \
+        "Clip playback on a node's `animation` component: starting, holding, \
+         seeking, and tweens, short clips generated from a table of steps and \
          addressed by the handle they hand back.",
     );
     install_transport_api(m);
@@ -74,7 +74,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
         player::resume(eng, entity_of(node)?);
         Ok(())
     });
-    // A clip of this node's own, from a definition table — the same shape a
+    // A clip of this node's own, from a definition table: the same shape a
     // scene file writes inline, and cached by its content like one.
     m.function(
         "define",
@@ -144,7 +144,7 @@ fn option(opts: Option<&Value>, key: &str) -> Option<Value> {
 /// Building and steering a tween.
 ///
 /// A tween is a generated clip, so the only new surface here is how one is
-/// described and how it is addressed afterwards — the playing of it is the
+/// described and how it is addressed afterwards: the playing of it is the
 /// same code path a clip goes through.
 fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // No component: a tween is generated from the node's current values and

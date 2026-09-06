@@ -2,7 +2,7 @@
 //!
 //! Each operation takes the node as its first argument, so a backend can
 //! register these as free functions or bind them as methods on its own node
-//! handle — see `NODE_OPS`. Adding a language costs the sugar, not the
+//! handle: see `NODE_OPS`. Adding a language costs the sugar, not the
 //! twenty-odd operations.
 
 // Every declaration shares one signature so they can sit in a table of
@@ -249,12 +249,12 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("get_component", &[], "(component: string)", "The named component's properties as a table, nil when the node does not carry it."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
         ("component_names", &[], "()", "The names of every component on the node."),
-        ("stable_id", &[], "()", "The node's stable id — what a scene file declared or what `ids::mint` gave a spawned node — empty when it carries none. Survives rename and reparent, which a path does not."),
+        ("stable_id", &[], "()", "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not."),
         ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
-        ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node — and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
+        ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
@@ -725,7 +725,7 @@ fn has_method(eng: &Engine, args: &[Value]) -> Result<Value> {
     })))
 }
 
-/// `node:call("method", ...)` — one script calling another's method, with
+/// `node:call("method", ...)`: one script calling another's method, with
 /// the target's return value coming back. Nil when the node has no script,
 /// no such method (handlers are opt-in), or the method suspended on an
 /// await; the call itself runs to completion before this returns, so a
@@ -749,7 +749,7 @@ fn emit(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// `node:attach_script(path, props)` — the scene's `script` key, at run time.
+/// `node:attach_script(path, props)`: the scene's `script` key, at run time.
 /// `props` is optional and holds what this node overrides of the script's
 /// exported defaults, so a spawned node is tuned the way an authored one is.
 fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -770,7 +770,7 @@ fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// `node:detach_script()` — drop the instance, keeping the node.
+/// `node:detach_script()`: drop the instance, keeping the node.
 ///
 /// A tool that tears a running scene down needs the scripts to stop before
 /// the world does: an instance whose next `update` runs against a world its

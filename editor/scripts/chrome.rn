@@ -94,9 +94,11 @@ pub fn transport_spot(S, n) {
     (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0)
 }
 
+/// The one bar across the top, drawn into the rect its node hands over. The
+/// sheet around it is the node's own paint.
 pub fn top_bar(S) {
     let k = S.theme;
-    style::bar(k, "bar", S.layout.bar, PAD_X, || {
+    {
         ui::horizontal(#{ height: 36 }, || {
             ui::add_space(2);
             let mark = brand(S);
@@ -137,7 +139,7 @@ pub fn top_bar(S) {
                 });
             });
         });
-    });
+    }
 }
 
 // The open documents: the scene, always; the selection's script and the

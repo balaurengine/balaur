@@ -1,9 +1,9 @@
 //! When the UI pass runs.
 //!
 //! Every frame by default: a HUD reads live state each pass. A script that
-//! turns `ui.set_lazy` on gets a pass only when something asks for one —
+//! turns `ui.set_lazy` on gets a pass only when something asks for one:
 //! input, `ui.request_repaint`, a log line, an asset reload, an egui
-//! animation, or the idle tick — and the frames between re-present the last
+//! animation, or the idle tick, and the frames between re-present the last
 //! pass's shapes. The editor asks for it: on the web its shell is most of the
 //! frame, and nothing in it moves while nobody touches it.
 
@@ -85,7 +85,7 @@ pub(crate) fn mark_pass(eng: &Engine) {
 /// `ui.*` bindings: pacing.
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_lazy", &[], "", "Run the UI pass only when something asks for it — input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms — and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
+        ("set_lazy", &[], "", "Run the UI pass only when something asks for it (input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms) and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
         ("request_repaint", &[], "", "Run the UI pass this frame even when lazy; call it every frame something on screen moves without input, such as while the scene plays."),
     ]);
     m.function("set_lazy", |eng: &Engine, on: bool| {

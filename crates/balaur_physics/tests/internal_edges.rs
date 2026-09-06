@@ -64,7 +64,7 @@ heightfield = "#ground"
 
 fn mesh_scene_2d(kind: &str, extra: &str) -> String {
     format!(
-        r#"{FLAT_MESH}
+            r#"{FLAT_MESH}
 [[nodes]]
 id = "n_floor"
 name = "Floor"
@@ -74,7 +74,7 @@ kind = "{kind}"
 mesh = "#floor"
 {extra}
 "#
-    )
+        )
 }
 
 /// The first collider's handle, for a scene that declares exactly one.
@@ -118,9 +118,8 @@ fn a_heightfield_fixes_its_internal_edges_unless_it_is_told_not_to() {
         "without the flag a body catches on the seam between two cells"
     );
     assert!(
-        !flags(heightfield_scene("fix_internal_edges = false")).contains(
-            HeightFieldFlags::FIX_INTERNAL_EDGES
-        ),
+        !flags(heightfield_scene("fix_internal_edges = false"))
+            .contains(HeightFieldFlags::FIX_INTERNAL_EDGES),
         "the key has to be able to turn it off"
     );
 }

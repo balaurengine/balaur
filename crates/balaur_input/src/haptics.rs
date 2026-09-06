@@ -3,7 +3,7 @@
 //! Output, not input: a recording never carries a rumble, and a replay re-runs
 //! the script that asked for one. What the recording does carry is whether a
 //! pad can rumble at all, because a script may branch on that and a replay has
-//! to take the same branch — see [`crate::gamepad::Pad::can_rumble`].
+//! to take the same branch: see [`crate::gamepad::Pad::can_rumble`].
 //!
 //! gilrs stops an effect as soon as its handle drops, so a pad's live effect
 //! is held here until it is replaced or stopped.
@@ -137,7 +137,7 @@ fn gamepad_id(gilrs: &Gilrs, id: i64) -> Option<GamepadId> {
 pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback."),
-        ("gamepad_rumble", &[], "", "Rumble the pad, `{ strong, weak, duration }` — the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first."),
+        ("gamepad_rumble", &[], "", "Rumble the pad, `{ strong, weak, duration }`: the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first."),
         ("gamepad_stop_rumble", &[], "", "Silence the pad now, rather than waiting out the rumble's duration."),
         ("vibrate", &[], "(milliseconds: int)", "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);

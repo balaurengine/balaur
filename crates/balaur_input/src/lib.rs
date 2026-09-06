@@ -101,7 +101,7 @@ impl InputSnapshot {
     }
 
     /// One finger's report from the backend. `Start` and `Move` update the
-    /// active set; `End` and `Cancel` remove from it — a cancelled touch ends
+    /// active set; `End` and `Cancel` remove from it: a cancelled touch ends
     /// without ever counting as a tap, which is a script-side distinction, so
     /// both land in `touches_ended`.
     pub fn touch_event(&mut self, id: u64, x: f32, y: f32, phase: TouchPhase) {
@@ -538,7 +538,7 @@ pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] =
 fn install_input_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "One frame of input: the keyboard, mouse, touch screen and gamepads \
-         as they stand now, plus the edges — what went down or came up this \
+         as they stand now, plus the edges: what went down or came up this \
          frame. Nothing feeds it in a headless run, where every query answers \
          neutrally rather than failing.",
     );
@@ -621,7 +621,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `input.feed_*`: the window backend's feeders, for a script that stands in
-/// for a person — a showcase, a test, an automation client. Fed edges last
+/// for a person: a showcase, a test, an automation client. Fed edges last
 /// until the next frame's `begin_frame`, exactly like an OS event's.
 fn install_feed_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
@@ -653,7 +653,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-/// `input.touches*` and `input.dropped_files` — the per-frame lists the
+/// `input.touches*` and `input.dropped_files`: the per-frame lists the
 /// window backend feeds.
 fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
@@ -821,7 +821,7 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
     haptics::install_haptics_api(m);
 }
 
-/// `PAD_SOUTH` from `South`, `AXIS_LEFT_STICK_X` from `LeftStickX` — the same
+/// `PAD_SOUTH` from `South`, `AXIS_LEFT_STICK_X` from `LeftStickX`: the same
 /// camel-splitting the key constants use, with `DPad` kept as one word so
 /// scripts read `PAD_DPAD_UP` rather than `PAD_D_PAD_UP`.
 fn pad_const_name(prefix: &str, name: &str) -> String {

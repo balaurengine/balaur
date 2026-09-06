@@ -65,7 +65,7 @@ pub struct PhysicsState {
     /// What each collider and joint was authored from.
     ///
     /// Rapier keeps a shape, not the asset it was built from, and not the
-    /// `fill` or `fit` that shaped it — so without this an editor round-trip
+    /// `fill` or `fit` that shaped it, so without this an editor round-trip
     /// would quietly lose them. Read back under whatever rapier does report,
     /// so a live edit still shows through.
     pub collider_params: DetHashMap<Entity, toml::Value>,
@@ -83,11 +83,11 @@ pub struct PhysicsState {
     /// Whether the broad phase's tree matches the colliders.
     ///
     /// Rapier builds it during a step, so a world that has not stepped yet has
-    /// an empty one — and a raycast in `init`, which is where a game places
+    /// an empty one, and a raycast in `init`, which is where a game places
     /// things on the ground, would find nothing at all. Queries refresh it
     /// when this is false (`query::ensure_queries`).
     pub queries_ready: bool,
-    /// Bumped by every shape edit a script makes — digging a voxel, replacing
+    /// Bumped by every shape edit a script makes: digging a voxel, replacing
     /// a collider. Hashed into the digest: nothing else about the world says a
     /// hole was dug until something falls into it.
     pub shape_revision: u64,

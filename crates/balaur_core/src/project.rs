@@ -67,17 +67,28 @@ pub struct WindowSettings {
     /// which is what the render targets are sized from.
     pub width: u32,
     pub height: u32,
-    /// Samples per pixel. `1` is off; `4` is the only other count the
-    /// renderer offers, and it costs two render targets of four samples
-    /// each — tens of megabytes at a retina backing store.
+    /// Samples per pixel. `1`, the default, is off; `4` is the only other
+    /// count the renderer offers, and it costs two render targets of four
+    /// samples each — over a hundred megabytes at a retina backing store,
+    /// which is why a game asks for it rather than pays for it unasked.
     pub msaa: u32,
     /// Present in step with the display.
     pub vsync: bool,
+    /// Open filling the screen. Scripts toggle it later through the same
+    /// state this seeds, so a game that starts fullscreen and a game that
+    /// switches into it take one path.
+    pub fullscreen: bool,
 }
 
 impl Default for WindowSettings {
     fn default() -> Self {
-        Self { width: 1600, height: 1000, msaa: 4, vsync: true }
+        Self {
+            width: 1600,
+            height: 1000,
+            msaa: 1,
+            vsync: true,
+            fullscreen: false,
+        }
     }
 }
 
@@ -362,7 +373,8 @@ pub struct ProjectFiles {
     fs: std::rc::Rc<dyn crate::files::FileBackend>,
     /// The `assets/index.toml` a pack carries; a dev run reads the file.
     packed_index: Option<String>,
-    /// `id → path`, parsed on the first `id://` and dropped by
+    /// `id → path`, parsed on the first `id:
+    // ` and dropped by
     /// [`Self::reload_index`].
     index: std::cell::RefCell<Option<BTreeMap<String, String>>>,
 }
@@ -413,13 +425,15 @@ impl ProjectFiles {
         self
     }
 
-    /// Drop the parsed id index so the next `id://` re-reads
+    /// Drop the parsed id index so the next `id:
+    // ` re-reads
     /// `assets/index.toml`. What the watcher calls when that file is saved.
     pub fn reload_index(&self) {
         *self.index.borrow_mut() = None;
     }
 
-    /// The path an `id://<id>` reference names, with any `#entry` kept; a
+    /// The path an `id:
+    // <id>` reference names, with any `#entry` kept; a
     /// reference that is already a path comes back as it is.
     ///
     /// # Errors
@@ -577,7 +591,8 @@ impl ProjectFiles {
     }
 }
 
-/// The path a reference names: what `id://<id>` resolves to through
+/// The path a reference names: what `id:
+// <id>` resolves to through
 /// `assets/index.toml`, or the reference itself when it is already a path.
 ///
 /// # Errors
