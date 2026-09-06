@@ -429,10 +429,9 @@ pub(crate) fn sync_text(
             shaped: resolved,
         };
         // Shadow, outline and text: a node each, drawn in that order.
-        for (layer, (shifts, [r, g, b, a], picks)) in
-            crate::world_text::layers(&block, &text.style)
-                .into_iter()
-                .enumerate()
+        for (layer, (shifts, [r, g, b, a], picks)) in crate::world_text::layers(&block, &text.style)
+            .into_iter()
+            .enumerate()
         {
             let tint = kiss3d::color::Color::new(r, g, b, a);
             if text.in_3d {
