@@ -271,6 +271,15 @@ pub async fn run_windowed_async(
     };
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
+    if window_settings.fullscreen {
+        // Seed the state a script's own toggle drives, so `apply_window_config`
+        // puts the window up on the first frame through one path.
+        app.engine.insert_resource(WindowConfig {
+            fullscreen: true,
+            changed: true,
+            ..WindowConfig::default()
+        });
+    }
     window.set_ime_allowed(true);
     let mut f = Frontend::new();
     let mut last = Instant::now();
