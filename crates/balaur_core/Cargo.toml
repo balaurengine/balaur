@@ -17,6 +17,7 @@ toml.workspace = true
 toml_edit = "0.25"
 anyhow.workspace = true
 indexmap.workspace = true
+smol_str.workspace = true
 rustc-hash.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true

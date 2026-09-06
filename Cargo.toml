@@ -80,6 +80,7 @@ anyhow = "1"
 # serialize in their insertion order, which is the order that matters.
 indexmap = { version = "2", features = ["serde"] }
 smallvec = "1"
+smol_str = "0.3"
 egui = "0.36"
 rustc-hash = "2"
 libm = "0.2"
