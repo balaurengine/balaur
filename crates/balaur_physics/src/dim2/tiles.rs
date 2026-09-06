@@ -131,11 +131,10 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     };
     let grid = {
         let world = eng.world();
-        let found = world
+        world
             .get::<&TileGrid>(entity)
             .ok()
-            .map(|grid| (*grid).clone());
-        found
+            .map(|grid| (*grid).clone())
     };
     let Some(grid) = grid else {
         return Ok(());
@@ -167,7 +166,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
             .collect();
         let size = scalar::v2(grid.tile_world[0], grid.tile_world[1]);
         let builder = with_material(ColliderBuilder2::voxels(size, &keys), &params);
-        let builder = builder.active_hooks(hooks_for(group == Group::OneWay));
+        let builder = builder.active_hooks(hooks_for(&params, group == Group::OneWay));
         // The voxel lattice is the grid's own: cell (0, 0) starts at the
         // node, so the collider needs no offset.
         add_collider_at(eng, entity, builder, Pose2::IDENTITY)?;
@@ -192,12 +191,14 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
                 continue;
             };
             // A shaped tile is in no voxel group, so the hook that makes a
-            // platform one-way has to go on its own collider.
-            let shape = shape.active_hooks(hooks_for(tile.is_one_way()));
+            // platform one-way has to go on its own collider — after the
+            // material, which writes every hook the component asked for.
+            let shape =
+                with_material(shape, &params).active_hooks(hooks_for(&params, tile.is_one_way()));
             add_collider_at(
                 eng,
                 entity,
-                with_material(shape, &params),
+                shape,
                 Pose2::from_parts(scalar::v2(centre.x, centre.y), Rotation2::IDENTITY),
             )?;
             if tile.is_one_way() {
@@ -215,12 +216,15 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
 
 /// A one-way collider asks rapier for the contact hook; the axis rides in the
 /// collider's `user_data`, as it does for a `collider2d`.
-fn hooks_for(one_way: bool) -> crate::rapier2d::prelude::ActiveHooks {
+///
+/// Set after the material, which writes the whole set of hooks from the
+/// component's own keys, and folded into those rather than over them.
+fn hooks_for(params: &toml::Value, one_way: bool) -> crate::rapier2d::prelude::ActiveHooks {
+    let mut hooks = crate::dim2::collider::active_hooks(params);
     if one_way {
-        crate::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS
-    } else {
-        crate::rapier2d::prelude::ActiveHooks::empty()
+        hooks |= crate::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS;
     }
+    hooks
 }
 
 /// Pack the upward axis into the collider that was just added.

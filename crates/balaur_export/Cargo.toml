@@ -25,12 +25,17 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 image-webp = "0.2"
 flacenc = { version = "0.5", default-features = false }
 hound = "3"
+# libimagequant is pure Rust from 4 on, so a browser tab quantises too; its
+# `threads` default is rayon, which builds for wasm but cannot spawn there.
+imagequant = { version = "4", default-features = false }
 
-# oxipng's deflate and HarfBuzz's subsetter are C builds: a browser tab
-# exports too, and neither compiles for wasm. Off there, an export keeps its
-# PNGs and its whole faces and says so.
+# oxipng's deflate, HarfBuzz's subsetter and libvorbis are C builds: a browser
+# tab exports too, and none of them compiles for wasm. Off there, an export
+# keeps its PNGs, its whole faces and its WAVs, and says so.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 oxipng = { version = "10", default-features = false, features = ["parallel", "zopfli"] }
+imagequant = { version = "4", features = ["threads"] }
+vorbis_rs = "0.5"
 # `bundled` compiles HarfBuzz's subsetter from the crate's own sources; the
 # alternative asks pkg-config for a system copy no runner is promised to have.
 hb-subset = { version = "0.3", optional = true, features = ["bundled"] }

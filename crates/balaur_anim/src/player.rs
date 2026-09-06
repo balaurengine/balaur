@@ -241,7 +241,7 @@ pub fn set_retarget(eng: &Engine, entity: Entity, reference: &str) -> Result<()>
         Some(crate::retarget::Retarget { map, profile })
     };
     with_playback(eng, entity, |playback| {
-        playback.retarget = retarget.clone();
+        playback.retarget.clone_from(&retarget);
         playback.retarget_reference = reference.to_string();
     })
     .ok_or_else(|| anyhow!("this node has no `animation` component to retarget"))

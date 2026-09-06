@@ -10,6 +10,9 @@
 //! them for nothing and computes the same world, which is why nothing here
 //! is allowed to move an extent.
 
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use crate::engine::Engine;
 use crate::project::{ProjectFiles, ProjectManifest};
 
@@ -76,6 +79,58 @@ pub fn is_sidecar(path: &str) -> bool {
         return false;
     };
     kind_of(rest).is_some()
+}
+
+/// One file's settings and the stamp naming them, resolved once per asset
+/// generation.
+pub struct Resolved {
+    pub settings: toml::Table,
+    /// [`stamp`] of those settings, so a caller naming an upload does not
+    /// hash the table again on every frame that draws it.
+    pub stamp: String,
+}
+
+/// What has already been resolved, dropped whole when an asset is saved.
+#[derive(Default)]
+struct Settings {
+    generation: u64,
+    files: HashMap<String, Rc<Resolved>>,
+}
+
+/// One file's settings, resolved once.
+///
+/// A sprite is attached to its texture on every frame that draws it, and each
+/// attach used to open the sidecar again; the answer only changes when a file
+/// is saved, which is what moves the asset generation.
+#[must_use]
+pub fn resolved(eng: &Engine, path: &str) -> Rc<Resolved> {
+    let generation = crate::assets::generation(eng);
+    let cache = if let Some(found) = eng.try_resource::<Settings>() {
+        found
+    } else {
+        eng.insert_resource(Settings::default());
+        eng.resource::<Settings>()
+    };
+    {
+        let held = cache.borrow();
+        if held.generation == generation
+            && let Some(found) = held.files.get(path)
+        {
+            return Rc::clone(found);
+        }
+    }
+    let settings = settings(eng, path);
+    let found = Rc::new(Resolved {
+        stamp: stamp(&settings),
+        settings,
+    });
+    let mut cache = cache.borrow_mut();
+    if cache.generation != generation {
+        cache.files.clear();
+        cache.generation = generation;
+    }
+    cache.files.insert(path.to_string(), Rc::clone(&found));
+    found
 }
 
 /// One file's settings: the project's defaults for its kind, with the

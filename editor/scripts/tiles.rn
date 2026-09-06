@@ -197,13 +197,56 @@ pub fn tileset(S) {
     } else {
         return None;
     };
-    let size = util::f(def.get("tile_size").unwrap_or(0.0));
+    let (w, h) = tile_extent(def.get("tile_size").unwrap_or(0.0));
     let columns = util::i(def.get("columns").unwrap_or(0));
     let texture = def.get("texture").unwrap_or("");
-    if size <= 0.0 || columns < 1 || !(texture is String) || texture == "" {
+    if w <= 0.0 || h <= 0.0 || columns < 1 || !(texture is String) || texture == "" {
         return None;
     }
-    Some(#{ texture: texture, size: size, columns: columns })
+    Some(#{
+        texture: texture,
+        w: w,
+        h: h,
+        columns: columns,
+        spacing: gap(def, "spacing"),
+        margin: gap(def, "margin"),
+    })
+}
+
+/// `tile_size` as a width and a height: a number is a square tile, a pair is
+/// a sheet whose tiles are not one. The same two forms the engine reads.
+fn tile_extent(size) {
+    let pair = util::vec2(size, ());
+    if pair is Vec {
+        return (pair[0], pair[1]);
+    }
+    let (ok, edge) = script::attempt(|| util::f(size));
+    if !ok {
+        return (0.0, 0.0);
+    }
+    return (edge, edge);
+}
+
+/// A gutter or a border in sheet pixels, zero when the sheet names none.
+fn gap(def, key) {
+    let (ok, value) = script::attempt(|| util::f(def.get(key).unwrap_or(0.0)));
+    if !ok {
+        return 0.0;
+    }
+    return util::max(value, 0.0);
+}
+
+/// Where one tile sits on the sheet, in pixels: the gutter between tiles and
+/// the border around them both count.
+pub fn tile_rect(set, tile) {
+    let column = util::f(tile % set.columns);
+    let row = math::floor(util::f(tile) / util::f(set.columns));
+    return [
+        set.margin + column * (set.w + set.spacing),
+        set.margin + row * (set.h + set.spacing),
+        set.w,
+        set.h,
+    ];
 }
 
 /// How many tiles the atlas holds: its columns times the rows its height
@@ -226,7 +269,13 @@ pub fn tile_count(S) {
         S.tiles.sheet = #{ path: set.texture, height: height };
         cache = S.tiles.sheet;
     }
-    let rows = util::i(math::floor(cache.height / set.size));
+    // As many rows as fit under the border, counting the gutter between them.
+    let step = set.h + set.spacing;
+    let room = cache.height - set.margin - set.h;
+    if step <= 0.0 || room < 0.0 {
+        return 0;
+    }
+    let rows = util::i(math::floor(room / step)) + 1;
     set.columns * util::max(rows, 0)
 }
 
@@ -364,7 +413,8 @@ pub fn frame(S) {
     Some(#{
         x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle),
         sx: s.x, sy: s.y,
-        tile: set.size / pixels_per_unit(S),
+        tw: set.w / pixels_per_unit(S),
+        th: set.h / pixels_per_unit(S),
         columns: util::max(columns(rows), 1),
         rows: util::max(rows.len(), 1),
         ox: start.0, oy: start.1,
@@ -389,8 +439,8 @@ fn to_world(f, lx, ly) {
 /// grid is still a cell: painting there is what grows the map.
 pub fn cell_at(S, f, wx, wy) {
     let (lx, ly) = to_local(f, wx, wy);
-    let column = util::i(math::floor(lx / f.tile));
-    let row = util::i(math::floor(-ly / f.tile));
+    let column = util::i(math::floor(lx / f.tw));
+    let row = util::i(math::floor(-ly / f.th));
     (column, row)
 }
 
@@ -406,13 +456,13 @@ pub fn origin(S) {
 
 /// A cell's four corners in world space, for the hover outline.
 fn cell_corners(f, column, row) {
-    let x0 = util::f(column) * f.tile;
-    let y1 = -util::f(row) * f.tile;
+    let x0 = util::f(column) * f.tw;
+    let y1 = -util::f(row) * f.th;
     [
         to_world(f, x0, y1),
-        to_world(f, x0 + f.tile, y1),
-        to_world(f, x0 + f.tile, y1 - f.tile),
-        to_world(f, x0, y1 - f.tile),
+        to_world(f, x0 + f.tw, y1),
+        to_world(f, x0 + f.tw, y1 - f.th),
+        to_world(f, x0, y1 - f.th),
     ]
 }
 
@@ -680,7 +730,7 @@ pub fn draw(S) {
     let w = viewport::world_per_px(S);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
-    if f.tile / w >= 6.0 {
+    if f.tw / w >= 6.0 {
         let last_x = f.ox + f.columns - 1;
         let last_y = f.oy + f.rows - 1;
         for row in f.oy..(f.oy + f.rows + 1) {
@@ -952,11 +1002,10 @@ pub fn palette(S, k) {
             ui::horizontal(#{ height: SWATCH + 4.0 }, || {
                 ui::add_space(8);
                 for tile in shelf {
-                    let sx = util::f(tile % set.columns) * set.size;
-                    let sy = math::floor(util::f(tile) / util::f(set.columns)) * set.size;
+                    let rect = tile_rect(set, tile);
                     if ui::image_button(texture, #{
                         width: SWATCH, height: SWATCH,
-                        region: [sx, sy, set.size, set.size],
+                        region: rect,
                         selected: S.tiles.tile == tile,
                         fill: k.sunken, stroke: k.accent, hover_fill: k.line,
                         tooltip: format!("tile {}", tile),

@@ -20,7 +20,7 @@ use balaur_core::digest::{Entry, Hasher, node_label};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, assets, ids};
 use balaur_plugin::Registry;
-use glamx::{Vec3, Vec4};
+use glamx::{Quat, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -131,6 +131,12 @@ struct JiggleFrame {
     entity: u64,
     points: Vec<[f32; 3]>,
     velocities: Vec<[f32; 3]>,
+    /// Defaulted so a snapshot taken before the spring learned not to chase
+    /// itself still restores, one tick of settling behind.
+    #[serde(default)]
+    incoming: Vec<[f32; 4]>,
+    #[serde(default)]
+    written: Vec<[f32; 4]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -206,6 +212,8 @@ fn capture(eng: &Engine) -> Value {
                 entity: entity.to_bits().get(),
                 points: chain.points.iter().map(Vec3::to_array).collect(),
                 velocities: chain.velocities.iter().map(Vec3::to_array).collect(),
+                incoming: chain.incoming.iter().map(Quat::to_array).collect(),
+                written: chain.written.iter().map(Quat::to_array).collect(),
             })
             .collect(),
         jiggle_accumulator: state.jiggle_accumulator,
@@ -284,6 +292,8 @@ fn restore(eng: &Engine, value: &Value) {
                     Jiggle {
                         points: chain.points.into_iter().map(Vec3::from).collect(),
                         velocities: chain.velocities.into_iter().map(Vec3::from).collect(),
+                        incoming: chain.incoming.into_iter().map(Quat::from_array).collect(),
+                        written: chain.written.into_iter().map(Quat::from_array).collect(),
                     },
                 ))
             })

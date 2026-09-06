@@ -100,7 +100,10 @@ impl Deform {
     /// One vertex's offset, or zero for a vertex the track does not reach.
     #[must_use]
     pub fn at(&self, vertex: usize) -> [f32; 2] {
-        match (self.offsets.get(vertex * 2), self.offsets.get(vertex * 2 + 1)) {
+        match (
+            self.offsets.get(vertex * 2),
+            self.offsets.get(vertex * 2 + 1),
+        ) {
             (Some(&x), Some(&y)) => [x, y],
             _ => [0.0, 0.0],
         }

@@ -82,39 +82,31 @@ fn bone_paths(S) {
 // A canonical name against the rig's own: the bone whose last segment matches
 // once both are stripped of case, spaces, dots and underscores. `LeftUpperArm`
 // finds `left_upper_arm`, `Left Upper Arm` and `mixamorig:LeftUpperArm`.
-fn guess(canonical, paths) {
+pub fn guess(canonical, paths) {
     let want = squash(canonical);
     for path in paths {
-        if squash(leaf(path)) == want {
+        if squash(util::leaf(path)) == want {
             return Some(path);
         }
     }
     // Then the looser match: a bone whose name ends with the canonical one,
     // which is what an exporter's prefix leaves behind.
     for path in paths {
-        if squash(leaf(path)).ends_with(want) {
+        if squash(util::leaf(path)).ends_with(want) {
             return Some(path);
         }
     }
     None
 }
 
+// A name with its separators taken out, so `LeftUpperArm`, `left_upper_arm`,
+// `Left Upper Arm` and `mixamorig:LeftUpperArm` all compare the same.
 fn squash(name) {
-    let out = "";
-    for ch in name.to_lowercase().chars() {
-        if ch != '_' && ch != ' ' && ch != '.' && ch != '-' && ch != ':' {
-            out += ch;
-        }
+    let out = name.to_lowercase();
+    for sep in ["_", " ", ".", "-", ":"] {
+        out = out.replace(sep, "");
     }
     out
-}
-
-fn leaf(path) {
-    let at = path.rfind("/");
-    match at {
-        Some(at) => path[at + 1..],
-        None => path,
-    }
 }
 
 // Fill every row the rig agrees on and leave the rest empty, which is the
@@ -146,7 +138,7 @@ pub fn clear(S) {
 // the rig so two rigs do not overwrite each other.
 fn default_path(S) {
     let name = match rig_root(S) {
-        Some(root) => leaf(root.path()),
+        Some(root) => util::leaf(root.path()),
         None => "rig",
     };
     format!("animations/{}.bonemap.toml", name.to_lowercase())

@@ -476,11 +476,13 @@ pub fn mirror(S, axis) {
     // hand the second bone what the first had already been given.
     let was = #{};
     for bone in bones {
-        let at = model::index_of_path(S, bone.path());
-        if let Some(at) = at {
-            let node = S.doc[at];
-            let key = if node.contains_key("bone3d") { "bone3d" } else { "bone2d" };
-            was[bone.path()] = #{ index: at, key: key, data: util::obj(node.get(key).unwrap_or(#{})) };
+        match model::index_of_path(S, bone.path()) {
+            Some(at) => {
+                let node = S.doc[at];
+                let key = if node.contains_key("bone3d") { "bone3d" } else { "bone2d" };
+                was[bone.path()] = #{ index: at, key: key, data: util::obj(node.get(key).unwrap_or(#{})) };
+            }
+            None => (),
         }
     }
     let moved = 0;
@@ -495,15 +497,15 @@ pub fn mirror(S, axis) {
         // Its opposite number's rest, reflected; or its own, for a bone with
         // no side in its name.
         let source = match other {
-            Some(other) => was.get(base + "/" + other).unwrap_or(mine),
+            Some(twin) => was.get(base + "/" + twin).unwrap_or(mine),
             None => mine,
         };
         let rest = reflect_rest(util::obj(source.data), axis);
         S.doc[mine.index][mine.key] = rest;
         moved += 1;
-        let found = model::live(S, mine.index);
-        if let Some(found) = found {
-            found.set_component(mine.key, rest);
+        match model::live(S, mine.index) {
+            Some(live) => live.set_component(mine.key, rest),
+            None => (),
         }
     }
     apply_rest(S);

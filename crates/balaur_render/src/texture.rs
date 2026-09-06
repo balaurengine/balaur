@@ -93,12 +93,10 @@ mod windowed {
             return None;
         }
         let files = eng.resource::<balaur_core::project::ProjectFiles>();
-        let settings = balaur_core::import::settings(eng, path);
-        let name = super::upload_name(
-            path,
-            files.borrow().mtime(path),
-            &balaur_core::import::stamp(&settings),
-        );
+        // Resolved rather than read: this runs on every attach, and a sprite
+        // is attached on every frame that draws it.
+        let settings = balaur_core::import::resolved(eng, path);
+        let name = super::upload_name(path, files.borrow().mtime(path), &settings.stamp);
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
             return Some(cached);
         }
@@ -115,7 +113,7 @@ mod windowed {
         };
         match image::load_from_memory(&bytes) {
             Ok(image) => Some(TextureManager::get_global_manager(|tm| {
-                place(tm, image.clone(), &name, &settings)
+                place(tm, image.clone(), &name, &settings.settings)
             })),
             Err(why) => {
                 tracing::error!("decoding the image {path}: {why}");

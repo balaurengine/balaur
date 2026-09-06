@@ -887,22 +887,16 @@ fn write_deform(
     let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
     if !deforming {
         if was_deformed {
-            handle.set(polygon.positions.iter().map(Vec2::to_array).collect());
+            handle.fill(polygon.positions.len(), |i| polygon.positions[i].to_array());
         }
         return false;
     }
     let deform = deform.expect("a deforming node has the component");
-    handle.set(
-        polygon
-            .positions
-            .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                let [dx, dy] = deform.at(i);
-                [p.x + dx, p.y + dy]
-            })
-            .collect(),
-    );
+    handle.fill(polygon.positions.len(), |i| {
+        let p = polygon.positions[i];
+        let [dx, dy] = deform.at(i);
+        [p.x + dx, p.y + dy]
+    });
     true
 }
 

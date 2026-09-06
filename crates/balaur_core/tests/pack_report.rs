@@ -216,7 +216,8 @@ fn print_a_real_report() {
     for entry in std::fs::read_dir(root.join("editor/scenes")).unwrap() {
         let p = entry.unwrap().path();
         let name = format!("scenes/{}", p.file_name().unwrap().to_string_lossy());
-        pack.scenes.insert(name, std::fs::read_to_string(&p).unwrap());
+        pack.scenes
+            .insert(name, std::fs::read_to_string(&p).unwrap());
     }
     for (dir, prefix) in [("editor/fonts", "fonts"), ("editor/assets", "assets")] {
         for entry in std::fs::read_dir(root.join(dir)).unwrap() {

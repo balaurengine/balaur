@@ -337,7 +337,7 @@ fn header(S, k, t) {
             ui::horizontal(#{ height: 20, width: CELL_W }, || {
                 // The bone's own last segment: a full path is wider than the
                 // column and the tooltip carries the rest.
-                if ui::pill(leaf(bone.path), #{
+                if ui::pill(util::leaf(bone.path), #{
                     height: 18, size: 10, strong: on, tooltip: bone.path,
                     fill: if on { k.accent_soft } else { k.panel },
                     color: if on { k.accent } else { k.faint },
@@ -350,14 +350,6 @@ fn header(S, k, t) {
             ui::label("sum", style::mono_sm(k.faint));
         });
     });
-}
-
-fn leaf(path) {
-    let at = path.rfind("/");
-    match at {
-        Some(at) => path[at + 1..],
-        None => path,
-    }
 }
 
 fn vertex_row(S, k, t, at) {

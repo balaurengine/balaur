@@ -229,7 +229,9 @@ fn sample_wide(track: &Track, time: f32) -> Vec<f32> {
     let width = before.len().min(after.len());
     match track.interp {
         Interp::Step => before.clone(),
-        Interp::Linear => (0..width).map(|i| before[i] + (after[i] - before[i]) * u).collect(),
+        Interp::Linear => (0..width)
+            .map(|i| before[i] + (after[i] - before[i]) * u)
+            .collect(),
         Interp::Cubic => {
             let p0 = &keys[index.saturating_sub(1)].wide;
             let p3 = &keys[(index + 2).min(keys.len() - 1)].wide;

@@ -26,7 +26,8 @@ fn editor_pack() -> Pack {
     };
     pack.scenes.insert(
         "scenes/main.toml".into(),
-        "texture = \"assets/balaur-logo.png\"\nfont = \"fonts/ui-SourceSans3-Regular.ttf\"\n".into(),
+        "texture = \"assets/balaur-logo.png\"\nfont = \"fonts/ui-SourceSans3-Regular.ttf\"\n"
+            .into(),
     );
     pack.assets.insert(
         "assets/balaur-logo.png".into(),

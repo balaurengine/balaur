@@ -50,7 +50,8 @@ impl Animation {
             return 0;
         }
         let step = (seconds * self.fps.max(0.0)) as i64;
-        let at = step.rem_euclid(self.frames.len() as i64) as usize;
+        let count = i64::try_from(self.frames.len()).unwrap_or(1).max(1);
+        let at = usize::try_from(step.rem_euclid(count)).unwrap_or(0);
         self.frames[at]
     }
 }
@@ -365,6 +366,18 @@ pub struct TileGrid {
     pub version: u64,
 }
 
+/// How many cells a count of stored rows or columns spans, as a coordinate.
+/// A map past two billion cells on an edge is not one this counts wrong.
+fn span(count: usize) -> i32 {
+    i32::try_from(count).unwrap_or(i32::MAX)
+}
+
+/// Whether a hex row is one of the ones pushed half a cell along. The number
+/// is whole, so this is which of the two it is, not a comparison of floats.
+fn odd_row(row: f32) -> bool {
+    (row.rem_euclid(2.0) - 1.0).abs() < 0.5
+}
+
 /// A cell drawn mirrored left to right.
 pub const FLIP_X: u8 = 1;
 /// A cell drawn mirrored top to bottom.
@@ -387,13 +400,13 @@ impl TileGrid {
     /// The half-open range of columns the grid stores.
     #[must_use]
     pub fn column_range(&self) -> (i32, i32) {
-        (self.origin[0], self.origin[0] + self.columns() as i32)
+        (self.origin[0], self.origin[0] + span(self.columns()))
     }
 
     /// The half-open range of rows the grid stores.
     #[must_use]
     pub fn row_range(&self) -> (i32, i32) {
-        (self.origin[1], self.origin[1] + self.row_count() as i32)
+        (self.origin[1], self.origin[1] + span(self.row_count()))
     }
 
     /// Where a coordinate sits in `rows`, or `None` for one outside it.
@@ -435,8 +448,8 @@ impl TileGrid {
             line.iter().enumerate().filter_map(move |(column, cell)| {
                 cell.map(|id| {
                     (
-                        self.origin[0] + column as i32,
-                        self.origin[1] + row as i32,
+                        self.origin[0] + span(column),
+                        self.origin[1] + span(row),
                         id,
                     )
                 })
@@ -458,7 +471,7 @@ impl TileGrid {
             ),
             // Pointy-top, odd rows pushed half a cell right.
             Layout::Hex => Vec2::new(
-                (column + if row.rem_euclid(2.0) == 1.0 { 1.0 } else { 0.5 }) * w,
+                (column + if odd_row(row) { 1.0 } else { 0.5 }) * w,
                 -(row * 0.75 + 0.5) * h,
             ),
         }
@@ -481,7 +494,7 @@ impl TileGrid {
             // cell along it, which is what a hex hit test comes to.
             Layout::Hex => {
                 let row = ((-local.y / h - 0.5) / 0.75).round();
-                let shift = if row.rem_euclid(2.0) == 1.0 { 1.0 } else { 0.5 };
+                let shift = if odd_row(row) { 1.0 } else { 0.5 };
                 let column = (local.x / w - shift).round();
                 (column as i32, row as i32)
             }
@@ -546,7 +559,6 @@ impl TileGrid {
     /// Every cell whose tile draws its own collision polygons, with the centre
     /// of the cell in the node's own space and the turn the cell is drawn
     /// with — a mirrored slope has to collide mirrored.
-    #[must_use]
     pub fn shaped_cells<'a>(
         &'a self,
         set: &'a TileSet,
@@ -612,7 +624,7 @@ fn turn_unit(point: Vec2, flags: u8) -> Vec2 {
     // The square's two top corners are a basis, so where they land is the
     // whole map: `point` is written in that basis and read back in the turned
     // one.
-    let (a, b) = ((point.y - point.x) / 2.0, (point.y + point.x) / 2.0);
+    let (a, b) = ((point.y - point.x) / 2.0, f32::midpoint(point.y, point.x));
     CORNERS[at(0)] * a + CORNERS[at(1)] * b
 }
 
@@ -662,6 +674,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "a parsed size, not an arithmetic one")]
     fn a_square_tile_size_is_the_same_as_a_pair() {
         let square = set("texture = \"a.png\"\ntile_size = 16\ncolumns = 4");
         let pair = set("texture = \"a.png\"\ntile_size = [16, 16]\ncolumns = 4");
@@ -669,6 +682,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "whole pixels, laid out exactly")]
     fn spacing_and_margin_move_a_tile_along_the_sheet() {
         let set =
             set("texture = \"a.png\"\ntile_size = [16, 16]\ncolumns = 4\nspacing = 2\nmargin = 1");

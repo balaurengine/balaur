@@ -41,10 +41,7 @@ pub(crate) enum Effect {
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
     /// Put a `polygon/deform` track's offsets on the node it deforms.
-    Deform {
-        entity: Entity,
-        offsets: Vec<f32>,
-    },
+    Deform { entity: Entity, offsets: Vec<f32> },
 }
 
 /// The method a node's script is called with when a tween on it ends.
@@ -438,6 +435,14 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 }
             }
             Effect::Deform { entity, offsets } => {
+                // Written into the offsets already there where there are any:
+                // a deform track runs every frame, and this is a vector as
+                // long as the mesh.
+                if let Ok(mut deform) = eng.world().get::<&mut balaur_core::mesh::Deform>(*entity) {
+                    deform.offsets.clear();
+                    deform.offsets.extend_from_slice(offsets);
+                    continue;
+                }
                 let _ = eng.world_mut().insert_one(
                     *entity,
                     balaur_core::mesh::Deform {

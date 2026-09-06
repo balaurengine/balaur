@@ -132,28 +132,25 @@ fn segments(eng: &Engine, rig: Entity, dim3: bool) -> Vec<Segment> {
     let rotation = |e: Entity| {
         world
             .get::<&GlobalTransform>(e)
-            .map(|g| g.rotation)
-            .unwrap_or(Quat::IDENTITY)
+            .map_or(Quat::IDENTITY, |g| g.rotation)
     };
     let child_bone = |e: Entity| {
-        world
-            .get::<&scene::Children>(e)
-            .ok()
-            .and_then(|children| {
-                children
-                    .0
-                    .iter()
-                    .copied()
-                    .find(|&child| world.get::<&Bone>(child).is_ok())
-            })
+        world.get::<&scene::Children>(e).ok().and_then(|children| {
+            children
+                .0
+                .iter()
+                .copied()
+                .find(|&child| world.get::<&Bone>(child).is_ok())
+        })
     };
     bones
         .iter()
         .filter_map(|&bone| {
             let from = origin(bone);
-            let to = match child_bone(bone) {
-                Some(child) => origin(child),
-                None => {
+            let to = if let Some(child) = child_bone(bone) {
+                origin(child)
+            } else {
+                {
                     let b = world.get::<&Bone>(bone).ok()?;
                     if b.length <= MIN_BONE {
                         return None;
@@ -229,7 +226,9 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         made.push((segment.bone, node));
     }
     for segment in &segments {
-        let Some(parent) = segment.parent else { continue };
+        let Some(parent) = segment.parent else {
+            continue;
+        };
         let (Some(&(_, node)), Some(&(_, other))) = (
             made.iter().find(|(bone, _)| *bone == segment.bone),
             made.iter().find(|(bone, _)| *bone == parent),
@@ -257,8 +256,7 @@ fn spawn_body(
     let name = eng
         .world()
         .get::<&scene::Name>(segment.bone)
-        .map(|n| n.0.clone())
-        .unwrap_or_else(|_| "Bone".to_string());
+        .map_or_else(|_| "Bone".to_string(), |n| n.0.clone());
     let node = {
         let mut world = eng.world_mut();
         scene::spawn_node(&mut world, &name, container)
@@ -290,7 +288,9 @@ fn spawn_body(
     // bone's own length minus what the caps already cover.
     shape.insert(
         k::HEIGHT.into(),
-        toml::Value::Float(f64::from((length - 2.0 * length * recipe.thickness).max(0.0))),
+        toml::Value::Float(f64::from(
+            (length - 2.0 * length * recipe.thickness).max(0.0),
+        )),
     );
     shape.insert(
         k::DENSITY.into(),
@@ -330,7 +330,9 @@ fn add_joint(
     params.insert(k::BODY.into(), toml::Value::String(path));
     params.insert(k::ANCHOR.into(), vector(mine, dim3));
     params.insert(k::OTHER_ANCHOR.into(), vector(theirs, dim3));
-    if recipe.limits[0] != recipe.limits[1] {
+    #[allow(clippy::float_cmp, reason = "a recipe's own pair, not a computed one")]
+    let limited = recipe.limits[0] != recipe.limits[1];
+    if limited {
         params.insert(
             k::LIMITS.into(),
             toml::Value::Array(vec![
@@ -371,15 +373,11 @@ fn relative_path(world: &balaur_core::hecs::World, from: Entity, to: Entity) -> 
         chain
     };
     let (here, there) = (ancestry(from), ancestry(to));
-    let shared = here
-        .iter()
-        .zip(&there)
-        .take_while(|(a, b)| a == b)
-        .count();
+    let shared = here.iter().zip(&there).take_while(|(a, b)| a == b).count();
     let up = here.len().saturating_sub(shared);
-    let down = there[shared..].iter().filter_map(|&e| {
-        world.get::<&scene::Name>(e).ok().map(|n| n.0.clone())
-    });
+    let down = there[shared..]
+        .iter()
+        .filter_map(|&e| world.get::<&scene::Name>(e).ok().map(|n| n.0.clone()));
     std::iter::repeat_n("..".to_string(), up)
         .chain(down)
         .collect::<Vec<_>>()

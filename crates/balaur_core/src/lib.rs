@@ -60,11 +60,11 @@ pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
 pub mod strings;
+pub mod tiles;
 pub mod time;
 pub mod timers;
 pub mod timings;
 pub mod transport;
-pub mod tiles;
 pub mod triangulate;
 pub mod voxels;
 

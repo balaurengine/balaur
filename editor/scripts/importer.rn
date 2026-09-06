@@ -1,0 +1,180 @@
+// The Import panel: how the selected file is read, written to the sidecar
+// beside it. Godot's Import dock, over `balaur_core::import`'s two sources —
+// `[import.<kind>]` in project.toml, then `<file>.toml`.
+
+use crate::style;
+use crate::util;
+
+// The keys each kind offers, in the order they are drawn. `fallback` is what
+// the engine assumes when neither the project nor the sidecar says.
+const ROWS = #{
+    texture: [
+        #{ key: "filter", kind: "enum", options: ["linear", "nearest"], fallback: "linear",
+           help: "nearest keeps pixel art crisp when it is magnified" },
+        #{ key: "srgb", kind: "bool", fallback: true,
+           help: "off for a normal map or a mask, which carry data rather than colour" },
+    ],
+};
+
+// Extensions the panel claims, matching `balaur_core::import::kind_of`.
+const KINDS = #{
+    png: "texture", jpg: "texture", jpeg: "texture", webp: "texture",
+    bmp: "texture", tga: "texture",
+};
+
+pub fn kind_of(rel) {
+    let lower = rel.to_lowercase();
+    let found = "";
+    for (extension, kind) in KINDS.iter() {
+        if lower.ends_with("." + extension) {
+            found = kind;
+        }
+    }
+    found
+}
+
+fn sidecar_of(rel) {
+    rel + ".toml"
+}
+
+fn full(S, rel) {
+    S.game_root + "/" + rel
+}
+
+// The sidecar's own table, empty when there is none. A file that does not
+// parse is reported once and treated as empty, so a typo cannot wedge the
+// panel.
+fn sidecar(S, rel) {
+    let path = full(S, sidecar_of(rel));
+    if !fs::exists(path) {
+        return #{};
+    }
+    let text = fs::read(path);
+    if !(text is String) {
+        return #{};
+    }
+    let parsed = script::attempt(|| toml::parse(text));
+    let (ok, value) = parsed;
+    if !ok {
+        log::warn(format!("{} is not a settings file", sidecar_of(rel)));
+        return #{};
+    }
+    util::obj(value)
+}
+
+// What `project.toml` says for this kind, which the sidecar overrides.
+fn project_default(S, kind, key) {
+    let manifest = toml::parse(fs::read(S.game_root + "/project.toml"));
+    let table = util::obj(util::obj(manifest).get("import").unwrap_or(#{}));
+    util::obj(table.get(kind).unwrap_or(#{})).get(key)
+}
+
+// Write one key, or drop it when `value` is nil. An empty sidecar is removed
+// rather than left behind: a file of no settings is noise in a project.
+fn write(S, rel, key, value) {
+    let table = sidecar(S, rel);
+    if value is Tuple {
+        table.remove(key);
+    } else {
+        table.insert(key, value);
+    }
+    let path = full(S, sidecar_of(rel));
+    if table.len() == 0 {
+        if fs::exists(path) {
+            fs::remove(path);
+        }
+    } else {
+        let (ok, why) = script::attempt(|| fs::write(path, toml::encode(table)));
+        if !ok {
+            log::error(format!("writing {}: {}", sidecar_of(rel), why));
+            return;
+        }
+    }
+    // The renderer uploads a texture under a name built from its settings, so
+    // the change shows without a restart.
+    assets::invalidate();
+    log::info(format!("import: {} {} for {}", key, if value is Tuple { "cleared" } else { "set" }, rel));
+}
+
+// One row: the label, the control, and where the value came from.
+fn row(S, k, rel, kind, spec) {
+    let key = spec.key;
+    let table = sidecar(S, rel);
+    let own = table.get(key);
+    let inherited = project_default(S, kind, key);
+    let effective = if !(own is Tuple) {
+        own
+    } else if !(inherited is Tuple) {
+        inherited
+    } else {
+        spec.fallback
+    };
+    ui::horizontal(#{ height: 24 }, || {
+        ui::add_space(10);
+        ui::horizontal(#{ height: 24, width: 92.0 }, || {
+            ui::label(key, #{ size: 11.5, color: k.dim });
+        });
+        if spec.kind == "bool" {
+            let (on, changed) = ui::toggle(effective == true, #{ role: "toggle",
+                on_fill: k.accent_fill, off_fill: k.sunken,
+                on_knob: k.on_accent, off_knob: k.faint,
+            });
+            if changed {
+                write(S, rel, key, on);
+            }
+        } else {
+            let now = if effective is String { effective } else { spec.fallback };
+            let (picked, changed) = ui::dropdown(
+                format!("import:{}:{}", rel, key), now, spec.options,
+                #{ width: 150, size: 11.5, height: 22, color: k.text },
+            );
+            if changed {
+                write(S, rel, key, picked);
+            }
+        }
+        ui::right(|| {
+            ui::add_space(10);
+            if !(own is Tuple) {
+                if ui::pill("clear", #{ height: 20, size: 10, strong: true,
+                    tooltip: "Drop this key and follow the project again",
+                    fill: k.sunken, color: k.dim }) {
+                    write(S, rel, key, ());
+                }
+            } else {
+                let source = if inherited is Tuple { "default" } else { "project" };
+                ui::label(source, style::mono_sm(k.faint));
+            }
+        });
+    });
+    ui::label(spec.help, style::mono_sm(k.faint));
+    ui::add_space(6);
+}
+
+// Drawn under the Assets dock's grid, for the file selected there.
+pub fn panel(S, k) {
+    let rel = S.assets.sel;
+    if rel == "" {
+        return;
+    }
+    let kind = kind_of(rel);
+    if kind == "" {
+        return;
+    }
+    let specs = ROWS.get(kind).unwrap_or([]);
+    ui::add_space(6);
+    ui::horizontal(#{ height: 22 }, || {
+        ui::add_space(10);
+        ui::label("Import", #{ size: 12, strong: true, color: k.text });
+        ui::add_space(8);
+        ui::label(format!("{}  ·  {}", util::last_segment(rel), kind), style::mono_sm(k.faint));
+        ui::right(|| {
+            ui::add_space(10);
+            if fs::exists(full(S, sidecar_of(rel))) {
+                ui::label(sidecar_of(util::last_segment(rel)), style::mono_sm(k.faint));
+            }
+        });
+    });
+    for spec in specs {
+        row(S, k, rel, kind, spec);
+    }
+}

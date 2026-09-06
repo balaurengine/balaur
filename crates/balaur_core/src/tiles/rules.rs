@@ -106,15 +106,18 @@ impl Rule {
     /// built by hand rather than parsed — demands nothing of the cells it does
     /// not reach, because a rule table must not be able to panic a game.
     fn demand(&self, dx: i32, dy: i32) -> &Demand {
-        let half = (self.size / 2) as i32;
+        let half = half_of(self.size);
         let index = (dy + half) as usize * self.size + (dx + half) as usize;
         self.pattern.get(index).unwrap_or(&Demand::Any)
     }
 }
 
-/// One of the eight ways a pattern may be laid over a cell, as the offset it
-/// samples and the flags the tile it places is drawn with.
-const TURNS: [(fn(i32, i32) -> (i32, i32), u8); 8] = [
+/// One way of laying a pattern over a cell: the offset it samples, and the
+/// flags the tile it places is drawn with.
+type Turn = (fn(i32, i32) -> (i32, i32), u8);
+
+/// The eight of them.
+const TURNS: [Turn; 8] = [
     (|x, y| (x, y), 0),
     (|x, y| (-y, x), super::TRANSPOSE | super::FLIP_X),
     (|x, y| (-x, -y), super::FLIP_X | super::FLIP_Y),
@@ -171,6 +174,11 @@ pub fn resolve(
     None
 }
 
+/// How far a pattern reaches from the cell it is matched on.
+fn half_of(size: usize) -> i32 {
+    i32::try_from(size / 2).unwrap_or(0)
+}
+
 /// Which of the eight turns a rule's `transforms` allows.
 fn allowed(transforms: u8, turn: usize) -> bool {
     match turn {
@@ -188,7 +196,7 @@ fn matches(
     row: i32,
     offset: fn(i32, i32) -> (i32, i32),
 ) -> bool {
-    let half = (rule.size / 2) as i32;
+    let half = half_of(rule.size);
     for dy in -half..=half {
         for dx in -half..=half {
             let (sx, sy) = offset(dx, dy);
@@ -234,7 +242,7 @@ fn pick(tiles: &[(u32, u32)], roll: u64) -> Option<u32> {
 /// map resolves to the same tiles on every machine and after every reload.
 fn hash(seed: u64, column: i32, row: i32, rule: u64) -> u64 {
     let mut value = seed ^ 0x9e37_79b9_7f4a_7c15;
-    for part in [column as i64 as u64, row as i64 as u64, rule] {
+    for part in [i64::from(column) as u64, i64::from(row) as u64, rule] {
         value ^= part.wrapping_mul(0xbf58_476d_1ce4_e5b9);
         value = value.rotate_left(31).wrapping_mul(0x94d0_49bb_1331_11eb);
     }

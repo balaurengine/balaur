@@ -81,7 +81,9 @@ fn a_tilemap_parses_cells_and_round_trips() {
     let tileset = balaur_core::assets::load_typed::<TileSet>(&app.engine, reference)
         .expect("the inline tileset parses");
     assert_eq!(tileset.texture, "tests/fixtures/sprite_200x100.png");
-    assert_eq!(tileset.tile_size, [50.0, 50.0], "a square size reads as a pair");
+    #[allow(clippy::float_cmp, reason = "a parsed size, not an arithmetic one")]
+    let square = tileset.tile_size == [50.0, 50.0];
+    assert!(square, "a square size reads as a pair");
     assert_eq!(tileset.columns, 4);
 
     let reloaded = node(&app);

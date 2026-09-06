@@ -18,8 +18,14 @@ use image::{DynamicImage, ImageFormat};
 use image_webp::{ColorType, WebPEncoder};
 use serde::Deserialize;
 
-/// How an image entry is re-encoded. Every mode is lossless and keeps the
-/// image's dimensions; a lossy palette or a downscale is another key's.
+/// imagequant's quality target, on its own 0-100 scale, for `Quantised`.
+pub const DEFAULT_IMAGES_QUALITY: u8 = 80;
+
+/// libvorbis's quality for `Vorbis`, where 0.5 is about 80 kbit/s in stereo.
+pub const DEFAULT_AUDIO_QUALITY: f32 = 0.5;
+
+/// How an image entry is re-encoded. Every mode keeps the image's dimensions;
+/// `Quantised` is the only one that changes what a pixel says.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageMode {
@@ -30,8 +36,12 @@ pub enum ImageMode {
     Png,
     /// Write the pixels as lossless WebP.
     Webp,
-    /// Try both and keep whichever won.
+    /// Try both and keep whichever won. Lossless: a lossy mode is asked for
+    /// by name, never arrived at by a search for the smaller file.
     Smallest,
+    /// Cut the image to a 256-colour palette with alpha, then run the PNG
+    /// path over it. Lossy.
+    Quantised,
 }
 
 /// Whether a face ships whole or cut down to the code points a game shows.
@@ -45,16 +55,18 @@ pub enum FontMode {
     Subset,
 }
 
-/// How a sound entry is re-encoded. FLAC is lossless; a lossy stream is
-/// another key's.
+/// How a sound entry is re-encoded, losslessly or not.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AudioMode {
     /// Ship the author's bytes.
     #[default]
     Keep,
-    /// Re-encode uncompressed PCM as FLAC.
+    /// Re-encode uncompressed PCM as FLAC, sample for sample.
     Flac,
+    /// Re-encode uncompressed PCM as Ogg Vorbis, which the runtime decodes
+    /// through rodio's symphonia. Lossy.
+    Vorbis,
 }
 
 /// What one entry weighed before and after.
@@ -75,10 +87,16 @@ impl Saving {
     }
 }
 
+/// The image re-encoded under `mode` at the default quality.
+pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
+    image_at(bytes, mode, DEFAULT_IMAGES_QUALITY)
+}
+
 /// The image re-encoded under `mode`, or `None` to keep the source bytes.
 ///
-/// A JPEG is always kept: re-encoding one loses a second time.
-pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
+/// `quality` is imagequant's 0-100 target, which only `Quantised` reads. A
+/// JPEG is always kept: re-encoding one loses a second time.
+pub fn image_at(bytes: &[u8], mode: ImageMode, quality: u8) -> Result<Option<Vec<u8>>> {
     let format = image::guess_format(bytes).map_err(|why| anyhow!("reading the image: {why}"))?;
     if mode == ImageMode::Keep || format == ImageFormat::Jpeg {
         return Ok(None);
@@ -88,6 +106,7 @@ pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
         ImageMode::Png => shrink_png(bytes, format)?,
         ImageMode::Webp => to_webp(bytes, format)?,
         ImageMode::Smallest => smaller_of(shrink_png(bytes, format)?, to_webp(bytes, format)?),
+        ImageMode::Quantised => quantise(bytes, format, quality)?,
     };
     Ok(candidate.filter(|out| out.len() < bytes.len()))
 }
@@ -100,15 +119,25 @@ pub fn font(bytes: &[u8], keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     subset_face(bytes, keep)
 }
 
+/// The sound re-encoded under `mode` at the default quality.
+pub fn audio(bytes: &[u8], mode: AudioMode) -> Result<Option<Vec<u8>>> {
+    audio_at(bytes, mode, DEFAULT_AUDIO_QUALITY)
+}
+
 /// The sound re-encoded under `mode`, or `None` to keep the source bytes.
 ///
+/// `quality` is libvorbis's -0.1 to 1.0 scale, which only `Vorbis` reads.
 /// Only uncompressed PCM in a WAV is touched; an already-compressed stream is
 /// left alone.
-pub fn audio(bytes: &[u8], mode: AudioMode) -> Result<Option<Vec<u8>>> {
+pub fn audio_at(bytes: &[u8], mode: AudioMode, quality: f32) -> Result<Option<Vec<u8>>> {
     if mode == AudioMode::Keep || !is_wav(bytes) {
         return Ok(None);
     }
-    let candidate = to_flac(bytes)?;
+    let candidate = match mode {
+        AudioMode::Keep => None,
+        AudioMode::Flac => to_flac(bytes)?,
+        AudioMode::Vorbis => to_vorbis(bytes, quality)?,
+    };
     Ok(candidate.filter(|out| out.len() < bytes.len()))
 }
 
@@ -162,6 +191,57 @@ fn to_webp(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
         .encode(&pixels, width, height, color)
         .map_err(|why| anyhow!("encoding the WebP: {why}"))?;
     Ok(Some(out))
+}
+
+/// The image cut to a 256-colour palette with alpha, as a PNG.
+///
+/// The palette is written back out as RGBA and left to the PNG path to index:
+/// oxipng reduces a 256-colour image to a palette itself, and where that pass
+/// is absent the plain re-encode still carries far fewer distinct colours.
+fn quantise(bytes: &[u8], format: ImageFormat, quality: u8) -> Result<Option<Vec<u8>>> {
+    if format != ImageFormat::Png {
+        return Ok(None);
+    }
+    let source = image::load_from_memory_with_format(bytes, format)
+        .map_err(|why| anyhow!("decoding the PNG: {why}"))?
+        .to_rgba8();
+    let (width, height) = (source.width(), source.height());
+    let pixels: Vec<imagequant::RGBA> = source
+        .pixels()
+        .map(|p| imagequant::RGBA::new(p[0], p[1], p[2], p[3]))
+        .collect();
+
+    let mut attributes = imagequant::new();
+    // A minimum of zero never aborts: whether the palette was worth it is
+    // decided by the size filter, not by refusing to encode.
+    attributes
+        .set_quality(0, quality.min(100))
+        .map_err(|why| anyhow!("the palette's quality target: {why}"))?;
+    let mut handle = attributes
+        .new_image(pixels, width as usize, height as usize, 0.0)
+        .map_err(|why| anyhow!("reading the image to quantise: {why}"))?;
+    let mut palette = attributes
+        .quantize(&mut handle)
+        .map_err(|why| anyhow!("quantising the image: {why}"))?;
+    let (colours, indices) = palette
+        .remapped(&mut handle)
+        .map_err(|why| anyhow!("remapping the image onto its palette: {why}"))?;
+
+    let flat: Vec<u8> = indices
+        .iter()
+        .flat_map(|&at| {
+            let colour = colours[usize::from(at)];
+            [colour.r, colour.g, colour.b, colour.a]
+        })
+        .collect();
+    let mapped = image::RgbaImage::from_raw(width, height, flat)
+        .ok_or_else(|| anyhow!("the quantised image lost its dimensions"))?;
+    let mut out = Vec::new();
+    DynamicImage::ImageRgba8(mapped)
+        .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
+        .map_err(|why| anyhow!("encoding the quantised PNG: {why}"))?;
+    let shrunk = shrink_png(&out, ImageFormat::Png)?;
+    Ok(Some(shrunk.unwrap_or(out)))
 }
 
 /// A RIFF/WAVE header, which is the only sound this module re-encodes.
@@ -287,7 +367,9 @@ mod tests {
             return (width, height, buffer);
         }
         let rgba = buffer
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .flat_map(|p| [p[0], p[1], p[2], 255])
             .collect();
         (width, height, rgba)
@@ -308,15 +390,29 @@ mod tests {
     #[test]
     fn measure_me() {
         for name in ["editor/assets/balaur-logo.png", "examples/rig/art/limb.png"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(name);
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(name);
             let src = std::fs::read(&path).unwrap();
-            let png = image(&src, ImageMode::Png).unwrap().map_or(src.len(), |v| v.len());
-            let webp = image(&src, ImageMode::Webp).unwrap().map_or(src.len(), |v| v.len());
-            let best = image(&src, ImageMode::Smallest).unwrap().map_or(src.len(), |v| v.len());
-            println!("MEASURE {name}: source {} png {png} webp {webp} smallest {best}", src.len());
+            let png = image(&src, ImageMode::Png)
+                .unwrap()
+                .map_or(src.len(), |v| v.len());
+            let webp = image(&src, ImageMode::Webp)
+                .unwrap()
+                .map_or(src.len(), |v| v.len());
+            let best = image(&src, ImageMode::Smallest)
+                .unwrap()
+                .map_or(src.len(), |v| v.len());
+            println!(
+                "MEASURE {name}: source {} png {png} webp {webp} smallest {best}",
+                src.len()
+            );
         }
         let face = ui_face();
-        let keep: BTreeSet<char> = "Hello, world! The quick brown fox jumps over the lazy dog 0123456789".chars().collect();
+        let keep: BTreeSet<char> =
+            "Hello, world! The quick brown fox jumps over the lazy dog 0123456789"
+                .chars()
+                .collect();
         let sub = font(&face, &keep).unwrap().unwrap();
         println!("MEASURE font: source {} subset {}", face.len(), sub.len());
         let wav = sample_wav();
@@ -374,12 +470,12 @@ mod tests {
         use symphonia::core::audio::{AudioBufferRef, Signal};
         use symphonia::core::codecs::DecoderOptions;
         use symphonia::core::formats::FormatOptions;
-        use symphonia::core::io::MediaSourceStream;
+        use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
         use symphonia::core::meta::MetadataOptions;
         use symphonia::core::probe::Hint;
 
         let source = std::io::Cursor::new(bytes.to_vec());
-        let stream = MediaSourceStream::new(Box::new(source), Default::default());
+        let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
         hint.with_extension("flac");
         let probed = symphonia::default::get_probe()

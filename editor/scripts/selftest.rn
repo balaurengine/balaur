@@ -312,22 +312,15 @@ pub fn weighting(S) {
     // vertex count and every other column to nothing.
     S.polygon.bone = Some(0);
     weights::bind(S);
-    let column = |at| {
-        let total = 0.0;
-        for w in util::vec(polygon::bones(S)[at].get("weights").unwrap_or([])) {
-            total += util::f(w);
-        }
-        total
-    };
-    check(util::abs(column(0) - util::f(count)) < 1e-4,
-        format!("bind gives every vertex to one bone ({} of {})", column(0), count));
-    check(bones.len() < 2 || column(1) == 0.0, "and takes them off the others");
+    check(util::abs(column(S, 0) - util::f(count)) < 1e-4,
+        format!("bind gives every vertex to one bone ({} of {})", column(S, 0), count));
+    check(bones.len() < 2 || column(S, 1) == 0.0, "and takes them off the others");
 
     weights::unbind(S);
-    check(column(0) == 0.0, "unbind takes every vertex off every bone");
+    check(column(S, 0) == 0.0, "unbind takes every vertex off every bone");
 
     weights::auto(S);
-    let after_auto = column(0);
+    let after_auto = column(S, 0);
     check(after_auto > 0.0, format!("auto weights by distance ({:.2})", after_auto));
     weights::normalise(S);
     let per_vertex = 0.0;
@@ -363,7 +356,9 @@ pub fn weighting(S) {
     check(true, format!("mirrored over x (vertex 0 was {:.3}, mesh sums to {:.3})", was, sum));
 
     // A name with a side in it finds its opposite; one without finds nothing.
-    check(polygon::mirror_name("Arm_L") == Some("Arm_R"), "Arm_L mirrors to Arm_R");
+    check(polygon::mirror_name("Arm_L") == Some("Arm_R"), "Arm_L mirrors to Arm_R, keeping its case");
+    check(polygon::mirror_name("arm_l") == Some("arm_r"), "and arm_l to arm_r");
+    check(polygon::mirror_name("LeftArm") == Some("RightArm"), "LeftArm mirrors to RightArm");
     check(polygon::mirror_name("left_hand") == Some("right_hand"), "left_hand mirrors to right_hand");
     check(polygon::mirror_name("Spine").is_none(), "a bone with no side mirrors to nothing");
 
@@ -376,6 +371,16 @@ pub fn weighting(S) {
     check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
     check(mirror_resolves(S), "every node still resolves");
     log::info("selftest weights: done");
+}
+
+// One bone's whole column of weights, summed: what a verb over every vertex
+// moves, in one number.
+fn column(S, at) {
+    let total = 0.0;
+    for w in util::vec(polygon::bones(S)[at].get("weights").unwrap_or([])) {
+        total += util::f(w);
+    }
+    total
 }
 
 fn inline_polygon(S) {
@@ -428,6 +433,16 @@ pub fn bonemap_panel(S) {
         }
     }
     check(sound, format!("every guessed row names a bone on the rig ({} filled)", filled));
+    // The guesser itself, against names an exporter actually writes: the rig
+    // in front of the test may share none of the canonical names, and that
+    // must not be the only thing this covers.
+    let sample = ["Armature/mixamorig:LeftUpperArm", "Armature/left_upper_leg", "Armature/Hips"];
+    check(bonemap::guess("LeftUpperArm", sample) == Some("Armature/mixamorig:LeftUpperArm"),
+        "an exporter's prefix does not stop a match");
+    check(bonemap::guess("LeftUpperLeg", sample) == Some("Armature/left_upper_leg"),
+        "separators and case do not stop a match");
+    check(bonemap::guess("Neck", sample).is_none(), "a bone the rig has not got matches nothing");
+
     bonemap::clear(S);
     let empty = 0;
     for (_, rel) in S.bonemap.bones.iter() {

@@ -40,6 +40,10 @@ friction = 0.9
 "##;
 
 fn run(script: &str, frames: u32) -> (App, Vec<String>) {
+    run_scene(SCENE, script, frames)
+}
+
+fn run_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -50,7 +54,7 @@ fn run(script: &str, frames: u32) -> (App, Vec<String>) {
         "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
+    std::fs::write(dir.path().join("main.toml"), scene).unwrap();
     std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -134,4 +138,74 @@ fn digging_a_cell_rebuilds_what_the_map_collides_with() {
         [false, true, true, false],
         "the cell the script cleared is gone from the collider too"
     );
+}
+
+/// Two cells of a slope that a body passes through from below, the second of
+/// them mirrored: the collider has to be the picture, and it has to keep the
+/// behaviour the tile names.
+const SLOPES: &str = r##"[[assets]]
+id = "slopes"
+type = "tileset"
+texture = "art/dungeon.png"
+tile_size = 16
+columns = 4
+
+[assets.tiles.1]
+collision = [[[16, 0], [16, 16], [0, 16]]]
+one_way = true
+
+[[nodes]]
+id = "n_map"
+name = "Map"
+
+[nodes.tilemap]
+tileset = "#slopes"
+cells = [[1, 1]]
+flags = [[0, 1]]
+pixels_per_unit = 16.0
+
+[nodes.tile_collision]
+friction = 0.5
+"##;
+
+/// The corner above the middle of each shaped cell's triangle, in the cell's
+/// own space: which side the slope rises on.
+fn slope_peaks(app: &App) -> Vec<f32> {
+    let world = app.engine.world();
+    let node = find_node(&world, app.engine.root(), "Map").expect("the scene's map");
+    drop(world);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    state.colliders[&node]
+        .iter()
+        .map(|handle| {
+            let collider = &state.world.colliders[*handle];
+            assert!(
+                collider.active_hooks().contains(
+                    balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS
+                ),
+                "a one-way tile asks for the contact hook whatever shape it is"
+            );
+            let hull = collider
+                .shape()
+                .as_convex_polygon()
+                .expect("a tile's polygons build a hull");
+            let top = hull
+                .points()
+                .iter()
+                .max_by(|a, b| a.y.total_cmp(&b.y))
+                .expect("the hull has points");
+            top.x
+        })
+        .collect()
+}
+
+#[test]
+fn a_turned_tile_collides_the_way_it_is_drawn_and_keeps_being_one_way() {
+    let (app, errors) = run_scene(SLOPES, "", 1);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let peaks = slope_peaks(&app);
+    assert_eq!(peaks.len(), 2, "one collider per shaped cell: {peaks:?}");
+    assert!(peaks[0] > 0.0, "the upright slope rises on the right");
+    assert!(peaks[1] < 0.0, "and the mirrored one on the left");
 }

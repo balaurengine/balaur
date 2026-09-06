@@ -198,19 +198,14 @@ fn resolve_all(eng: &Engine, map: &mut Tilemap) {
         };
         painted.get(y).is_some_and(|line| x < line.len())
     };
-    for row in 0..painted.len() as i32 {
-        for column in 0..painted.first().map_or(0, Vec::len) as i32 {
+    for row in 0..span(painted.len()) {
+        for column in 0..span(painted.first().map_or(0, Vec::len)) {
             let (x, y) = (origin[0] + column, origin[1] + row);
-            match balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed) {
-                Some((tile, flags)) => {
-                    write_cell(map, x, y, Some(tile));
-                    write_flags(map, x, y, flags);
-                }
-                None => {
-                    write_cell(map, x, y, None);
-                    write_flags(map, x, y, 0);
-                }
-            }
+            let (tile, flags) =
+                balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
+                    .map_or((None, 0), |(tile, flags)| (Some(tile), flags));
+            write_cell(map, x, y, tile);
+            write_flags(map, x, y, flags);
         }
     }
     map.cells = cells_value(&map.grid);
@@ -230,7 +225,7 @@ fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
     let radius = set
         .rules
         .iter()
-        .map(|rule| (rule.size / 2) as i32)
+        .map(|rule| span(rule.size / 2))
         .max()
         .unwrap_or(1);
     // Read first and write after, so the resolver reads the painted grid in
@@ -355,8 +350,8 @@ fn grow_to(map: &mut Tilemap, column: i32, row: i32) {
     if grid_index(map, column, row).is_some() {
         return;
     }
-    let columns = map.grid.iter().map(Vec::len).max().unwrap_or(0) as i32;
-    let rows = map.grid.len() as i32;
+    let columns = span(map.grid.iter().map(Vec::len).max().unwrap_or(0));
+    let rows = span(map.grid.len());
     let left = (map.origin[0] - column).max(0);
     let up = (map.origin[1] - row).max(0);
     let right = (column - (map.origin[0] + columns - 1)).max(0);
@@ -374,8 +369,8 @@ fn grow_to(map: &mut Tilemap, column: i32, row: i32) {
     if !map.flags.is_empty() {
         grow_rows(&mut map.flags, 0, left, up, width, height);
     }
-    map.origin[0] -= left as i32;
-    map.origin[1] -= up as i32;
+    map.origin[0] -= span(left);
+    map.origin[1] -= span(up);
 }
 
 /// Grow one of a map's per-cell grids to `width` by `height`, putting `left`
@@ -398,6 +393,11 @@ fn grow_rows<T: Clone>(
     grown.append(rows);
     *rows = grown;
     rows.resize(height, vec![empty; width]);
+}
+
+/// How many cells a count of stored rows or columns spans, as a coordinate.
+fn span(count: usize) -> i32 {
+    i32::try_from(count).unwrap_or(i32::MAX)
 }
 
 /// Where a coordinate sits in the stored rows.
@@ -602,7 +602,10 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 );
                 if !map.terrain.is_empty() {
                     out.insert(k::TERRAIN.into(), terrain_value(&map.terrain));
-                    out.insert(k::SEED.into(), toml::Value::Integer(map.seed as i64));
+                    out.insert(
+                        k::SEED.into(),
+                        toml::Value::Integer(i64::try_from(map.seed).unwrap_or(i64::MAX)),
+                    );
                 }
                 if !map.flags.is_empty() {
                     out.insert(
@@ -763,13 +766,30 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// How many cells one chunk of the mesh covers along each edge.
+///
+/// A map is one mesh node per chunk, so writing a cell rebuilds the buffer
+/// around it rather than the whole level: a paint stroke costs its stroke.
+#[cfg(feature = "kiss3d")]
+const CHUNK: i32 = 32;
+
 #[cfg(feature = "kiss3d")]
 pub(crate) struct TilemapSlot {
+    /// The map's own node. Every chunk is a child of it, so the map is posed
+    /// once however many chunks it happens to be made of.
     node: kiss3d::scene::SceneNode2d,
+    chunks: std::collections::HashMap<[i32; 2], Chunk>,
     version: u64,
     /// Which frame the map's animated tiles were built at. A picture, not a
     /// rule: it moves on the frame clock and stays out of the digest.
     frame: i64,
+}
+
+/// One block of the map's mesh, and what its cells were when it was built.
+#[cfg(feature = "kiss3d")]
+struct Chunk {
+    node: kiss3d::scene::SceneNode2d,
+    digest: u64,
 }
 
 /// Mirror [`Tilemap`] + `GlobalTransform` into the kiss3d 2D scene graph.
@@ -800,31 +820,40 @@ pub(crate) fn sync_tilemaps(
             || slots
                 .get(&entity)
                 .is_none_or(|slot| slot.version != map.version || slot.frame != frame);
-        if rebuild {
-            if let Some(mut old) = slots.remove(&entity) {
-                old.node.detach();
-            }
-            // A failed build still fills the slot (with a bare group), so a
-            // missing texture is reported once, not sixty times a second.
-            let mut node = build_map_node(&app.engine, map).unwrap_or_else(|err| {
-                tracing::error!("tilemap: {err:#}");
-                kiss3d::scene::SceneNode2d::empty()
-            });
-            if let Some(material) = materials.for_node(app, &map.material, &channel) {
-                node.set_material(material);
-            }
-            scene.add_child(node.clone());
-            slots.insert(
-                entity,
-                TilemapSlot {
-                    node,
-                    frame,
-                    version: map.version,
-                },
-            );
+        if reloaded && let Some(mut old) = slots.remove(&entity) {
+            // Every map is built from files, so a reload starts them over.
+            old.node.detach();
         }
-        // The block above inserts the slot when it is missing.
-        let slot = slots.get_mut(&entity).unwrap();
+        let slot = slots.entry(entity).or_insert_with(|| {
+            let node = kiss3d::scene::SceneNode2d::empty();
+            scene.add_child(node.clone());
+            TilemapSlot {
+                node,
+                chunks: std::collections::HashMap::new(),
+                version: map.version,
+                frame,
+            }
+        });
+        if rebuild {
+            // A failed build leaves the chunks it had, so a missing texture is
+            // reported once rather than sixty times a second.
+            if let Err(err) = rebuild_chunks(app, slot, map, frame) {
+                tracing::error!("tilemap: {err:#}");
+                // Nothing to draw rather than the last good mesh: a map whose
+                // tileset went missing is missing.
+                for (_, mut chunk) in slot.chunks.drain() {
+                    chunk.node.detach();
+                }
+            }
+            let material = materials.for_node(app, &map.material, &channel);
+            for chunk in slot.chunks.values_mut() {
+                if let Some(material) = material.clone() {
+                    chunk.node.set_material(material);
+                }
+            }
+            slot.version = map.version;
+            slot.frame = frame;
+        }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         let visible = world
             .get::<&GlobalAppearance>(entity)
@@ -845,32 +874,126 @@ pub(crate) fn sync_tilemaps(
     });
 }
 
-/// One mesh node for the whole map, cells indexing the tileset atlas.
+/// Rebuild the chunks whose cells moved, and drop the ones that emptied.
 ///
-/// Built here rather than by the fork's uniform sheet, which has no gutter to
-/// skip and no way to turn a cell: a quad per filled cell, placed by the
-/// grid's own maths so the map is anchored on its node.
+/// The map's own node is not touched: chunks come and go under it, so a map
+/// keeps its place in the scene however it is edited.
 #[cfg(feature = "kiss3d")]
-fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNode2d> {
-    use kiss3d::resource::GpuMesh2d;
-
+fn rebuild_chunks(
+    app: &balaur_core::App,
+    slot: &mut TilemapSlot,
+    map: &Tilemap,
+    frame: i64,
+) -> Result<()> {
+    let eng = &app.engine;
     let tileset = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&tileset.texture)?;
     let (width, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
-    let grid = grid_of(map, &tileset);
     let sheet = glamx::Vec2::new(width as f32, height as f32);
+    let grid = grid_of(map, &tileset);
+    let wanted = chunks_of(&grid, &tileset, eng.time() as f32, frame);
+    for (key, (cells, digest)) in &wanted {
+        if slot
+            .chunks
+            .get(key)
+            .is_some_and(|held| held.digest == *digest)
+        {
+            continue;
+        }
+        if let Some(mut old) = slot.chunks.remove(key) {
+            old.node.detach();
+        }
+        let mut node = build_chunk_node(&tileset, &grid, sheet, cells);
+        slot.node.add_child(node.clone());
+        crate::texture::attach_texture_2d(eng, &mut node, &tileset.texture);
+        slot.chunks.insert(
+            *key,
+            Chunk {
+                node,
+                digest: *digest,
+            },
+        );
+    }
+    slot.chunks.retain(|key, chunk| {
+        if wanted.contains_key(key) {
+            return true;
+        }
+        chunk.node.detach();
+        false
+    });
+    Ok(())
+}
+
+/// The cells of every chunk the map covers, each with a digest of what its
+/// cells are: a chunk whose digest has not moved keeps the mesh it has.
+///
+/// The digest carries the cell size and the animation frame too, so a map
+/// that was rescaled or a tile that turned over rebuilds like an edit.
+#[cfg(feature = "kiss3d")]
+#[allow(clippy::type_complexity, reason = "one map of one thing, named below")]
+fn chunks_of(
+    grid: &balaur_core::tiles::TileGrid,
+    set: &TileSet,
+    seconds: f32,
+    frame: i64,
+) -> std::collections::BTreeMap<[i32; 2], (Vec<(i32, i32, u32, u8)>, u64)> {
+    let seed = [
+        grid.tile_world[0].to_bits().into(),
+        grid.tile_world[1].to_bits().into(),
+        frame as u64,
+    ]
+    .into_iter()
+    .fold(0xcbf2_9ce4_8422_2325, mix);
+    let mut out: std::collections::BTreeMap<[i32; 2], (Vec<(i32, i32, u32, u8)>, u64)> =
+        std::collections::BTreeMap::new();
+    for (column, row, id) in grid.filled() {
+        let id = animated(set, id, seconds);
+        let flags = grid.cell_flags(column, row);
+        let key = [column.div_euclid(CHUNK), row.div_euclid(CHUNK)];
+        let entry = out.entry(key).or_insert_with(|| (Vec::new(), seed));
+        entry.0.push((column, row, id, flags));
+        for part in [
+            column as i64 as u64,
+            row as i64 as u64,
+            id.into(),
+            flags.into(),
+        ] {
+            entry.1 = mix(entry.1, part);
+        }
+    }
+    out
+}
+
+/// One more number folded into a digest.
+#[cfg(feature = "kiss3d")]
+fn mix(hash: u64, value: u64) -> u64 {
+    (hash ^ value).wrapping_mul(0x0100_0000_01b3)
+}
+
+/// One mesh node for one chunk of the map, cells indexing the tileset atlas.
+///
+/// Built here rather than by the fork's uniform sheet, which has no gutter to
+/// skip and no way to turn a cell: a quad per filled cell, placed by the
+/// grid's own maths so the map is anchored on its node.
+#[cfg(feature = "kiss3d")]
+fn build_chunk_node(
+    tileset: &TileSet,
+    grid: &balaur_core::tiles::TileGrid,
+    sheet: glamx::Vec2,
+    cells: &[(i32, i32, u32, u8)],
+) -> kiss3d::scene::SceneNode2d {
+    use kiss3d::resource::GpuMesh2d;
+
     // A hair off each edge of a tile's rect, or a neighbouring tile bleeds in
     // at some zoom levels.
     let inset = glamx::Vec2::new(0.05 / sheet.x, 0.05 / sheet.y);
     let mut coords: Vec<glamx::Vec2> = Vec::new();
     let mut uvs: Vec<glamx::Vec2> = Vec::new();
     let mut faces: Vec<[u32; 3]> = Vec::new();
-    let seconds = eng.time() as f32;
-    for (column, row, id) in grid.filled() {
-        let id = animated(&tileset, id, seconds);
+    for (column, row, id, flags) in cells.iter().copied() {
         let centre = grid.cell_centre(column, row);
         let half = glamx::Vec2::new(grid.tile_world[0], grid.tile_world[1]) / 2.0;
         let base = coords.len() as u32;
@@ -880,23 +1003,15 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
             centre + glamx::Vec2::new(half.x, -half.y),
             centre + glamx::Vec2::new(-half.x, -half.y),
         ]);
-        uvs.extend(tile_uvs(
-            &tileset,
-            id,
-            sheet,
-            inset,
-            grid.cell_flags(column, row),
-        ));
+        uvs.extend(tile_uvs(tileset, id, sheet, inset, flags));
         faces.push([base, base + 1, base + 2]);
         faces.push([base, base + 2, base + 3]);
     }
     let mesh = GpuMesh2d::new(coords, faces, Some(uvs), true);
-    let mut node = kiss3d::scene::SceneNode2d::mesh(
+    kiss3d::scene::SceneNode2d::mesh(
         std::rc::Rc::new(std::cell::RefCell::new(mesh)),
         glamx::Vec2::ONE,
-    );
-    crate::texture::attach_texture_2d(eng, &mut node, &tileset.texture);
-    Ok(node)
+    )
 }
 
 /// The frame an animated tile is showing; a still tile is itself.

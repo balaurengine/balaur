@@ -120,14 +120,19 @@ pub struct Params {
 }
 
 /// A 2D rig modifier, over `bone2d`.
+///
+/// Shared rather than owned: the system reads every modifier's params once a
+/// frame, and the paths in them are strings nobody should be copying sixty
+/// times a second.
 #[derive(Clone, Debug)]
-pub struct Modifier2d(Params);
+pub struct Modifier2d(std::sync::Arc<Params>);
 
 /// A 3D rig modifier, over `bone3d`.
 #[derive(Clone, Debug)]
-pub struct Modifier3d(Params);
+pub struct Modifier3d(std::sync::Arc<Params>);
 
-/// A jiggle chain's dynamic points and their speeds, one per solved bone.
+/// A jiggle chain's dynamic points and their speeds, one per solved bone,
+/// and the two rotations that keep the spring from chasing itself.
 ///
 /// Kept out of the component so re-applying the component — which the editor
 /// does on every inspector edit — does not throw the motion away.
@@ -135,11 +140,23 @@ pub struct Modifier3d(Params);
 pub struct Jiggle {
     pub(crate) points: Vec<Vec3>,
     pub(crate) velocities: Vec<Vec3>,
+    /// The pose the clip left, per bone. A spring pulls toward *this*, never
+    /// toward where the spring itself put the bone last tick — that pair
+    /// agree at any angle, including upside down, and the chain would stay
+    /// wherever it was first flung.
+    pub(crate) incoming: Vec<Quat>,
+    /// What this modifier wrote last tick. A bone still holding it was not
+    /// touched by a clip since, so `incoming` still stands; a bone holding
+    /// anything else has been posed and `incoming` is replaced.
+    pub(crate) written: Vec<Quat>,
 }
 
-fn schema(dim3: bool) -> String {
+fn schema() -> String {
     let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE]);
-    let gravity = if dim3 { "[0.0, -6.0, 0.0]" } else { "[0.0, -6.0, 0.0]" };
+    // Down, at about two thirds of earth's: a chain that hangs rather than
+    // drops. A 2D rig reads the third number as nothing, so both dimensions
+    // take the same one.
+    let gravity = "[0.0, -6.0, 0.0]";
     ComponentDef::schema(&[
         (
             k::KIND,
@@ -220,7 +237,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
         "modifier2d",
         ComponentDef {
             doc: DOC_2D,
-            schema: ComponentDef::parse_schema("modifier2d", &schema(false)),
+            schema: ComponentDef::parse_schema("modifier2d", &schema()),
             tags: &[
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::ANIMATION,
@@ -229,7 +246,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
             apply: Box::new(|eng, entity, params| {
                 let params = params_of(params)?;
                 eng.world_mut()
-                    .insert_one(entity, Modifier2d(params))
+                    .insert_one(entity, Modifier2d(std::sync::Arc::new(params)))
                     .map_err(|_| anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
@@ -252,7 +269,7 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
         "modifier3d",
         ComponentDef {
             doc: DOC_3D,
-            schema: ComponentDef::parse_schema("modifier3d", &schema(true)),
+            schema: ComponentDef::parse_schema("modifier3d", &schema()),
             tags: &[
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::ANIMATION,
@@ -261,7 +278,7 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
             apply: Box::new(|eng, entity, params| {
                 let params = params_of(params)?;
                 eng.world_mut()
-                    .insert_one(entity, Modifier3d(params))
+                    .insert_one(entity, Modifier3d(std::sync::Arc::new(params)))
                     .map_err(|_| anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
@@ -301,7 +318,10 @@ fn params_of(params: &toml::Value) -> Result<Params> {
             .unwrap_or(default)
     };
     let number = |key: &str, default: f32| {
-        params.get(key).and_then(as_f64).map_or(default, |v| v as f32)
+        params
+            .get(key)
+            .and_then(as_f64)
+            .map_or(default, |v| v as f32)
     };
     let count = |key: &str, default: u32| {
         params
@@ -345,7 +365,10 @@ fn table_of(m: &Params) -> toml::Value {
     put(k::KIND, toml::Value::String(m.kind.name().into()));
     put(k::TARGET, toml::Value::String(m.target.clone()));
     put(k::BONE, toml::Value::String(m.bone.clone()));
-    put(k::CHAIN, toml::Value::Integer(m.chain as i64));
+    put(
+        k::CHAIN,
+        toml::Value::Integer(i64::try_from(m.chain).unwrap_or(0)),
+    );
     put(k::ITERATIONS, toml::Value::Integer(i64::from(m.iterations)));
     put(k::TOLERANCE, toml::Value::Float(f64::from(m.tolerance)));
     put(k::ANGLE_LIMIT, toml::Value::Float(f64::from(m.angle_limit)));
@@ -404,6 +427,22 @@ fn rotation_3d(world: &World, entity: Entity) -> Quat {
     q
 }
 
+/// Where a node sits in the scene, as the child index at each step down from
+/// the root: the order the scene file reads in, and one that stays put when a
+/// node elsewhere is added or removed.
+fn scene_order(world: &World, entity: Entity) -> Vec<u32> {
+    let line = ancestry(world, entity);
+    line.windows(2)
+        .map(|step| {
+            world
+                .get::<&scene::Children>(step[0])
+                .ok()
+                .and_then(|kids| kids.0.iter().position(|child| *child == step[1]))
+                .unwrap_or(0) as u32
+        })
+        .collect()
+}
+
 /// `entity` and every ancestor, root first — the order a pose composes in.
 fn ancestry(world: &World, entity: Entity) -> Vec<Entity> {
     let mut chain = vec![entity];
@@ -443,7 +482,11 @@ fn first_child_bone(world: &World, entity: Entity) -> Option<Entity> {
 /// The bones a chain solver works on: `root` and its first-child bones, at
 /// most `len` of them, or as far as the rig goes when `len` is zero.
 fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
-    let cap = if len == 0 { MAX_CHAIN } else { len.min(MAX_CHAIN) };
+    let cap = if len == 0 {
+        MAX_CHAIN
+    } else {
+        len.min(MAX_CHAIN)
+    };
     let mut out = Vec::new();
     let mut current = Some(root);
     while let Some(bone) = current {
@@ -838,6 +881,26 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
     if state.points.len() != chain.len() {
         state.points.clear();
         state.velocities.clear();
+        state.incoming.clear();
+        state.written.clear();
+    }
+    // The whole chain goes back on the clip's pose before anything is aimed,
+    // so a bone's target is where the clip put it and not where the spring
+    // did. A bone the clip has since moved keeps its new pose instead.
+    for (i, &bone) in chain.iter().enumerate() {
+        let Ok(mut t) = world.get::<&mut Transform>(bone) else {
+            continue;
+        };
+        match (state.incoming.get(i), state.written.get(i)) {
+            (Some(&clip), Some(&written)) if t.rotation == written => t.rotation = clip,
+            _ => {
+                while state.incoming.len() <= i {
+                    state.incoming.push(t.rotation);
+                    state.written.push(t.rotation);
+                }
+                state.incoming[i] = t.rotation;
+            }
+        }
     }
     let keep = (1.0 - p.damping).clamp(0.0, 1.0);
     for (i, &bone) in chain.iter().enumerate() {
@@ -853,7 +916,6 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
             state.points.push(rest_tip);
             state.velocities.push(Vec3::ZERO);
         }
-        let length = (rest_tip - origin).length();
         let mut point = state.points[i];
         let mut velocity = state.velocities[i];
         let mut force = (rest_tip - point) * p.stiffness;
@@ -862,11 +924,13 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
         }
         velocity = (velocity + force * FIXED_DT) * keep;
         point += velocity * FIXED_DT;
-        // The spring may pull the point off the bone's own circle; putting it
-        // back is what keeps the rig rigid while the pose lags.
-        if length > MIN_BONE {
-            point = along(origin, point, length);
-        }
+        // The point is a direction to aim along, not a joint position, so it
+        // is left where the spring puts it. Holding it on the bone's own
+        // circle would look tidier and has one fixed point too many: a point
+        // flung to the far side of the origin sits exactly opposite the pose,
+        // where the pull is along the radius the projection cancels, and the
+        // bone stays upside down for good.
+        let _ = origin;
         // A non-finite point would be aimed at once and then hold the bone
         // there for the rest of the session; the pose is the safe fallback.
         if !point.is_finite() || !velocity.is_finite() {
@@ -880,9 +944,17 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
         } else {
             aim_at_point_2d(world, bone, point.truncate());
         }
+        if let Ok(t) = world.get::<&Transform>(bone) {
+            while state.written.len() <= i {
+                state.written.push(t.rotation);
+            }
+            state.written[i] = t.rotation;
+        }
     }
     state.points.truncate(chain.len());
     state.velocities.truncate(chain.len());
+    state.incoming.truncate(chain.len());
+    state.written.truncate(chain.len());
 }
 
 /// Write a solved point list back onto the chain, root to tip.
@@ -907,25 +979,29 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
     if eng.frozen_root().is_some() {
         return;
     }
-    let mut work: Vec<(Entity, Params, bool)> = {
+    let mut work: Vec<(Entity, std::sync::Arc<Params>, bool)> = {
         let world = eng.world();
-        let mut work: Vec<(Entity, Params, bool)> = world
+        let mut work: Vec<(Vec<u32>, Entity, std::sync::Arc<Params>, bool)> = world
             .query::<(Entity, &Modifier2d)>()
             .iter()
-            .map(|(e, m)| (e, m.0.clone(), false))
+            .map(|(e, m)| (e, std::sync::Arc::clone(&m.0), false))
             .chain(
                 world
                     .query::<(Entity, &Modifier3d)>()
                     .iter()
-                    .map(|(e, m)| (e, m.0.clone(), true)),
+                    .map(|(e, m)| (e, std::sync::Arc::clone(&m.0), true)),
             )
             .filter(|(_, m, _)| m.enabled && !(m.kind.wants_target() && m.target.is_empty()))
+            .map(|(e, m, dim3)| (scene_order(&world, e), e, m, dim3))
             .collect();
-        // Entity order is reproducible for one binary; a set order is what
-        // makes two modifiers on one bone land the same way twice, and the
-        // dimension is in the key so 2D and 3D interleave the same way too.
-        work.sort_by_key(|(e, _, dim3)| (*dim3, e.to_bits()));
-        work
+        // A set order is what makes two modifiers on one bone land the same
+        // way twice. The scene's own reading order, not the entity's number:
+        // that would move when a node somewhere else in the scene is added,
+        // and the same rig would then solve differently.
+        work.sort_by(|a, b| (a.3, &a.0).cmp(&(b.3, &b.0)));
+        work.into_iter()
+            .map(|(_, e, m, dim3)| (e, m, dim3))
+            .collect()
     };
     let steps = jiggle_steps(eng, dt, &work);
     for (entity, m, dim3) in work.drain(..) {
@@ -938,7 +1014,7 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
 ///
 /// The accumulator only moves when something is actually jiggling, so a scene
 /// with no springs in it does not carry a residual into the frame one appears.
-fn jiggle_steps(eng: &Engine, dt: f32, work: &[(Entity, Params, bool)]) -> u32 {
+fn jiggle_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
     if !work.iter().any(|(_, m, _)| m.kind == Kind::Jiggle) {
         return 0;
     }
@@ -1029,7 +1105,10 @@ pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
     let world = eng.world();
     let (target, dim3) = match world.get::<&Modifier2d>(entity) {
         Ok(m) => (m.0.target.clone(), false),
-        Err(_) => (world.get::<&Modifier3d>(entity).ok()?.0.target.clone(), true),
+        Err(_) => (
+            world.get::<&Modifier3d>(entity).ok()?.0.target.clone(),
+            true,
+        ),
     };
     let target = scene::find_node(&world, entity, &target)?;
     Some(if dim3 {

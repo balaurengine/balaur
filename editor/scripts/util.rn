@@ -126,6 +126,39 @@ pub fn merge(a, b) {
     out
 }
 
+/// Where `needle` first sits in `text`, or `None`. Rune's `String` has no
+/// `find`, and splitting on the needle measures the same thing.
+pub fn index_of(text, needle) {
+    if needle == "" {
+        return None;
+    }
+    let parts = text.split(needle).collect::<Vec>();
+    if parts.len() < 2 {
+        return None;
+    }
+    Some(parts[0].len())
+}
+
+/// `text` cased the way `sample` is: all caps, capitalised, or left alone.
+/// What keeps `Arm_L` mirroring to `Arm_R` rather than to `Arm_r`.
+pub fn match_case(sample, text) {
+    if sample == sample.to_lowercase() {
+        return text;
+    }
+    if sample == sample.to_uppercase() {
+        return text.to_uppercase();
+    }
+    let lower = text.to_lowercase();
+    lower[..1].to_uppercase() + lower[1..]
+}
+
+/// The last segment of a `/`-separated path, which is what a column too
+/// narrow for the whole thing shows.
+pub fn leaf(path) {
+    let parts = path.split('/').collect::<Vec>();
+    parts[parts.len() - 1]
+}
+
 pub fn contains(items, x) {
     for it in items {
         if it == x {

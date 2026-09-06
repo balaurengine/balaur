@@ -614,14 +614,21 @@ pub fn mirror_name(path) {
     let lower = path.to_lowercase();
     for pair in SIDE_PAIRS {
         for (from, to) in [(pair[0], pair[1]), (pair[1], pair[0])] {
+            // The replacement takes the case the original half was written
+            // in, so `Arm_L` mirrors to `Arm_R` and `arm_l` to `arm_r`.
             if lower.starts_with(from) {
-                return Some(to + path[from.len()..]);
+                let was = path[..from.len()];
+                return Some(util::match_case(was, to) + path[from.len()..]);
             }
             if lower.ends_with(from) {
-                return Some(path[..path.len() - from.len()] + to);
+                let at = path.len() - from.len();
+                return Some(path[..at] + util::match_case(path[at..], to));
             }
-            match lower.find(from) {
-                Some(at) => return Some(path[..at] + to + path[at + from.len()..]),
+            match util::index_of(lower, from) {
+                Some(at) => {
+                    let was = path[at..at + from.len()];
+                    return Some(path[..at] + util::match_case(was, to) + path[at + from.len()..]);
+                }
                 None => (),
             }
         }

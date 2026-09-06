@@ -20,6 +20,17 @@ use i_overlay::float::single::SingleFloatOverlay;
 
 use crate::engine::Engine;
 
+/// A pixel index as the coordinate the boundary walk counts in, which reaches
+/// one past the mask on every side.
+fn sample(index: usize) -> isize {
+    isize::try_from(index).unwrap_or(isize::MAX - 1)
+}
+
+/// A pixel index as the corner coordinate a traced loop is built from.
+fn corner(index: usize) -> i32 {
+    i32::try_from(index).unwrap_or(i32::MAX - 1)
+}
+
 /// Every closed boundary between the set and the unset pixels of a mask,
 /// in pixel-corner coordinates with y downward, largest loop first.
 ///
@@ -37,10 +48,13 @@ pub fn trace(mask: &[bool], width: usize, height: usize) -> Vec<Vec<Vec2>> {
         return Vec::new();
     }
     let set = |x: isize, y: isize| -> bool {
-        if x < 0 || y < 0 || x >= width as isize || y >= height as isize {
+        let (Ok(x), Ok(y)) = (usize::try_from(x), usize::try_from(y)) else {
+            return false;
+        };
+        if x >= width || y >= height {
             return false;
         }
-        mask.get(y as usize * width + x as usize).copied().unwrap_or(false)
+        mask.get(y * width + x).copied().unwrap_or(false)
     };
     // Edges keyed by where they start. A corner where two loops touch
     // diagonally starts two edges, so the value is a list and a walk takes
@@ -51,12 +65,13 @@ pub fn trace(mask: &[bool], width: usize, height: usize) -> Vec<Vec<Vec2>> {
     let mut edge = |from: (i32, i32), to: (i32, i32)| {
         edges.entry(from).or_default().push(to);
     };
-    for y in 0..height as isize {
-        for x in 0..width as isize {
+    for row in 0..height {
+        for column in 0..width {
+            let (x, y) = (sample(column), sample(row));
             if !set(x, y) {
                 continue;
             }
-            let (x0, y0) = (x as i32, y as i32);
+            let (x0, y0) = (corner(column), corner(row));
             let (x1, y1) = (x0 + 1, y0 + 1);
             if !set(x, y - 1) {
                 edge((x0, y0), (x1, y0));
@@ -78,8 +93,7 @@ pub fn trace(mask: &[bool], width: usize, height: usize) -> Vec<Vec<Vec2>> {
     while let Some(&start) = edges.keys().next() {
         let mut points = Vec::new();
         let mut at = start;
-        loop {
-            let Some(nexts) = edges.get_mut(&at) else { break };
+        while let Some(nexts) = edges.get_mut(&at) {
             let Some(next) = nexts.pop() else { break };
             if nexts.is_empty() {
                 edges.remove(&at);
@@ -146,7 +160,11 @@ pub fn simplify(points: &[Vec2], tolerance: f32) -> Vec<Vec2> {
         let chain: Vec<Vec2> = if from < to {
             points[from..=to].to_vec()
         } else {
-            points[from..].iter().chain(&points[..=to]).copied().collect()
+            points[from..]
+                .iter()
+                .chain(&points[..=to])
+                .copied()
+                .collect()
         };
         let mut kept = rdp(&chain, tolerance);
         // The last point of one half is the first of the other; keeping both
@@ -536,6 +554,95 @@ mod tests {
         };
         let overlap = polygon_of(&paths[0]).unwrap();
         assert!((doubled_area(&overlap).abs() / 2.0 - 2.0).abs() < 1e-4);
+    }
+
+    /// A mask from a picture drawn in text: `#` is opaque, anything else is
+    /// not. Every trace test below reads as the shape it is testing.
+    fn mask(rows: &[&str]) -> (Vec<bool>, usize, usize) {
+        let width = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        let mut out = Vec::with_capacity(width * rows.len());
+        for row in rows {
+            for x in 0..width {
+                out.push(row.as_bytes().get(x) == Some(&b'#'));
+            }
+        }
+        (out, width, rows.len())
+    }
+
+    #[test]
+    fn a_solid_square_traces_to_its_four_corners() {
+        let (bits, w, h) = mask(&["....", ".##.", ".##.", "...."]);
+        let loops = trace(&bits, w, h);
+        assert_eq!(loops.len(), 1);
+        assert_eq!(loops[0].len(), 4, "{:?}", loops[0]);
+        assert!((doubled_area(&loops[0]).abs() / 2.0 - 4.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_ring_traces_its_outside_and_its_hole_largest_first() {
+        let (bits, w, h) = mask(&["###", "#.#", "###"]);
+        let loops = trace(&bits, w, h);
+        assert_eq!(loops.len(), 2, "an outline and a hole");
+        assert!((doubled_area(&loops[0]).abs() / 2.0 - 9.0).abs() < 1e-4);
+        assert!((doubled_area(&loops[1]).abs() / 2.0 - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn two_separate_blobs_trace_as_two_loops() {
+        let (bits, w, h) = mask(&["#.#", "...", "#.#"]);
+        assert_eq!(trace(&bits, w, h).len(), 4);
+    }
+
+    #[test]
+    fn an_empty_mask_traces_to_nothing() {
+        let (bits, w, h) = mask(&["...", "..."]);
+        assert!(trace(&bits, w, h).is_empty());
+        assert!(trace(&[], 0, 0).is_empty());
+        // Short of what the size claims: the rest reads as transparent.
+        assert!(trace(&[true], 4, 4).len() <= 1);
+    }
+
+    #[test]
+    fn a_trace_lands_on_the_same_vertices_twice() {
+        let (bits, w, h) = mask(&[".##.", "####", "#..#", "####"]);
+        assert_eq!(
+            format!("{:?}", trace(&bits, w, h)),
+            format!("{:?}", trace(&bits, w, h))
+        );
+    }
+
+    #[test]
+    fn simplify_drops_a_point_on_the_line_and_keeps_a_corner() {
+        // A square with a point halfway along its top edge.
+        let square = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(5.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
+        ];
+        let kept = simplify(&square, 0.5);
+        assert_eq!(kept.len(), 4, "{kept:?}");
+        assert!((doubled_area(&kept).abs() / 2.0 - 100.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn simplify_leaves_a_shape_that_is_already_minimal() {
+        let square = square(0.0, 0.0, 2.0);
+        assert_eq!(simplify(&square, 0.5).len(), 4);
+        // Nothing to do, and nothing thrown away, at either extreme.
+        assert_eq!(simplify(&square, 0.0).len(), 4);
+        assert_eq!(simplify(&square[..3], 1.0).len(), 3);
+    }
+
+    #[test]
+    fn a_staircase_simplifies_toward_its_diagonal() {
+        let (bits, w, h) = mask(&["#...", "##..", "###.", "####"]);
+        let outline = &trace(&bits, w, h)[0];
+        let rough = simplify(outline, 0.1).len();
+        let smooth = simplify(outline, 2.0).len();
+        assert!(smooth < rough, "{smooth} should be fewer than {rough}");
+        assert!(smooth >= 3, "a polygon needs three points");
     }
 
     #[test]

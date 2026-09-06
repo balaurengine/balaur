@@ -66,11 +66,25 @@ impl SkinHandle {
 /// only on the frames a `polygon/deform` track actually changed them. A
 /// polygon with no deform track never sets this and never pays for it.
 #[derive(Clone)]
-pub(crate) struct DeformHandle(Rc<RefCell<Option<Vec<[f32; 2]>>>>);
+pub(crate) struct DeformHandle(Rc<RefCell<Deformed>>);
+
+/// A polygon's vertex positions and whether they are still to be uploaded.
+///
+/// The buffer is kept between frames rather than handed over each time: a
+/// deform track rewrites it on every frame, and it is as long as the mesh.
+#[derive(Default)]
+pub(crate) struct Deformed {
+    positions: Vec<[f32; 2]>,
+    pending: bool,
+}
 
 impl DeformHandle {
-    pub(crate) fn set(&self, positions: Vec<[f32; 2]>) {
-        *self.0.borrow_mut() = Some(positions);
+    /// This frame's positions, one call of `at` per vertex.
+    pub(crate) fn fill(&self, count: usize, mut at: impl FnMut(usize) -> [f32; 2]) {
+        let mut held = self.0.borrow_mut();
+        held.positions.clear();
+        held.positions.extend((0..count).map(&mut at));
+        held.pending = true;
     }
 }
 
@@ -134,7 +148,7 @@ pub(crate) fn build(
         mapped_at_creation: false,
     });
     let palette = Rc::new(RefCell::new(Vec::new()));
-    let deform = Rc::new(RefCell::new(None));
+    let deform = Rc::new(RefCell::new(Deformed::default()));
     let material = SkinnedMaterial::new(
         Buffers {
             positions: buffer(
@@ -221,7 +235,7 @@ struct SkinnedMaterial {
     texture_layout: wgpu::BindGroupLayout,
     buffers: Buffers,
     palette: Rc<RefCell<Vec<Mat3>>>,
-    deform: Rc<RefCell<Option<Vec<[f32; 2]>>>>,
+    deform: Rc<RefCell<Deformed>>,
 }
 
 fn uniform_entry(binding: u32, visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayoutEntry {
@@ -308,7 +322,7 @@ impl SkinnedMaterial {
     fn new(
         buffers: Buffers,
         palette: Rc<RefCell<Vec<Mat3>>>,
-        deform: Rc<RefCell<Option<Vec<[f32; 2]>>>>,
+        deform: Rc<RefCell<Deformed>>,
     ) -> Self {
         let ctxt = Context::get();
         let (frame_layout, object_layout, texture_layout) = bind_group_layouts(&ctxt);
@@ -352,13 +366,15 @@ impl SkinnedMaterial {
     /// Upload the deformed positions a `polygon/deform` track left for this
     /// frame, and take them: a frame that deformed nothing writes nothing.
     fn write_deform(&self) {
-        let Some(positions) = self.deform.borrow_mut().take() else {
+        let mut held = self.deform.borrow_mut();
+        if !held.pending {
             return;
-        };
+        }
+        held.pending = false;
         Context::get().write_buffer(
             &self.buffers.positions,
             0,
-            bytemuck::cast_slice(&positions),
+            bytemuck::cast_slice(&held.positions),
         );
     }
 

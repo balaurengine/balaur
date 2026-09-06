@@ -478,7 +478,9 @@ impl TraceOpts {
         };
         for (key, value) in entries {
             match key.as_str() {
-                "threshold" => out.threshold = number(value).unwrap_or(out.threshold).clamp(0.0, 1.0),
+                "threshold" => {
+                    out.threshold = number(value).unwrap_or(out.threshold).clamp(0.0, 1.0);
+                }
                 "tolerance" => out.tolerance = number(value).unwrap_or(out.tolerance).max(0.0),
                 "pixels_per_unit" => {
                     out.pixels_per_unit = number(value).unwrap_or(out.pixels_per_unit).max(0.01);
@@ -542,10 +544,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             // polygon's points are y-up and centred, the same frame
             // `default_uv` maps a texture in.
             let local = |p: glamx::Vec2| {
-                Value::Vec2([
-                    (p.x - w as f32 / 2.0) / ppu,
-                    (h as f32 / 2.0 - p.y) / ppu,
-                ])
+                Value::Vec2([(p.x - w as f32 / 2.0) / ppu, (h as f32 / 2.0 - p.y) / ppu])
             };
             Ok(Value::List(
                 loops

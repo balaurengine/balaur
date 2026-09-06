@@ -4,11 +4,13 @@
 //! per sheet, the atlas beside it, and a scene of `tilemap` nodes — one per
 //! tile layer, in the order Tiled drew them.
 
+use std::fmt::Write as _;
 use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
 
-/// What an import wrote, so the caller can say so.
+/// What an import wrote, so the caller can say so. Shared with the LDtk
+/// importer, which lays out the same kinds of file.
 pub(crate) struct Imported {
     pub files: Vec<(String, Vec<u8>)>,
     pub layers: usize,
@@ -23,11 +25,11 @@ pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {
     let mut files = Vec::new();
     let mut sets = Vec::new();
     for (index, set) in map.tilesets().iter().enumerate() {
-        let name = set
-            .name
-            .is_empty()
-            .then(|| format!("{stem}_{index}"))
-            .unwrap_or_else(|| tidy(&set.name));
+        let name = if set.name.is_empty() {
+            format!("{stem}_{index}")
+        } else {
+            tidy(&set.name)
+        };
         let image = set
             .image
             .as_ref()
@@ -63,10 +65,10 @@ fn tileset_toml(set: &tiled::Tileset, texture: &str) -> String {
         set.tile_width, set.tile_height, set.columns
     );
     if set.spacing > 0 {
-        out.push_str(&format!("spacing = {}\n", set.spacing));
+        let _ = writeln!(out, "spacing = {}", set.spacing);
     }
     if set.margin > 0 {
-        out.push_str(&format!("margin = {}\n", set.margin));
+        let _ = writeln!(out, "margin = {}", set.margin);
     }
     for (id, tile) in set.tiles() {
         let mut lines = Vec::new();
@@ -90,7 +92,7 @@ fn tileset_toml(set: &tiled::Tileset, texture: &str) -> String {
         if lines.is_empty() {
             continue;
         }
-        out.push_str(&format!("\n[tiles.{id}]\n"));
+        let _ = writeln!(out, "\n[tiles.{id}]");
         for line in lines {
             out.push_str(&line);
             out.push('\n');
@@ -144,9 +146,10 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
     }
     let mut out = String::new();
     for set in sets {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "[[assets]]\nid = \"{set}\"\ntype = \"tileset\"\nsource = \"tilesets/{set}.toml\"\n\n"
-        ));
+        );
     }
     let mut z = 0;
     for layer in map.layers() {
@@ -154,21 +157,21 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
             continue;
         };
         let name = tidy(&layer.name);
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"#{}\"\npixels_per_unit = {}\ncells = [\n",
-            layer.name,
-            sets[0],
-            map.tile_width
-        ));
+            layer.name, sets[0], map.tile_width
+        );
         for row in 0..map.height {
             let mut line = Vec::new();
             for column in 0..map.width {
+                let at = |n: u32| i32::try_from(n).unwrap_or(i32::MAX);
                 let id = tiles
-                    .get_tile(column as i32, row as i32)
-                    .map_or(-1, |tile| tile.id() as i64);
+                    .get_tile(at(column), at(row))
+                    .map_or(-1, |tile| i64::from(tile.id()));
                 line.push(id.to_string());
             }
-            out.push_str(&format!("  [{}],\n", line.join(", ")));
+            let _ = writeln!(out, "  [{}],", line.join(", "));
         }
         out.push_str("]\n\n");
         z += 1;

@@ -118,7 +118,9 @@ pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
             after,
         });
     }
-    summary.savings.sort_by(|a, b| b.saved().cmp(&a.saved()));
+    summary
+        .savings
+        .sort_by_key(|saving| std::cmp::Reverse(saving.saved()));
     Ok(summary)
 }
 
@@ -145,7 +147,7 @@ fn smaller(
         Some(kinds::FONT)
             if config.fonts == FontMode::Subset
                 && own != Some(words::KEEP)
-                && !path.ends_with(".fnt")
+                && !path.to_ascii_lowercase().ends_with(".fnt")
                 && !kept_whole(path, &config.font_keep) =>
         {
             recode::font(bytes, keep)
@@ -186,12 +188,11 @@ fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
 /// The audio mode one file is re-encoded under: its own word, or the export's.
 fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
     match own {
-        None => fallback,
         Some(words::KEEP) => AudioMode::Keep,
         Some("flac") => AudioMode::Flac,
         // A picture's word on a sound is not a mistake worth a warning: one
         // `[import.texture]` default reaches every file of its own kind only.
-        Some(_) => fallback,
+        _ => fallback,
     }
 }
 
@@ -266,6 +267,7 @@ mod tests {
     fn an_asset_nothing_names_is_dropped_only_when_strip_is_on() {
         let mut config = ExportConfig::default();
         let mut pack = pack_with("art/unused.png", vec![1, 2, 3]);
+
         let kept = prepare(&mut pack, &config).unwrap();
         assert!(kept.dropped.is_empty(), "off by default");
         assert!(pack.assets.contains_key("art/unused.png"));
@@ -279,9 +281,11 @@ mod tests {
 
     #[test]
     fn a_keep_glob_survives_a_strip() {
-        let mut config = ExportConfig::default();
-        config.strip = true;
-        config.keep = vec!["art/**".to_string()];
+        let config = ExportConfig {
+            strip: true,
+            keep: vec!["art/**".to_string()],
+            ..ExportConfig::default()
+        };
         let mut pack = pack_with("art/unused.png", vec![1, 2, 3]);
         let summary = prepare(&mut pack, &config).unwrap();
         assert!(summary.dropped.is_empty());
@@ -293,8 +297,10 @@ mod tests {
     #[test]
     fn a_files_own_recode_setting_beats_the_export_mode() {
         use crate::recode::ImageMode;
-        let mut config = ExportConfig::default();
-        config.images = ImageMode::Smallest;
+        let config = ExportConfig {
+            images: ImageMode::Smallest,
+            ..ExportConfig::default()
+        };
         let source = sample_png();
         let mut pack = pack_with("art/kept.png", source.clone());
         pack.assets.insert("art/shrunk.png".into(), source.clone());
@@ -320,10 +326,7 @@ mod tests {
         });
         let mut out = Vec::new();
         image::DynamicImage::ImageRgba8(pixels)
-            .write_to(
-                &mut std::io::Cursor::new(&mut out),
-                image::ImageFormat::Png,
-            )
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
             .unwrap();
         out
     }
