@@ -1,4 +1,7 @@
-> **Status:** not started. Written down on 2026-09-05 with
+> **Status:** all seven steps built, 2026-09-06. Two notes are inline below,
+> where the build differed from the plan: extrude, lathe and sweep are `mesh`
+> kinds rather than `shape3d` ones, and vertex colours are carried but not yet
+> drawn. Written down on 2026-09-05 with
 > `docs/PLAN-3d-rendering.md`, from the same comparison against Spline. The
 > order is what a designer reaches for first: the primitives a palette
 > starts with, then glyph outlines, because a 3D title is an extruded one,
@@ -175,6 +178,8 @@ core.
 
 ## 3. Steps
 
+Every one is built; what each ends with is what its tests assert.
+
 1. **Primitives.** The mesher module in core, the six existing kinds moved
    onto it, the new kinds in 2D and 3D, `segments` and `corner_radius`. Ends
    with: a torus in `examples/hello` with a collider fitted from the same
@@ -188,6 +193,10 @@ core.
    moved onto it. Ends with: a thousand clones as one draw.
 7. **Colours and morphs.** `MeshData`, `glb.rs`, the material feature, the
    animation property.
+
+The one thing left over is the fork: the mesh it draws has no per-vertex
+colour stream, so a glTF's colours are carried, tested and reachable but not
+yet on screen. That is the next commit in `../kiss3d`, not here.
 
 ## 4. What CI can prove, and what it cannot
 
