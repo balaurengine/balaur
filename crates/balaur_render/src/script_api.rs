@@ -109,8 +109,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
             let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
             let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
-            let world = eng.world();
-            Ok(crate::pick::along_ray(&world, origin, dir)
+            Ok(crate::pick::along_ray(eng, origin, dir)
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
         },
     );
