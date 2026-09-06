@@ -33,6 +33,28 @@ pub enum Collision {
     Shape(Vec<Vec<[f32; 2]>>),
 }
 
+/// Frames a tile cycles through, and how fast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Animation {
+    /// Tile ids, the first drawn first.
+    pub frames: Vec<u32>,
+    pub fps: f32,
+}
+
+impl Animation {
+    /// The frame showing at a time, which is a clock reading and not part of
+    /// the simulation: an animated tile is a picture, not a rule.
+    #[must_use]
+    pub fn frame_at(&self, seconds: f32) -> u32 {
+        if self.frames.is_empty() {
+            return 0;
+        }
+        let step = (seconds * self.fps.max(0.0)) as i64;
+        let at = step.rem_euclid(self.frames.len() as i64) as usize;
+        self.frames[at]
+    }
+}
+
 /// What a `[tiles.<id>]` table says about one tile.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tile {
@@ -40,6 +62,12 @@ pub struct Tile {
     /// A platform a body passes through from below. Its own collider, since
     /// the shape carries no data per cell.
     pub one_way: bool,
+    /// Whether the cell blocks 2D light.
+    pub occluder: bool,
+    /// The frames this tile cycles through, if it moves at all.
+    pub animation: Option<Animation>,
+    /// Anything else the game wants to know about the tile.
+    pub data: Option<toml::Value>,
 }
 
 impl Tile {
@@ -207,12 +235,42 @@ fn parse_tile(id: u32, value: &toml::Value) -> Result<Tile> {
         Some(toml::Value::Array(polygons)) => Collision::Shape(parse_polygons(id, polygons)?),
         Some(other) => bail!("tile {id}: `collision` cannot be {}", other.type_str()),
     };
+    let animation = match value.get("animation") {
+        None => None,
+        Some(table) => {
+            let frames = table
+                .get("frames")
+                .and_then(toml::Value::as_array)
+                .ok_or_else(|| anyhow!("tile {id}: an animation needs a list of `frames`"))?
+                .iter()
+                .map(|frame| {
+                    frame
+                        .as_integer()
+                        .and_then(|frame| u32::try_from(frame).ok())
+                        .ok_or_else(|| anyhow!("tile {id}: a frame is a tile id"))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            if frames.is_empty() {
+                bail!("tile {id}: an animation with no frames shows nothing");
+            }
+            Some(Animation {
+                frames,
+                fps: table.get("fps").and_then(as_f64).unwrap_or(8.0) as f32,
+            })
+        }
+    };
     Ok(Tile {
         collision,
         one_way: value
             .get("one_way")
             .and_then(toml::Value::as_bool)
             .unwrap_or(false),
+        occluder: value
+            .get("occluder")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false),
+        animation,
+        data: value.get("data").cloned(),
     })
 }
 
@@ -381,6 +439,44 @@ impl TileGrid {
             })
             .map(|(column, row, _)| self.voxel_key(column, row))
             .collect()
+    }
+
+    /// The edges of the cells that block light, each one an edge no other
+    /// occluding cell is behind: the outline of the wall, not its insides.
+    #[must_use]
+    pub fn occluder_edges(&self, set: &TileSet) -> Vec<[Vec2; 2]> {
+        let occludes = |column: i32, row: i32| {
+            self.cell(column, row)
+                .and_then(|id| set.tile(id))
+                .is_some_and(|tile| tile.occluder)
+        };
+        let mut out = Vec::new();
+        for (column, row, _) in self.filled() {
+            if !occludes(column, row) {
+                continue;
+            }
+            let centre = self.cell_centre(column, row);
+            let half = Vec2::new(self.tile_world[0], self.tile_world[1]) / 2.0;
+            let corner = |x: f32, y: f32| centre + Vec2::new(x * half.x, y * half.y);
+            let sides = [
+                ((0, -1), [corner(-1.0, 1.0), corner(1.0, 1.0)]),
+                ((1, 0), [corner(1.0, 1.0), corner(1.0, -1.0)]),
+                ((0, 1), [corner(1.0, -1.0), corner(-1.0, -1.0)]),
+                ((-1, 0), [corner(-1.0, -1.0), corner(-1.0, 1.0)]),
+            ];
+            for ((dx, dy), edge) in sides {
+                if !occludes(column + dx, row + dy) {
+                    out.push(edge);
+                }
+            }
+        }
+        out
+    }
+
+    /// What the tile at a cell carries, for a game that reads it.
+    #[must_use]
+    pub fn data_at<'a>(&self, set: &'a TileSet, column: i32, row: i32) -> Option<&'a toml::Value> {
+        set.tile(self.cell(column, row)?)?.data.as_ref()
     }
 
     /// Every cell whose tile draws its own collision polygons, with the

@@ -120,16 +120,47 @@ pub fn outline(world: &World, entity: Entity) -> Vec<Vec2> {
     points
 }
 
-/// Every occluder segment under `root`, in world space.
-pub fn occluder_edges(world: &World, root: Entity) -> Vec<[Vec2; 2]> {
+/// Every occluder segment under `root`, in world space: the outlines nodes
+/// carry, and the walls a tile map's own cells make.
+pub fn occluder_edges(eng: &Engine, root: Entity) -> Vec<[Vec2; 2]> {
+    let world = eng.world();
     let mut out = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(world, root) {
-        let points = outline(world, entity);
+    for entity in balaur_core::scene::collect_subtree(&world, root) {
+        let points = outline(&world, entity);
         for pair in points.windows(2) {
             out.push([pair[0], pair[1]]);
         }
+        out.extend(tile_edges(eng, &world, entity));
     }
     out
+}
+
+/// The edges of a map's occluding cells, in world space. Only the ones no
+/// other occluding cell is behind: a wall's outline, not its insides.
+fn tile_edges(eng: &Engine, world: &World, entity: Entity) -> Vec<[Vec2; 2]> {
+    let Ok(grid) = world.get::<&balaur_core::tiles::TileGrid>(entity) else {
+        return Vec::new();
+    };
+    let Ok(set) = balaur_core::assets::load_typed::<crate::tilemap::TileSet>(eng, &grid.tileset)
+    else {
+        return Vec::new();
+    };
+    let Ok(at) = world.get::<&balaur_core::GlobalTransform>(entity) else {
+        return Vec::new();
+    };
+    let place = |point: Vec2| {
+        let scaled = Vec2::new(point.x * at.scale.x, point.y * at.scale.y);
+        let (angle, _, _) = at.rotation.to_euler(glamx::EulerRot::ZYX);
+        let (sin, cos) = angle.sin_cos();
+        Vec2::new(
+            at.position.x + cos * scaled.x - sin * scaled.y,
+            at.position.y + sin * scaled.x + cos * scaled.y,
+        )
+    };
+    grid.occluder_edges(&set)
+        .into_iter()
+        .map(|[a, b]| [place(a), place(b)])
+        .collect()
 }
 
 /// `render.outline`: the outline a node blocks 2D light with, for a tool that

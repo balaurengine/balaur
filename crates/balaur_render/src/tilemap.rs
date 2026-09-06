@@ -541,6 +541,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
         ("cell", &["tilemap"], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),
         ("set_terrain", &["tilemap"], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
         ("terrain", &["tilemap"], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
+        ("tile_data", &["tilemap"], "(x: int, y: int)", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
     ]);
     m.function(
         "set_cell",
@@ -598,6 +599,33 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
+        "tile_data",
+        |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
+            let entity = balaur_core::entity_of(node)?;
+            let world = eng.world();
+            let map = world
+                .get::<&Tilemap>(entity)
+                .map_err(|_| anyhow!("the node carries no tilemap"))?;
+            let grid = balaur_core::tiles::TileGrid {
+                tileset: map.tileset.clone(),
+                rows: map.grid.clone(),
+                origin: map.origin,
+                ..Default::default()
+            };
+            let tileset = map.tileset.clone();
+            drop(map);
+            drop(world);
+            let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset)?;
+            let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
+                return Ok(balaur_script::Value::Nil);
+            };
+            Ok(match grid.data_at(&set, x, y) {
+                Some(data) => balaur_core::node_api::from_toml(data)?,
+                None => balaur_script::Value::Nil,
+            })
+        },
+    );
+    m.function(
         "terrain",
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
@@ -638,6 +666,9 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
 pub(crate) struct TilemapSlot {
     node: kiss3d::scene::SceneNode2d,
     version: u64,
+    /// Which frame the map's animated tiles were built at. A picture, not a
+    /// rule: it moves on the frame clock and stays out of the digest.
+    frame: i64,
 }
 
 /// Mirror [`Tilemap`] + `GlobalTransform` into the kiss3d 2D scene graph.
@@ -662,10 +693,12 @@ pub(crate) fn sync_tilemaps(
         seen.insert(entity);
         // Every map is built from a file — the tileset document and the
         // atlas it names — so a reload rebuilds all of them.
+        let frame = balaur_core::assets::load_typed::<TileSet>(&app.engine, &map.tileset)
+            .map_or(0, |set| animation_frame(&set, app.engine.time() as f32));
         let rebuild = reloaded
             || slots
                 .get(&entity)
-                .is_none_or(|slot| slot.version != map.version);
+                .is_none_or(|slot| slot.version != map.version || slot.frame != frame);
         if rebuild {
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
@@ -684,6 +717,7 @@ pub(crate) fn sync_tilemaps(
                 entity,
                 TilemapSlot {
                     node,
+                    frame,
                     version: map.version,
                 },
             );
@@ -733,7 +767,9 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
     let mut coords: Vec<glamx::Vec2> = Vec::new();
     let mut uvs: Vec<glamx::Vec2> = Vec::new();
     let mut faces: Vec<[u32; 3]> = Vec::new();
+    let seconds = eng.time() as f32;
     for (column, row, id) in grid.filled() {
+        let id = animated(&tileset, id, seconds);
         let centre = grid.cell_centre(column, row);
         let half = glamx::Vec2::new(grid.tile_world[0], grid.tile_world[1]) / 2.0;
         let base = coords.len() as u32;
@@ -760,6 +796,25 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
     );
     crate::texture::attach_texture_2d(eng, &mut node, &tileset.texture);
     Ok(node)
+}
+
+/// The frame an animated tile is showing; a still tile is itself.
+#[cfg(feature = "kiss3d")]
+fn animated(set: &TileSet, id: u32, seconds: f32) -> u32 {
+    set.tile(id)
+        .and_then(|tile| tile.animation.as_ref())
+        .map_or(id, |animation| animation.frame_at(seconds))
+}
+
+/// Which frame every animated tile in a set is on, as one number: the mesh is
+/// rebuilt when it moves, and not otherwise.
+#[cfg(feature = "kiss3d")]
+fn animation_frame(set: &TileSet, seconds: f32) -> i64 {
+    set.tiles
+        .values()
+        .filter_map(|tile| tile.animation.as_ref())
+        .map(|animation| (seconds * animation.fps.max(0.0)) as i64)
+        .fold(0, |sum, step| sum.wrapping_mul(31).wrapping_add(step))
 }
 
 /// The four corners of a tile on the sheet, in the order the quad above
