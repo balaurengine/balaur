@@ -1,0 +1,8 @@
+# Brushed metal: the PBR contract with nothing but two numbers set.
+type = "material"
+shader = "shaders/metal.wesl"
+
+[params]
+metallic = 1.0
+roughness = 0.32
+reflectance = 0.5
