@@ -1564,7 +1564,21 @@ pub fn librarydemo(S) {
         "and points the selected node at it");
     check(mirror_resolves(S), "the mirror still resolves");
 
+    // A lighting setup is a scene, so placing one instances it.
+    let was = S.doc.len();
+    library::place(S, #{
+        id: "studio_light", kind: "scene", name: "Studio lights",
+        file: "scenes/studio.toml",
+    });
+    check(fs::exists(root + "scenes/studio.toml"), "placing a setup copies its scene");
+    // One row for the instance and one per node inside it: expanding a
+    // prefab puts its own rows in the document too.
+    check(S.doc.len() > was + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the instance back");
+
     fs::remove(root + "materials/metal.toml");
     fs::remove(root + "shaders/pbr_surface.wesl");
+    fs::remove(root + "scenes/studio.toml");
     log::info("selftest librarydemo: done");
 }

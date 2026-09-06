@@ -78,6 +78,11 @@ shot 23-scene-rig3d     examples/rig3d      "scene"
 shot 24-light-script    examples/hello      "script,select:Spinner,light"
 shot 25-assets-light    examples/hello      "scene,dock:assets,light"
 shot 28-fonts          examples/hello      "scene,fontdemo"
+shot 31-dock-cost       examples/objects    "scene,dock:cost,zoom:55"
+shot 32-dock-library    examples/objects    "scene,select:Torus,dock:library,zoom:55"
+shot 33-events-authored examples/hello      "scene,select:Ball,tab:events"
+shot 34-light3d         examples/hello      "scene,select:KeyLight"
+shot 35-tool-pen        examples/angrynerds "scene,select:Bird,tool:pen,zoom:45"
 # A small window has few design pixels, which is where the sheets used to
 # stack in the corner. Two scales stand in for it.
 shot 29-narrow          examples/angrynerds "scene,select:Bird,scale:1.8"

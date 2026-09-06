@@ -373,9 +373,8 @@ pub(crate) fn register_bindings_component(app: &mut App) {
                 let world = eng.world();
                 let held = world.get::<&Bindings>(entity).ok()?;
                 // Under `rows`, the one property the schema declares: every
-                // component reads back as a table of its properties, and a
-                // hand-written `[[nodes.bindings]]` reaches `apply` through
-                // the same key's shorthand.
+                // component reads back as a table, and the shorthand is what
+                // takes a hand-written `[[nodes.bindings]]` array.
                 let mut map = toml::map::Map::new();
                 map.insert(
                     "rows".into(),
