@@ -97,14 +97,12 @@ fi
 rm -rf "$smoke"
 printf 'exported game ran clean\n'
 
-# Before the zip, because what a user runs is the executable inside it, and
-# after the smoke test, because a signature covers the bytes as they end up.
+# The editor only, and before the zip: a runtime template exists to have a
+# pack appended to it, and `balaur export` signs that result itself. Signing a
+# template would hand every unsigned export a broken signature instead of none.
 if [[ $target == windows-* ]]; then
   step "sign"
-  ./scripts/windows_sign.sh \
-    "$bundle/balaur$exe" \
-    "$bundle/templates/balaur-runtime-$target$exe" \
-    "$dist/balaur-runtime-$target$exe"
+  ./scripts/windows_sign.sh "$bundle/balaur$exe"
 fi
 
 step "archive"

@@ -32,6 +32,12 @@ opens without a warning and updates itself.
    Artifact Signing — whose key is in an HSM — is the path the engine's own
    download takes. The certificate names the company, not the engine: a
    Windows user sees `Napocapps Extremus Creo S.R.L.` as the publisher.
+   Only the editor is signed. A runtime template exists to have a pack
+   appended to it, and appending invalidates a signature — `balaur export`
+   signs the fused result instead, which is the order `standalone::extract`
+   already reads for. On macOS the template inside `Balaur.app` is the
+   exception: notarization refuses a bundle holding an unsigned Mach-O, and
+   `export --app` replaces that signature rather than appending past it.
 3. **Linux.** A tarball and an AppImage; no signing beyond the checksums.
 4. **Exported games.** `balaur export` signs with the developer's identity on
    macOS today; the same flag learns Windows signing, and the docs say what a
