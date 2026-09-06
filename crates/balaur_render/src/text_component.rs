@@ -382,7 +382,7 @@ pub(crate) fn sync_text(
     {
         seen.insert(entity);
         let resolved = text.resolved(&app.engine);
-        let raster = raster_size(app, &text, global, viewport_height);
+        let raster = raster_size(app, text, global, viewport_height);
         let rebuild = slots.get(&entity).is_none_or(|slot| {
             slot.version != text.version
                 || slot.shaped != resolved

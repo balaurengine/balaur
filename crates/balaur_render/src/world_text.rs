@@ -409,10 +409,11 @@ mod backend {
     /// The copies of a block that draw together, back to front: the shadow,
     /// the outline's ring, then the text. Each is one mesh under one colour,
     /// because a mesh carries no per-vertex tint.
-    pub(crate) fn layers(
-        shaped: &Shaped,
-        style: &super::TextStyle,
-    ) -> Vec<(Vec<[f32; 2]>, [f32; 4], Vec<usize>)> {
+    /// One drawn copy of a block: where its quads are offset to, the colour
+    /// it draws in, and which of the block's quads it covers.
+    pub(crate) type Layer = (Vec<[f32; 2]>, [f32; 4], Vec<usize>);
+
+    pub(crate) fn layers(shaped: &Shaped, style: &super::TextStyle) -> Vec<Layer> {
         let all: Vec<usize> = (0..shaped.quads.len()).collect();
         let mut out = Vec::new();
         let decoration = &style.decoration;
@@ -465,7 +466,10 @@ mod backend {
                 }
                 None => base,
             };
-            match groups.iter_mut().find(|(known, _)| *known == color) {
+            // By bits, not by nearness: these are the same colour value copied
+            // from the same place, and a group is one draw either way.
+            let same = |known: &[f32; 4]| known.map(f32::to_bits) == color.map(f32::to_bits);
+            match groups.iter_mut().find(|(known, _)| same(known)) {
                 Some((_, picks)) => picks.push(index),
                 None => groups.push((color, vec![index])),
             }

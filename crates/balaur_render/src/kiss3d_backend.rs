@@ -17,8 +17,8 @@ use crate::kiss3d_camera::{
     publish_camera_2d,
 };
 use crate::{
-    ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig, Renderable,
-    Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
+    ClearColorConfig, GridConfig, PostConfig, Renderable, Renderable2d, ScreenshotRequest, Shape,
+    Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
