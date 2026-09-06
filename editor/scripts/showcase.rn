@@ -456,7 +456,7 @@ fn completion(S, q) {
     // otherwise close it from the widget's own caret, which offscreen is none.
     over_ui(q, 20, 400, |_| {
         let line = line_of(S, rel, "this.angle += dt");
-        open_at(S, rel, line, "    physics2d::ray");
+        open_at(S, rel, line, "    physics2d::a");
     });
     act(q, 420, || restore_source(S, rel, q));
 }

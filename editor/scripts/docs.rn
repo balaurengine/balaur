@@ -45,9 +45,26 @@ fn current(S, list) {
     None
 }
 
-/// The dock's own control: one search field over every module name.
+/// The dock's own controls: which module, and a filter over its functions.
 pub fn tools(S, k, room) {
-    search::field(S, k, "docs", "filter modules", util::min(room - 12.0, 160.0));
+    let list = modules(S);
+    if list.len() == 0 {
+        return;
+    }
+    let names = [];
+    for m in list {
+        names.push(m.name);
+    }
+    let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
+        width: util::max(96.0, util::min(room - 120.0, 150.0)),
+        size: 11, height: 22, color: k.text,
+    });
+    if changed {
+        S.docs.pick = picked;
+        S.docs.fn_pick = "";
+    }
+    ui::add_space(6);
+    search::field(S, k, "docs", "filter functions", util::max(96.0, util::min(room - 160.0, 150.0)));
 }
 
 pub fn draw(S, k) {
@@ -56,55 +73,6 @@ pub fn draw(S, k) {
         style::empty(k, "the engine reported no modules");
         return;
     }
-    let query = search::query(S, "docs");
-    ui::scroll("docs", #{ max_height: S.layout.body_h - 8.0 }, || {
-        module_pills(S, k, list, query);
-        page(S, k, list);
-    });
-}
-
-// Every module as a pill, in rows: 39 of them do not fit across a dock, and
-// the shell has no column primitive to put them in a sidebar.
-fn module_pills(S, k, list, query) {
-    let shown = [];
-    for m in list {
-        if search::matches(query, m.name) {
-            shown.push(m);
-        }
-    }
-    if shown.len() == 0 {
-        search::nothing(k, query);
-        return;
-    }
-    let per_row = 8;
-    let row = 0;
-    while row * per_row < shown.len() {
-        ui::horizontal(#{ height: 24 }, || {
-            ui::add_space(4);
-            let i = row * per_row;
-            while i < shown.len() && i < (row + 1) * per_row {
-                let m = shown[i];
-                let on = m.name == S.docs.pick;
-                let opts = #{
-                    height: 20, size: 11, min_width: 88,
-                    color: if on { k.text } else { k.dim },
-                };
-                if on {
-                    opts["fill"] = k.accent_soft;
-                }
-                if ui::pill(m.name, opts) {
-                    S.docs.pick = m.name;
-                    S.docs.fn_pick = "";
-                }
-                i += 1;
-            }
-        });
-        row += 1;
-    }
-}
-
-// One module's page: what it is for, then a row per function and constant.
-fn page(S, k, list) {
     let found = current(S, list);
     let m = match found {
         Some(m) => m,
@@ -113,39 +81,49 @@ fn page(S, k, list) {
             return;
         }
     };
-    style::section_label(k, m.name);
-    if m.doc != "" {
-        ui::horizontal(#{ height: 18 }, || {
-            ui::add_space(4);
-            ui::label(m.doc, style::mono_sm(k.dim));
-        });
-    }
-    let signatures = util::obj(m.signatures);
-    let docs = util::obj(m.docs);
-    for name in m.functions {
-        let picked = name == S.docs.fn_pick;
-        let sig = signatures.get(name).unwrap_or("");
-        ui::horizontal(#{ height: 18 }, || {
-            ui::add_space(4);
-            ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
-        });
-        let doc = docs.get(name).unwrap_or("");
-        if doc != "" {
-            ui::horizontal(#{ height: 16 }, || {
-                ui::add_space(14);
-                ui::label(doc, style::mono_sm(k.faint));
+    let query = search::query(S, "docs");
+    ui::scroll("docs", #{ max_height: S.layout.body_h - 8.0 }, || {
+        if m.doc != "" {
+            ui::horizontal(#{ height: 30 }, || {
+                ui::add_space(6);
+                ui::label(m.doc, style::mono_sm(k.dim));
             });
         }
-    }
-    if m.constants.len() > 0 {
-        style::section_label(k, "constants");
-        for c in m.constants {
-            ui::horizontal(#{ height: 16 }, || {
-                ui::add_space(4);
-                ui::label(c.name, style::mono(k.text));
-                ui::add_space(8);
-                ui::label(c.value, style::mono_sm(k.faint));
+        let signatures = util::obj(m.signatures);
+        let docs = util::obj(m.docs);
+        let shown = 0;
+        for name in m.functions {
+            if !search::matches(query, name) {
+                continue;
+            }
+            shown += 1;
+            let picked = name == S.docs.fn_pick;
+            let sig = signatures.get(name).unwrap_or("");
+            ui::horizontal(#{ height: 18 }, || {
+                ui::add_space(6);
+                ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
             });
+            let doc = docs.get(name).unwrap_or("");
+            if doc != "" {
+                ui::horizontal(#{ height: 16 }, || {
+                    ui::add_space(16);
+                    ui::label(doc, style::mono_sm(k.faint));
+                });
+            }
         }
-    }
+        if m.constants.len() > 0 && query == "" {
+            style::section_label(k, "constants");
+            for c in m.constants {
+                ui::horizontal(#{ height: 16 }, || {
+                    ui::add_space(6);
+                    ui::label(c.name, style::mono(k.text));
+                    ui::add_space(8);
+                    ui::label(c.value, style::mono_sm(k.faint));
+                });
+            }
+        }
+        if shown == 0 && query != "" {
+            search::nothing(k, query);
+        }
+    });
 }

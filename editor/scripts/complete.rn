@@ -186,13 +186,16 @@ fn glyph(kind) {
     }
 }
 
-/// The list, under the caret, plus the doc line of whatever is picked.
+/// The list, under the caret, with the picked entry's doc line under it. One
+/// sheet, not two: a second overlay beside this one runs off the pane.
 pub fn draw(S, k) {
     if !S.complete.open {
         return;
     }
     let rows = util::min(S.complete.items.len(), MAX_ROWS);
-    let h = (rows as f64) * ROW + 12.0;
+    let item = S.complete.items[S.complete.pick];
+    let doc_h = if item.doc == "" { 0.0 } else { 34.0 };
+    let h = (rows as f64) * ROW + 14.0 + doc_h;
     ui::overlay("complete", #{
         role: "sheet", x: S.complete.x, y: S.complete.y + 4.0, w: W, h: h,
         padding_x: 6, padding_y: 6,
@@ -203,33 +206,47 @@ pub fn draw(S, k) {
             if i >= S.complete.items.len() {
                 break;
             }
-            let item = S.complete.items[i];
+            let one = S.complete.items[i];
             let on = i == S.complete.pick;
             let opts = util::merge(style::list_row(k, ROW), #{
-                icon: glyph(item.kind), icon_size: 10,
+                icon: glyph(one.kind), icon_size: 10,
                 icon_color: if on { k.accent } else { k.faint },
                 color: if on { k.text } else { k.dim },
-                trailing: item.detail, trailing_color: k.faint,
+                trailing: one.detail, trailing_color: k.faint,
                 size: 11,
             });
             if on {
                 opts["fill"] = k.accent_soft;
             }
             ui::horizontal(#{ height: ROW }, || {
-                if ui::pill(item.label, opts) {
+                if ui::pill(one.label, opts) {
                     S.complete.pick = i;
                     accept(S);
                 }
             });
         }
+        if item.doc != "" {
+            ui::separator(k.line);
+            ui::horizontal(#{ height: 26, width: W - 12.0 }, || {
+                ui::add_space(4);
+                ui::label(clip(item.doc, 78), style::mono_sm(k.dim));
+            });
+        }
     });
-    let item = S.complete.items[S.complete.pick];
-    if item.doc != "" {
-        ui::overlay("complete-doc", #{
-            role: "sheet", x: S.complete.x + W + 6.0, y: S.complete.y + 4.0,
-            w: 300.0, padding_x: 10, padding_y: 8,
-        }, || {
-            ui::label(item.doc, style::mono_sm(k.text));
-        });
+}
+
+// The doc line is one sentence in a 320 px sheet; the rest is in the Docs
+// dock, which has room for it.
+fn clip(text, n) {
+    if text.len() <= n {
+        return text;
     }
+    let out = "";
+    for (i, c) in text.chars().enumerate() {
+        if i >= n {
+            break;
+        }
+        out.push(c);
+    }
+    out + "…"
 }
