@@ -316,9 +316,12 @@ pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize
     // Among siblings sharing its name, the earliest may now be another; a
     // unique name stays on its one holder wherever it moves.
     if let Ok(name) = world.get::<&Name>(entity)
-        && world
-            .get::<&NameIndex>(parent)
-            .is_ok_and(|index| index.0.get(name.0.as_str()).is_some_and(|slot| slot.count > 1))
+        && world.get::<&NameIndex>(parent).is_ok_and(|index| {
+            index
+                .0
+                .get(name.0.as_str())
+                .is_some_and(|slot| slot.count > 1)
+        })
     {
         reindex(world, parent, &name.0);
     }
