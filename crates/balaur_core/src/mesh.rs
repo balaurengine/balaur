@@ -1039,7 +1039,15 @@ mod tests {
     fn vertices_without_faces_are_filled_as_one_outline() {
         let value: toml::Value = toml::from_str("positions = [[0,0,0],[1,0,0],[0,1,0]]").unwrap();
         let mesh = parse_definition(&value).unwrap();
-        assert_eq!(mesh.indices, vec![[0, 1, 2]]);
+        assert_eq!(mesh.indices.len(), 1);
+        // Which corner a triangle starts at is the triangulator's business;
+        // the cover and the winding are the contract.
+        let mut corners = mesh.indices[0];
+        corners.sort_unstable();
+        assert_eq!(corners, [0, 1, 2]);
+        let [a, b, c] = mesh.indices[0].map(|index| mesh.positions[index as usize]);
+        let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        assert!(area > 0.0, "the fill should be counter-clockwise");
     }
 
     #[test]

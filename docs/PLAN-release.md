@@ -36,6 +36,8 @@ opens without a warning and updates itself.
    store needs. Putting the signed result where a player can reach it is
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
    profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
+   What the export weighs — a size report, files nothing names, re-encoded
+   images, subset fonts, WAV as FLAC — is `docs/PLAN-export-size.md`.
 5. **The Download page** on the website reads the nightly by tag today
    (`RELEASE_TAG` in its `src/pages/download.tsx`); once a version is tagged it
    reads that release's assets and checksums, with the nightly as a channel
