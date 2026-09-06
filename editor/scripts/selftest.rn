@@ -1454,7 +1454,9 @@ pub fn dropping(S) {
 
     let root = S.game_root + "/";
     let source = root + "selftest-drop.png";
-    fs::write(source, "not really a png, and never decoded here");
+    // A real image: a 2D drop makes a `sprite`, which sizes itself from the
+    // picture and cannot do that with a file of prose.
+    fs::copy("assets/balaur-logo.png", source);
     let was = S.doc.len();
     dropin::take(S, source);
     check(S.doc.len() == was + 1, "dropping an image adds one node");
