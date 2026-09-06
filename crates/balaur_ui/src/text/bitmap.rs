@@ -227,7 +227,11 @@ kerning first=65 second=66 amount=-1
         assert!((font.size - 16.0).abs() < f32::EPSILON);
         assert!((font.line_height - 18.0).abs() < f32::EPSILON);
         assert_eq!(font.glyphs.len(), 2);
-        assert!(font.kerning.get(&('A', 'B')).is_some_and(|v| (v + 1.0).abs() < f32::EPSILON));
+        assert!(
+            font.kerning
+                .get(&('A', 'B'))
+                .is_some_and(|v| (v + 1.0).abs() < f32::EPSILON)
+        );
     }
 
     #[test]
