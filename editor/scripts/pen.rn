@@ -1,9 +1,5 @@
-// The Pen tool: a `path2d` asset edited in the viewport.
-//
-// The asset is cubic control points — an anchor, then two handles and the next
-// anchor, three more per segment — so anchor `k` sits at `3k` and its handles
-// at `3k - 1` and `3k + 1`. Everything below addresses them that way, and the
-// asset is written back through `assets::save`, inline or in its file.
+// The Pen tool: a `path2d` asset edited in the viewport. Its points are cubic
+// control points, so anchor `k` is at `3k` and its handles at `3k ± 1`.
 
 use crate::history;
 use crate::model;
@@ -105,8 +101,6 @@ fn component_key(S) {
     }
 }
 
-// --- the control points ---
-
 fn point_at(path, at) {
     let p = util::vec2(path.points.get(at).unwrap_or(()), [0.0, 0.0]);
     p
@@ -140,8 +134,6 @@ fn to_local(f, wx, wy) {
     let sy = if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
     (px / sx, py / sy)
 }
-
-// --- editing ---
 
 /// Append an anchor at the end, with handles level with the segment it makes,
 /// so a click-click-click draws a smooth chain rather than a set of corners.
@@ -305,8 +297,6 @@ pub fn new_path(S) {
     S.tool = "pen";
     log::info("added " + rel);
 }
-
-// --- the viewport ---
 
 /// The control point under the pointer, as `[index, is_anchor]`.
 fn pick(S, path, f, mx, my) {

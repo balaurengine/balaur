@@ -189,7 +189,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                 map.insert(k::SHADOWS.into(), toml::Value::Boolean(light.shadows));
                 map.insert(
                     k::LAYERS.into(),
-                    toml::Value::Integer(i64::from(light.layers as i32)),
+                    toml::Value::Integer(i64::from(light.layers.cast_signed())),
                 );
                 Some(toml::Value::Table(map))
             }),
@@ -207,8 +207,6 @@ fn set_light(eng: &Engine, entity: Entity, next: Light3d) -> Result<()> {
         .insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
-
-// --- the scene's atmosphere ---
 
 /// How fog thickens with distance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -336,6 +334,73 @@ shadow_distance = {{ type = "float", default = 60.0, min = 0.0, description = "H
     )
 }
 
+/// Read an `environment` table. Lifted out of the component's `apply`, which
+/// is otherwise one expression per key and nothing else.
+fn environment_from_params(params: &toml::Value) -> Result<Environment> {
+    let base = Environment::default();
+    let num = |key: &str, default: f32| {
+        params
+            .get(key)
+            .and_then(as_f64)
+            .unwrap_or(f64::from(default)) as f32
+    };
+    let flag = |key: &str, default: bool| {
+        params
+            .get(key)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(default)
+    };
+    let next = Environment {
+        current: flag(k::CURRENT, true),
+        sky: params
+            .get(k::SKY)
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        sky_intensity: num(k::SKY_INTENSITY, base.sky_intensity).max(0.0),
+        sky_rotation: num(k::SKY_ROTATION, base.sky_rotation),
+        show_sky: flag(k::SHOW_SKY, true),
+        ambient: crate::color_from_key(params, k::AMBIENT, base.ambient),
+        fog: match params
+            .get(k::FOG)
+            .and_then(toml::Value::as_str)
+            .unwrap_or(words::NONE)
+        {
+            words::NONE => FogKind::Off,
+            words::LINEAR => FogKind::Linear,
+            words::EXPONENTIAL => FogKind::Exponential,
+            words::EXPONENTIAL_SQUARED => FogKind::ExponentialSquared,
+            other => return Err(anyhow!("unknown fog '{other}'")),
+        },
+        fog_color: crate::color_from_key(params, k::FOG_COLOR, base.fog_color),
+        fog_density: num(k::FOG_DENSITY, base.fog_density).max(0.0),
+        fog_start: num(k::FOG_START, base.fog_start),
+        fog_end: num(k::FOG_END, base.fog_end),
+        fog_height_falloff: num(k::FOG_HEIGHT_FALLOFF, 0.0).max(0.0),
+        exposure: num(k::EXPOSURE, base.exposure).max(0.0),
+        tonemap: match params
+            .get(k::TONEMAP)
+            .and_then(toml::Value::as_str)
+            .unwrap_or(words::NEUTRAL)
+        {
+            words::NONE => Tonemap::None,
+            words::ACES => Tonemap::Aces,
+            words::REINHARD => Tonemap::Reinhard,
+            words::AGX => Tonemap::AgX,
+            words::NEUTRAL => Tonemap::Neutral,
+            other => return Err(anyhow!("unknown tonemap '{other}'")),
+        },
+        saturation: num(k::SATURATION, base.saturation).max(0.0),
+        contrast: num(k::CONTRAST, base.contrast).max(0.0),
+        gamma: num(k::GAMMA, base.gamma).max(0.01),
+        shadows: flag(k::SHADOWS, true),
+        shadow_resolution: num(k::SHADOW_RESOLUTION, 2048.0) as u32,
+        shadow_softness: num(k::SHADOW_SOFTNESS, base.shadow_softness).max(0.0),
+        shadow_distance: num(k::SHADOW_DISTANCE, base.shadow_distance).max(0.0),
+    };
+    Ok(next)
+}
+
 /// The `environment` component: sky, ambient, fog, exposure, tonemap, grading
 /// and the shadow budget, all of which belong to the scene rather than a view.
 pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
@@ -347,64 +412,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let base = Environment::default();
-                let num = |key: &str, default: f32| {
-                    params.get(key).and_then(as_f64).unwrap_or(f64::from(default)) as f32
-                };
-                let flag = |key: &str, default: bool| {
-                    params
-                        .get(key)
-                        .and_then(toml::Value::as_bool)
-                        .unwrap_or(default)
-                };
-                let next = Environment {
-                    current: flag(k::CURRENT, true),
-                    sky: params
-                        .get(k::SKY)
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                    sky_intensity: num(k::SKY_INTENSITY, base.sky_intensity).max(0.0),
-                    sky_rotation: num(k::SKY_ROTATION, base.sky_rotation),
-                    show_sky: flag(k::SHOW_SKY, true),
-                    ambient: crate::color_from_key(params, k::AMBIENT, base.ambient),
-                    fog: match params
-                        .get(k::FOG)
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or(words::NONE)
-                    {
-                        words::NONE => FogKind::Off,
-                        words::LINEAR => FogKind::Linear,
-                        words::EXPONENTIAL => FogKind::Exponential,
-                        words::EXPONENTIAL_SQUARED => FogKind::ExponentialSquared,
-                        other => return Err(anyhow!("unknown fog '{other}'")),
-                    },
-                    fog_color: crate::color_from_key(params, k::FOG_COLOR, base.fog_color),
-                    fog_density: num(k::FOG_DENSITY, base.fog_density).max(0.0),
-                    fog_start: num(k::FOG_START, base.fog_start),
-                    fog_end: num(k::FOG_END, base.fog_end),
-                    fog_height_falloff: num(k::FOG_HEIGHT_FALLOFF, 0.0).max(0.0),
-                    exposure: num(k::EXPOSURE, base.exposure).max(0.0),
-                    tonemap: match params
-                        .get(k::TONEMAP)
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or(words::NEUTRAL)
-                    {
-                        words::NONE => Tonemap::None,
-                        words::ACES => Tonemap::Aces,
-                        words::REINHARD => Tonemap::Reinhard,
-                        words::AGX => Tonemap::AgX,
-                        words::NEUTRAL => Tonemap::Neutral,
-                        other => return Err(anyhow!("unknown tonemap '{other}'")),
-                    },
-                    saturation: num(k::SATURATION, base.saturation).max(0.0),
-                    contrast: num(k::CONTRAST, base.contrast).max(0.0),
-                    gamma: num(k::GAMMA, base.gamma).max(0.01),
-                    shadows: flag(k::SHADOWS, true),
-                    shadow_resolution: num(k::RESOLUTION, 2048.0) as u32,
-                    shadow_softness: num(k::SOFTNESS, base.shadow_softness).max(0.0),
-                    shadow_distance: num(k::SHADOW_DISTANCE, base.shadow_distance).max(0.0),
-                };
+                let next = environment_from_params(params)?;
                 let mut world = eng.world_mut();
                 if let Ok(mut env) = world.get::<&mut Environment>(entity) {
                     *env = next;
@@ -458,18 +466,16 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
                 put(k::GAMMA, float(env.gamma));
                 put(k::SHADOWS, toml::Value::Boolean(env.shadows));
                 put(
-                    k::RESOLUTION,
+                    k::SHADOW_RESOLUTION,
                     toml::Value::Integer(i64::from(env.shadow_resolution)),
                 );
-                put(k::SOFTNESS, float(env.shadow_softness));
+                put(k::SHADOW_SOFTNESS, float(env.shadow_softness));
                 put(k::SHADOW_DISTANCE, float(env.shadow_distance));
                 Some(toml::Value::Table(map))
             }),
         },
     );
 }
-
-// --- the backend's half ---
 
 /// The kiss3d light one resolved `light3d` becomes.
 #[cfg(feature = "kiss3d")]
@@ -518,11 +524,7 @@ impl LightSlots {
 
     /// Push this frame's lights onto the scene. One node per light, reused in
     /// order, with the tail removed when a light goes.
-    pub(crate) fn sync(
-        &mut self,
-        app: &balaur_core::App,
-        scene: &mut kiss3d::scene::SceneNode3d,
-    ) {
+    pub(crate) fn sync(&mut self, app: &balaur_core::App, scene: &mut kiss3d::scene::SceneNode3d) {
         let resolved = {
             let world = app.engine.world();
             lights(&world, app.engine.root())
@@ -536,7 +538,8 @@ impl LightSlots {
             }
         }
         while self.nodes.len() < resolved.len() {
-            self.nodes.push(scene.add_light(kiss3d::light::Light::default()));
+            self.nodes
+                .push(scene.add_light(kiss3d::light::Light::default()));
         }
         for (node, light) in self.nodes.iter_mut().zip(resolved.iter()) {
             node.set_light(Some(as_kiss3d(light)));
@@ -618,16 +621,14 @@ fn sync_sky(
     env: &Environment,
     was: Option<&Environment>,
 ) {
-    let changed = was.map_or(true, |old| old.sky != env.sky);
+    let changed = was.is_none_or(|old| old.sky != env.sky);
     if changed {
         if env.sky.is_empty() {
             window.clear_skybox();
         } else {
             // Bytes rather than a path, the way a texture loads: a packed
             // game carries its sky inside the pack.
-            let files = app
-                .engine
-                .resource::<balaur_core::project::ProjectFiles>();
+            let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
             let read = files.borrow().read(&env.sky);
             match read {
                 Ok(bytes) => {

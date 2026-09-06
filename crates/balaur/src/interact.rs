@@ -111,7 +111,10 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
                 eng,
                 node,
                 "pointer_drag",
-                &[Value::Num(f64::from(delta.0)), Value::Num(f64::from(delta.1))],
+                &[
+                    Value::Num(f64::from(delta.0)),
+                    Value::Num(f64::from(delta.1)),
+                ],
             );
         }
     }
@@ -192,10 +195,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         broadcast(
             eng,
             "resize",
-            &[
-                Value::Num(f64::from(size.0)),
-                Value::Num(f64::from(size.1)),
-            ],
+            &[Value::Num(f64::from(size.0)), Value::Num(f64::from(size.1))],
         );
     }
     state.size = size;
@@ -206,7 +206,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
 /// Here rather than in each plugin: this crate is the one that has them all,
 /// and a build without one is a build whose bindings say so rather than
 /// silently doing nothing.
-fn install_runners(app: &balaur_core::App) {
+fn fill_action_runners(app: &balaur_core::App) {
     use balaur_core::bindings::{Action, set_runner};
     use std::rc::Rc;
 
@@ -218,6 +218,9 @@ fn install_runners(app: &balaur_core::App) {
             balaur_anim::play(eng, entity, &text_of(value))
         }),
     );
+    // Only in a build with audio. A binding naming `sound` in one without it
+    // is an error saying so, which is the point of the registry.
+    #[cfg(feature = "audio")]
     set_runner(
         eng,
         Action::Sound,
@@ -272,15 +275,12 @@ fn text_of(value: &Value) -> String {
 /// At `First`, after input has been pumped and before scripts update, so a
 /// hook and the tick's own `update` see the same world.
 pub(crate) fn install(app: &mut balaur_core::App) {
-    install_runners(app);
+    fill_action_runners(app);
     let mut state = Pointer::default();
     app.add_system(Stage::First, move |eng: &Engine, _| {
         pointer_system(eng, &mut state);
         input_system(eng, &mut state);
     });
-    app.add_system(
-        Stage::Last,
-        balaur_core::variables::dispatch_changes_system,
-    );
+    app.add_system(Stage::Last, balaur_core::variables::dispatch_changes_system);
     app.add_system(Stage::Last, balaur_core::scene_switch::apply_system);
 }

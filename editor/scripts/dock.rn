@@ -1031,8 +1031,6 @@ fn rows(k, table, kind) {
 
 
 
-// --- the cost dock ---
-
 /// Bytes as the unit a person reads them in.
 fn bytes(n) {
     if n < 1024.0 {

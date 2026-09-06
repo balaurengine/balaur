@@ -98,6 +98,11 @@ shot hello_open        examples/hello      "scene,select:World,dock:output"
 shot persona_scene     examples/angrynerds "scene,select:Bird"
 shot persona_script    examples/hello      "script,select:Spinner"
 shot persona_animate   examples/rig        "anim,select:Thigh"
+# The selection set, the Events view, the Cost dock and the Library.
+shot editor_selection  examples/objects    "scene,select:Torus,dock:library,zoom:55"
+shot editor_events     examples/hello      "scene,select:Ball,tab:events"
+shot editor_cost       examples/objects    "scene,dock:cost,zoom:55"
+shot editor_lights     examples/hello      "scene,select:KeyLight,dock:inspector"
 # The rigging panels, each over the rig example's own figure.
 shot rigging_weights   examples/rig        "anim,select:Limb,tool:polygon,mode:weights,dock:weights,zoom:70"
 shot rigging_bonemap   examples/rig        "anim,select:Hip,dock:bonemap"

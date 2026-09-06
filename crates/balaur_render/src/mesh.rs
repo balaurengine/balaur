@@ -112,7 +112,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 }
                 crate::set_mesh(eng, entity, source.clone(), text(k::SKELETON), text(k::TEXTURE))?;
                 set_morph_weights(eng, entity, &source, params);
-                crate::lighting_from_params(eng, entity, params)?;
+                crate::lighting_from_params(eng, entity, params);
                 crate::material::set_material_3d(eng, entity, &text("material"))
             }),
             remove: Box::new(|eng, entity| {
@@ -141,7 +141,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
                 map.insert(
                     k::LAYERS.into(),
-                    toml::Value::Integer(i64::from(renderable.layers as i32)),
+                    toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                 );
                 // One key per shape the mesh can blend towards, so a clip
                 // track spells `mesh/morph.smile` and a patch keeps the rest.

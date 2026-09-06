@@ -88,7 +88,7 @@ mod windowed {
     ///
     /// Decoded here rather than through kiss3d's `add_image_from_memory`,
     /// which is an `expect` on content a scene file names.
-    fn upload(eng: &Engine, path: &str) -> Option<Arc<Texture>> {
+    pub(crate) fn upload(eng: &Engine, path: &str) -> Option<Arc<Texture>> {
         if path.is_empty() {
             return None;
         }
@@ -124,7 +124,7 @@ mod windowed {
 }
 
 #[cfg(feature = "kiss3d")]
-pub(crate) use windowed::{attach_texture_2d, attach_texture_3d};
+pub(crate) use windowed::{attach_texture_2d, attach_texture_3d, upload};
 
 #[cfg(test)]
 mod tests {

@@ -23,7 +23,6 @@ mod draw_2d;
 mod instancing;
 pub mod light;
 pub mod light3d;
-pub mod stats;
 pub mod material;
 pub mod mesh;
 #[cfg(feature = "kiss3d")]
@@ -41,6 +40,9 @@ pub mod shaders;
 mod shape;
 mod sheet;
 mod sprite;
+pub mod stats;
+#[cfg(feature = "kiss3d")]
+mod sync_2d;
 mod text_component;
 mod texture;
 mod tilemap;
@@ -629,22 +631,17 @@ pub(crate) fn set_mesh(
 /// Whether this node casts, and which light layers reach it. A component's
 /// `apply` calls this after setting the shape, so a node with neither key
 /// keeps the defaults: it casts, and every light finds it.
-pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: u32) -> Result<()> {
+pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: u32) {
     let world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
         r.shadows = shadows;
         r.layers = layers;
     }
-    Ok(())
 }
 
 /// The `shadows` and `layers` keys a 3D renderable component offers, applied
 /// to whatever renderable the node just gained.
-pub(crate) fn lighting_from_params(
-    eng: &Engine,
-    entity: Entity,
-    params: &toml::Value,
-) -> Result<()> {
+pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
         .get("shadows")
         .and_then(toml::Value::as_bool)
@@ -653,7 +650,7 @@ pub(crate) fn lighting_from_params(
         .get("layers")
         .and_then(balaur_core::components::as_f64)
         .map_or(u32::MAX, |v| v as i64 as u32);
-    set_lighting(eng, entity, shadows, layers)
+    set_lighting(eng, entity, shadows, layers);
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {

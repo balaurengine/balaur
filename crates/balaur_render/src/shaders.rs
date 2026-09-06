@@ -33,6 +33,10 @@ pub(crate) static SPRITE: &str = include_str!("shaders/sprite.wesl");
 /// dimensions, plus the scene's lights and fog.
 pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
 
+/// The physically based surface, mounted as `package::pbr`: a material
+/// importing it shades with GGX over the same lights `package::mesh` collects.
+pub(crate) static PBR: &str = include_str!("shaders/pbr.wesl");
+
 /// What a channel view draws: one entry point per channel, chosen by feature.
 pub static CHANNEL: &str = include_str!("shaders/channel.wesl");
 
@@ -87,6 +91,7 @@ pub fn link(
         ("package::common", COMMON),
         ("package::sprite", SPRITE),
         ("package::mesh", MESH),
+        ("package::pbr", PBR),
     ];
     for (path, source) in mounted.iter().chain(modules) {
         let parsed = path

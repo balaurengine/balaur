@@ -1,7 +1,5 @@
-// The Events view, which authors rather than lists. One row per
-// `[[nodes.bindings]]` entry on the selected node: an event, a condition, an
-// action, a target and a value. Every row is a call a script could make, and
-// "Convert to script" writes exactly those calls.
+// The Events view, which authors rather than lists: one row per
+// `[[nodes.bindings]]` entry, and the Rune each row is equivalent to.
 
 use crate::history;
 use crate::icons;
@@ -15,13 +13,19 @@ pub fn state() {
     #{ picking: None }
 }
 
-/// The rows on the selected node, as document data.
+/// The rows on the selected node. A hand-written file spells them
+/// `[[nodes.bindings]]`, and one the editor has saved spells them under
+/// `rows`; both are the same list.
 pub fn rows(S) {
     let node = match S.doc.get(S.sel) {
         Some(node) => node,
         None => return [],
     };
-    util::vec(node.get("bindings").unwrap_or([]))
+    let held = node.get("bindings").unwrap_or([]);
+    if held is Object {
+        return util::vec(util::obj(held).get("rows").unwrap_or([]));
+    }
+    util::vec(held)
 }
 
 fn write(S, rows, label) {
@@ -30,7 +34,7 @@ fn write(S, rows, label) {
     if rows.len() == 0 {
         node.remove("bindings");
     } else {
-        node.bindings = rows;
+        node.bindings = #{ rows: rows };
     }
     model::record_override(S, node, "bindings");
     model::apply_component(S, "bindings");

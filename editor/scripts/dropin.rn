@@ -1,8 +1,5 @@
-// A file dropped on the window becomes a node. One function per extension, so
-// a new kind is a match arm and a test rather than a branch in a long handler.
-//
-// Every path taken here is: copy the file into the project, then make the node
-// that names it, then record one history step.
+// A file dropped on the window becomes a node: copy it into the project, make
+// the node that names it, record one history step. One function per extension.
 
 use crate::history;
 use crate::model;
@@ -118,8 +115,6 @@ fn place(S, name, parts) {
     S.doc.push(entry);
     entry
 }
-
-// --- one per kind ---
 
 /// An image becomes a `sprite` in 2D and a textured `shape3d` plane in 3D.
 fn drop_image(S, path) {

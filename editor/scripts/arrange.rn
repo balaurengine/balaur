@@ -23,8 +23,6 @@ fn move_world_to(S, i, target) {
     model::set_transform(S, i, #{ position: util::vadd(local, util::vsub(target, world)) });
 }
 
-// --- align and distribute ---
-
 /// `mode` is `min`, `mid` or `max` along `axis`; the whole set lands on the
 /// same coordinate there.
 pub fn align(S, axis, mode) {
@@ -96,8 +94,6 @@ fn axis_name(axis) {
         _ => "z",
     }
 }
-
-// --- group and ungroup ---
 
 /// Wrap the selection in a fresh empty node at its centroid, keeping every
 /// world pose. The group's parent is the shared parent when there is one.
@@ -192,8 +188,6 @@ pub fn ungroup(S) {
     selection::clamp(S);
     history::commit(S);
 }
-
-// --- hide, lock, isolate ---
 
 /// Flip `visible` on the whole set: if anything is showing, hide it all;
 /// otherwise show it all. Written to the document, so it survives a save.

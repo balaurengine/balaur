@@ -8,6 +8,7 @@
 use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
 
+use crate::App;
 use crate::components::ComponentDef;
 use crate::hecs::Entity;
 use crate::variables::{Variables, as_num};
@@ -101,8 +102,6 @@ pub struct Binding {
 pub struct Bindings {
     pub rows: Vec<Binding>,
 }
-
-// --- the condition ---
 
 /// A comparison of a variable with a constant, or two of them joined.
 ///
@@ -226,7 +225,11 @@ impl Condition {
         match self {
             Self::All(all) => all.iter().all(|c| c.holds(variables)),
             Self::Any(any) => any.iter().any(|c| c.holds(variables)),
-            Self::Compare { variable, op, value } => {
+            Self::Compare {
+                variable,
+                op,
+                value,
+            } => {
                 let Some(held) = variables.get(variable) else {
                     return false;
                 };
@@ -271,8 +274,6 @@ fn compare(held: &Value, op: Compare, against: &Value) -> bool {
         Compare::Ge => a >= b,
     }
 }
-
-// --- reading the rows ---
 
 fn value_of(row: &toml::Value) -> Value {
     match row {
@@ -326,7 +327,7 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
 }
 
 /// The `bindings` component, written as an array of tables on a node.
-pub(crate) fn register_bindings_component(app: &mut crate::App) {
+pub(crate) fn register_bindings_component(app: &mut App) {
     app.register_component(
         "bindings",
         ComponentDef {
@@ -371,9 +372,16 @@ pub(crate) fn register_bindings_component(app: &mut crate::App) {
             get: Box::new(|eng, entity| {
                 let world = eng.world();
                 let held = world.get::<&Bindings>(entity).ok()?;
-                Some(toml::Value::Array(
-                    held.rows.iter().map(row_to_toml).collect(),
-                ))
+                // Under `rows`, the one property the schema declares: every
+                // component reads back as a table of its properties, and a
+                // hand-written `[[nodes.bindings]]` reaches `apply` through
+                // the same key's shorthand.
+                let mut map = toml::map::Map::new();
+                map.insert(
+                    "rows".into(),
+                    toml::Value::Array(held.rows.iter().map(row_to_toml).collect()),
+                );
+                Some(toml::Value::Table(map))
             }),
         },
     );
@@ -403,8 +411,6 @@ fn row_to_toml(row: &Binding) -> toml::Value {
     }
     toml::Value::Table(map)
 }
-
-// --- running them ---
 
 /// Run every binding on `entity` that answers `event`.
 ///
@@ -508,10 +514,7 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
             };
             match runner {
                 Some(run) => run(eng, target, &row.value),
-                None => bail!(
-                    "nothing in this build runs the `{}` action",
-                    other.word()
-                ),
+                None => bail!("nothing in this build runs the `{}` action", other.word()),
             }
         }
     }
@@ -559,7 +562,7 @@ mod tests {
     fn variables(rows: &[(&str, VarType, Value)]) -> Variables {
         let mut variables = Variables::default();
         for (name, kind, value) in rows {
-            variables.declare(name, *kind, value.clone(), false);
+            variables.declare(name, *kind, value, false);
         }
         variables
     }
@@ -616,8 +619,18 @@ mod tests {
     #[test]
     fn text_compares_as_text() {
         let held = variables(&[("who", VarType::Text, Value::Str("ana".into()))]);
-        assert!(parse_condition("who == \"ana\"").unwrap().unwrap().holds(&held));
-        assert!(!parse_condition("who == \"bob\"").unwrap().unwrap().holds(&held));
+        assert!(
+            parse_condition("who == \"ana\"")
+                .unwrap()
+                .unwrap()
+                .holds(&held)
+        );
+        assert!(
+            !parse_condition("who == \"bob\"")
+                .unwrap()
+                .unwrap()
+                .holds(&held)
+        );
     }
 
     #[test]

@@ -280,8 +280,6 @@ pub fn colliders(S) {
 }
 
 
-// --- 3D lights and cameras ---
-
 /// Where a node aims in 3D: -z turned by its rotation, the direction a
 /// `light3d` shines and a `camera` looks.
 fn forward_of(found) {

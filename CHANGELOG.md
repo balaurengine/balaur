@@ -18,6 +18,12 @@ notes are that version's section.
 
 ### Scenes and assets
 
+- `[[nodes.bindings]]` makes a scene interactive with no script: an event, a `when` over the scene's variables, an action, a target and a value.
+- `states` names a look, and `node.go` patches it over what the node already has.
+- `[variables]` declares typed scene values; `on_variable_changed` reaches every node that declares it.
+- `scene.switch` replaces the scene at the end of the tick.
+- `balaur new --template <name>` starts a project from one of the editor's templates.
+- `fs.copy` copies a file byte for byte, which `read` and `write` cannot do for an image or a model.
 - `balaur import level.tmx` and `level.ldtk` bring a Tiled map or an LDtk project in as tilesets, their atlases and a scene per level.
 - A frame's queued frees run as one pass per parent.
 - Children indexed by name: a path lookup is one hash per segment.
@@ -41,6 +47,12 @@ notes are that version's section.
 
 ### Rendering
 
+- `light3d` places a point, directional or spot light with shadows and light layers; a scene with none keeps the engine's own key light, and the first one added retires it.
+- `environment` carries the scene's sky, ambient, fog, exposure, tonemap, grading and shadow budget; the last `current` one in tree order wins.
+- `package::pbr` shades physically: GGX, Smith visibility and Schlick Fresnel over the frame's lights, with a normal map folded in from screen-space derivatives.
+- A material binds six texture slots (albedo, normal, metallic_roughness, occlusion, emissive, height), and every slot it leaves out gets a one-pixel neutral.
+- `shadows` and `layers` on `mesh` and `shape3d` say what casts and what each light reaches.
+- `render.stats` reports a frame's draws, triangles, texture bytes and a cloner's copies, per node, without a GPU.
 - Tile maps: a tileset that says what each tile is, collision from its solid cells as one voxel shape, autotiling from an ordered rule table, animated and light-blocking tiles, isometric and hexagonal layouts.
 - The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
@@ -169,6 +181,17 @@ notes are that version's section.
 
 ### Editor
 
+- The selection is a set: shift and ⌘ click, box select in both viewports, and a gizmo drag that moves, turns and scales the whole set as one body.
+- Group and ungroup keeping world poses, six aligns, three distributes, hide, lock and isolate, each with a shortcut.
+- The outliner filters by a component facet as well as by name.
+- A file dropped on the window becomes a node: an image, a `.glb` through `balaur import`, a `.wesl` as a material, an `.hdr` as the sky, a scene as a prefab, a font under `fonts/`.
+- Light and camera gizmos: an arrow for a sun, rings at a point light's reach, a cone for a spot, a frustum for a camera.
+- A view-mode chip over the engine's channels, and four camera bookmarks on the viewport.
+- A Pen tool that edits a `path2d` in the viewport: click to add an anchor, drag to pull its handles, alt to break the pair.
+- The material rows resolve an inline material as well as a file, and a texture slot is a picker over the project's `art/`.
+- The Events view authors `[[nodes.bindings]]` rows and writes the Rune they are equivalent to.
+- A Cost dock beside the Profiler: draws, triangles and texture bytes per node.
+- A Library dock of stock materials, lighting setups and project templates.
 - The Tiles tool paints in every direction, fills, draws lines, stamps blocks, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.

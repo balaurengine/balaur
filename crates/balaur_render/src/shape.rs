@@ -228,8 +228,8 @@ pub(crate) mod keys {
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const ROWS: &str = "rows";
     pub(crate) const SHADOWS: &str = "shadows";
-    pub(crate) const RESOLUTION: &str = "resolution";
-    pub(crate) const SOFTNESS: &str = "softness";
+    pub(crate) const SHADOW_RESOLUTION: &str = "shadow_resolution";
+    pub(crate) const SHADOW_SOFTNESS: &str = "shadow_softness";
     pub(crate) const LAYERS: &str = "layers";
     pub(crate) const INNER: &str = "inner";
     pub(crate) const OUTER: &str = "outer";
@@ -317,7 +317,7 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
             apply: Box::new(|eng, entity, params| {
                 set_shape(eng, entity, shape_from_params(params)?)?;
                 set_color(eng, entity, color_from_params(params))?;
-                crate::lighting_from_params(eng, entity, params)?;
+                crate::lighting_from_params(eng, entity, params);
                 crate::material::set_material_3d(
                     eng,
                     entity,
@@ -345,7 +345,7 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                     map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
                     map.insert(
                         k::LAYERS.into(),
-                        toml::Value::Integer(i64::from(renderable.layers as i32)),
+                        toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                     );
                 }
                 Some(params)

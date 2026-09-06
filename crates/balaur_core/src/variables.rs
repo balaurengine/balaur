@@ -71,7 +71,6 @@ pub fn as_num(value: &Value) -> f64 {
     match value {
         Value::Num(n) => *n,
         Value::Bool(true) => 1.0,
-        Value::Bool(false) => 0.0,
         Value::Str(s) => s.parse().unwrap_or(0.0),
         _ => 0.0,
     }
@@ -99,8 +98,8 @@ pub struct Variables {
 
 impl Variables {
     /// Declare one, replacing what a previous scene declared under that name.
-    pub fn declare(&mut self, name: &str, kind: VarType, value: Value, persist: bool) {
-        let value = kind.coerce(&value);
+    pub fn declare(&mut self, name: &str, kind: VarType, value: &Value, persist: bool) {
+        let value = kind.coerce(value);
         self.declared.insert(
             name.to_string(),
             Variable {
@@ -190,7 +189,7 @@ pub fn declare_from_toml(eng: &Engine, table: &toml::Table) -> Result<()> {
             }
             other => (kind_of(other), from_toml(other), false),
         };
-        variables.declare(name, kind, value, persist);
+        variables.declare(name, kind, &value, persist);
     }
     Ok(())
 }
@@ -250,12 +249,12 @@ mod tests {
     #[test]
     fn a_value_is_coerced_to_the_type_that_was_declared() {
         let mut variables = Variables::default();
-        variables.declare("lives", VarType::Int, Value::Num(3.7), false);
+        variables.declare("lives", VarType::Int, &Value::Num(3.7), false);
         assert_eq!(variables.get("lives"), Some(&Value::Num(3.0)));
         variables.set("lives", &Value::Str("2.9".into())).unwrap();
         assert_eq!(variables.get("lives"), Some(&Value::Num(2.0)));
 
-        variables.declare("open", VarType::Bool, Value::Num(1.0), false);
+        variables.declare("open", VarType::Bool, &Value::Num(1.0), false);
         assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
     }
 
@@ -264,7 +263,7 @@ mod tests {
     #[test]
     fn writing_the_same_value_is_not_a_change() {
         let mut variables = Variables::default();
-        variables.declare("score", VarType::Int, Value::Num(0.0), false);
+        variables.declare("score", VarType::Int, &Value::Num(0.0), false);
         variables.set("score", &Value::Num(1.0)).unwrap();
         variables.set("score", &Value::Num(1.0)).unwrap();
         assert_eq!(variables.drain().len(), 1);
@@ -297,7 +296,7 @@ speed = 2.5
                 ),
                 other => (kind_of(other), from_toml(other), false),
             };
-            variables.declare(name, kind, value, persist);
+            variables.declare(name, kind, &value, persist);
         }
         assert_eq!(variables.spec("score").unwrap().kind, VarType::Int);
         assert!(variables.spec("score").unwrap().persist);

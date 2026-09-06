@@ -1,7 +1,5 @@
-# What the library dock lists, and what dropping a row copies into a project.
-#
-# One row per entry: the file it copies, the kind it is, and the line the card
-# reads. Nothing at run time reads this; it is the editor's own catalogue.
+# What the library dock lists: the file each entry copies, its kind, and the
+# line its card reads. Nothing at run time reads this.
 
 [[entries]]
 id = "pbr_metal"

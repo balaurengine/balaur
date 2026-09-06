@@ -1,9 +1,5 @@
-// The library dock: stock materials, lighting setups and project templates,
-// listed from `editor/library/manifest.toml`.
-//
-// Nothing at run time reads the library. Placing an entry copies its files
-// into the edited project and then does what dropping the same file would do,
-// so a library row and a drag from the desktop end in the same place.
+// The library dock: stock materials, lighting setups and project templates.
+// Placing one copies its files in and then does what dropping them would.
 
 use crate::dropin;
 use crate::icons;

@@ -8,6 +8,7 @@
 use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
 
+use crate::App;
 use crate::components::ComponentDef;
 use crate::hecs::Entity;
 use crate::{Engine, hooks};
@@ -105,7 +106,7 @@ fn schema() -> String {
 
 /// The `states` component. Every key that is not `current` or `duration` is a
 /// state, so the file reads as the thing it is.
-pub(crate) fn register_states_component(app: &mut crate::App) {
+pub(crate) fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {

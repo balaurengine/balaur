@@ -126,8 +126,6 @@ pub fn roots(S) {
     out
 }
 
-// --- lock, hide, isolate ---
-
 /// Locked rows are skipped by the gizmo, by picking and by box select. Editor
 /// state keyed by id, never written to the file: a lock nobody can see in the
 /// document is a lock nobody can explain.
@@ -155,8 +153,6 @@ pub fn unlock_all(S) {
 pub fn pickable(S, i) {
     !is_locked(S, i)
 }
-
-// --- drag over the set ---
 
 /// Every selected root's transform, taken once when a drag starts so each
 /// frame applies a delta to the pose the drag began from.
@@ -241,8 +237,6 @@ pub fn rotate_by(S, snap, axis, angle, pivot) {
         model::set_transform(S, entry.index, parts);
     }
 }
-
-// --- incremental nudges, for the rail tools that drag anywhere ---
 
 /// Offset every selected root by a world delta, read from where it is now.
 pub fn nudge(S, delta, snap_to) {

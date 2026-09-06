@@ -42,8 +42,21 @@ struct ObjectUniforms {
 
 @group(0) @binding(0) var<uniform> frame: FrameUniforms;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
+// The six texture slots the contract declares, in the order `TEXTURE_SLOTS`
+// names them. Every slot a material leaves out is bound to a one-pixel
+// neutral stand-in, so nothing here branches on absence.
 @group(2) @binding(0) var albedo_texture: texture_2d<f32>;
 @group(2) @binding(1) var albedo_sampler: sampler;
+@group(2) @binding(2) var normal_texture: texture_2d<f32>;
+@group(2) @binding(3) var normal_sampler: sampler;
+@group(2) @binding(4) var metallic_roughness_texture: texture_2d<f32>;
+@group(2) @binding(5) var metallic_roughness_sampler: sampler;
+@group(2) @binding(6) var occlusion_texture: texture_2d<f32>;
+@group(2) @binding(7) var occlusion_sampler: sampler;
+@group(2) @binding(8) var emissive_texture: texture_2d<f32>;
+@group(2) @binding(9) var emissive_sampler: sampler;
+@group(2) @binding(10) var height_texture: texture_2d<f32>;
+@group(2) @binding(11) var height_sampler: sampler;
 
 struct VertexInput {
     // Which copy this is, when something is drawing the mesh many times.
@@ -85,6 +98,52 @@ fn eye() -> vec3<f32> {
 
 fn sample_albedo(uv: vec2<f32>) -> vec4<f32> {
     return textureSample(albedo_texture, albedo_sampler, uv);
+}
+
+// A tangent-space normal, `(0, 0, 1)` where no map is bound.
+fn sample_normal_map(uv: vec2<f32>) -> vec3<f32> {
+    return textureSample(normal_texture, normal_sampler, uv).xyz * 2.0 - 1.0;
+}
+
+// glTF's packing: green is roughness, blue is metallic.
+fn sample_metallic_roughness(uv: vec2<f32>) -> vec2<f32> {
+    let mr = textureSample(metallic_roughness_texture, metallic_roughness_sampler, uv);
+    return vec2<f32>(mr.b, mr.g);
+}
+
+// One where nothing is occluded, which is what an absent map binds.
+fn sample_occlusion(uv: vec2<f32>) -> f32 {
+    return textureSample(occlusion_texture, occlusion_sampler, uv).r;
+}
+
+fn sample_emissive(uv: vec2<f32>) -> vec3<f32> {
+    return textureSample(emissive_texture, emissive_sampler, uv).rgb;
+}
+
+fn sample_height(uv: vec2<f32>) -> f32 {
+    return textureSample(height_texture, height_sampler, uv).r;
+}
+
+// A world-space normal with the normal map folded in, using screen-space
+// derivatives for the tangent frame: a mesh asset carries no tangents, and
+// deriving one costs nothing a material that does not ask for it.
+fn shaded_normal(in: VertexOutput) -> vec3<f32> {
+    let n = normalize(in.normal);
+    let mapped = sample_normal_map(in.uv);
+    if abs(mapped.x) + abs(mapped.y) < 1e-4 {
+        return n;
+    }
+    let dp1 = dpdx(in.world);
+    let dp2 = dpdy(in.world);
+    let duv1 = dpdx(in.uv);
+    let duv2 = dpdy(in.uv);
+    let denom = duv1.x * duv2.y - duv2.x * duv1.y;
+    if abs(denom) < 1e-8 {
+        return n;
+    }
+    let t = normalize((dp1 * duv2.y - dp2 * duv1.y) / denom);
+    let b = normalize(cross(n, t));
+    return normalize(mapped.x * t + mapped.y * b + mapped.z * n);
 }
 
 fn tint() -> vec4<f32> {

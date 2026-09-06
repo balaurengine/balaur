@@ -279,11 +279,7 @@ pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     [
         uniform("material3d_frame_layout"),
         uniform("material3d_object_layout"),
-        crate::bind_layout::sampled_slots_layout(
-            &ctxt,
-            "material3d_texture_layout",
-            TEXTURE_SLOTS,
-        ),
+        crate::bind_layout::sampled_slots_layout(&ctxt, "material3d_texture_layout", TEXTURE_SLOTS),
     ]
 }
 

@@ -370,10 +370,11 @@ fn code_pane(S, k) {
         if changed {
             S.script_dirty[path] = true;
         }
-        // A shader has no script tooling behind it; a Rune buffer does.
+        // A shader has no script tooling behind it; a Rune buffer does, and a
+        // showcase sequence places its own caret.
         if shading {
             complete::reset(S);
-        } else {
+        } else if !crate::showcase::driving(S) {
             complete::update(S, rel, text, caret);
         }
         if hit is i64 {

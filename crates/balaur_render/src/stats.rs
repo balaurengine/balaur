@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use balaur_script::Value;
+use balaur_script::{Bindings, BindingsExt as _, Value};
 
 use crate::Engine;
 
@@ -156,8 +156,7 @@ fn cost_value(name: &str, cost: &NodeCost) -> Value {
 }
 
 /// `render.stats`: the frame's totals and a row per node that drew.
-pub(crate) fn install_stats_api(m: &mut dyn balaur_script::Bindings<Engine>) {
-    use balaur_script::BindingsExt as _;
+pub(crate) fn install_stats_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "stats",
         &[],
@@ -170,10 +169,7 @@ pub(crate) fn install_stats_api(m: &mut dyn balaur_script::Bindings<Engine>) {
         let total = stats.total();
         Ok(Value::Map(vec![
             ("draws".into(), Value::Num(f64::from(total.draws))),
-            (
-                "triangles".into(),
-                Value::Num(f64::from(total.triangles)),
-            ),
+            ("triangles".into(), Value::Num(f64::from(total.triangles))),
             (
                 "texture_bytes".into(),
                 Value::Num(stats.texture_bytes as f64),
