@@ -1663,10 +1663,8 @@ pub fn pendemo(S) {
     check(count() < before, "removing an anchor takes its handles with it");
     check(mirror_resolves(S), "the mirror still resolves");
 
-    // Written back to the file each time, so what the renderer strokes is
-    // what the tool drew.
-    // Read as a file: `assets` here is this module's own demo, not the
-    // engine's, and the point is what landed on disk anyway.
+    // Read as a file rather than through `assets`, which here is this
+    // module's own demo: the point is what landed on disk.
     let saved = util::obj(toml::parse(fs::read(S.game_root + "/" + rel)));
     check(util::vec(saved.get("points").unwrap_or([])).len() == count(),
         "and the asset on disk holds the same points");
