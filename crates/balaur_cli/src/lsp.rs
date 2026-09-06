@@ -119,6 +119,7 @@ impl Server {
                             "definitionProvider": true,
                             "documentSymbolProvider": true,
                             "referencesProvider": true,
+                            "renameProvider": true,
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -272,6 +273,13 @@ impl Server {
                     &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
                 )?;
             }
+            "textDocument/rename" => {
+                let edit = self.rename(&message["params"]);
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": edit }),
+                )?;
+            }
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
@@ -325,6 +333,43 @@ impl Server {
                 Json::Null
             }
         }
+    }
+
+    /// A rename as a `WorkspaceEdit`: every file it touches, each replaced
+    /// whole. The provider works textually, so one edit per file is both
+    /// simpler and safer than a list of ranges the client applies in order.
+    fn rename(&self, params: &Json) -> Json {
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        let Some(to) = params["newName"].as_str() else {
+            return Json::Null;
+        };
+        let from = word_at(&source, balaur::rune::offset_of(&source, line, column));
+        if from.is_empty() {
+            return Json::Null;
+        }
+        let written = match self.host.rename(&rel, &source, &from, to) {
+            Ok(written) => written,
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                return Json::Null;
+            }
+        };
+        let mut changes = serde_json::Map::new();
+        for (file, text) in written {
+            changes.insert(
+                self.uri_of(&file),
+                json!([{
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": u32::MAX, "character": 0 },
+                    },
+                    "newText": text,
+                }]),
+            );
+        }
+        json!({ "changes": changes })
     }
 
     /// `at` for a request about a whole file rather than a position.

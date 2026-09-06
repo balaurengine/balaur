@@ -165,7 +165,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
-    // `script::definition(path, source, line, column)` — where the name at    // `script::definition(path, source, line, column)` — where the name at
+    // `script::definition(path, source, line, column)` — where the name at
     // that caret is defined, as `#{ file, line, column, url }`. Engine API has
     // no file, so it carries its reference page instead.
     script
@@ -225,7 +225,28 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             },
         )
         .build()?;
-    // `script::format(path, source)` — that source laid out by Rune's own    // `script::format(path, source)` — that source laid out by Rune's own
+    // `script::rename(path, source, from, to)` — every file a rename would
+    // rewrite, as `[#{ file, source }]`. Nothing is written: the caller shows
+    // the list, then writes what it chooses.
+    script
+        .function(
+            "rename",
+            move |path: &str, source: &str, from: &str, to: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host
+                    .rename(&RuneHost::normalize_key(path), source, from, to)
+                    .and_then(|written| rename_rows(&written))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::rename({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::format(path, source)` — that source laid out by Rune's own
     // formatter, or the source unchanged when it will not parse.
     script
         .function("format", move |path: &str, source: &str| {
@@ -295,4 +316,20 @@ fn signature_row(found: Option<(crate::Hover, usize)>) -> Result<rune::Value> {
         object.insert(rune::alloc::String::try_from(key)?, value)?;
     }
     Ok(rune::to_value(object)?)
+}
+
+/// One object per file a rename would rewrite.
+fn rename_rows(written: &[(String, String)]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(written.len());
+    for (file, source) in written {
+        let mut object = rune::runtime::Object::new();
+        for (key, value) in [
+            ("file", rune::to_value(file.clone())?),
+            ("source", rune::to_value(source.clone())?),
+        ] {
+            object.insert(rune::alloc::String::try_from(key)?, value)?;
+        }
+        rows.push(rune::to_value(object)?);
+    }
+    Ok(rune::to_value(rows)?)
 }

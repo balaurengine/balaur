@@ -509,7 +509,7 @@ impl RuneHost {
             .map_or_else(|| source.to_string(), |(_, text)| text.into_std()))
     }
 
-    /// What is under the caret at `line`:`column`, for a hover card.    /// What is under the caret at `line`:`column`, for a hover card.
+    /// What is under the caret at `line`:`column`, for a hover card.
     ///
     /// # Errors
     /// If the context cannot be built.
@@ -759,6 +759,62 @@ impl RuneHost {
         Ok(out)
     }
 
+    /// Every file a rename would rewrite, as `(file, new source)`.
+    ///
+    /// Textual, like [`references`](Self::references): the caller shows the
+    /// list before any of it is written. A name that is not an identifier is
+    /// refused rather than producing a file that will not parse.
+    ///
+    /// # Errors
+    /// If `to` is not a Rune identifier, or the context cannot be built.
+    pub fn rename(
+        &self,
+        key: &str,
+        source: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<(String, String)>> {
+        if to.is_empty() || to.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            anyhow::bail!("`{to}` cannot start an identifier");
+        }
+        if !to.chars().all(is_word) {
+            anyhow::bail!("`{to}` is not an identifier");
+        }
+        let found = self.references(key, source, from)?;
+        let mut by_file: BTreeMap<String, Vec<Location>> = BTreeMap::new();
+        for one in found {
+            by_file.entry(one.file.clone()).or_default().push(one);
+        }
+        let mut out = Vec::new();
+        for (file, hits) in by_file {
+            let text = if file == key {
+                source.to_string()
+            } else {
+                match self.source_of(&file) {
+                    Ok(text) => text,
+                    Err(_) => continue,
+                }
+            };
+            let mut lines: Vec<String> = text.split('\n').map(ToString::to_string).collect();
+            // Right to left, so an earlier hit's column still points at the
+            // character it did before a longer name was written after it.
+            let mut sorted = hits;
+            sorted.sort_by(|a, b| (b.line, b.column).cmp(&(a.line, a.column)));
+            for hit in sorted {
+                let Some(line) = lines.get_mut(hit.line.saturating_sub(1)) else {
+                    continue;
+                };
+                let at = offset_of(line, 1, hit.column);
+                if !line[at..].starts_with(from) {
+                    continue;
+                }
+                line.replace_range(at..at + from.len(), to);
+            }
+            out.push((file, lines.join("\n")));
+        }
+        Ok(out)
+    }
+
     /// Every file this one's `mod` declarations reach, itself included.
     ///
     /// Textual and transitive: a `mod name;` names `name.rn` beside the file
@@ -797,7 +853,7 @@ impl RuneHost {
         seen
     }
 
-    /// The function being called at the caret, and which argument the caret    /// The function being called at the caret, and which argument the caret
+    /// The function being called at the caret, and which argument the caret
     /// is in: `(signature, active)`. Walks back over balanced parentheses, so
     /// a nested call reports the inner one.
     ///
@@ -836,7 +892,7 @@ impl RuneHost {
             .map(|found| (found, active)))
     }
 
-    /// Every function the unit compiled for this source, `mod` files    /// Every function the unit compiled for this source, `mod` files
+    /// Every function the unit compiled for this source, `mod` files
     /// included. A source that will not compile has none, which is why the
     /// caller also reads the file's own `pub fn`s.
     pub(crate) fn unit_functions(&self, key: &str, source: &str) -> BTreeSet<String> {

@@ -388,6 +388,7 @@ fn code_pane(S, k) {
         ui::add_space(12);
     });
     complete::draw(S, S.theme);
+    crate::refactor::draw(S, S.theme);
 }
 
 // The `events` document tab: every script's engine-facing hooks, per node.

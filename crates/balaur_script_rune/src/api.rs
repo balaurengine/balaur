@@ -166,6 +166,12 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "rename",
+            "(path: string, source: string, from: string, to: string)",
+            "Every file a rename would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",
+        ),
+        (
+            "script",
             "format",
             "(path: string, source: string)",
             "That source laid out by Rune's own formatter; the source unchanged when it will not parse.",

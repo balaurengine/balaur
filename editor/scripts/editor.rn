@@ -29,6 +29,7 @@ mod palette;
 mod pen;
 mod plugins;
 mod polygon;
+mod refactor;
 mod rig;
 mod selftest;
 mod search;
@@ -135,6 +136,7 @@ pub fn init(this) {
         gizmo: gizmo::state(),
         complete: complete::state(),
         docs: docs::state(),
+        refactor: refactor::state(),
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
@@ -352,6 +354,9 @@ pub fn draw_ui(this) {
     }
     if ui::shortcut("cmd", "B") {
         shell::goto_definition(S);
+    }
+    if ui::shortcut("cmd+shift", "R") {
+        refactor::open(S, "rename");
     }
     if ui::shortcut("cmd", "Backslash") {
         shell::toggle_split(S);
