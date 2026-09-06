@@ -182,6 +182,8 @@ pub(crate) mod keys {
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const OP: &str = "op";
+    pub(crate) const OUTLINE_COLOR: &str = "outline_color";
+    pub(crate) const OUTLINE_SIZE: &str = "outline_size";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const POST: &str = "post";
     pub(crate) const RADIUS: &str = p::RADIUS;
@@ -189,6 +191,9 @@ pub(crate) mod keys {
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const ROWS: &str = "rows";
+    pub(crate) const SHADOW_COLOR: &str = "shadow_color";
+    pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
+    pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
     pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SIZE: &str = "size";
     pub(crate) const SIZE_END: &str = "size_end";

@@ -108,6 +108,17 @@ pub fn template_installed(target: &str, roots: &[PathBuf]) -> bool {
     )
 }
 
+/// Where a download keeps its data, given the directory its binary is in:
+/// beside the binary, and in `Contents/Resources` when that binary is inside
+/// a `.app`, where a bundle's non-code belongs.
+pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
+    let mut roots = vec![exe_dir.to_path_buf()];
+    if exe_dir.ends_with("Contents/MacOS") {
+        roots.push(exe_dir.with_file_name("Resources"));
+    }
+    roots
+}
+
 /// Where templates are looked for: an explicit directory first, then the one
 /// that ships beside the binary in the editor download, then the per-user
 /// cache a download lands in.
@@ -122,7 +133,7 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        roots.push(dir.join("templates"));
+        roots.extend(data_roots(dir).into_iter().map(|r| r.join("templates")));
     }
     if let Some(cache) = cache {
         roots.push(cache);
@@ -381,7 +392,7 @@ fn find_template(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Options, find_template};
+    use super::{Options, Path, PathBuf, find_template};
 
     #[test]
     fn a_template_is_found_on_any_root() {
@@ -416,5 +427,20 @@ mod tests {
         assert!(opts.target.is_none());
         assert!(opts.template_roots.is_empty());
         assert!(opts.obtain.is_none());
+    }
+
+    #[test]
+    fn a_bundled_binary_also_looks_in_resources() {
+        assert_eq!(
+            super::data_roots(Path::new("/Applications/Balaur.app/Contents/MacOS")),
+            [
+                PathBuf::from("/Applications/Balaur.app/Contents/MacOS"),
+                PathBuf::from("/Applications/Balaur.app/Contents/Resources"),
+            ]
+        );
+        assert_eq!(
+            super::data_roots(Path::new("/opt/balaur")),
+            [PathBuf::from("/opt/balaur")]
+        );
     }
 }

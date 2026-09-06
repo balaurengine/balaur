@@ -80,7 +80,12 @@ exported onto.
 
 ### Assets
 
-- **`balaur-editor-<platform>`** — the editor. Unpack it and run `balaur edit
+- **`balaur-editor-macos-universal.dmg`** — the Mac download: `Balaur.app`,
+  signed with a Developer ID and notarized, so it opens without a warning.
+  Drag it to Applications; the `balaur` command line is inside it at
+  `Balaur.app/Contents/MacOS/balaur`.
+- **`balaur-editor-<platform>`** — the editor as a plain archive, for Linux,
+  Windows, and any Mac install a script does. Unpack it and run `balaur edit
   <project>`. `editor/`, `templates/` and `include/balaur_extension.h` (the
   header C extensions build against) ship inside.
 - **`balaur-runtime-<platform>`** — a desktop runtime template on its own, for

@@ -500,6 +500,7 @@ fn states() {
         // plugin's half under the same name and both run.
         "counterdemo": crate::selftest::plugin_docks,
         "settings": crate::settings::open,
+        "export": crate::exporter::open,
     }
 }
 

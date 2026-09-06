@@ -62,7 +62,26 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
+        (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
+        (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
+        (k::SHADOW_OFFSET_X, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along x; zero with y draws none" }"#.into()),
+        (k::SHADOW_OFFSET_Y, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along y" }"#.into()),
+        (k::SHADOW_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.5], description = "The shadow's colour" }"#.into()),
     ]
+}
+
+/// One colour key's channels, defaulting per channel: a decoration names two
+/// colours, and neither is the node's `color`.
+fn color_at(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
+    let channel = |i: usize| {
+        params
+            .get(key)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .map_or(fallback[i], |v| v as f32)
+    };
+    [channel(0), channel(1), channel(2), channel(3)]
 }
 
 /// One component's parameters read back into a renderable.
@@ -98,6 +117,15 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
             align: align_of(&text(k::ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
+            decoration: crate::world_text::Decoration {
+                outline_size: number(k::OUTLINE_SIZE, 0.0).max(0.0),
+                outline_color: color_at(params, k::OUTLINE_COLOR, [0.0, 0.0, 0.0, 1.0]),
+                shadow_offset: [
+                    number(k::SHADOW_OFFSET_X, 0.0),
+                    number(k::SHADOW_OFFSET_Y, 0.0),
+                ],
+                shadow_color: color_at(params, k::SHADOW_COLOR, [0.0, 0.0, 0.0, 0.5]),
+            },
         },
         pixels_per_unit: number(k::PIXELS_PER_UNIT, 100.0).max(0.01),
         in_3d,
@@ -144,6 +172,21 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
+    let decoration = text.style.decoration;
+    put(
+        k::OUTLINE_SIZE,
+        toml::Value::Float(f64::from(decoration.outline_size)),
+    );
+    put(k::OUTLINE_COLOR, crate::color_to_toml(decoration.outline_color));
+    put(
+        k::SHADOW_OFFSET_X,
+        toml::Value::Float(f64::from(decoration.shadow_offset[0])),
+    );
+    put(
+        k::SHADOW_OFFSET_Y,
+        toml::Value::Float(f64::from(decoration.shadow_offset[1])),
+    );
+    put(k::SHADOW_COLOR, crate::color_to_toml(decoration.shadow_color));
     put(
         k::PIXELS_PER_UNIT,
         toml::Value::Float(f64::from(text.pixels_per_unit)),

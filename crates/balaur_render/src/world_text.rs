@@ -18,6 +18,60 @@ pub enum Align {
     End,
 }
 
+/// An outline around the glyphs and a shadow behind them.
+///
+/// Both are the same quads drawn again, offset and tinted, under the text:
+/// an outline is eight copies around the origin, a shadow one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Decoration {
+    /// Font pixels the outline reaches; zero draws none.
+    pub outline_size: f32,
+    pub outline_color: [f32; 4],
+    /// Font pixels the shadow is moved by; zero draws none.
+    pub shadow_offset: [f32; 2],
+    pub shadow_color: [f32; 4],
+}
+
+impl Default for Decoration {
+    fn default() -> Self {
+        Self {
+            outline_size: 0.0,
+            outline_color: [0.0, 0.0, 0.0, 1.0],
+            shadow_offset: [0.0, 0.0],
+            shadow_color: [0.0, 0.0, 0.0, 0.5],
+        }
+    }
+}
+
+impl Decoration {
+    /// Where each extra copy of the block goes and what colour it is, behind
+    /// to in front. Empty when neither is asked for.
+    pub(crate) fn passes(&self) -> Vec<([f32; 2], [f32; 4])> {
+        let mut out = Vec::new();
+        if self.shadow_offset != [0.0, 0.0] {
+            out.push((self.shadow_offset, self.shadow_color));
+        }
+        if self.outline_size > 0.0 {
+            let r = self.outline_size;
+            // The eight neighbours: a ring reads as an outline where four
+            // leaves the diagonals thin.
+            for (x, y) in [
+                (-1.0, -1.0),
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (-1.0, 0.0),
+                (1.0, 0.0),
+                (-1.0, 1.0),
+                (0.0, 1.0),
+                (1.0, 1.0),
+            ] {
+                out.push(([x * r, y * r], self.outline_color));
+            }
+        }
+        out
+    }
+}
+
 /// What a caller asks for, in the words `label` already uses.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
@@ -29,6 +83,7 @@ pub struct TextStyle {
     pub markup: bool,
     /// The width lines break at, in the same pixels as `size`.
     pub max_width: Option<f32>,
+    pub decoration: Decoration,
 }
 
 impl Default for TextStyle {
@@ -41,6 +96,7 @@ impl Default for TextStyle {
             align: Align::Start,
             markup: false,
             max_width: None,
+            decoration: Decoration::default(),
         }
     }
 }
@@ -152,6 +208,19 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
             "italic" => style.italic = matches!(value, Value::Bool(true)),
             "markup" => style.markup = matches!(value, Value::Bool(true)),
             "max_width" => style.max_width = number(value),
+            "outline_size" => {
+                style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
+            }
+            "outline_color" => style.decoration.outline_color = crate::draw_2d::color_of(value)?,
+            "shadow_color" => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
+            "shadow_offset" => {
+                if let Value::List(items) = value
+                    && items.len() >= 2
+                {
+                    style.decoration.shadow_offset =
+                        [number(&items[0]).unwrap_or(0.0), number(&items[1]).unwrap_or(0.0)];
+                }
+            }
             "color" => style.color = crate::draw_2d::color_of(value)?,
             "align" => {
                 style.align = match value {

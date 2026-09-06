@@ -76,6 +76,11 @@ mod imp {
             .parent()
             .context("the executable has no parent directory")?
             .to_path_buf();
+        // The archive this unpacks has the layout of a plain download, not a
+        // bundle's, and the ticket stapled to the .dmg covers what it replaces.
+        if install.ends_with("Contents/MacOS") {
+            bail!("Balaur.app updates by downloading the new .dmg, not in place");
+        }
         let staged = download_and_unpack(&base, &install)?;
         swap_install(&staged, &install, &exe)?;
         std::fs::remove_dir_all(&staged).ok();

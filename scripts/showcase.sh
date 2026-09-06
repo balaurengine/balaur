@@ -116,6 +116,13 @@ objects_shots
 shot persona_physics   examples/angrynerds "phys,select:Bird"
 shot persona_interface examples/angrynerds "ui,select:Restart,play"
 shot physics_overlays  examples/angrynerds "phys,select:Bird"
+shot editor_profiler   examples/angrynerds "scene,select:Bird,play,dock:profiler"
+shot networking_faults examples/angrynerds "scene,settings:netcode"
+shot save_settings     examples/angrynerds "scene,settings:save"
+shot locale_settings   examples/angrynerds "scene,settings:locale"
+shot editor_assets     examples/angrynerds "scene,select:Bird,dock:assets"
+shot sprite_inspector  examples/shaders    "scene,select:Logo"
+shot export_sheet      examples/angrynerds "scene,export"
 shot extensions_greeter examples/extension_greeter "scene"
 # Stills for the website's examples page.
 shot example_rig3d      examples/rig3d      "scene"

@@ -9,6 +9,8 @@ const POSES = [
     #{ slug: "booleans", eye: [0.0, 3.6, -14.0], at: [0.0, 0.9, -24.0] },
     #{ slug: "cloner", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
     #{ slug: "text", eye: [0.0, 3.0, -39.5], at: [0.0, 0.9, -48.0] },
+    // Past the end of the ground: an empty backdrop for the 2D layer.
+    #{ slug: "flat", eye: [0.0, 3.0, 40.0], at: [0.0, 1.0, 50.0] },
 ];
 
 // Seconds the camera rests on a pose, and the frame within that rest on which
@@ -23,6 +25,8 @@ pub fn init(this) {
     this.frame = 0;
     this.at = -1;
     this.shots = "";
+    // The 2D layer lives in its own file so the editor keeps this scene 3D.
+    scene::instantiate(scene::source("scenes/flat.toml"), this.node);
     for arg in engine::args() {
         let parts = arg.split('=').collect::<Vec>();
         if parts.len() == 2 && parts[0] == "shots" {
@@ -39,6 +43,8 @@ fn look(this, pose) {
     let e = pose.eye;
     camera.set_position(e[0], e[1], e[2]);
     camera.patch_component("camera", #{ look_at: pose.at });
+    // The 2D shapes sit over every 3D view, so only the flat pose shows them.
+    this.node.get_node("Flat").set_visible(pose.slug == "flat");
 }
 
 pub fn update(this, dt) {
