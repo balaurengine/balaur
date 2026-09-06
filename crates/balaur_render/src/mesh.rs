@@ -100,12 +100,14 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                         .to_string()
                 };
                 let source = text(k::SOURCE);
-                // Warned, not refused: one unreadable model must not take the
-                // whole scene down, and the node still has a place in the tree.
+                // Warned, not refused, and resolved the whole way: one bad model
+                // must not take the scene down, and a headless run should hear of it.
                 if !source.is_empty()
-                    && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source) {
-                        tracing::warn!("mesh '{source}': {why:#}");
-                    }
+                    && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source)
+                        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+                {
+                    tracing::warn!("mesh '{source}': {why:#}");
+                }
                 crate::set_mesh(eng, entity, source.clone(), text(k::SKELETON), text(k::TEXTURE))?;
                 set_morph_weights(eng, entity, &source, params);
                 crate::material::set_material_3d(eng, entity, &text("material"))
