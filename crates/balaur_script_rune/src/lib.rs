@@ -21,6 +21,7 @@ mod pause;
 mod profile;
 mod script_module;
 mod task;
+mod tooling;
 mod value;
 
 use std::cell::RefCell;
@@ -47,6 +48,9 @@ pub use inspect::Finding;
 use inspect::{PublicSignature, public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
+pub use tooling::{
+    At, Completion, Hover, Kind, Location, Symbol, classify, line_col_of, offset_of,
+};
 use script_module::script_module;
 use task::WaitFuture;
 pub use value::{Color, Node, Vec2, Vec3};

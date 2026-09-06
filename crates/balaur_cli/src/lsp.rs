@@ -110,6 +110,9 @@ impl Server {
                             // hundred lines and a check recompiles it whole
                             // anyway, so incremental sync would buy nothing.
                             "textDocumentSync": { "openClose": true, "change": 1, "save": true },
+                            // `:` and `.` are the two characters that change
+                            // what may follow; the rest arrive on a keystroke.
+                            "completionProvider": { "triggerCharacters": [".", ":"] },
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -151,6 +154,19 @@ impl Server {
                     self.publish(writer)?;
                 }
             }
+            "textDocument/completion" => {
+                let items = self.at(&message["params"], |host, key, source, line, column| {
+                    Ok(host
+                        .complete(key, source, line, column)?
+                        .iter()
+                        .map(completion)
+                        .collect())
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
+                )?;
+            }
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
@@ -162,6 +178,45 @@ impl Server {
             _ => {}
         }
         Ok(false)
+    }
+
+    /// Run `f` for the file and position a request names, answering `null`
+    /// when the file is not one we have. LSP counts from zero and the host
+    /// counts from one.
+    fn at<T>(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Vec<T>>,
+    ) -> Json
+    where
+        T: Into<Json>,
+    {
+        let Some(uri) = params["textDocument"]["uri"].as_str() else {
+            return Json::Null;
+        };
+        let line = params["position"]["line"].as_u64().unwrap_or(0) as usize + 1;
+        let column = params["position"]["character"].as_u64().unwrap_or(0) as usize + 1;
+        let Some(rel) = self.rel_of(uri) else {
+            return Json::Null;
+        };
+        let Some(source) = self.source_of(&rel) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source, line, column) {
+            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// The project-relative path a `file://` URI names, when it is under the
+    /// project at all.
+    fn rel_of(&self, uri: &str) -> Option<String> {
+        let path = Path::new(uri.strip_prefix("file://")?);
+        let rel = path.strip_prefix(&self.root).unwrap_or(path);
+        Some(rel.to_string_lossy().replace('\\', "/"))
     }
 
     fn set_open(&mut self, uri: &str, text: &str) {
@@ -221,6 +276,18 @@ impl Server {
         };
         format!("file://{}", path.to_string_lossy())
     }
+}
+
+/// A [`Completion`](balaur::rune::Completion) as an LSP completion item. The
+/// doc line is the reference's, so a popup says what the manual says.
+fn completion(one: &balaur::rune::Completion) -> Json {
+    json!({
+        "label": one.label,
+        "kind": one.kind.lsp(),
+        "detail": one.detail,
+        "documentation": one.doc,
+        "insertText": one.insert,
+    })
 }
 
 fn notification(uri: &str, diagnostics: &[Json]) -> Json {

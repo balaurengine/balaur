@@ -29,23 +29,23 @@ pub fn rune_of(eng: &Engine) -> RuneHost {
 }
 
 #[derive(Default)]
-struct Module {
-    functions: BTreeSet<String>,
-    constants: BTreeMap<String, String>,
+pub(crate) struct Module {
+    pub(crate) functions: BTreeSet<String>,
+    pub(crate) constants: BTreeMap<String, String>,
     /// `args -> returns` per function that came through the typed seam.
-    signatures: BTreeMap<String, String>,
+    pub(crate) signatures: BTreeMap<String, String>,
     /// Components each function declared it acts on.
-    acts_on: BTreeMap<String, BTreeSet<String>>,
+    pub(crate) acts_on: BTreeMap<String, BTreeSet<String>>,
     /// One line per function, saying what it does.
-    docs: BTreeMap<String, String>,
+    pub(crate) docs: BTreeMap<String, String>,
     /// What the module as a whole is for.
-    doc: String,
+    pub(crate) doc: String,
 }
 
 /// Everything declared, folded into one entry per module: the typed seam's
 /// own registrations, the docs a module spelled out, and the handful the host
 /// installs on Rune modules of its own.
-fn collect_modules() -> BTreeMap<String, Module> {
+pub(crate) fn collect_modules() -> BTreeMap<String, Module> {
     let mut modules: BTreeMap<String, Module> = BTreeMap::new();
     for entry in api_entries() {
         let module = modules.entry(entry.module).or_default();
