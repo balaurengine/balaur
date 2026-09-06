@@ -172,6 +172,55 @@ fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
 ///
 /// A map whose tileset will not load carries no grid, so nothing collides
 /// with cells nobody can size.
+/// Resolve every painted cell through the tileset's rules.
+///
+/// A map that carries a terrain grid has its cells derived from it, so an
+/// editor paints values and the engine picks the tiles — one resolver, and
+/// the same one a script reaches through `set_terrain`.
+fn resolve_all(eng: &Engine, map: &mut Tilemap) {
+    if map.terrain.is_empty() {
+        return;
+    }
+    let Ok(set) = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset) else {
+        return;
+    };
+    if set.rules.is_empty() {
+        return;
+    }
+    let painted = map.terrain.clone();
+    let origin = map.origin;
+    let value_at = |x: i32, y: i32| -> Option<u32> {
+        let x = usize::try_from(x - origin[0]).ok()?;
+        let y = usize::try_from(y - origin[1]).ok()?;
+        painted.get(y)?.get(x).copied().flatten()
+    };
+    let inside = |x: i32, y: i32| {
+        let (Ok(x), Ok(y)) = (
+            usize::try_from(x - origin[0]),
+            usize::try_from(y - origin[1]),
+        ) else {
+            return false;
+        };
+        painted.get(y).is_some_and(|line| x < line.len())
+    };
+    for row in 0..painted.len() as i32 {
+        for column in 0..painted.first().map_or(0, Vec::len) as i32 {
+            let (x, y) = (origin[0] + column, origin[1] + row);
+            match balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed) {
+                Some((tile, flags)) => {
+                    write_cell(map, x, y, Some(tile));
+                    write_flags(map, x, y, flags);
+                }
+                None => {
+                    write_cell(map, x, y, None);
+                    write_flags(map, x, y, 0);
+                }
+            }
+        }
+    }
+    map.cells = cells_value(&map.grid);
+}
+
 /// Resolve one cell and the ring around it, which is every cell the write
 /// could have changed the neighbourhood of.
 fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
@@ -463,10 +512,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                     .get(k::SEED)
                     .and_then(toml::Value::as_integer)
                     .unwrap_or(0) as u64;
-                set_tilemap(
-                    eng,
-                    entity,
-                    Tilemap {
+                let mut next = Tilemap {
                         tileset,
                         cells,
                         material,
@@ -474,11 +520,12 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                         origin,
                         flags,
                         terrain,
-                        seed,
-                        pixels_per_unit: ppu.max(0.01),
-                        version: 0,
-                    },
-                )
+                    seed,
+                    pixels_per_unit: ppu.max(0.01),
+                    version: 0,
+                };
+                resolve_all(eng, &mut next);
+                set_tilemap(eng, entity, next)
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
