@@ -1109,7 +1109,7 @@ pub fn palette(S, k) {
                 stroke: k.line_soft,
                 color: if on { k.accent } else { k.dim },
             }) {
-                S.sel = layer.index;
+                crate::selection::only(S, layer.index);
             }
         }
     }

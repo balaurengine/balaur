@@ -17,7 +17,25 @@ pub fn choose(S, i) {
     if i != S.sel {
         history::commit(S);
     }
-    S.sel = i;
+    crate::selection::only(S, i);
+}
+
+/// A click that may extend the set: ⌘ toggles one row, ⇧ takes the run
+/// between the active row and this one, and a plain click replaces the set.
+pub fn choose_click(S, i) {
+    let additive = input::is_down("LWin") || input::is_down("RWin")
+        || input::is_down("LControl") || input::is_down("RControl");
+    let ranged = input::is_down("LShift") || input::is_down("RShift");
+    if !additive && !ranged {
+        choose(S, i);
+        return;
+    }
+    history::commit(S);
+    if ranged {
+        crate::selection::extend_to(S, i);
+    } else {
+        crate::selection::toggle(S, i);
+    }
 }
 
 // History owns the document; the mirror is rebuilt from it here, because
@@ -463,7 +481,7 @@ pub fn reload_scripts(S) {
 fn select_named(S, name) {
     for (i, node) in S.doc.iter().enumerate() {
         if node.name == name {
-            S.sel = i;
+            crate::selection::only(S, i);
         }
     }
 }
@@ -500,6 +518,8 @@ fn states() {
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
+        "seldemo": crate::selftest::selecting,
+        "dropdemo": crate::selftest::dropping,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
         "counterdemo": crate::selftest::plugin_docks,
@@ -699,7 +719,7 @@ fn state_animdemo(S) {
     match pick {
         None => log::warn("animdemo: the mirror resolved no node to animate"),
         Some(i) => {
-            S.sel = i;
+            crate::selection::only(S, i);
             anim::ensure_clip(S);
             anim::add_key(S, 0.0);
             let (_, found) = model::selected(S);
@@ -724,7 +744,7 @@ fn state_persona(S, name) {
     if name == "script" {
         for (i, node) in S.doc.iter().enumerate() {
             if node.contains_key("script") {
-                S.sel = i;
+                crate::selection::only(S, i);
                 break;
             }
         }
@@ -737,7 +757,7 @@ pub fn break_demo(S) {
     for (i, node) in S.doc.iter().enumerate() {
         let script_some = node.get("script");
         if let Some(script) = script_some {
-            S.sel = i;
+            crate::selection::only(S, i);
             let text = model::source(S, script).unwrap_or("");
             let (_, hooks) = crate::highlight::analyze(text);
             for hook in hooks {

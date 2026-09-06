@@ -1,0 +1,283 @@
+// Commands over more than one node: group, align, distribute, hide, lock and
+// isolate. Every one records a history step and leaves the mirror to the
+// caller, the way the rest of the editor's verbs do.
+
+use crate::history;
+use crate::model;
+use crate::selection;
+use crate::util;
+
+/// World position of a document row, from the mirror when it resolves.
+fn world_of(S, i) {
+    match model::live(S, i) {
+        Some(found) => util::xyz(found.global_position()),
+        None => util::vec3(S.doc[i].get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
+    }
+}
+
+/// Move a row so its world position becomes `target`, in local terms.
+fn move_world_to(S, i, target) {
+    let world = world_of(S, i);
+    let node = S.doc[i];
+    let local = util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    model::set_transform(S, i, #{ position: util::vadd(local, util::vsub(target, world)) });
+}
+
+// --- align and distribute ---
+
+/// `mode` is `min`, `mid` or `max` along `axis`; the whole set lands on the
+/// same coordinate there.
+pub fn align(S, axis, mode) {
+    let rows = selection::roots(S);
+    if rows.len() < 2 {
+        log::info("align needs two or more nodes");
+        return;
+    }
+    let lo = math::INF;
+    let hi = -math::INF;
+    let sum = 0.0;
+    for i in rows {
+        let v = world_of(S, i)[axis];
+        lo = util::min(lo, v);
+        hi = util::max(hi, v);
+        sum += v;
+    }
+    let to = match mode {
+        "min" => lo,
+        "max" => hi,
+        _ => sum / (rows.len() as f64),
+    };
+    history::record(S, format!("align {}", axis_name(axis)), None);
+    for i in rows {
+        let target = world_of(S, i);
+        target[axis] = to;
+        move_world_to(S, i, target);
+    }
+    history::commit(S);
+}
+
+/// Even the gaps along `axis`: the two extremes stay put and everything
+/// between them spreads at one spacing.
+pub fn distribute(S, axis) {
+    let rows = selection::roots(S);
+    if rows.len() < 3 {
+        log::info("distribute needs three or more nodes");
+        return;
+    }
+    // Insertion sort by the axis: a handful of nodes, and Rune's `sort` takes
+    // no comparator.
+    let sorted = [];
+    for i in rows {
+        let v = world_of(S, i)[axis];
+        let at = sorted.len();
+        for (n, j) in sorted.iter().enumerate() {
+            if v < world_of(S, j)[axis] && at == sorted.len() {
+                at = n;
+            }
+        }
+        sorted.insert(at, i);
+    }
+    let first = world_of(S, sorted[0])[axis];
+    let last = world_of(S, sorted[sorted.len() - 1])[axis];
+    let step = (last - first) / ((sorted.len() - 1) as f64);
+    history::record(S, format!("distribute {}", axis_name(axis)), None);
+    for (n, i) in sorted.iter().enumerate() {
+        let target = world_of(S, i);
+        target[axis] = first + step * (n as f64);
+        move_world_to(S, i, target);
+    }
+    history::commit(S);
+}
+
+fn axis_name(axis) {
+    match axis {
+        0 => "x",
+        1 => "y",
+        _ => "z",
+    }
+}
+
+// --- group and ungroup ---
+
+/// Wrap the selection in a fresh empty node at its centroid, keeping every
+/// world pose. The group's parent is the shared parent when there is one.
+pub fn group(S) {
+    let rows = selection::roots(S);
+    if rows.len() == 0 {
+        return;
+    }
+    for i in rows {
+        if model::is_instanced(S.doc[i]) {
+            log::warn("cannot group inside an instance; open its prefab to change its structure");
+            return;
+        }
+    }
+    let parent = S.doc[rows[0]].get("parent").unwrap_or("");
+    for i in rows {
+        if S.doc[i].get("parent").unwrap_or("") != parent {
+            parent = "";
+        }
+    }
+    // The nodes and their world poses, read before the insert renumbers every
+    // row after it. Rune objects are shared, so these stay the right nodes.
+    let members = [];
+    let center = [0.0, 0.0, 0.0];
+    let at = S.doc.len();
+    for i in rows {
+        members.push(#{ node: S.doc[i], world: world_of(S, i) });
+        center = util::vadd(center, world_of(S, i));
+        at = util::min(at, i);
+    }
+    center = util::vscale(center, 1.0 / (rows.len() as f64));
+    // The group's own position is local to whatever it lands under.
+    let base = match model::index_of_id(S.doc, parent) {
+        Some(where_at) => world_of(S, where_at),
+        None => [0.0, 0.0, 0.0],
+    };
+    history::record(S, "group", None);
+    let id = model::fresh_id(S.doc, "Group");
+    // Ahead of its children: a scene file's parent has to be declared before
+    // the nodes naming it, and the engine says so rather than guessing.
+    S.doc.insert(at, #{
+        id: id, name: model::unique_name(S.doc, "Group"), parent: parent,
+        position: util::vsub(center, base),
+        rotation_euler: [0.0, 0.0, 0.0], scale: [1.0, 1.0, 1.0],
+    });
+    for member in members {
+        member.node.parent = id;
+        member.node.position = util::vsub(member.world, center);
+    }
+    model::build_mirror(S);
+    selection::only(S, at);
+    history::commit(S);
+}
+
+/// Lift a group's children to its parent, keeping their world poses, and
+/// delete the emptied node.
+pub fn ungroup(S) {
+    let i = S.sel;
+    let node = S.doc[i];
+    if model::is_instanced(node) {
+        log::warn("cannot ungroup inside an instance");
+        return;
+    }
+    let id = node.get("id").unwrap_or("");
+    let up = node.get("parent").unwrap_or("");
+    let kids = [];
+    for (j, other) in S.doc.iter().enumerate() {
+        if other.get("parent").unwrap_or("") == id {
+            kids.push(j);
+        }
+    }
+    if kids.len() == 0 {
+        log::info("nothing to ungroup");
+        return;
+    }
+    history::record(S, "ungroup", None);
+    let worlds = #{};
+    for j in kids {
+        worlds[format!("{}", j)] = world_of(S, j);
+    }
+    let base = match model::index_of_id(S.doc, up) {
+        Some(at) => world_of(S, at),
+        None => [0.0, 0.0, 0.0],
+    };
+    for j in kids {
+        let kid = S.doc[j];
+        kid.parent = up;
+        kid.position = util::vsub(worlds[format!("{}", j)], base);
+    }
+    S.doc.remove(i);
+    model::build_mirror(S);
+    selection::clamp(S);
+    history::commit(S);
+}
+
+// --- hide, lock, isolate ---
+
+/// Flip `visible` on the whole set: if anything is showing, hide it all;
+/// otherwise show it all. Written to the document, so it survives a save.
+pub fn toggle_hidden(S) {
+    let rows = selection::all(S);
+    let any_visible = false;
+    for i in rows {
+        if S.doc[i].get("visible").unwrap_or(true) != false {
+            any_visible = true;
+        }
+    }
+    let to = !any_visible;
+    history::record(S, if to { "show" } else { "hide" }, None);
+    for i in rows {
+        S.doc[i].visible = to;
+        model::record_override(S, S.doc[i], "visible");
+        if let Some(found) = model::live(S, i) {
+            found.set_visible(to);
+        }
+    }
+    history::commit(S);
+}
+
+pub fn show_all(S) {
+    history::record(S, "show all", None);
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.get("visible") == Some(false) {
+            node.visible = true;
+            model::record_override(S, node, "visible");
+            if let Some(found) = model::live(S, i) {
+                found.set_visible(true);
+            }
+        }
+    }
+    history::commit(S);
+}
+
+/// Locks are editor state, so no history step: undoing a lock would be
+/// undoing something the file never saw.
+pub fn toggle_locked(S) {
+    let rows = selection::all(S);
+    let any_free = false;
+    for i in rows {
+        if !selection::is_locked(S, i) {
+            any_free = true;
+        }
+    }
+    for i in rows {
+        selection::set_locked(S, i, any_free);
+    }
+}
+
+pub fn unlock_all(S) {
+    selection::unlock_all(S);
+}
+
+/// Isolate hides everything outside the selection on the mirror only, so
+/// leaving it restores what the document says rather than what it wrote.
+pub fn toggle_isolate(S) {
+    let on = !S.isolated;
+    S.isolated = on;
+    let keep = #{};
+    if on {
+        for i in selection::all(S) {
+            keep[format!("{}", i)] = true;
+            let node = S.doc[i];
+            for (j, other) in S.doc.iter().enumerate() {
+                if model::has_ancestor(S.doc, other, node.get("id").unwrap_or("")) {
+                    keep[format!("{}", j)] = true;
+                }
+                if model::has_ancestor(S.doc, node, other.get("id").unwrap_or("")) {
+                    keep[format!("{}", j)] = true;
+                }
+            }
+        }
+    }
+    for i in 0..S.doc.len() {
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let authored = S.doc[i].get("visible").unwrap_or(true) != false;
+        let shown = if on { keep.contains_key(format!("{}", i)) && authored } else { authored };
+        found.set_visible(shown);
+    }
+    log::info(if on { "isolated the selection" } else { "left isolate" });
+}

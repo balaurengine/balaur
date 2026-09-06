@@ -137,6 +137,18 @@ pub(crate) fn fs_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// Copy a file, bytes and all, making the destination's directory first.
+///
+/// Not `read` then `write`: those go through script strings, and a `.png` or
+/// a `.glb` is not text.
+pub(crate) fn fs_copy(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let from = resolve(eng, text(args, 0)?)?;
+    let to = resolve(eng, text(args, 1)?)?;
+    let bytes = files::backend(eng).read(&from)?;
+    files::backend(eng).write(&to, &bytes)?;
+    Ok(Value::Nil)
+}
+
 /// When a file last changed, in seconds since the epoch, or `()` for one that
 /// is not there. A tool polling for edits compares this instead of re-reading.
 pub(crate) fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {

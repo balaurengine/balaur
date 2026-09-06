@@ -10,7 +10,7 @@ const MAX = 100;
 const COALESCE = 0.4;
 
 fn frame(S, label) {
-    #{ doc: crate::util::deep(S.doc), sel: S.sel, label: label }
+    #{ doc: crate::util::deep(S.doc), sels: crate::util::deep(S.sels), label: label }
 }
 
 pub fn reset(S) {
@@ -55,7 +55,19 @@ fn restore(S, into, from) {
     };
     into.push(frame(S, top.label));
     S.doc = top.doc;
-    S.sel = crate::util::clamp(top.sel, 0, top.doc.len() - 1);
+    // Restored here rather than through `selection`, which reads the model:
+    // history owns the document and may not depend on what records into it.
+    let rows = [];
+    for i in top.sels {
+        if i >= 0 && i < S.doc.len() {
+            rows.push(i);
+        }
+    }
+    if rows.len() == 0 {
+        rows = [0];
+    }
+    S.sels = rows;
+    S.sel = rows[0];
     S.history.key = None;
     Some(top.label)
 }

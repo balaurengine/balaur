@@ -20,7 +20,8 @@ use crate::batteries_api::{
 };
 use crate::engine::Engine;
 use crate::file_api::{
-    fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write, json_encode,
+    fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
+    json_encode,
     json_parse, toml_encode, toml_parse, toml_patch,
 };
 use crate::scene;
@@ -426,6 +427,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "fs",
+        name: "copy",
+        call: fs_copy,
+    },
+    EngineOp {
+        module: "fs",
         name: "mtime",
         call: fs_mtime,
     },
@@ -738,6 +744,7 @@ fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("remove", &[], "(path: string)", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
         ("mkdir", &[], "(path: string)", "Create a project-relative directory and every parent it needs."),
         ("rename", &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
+        ("copy", &[], "(from: string, to: string)", "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model."),
         ("mtime", &[], "(path: string)", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
     ]);
 }

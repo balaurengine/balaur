@@ -102,9 +102,9 @@ fn commit(S) {
         let (name, _) = pair;
         // `set_component_prop` writes the selection's node, which is this one.
         let was = S.sel;
-        S.sel = i;
+        crate::selection::only(S, i);
         model::set_component_prop(S, name, "text", S.textedit.buffer);
-        S.sel = was;
+        crate::selection::only(S, was);
     }
     close(S);
 }

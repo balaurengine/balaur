@@ -1,0 +1,297 @@
+// The selection as an ordered set. `S.sel` is its head and stays the active
+// node, so every command reading one index is unchanged; a command over many
+// iterates here instead.
+
+use crate::model;
+use crate::util;
+
+/// Replace the set with one node and make it active. Every writer of `S.sel`
+/// goes through this: a stale `S.sels` is a selection the gizmo disagrees with.
+pub fn only(S, i) {
+    S.sels = [i];
+    S.sel = i;
+}
+
+/// Every selected index, active first.
+pub fn all(S) {
+    let sels = S.sels;
+    if sels is Vec && sels.len() > 0 {
+        sels
+    } else {
+        [S.sel]
+    }
+}
+
+pub fn count(S) {
+    all(S).len()
+}
+
+pub fn contains(S, i) {
+    util::contains(all(S), i)
+}
+
+/// Add or drop one node; an added one becomes active. The set never empties,
+/// because every command downstream reads `S.sel` unconditionally.
+pub fn toggle(S, i) {
+    let sels = S.sels;
+    let at = util::position(sels, i);
+    match at {
+        Some(at) => {
+            if sels.len() > 1 {
+                sels.remove(at);
+                S.sel = sels[0];
+            }
+        }
+        None => {
+            sels.insert(0, i);
+            S.sel = i;
+        }
+    }
+}
+
+/// Extend the set to the document rows between the active node and `i`, for
+/// a shift-click in the tree.
+pub fn extend_to(S, i) {
+    let from = S.sel;
+    let lo = util::min(from, i);
+    let hi = util::max(from, i);
+    let out = [i];
+    for j in lo..hi + 1 {
+        if j != i {
+            out.push(j);
+        }
+    }
+    S.sels = out;
+    S.sel = i;
+}
+
+/// Select exactly these rows; the first is active. An empty list is ignored.
+pub fn set(S, rows) {
+    if rows.len() == 0 {
+        return;
+    }
+    S.sels = rows;
+    S.sel = rows[0];
+}
+
+pub fn select_all(S) {
+    let rows = [];
+    for i in 0..S.doc.len() {
+        if !is_locked(S, i) {
+            rows.push(i);
+        }
+    }
+    set(S, rows);
+}
+
+/// Drop rows the document no longer has, after a delete or an undo.
+pub fn clamp(S) {
+    let rows = [];
+    for i in all(S) {
+        if i >= 0 && i < S.doc.len() && !util::contains(rows, i) {
+            rows.push(i);
+        }
+    }
+    if rows.len() == 0 {
+        rows = [util::clamp(S.sel, 0, S.doc.len() - 1)];
+    }
+    S.sels = rows;
+    S.sel = rows[0];
+}
+
+fn id_of(S, i) {
+    match S.doc.get(i) {
+        Some(node) => node.get("id").unwrap_or(""),
+        None => "",
+    }
+}
+
+/// The selected rows with any descendant of another selected row dropped: a
+/// shared delta applied to both would move the child twice.
+pub fn roots(S) {
+    let rows = all(S);
+    let out = [];
+    for i in rows {
+        let node = S.doc[i];
+        let nested = false;
+        for j in rows {
+            if j != i && model::has_ancestor(S.doc, node, id_of(S, j)) {
+                nested = true;
+            }
+        }
+        if !nested {
+            out.push(i);
+        }
+    }
+    out
+}
+
+// --- lock, hide, isolate ---
+
+/// Locked rows are skipped by the gizmo, by picking and by box select. Editor
+/// state keyed by id, never written to the file: a lock nobody can see in the
+/// document is a lock nobody can explain.
+pub fn is_locked(S, i) {
+    S.locks.contains_key(id_of(S, i))
+}
+
+pub fn set_locked(S, i, locked) {
+    let id = id_of(S, i);
+    if id == "" {
+        return;
+    }
+    if locked {
+        S.locks[id] = true;
+    } else {
+        S.locks.remove(id);
+    }
+}
+
+pub fn unlock_all(S) {
+    S.locks = #{};
+}
+
+/// Whether a row may be grabbed in the viewport at all.
+pub fn pickable(S, i) {
+    !is_locked(S, i)
+}
+
+// --- drag over the set ---
+
+/// Every selected root's transform, taken once when a drag starts so each
+/// frame applies a delta to the pose the drag began from.
+pub fn snapshot(S) {
+    let out = [];
+    for i in roots(S) {
+        if is_locked(S, i) {
+            continue;
+        }
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let node = S.doc[i];
+        out.push(#{
+            index: i,
+            pos: util::xyz(found.position()),
+            scale: util::xyz(found.scale()),
+            rot: util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]),
+            world: util::xyz(found.global_position()),
+        });
+    }
+    out
+}
+
+/// The centroid of a snapshot's world positions, which a rotation turns about.
+pub fn centroid(snap) {
+    let sum = [0.0, 0.0, 0.0];
+    if snap.len() == 0 {
+        return sum;
+    }
+    for entry in snap {
+        sum = util::vadd(sum, entry.world);
+    }
+    util::vscale(sum, 1.0 / (snap.len() as f64))
+}
+
+/// Offset every row in a snapshot by one world delta. `snap_to` rounds the
+/// result to half units when the Snap chip is on.
+pub fn move_by(S, snap, delta, snap_to) {
+    for entry in snap {
+        let pos = util::vadd(entry.pos, delta);
+        if snap_to {
+            for axis in 0..3 {
+                pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
+            }
+        }
+        model::set_transform(S, entry.index, #{ position: pos });
+    }
+}
+
+/// Multiply every row's scale by `factors`, and move it away from `pivot` by
+/// the same amount so a set scales as one body.
+pub fn scale_by(S, snap, factors, pivot) {
+    let many = snap.len() > 1;
+    for entry in snap {
+        let s = [
+            entry.scale[0] * factors[0],
+            entry.scale[1] * factors[1],
+            entry.scale[2] * factors[2],
+        ];
+        let parts = #{ scale: s };
+        if many {
+            let d = util::vsub(entry.world, pivot);
+            let moved = [d[0] * factors[0], d[1] * factors[1], d[2] * factors[2]];
+            parts.position = util::vadd(entry.pos, util::vsub(moved, d));
+        }
+        model::set_transform(S, entry.index, parts);
+    }
+}
+
+/// Turn every row about its own axis, and about `pivot` when more than one is
+/// selected, so a set rotates as one body.
+pub fn rotate_by(S, snap, axis, angle, pivot) {
+    let many = snap.len() > 1;
+    for entry in snap {
+        let parts = #{ rotation_euler: util::rotate_euler(entry.rot, axis, angle) };
+        if many {
+            let turned = util::rotate_about(entry.world, pivot, axis, angle);
+            parts.position = util::vadd(entry.pos, util::vsub(turned, entry.world));
+        }
+        model::set_transform(S, entry.index, parts);
+    }
+}
+
+// --- incremental nudges, for the rail tools that drag anywhere ---
+
+/// Offset every selected root by a world delta, read from where it is now.
+pub fn nudge(S, delta, snap_to) {
+    for i in roots(S) {
+        if is_locked(S, i) {
+            continue;
+        }
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let pos = util::vadd(util::xyz(found.position()), delta);
+        if snap_to {
+            for axis in 0..3 {
+                pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
+            }
+        }
+        model::set_transform(S, i, #{ position: pos });
+    }
+}
+
+/// Turn every selected root about one of its own axes by `angle`.
+pub fn spin(S, axis, angle) {
+    for i in roots(S) {
+        if is_locked(S, i) {
+            continue;
+        }
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let r = util::xyz(found.rotation_euler());
+        r[axis] = r[axis] + angle;
+        model::set_transform(S, i, #{ rotation_euler: r });
+    }
+}
+
+/// Multiply every selected root's scale by one factor.
+pub fn grow(S, factor, planar) {
+    for i in roots(S) {
+        if is_locked(S, i) {
+            continue;
+        }
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let s = found.scale();
+        let z = if planar { s.z } else { s.z * factor };
+        model::set_transform(S, i, #{ scale: [s.x * factor, s.y * factor, z] });
+    }
+}

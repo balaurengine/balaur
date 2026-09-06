@@ -2,7 +2,9 @@
 // is the failure channel: `scripts/e2e.sh` fails any run that logs one.
 
 use crate::anim;
+use crate::arrange;
 use crate::dock;
+use crate::dropin;
 use crate::importer;
 use crate::history;
 use crate::lint;
@@ -12,6 +14,7 @@ use crate::polygon;
 use crate::rig;
 use crate::weights;
 use crate::tiles;
+use crate::selection;
 use crate::shell;
 use crate::style;
 use crate::theme;
@@ -924,7 +927,7 @@ pub fn script_paths(S) {
             return;
         }
     };
-    S.sel = i;
+    crate::selection::only(S, i);
     let root = S.game_root + "/";
     // A project with no scripts/ would be left with an empty one.
     if !fs::exists(root + "scripts") {
@@ -1364,4 +1367,109 @@ pub fn theme_switch(S) {
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
     log::info("selftest theme: done");
+}
+
+
+/// The selection set: extending it, aligning two nodes, undoing that, and
+/// grouping. Every check is on document state, so it runs with no window.
+pub fn selecting(S) {
+    if S.doc.len() < 2 {
+        log::error("selftest FAILED: selecting needs a scene with two nodes");
+        return;
+    }
+    let a = 0;
+    let b = 1;
+    for i in 0..S.doc.len() {
+        if S.doc[i].get("parent").unwrap_or("") == "" && i != a {
+            b = i;
+        }
+    }
+    selection::only(S, a);
+    check(selection::count(S) == 1, "a plain choose selects one node");
+    selection::toggle(S, b);
+    check(selection::count(S) == 2, "toggling a second node extends the set");
+    check(S.sel == b, "and the node just added is the active one");
+    selection::toggle(S, b);
+    check(selection::count(S) == 1 && S.sel == a, "toggling it again drops it");
+
+    selection::set(S, [a, b]);
+    let before_a = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
+    arrange::align(S, 0, "min");
+    let ax = util::f(model::live(S, a).unwrap().global_position().x);
+    let bx = util::f(model::live(S, b).unwrap().global_position().x);
+    check(util::abs(ax - bx) < 1e-4, "align on x puts two nodes on one plane");
+
+    shell::undo(S);
+    let back = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
+    check(util::f(back[0]) == util::f(before_a[0]), "undo puts the align back");
+    check(selection::count(S) == 2, "and restores the set that made it");
+
+    let was = S.doc.len();
+    selection::set(S, [a, b]);
+    arrange::group(S);
+    check(S.doc.len() == was + 1, "group adds one node");
+    check(S.doc[S.sel].name.starts_with("Group"), "and selects it");
+    let group_id = S.doc[S.sel].get("id").unwrap_or("");
+    let adopted = 0;
+    for node in S.doc {
+        if node.get("parent").unwrap_or("") == group_id {
+            adopted += 1;
+        }
+    }
+    check(adopted == 2, "with both nodes under it");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the group away");
+
+    selection::only(S, a);
+    check(!selection::is_locked(S, a), "a node starts unlocked");
+    arrange::toggle_locked(S);
+    check(selection::is_locked(S, a), "lock marks it");
+    arrange::toggle_locked(S);
+    check(!selection::is_locked(S, a), "and the same command unmarks it");
+
+    let visible = S.doc[a].get("visible").unwrap_or(true) != false;
+    check(visible, "a node starts visible");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible") == Some(false), "hide writes visible = false");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible") == Some(true), "and showing writes it back");
+    check(mirror_resolves(S), "the mirror still resolves after all of it");
+    log::info("selftest selecting: done");
+}
+
+/// Drag-in: one case per extension, with no window. The image and font cases
+/// copy a real file; the import case is only asked whether it claims the name,
+/// because running `balaur import` needs a model to import.
+pub fn dropping(S) {
+    check(dropin::kind_of("art/hero.png") == "image", "a .png drops as an image");
+    check(dropin::kind_of("MODELS/Robot.GLB") == "import", "a .glb goes through the importer, whatever its case");
+    check(dropin::kind_of("shaders/water.wesl") == "shader", "a .wesl drops as a shader");
+    check(dropin::kind_of("skies/studio.hdr") == "sky", "an .hdr drops as a sky");
+    check(dropin::kind_of("scenes/enemy.toml") == "scene", "a scene drops as a prefab");
+    check(dropin::kind_of("fonts/Inter.ttf") == "font", "a font drops as a font");
+    check(dropin::kind_of("notes.txt") == "", "and nothing claims a text file");
+    check(dropin::stem_of("/tmp/My Model-01.glb") == "my_model_01", "the stem is the importer's own naming rule");
+
+    let root = S.game_root + "/";
+    let source = root + "selftest-drop.png";
+    fs::write(source, "not really a png, and never decoded here");
+    let was = S.doc.len();
+    dropin::take(S, source);
+    check(S.doc.len() == was + 1, "dropping an image adds one node");
+    check(fs::exists(root + "art/selftest-drop.png"), "and copies the file under art/");
+    let made = S.doc[S.doc.len() - 1];
+    let named = made.contains_key("sprite") || made.contains_key("mesh");
+    check(named, "the node it makes draws the picture");
+
+    dropin::take(S, source);
+    check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
+
+    shell::undo(S);
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes both back");
+
+    fs::remove(source);
+    fs::remove(root + "art/selftest-drop.png");
+    fs::remove(root + "art/selftest-drop_2.png");
+    log::info("selftest dropping: done");
 }

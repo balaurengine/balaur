@@ -444,13 +444,13 @@ fn fit_figure(S) {
     let held = S.sel;
     match index_of(S, "Camera") {
         Some(i) => {
-            S.sel = i;
+            crate::selection::only(S, i);
             model::set_transform(S, i, #{ position: [0.6, 0.1, 0.0] });
             model::set_component_prop(S, "camera", "zoom", 150.0);
         }
         None => (),
     }
-    S.sel = held;
+    crate::selection::only(S, held);
 }
 
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.

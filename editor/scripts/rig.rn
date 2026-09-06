@@ -622,7 +622,7 @@ pub fn add_bone(S, parent_i, wx, wy) {
     entry[component] = child.get_component(component);
     S.doc.push(entry);
     S.refs.push(child);
-    S.sel = S.doc.len() - 1;
+    crate::selection::only(S, S.doc.len() - 1);
     log::info(format!("bone {} under {}", name, parent.name));
     Some(S.doc.len() - 1)
 }
