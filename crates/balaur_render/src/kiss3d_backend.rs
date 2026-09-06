@@ -445,7 +445,6 @@ fn draw_grid(app: &App, window: &mut Window) {
     }
 }
 
-
 /// Apply fullscreen and cursor state scripts asked for since the last frame.
 fn apply_window_config(app: &App, window: &Window) {
     let Some(config) = app.engine.try_resource::<WindowConfig>() else {

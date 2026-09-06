@@ -9,7 +9,7 @@ use balaur_physics::rapier2d::math::IVector;
 /// The log buffer is global and tests run in parallel.
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const SCENE: &str = r#"[[assets]]
+const SCENE: &str = r##"[[assets]]
 id = "wall"
 type = "voxels"
 size = [1.0, 1.0, 1.0]
@@ -23,7 +23,7 @@ script = "scripts/s.rn"
 [nodes.collider2d]
 kind = "voxels"
 voxels = "#wall"
-"#;
+"##;
 
 /// The script's last write is the control: a cell nothing else fills, which
 /// the assertion below reads back off the shape.
