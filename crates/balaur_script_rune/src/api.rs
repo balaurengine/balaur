@@ -142,6 +142,30 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "api",
+            "()",
+            "Every module scripts can reach, as the JSON string `balaur api` prints; a tool reads the live engine rather than a file that may be stale.",
+        ),
+        (
+            "script",
+            "definition",
+            "(path: string, source: string, line: int, column: int)",
+            "Where the name at that caret is defined, as `#{ file, line, column, url }`; engine API carries its reference page rather than a file.",
+        ),
+        (
+            "script",
+            "symbols",
+            "(path: string, source: string)",
+            "What that file declares, as `[#{ name, kind, detail, line, column }]`: its public functions and its `exports()` properties.",
+        ),
+        (
+            "script",
+            "references",
+            "(path: string, source: string, name: string)",
+            "Every place that name appears as a whole word across the files this one's `mod` declarations reach, as `[#{ file, line, column, url }]`.",
+        ),
+        (
+            "script",
             "format",
             "(path: string, source: string)",
             "That source laid out by Rune's own formatter; the source unchanged when it will not parse.",

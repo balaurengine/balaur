@@ -17,7 +17,7 @@ pub fn state() {
     #{
         left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
         bottom: #{
-            tabs: ["output", "problems", "assets", "timeline", "debugger", "session", "profiler", "tiles", "weights", "bonemap"],
+            tabs: ["output", "problems", "assets", "docs", "timeline", "debugger", "session", "profiler", "tiles", "weights", "bonemap"],
             active: "output", shut: false,
         },
         right: #{ tabs: ["inspector", "import"], active: "inspector", shut: false },
@@ -42,6 +42,7 @@ pub fn panels(S) {
         "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
         "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
         "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false },
+        "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
         "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
@@ -156,6 +157,7 @@ fn body(S, k, id) {
         "output" => dock::output(S, k),
         "problems" => dock::problems(S, k),
         "assets" => dock::assets(S, k),
+        "docs" => crate::docs::draw(S, k),
         "timeline" => dock::timeline(S, k),
         "debugger" => dock::debugger_view(S, k),
         "session" => dock::session_view(S, k),
@@ -238,6 +240,10 @@ fn tools(S, k, id, width) {
     let room = width - 60.0 - tabs_width(S, id);
     if id == "output" {
         dock::output_tools(S, k, room);
+        return;
+    }
+    if id == "docs" {
+        crate::docs::tools(S, k, room);
         return;
     }
     if S.compact || room < 150.0 {

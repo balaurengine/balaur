@@ -10,11 +10,11 @@ mod complete;
 mod defs;
 mod dock;
 mod docks;
+mod docs;
 mod dropin;
 mod exporter;
 mod gizmo;
 mod gizmo2d;
-mod highlight;
 mod history;
 mod icons;
 mod importer;
@@ -26,6 +26,7 @@ mod lint;
 mod model;
 mod overlays;
 mod palette;
+mod pen;
 mod plugins;
 mod polygon;
 mod rig;
@@ -133,9 +134,11 @@ pub fn init(this) {
         theme: theme::dark(),
         gizmo: gizmo::state(),
         complete: complete::state(),
+        docs: docs::state(),
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
         tiles: tiles::state(),
@@ -282,6 +285,7 @@ pub fn update(this, dt) {
         polygon::idle(S);
     }
     polygon::draw(S);
+    pen::draw(S);
     tiles::draw(S);
     let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
@@ -345,6 +349,9 @@ pub fn draw_ui(this) {
     }
     if ui::shortcut("alt+shift", "F") {
         shell::format_active(S);
+    }
+    if ui::shortcut("cmd", "B") {
+        shell::goto_definition(S);
     }
     if ui::shortcut("cmd", "Backslash") {
         shell::toggle_split(S);
@@ -437,6 +444,7 @@ pub fn draw_ui(this) {
         }
         if !completing && ui::shortcut("none", "Escape") {
             polygon::cancel(S);
+            pen::cancel(S);
             tiles::cancel(S);
         }
     }

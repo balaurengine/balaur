@@ -1,0 +1,142 @@
+// The Docs dock: the script reference, from the live engine rather than a
+// file. A go-to-definition on `physics2d::raycast` lands here, because engine
+// API has no source file to open.
+
+use crate::search;
+use crate::style;
+use crate::util;
+
+pub fn state() {
+    #{ modules: (), pick: "", fn_pick: "" }
+}
+
+// Every module, parsed once per session: `script::api` rebuilds the whole
+// reference on each call, which is not a per-frame cost worth paying.
+fn modules(S) {
+    if S.docs.modules is Vec {
+        return S.docs.modules;
+    }
+    let text = script::api();
+    if text == "" {
+        S.docs.modules = [];
+        return S.docs.modules;
+    }
+    let parsed = util::obj(json::parse(text));
+    S.docs.modules = parsed.get("modules").unwrap_or([]);
+    S.docs.modules
+}
+
+/// Show a module's page, and one of its functions when named. What
+/// `shell::open_docs` calls after a definition landed outside the project.
+pub fn show(S, module, name) {
+    S.docs.pick = module;
+    S.docs.fn_pick = name;
+    crate::docks::show(S, "docs");
+}
+
+// The module the dock is showing, or the first that matches the filter.
+fn current(S, list) {
+    for m in list {
+        if m.name == S.docs.pick {
+            return Some(m);
+        }
+    }
+    None
+}
+
+/// The dock's own control: one search field over every module name.
+pub fn tools(S, k, room) {
+    search::field(S, k, "docs", "filter modules", util::min(room - 12.0, 160.0));
+}
+
+pub fn draw(S, k) {
+    let list = modules(S);
+    if list.len() == 0 {
+        style::empty(k, "the engine reported no modules");
+        return;
+    }
+    let query = search::query(S, "docs");
+    ui::horizontal((), || {
+        // The module column, then the page.
+        ui::vertical(#{ width: 150 }, || {
+            ui::scroll("docs-modules", (), || {
+                let shown = 0;
+                for m in list {
+                    if !search::matches(query, m.name) {
+                        continue;
+                    }
+                    shown += 1;
+                    let on = m.name == S.docs.pick;
+                    let opts = util::merge(style::list_row(k, 22), #{
+                        color: if on { k.text } else { k.dim }, size: 11,
+                    });
+                    if on {
+                        opts["fill"] = k.accent_soft;
+                    }
+                    ui::horizontal(#{ height: 22 }, || {
+                        if ui::pill(m.name, opts) {
+                            S.docs.pick = m.name;
+                            S.docs.fn_pick = "";
+                        }
+                    });
+                }
+                if shown == 0 {
+                    search::nothing(k, query);
+                }
+            });
+        });
+        ui::add_space(10);
+        page(S, k, list);
+    });
+}
+
+// One module's page: what it is for, then a row per function and constant.
+fn page(S, k, list) {
+    let found = current(S, list);
+    let m = match found {
+        Some(m) => m,
+        None => {
+            style::empty(k, "pick a module");
+            return;
+        }
+    };
+    ui::vertical((), || {
+        ui::scroll("docs-page", (), || {
+            style::section_label(k, m.name);
+            if m.doc != "" {
+                ui::label(m.doc, style::mono_sm(k.dim));
+                ui::add_space(6);
+            }
+            let signatures = util::obj(m.signatures);
+            let docs = util::obj(m.docs);
+            for name in m.functions {
+                let picked = name == S.docs.fn_pick;
+                let sig = signatures.get(name).unwrap_or("");
+                ui::horizontal(#{ height: 20 }, || {
+                    ui::add_space(4);
+                    ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
+                });
+                let doc = docs.get(name).unwrap_or("");
+                if doc != "" {
+                    ui::horizontal(#{ height: 18 }, || {
+                        ui::add_space(12);
+                        ui::label(doc, style::mono_sm(k.faint));
+                    });
+                }
+            }
+            let constants = m.constants;
+            if constants.len() > 0 {
+                style::section_label(k, "constants");
+                for c in constants {
+                    ui::horizontal(#{ height: 18 }, || {
+                        ui::add_space(4);
+                        ui::label(c.name, style::mono(k.text));
+                        ui::right(|| {
+                            ui::label(c.value, style::mono_sm(k.faint));
+                        });
+                    });
+                }
+            }
+        });
+    });
+}

@@ -608,7 +608,196 @@ impl RuneHost {
         })
     }
 
-    /// The function being called at the caret, and which argument the caret
+    /// Where the name at the caret is defined.
+    ///
+    /// A `pub fn` in the project has a file and a line. Engine API has
+    /// neither, so it carries the reference page's URL instead and the client
+    /// opens that.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn definition(
+        &self,
+        key: &str,
+        source: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<Option<Location>> {
+        let offset = offset_of(source, line, column);
+        let end = source[offset.min(source.len())..]
+            .char_indices()
+            .find(|(_, c)| !is_word(*c))
+            .map_or(source.len(), |(i, _)| offset + i);
+        let (name, start) = word_before(source, end);
+        if name.is_empty() {
+            return Ok(None);
+        }
+        let head = &source[..start];
+        // An engine module's own function: the reference page, not a file.
+        if let Some(before) = head.strip_suffix("::") {
+            let (module, _) = word_before(before, before.len());
+            if collect_modules().contains_key(module) {
+                return Ok(Some(Location {
+                    file: String::new(),
+                    line: 0,
+                    column: 0,
+                    url: reference_url(module),
+                }));
+            }
+        }
+        if collect_modules().contains_key(name) && !head.ends_with('.') {
+            return Ok(Some(Location {
+                file: String::new(),
+                line: 0,
+                column: 0,
+                url: reference_url(name),
+            }));
+        }
+        // This file's own, then every file its `mod` graph reaches.
+        if let Some(found) = crate::inspect::public_functions(source)
+            .into_iter()
+            .find(|d| d.name == name)
+        {
+            return Ok(Some(Location {
+                file: key.to_string(),
+                line: found.line,
+                column: 1,
+                url: String::new(),
+            }));
+        }
+        for rel in self.module_graph(key, source) {
+            let Some(text) = self.source_of(&rel).ok() else {
+                continue;
+            };
+            if let Some(found) = crate::inspect::public_functions(&text)
+                .into_iter()
+                .find(|d| d.name == name)
+            {
+                return Ok(Some(Location {
+                    file: rel,
+                    line: found.line,
+                    column: 1,
+                    url: String::new(),
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    /// What this file declares: its `pub fn`s and its `exports()` properties.
+    ///
+    /// # Errors
+    /// Never; the signature matches the other verbs so one caller fits all.
+    pub fn symbols(&self, key: &str, source: &str) -> Result<Vec<Symbol>> {
+        let mut out = Vec::new();
+        for declared in crate::inspect::public_functions(source) {
+            out.push(Symbol {
+                name: declared.name.clone(),
+                kind: Kind::Function,
+                detail: format!(
+                    "{}({} arguments)",
+                    if declared.is_async { "async " } else { "" },
+                    declared.arity
+                ),
+                line: declared.line,
+                column: 1,
+            });
+        }
+        for (name, value) in self.exports(key).unwrap_or_default() {
+            out.push(Symbol {
+                name,
+                kind: Kind::Property,
+                detail: format!("{value:?}"),
+                line: 0,
+                column: 1,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Every place `name` appears as a whole word, across the files this
+    /// file's `mod` graph reaches.
+    ///
+    /// Textual. Rune keeps no cross-file semantic index, so a match is a
+    /// token match and the caller shows the list before writing anything.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn references(&self, key: &str, source: &str, name: &str) -> Result<Vec<Location>> {
+        let mut out = Vec::new();
+        let mut files = vec![(key.to_string(), source.to_string())];
+        for rel in self.module_graph(key, source) {
+            if rel == key {
+                continue;
+            }
+            if let Some(text) = self.source_of(&rel).ok() {
+                files.push((rel, text));
+            }
+        }
+        for (rel, text) in files {
+            for (line, row) in text.split('\n').enumerate() {
+                let mut from = 0;
+                while let Some(hit) = row[from..].find(name) {
+                    let at = from + hit;
+                    let before = row[..at].chars().next_back().is_none_or(|c| !is_word(c));
+                    let after = row[at + name.len()..]
+                        .chars()
+                        .next()
+                        .is_none_or(|c| !is_word(c));
+                    if before && after {
+                        out.push(Location {
+                            file: rel.clone(),
+                            line: line + 1,
+                            column: row[..at].chars().count() + 1,
+                            url: String::new(),
+                        });
+                    }
+                    from = at + name.len().max(1);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Every file this one's `mod` declarations reach, itself included.
+    ///
+    /// Textual and transitive: a `mod name;` names `name.rn` beside the file
+    /// that declares it, which is how Rune resolves one.
+    pub(crate) fn module_graph(&self, key: &str, source: &str) -> BTreeSet<String> {
+        let mut seen = BTreeSet::new();
+        let mut queue = vec![(key.to_string(), source.to_string())];
+        while let Some((rel, text)) = queue.pop() {
+            if !seen.insert(rel.clone()) {
+                continue;
+            }
+            let dir = rel.rsplit_once('/').map_or("", |(head, _)| head);
+            for line in text.lines() {
+                let trimmed = line.trim_start();
+                let trimmed = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
+                let Some(rest) = trimmed.strip_prefix("mod ") else {
+                    continue;
+                };
+                let name: String = rest.chars().take_while(|c| is_word(*c)).collect();
+                if name.is_empty() {
+                    continue;
+                }
+                let child = if dir.is_empty() {
+                    format!("{name}.rn")
+                } else {
+                    format!("{dir}/{name}.rn")
+                };
+                if seen.contains(&child) {
+                    continue;
+                }
+                if let Some(found) = self.source_of(&child).ok() {
+                    queue.push((child, found));
+                }
+            }
+        }
+        seen
+    }
+
+    /// The function being called at the caret, and which argument the caret    /// The function being called at the caret, and which argument the caret
     /// is in: `(signature, active)`. Walks back over balanced parentheses, so
     /// a nested call reports the inner one.
     ///
@@ -762,4 +951,10 @@ fn row(fields: &[(&str, rune::Value)]) -> Result<rune::Value> {
         )?;
     }
     Ok(rune::to_value(object)?)
+}
+
+/// The reference page a module or one of its functions lives on. The site
+/// lays the reference out one page per module, anchored by function name.
+fn reference_url(module: &str) -> String {
+    format!("https://balaurengine.org/docs/reference/modules/{module}")
 }

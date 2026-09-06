@@ -7,7 +7,7 @@ use anyhow::Result;
 use rune::runtime::Function;
 
 use crate::inspect::{export_rows, finding_rows};
-use crate::tooling::{completion_rows, hover_row};
+use crate::tooling::{completion_rows, hover_row, location_row, location_rows, symbol_rows};
 use crate::{HOSTS, RuneHost, SHARED_FNS, trampoline};
 
 /// Everything a script may ask about — or borrow from — another script.
@@ -150,7 +150,82 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             },
         )
         .build()?;
-    // `script::format(path, source)` — that source laid out by Rune's own
+    // `script::api()` — every module scripts can reach, as the JSON string
+    // `balaur api` prints. The Docs dock reads the live engine through this,
+    // so a plugin's own module is in the reference the editor shows.
+    script
+        .function("api", move || {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match crate::api::api_json(&host) {
+                Ok(text) => rune::to_value(text).expect("a string always converts"),
+                Err(err) => {
+                    tracing::error!("script::api: {err}");
+                    rune::to_value(String::new()).expect("a string always converts")
+                }
+            }
+        })
+        .build()?;
+    // `script::definition(path, source, line, column)` — where the name at    // `script::definition(path, source, line, column)` — where the name at
+    // that caret is defined, as `#{ file, line, column, url }`. Engine API has
+    // no file, so it carries its reference page instead.
+    script
+        .function(
+            "definition",
+            move |path: &str, source: &str, line: i64, column: i64| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                let (line, column) = at(line, column);
+                match host
+                    .definition(&RuneHost::normalize_key(path), source, line, column)
+                    .and_then(|found| location_row(found.as_ref()))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::definition({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::symbols(path, source)` — what that file declares, as
+    // `[#{ name, kind, detail, line, column }]`, for an outline.
+    script
+        .function("symbols", move |path: &str, source: &str| {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match host
+                .symbols(&RuneHost::normalize_key(path), source)
+                .and_then(|found| symbol_rows(&found))
+            {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::error!("script::symbols({path}): {err}");
+                    rune::to_value(()).expect("unit always converts")
+                }
+            }
+        })
+        .build()?;
+    // `script::references(path, source, name)` — every place that name
+    // appears as a whole word across the `mod` graph. Textual, so a caller
+    // shows the list before writing anything.
+    script
+        .function(
+            "references",
+            move |path: &str, source: &str, name: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host
+                    .references(&RuneHost::normalize_key(path), source, name)
+                    .and_then(|found| location_rows(&found))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::references({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::format(path, source)` — that source laid out by Rune's own    // `script::format(path, source)` — that source laid out by Rune's own
     // formatter, or the source unchanged when it will not parse.
     script
         .function("format", move |path: &str, source: &str| {

@@ -8,7 +8,6 @@ pub const HUD_H = 28.0;
 
 use crate::complete;
 use crate::defs;
-use crate::highlight;
 use crate::icons;
 use crate::lint;
 use crate::model;
@@ -334,7 +333,15 @@ fn code_pane(S, k) {
     let current = S.script_buffers.get(path).unwrap_or(src);
     if !shading && S.hooks_src != current {
         S.hooks_src = current;
-        let (_, parsed) = highlight::analyze(current);
+        let found = script::symbols(rel, current);
+        let parsed = [];
+        if found is Vec {
+            for one in found {
+                if one.kind == "function" {
+                    parsed.push(#{ name: one.name, line: one.line, detail: one.detail });
+                }
+            }
+        }
         S.hooks_live = parsed;
     }
         // Editable, syntax-highlighted buffer (persists per file; ⌘S saves

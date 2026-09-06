@@ -13,6 +13,7 @@ pub fn tool(id) {
         "key" => "\u{e1ec}",
         "bone" => "\u{e7f2}",
         "polygon" => "\u{e6d0}",
+        "pen" => "\u{e64a}",
         "tiles" => "\u{e464}",
         _ => "\u{e1dc}",
     }
@@ -40,6 +41,7 @@ pub fn panel(id) {
         "output" => "\u{eae8}",
         "problems" => "\u{e4e0}",
         "assets" => "\u{e24a}",
+        "docs" => "\u{e02f}",
         "timeline" => "\u{e792}",
         "debugger" => "\u{e5f4}",
         "session" => "\u{e3ee}",

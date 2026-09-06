@@ -47,7 +47,9 @@ pub fn line_count(S, rel) {
     entry.lines.unwrap()
 }
 
-// The script's engine-facing hooks, analysed once per cached read.
+// The script's engine-facing hooks, read once per cached read. The host's own
+// `script::symbols` rather than a parser here, so the outline, the Events tab
+// and an editor outside Balaur all name the same functions.
 pub fn hooks(S, rel) {
     let text = match source(S, rel) {
         Some(text) => text,
@@ -55,7 +57,15 @@ pub fn hooks(S, rel) {
     };
     let entry = S.sources[rel];
     if entry.hooks.is_none() {
-        let (_, hooks) = crate::highlight::analyze(text);
+        let found = script::symbols(rel, text);
+        let hooks = [];
+        if found is Vec {
+            for one in found {
+                if one.kind == "function" {
+                    hooks.push(#{ name: one.name, line: one.line, detail: one.detail });
+                }
+            }
+        }
         entry.hooks = Some(hooks);
     }
     entry.hooks.unwrap()

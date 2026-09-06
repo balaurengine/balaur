@@ -116,6 +116,9 @@ impl Server {
                             "hoverProvider": true,
                             "signatureHelpProvider": { "triggerCharacters": ["(", ","] },
                             "documentFormattingProvider": true,
+                            "definitionProvider": true,
+                            "documentSymbolProvider": true,
+                            "referencesProvider": true,
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -208,6 +211,67 @@ impl Server {
                     &json!({ "jsonrpc": "2.0", "id": id, "result": edit }),
                 )?;
             }
+            "textDocument/definition" => {
+                let found = self.one(&message["params"], |host, key, source, line, column| {
+                    // A definition with no file is engine API; the URL is
+                    // what a client should open, so it goes back as one.
+                    Ok(host.definition(key, source, line, column)?.map(|d| {
+                        if d.file.is_empty() {
+                            json!({ "uri": d.url, "range": span(1, 1) })
+                        } else {
+                            json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })
+                        }
+                    }))
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
+                )?;
+            }
+            "textDocument/documentSymbol" => {
+                let items = self.whole(&message["params"], |host, key, source| {
+                    Ok(host
+                        .symbols(key, source)?
+                        .iter()
+                        .map(|one| {
+                            json!({
+                                "name": one.name,
+                                "kind": if one.kind == balaur::rune::Kind::Function { 12 } else { 7 },
+                                "detail": one.detail,
+                                "range": span(one.line.max(1), one.column),
+                                "selectionRange": span(one.line.max(1), one.column),
+                            })
+                        })
+                        .collect())
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
+                )?;
+            }
+            "textDocument/references" => {
+                let items = self.at(&message["params"], |host, key, source, line, column| {
+                    let offset = balaur::rune::offset_of(source, line, column);
+                    let name = word_at(source, offset);
+                    if name.is_empty() {
+                        return Ok(Vec::new());
+                    }
+                    Ok(host
+                        .references(key, source, &name)?
+                        .iter()
+                        .map(|one| {
+                            json!({
+                                "uri": self.uri_of(&one.file),
+                                "range": span(one.line, one.column),
+                            })
+                        })
+                        .collect())
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
+                )?;
+            }
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
@@ -256,6 +320,33 @@ impl Server {
         match f(&self.host, &rel, &source, line, column) {
             Ok(Some(found)) => found,
             Ok(None) => Json::Null,
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// `at` for a request about a whole file rather than a position.
+    fn whole<T>(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str) -> Result<Vec<T>>,
+    ) -> Json
+    where
+        T: Into<Json>,
+    {
+        let Some(uri) = params["textDocument"]["uri"].as_str() else {
+            return Json::Null;
+        };
+        let Some(rel) = self.rel_of(uri) else {
+            return Json::Null;
+        };
+        let Some(source) = self.source_of(&rel) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source) {
+            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
             Err(err) => {
                 tracing::error!("{rel}: {err:#}");
                 Json::Null
@@ -391,6 +482,30 @@ fn markdown(one: &balaur::rune::Hover) -> String {
         out.push_str(&one.doc);
     }
     out
+}
+
+/// A one-character range at a 1-based line and column, which is what a
+/// definition and a symbol both want: the point, not the extent.
+fn span(line: usize, column: usize) -> Json {
+    let start = position(line, column);
+    json!({ "start": start, "end": start })
+}
+
+/// The whole identifier a byte offset touches, for a request that names a
+/// position and means the word there.
+fn word_at(source: &str, offset: usize) -> String {
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let end = source[offset.min(source.len())..]
+        .char_indices()
+        .find(|(_, c)| !is_word(*c))
+        .map_or(source.len(), |(i, _)| offset + i);
+    let head = &source[..end];
+    let start = head
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !is_word(*c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    head[start..].to_string()
 }
 
 fn notification(uri: &str, diagnostics: &[Json]) -> Json {

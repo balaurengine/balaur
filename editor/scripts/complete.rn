@@ -26,8 +26,8 @@ pub fn reset(S) {
     S.complete.at_index = -1;
 }
 
-// The 1-based line and column of a character index into `source`.
-fn line_col(source, index) {
+/// The 1-based line and column of a character index into `source`.
+pub fn line_col(source, index) {
     let line = 1;
     let col = 1;
     let seen = 0;

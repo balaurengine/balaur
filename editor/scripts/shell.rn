@@ -396,6 +396,56 @@ pub fn toggle_shader_preview(S, rel, line) {
 
 // cmd+S saves the visible script buffer when the code editor is open, the
 // scene document otherwise.
+/// Jump to where the name at the caret is defined. A definition in the
+/// project opens that file at its line; engine API has no file, so the Docs
+/// dock shows its module instead.
+pub fn goto_definition(S) {
+    let node = S.doc[S.sel];
+    if !node.contains_key("script") {
+        return;
+    }
+    let rel = model::script_rel(node).unwrap_or("");
+    if rel == "" {
+        return;
+    }
+    let abs = S.game_root + "/" + rel;
+    let source = match S.script_buffers.get(abs) {
+        Some(buffer) => buffer,
+        None => model::source(S, rel).unwrap_or(""),
+    };
+    let index = S.complete.at_index;
+    if index < 0 {
+        return;
+    }
+    let (line, col) = crate::complete::line_col(source, index);
+    let found = script::definition(rel, source, line, col);
+    if !(found is Object) {
+        return;
+    }
+    if found.file == "" {
+        // The URL names the module page; the dock renders it from the live
+        // engine, so no browser is opened for something the editor holds.
+        let module = found.url.split('/').collect::<Vec>();
+        crate::docs::show(S, module[module.len() - 1], "");
+        return;
+    }
+    open_script_at(S, found.file, found.line);
+}
+
+/// Show `rel` in the code pane, scrolled to `line`.
+pub fn open_script_at(S, rel, line) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if model::script_rel(node) == Some(rel) {
+            crate::selection::only(S, i);
+            set_persona(S, "script");
+            S.doctab = "script";
+            S.preview_line = line;
+            return;
+        }
+    }
+    log::info(rel + " is attached to no node in this scene");
+}
+
 /// Lay the visible script buffer out with Rune's own formatter. A shader is
 /// not Rune, so it is left alone.
 pub fn format_active(S) {
@@ -789,8 +839,7 @@ pub fn break_demo(S) {
         let script_some = node.get("script");
         if let Some(script) = script_some {
             crate::selection::only(S, i);
-            let text = model::source(S, script).unwrap_or("");
-            let (_, hooks) = crate::highlight::analyze(text);
+            let hooks = model::hooks(S, script);
             for hook in hooks {
                 if hook.name == "update" {
                     toggle_breakpoint(S, script, hook.line + 1);
