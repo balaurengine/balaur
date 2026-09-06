@@ -539,6 +539,12 @@ impl Runners {
         self.registered.push((action, run));
     }
 
+    /// Whether something registered a runner for `action`.
+    #[must_use]
+    pub fn has(&self, action: Action) -> bool {
+        self.registered.iter().any(|(known, _)| *known == action)
+    }
+
     fn get(&self, action: Action) -> Option<Runner> {
         self.registered
             .iter()

@@ -80,11 +80,13 @@ fn state_of(app: &balaur::App, entity: balaur::hecs::Entity) -> String {
         .unwrap_or_default()
 }
 
-fn score(app: &balaur::App) -> f64 {
+/// The score as the whole number it is declared as: an `int` variable is
+/// truncated on every write, so comparing one is comparing a count.
+fn score(app: &balaur::App) -> i64 {
     let variables = app.engine.resource::<Variables>();
     let held = variables.borrow();
     held.get("score")
-        .map_or(-1.0, balaur_core::variables::as_num)
+        .map_or(-1.0, balaur_core::variables::as_num) as i64
 }
 
 /// Three clicks on the ball, and nothing in the project is a script.
@@ -94,9 +96,9 @@ fn the_third_click_opens_the_door() {
     let ball = node(&app, "Ball");
     let door = node(&app, "Door");
     assert_eq!(state_of(&app, door), "shut", "the scene's own state");
-    assert_eq!(score(&app), 0.0);
+    assert_eq!(score(&app), 0);
 
-    for expected in [1.0, 2.0] {
+    for expected in [1, 2] {
         bindings::fire(&app.engine, ball, "pointer_click", &[]);
         assert_eq!(score(&app), expected, "the click counts");
         assert_eq!(
@@ -106,7 +108,7 @@ fn the_third_click_opens_the_door() {
         );
     }
     bindings::fire(&app.engine, ball, "pointer_click", &[]);
-    assert_eq!(score(&app), 3.0);
+    assert_eq!(score(&app), 3);
     assert_eq!(state_of(&app, door), "open", "the third click opens it");
 }
 
@@ -198,21 +200,34 @@ pub fn on_variable_changed(this, name, value) {
     assert_eq!(rune.number_field(ball, "last"), Some(7.0));
 }
 
-/// A binding naming an action this build cannot run says so rather than
-/// doing nothing, which is the whole point of the runner registry.
+/// Every action core cannot run itself has a runner in a standard build, so
+/// a binding naming one does the thing rather than logging that nothing can.
 #[test]
-fn an_action_with_no_runner_is_reported() {
+fn every_deferred_action_has_a_runner() {
     let (_dir, app) = app_from(DOOR);
-    let row: toml::Value = toml::from_str("event = \"pointer_click\"\naction = \"spawn\"").unwrap();
-    let binding = bindings::parse_binding(&row).unwrap();
-    assert_eq!(binding.action, bindings::Action::Spawn);
-    // The app under test registers no runners (those are `standard_app`'s
-    // interact install, which this harness does not reach), so firing it
-    // logs rather than panicking.
-    balaur::logbuf::clear();
-    bindings::fire(&app.engine, node(&app, "Ball"), "pointer_click", &[]);
-    assert!(
-        !balaur::logbuf::recent(10).is_empty(),
-        "a fired binding left no trace at all"
-    );
+    let runners = app.engine.resource::<bindings::Runners>();
+    let held = runners.borrow();
+    for (word, action) in bindings::ACTIONS {
+        // The six core runs itself; the rest are filled at load.
+        let own = matches!(
+            action,
+            bindings::Action::State
+                | bindings::Action::SetVariable
+                | bindings::Action::AddVariable
+                | bindings::Action::Free
+                | bindings::Action::Visible
+                | bindings::Action::Call
+        );
+        if own {
+            continue;
+        }
+        // Audio is a cargo feature, so its runner is only in a build with it.
+        if matches!(action, bindings::Action::Sound) && cfg!(not(feature = "audio")) {
+            continue;
+        }
+        assert!(
+            held.has(*action),
+            "`{word}` has no runner: a binding naming it would log rather than act"
+        );
+    }
 }
