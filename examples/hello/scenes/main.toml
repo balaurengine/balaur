@@ -107,7 +107,7 @@ id = "n_ring"
 name = "Ring"
 parent = "n_world"
 position = [2.5, 1.6, -2.5]
-rotation = [90, 0, 0]
+rotation_euler = [90, 0, 0]
 
 [nodes.mesh]
 source = "#ring"
