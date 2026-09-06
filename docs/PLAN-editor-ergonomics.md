@@ -165,7 +165,8 @@ built beside it.
    camera bookmarks in `center.rn`, over `light3d` and `environment`.
 4. **Pen.** *Built.* `pen.rn`, over `path2d`.
 5. **Materials.** *Built.* `Param::Texture` and `package::pbr`; the panel is
-   the inspector's material rows, which now resolve an inline material too.
+   the inspector's material rows, which resolve an inline material too, with a
+   shader picker and the `@if` flags as toggles. No preview sphere.
 6. **Events.** *Built.* `bindings.rs`, `states.rs`, `variables.rs` and the
    hook dispatch in `balaur::interact`; `events.rn` authors them. `eventsdemo`.
 7. **Cost.** *Built.* `render.stats` and the Cost dock.
@@ -194,6 +195,8 @@ built beside it.
 
 - Skies in the library, image-based lighting, SSAO, `shaders/layers.wesl`,
   and overdraw as a view mode. Each is named in §0 with the plan it belongs to.
+- The material panel's preview sphere. It wants a frame drawn offscreen into a
+  texture the interface can show, which nothing else in the editor does yet.
 - A `path3d` pen. The Pen edits `path2d`.
 - `when` is a comparison over the scene's variables, not a Rune expression:
   a condition is data in a scene file, so the editor reads it, shows it and
