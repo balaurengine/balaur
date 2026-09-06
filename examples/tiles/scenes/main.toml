@@ -1,23 +1,9 @@
-[[assets]]
-id = "blocks"
-type = "tileset"
-source = "tilesets/blocks.toml"
-
-[[nodes]]
-id = "n_camera"
-name = "Camera"
-position = [4.0, -2.0, 10.0]
-
-[nodes.camera]
-kind = "orthographic"
-size = 8.0
-
 [[nodes]]
 id = "n_ground"
 name = "Ground"
 
 [nodes.tilemap]
-tileset = "#blocks"
+tileset = "tilesets/blocks.toml"
 pixels_per_unit = 16.0
 cells = """
 ...........

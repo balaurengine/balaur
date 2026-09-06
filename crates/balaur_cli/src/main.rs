@@ -244,6 +244,7 @@ enum Command {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod import;
+mod import_ldtk;
 mod import_tiled;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;

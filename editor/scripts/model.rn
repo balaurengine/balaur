@@ -676,7 +676,17 @@ fn absolute_files(S, value) {
             return resolved;
         }
         if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
-            return S.game_root + "/" + value;
+            let abs = S.game_root + "/" + value;
+            // An asset kept in a file names its own files relative to the
+            // game, and the mirror's root is the editor's: inline the
+            // definition so what it names is resolved here (D24).
+            if value.ends_with(".toml") {
+                let (ok, loaded) = script::attempt(|| assets::load(abs));
+                if ok && loaded is Object {
+                    return absolute_files(S, loaded);
+                }
+            }
+            return abs;
         }
         value
     } else if value is Object {

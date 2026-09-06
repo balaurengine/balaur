@@ -144,13 +144,9 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
     if sets.is_empty() {
         bail!("that map names no tileset, so its cells index nothing");
     }
+    // A tileset kept in a file is named by its path; the scene does not
+    // re-declare it as an asset of its own.
     let mut out = String::new();
-    for set in sets {
-        let _ = write!(
-            out,
-            "[[assets]]\nid = \"{set}\"\ntype = \"tileset\"\nsource = \"tilesets/{set}.toml\"\n\n"
-        );
-    }
     let mut z = 0;
     for layer in map.layers() {
         let tiled::LayerType::Tiles(tiles) = layer.layer_type() else {
@@ -159,7 +155,7 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
         let name = tidy(&layer.name);
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"#{}\"\npixels_per_unit = {}\ncells = [\n",
+            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{}.toml\"\npixels_per_unit = {}\ncells = [\n",
             layer.name, sets[0], map.tile_width
         );
         for row in 0..map.height {

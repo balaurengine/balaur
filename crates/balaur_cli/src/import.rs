@@ -14,7 +14,7 @@ pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Res
         .to_ascii_lowercase();
     match extension.as_str() {
         "aseprite" | "ase" => import_sprite(file, project, layers),
-        "tmx" => import_level(file, project),
+        "tmx" | "ldtk" => import_level(file, project),
         _ if !layers.is_empty() => {
             anyhow::bail!("--layer picks layers of an .aseprite file; {extension} has none")
         }
@@ -26,8 +26,15 @@ pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Res
 /// sheet, and a scene of `tilemap` nodes, one per tile layer.
 fn import_level(file: &Path, project: &Path) -> Result<()> {
     let stem = import_stem(file)?;
-    let imported = crate::import_tiled::import(file, &stem)
-        .with_context(|| format!("importing {}", file.display()))?;
+    let ldtk = file
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("ldtk"));
+    let imported = if ldtk {
+        crate::import_ldtk::import(file, &stem)
+    } else {
+        crate::import_tiled::import(file, &stem)
+    }
+    .with_context(|| format!("importing {}", file.display()))?;
     for (rel, data) in &imported.files {
         let path = project.join(rel);
         if let Some(parent) = path.parent() {
