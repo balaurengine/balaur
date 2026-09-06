@@ -197,7 +197,7 @@ Status: **done** — `WidgetLayerConfig::keyboard`, off by default, turned on by
 (`widget_layer.rs:835-837`); there is no `wrap`, no text alignment, and as a
 root its `width` is ignored. There is no image kind and no progress kind: a
 heart, a portrait or a health bar is a `draw` node with a script behind it.
-`ARCHITECTURE.md`'s roadmap calls more kinds demand-driven; these two are
+`docs/ROADMAP.md` calls more kinds demand-driven; these two are
 what every HUD asks for.
 
 **Shape.** `wrap` (bool) and `text_align` (`start | center | end`) on the

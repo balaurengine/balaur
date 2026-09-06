@@ -153,6 +153,10 @@ pub const NODE_OPS: &[NodeOp] = &[
     },
     NodeOp { name: "call", call },
     NodeOp {
+        name: "emit",
+        call: emit,
+    },
+    NodeOp {
         name: "attach_script",
         call: attach_script,
     },
@@ -250,6 +254,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
+        ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node — and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
@@ -734,6 +739,14 @@ fn call(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(host
         .call_on(crate::node_id_of(e), method, args.get(2..).unwrap_or(&[]))
         .unwrap_or(Value::Nil))
+}
+
+fn emit(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let name = text(args, 1)?.to_string();
+    let payload = args.get(2).cloned().unwrap_or(Value::Nil);
+    crate::events::emit_from(eng, e, &name, payload);
+    Ok(Value::Nil)
 }
 
 /// `node:attach_script(path, props)` — the scene's `script` key, at run time.

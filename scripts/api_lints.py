@@ -4,7 +4,7 @@
 `scripts/house_lints.py` globs `*.rs`, so it has never seen a single
 script-API or scene-file name. This is that half: it boots the engine, asks it
 what scripts can reach (`balaur api`, the same source `scripts/gen_docs.py`
-reads), and checks the answer against docs/NAMING.md §3.
+reads), and checks the answer against docs/NAMING.md's rules.
 
 Reading a booted engine rather than the source is the point — derived
 constants like `input.KEY_SPACE` exist only at registration time, and a name
@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {"target", ".git", "node_modules", "assets"}
 
 # N7. Each entry carries the reason, so the exemption stops being cited as
-# precedent for the next `get_`. Both reasons are recorded in NAMING.md §5.
+# precedent for the next `get_`. Both are recorded in NAMING.md's exemptions.
 GETTER_ALLOW = {
     "node.get_node": "dropping the prefix gives `node:node(path)`",
     "scene.get_node": "dropping the prefix gives `scene:node(path)`",
@@ -272,8 +272,8 @@ def check_schemas() -> list[Finding]:
     """N6: the scene-file vocabulary, over every registered schema.
 
     The fourth clause of N6 — every key a component's `get` emits is declared
-    in its schema — is a Rust test rather than a lint (NAMING.md Table C says
-    so): it needs the live registry, not a regex over a closure.
+    in its schema — is a Rust test rather than a lint: it needs the live
+    registry, not a regex over a closure.
     """
     out, types = [], property_types()
     for path in rust_files():

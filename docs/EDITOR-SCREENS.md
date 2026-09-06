@@ -1,39 +1,28 @@
 # The editor's screens
 
-Every surface the editor draws, as an ASCII mockup next to the screenshot that
-proves what it actually looks like. This is the review sheet: read a mockup,
-open the PNG beside it, write the complaint under the screen.
+Every surface the editor draws: an ASCII mockup, the code that draws it, and the
+screenshot that proves what it looks like. The review sheet — read a mockup, open
+the PNG, write the complaint in §8.
 
-The shell is **Stage** as of 2026-09-03: the scene runs edge to edge and every
-panel is a sheet floating on it, at a rect `editor/scripts/layout.rn` computes.
-The skeleton in §1 below is the docked shell it replaced, kept because the
-defect table still refers to it; the rects that matter now are the table in
-[PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1. Re-capture before
-reading further — the screenshots are regenerated, the prose is not.
+The shell is **Stage**: the scene runs edge to edge and every panel is a sheet at
+a rect `editor/scripts/layout.rn` computes. The rects that matter are the table
+in [PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1; §1 below is the docked
+shell it replaced, kept for its sizes. The persona bar, command pill and document
+tabs are one full-width bar (`chrome::top_bar`); the status strip is the bottom
+dock's foot; a side dock minimises to a 32 px handle.
 
-Since 2026-09-05 the persona bar, the command pill and the document tabs are
-one full-width bar (`chrome::top_bar`), and the script and events tabs close.
-The status strip is the bottom dock's foot, and all of it once minimised; a
-side dock minimises to a 32 px handle at the top of its column.
-
-Regenerate the PNGs into `target/uiaudit/` with:
-
-    scripts/uiaudit.sh
-
-The names below are that script's names. `scripts/uiaudit.sh 03-script` takes
-one. Captures are offscreen at 1600 × 1000 device px, `ui_scale` 1.25, so the
-shell lays out at 1280 × 800 design px — one notch above the 1240 px compact
-threshold, which is the widest thing most people will ever run it at.
+Regenerate the PNGs into `target/uiaudit/` with `scripts/uiaudit.sh`, or one with
+`scripts/uiaudit.sh 03-script`. Captures are offscreen at 1600 × 1000 device px,
+`ui_scale` 1.25, so the shell lays out at 1280 × 800 design px — one notch above
+the 1240 px compact threshold. The screenshots are regenerated; the prose is not.
 
 ---
 
 ## 1. The skeleton
 
-Fixed. Nothing docks, floats or re-arranges; a persona re-fills four regions
-and may re-order the dock. Declared in `editor/scripts/editor.rn:draw_ui` in
-this order: persona bar, status bar, tree, inspector, dock, centre. Under Stage
-every one of these becomes a sheet at a rect the editor computes; the sizes
-below are what the redesign starts from.
+Fixed: nothing docks, floats or re-arranges. A persona re-fills four regions and
+may re-order the dock. Drawn by `editor.rn:draw_ui` in this order: persona bar,
+status bar, tree, inspector, dock, centre.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -78,9 +67,8 @@ below are what the redesign starts from.
 
 ## 2. Personas
 
-Five, `defs::personas()`. Switching resets the tool to Select, points the
-document tab at scene or script, and points the dock at output or timeline.
-Selection is persona-independent.
+Five, `defs::personas()`. Switching resets the tool to Select and points the
+document tab and dock at that persona's defaults. Selection is persona-independent.
 
 | | Scene | Script | Animate | Physics | Interface |
 |---|---|---|---|---|---|
@@ -117,10 +105,9 @@ Selection is persona-independent.
 └──────────────────────────────┘
 ```
 
-The secondary panel's height is `clamp(50 + rows × 33, 83, 280)`; the tree
-takes the rest. Contents per persona: scene files, `.rn` files with line
-counts, clips with their library, bodies/colliders with kind and dimension,
-widgets and `draw_ui` scripts.
+Secondary panel height is `clamp(50 + rows × 33, 83, 280)`; the tree takes the
+rest. Its contents per persona: scene files, `.rn` files with line counts, clips
+with their library, bodies and colliders, widgets and `draw_ui` scripts.
 
 ---
 
@@ -139,9 +126,9 @@ widgets and `draw_ui` scripts.
 └────────────────────────────────────────────────────────┘
 ```
 
-The chrome is one `ui::overlay` sized from `ui::central_rect()`. Selection,
-gizmos, colliders, guides and the motion path are 3D lines from `gizmo`,
-`gizmo2d`, `overlays`, `rig` and `polygon` — not egui.
+Chrome is one `ui::overlay` sized from `ui::central_rect()`. Selection, gizmos,
+colliders, guides and the motion path are 3D lines from `gizmo`, `gizmo2d`,
+`overlays`, `rig` and `polygon` — not egui.
 
 ### 4b. Code — `center::code_pane` (`03`, `24`)
 
@@ -158,8 +145,8 @@ gizmos, colliders, guides and the motion path are 3D lines from `gizmo`,
 └────────────────────────────────────────────┴──────────────┘
 ```
 
-Same pane serves `.rn` and `.wesl`; a shader swaps the hooks list for a
-`SHADER` label and turns gutter clicks into value previews.
+One pane for `.rn` and `.wesl`; a shader swaps the hooks list for a `SHADER`
+label and turns gutter clicks into value previews.
 
 ### 4c. Events — `center::events_view` (`16`)
 
@@ -168,15 +155,15 @@ One flat row per hook across the whole document: `● Node.hook()` left,
 
 ### 4d. Split — `center::split_code` + `viewport` (`17`)
 
-Code as a resizable right panel, viewport in what is left. **Currently
-broken** — see §7.
+Code as a resizable right panel, viewport in what is left. The only resizable
+region in the shell.
 
 ---
 
 ## 5. Bottom dock — `dock::draw`
 
-Seven built-in tabs plus one per registered plugin. 150 px, or 212 px for
-timeline, debugger, session and profiler.
+Seven built-in tabs plus one per registered plugin. 150 px; 212 px for timeline,
+debugger, session and profiler.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -223,9 +210,9 @@ timeline, debugger, session and profiler.
 └────────────────────────────────┘
 ```
 
-Six control shapes: numeric field, select, toggle, slider, script chip, asset
-row. Component sections are generated from `scene::component_schema`, so a
-plugin's component gets a section for free — and so does its label width.
+Six control shapes: numeric field, select, toggle, slider, script chip, asset row.
+Component sections are generated from `scene::component_schema`, so a plugin's
+component gets a section — and its label width — for free.
 
 ---
 
@@ -243,55 +230,25 @@ plugin's component gets a section for free — and so does its label width.
 
 ## 8. What the screenshots show is wrong
 
-Ordered by how much of the shell it spoils. Each is reproducible from the
-state in the last column.
-
-**D1, D2, D3 and D5 are fixed** (2026-09-03), and they were one bug:
-`center::draw` wrote `S.viewport_live = split || !document` straight to the
-field, which in Rune 0.14 also overwrites the local on the left of a
-short-circuit — so `split` became true on every frame, in every persona. The
-centre carved a code pane it was never asked for, and every rect derived from
-`ui::central_rect()` was wrong: the viewport, the overlay chrome and the
-widget layer alike. The pitfall is written up in `AGENTS.md`; `layoutdemo`
-asserts the centre now, and the screenshots below are from after the fix.
+Open defects, reproducible from the state in the last column. Fixed ones are
+dropped as they are fixed; git holds them.
 
 | # | Defect | Where | Seen in |
-|---|---|---|---|
-| D18 | *Fixed 2026-09-03.* **Every sheet stacked in the top-left on a small window.** `ui::overlay` left egui's area constraint on, so an area whose content overflowed its rect was dragged back onto the screen — and with three of them, all three landed in the corner. `constrain(false)` makes the editor's rect the only one that decides. | `ui::overlay` | `29-narrow`, `30-narrower` |
-| D1 | *Fixed.* **Game widgets escaped the viewport.** The widget layer paints over the document tabs, the tool rail, the axis pill and the dock tab row; in the Interface persona the HUD and the dashed safe-area rect run across the inspector. | `editor.rn:update` `ui::set_widget_layer`, `gizmo::viewport_rect` | `06`, `14`, `18` |
-| D2 | *Fixed.* **Split was unusable.** The code column collapses to ~25 px — gutter only, no code — whatever `split_w` says. | `center::split_code` | `17` |
-| D3 | *Fixed.* **A ghost code gutter sat between viewport and inspector.** A ~25 px `code_bg` strip with the selected script's line numbers is drawn in every persona whenever the selection has a script. It also clips the document-tab hint to `no…`. | centre layout | `01`, `08`, `13`, `20` |
+| --- | --- | --- | --- |
 | D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `angular_damping`, `center_of_mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
-| D5 | *Fixed 2026-09-04 — the viewport chrome is sized from the stage box, which a split narrows.* **The zoom pill drew on top of the inspector**, over the `SCRIPT` heading. The overlay is wider than the viewport it belongs to. | `center::viewport` overlay rect | `01`, `15`, `17` |
-| D6 | *Fixed — Phosphor is bundled and every glyph goes through `icons.rn`.* **Glyphs were missing from the shipped font.** `⌥` renders as `~` in every palette shortcut; the Translate tool's `✥` renders as an empty box in every rail. | `defs::tool_icon`, `palette::commands` | `07`, `10`, `20` |
-| D7 | *Fixed — `dock::hint` answers nothing for session, profiler and plugin tabs.* **The dock's right-hand hint lies.** Session, Profiler and plugin tabs all fall through to the animation branch and print `no clip`. | `dock::tab_row` | `10`, `13`, `14`, `19` |
-| D8 | *Fixed.* **Plugin windows were unthemed.** `ui::window` draws egui's stock frame — pale title bar, centred serif title, native close button — against the editor's dark chrome, and it opens over the persona bar. | `plugins::draw_windows` | `19` |
-| D9 | *Fixed — the dock collapses to its tab row.* **Tall docks were mostly empty.** Debugger, Profiler and Problems reserve 212 / 150 px and fill one row; ~180 px of dead panel. | `dock::draw` height | `10`, `12`, `14` |
 | D10 | **The Script persona's inspector is ~500 px of nothing** between Events and Add component. | `inspector::draw` | `03`, `12` |
-| D11 | *Fixed — ruler, ticks, playhead and clickable keys; dragging a key is still not possible.* **The timeline had no time axis.** No ruler, no ticks, no playhead line down the lanes; keys are `●`/`○` text glyphs, and track pills are ragged widths. | `dock::timeline` | `15` |
-| D12 | *Fixed.* **Asset cards were unreadable.** Near-black tiles on a near-black panel, no thumbnails, filenames flush against the dock's bottom edge. | `dock::assets` | `11`, `25` |
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
 | D15 | **The dock tab row is 12 controls wide** — 8 tabs, a filter field, three level pills and clear — with no grouping. | `dock::tab_row` | `01` |
-| D16 | *Fixed.* **The tree's connector rails were mono text.** `├─`/`└─`/`│ ` glyphs drift out of alignment with the 27 px rows and the depth indent. | `left::tree_row` | `01`, `03` |
-| D17 | *Fixed — fixed-width timestamps and padded tags in the mono face.* **The log's columns do not line up.** The severity mark, the timestamp, the `s`, and the tag each start where the last one ended. | `dock::output` | `01` |
 | D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.rn` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.rn`, `plugins.rn`, `editor/plugins/counter.rn` | `--state counterdemo` |
 | D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.rn` overwrites `S.compact` from the window width every frame. | `editor.rn:init`, `settings.rn` | any |
-| D21 | ~~**The shell's first frame is a corner pile-up.**~~ Fixed. The widget layer now draws before `draw_ui`, so a rect read back is this frame's; every shell box resolves from frame 3, which is the first frame that draws anything (frame 1 installs fonts, frame 2 sizes the tree). One blank frame at start, and none on a resize. | `balaur_ui/src/lib.rs`, `layout.rn` | `--frames 1` |
 | D22 | **Showcase clicks land off-target.** `showcase.rn` measures its spots off the pre-Stage shell (`ROW = 27` against the tree's 23 px rows, tabs at `y = 27`), so the drawn cursor misses the control the verb drives in every clip. | `showcase.rn` | `--state show:*` |
 | D23 | **`settings?<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.rn`, `search.rn` | `--state settings?theme` |
 | D24 | **A game asset that names another file does not draw in the mirror.** `absolute_files` walks the component table, so a `tilemap`'s inline tile set has its `texture` made absolute and draws; a tile set that is a *file* is read by the engine, whose root is the editor's, so the `texture` inside it resolves under `editor/` and the map draws nothing. The same shape reaches a `mesh` asset's `source` and any material naming a texture. Either the mirror's engine gets the game as a second root, or an asset file the game owns is mirrored as an inline definition with its references resolved. `docs/PLAN-tilemap.md` §4 blocks on this: a tileset document tab cannot read the asset itself the way the Tiles tool does. | `model::absolute_files`, `balaur_core::project::ProjectFiles` | `--state tool:tiles` on a map whose tile set is a file |
 
-That those four were one bug is the argument for the plan's §2. They were not
-four places drawing badly; they were one wrong rect, read by four consumers
-that each derived their own. Stage makes that class of bug the normal case,
-which is why one module owning every rect comes before anything else.
-
 ### Where the measurements live
 
-The shell was built from a prototype whose terracotta-and-sage tokens are
-gone: the token set is the website's ink-and-blue palette, in
-`editor/scripts/theme.rn`. The measurements it fixed — the dock heights, the
-84 px label column, the 999 px radii, the 1 px seams — live in the code that
-draws them, and D3, D4 and D5 are places that code has drifted off them.
-This file is the state of the world; the plan is where it is going.
+The token set is the website's ink-and-blue palette, in `editor/scripts/theme.rn`.
+The measurements — dock heights, the 84 px label column, the 999 px radii, the
+1 px seams — live in the code that draws them. This file is the state of the
+world; the plan is where it is going.

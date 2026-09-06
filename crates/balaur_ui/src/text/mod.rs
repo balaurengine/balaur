@@ -605,6 +605,47 @@ mod tests {
         (state, shaped)
     }
 
+    /// A face the machine happens to have must not change a measurement, or
+    /// two platforms answer differently and a width in state desyncs a replay.
+    #[test]
+    fn a_system_face_does_not_reach_a_measurement() {
+        let request = Request {
+            text: "measure me".into(),
+            size: 24.0,
+            weight: 400,
+            italic: false,
+            width: None,
+            align: Align::Start,
+            markup: false,
+            font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
+        };
+        // The project's face alone, and the same with a system face behind it.
+        let own = vec![faces()[0].clone()];
+        let mut with_system = own.clone();
+        with_system.push(crate::theme::FontFace {
+            name: "system:pretend".into(),
+            chain: "system",
+            bytes: std::sync::Arc::new(
+                include_bytes!("../../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
+            ),
+        });
+        let strict = TextState::new(&own, "en-US").measure(&request);
+        let loose = TextState::new(&with_system, "en-US").measure(&request);
+        assert_eq!(strict, loose, "a system face changed a measurement");
+    }
+
+    /// Two sizes a hair apart share a bucket, so the atlas holds one set of
+    /// glyphs for both and a zooming camera re-shapes rarely.
+    #[test]
+    fn near_sizes_land_in_one_bucket() {
+        assert_eq!(bucket(24.0), bucket(24.2));
+        assert!(bucket(24.0) >= 24.0, "a bucket never shrinks the text");
+        assert!(bucket(48.0) > bucket(24.0));
+    }
+
     /// The world reads the same pixels the widgets do, so the atlas has to
     /// hold them rather than hand them straight to egui.
     #[test]

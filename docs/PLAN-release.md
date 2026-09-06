@@ -52,8 +52,8 @@ what says which.
 2. `CHANGELOG.md`: rename `## Unreleased` to `## <version> — <date>` and open
    a fresh empty `Unreleased`. One line per feature; the reasoning lives in
    `ARCHITECTURE.md` and the plans, not here.
-3. `ARCHITECTURE.md`: strike from the roadmap table whatever the release
-   finished, and say the new version in the roadmap's opening.
+3. `docs/ROADMAP.md`: strike whatever the release finished, and say the new
+   version in its opening.
 4. The plan for anything finished loses the part that is now built, and is
    retired outright when nothing is left in it.
 5. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.

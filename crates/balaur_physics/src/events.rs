@@ -204,8 +204,8 @@ impl PhysicsHooks for Hooks {
     }
 }
 
-/// The direction a one-way platform lets bodies through from, when
-/// `collider1` is one.
+/// The direction a one-way platform lets bodies through from, whichever of
+/// the pair is the platform.
 ///
 /// The axis rides in the high bits of the collider's `user_data`, beside the
 /// entity id: a hook runs while `PhysicsState` is borrowed by the step, so it
@@ -213,6 +213,14 @@ impl PhysicsHooks for Hooks {
 /// because a platform's axis is a cardinal one in every game that has ever
 /// wanted this, and the encoding costs three bits.
 fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<crate::rapier3d::math::Vector> {
-    let collider = context.colliders.get(context.collider1)?;
-    crate::collider::decode_one_way(collider.user_data)
+    let first = context.colliders.get(context.collider1)?;
+    if let Some(axis) = crate::collider::decode_one_way(first.user_data) {
+        return Some(axis);
+    }
+    // The platform is the other collider: rapier reads the axis in the
+    // first's frame, so it turns into that frame and reverses.
+    let second = context.colliders.get(context.collider2)?;
+    let axis = crate::collider::decode_one_way(second.user_data)?;
+    let world = second.position().rotation * axis;
+    Some(-(first.position().rotation.inverse() * world))
 }

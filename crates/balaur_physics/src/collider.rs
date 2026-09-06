@@ -163,7 +163,13 @@ fn heightfield_collider(
     // The asset is f32; a f64 build widens each height here, once, on load.
     let heights: Vec<Real> = field.heights.iter().map(|h| scalar::real(*h)).collect();
     let grid = crate::rapier3d::parry::utils::Array2::new(field.rows, field.columns, heights);
-    Ok(ColliderBuilder::heightfield(grid, extent))
+    // The flag a trimesh gets by default, for the same reason: without it a
+    // character catches on the seam between two cells of flat ground.
+    let mut flags = crate::rapier3d::parry::shape::HeightFieldFlags::empty();
+    if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
+        flags |= crate::rapier3d::parry::shape::HeightFieldFlags::FIX_INTERNAL_EDGES;
+    }
+    Ok(ColliderBuilder::heightfield_with_flags(grid, extent, flags))
 }
 
 /// The collider described by `params`, in the `collider` schema's own

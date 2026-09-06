@@ -54,6 +54,9 @@ pub struct PhysicsState2d {
     /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
     pub sleeping_allowed: bool,
+    /// Bumped by every shape edit a script makes, as in 3D, so a dug voxel
+    /// grid reaches the digest.
+    pub shape_revision: u64,
 }
 
 impl PhysicsState2d {
@@ -73,6 +76,7 @@ impl PhysicsState2d {
             grounded: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
+            shape_revision: 0,
         }
     }
 }
@@ -229,6 +233,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         query::install_physics2d_pair_query_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
         character::install_character2d_api(&mut *m);
+        collider::install_voxel_2d_api(&mut *m);
     }
     body::register_body2d_component(reg);
     collider::register_collider2d_component(reg);
@@ -361,6 +366,15 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
         };
         let state = state.borrow();
         let world = eng.world();
+        // One row for the whole world's shape edits, as in 3D.
+        {
+            let mut h = Hasher::new();
+            h.write(&state.shape_revision.to_le_bytes());
+            out.push(Entry {
+                label: "physics2d/shapes".to_string(),
+                digest: h.finish(),
+            });
+        }
         for (&entity, &handle) in &state.bodies {
             let body = &state.world.bodies[handle];
             let v = body.linvel();

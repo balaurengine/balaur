@@ -37,6 +37,9 @@ balaur_ui = { workspace = true, optional = true }
 # Not optional: a sprite sized from its image puts that size in a component
 # scripts read, so a headless build has to compute it too.
 image = { version = "0.25", default-features = false, features = ["png"] }
+# Geometry only, never in a public signature: ARCHITECTURE.md "parry: geometry
+# every crate may use". `enhanced-determinism` is named, not inherited.
+parry3d = { version = "0.30", default-features = false, features = ["dim3", "f32", "std", "alloc", "enhanced-determinism"] }
 aseprite-loader = { version = "0.4", optional = true }
 # Not optional: linking a shader is CPU work, and `eval` validates one — and
 # asserts on a `@const` function — before naga and without a GPU, which is what

@@ -1,0 +1,103 @@
+# Text in the world, one row per thing it can do: a plain sign, a name that
+# faces you wherever you stand, an outline, a shadow, markup, a wrapped
+# paragraph, and a line whose words come from the project's strings.
+
+[[nodes]]
+id = "n_tour"
+name = "Tour"
+script = "scripts/tour.rn"
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "n_tour"
+position = [0.0, 3.2, 0.0]
+[nodes.text3d]
+text = "Text in the world"
+family = "heading"
+font_size = 96
+color = [0.96, 0.87, 0.62, 1.0]
+pixels_per_unit = 110
+outline_size = 3.0
+outline_color = [0.12, 0.09, 0.05, 1.0]
+
+# A sign sits in its own plane, like paint on a board.
+[[nodes]]
+id = "sign"
+name = "Sign"
+parent = "n_tour"
+position = [-3.4, 1.7, 0.0]
+[nodes.text3d]
+text = "a sign\nstays put"
+font_size = 52
+color = [0.72, 0.86, 0.98, 1.0]
+pixels_per_unit = 110
+billboard = false
+line_height = 1.15
+
+# A nameplate turns to the camera, so it reads from anywhere.
+[[nodes]]
+id = "nameplate"
+name = "Nameplate"
+parent = "n_tour"
+position = [3.4, 1.7, 0.0]
+[nodes.text3d]
+text = "a name\nfollows you"
+font_size = 52
+color = [0.68, 0.94, 0.76, 1.0]
+pixels_per_unit = 110
+line_height = 1.15
+
+[[nodes]]
+id = "shadowed"
+name = "Shadowed"
+parent = "n_tour"
+position = [0.0, 0.55, 0.0]
+[nodes.text3d]
+text = "a shadow behind it"
+font_size = 60
+color = [0.98, 0.98, 0.98, 1.0]
+pixels_per_unit = 110
+shadow_offset_x = 5.0
+shadow_offset_y = 5.0
+shadow_color = [0.0, 0.0, 0.0, 0.55]
+
+# Markup: the same tags a widget's label reads.
+[[nodes]]
+id = "marked"
+name = "Marked"
+parent = "n_tour"
+position = [0.0, -0.6, 0.0]
+[nodes.text3d]
+text = "[b]bold[/b], [i]italic[/i] and [color=#7fd4ff]colour[/color]"
+font_size = 46
+markup = true
+color = [0.88, 0.88, 0.92, 1.0]
+pixels_per_unit = 110
+
+# A paragraph wraps at max_width, in the mono chain.
+[[nodes]]
+id = "paragraph"
+name = "Paragraph"
+parent = "n_tour"
+position = [0.0, -2.1, 0.0]
+[nodes.text3d]
+text = "A block wraps at the width it is given, and the lines sit where the shaper put them."
+family = "mono"
+font_size = 34
+max_width = 620
+line_height = 1.35
+color = [0.74, 0.76, 0.84, 1.0]
+pixels_per_unit = 110
+
+# 2D text is sized like a sprite and lives in the 2D pass.
+[[nodes]]
+id = "flat"
+name = "Flat"
+parent = "n_tour"
+position = [0.0, -3.4, 0.0]
+[nodes.text2d]
+text = "text2d, in the 2D pass"
+font_size = 44
+color = [0.96, 0.74, 0.62, 1.0]
+pixels_per_unit = 110

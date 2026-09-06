@@ -9,108 +9,27 @@
 
 **A 2D &amp; 3D node-based game engine, fully deterministic, with scripts that reload in milliseconds.**
 
-Written in Rust. Fast to run, fast to iterate, easy to use — and one file to ship.
+Written in Rust. One file to ship.
 
-[**Read the docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap) · [Discord](https://discord.gg/v649emcpAu)
+[**Docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap) · [Discord](https://discord.gg/v649emcpAu)
 
 [![CI](https://github.com/balaurengine/balaur/actions/workflows/runner.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/runner.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Discord](https://img.shields.io/discord/1138836561102897172?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/v649emcpAu)
 
 </div>
 
-<table>
-<tr>
-<td width="33%" valign="top">
+## Features
 
-**Nodes and scenes**
-
-A game is a tree of named nodes with scripts attached. Scenes are plain TOML.
-
-</td>
-<td width="33%" valign="top">
-
-**Scripting in Rune**
-
-Rust's syntax, no build step, async/await, and a debugger in the editor.
-
-</td>
-<td width="33%" valign="top">
-
-**Instant hot reload**
-
-Save a script while the game runs: the new code is live in milliseconds, state intact.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**Determinism, always on**
-
-Same inputs, same bits on every platform. Record a session and replay it, network replies included.
-
-</td>
-<td valign="top">
-
-**2D and 3D physics**
-
-Rapier under both, stepped on a fixed 60 Hz tick, declared in scenes or driven from scripts.
-
-</td>
-<td valign="top">
-
-**Rendering**
-
-3D and 2D on wgpu: windowed, offscreen for screenshots and CI, or fully headless.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**Animation and skeletons**
-
-Clips and tweens, 2D bones with skinned polygons, 3D rigs from glTF, two-bone IK.
-
-</td>
-<td valign="top">
-
-**The editor**
-
-Itself a Balaur project: scene tree, inspector, gizmos, timeline, rig tools, play-in-editor.
-
-</td>
-<td valign="top">
-
-**Networking**
-
-HTTP and websockets with compression, delivered into the simulation once per tick.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**Every platform**
-
-Windows, macOS and Linux today; iOS, Android and the web are cross-compiled in CI on every push.
-
-</td>
-<td valign="top">
-
-**One file to ship**
-
-Export fuses bytecode, scenes and assets onto the runtime: one self-contained binary per target, nothing to install.
-
-</td>
-<td valign="top">
-
-**Built on Rust**
-
-Safe Rust, with `unsafe` only at the platform edges, and the ecosystem as it is: Rapier, wgpu, egui, rodio, Rune.
-
-</td>
-</tr>
-</table>
+- **Nodes and scenes** — a tree of named nodes with scripts attached; scenes are plain TOML.
+- **Rune scripting** — Rust's syntax, no build step, async/await, debugger in the editor.
+- **Hot reload** — save a script while the game runs; live in milliseconds, state intact.
+- **Determinism** — same inputs, same bits, every platform. Record a session and replay it.
+- **Physics** — Rapier in 2D and 3D, stepped on a fixed 60 Hz tick.
+- **Rendering** — wgpu: windowed, offscreen for CI screenshots, or headless.
+- **Animation** — clips and tweens, 2D bones with skinned polygons, glTF rigs, two-bone IK.
+- **Editor** — itself a Balaur project: scene tree, inspector, gizmos, timeline, play-in-editor.
+- **Networking** — HTTP, WebSocket and WebTransport, delivered into the simulation once per tick.
+- **Platforms** — Windows, macOS, Linux; iOS, Android and web cross-compiled in CI on every push.
+- **Export** — one self-contained binary per target: bytecode, scenes and assets fused onto the runtime.
 
 ## Quickstart
 
@@ -122,15 +41,10 @@ cargo build --release -p balaur_cli                           # the runtime a ga
 cargo run -p balaur_cli -- export my-game --template target/release/balaur
 ```
 
-To see hot reload, run `cargo run -p balaur_cli -- run examples/hello
---headless` and edit `examples/hello/scripts/spinner.rn` while it goes: the
-change is live the moment you save, state intact.
-[Getting started](https://balaurengine.org/docs/getting-started) has the rest —
-run modes, every command, the example projects, benchmarks.
+Hot reload: run `cargo run -p balaur_cli -- run examples/hello --headless` and edit
+`examples/hello/scripts/spinner.rn` while it goes.
 
-## What a game looks like
-
-Scenes are declarative TOML, and plugins extend their vocabulary:
+## A scene and a script
 
 ```toml
 # scenes/main.toml
@@ -142,8 +56,6 @@ body3d = "dynamic"                                # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
 shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
 ```
-
-Scripts are Rune, attached to a node, with lifecycle methods:
 
 ```rust
 // scripts/ball.rn
@@ -159,27 +71,32 @@ pub fn update(this, dt) {                         // per frame; fixed_update is 
 
 ## Documentation
 
-The docs live at [balaurengine.org](https://balaurengine.org):
-
-- [Getting started](https://balaurengine.org/docs/getting-started) — build it, the CLI, the examples
-- [Manual](https://balaurengine.org/docs/manual/scenes) — scenes, scripting, physics, animation, input, networking, the editor, shipping
-- [Reference](https://balaurengine.org/docs/reference) — every script module, function, constant and scene component
-- [Architecture](https://balaurengine.org/docs/architecture) · [Principles](https://balaurengine.org/docs/principles) · [Roadmap](https://balaurengine.org/docs/roadmap) · [Changelog](https://balaurengine.org/docs/changelog)
+At [balaurengine.org](https://balaurengine.org):
+[getting started](https://balaurengine.org/docs/getting-started) ·
+[manual](https://balaurengine.org/docs/manual/scenes) ·
+[reference](https://balaurengine.org/docs/reference) ·
+[architecture](https://balaurengine.org/docs/architecture) ·
+[roadmap](https://balaurengine.org/docs/roadmap) ·
+[changelog](https://balaurengine.org/docs/changelog)
 
 In this repository:
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — every decision and why, hand-written
-- [docs/DETERMINISM.md](docs/DETERMINISM.md) — writing a game that reproduces, and the record/replay tools for when it does not
-- [docs/QUALITY.md](docs/QUALITY.md) — every check a change passes, and what enforces it
-- [docs/NAMING.md](docs/NAMING.md) — what every name means and the rules new ones follow; it governs the other docs
-- [docs/generated/](docs/generated/) — the script API, components, assets, crates and behaviour, written by `python3 scripts/gen_docs.py`; CI fails on drift
-- [docs/PLAN-*.md](docs/) — the plan behind each subsystem
+| File | What it holds |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | every decision |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what the engine does not do yet, by tier |
+| [docs/DETERMINISM.md](docs/DETERMINISM.md) | writing a game that reproduces; record and replay |
+| [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
+| [docs/NAMING.md](docs/NAMING.md) | the naming rules; governs the other docs |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics and node timings against Godot |
+| [docs/generated/](docs/generated/) | script API, components, assets, crates; written by `scripts/gen_docs.py` |
+| [docs/PLAN-*.md](docs/) | the plan behind each subsystem |
 
 ## Community
 
-- [Discord](https://discord.gg/v649emcpAu) — questions, help, and chat about what you are building
-- [Discussions](https://github.com/balaurengine/balaur/discussions) — proposals and longer threads
-- [Issues](https://github.com/balaurengine/balaur/issues) — bugs and feature requests
+[Discord](https://discord.gg/v649emcpAu) ·
+[Discussions](https://github.com/balaurengine/balaur/discussions) ·
+[Issues](https://github.com/balaurengine/balaur/issues)
 
 ## Contributing
 

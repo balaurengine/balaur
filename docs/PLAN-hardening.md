@@ -256,6 +256,6 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
   pads and `reset_bindings`; **PLAN-networking.md** the liveness and journal
   bounds; **PLAN-ui-layout.md** and **PLAN-editor-as-scene.md** close when the
   shell tree lands, and phase 5 is what they leave behind.
-- The website's roadmap gains the twin of the ARCHITECTURE row this plan
+- The website's roadmap gains the twin of the `docs/ROADMAP.md` row this plan
   adds, and its Crates page loses the word Lua with the input crate's
   description.

@@ -1,7 +1,5 @@
-# The 2D primitives and booleans, drawn over their own 2D camera. The tour
-# instantiates this under World at run time and shows the group only at its
-# last pose: a 2D layer draws over every 3D view, and a 2D component in
-# main.toml would make the editor treat the whole scene as 2D.
+# Instanced at run time, not from main.toml: a 2D component there would make
+# the editor treat the whole scene as 2D.
 [[nodes]]
 id = "n_camera2d"
 name = "Camera2D"

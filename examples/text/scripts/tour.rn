@@ -1,0 +1,33 @@
+// The camera walks a slow arc so the billboard turns and the sign does not,
+// and the score counts up through `render.set_text`.
+
+const ARC = 3.2;
+const HEIGHT = 0.9;
+const RADIUS = 11.0;
+
+pub fn init(this) {
+    render::set_background(0.09, 0.10, 0.14);
+    this.score = 0;
+    this.at = 0.0;
+}
+
+pub fn update(this, dt) {
+    // A quarter turn either side of centre, so both faces are seen.
+    this.at += dt * 0.35;
+    let angle = math::sin(this.at) * (ARC / 8.0);
+    let x = math::sin(angle) * RADIUS;
+    let z = math::cos(angle) * RADIUS;
+    render::set_camera(x, HEIGHT, z, 0.0, HEIGHT, 0.0);
+
+    // A score on a sign: the node keeps its style, the script the number.
+    this.score += 1;
+    let node = scene::get_node("Tour/Nameplate");
+    if node is balaur::Node {
+        render::set_text(node, format!("a name\nfollows you · {}", this.score / 60));
+    }
+
+    // The immediate calls need no node: a label for one frame, over the floor.
+    render::draw_text(0.0, -4.4, 0.0, "drawn for one frame, from a script", #{
+        size: 32.0, color: [0.55, 0.58, 0.68], align: "center", pixels_per_unit: 110.0,
+    });
+}

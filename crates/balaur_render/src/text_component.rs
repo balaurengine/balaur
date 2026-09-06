@@ -391,8 +391,10 @@ pub(crate) fn sync_text(
     for (entity, text, resolved) in &wanted {
         match crate::world_text::shape(&app.engine, resolved, &text.style) {
             Ok(block) => blocks.push(Some(block)),
+            // The fonts install on the first UI pass, later in this frame:
+            // said once, since the frame after it draws.
             Err(err) => {
-                tracing::warn!("text on a node: {err:#}");
+                crate::world_text::warn_once(&err);
                 blocks.push(None);
             }
         }
@@ -427,9 +429,10 @@ pub(crate) fn sync_text(
             shaped: resolved,
         };
         // Shadow, outline and text: a node each, drawn in that order.
-        for (layer, (shifts, [r, g, b, a])) in crate::world_text::layers(&text.style)
-            .into_iter()
-            .enumerate()
+        for (layer, (shifts, [r, g, b, a], picks)) in
+            crate::world_text::layers(&block, &text.style)
+                .into_iter()
+                .enumerate()
         {
             let tint = kiss3d::color::Color::new(r, g, b, a);
             if text.in_3d {
@@ -438,6 +441,7 @@ pub(crate) fn sync_text(
                     scale,
                     text.style.align,
                     &shifts,
+                    &picks,
                     crate::world_text::depth_of(layer),
                 ) {
                     let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
@@ -447,7 +451,7 @@ pub(crate) fn sync_text(
                     slot.three_d.push(node);
                 }
             } else if let Some(mesh) =
-                crate::world_text::mesh_2d(&block, scale, text.style.align, &shifts)
+                crate::world_text::mesh_2d(&block, scale, text.style.align, &shifts, &picks)
             {
                 let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
                 node.set_texture(texture.clone());

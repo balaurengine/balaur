@@ -10,7 +10,7 @@ Two severities:
          or an AI pass confirms them. Failing the build on a heuristic teaches
          people to game the heuristic.
 
-The naming rules (docs/NAMING.md §3, §6) live here too: they are Rust-side and
+The naming rules (docs/NAMING.md) live here too: they are Rust-side and
 mechanical. Their script-API siblings are in scripts/api_lints.py, which reads
 a booted engine instead of the source.
 
@@ -277,7 +277,7 @@ def first_param(sig: str) -> str:
 
 
 def noted_at_declaration(lines: list[str], idx: int, needle: str) -> bool:
-    """NAMING.md Table A's escape hatch: "note that at the declaration".
+    """N10's escape hatch: a departure noted at the declaration.
 
     `install_engine_api(eng: &Engine)` and `install_ui_api(app: &mut App)` are
     both sanctioned departures, and both say so in a doc line that names the

@@ -397,11 +397,19 @@ mod backend {
     /// The copies of a block that draw together, back to front: the shadow,
     /// the outline's ring, then the text. Each is one mesh under one colour,
     /// because a mesh carries no per-vertex tint.
-    pub(crate) fn layers(style: &super::TextStyle) -> Vec<(Vec<[f32; 2]>, [f32; 4])> {
+    pub(crate) fn layers(
+        shaped: &Shaped,
+        style: &super::TextStyle,
+    ) -> Vec<(Vec<[f32; 2]>, [f32; 4], Vec<usize>)> {
+        let all: Vec<usize> = (0..shaped.quads.len()).collect();
         let mut out = Vec::new();
         let decoration = &style.decoration;
         if decoration.shadow_offset != [0.0, 0.0] {
-            out.push((vec![decoration.shadow_offset], decoration.shadow_color));
+            out.push((
+                vec![decoration.shadow_offset],
+                decoration.shadow_color,
+                all.clone(),
+            ));
         }
         if decoration.outline_size > 0.0 {
             let r = decoration.outline_size;
@@ -420,10 +428,37 @@ mod backend {
             out.push((
                 ring.iter().map(|(x, y)| [x * r, y * r]).collect(),
                 decoration.outline_color,
+                all.clone(),
             ));
         }
-        out.push((vec![[0.0, 0.0]], style.color));
+        // The text itself, one layer per colour the markup asked for: a mesh
+        // carries one colour, so a coloured word is its own draw.
+        for (color, picks) in colour_groups(shaped, style.color) {
+            out.push((vec![[0.0, 0.0]], color, picks));
+        }
         out
+    }
+
+    /// The quads grouped by the colour they draw in: the markup's where it set
+    /// one, the block's otherwise.
+    fn colour_groups(shaped: &Shaped, base: [f32; 4]) -> Vec<([f32; 4], Vec<usize>)> {
+        let mut groups: Vec<([f32; 4], Vec<usize>)> = Vec::new();
+        for (index, quad) in shaped.quads.iter().enumerate() {
+            let color = match quad.color {
+                // A colour bitmap carries its own; tinting would wash it out.
+                Some(_) | None if quad.colored => [1.0, 1.0, 1.0, base[3]],
+                Some(marked) => {
+                    let c = marked.to_normalized_gamma_f32();
+                    [c[0], c[1], c[2], c[3] * base[3]]
+                }
+                None => base,
+            };
+            match groups.iter_mut().find(|(known, _)| *known == color) {
+                Some((_, picks)) => picks.push(index),
+                None => groups.push((color, vec![index])),
+            }
+        }
+        groups
     }
 
     /// The quads of a shaped block as one mesh, once per offset in `shifts`,
@@ -436,17 +471,18 @@ mod backend {
         scale: f32,
         align: super::Align,
         shifts: &[[f32; 2]],
+        picks: &[usize],
     ) -> Option<Geometry> {
-        if shaped.quads.is_empty() || shifts.is_empty() {
+        if picks.is_empty() || shifts.is_empty() {
             return None;
         }
         let at = origin(shaped, align);
-        let room = shaped.quads.len() * 4 * shifts.len();
+        let room = picks.len() * 4 * shifts.len();
         let mut coords = Vec::with_capacity(room);
         let mut uvs = Vec::with_capacity(room);
-        let mut faces = Vec::with_capacity(shaped.quads.len() * 2 * shifts.len());
+        let mut faces = Vec::with_capacity(picks.len() * 2 * shifts.len());
         for shift in shifts {
-            for quad in &shaped.quads {
+            for quad in picks.iter().filter_map(|i| shaped.quads.get(*i)) {
                 let base = u32::try_from(coords.len()).ok()?;
                 let x0 = (quad.rect.min.x + at.x + shift[0]) * scale;
                 let x1 = (quad.rect.max.x + at.x + shift[0]) * scale;
@@ -479,8 +515,9 @@ mod backend {
         scale: f32,
         align: super::Align,
         shifts: &[[f32; 2]],
+        picks: &[usize],
     ) -> Option<Rc<RefCell<GpuMesh2d>>> {
-        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts)?;
+        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts, picks)?;
         Some(Rc::new(RefCell::new(GpuMesh2d::new(
             coords,
             faces,
@@ -499,9 +536,10 @@ mod backend {
         scale: f32,
         align: super::Align,
         shifts: &[[f32; 2]],
+        picks: &[usize],
         depth: f32,
     ) -> Option<Rc<RefCell<GpuMesh3d>>> {
-        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts)?;
+        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts, picks)?;
         let coords = coords
             .iter()
             .map(|p| glamx::Vec3::new(p.x, p.y, depth))
@@ -555,7 +593,7 @@ pub(crate) fn depth_of(layer: usize) -> f32 {
 /// Report a missing shaper once: it is a boot condition on the first frame
 /// and a missing plugin forever after, and neither wants a line per call.
 #[cfg(feature = "kiss3d")]
-fn warn_once(err: &anyhow::Error) {
+pub(crate) fn warn_once(err: &anyhow::Error) {
     thread_local! {
         static SAID: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
@@ -640,10 +678,18 @@ pub(crate) fn flush(
         let scale = bucket_ratio(&item.style) / item.pixels_per_unit;
         // Shadow, outline and text: each is a node, because a mesh carries
         // one colour and they are drawn in that order.
-        for (layer, (shifts, [r, g, b, a])) in layers(&item.style).into_iter().enumerate() {
+        for (layer, (shifts, [r, g, b, a], picks)) in
+            layers(&block, &item.style).into_iter().enumerate()
+        {
             if item.in_3d {
-                let Some(mesh) = mesh_3d(&block, scale, item.style.align, &shifts, depth_of(layer))
-                else {
+                let Some(mesh) = mesh_3d(
+                    &block,
+                    scale,
+                    item.style.align,
+                    &shifts,
+                    &picks,
+                    depth_of(layer),
+                ) else {
                     continue;
                 };
                 let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
@@ -652,7 +698,7 @@ pub(crate) fn flush(
                 node.set_color(Color::new(r, g, b, a));
                 transients.three_d.push(node);
             } else {
-                let Some(mesh) = mesh_2d(&block, scale, item.style.align, &shifts) else {
+                let Some(mesh) = mesh_2d(&block, scale, item.style.align, &shifts, &picks) else {
                     continue;
                 };
                 let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);

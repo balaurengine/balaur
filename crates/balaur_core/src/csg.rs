@@ -2,11 +2,10 @@
 //!
 //! A BSP tree over the faces, the algorithm every CSG library is a variant
 //! of: each solid's faces are clipped against the other's tree until only
-//! the ones the operation keeps are left. Written out rather than taken from
-//! a crate for two reasons. The candidates reach for parry, which core does
-//! not depend on and should not learn to. And a BSP is dot products, lerps
-//! and comparisons with no transcendental anywhere, so the result is the
-//! same on every platform without pinning anything to `libm`.
+//! the ones the operation keeps are left. Written out because parry offers
+//! `intersect_meshes` and nothing else -- no union, no difference -- and
+//! because a BSP is dot products, lerps and comparisons with no
+//! transcendental anywhere, so the result is the same on every platform.
 
 use crate::mesh::MeshData;
 use glamx::Vec3;
