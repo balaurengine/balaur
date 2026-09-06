@@ -177,7 +177,10 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         k::OUTLINE_SIZE,
         toml::Value::Float(f64::from(decoration.outline_size)),
     );
-    put(k::OUTLINE_COLOR, crate::color_to_toml(decoration.outline_color));
+    put(
+        k::OUTLINE_COLOR,
+        crate::color_to_toml(decoration.outline_color),
+    );
     put(
         k::SHADOW_OFFSET_X,
         toml::Value::Float(f64::from(decoration.shadow_offset[0])),
@@ -186,7 +189,10 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         k::SHADOW_OFFSET_Y,
         toml::Value::Float(f64::from(decoration.shadow_offset[1])),
     );
-    put(k::SHADOW_COLOR, crate::color_to_toml(decoration.shadow_color));
+    put(
+        k::SHADOW_COLOR,
+        crate::color_to_toml(decoration.shadow_color),
+    );
     put(
         k::PIXELS_PER_UNIT,
         toml::Value::Float(f64::from(text.pixels_per_unit)),
@@ -309,12 +315,26 @@ pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
 /// One node's mesh and what it was built from.
 #[cfg(feature = "kiss3d")]
 pub(crate) struct TextSlot {
-    two_d: Option<kiss3d::scene::SceneNode2d>,
-    three_d: Option<kiss3d::scene::SceneNode3d>,
+    /// One node per layer: shadow, outline, then the text itself.
+    two_d: Vec<kiss3d::scene::SceneNode2d>,
+    three_d: Vec<kiss3d::scene::SceneNode3d>,
     version: u64,
     /// The string last shaped, so a `text_key` that resolves differently
     /// after a language change rebuilds without the component moving.
     shaped: String,
+}
+
+impl TextSlot {
+    /// Drop every node this slot made.
+    #[cfg(feature = "kiss3d")]
+    fn detach(&mut self) {
+        for mut node in self.two_d.drain(..) {
+            node.detach();
+        }
+        for mut node in self.three_d.drain(..) {
+            node.detach();
+        }
+    }
 }
 
 /// Mirror every `text2d` and `text3d` node as a mesh over the shaper's atlas.
@@ -374,12 +394,7 @@ pub(crate) fn sync_text(
 
     for ((entity, text, resolved), block) in wanted.into_iter().zip(blocks) {
         if let Some(mut old) = slots.remove(&entity) {
-            if let Some(mut node) = old.two_d.take() {
-                node.detach();
-            }
-            if let Some(mut node) = old.three_d.take() {
-                node.detach();
-            }
+            old.detach();
         }
         let Some(block) = block else { continue };
         let Some(texture) = texture.clone() else {
@@ -387,24 +402,40 @@ pub(crate) fn sync_text(
         };
         let scale = 1.0 / text.pixels_per_unit;
         let mut slot = TextSlot {
-            two_d: None,
-            three_d: None,
+            two_d: Vec::new(),
+            three_d: Vec::new(),
             version: text.version,
             shaped: resolved,
         };
-        if text.in_3d {
-            if let Some(mesh) = crate::world_text::mesh_3d(&block, scale, text.style.align) {
-                let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
-                node.set_texture(texture);
-                node.enable_backface_culling(!text.in_space.double_sided);
-                slot.three_d = Some(node);
+        // Shadow, outline and text: a node each, drawn in that order.
+        for (layer, (shifts, [r, g, b, a])) in crate::world_text::layers(&text.style)
+            .into_iter()
+            .enumerate()
+        {
+            let tint = kiss3d::color::Color::new(r, g, b, a);
+            if text.in_3d {
+                if let Some(mesh) = crate::world_text::mesh_3d(
+                    &block,
+                    scale,
+                    text.style.align,
+                    &shifts,
+                    crate::world_text::depth_of(layer),
+                ) {
+                    let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
+                    node.set_texture(texture.clone());
+                    node.enable_backface_culling(!text.in_space.double_sided);
+                    node.set_color(tint);
+                    slot.three_d.push(node);
+                }
+            } else if let Some(mesh) =
+                crate::world_text::mesh_2d(&block, scale, text.style.align, &shifts)
+            {
+                let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
+                node.set_texture(texture.clone());
+                node.set_color(tint);
+                slot.two_d.push(node);
             }
-        } else if let Some(mesh) = crate::world_text::mesh_2d(&block, scale, text.style.align) {
-            let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
-            node.set_texture(texture);
-            slot.two_d = Some(node);
         }
-        let _ = &mut slot;
         slots.insert(entity, slot);
     }
 
@@ -420,7 +451,6 @@ fn place(
     seen: &std::collections::HashSet<Entity>,
 ) {
     use balaur_core::{GlobalAppearance, GlobalTransform};
-    use kiss3d::color::Color;
 
     // Where the eye is, for the blocks that face it.
     let eye = app
@@ -435,12 +465,7 @@ fn place(
     let world = app.engine.world();
     slots.retain(|entity, slot| {
         if !seen.contains(entity) {
-            if let Some(mut node) = slot.two_d.take() {
-                node.detach();
-            }
-            if let Some(mut node) = slot.three_d.take() {
-                node.detach();
-            }
+            slot.detach();
             return false;
         }
         let Ok(global) = world.get::<&GlobalTransform>(*entity) else {
@@ -449,32 +474,26 @@ fn place(
         let Ok(text) = world.get::<&TextRenderable>(*entity) else {
             return true;
         };
-        let [r, g, b, a] = text.style.color;
-        let tint = Color::new(r, g, b, a);
         let visible = world
             .get::<&GlobalAppearance>(*entity)
             .is_ok_and(|a| a.visible);
-        if let Some(node) = &mut slot.two_d {
+        let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+        for node in &mut slot.two_d {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
-            let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
             node.set_rotation(angle);
-            node.set_color(tint);
             node.set_visible(visible);
         }
-        if let Some(node) = &mut slot.three_d {
+        // A billboard turns to the eye every frame; otherwise the block sits
+        // in the node's own plane, like a sign painted on a wall.
+        let turned = if text.in_space.billboard {
+            eye.map_or(global.rotation, |eye| facing(eye - global.position))
+        } else {
+            global.rotation
+        };
+        for node in &mut slot.three_d {
             node.set_position(global.position);
-            node.set_color(tint);
             node.set_visible(visible);
-            // A billboard turns to the eye every frame; otherwise the block
-            // sits in the node's own plane, like a sign painted on a wall.
-            node.set_rotation(if text.in_space.billboard {
-                match eye {
-                    Some(eye) => facing(eye - global.position),
-                    None => global.rotation,
-                }
-            } else {
-                global.rotation
-            });
+            node.set_rotation(turned);
         }
         true
     });

@@ -43,35 +43,6 @@ impl Default for Decoration {
     }
 }
 
-impl Decoration {
-    /// Where each extra copy of the block goes and what colour it is, behind
-    /// to in front. Empty when neither is asked for.
-    pub(crate) fn passes(&self) -> Vec<([f32; 2], [f32; 4])> {
-        let mut out = Vec::new();
-        if self.shadow_offset != [0.0, 0.0] {
-            out.push((self.shadow_offset, self.shadow_color));
-        }
-        if self.outline_size > 0.0 {
-            let r = self.outline_size;
-            // The eight neighbours: a ring reads as an outline where four
-            // leaves the diagonals thin.
-            for (x, y) in [
-                (-1.0, -1.0),
-                (0.0, -1.0),
-                (1.0, -1.0),
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (-1.0, 1.0),
-                (0.0, 1.0),
-                (1.0, 1.0),
-            ] {
-                out.push(([x * r, y * r], self.outline_color));
-            }
-        }
-        out
-    }
-}
-
 /// What a caller asks for, in the words `label` already uses.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
@@ -217,8 +188,10 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
                 if let Value::List(items) = value
                     && items.len() >= 2
                 {
-                    style.decoration.shadow_offset =
-                        [number(&items[0]).unwrap_or(0.0), number(&items[1]).unwrap_or(0.0)];
+                    style.decoration.shadow_offset = [
+                        number(&items[0]).unwrap_or(0.0),
+                        number(&items[1]).unwrap_or(0.0),
+                    ];
                 }
             }
             "color" => style.color = crate::draw_2d::color_of(value)?,
@@ -236,7 +209,7 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 }
 
 #[cfg(feature = "kiss3d")]
-pub(crate) use backend::{atlas_texture, mesh_2d, mesh_3d, shape};
+pub(crate) use backend::{atlas_texture, layers, mesh_2d, mesh_3d, shape};
 
 #[cfg(feature = "kiss3d")]
 mod backend {
@@ -342,40 +315,81 @@ mod backend {
     /// from, and the 3D one lifts into its plane.
     type Geometry = (Vec<Vec2>, Vec<[u32; 3]>, Vec<Vec2>);
 
-    /// The quads of a shaped block as one mesh, in units of `scale` per pixel.
+    /// The copies of a block that draw together, back to front: the shadow,
+    /// the outline's ring, then the text. Each is one mesh under one colour,
+    /// because a mesh carries no per-vertex tint.
+    pub(crate) fn layers(style: &super::TextStyle) -> Vec<(Vec<[f32; 2]>, [f32; 4])> {
+        let mut out = Vec::new();
+        let decoration = &style.decoration;
+        if decoration.shadow_offset != [0.0, 0.0] {
+            out.push((vec![decoration.shadow_offset], decoration.shadow_color));
+        }
+        if decoration.outline_size > 0.0 {
+            let r = decoration.outline_size;
+            // The eight neighbours: a ring reads as an outline where four
+            // leaves the diagonals thin.
+            let ring = [
+                (-1.0, -1.0),
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (-1.0, 0.0),
+                (1.0, 0.0),
+                (-1.0, 1.0),
+                (0.0, 1.0),
+                (1.0, 1.0),
+            ];
+            out.push((
+                ring.iter().map(|(x, y)| [x * r, y * r]).collect(),
+                decoration.outline_color,
+            ));
+        }
+        out.push((vec![[0.0, 0.0]], style.color));
+        out
+    }
+
+    /// The quads of a shaped block as one mesh, once per offset in `shifts`,
+    /// in units of `scale` per pixel.
     ///
     /// `None` when the block has no inked glyph — a blank line, or text whose
     /// every character is a space.
-    fn geometry(shaped: &Shaped, scale: f32, align: super::Align) -> Option<Geometry> {
-        if shaped.quads.is_empty() {
+    fn geometry(
+        shaped: &Shaped,
+        scale: f32,
+        align: super::Align,
+        shifts: &[[f32; 2]],
+    ) -> Option<Geometry> {
+        if shaped.quads.is_empty() || shifts.is_empty() {
             return None;
         }
         let at = origin(shaped, align);
-        let mut coords = Vec::with_capacity(shaped.quads.len() * 4);
-        let mut uvs = Vec::with_capacity(shaped.quads.len() * 4);
-        let mut faces = Vec::with_capacity(shaped.quads.len() * 2);
-        for quad in &shaped.quads {
-            let base = u32::try_from(coords.len()).ok()?;
-            let x0 = (quad.rect.min.x + at.x) * scale;
-            let x1 = (quad.rect.max.x + at.x) * scale;
-            // Down the block is down the screen and *down* in the world too,
-            // so the block's top is the largest y.
-            let y0 = (at.y - quad.rect.min.y) * scale;
-            let y1 = (at.y - quad.rect.max.y) * scale;
-            coords.extend_from_slice(&[
-                Vec2::new(x0, y1),
-                Vec2::new(x1, y1),
-                Vec2::new(x1, y0),
-                Vec2::new(x0, y0),
-            ]);
-            uvs.extend_from_slice(&[
-                Vec2::new(quad.uv.min.x, quad.uv.max.y),
-                Vec2::new(quad.uv.max.x, quad.uv.max.y),
-                Vec2::new(quad.uv.max.x, quad.uv.min.y),
-                Vec2::new(quad.uv.min.x, quad.uv.min.y),
-            ]);
-            faces.push([base, base + 1, base + 2]);
-            faces.push([base, base + 2, base + 3]);
+        let room = shaped.quads.len() * 4 * shifts.len();
+        let mut coords = Vec::with_capacity(room);
+        let mut uvs = Vec::with_capacity(room);
+        let mut faces = Vec::with_capacity(shaped.quads.len() * 2 * shifts.len());
+        for shift in shifts {
+            for quad in &shaped.quads {
+                let base = u32::try_from(coords.len()).ok()?;
+                let x0 = (quad.rect.min.x + at.x + shift[0]) * scale;
+                let x1 = (quad.rect.max.x + at.x + shift[0]) * scale;
+                // Down the block is down the screen and *down* in the world
+                // too, so the block's top is the largest y.
+                let y0 = (at.y - quad.rect.min.y - shift[1]) * scale;
+                let y1 = (at.y - quad.rect.max.y - shift[1]) * scale;
+                coords.extend_from_slice(&[
+                    Vec2::new(x0, y1),
+                    Vec2::new(x1, y1),
+                    Vec2::new(x1, y0),
+                    Vec2::new(x0, y0),
+                ]);
+                uvs.extend_from_slice(&[
+                    Vec2::new(quad.uv.min.x, quad.uv.max.y),
+                    Vec2::new(quad.uv.max.x, quad.uv.max.y),
+                    Vec2::new(quad.uv.max.x, quad.uv.min.y),
+                    Vec2::new(quad.uv.min.x, quad.uv.min.y),
+                ]);
+                faces.push([base, base + 1, base + 2]);
+                faces.push([base, base + 2, base + 3]);
+            }
         }
         Some((coords, faces, uvs))
     }
@@ -385,8 +399,9 @@ mod backend {
         shaped: &Shaped,
         scale: f32,
         align: super::Align,
+        shifts: &[[f32; 2]],
     ) -> Option<Rc<RefCell<GpuMesh2d>>> {
-        let (coords, faces, uvs) = geometry(shaped, scale, align)?;
+        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts)?;
         Some(Rc::new(RefCell::new(GpuMesh2d::new(
             coords,
             faces,
@@ -396,15 +411,21 @@ mod backend {
     }
 
     /// The same block as a 3D mesh in the node's xy plane, facing +z.
+    ///
+    /// `depth` lifts the whole block along its own +z, which is towards the
+    /// camera once a billboard has turned: the layers are coplanar otherwise
+    /// and the depth test picks between them at random.
     pub(crate) fn mesh_3d(
         shaped: &Shaped,
         scale: f32,
         align: super::Align,
+        shifts: &[[f32; 2]],
+        depth: f32,
     ) -> Option<Rc<RefCell<GpuMesh3d>>> {
-        let (coords, faces, uvs) = geometry(shaped, scale, align)?;
+        let (coords, faces, uvs) = geometry(shaped, scale, align, shifts)?;
         let coords = coords
             .iter()
-            .map(|p| glamx::Vec3::new(p.x, p.y, 0.0))
+            .map(|p| glamx::Vec3::new(p.x, p.y, depth))
             .collect();
         let normals = vec![glamx::Vec3::new(0.0, 0.0, 1.0); uvs.len()];
         Some(Rc::new(RefCell::new(GpuMesh3d::new(
@@ -415,6 +436,13 @@ mod backend {
             false,
         ))))
     }
+}
+
+/// How far in front of the layer behind it each layer sits. Small enough to
+/// read as one block, large enough for the depth buffer to tell them apart.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn depth_of(layer: usize) -> f32 {
+    layer as f32 * 0.001
 }
 
 /// Report a missing shaper once: it is a boot condition on the first frame
@@ -503,25 +531,29 @@ pub(crate) fn flush(
     for (item, block) in items.iter().zip(shaped) {
         let Some(block) = block else { continue };
         let scale = 1.0 / item.pixels_per_unit;
-        let [r, g, b, a] = item.style.color;
-        if item.in_3d {
-            let Some(mesh) = mesh_3d(&block, scale, item.style.align) else {
-                continue;
-            };
-            let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
-            node.set_texture(texture.clone());
-            node.set_position(glamx::Vec3::new(item.at[0], item.at[1], item.at[2]));
-            node.set_color(Color::new(r, g, b, a));
-            transients.three_d.push(node);
-        } else {
-            let Some(mesh) = mesh_2d(&block, scale, item.style.align) else {
-                continue;
-            };
-            let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
-            node.set_texture(texture.clone());
-            node.set_position(glamx::Vec2::new(item.at[0], item.at[1]));
-            node.set_color(Color::new(r, g, b, a));
-            transients.two_d.push(node);
+        // Shadow, outline and text: each is a node, because a mesh carries
+        // one colour and they are drawn in that order.
+        for (layer, (shifts, [r, g, b, a])) in layers(&item.style).into_iter().enumerate() {
+            if item.in_3d {
+                let Some(mesh) = mesh_3d(&block, scale, item.style.align, &shifts, depth_of(layer))
+                else {
+                    continue;
+                };
+                let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
+                node.set_texture(texture.clone());
+                node.set_position(glamx::Vec3::new(item.at[0], item.at[1], item.at[2]));
+                node.set_color(Color::new(r, g, b, a));
+                transients.three_d.push(node);
+            } else {
+                let Some(mesh) = mesh_2d(&block, scale, item.style.align, &shifts) else {
+                    continue;
+                };
+                let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
+                node.set_texture(texture.clone());
+                node.set_position(glamx::Vec2::new(item.at[0], item.at[1]));
+                node.set_color(Color::new(r, g, b, a));
+                transients.two_d.push(node);
+            }
         }
     }
 }
