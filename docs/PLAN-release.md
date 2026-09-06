@@ -1,21 +1,35 @@
 > **Status:** partly built. Written 2026-09-02. The `nightly` prerelease on
 > every push to main, tagged drafts, `balaur update`, runtime templates and
 > the export paths exist, and the website's Download page and web editor
-> follow the nightly until a version is tagged (2026-09-05). What does not
-> exist is a signed, notarized, published build.
+> follow the nightly until a version is tagged (2026-09-05).
+>
+> 2026-09-06: the macOS download is `Balaur.app` in a signed, notarized
+> `.dmg` (`scripts/macos_bundle.sh`). Apple accepted a real build, the ticket
+> staples, and Gatekeeper answers "Notarized Developer ID" for both the disk
+> image and the bundle inside it. What has not run is the CI job that does
+> this on a push. Windows signing is written (`scripts/windows_sign.sh`) and
+> waits on a certificate: Artifact Signing's identity validation is a portal
+> request a person makes, and until it clears the download stays unsigned.
 
 # Plan: binary releases
 
 ## Binary releases
 
 What "released" means here: a download per platform from the website that
-opens without a warning and updates itself. Today CI drafts releases from its
-artifacts and nothing is signed but a macOS bundle the developer signs itself.
+opens without a warning and updates itself.
 
-1. **macOS.** Sign with a Developer ID in CI (certificate in a secret),
-   notarize with `notarytool`, staple. Rune is an interpreter, so no JIT
-   entitlement is needed; the Hardened Runtime is on.
-2. **Windows.** Authenticode-sign the editor and the runtime template.
+1. **macOS.** Built. `scripts/macos_bundle.sh` stages `Balaur.app`, signs it
+   with the Developer ID a secret carries, wraps it in a `.dmg`, notarizes
+   and staples that. A tarball cannot hold a ticket and an unstapled build
+   still asks Apple on first launch, which is why the `.dmg` is the download
+   and the tarball stays beside it. The Hardened Runtime is on; Rune is an
+   interpreter, so no JIT entitlement is needed.
+2. **Windows.** Written, and waiting on a certificate.
+   `scripts/windows_sign.sh` signs the editor and both copies of the runtime
+   template before the zip is made, through Azure Trusted Signing or a
+   `.pfx`, and signs nothing when neither is configured. An OV certificate's
+   key cannot be a file since 2023, so Trusted Signing — whose key is in an
+   HSM — is the path the engine's own download takes.
 3. **Linux.** A tarball and an AppImage; no signing beyond the checksums.
 4. **Exported games.** `balaur export` signs with the developer's identity on
    macOS today; the same flag learns Windows signing, and the docs say what a
@@ -38,8 +52,8 @@ what says which.
 2. `CHANGELOG.md`: rename `## Unreleased` to `## <version> — <date>` and open
    a fresh empty `Unreleased`. One line per feature; the reasoning lives in
    `ARCHITECTURE.md` and the plans, not here.
-3. `ARCHITECTURE.md`: strike from the roadmap table whatever the release
-   finished, and say the new version in the roadmap's opening.
+3. `docs/ROADMAP.md`: strike whatever the release finished, and say the new
+   version in its opening.
 4. The plan for anything finished loses the part that is now built, and is
    retired outright when nothing is left in it.
 5. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
@@ -48,10 +62,23 @@ what says which.
 
 ## Phases
 
-1. macOS signing and notarization in CI; a notarized nightly.
+1. macOS signing and notarization. Proven by hand on 2026-09-06; the CI job
+   that runs it on every push has not fired yet.
 2. Windows signing; Linux tarball and AppImage.
 3. The Download page wired to a tagged release beside the nightly; `balaur
    update` verified against a real published tag.
+
+## Credentials
+
+| What | Where | Expires |
+| --- | --- | --- |
+| Developer ID Application | `MACOS_CERTIFICATE_BASE64` | 2027-02-01 |
+| Apple app-specific password | `APPLE_APP_PASSWORD` | when the Apple ID password changes |
+| Artifact Signing principal | `AZURE_CLIENT_SECRET` (app `balaur-ci-signing`) | 2028-09-06 |
+
+A signing credential that lapses does not fail loudly: the scripts skip when
+one is absent, so the download goes out unsigned. Renew before the dates
+above, not after a release goes quiet.
 
 ## Open questions
 

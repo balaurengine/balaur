@@ -8,7 +8,7 @@
 //! to "may this one be fetched", which is a person's to give.
 //!
 //! An export takes seconds to minutes, so it runs on a thread and reports
-//! through [`ExternalIo`] — which means a recorded editor session replays
+//! through [`ExternalIo`]: which means a recorded editor session replays
 //! without ever exporting anything.
 
 use std::path::PathBuf;
@@ -75,7 +75,7 @@ impl ExportState {
 }
 
 /// The editor's export verb, registered by the CLI after the editor's app is
-/// built — the library is the CLI's dependency, not the engine's.
+/// built: the library is the CLI's dependency, not the engine's.
 pub(crate) struct ExportPlugin {
     manifest: balaur_plugin::Manifest,
     project: PathBuf,
@@ -138,8 +138,8 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
          recording plays.",
     );
     m.describe(&[
-        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would additionally need."),
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)` — or the `on_event` method the options name — called as each export starts, finishes or fails."),
+        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would also need."),
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails."),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running", &[], "()", "How many exports are in flight."),

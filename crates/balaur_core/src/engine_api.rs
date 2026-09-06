@@ -477,7 +477,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
 /// node handle method syntax still walks `node_api::NODE_OPS` for the
 /// sugar; this is what makes the operations reachable at all.
 ///
-/// Takes `&Engine` rather than a `Bindings` — unlike every other
+/// Takes `&Engine` rather than a `Bindings`: unlike every other
 /// `install_*`, it creates the modules on the host itself instead of filling
 /// one it was handed, because the operations it registers span several
 /// modules.
@@ -547,9 +547,9 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     );
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
-        ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only — branching a `fixed_update` on wall time desyncs, and nothing records it."),
+        ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
-        ("tick", &[], "()", "Which frame this is, counted whole — what simulation code branches on instead of `time`."),
+        ("tick", &[], "()", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
         ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
@@ -606,7 +606,7 @@ fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("with_component", &[], "(component: string)", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
         ("tagged", &[], "(tag: string)", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
         ("spawn", &[], "(name: string, parent: node?)", "Create one empty named node under the given parent, or under the root when none is given."),
-        ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
+        ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document (TOML text, not a path) under a parent; `{ scripts: false }` leaves scripts unattached."),
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
@@ -645,7 +645,7 @@ fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("duplicate", &[], "(reference: string)", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
         ("exists", &[], "(reference: string)", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
-        ("invalidate", &[], "()", "Declare everything derived from project files stale — a shader a material links, say — so it is rebuilt from disk; for a file the watcher does not cover."),
+        ("invalidate", &[], "()", "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover."),
         ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
         ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
         ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move."),
@@ -660,7 +660,7 @@ fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
         "Localization: one `strings/<locale>.toml` per language, keys to \
          strings. `[locale]` in `project.toml` sets the locale a run starts \
          in and the one a missing key falls back to. A key neither has comes \
-         back as itself — visible in the game, which is how a missing string \
+         back as itself: visible in the game, which is how a missing string \
          gets noticed rather than showing as a blank label.",
     );
     m.describe(&[
@@ -669,15 +669,15 @@ fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "()", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
         ("system_locale", &[], "()", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A game picks its starting locale from it once and saves the choice."),
-        ("set_root", &[], "(root: string)", "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own — the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key."),
+        ("set_root", &[], "(root: string)", "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own: the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key."),
     ]);
 }
 
 fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
         "Save games: a table in, a table out, stored per user rather than in \
-         the project. Nothing here is engine state — a save is whatever the \
-         game puts in it — so what the engine decides is only where it lives, \
+         the project. Nothing here is engine state: a save is whatever the \
+         game puts in it, so what the engine decides is only where it lives, \
          that a half-written file cannot replace a good one, and what version \
          it was written at. `[save] version` in `project.toml` sets that \
          version and `[save] migrate` names the script whose \
@@ -718,7 +718,7 @@ fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
         ("random", &[], "()", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
         ("uuid", &[], "()", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
-        ("range", &[], "(low: float, high: float)", "A float from the deterministic engine stream, uniform in `[low, high)` — the two arguments."),
+        ("range", &[], "(low: float, high: float)", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
         ("int", &[], "(low: int, high: int)", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
     ]);
 }
@@ -821,7 +821,7 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 /// A writable per-user directory for saves and settings, created on first
-/// call: `<platform data dir>/balaur/<project name>` — Application Support on
+/// call: `<platform data dir>/balaur/<project name>`, Application Support on
 /// macOS and iOS, AppData on Windows, XDG data on Linux. Platforms with no
 /// such notion (Android today) fall back to `user_data/` inside the project
 /// root so a game always has somewhere to write. The project directory itself
@@ -833,7 +833,7 @@ fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 
-/// The same directory, for a plugin that keeps a file there — input
+/// The same directory, for a plugin that keeps a file there: input
 /// rebindings, say. The script binding creates it; this only names it, so a
 /// reader does not make a directory just by asking where one would be.
 pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
@@ -1127,7 +1127,7 @@ fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
     )))
 }
 
-/// `engine.timings()` — what the last frame cost.
+/// `engine.timings()`: what the last frame cost.
 ///
 /// Presentation, like `engine.time()`: reading it from `fixed_update` would
 /// branch the simulation on wall time, which no two machines agree about.

@@ -1,7 +1,7 @@
 # Changelog
 
-High-level features, one line each. Nothing has been released yet, so everything
-is under Unreleased; a release is a `v*` tag whose notes become that version's section.
+One line per feature. Nothing is released yet; a release is a `v*` tag whose
+notes are that version's section.
 
 ## Unreleased
 
@@ -14,27 +14,29 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Modules from disk and packs; `balaur api`.
 - Hot reload.
 - Self-documenting script API.
+- Named events between scripts, scoped to one emitter or heard from anyone.
 
 ### Scenes and assets
 
-- A frame's queued frees run as one pass per parent, so freeing a whole container is linear.
-- Children are indexed by name, so a path lookup is one hash per segment; freeing a node with no components asks no plugin anything.
+- A frame's queued frees run as one pass per parent.
+- Children indexed by name: a path lookup is one hash per segment.
+- Freeing a node with no components asks no plugin anything.
 - Prefabs with per-path overrides.
-- Hot reload for textures, models, fonts and sounds: a saved file moves the asset generation and every node built from one is built again.
-- The browser editor keeps the project it is editing, so a refresh comes back to the scene as it was left.
+- Hot reload for textures, models, fonts and sounds.
+- The browser editor keeps the project it is editing across a refresh.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
 - Mesh (OBJ, glTF) and heightfield assets.
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
 - Comment-preserving TOML patching.
-- Stable asset ids: `id://` references through `assets/index.toml`, and `assets.rename` rewriting every reference to a moved file.
+- Stable asset ids: `id://` through `assets/index.toml`; `assets.rename` rewrites every reference.
 - `sprite_sheet` assets with frames of any size, tags and slices; `sprite.sheet` draws them.
 - `balaur import` reads `.aseprite` files into an atlas, a sheet and a clip per tag.
 
 ### Rendering
 
-- The 2D camera zooms out to a hundredth of a pixel per unit, enough to frame a pixel-scale level whole.
+- The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
 - 2D lights and shadows.
@@ -43,12 +45,12 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - 2D and 3D skeletal animation; IK and look-at modifiers.
 - Quaternion rotation tracks.
 - More 2D and 3D shapes; polyline strips with gradients and textures.
-- Ten 3D primitives and six 2D ones, every one a mesh built headless, so a collider fitted to a torus collides what is drawn.
-- A word as geometry: a shaped run's glyph outlines, filled with their counters left as holes.
+- Ten 3D primitives and six 2D ones, every one a mesh built headless.
+- A word as geometry: glyph outlines filled, counters left as holes.
 - `path2d` and `path3d` assets, stroked, extruded with a bevel, revolved, and swept along a rail.
 - `boolean3d` and `boolean2d`: a node drawn as its children joined, cut out of one another, or overlapped.
 - A `cloner` that draws its subtree along a line, around a ring or through a grid, in one call per mesh.
-- Vertex colours and named morph targets from glTF; a morph weight is a property a clip drives as `mesh/morph.<name>`.
+- Vertex colours and named morph targets from glTF; clips drive `mesh/morph.<name>`.
 - Textured particles with end colour, end size and one-shot bursts.
 - Immediate-mode 2D draw calls.
 
@@ -60,9 +62,10 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Character controllers.
 - Query pipeline: raycasts, shape casts, point and shape queries.
 - Collision, contact-force and joint-break events.
-- One-way platforms.
+- One-way platforms, whichever side of a contact pair the platform is on.
+- Internal edges fixed on heightfield and 2D trimesh colliders; one-sided 2D polyline.
 - Multithreaded solver.
-- All Rapier collider shapes, including voxels and mesh-fitted.
+- All Rapier collider shapes, including voxels and mesh-fitted; voxels in 2D as well, editable from a script.
 - Collision layers, solver layers, offsets, per-collider mass.
 - Editable voxel terrain.
 - Ray-cast vehicles.
@@ -70,8 +73,8 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Physics debug draw and tuning.
 - A joint on a node with no body ties the nearest body above it.
 - `physics3d/step` and `physics2d/step` profiler spans.
-- `raycast` stops at the nearest hit rather than visiting every collider along the ray.
-- Creating a body composes the node's pose from its ancestors rather than propagating the whole tree.
+- `raycast` stops at the nearest hit.
+- Creating a body composes the node's pose from its ancestors.
 
 ### Determinism and networking
 
@@ -88,12 +91,17 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### UI and text
 
-- `ui.set_lazy`: the UI pass runs only when input, a request, a log line, a reload or an egui animation asks, and the last one is shown in between; the editor turns it on.
+- Text in the world: `text2d` and `text3d` shaped by the engine the widgets use, with outline, shadow, markup, a font chain, wrapping, billboarding and `text_key` localisation.
+- `render.draw_text` and `render.draw_text_2d` for a label a tool draws in one frame, and `render.text_size` to measure one.
+- AngelCode `.fnt` bitmap fonts, so a pixel face ships as the artist drew it.
+- A measurement and a text mesh see the project's fonts and the bundled ones only, never the machine's, so every platform answers the same.
+
+- `ui.set_lazy`: the UI pass runs only when something asks for it; the editor turns it on.
 - Containers, layout, focus, themes, presets and surfaces.
 - Widget kinds: draw, scroll, tab, image, check, dropdown, slider, progress, grid, flow, fold, dialog, separator.
 - Text field widget with IME composition.
 - Nine-patch images; draggable seams.
-- `ui.image` draws one region of a file, and `ui.image_button` answers a click, so an atlas can be shown and picked from a tile at a time.
+- `ui.image` draws one region of a file; `ui.image_button` answers a click.
 - Fill anchors, insets, UI scale, scroll deadzone.
 - Shaped text through cosmic-text: bidi, complex scripts, CJK breaks, font fallback.
 - Markup tags, font weight and style.
@@ -119,15 +127,15 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - `balaur test`.
 - Safe export directory check.
 - `scripts/lint.sh` mirrors CI; pre-push hook.
-- `examples/benchmark`: the Godot suites' physics and scene-tree cases, run headless, in the editor or on the web.
+- `examples/benchmark`: the Godot suites' physics and scene-tree cases, headless, in the editor or on the web.
 - `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run beside Godot's own results.
 - `balaur run <project> -- <args>` passes arguments to `engine::args()`.
 
 ### Web
 
-- Projects kept in IndexedDB, so one with its textures and sounds survives a refresh rather than filling a `localStorage` quota.
-- Opening a folder from your own machine in the browser editor, and taking the whole project back out as a zip.
-- `export` in a tab: a `.bpak`, and a web bundle zipped beside the module the page is already running. Native targets still need a linker.
+- Projects kept in IndexedDB, textures and sounds included.
+- A folder opened from your machine in the browser editor; the project taken back out as a zip.
+- `export` in a tab: a `.bpak` and a zipped web bundle. Native targets still need a linker.
 - Browser audio.
 - Phoenix (`gamend`) over Fetch and WebSocket.
 - `web` module: messages, visibility, user agent, location.
@@ -149,7 +157,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.
-- The Tiles tool paints a tilemap from a palette cut out of its tile set: paint, erase, a rectangle fill, and layers as sibling nodes.
+- The Tiles tool: a palette cut from the tile set, paint, erase, rectangle fill, layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
 - Profiler dock; `--timings`.
 - Showcase and UI audit scripts.

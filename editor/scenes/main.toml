@@ -12,6 +12,7 @@ id = "shell"
 name = "Shell"
 parent = "n_editor"
 [nodes.widget]
+theme = "themes/shell-dark.toml"
 kind = "column"
 layer = "shell"
 anchor = "top_left"
@@ -28,9 +29,21 @@ id = "head"
 name = "Head"
 parent = "shell"
 [nodes.widget]
-kind = "row"
-height = 36
+kind = "panel"
+text = ""
+# The bar's own row is 36; a panel keeps 8 inside each edge, so the box that
+# holds it is that much taller.
+height = 52
 gap = 0
+
+[[nodes]]
+id = "head_body"
+name = "HeadBody"
+parent = "head"
+[nodes.widget]
+kind = "draw"
+draw = "draw_top_bar"
+grow = 1
 
 [[nodes]]
 id = "body"
@@ -47,8 +60,18 @@ id = "left"
 name = "Left"
 parent = "body"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+text = ""
 width = 236
+
+[[nodes]]
+id = "left_body"
+name = "LeftBody"
+parent = "left"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_left"
+grow = 1
 
 [[nodes]]
 id = "centre"
@@ -64,8 +87,18 @@ id = "right"
 name = "Right"
 parent = "body"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+text = ""
 width = 288
+
+[[nodes]]
+id = "right_body"
+name = "RightBody"
+parent = "right"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_right"
+grow = 1
 
 # Everything above the bottom dock. The tool rail sits in its own column so
 # the scene starts clear of it, while the dock below does not.
@@ -83,7 +116,8 @@ id = "bottom"
 name = "Bottom"
 parent = "centre"
 [nodes.widget]
-kind = "column"
+kind = "panel"
+text = ""
 height = 174
 gap = 0
 
@@ -94,7 +128,8 @@ id = "dockbody"
 name = "DockBody"
 parent = "bottom"
 [nodes.widget]
-kind = "column"
+kind = "draw"
+draw = "draw_dock_bottom"
 grow = 1
 
 [[nodes]]
@@ -102,7 +137,8 @@ id = "status"
 name = "Status"
 parent = "bottom"
 [nodes.widget]
-kind = "row"
+kind = "draw"
+draw = "draw_status"
 height = 24
 
 [[nodes]]

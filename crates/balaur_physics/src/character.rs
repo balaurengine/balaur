@@ -7,7 +7,7 @@
 //! is the component that spells it and the call that runs it.
 //!
 //! `move_character` reads the query pipeline, so it belongs in `fixed_update`
-//! — the binding says so, and so does the docs page.
+//!: the binding says so, and so does the docs page.
 
 use crate::rapier3d::control::{
     CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
@@ -191,7 +191,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
     }
     // No body: the collider is standalone world geometry, which nothing else
     // moves. Without this the character's own shape stays where it started and
-    // every sweep is cast from the wrong place — it walks through walls.
+    // every sweep is cast from the wrong place. It walks through walls.
     let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
     for handle in handles {
         if let Some(collider) = state.world.colliders.get_mut(handle) {
@@ -203,7 +203,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update — it reads the world the step just wrote."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
         ("is_grounded", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
@@ -225,7 +225,7 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
 /// A character's settings, held on the node itself.
 ///
 /// The one physics component backed by a real component type (N16): rapier
-/// keeps no character state — the controller is rebuilt per move — so there is
+/// keeps no character state, the controller is rebuilt per move, so there is
 /// nothing in the world to write it into.
 pub struct Character3d(pub toml::Value);
 

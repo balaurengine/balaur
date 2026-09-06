@@ -1,7 +1,7 @@
 > **Status:** the plan this file opened with shipped on 2026-09-04 and its
 > text is gone; the manual's Rendering page documents what it built. Of the
-> two it deferred, tile-map occluders moved to `docs/PLAN-tilemap.md` step 2
-> on 2026-09-05; the one left is below, not started.
+> two it deferred, tile-map occluders moved to `docs/PLAN-tilemap.md` on
+> 2026-09-05, where the 2026-09-06 rewrite numbers them step 4; the one left is below, not started.
 
 # Plan: what 2D lighting still does not do
 

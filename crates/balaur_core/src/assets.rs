@@ -1,7 +1,7 @@
 //! Shared game content: what Godot calls a Resource.
 //!
 //! An asset is data several nodes want to *share* and that is too big to
-//! inline in a scene node — an animation clip, later a prefab or a material.
+//! inline in a scene node: an animation clip, later a prefab or a material.
 //! `Engine::resource` is already the engine's typemap of singletons, so
 //! content takes the other word (`docs/NAMING.md` D1).
 //!
@@ -20,16 +20,17 @@
 //!
 //! A fourth, `"#!<hex>"`, is written by nobody: it is what an inline
 //! definition is *rewritten to* once the cache has recorded it, and it takes
-//! a `#entry` suffix for the same reason a file does — an inline table is as
+//! a `#entry` suffix for the same reason a file does: an inline table is as
 //! free to be a library of named assets as a file is.
 //!
-//! `"id://<id>"` stands in for a path anywhere one is written, and takes the
+//! `"id:
+// <id>"` stands in for a path anywhere one is written, and takes the
 //! same `#entry`: `assets/index.toml` maps the id to the path, so the
 //! reference survives a rename ([`crate::asset_index`]).
 //!
 //! Core never learns what an asset *is*: a plugin registers a parser with
 //! `App::register_asset_type`, the parser returns an opaque `Rc<dyn Any>`, and
-//! the plugin downcasts it — exactly as the typemap does. Sharing is the
+//! the plugin downcasts it: exactly as the typemap does. Sharing is the
 //! default (two nodes naming one path get one parsed object); [`duplicate`]
 //! opts out with a private copy.
 
@@ -45,7 +46,8 @@ use crate::engine::Engine;
 use crate::project::ProjectRoot;
 
 /// Where a project keeps `id → path`, project-relative. Written by the
-/// editor, carried by a pack, read by every `id://` reference.
+/// editor, carried by a pack, read by every `id:
+// ` reference.
 pub const INDEX_PATH: &str = "assets/index.toml";
 
 /// The prefix of a reference that names an asset by its id rather than its
@@ -69,7 +71,7 @@ pub struct AssetType {
     pub doc: &'static str,
 }
 
-/// Asset parsers, appended during plugin build and read-only afterwards —
+/// Asset parsers, appended during plugin build and read-only afterwards:
 /// the same shape as `ComponentRegistry`.
 #[derive(Default)]
 pub struct AssetTypeRegistry(pub Vec<(String, AssetType)>);
@@ -128,7 +130,7 @@ pub enum AssetRef {
     /// A definition table written inline on a component property, keyed by a
     /// digest of its content so re-applying the same table is idempotent.
     Inline(u64),
-    /// A named entry inside an inline definition — the same relationship
+    /// A named entry inside an inline definition: the same relationship
     /// [`Self::Entry`] has to [`Self::File`]. An inline table is as free to be
     /// a library of named assets as a file is, and an editor writing one needs
     /// its entries addressable to name a clip.
@@ -185,7 +187,7 @@ pub fn generation(eng: &Engine) -> u64 {
 /// Declare everything derived from project files stale, without forgetting
 /// any asset.
 ///
-/// For a file an asset is built *from* rather than parsed from — a shader a
+/// For a file an asset is built *from* rather than parsed from: a shader a
 /// material links, say. Nothing caches the file itself, so there is nothing
 /// to drop; what has to move is the counter the deriving plugin watches.
 pub fn invalidate(eng: &Engine) {
@@ -259,7 +261,7 @@ impl AssetState {
             return Err(anyhow!("asset reference '{reference}' names no id"));
         }
         // While a scene is being instantiated its own blocks win. Outside
-        // instantiation — a script or a tool asking afterwards — the most
+        // instantiation, a script or a tool asking afterwards, the most
         // recently entered scene is the one meant.
         if let Some(scene) = self.current_scope
             && self.scopes.get(&scene).is_some_and(|s| s.contains_key(id))
@@ -291,7 +293,8 @@ pub(crate) fn state_of(eng: &Engine) -> Result<Rc<RefCell<AssetState>>> {
 
 /// One textual reference as a cache key, against the engine's asset state.
 ///
-/// An `id://` reference becomes the path the index names first, so the
+/// An `id:
+// ` reference becomes the path the index names first, so the
 /// cache holds one entry for an asset however it was spelled.
 pub fn resolve(eng: &Engine, reference: &str) -> Result<AssetRef> {
     let reference = crate::project::path_of(eng, reference.trim())?;
@@ -302,7 +305,7 @@ pub fn resolve(eng: &Engine, reference: &str) -> Result<AssetRef> {
 /// The raw definition a reference resolves to.
 ///
 /// No parser is involved, so this works for an asset type no plugin has
-/// registered — which is what the `assets` script module hands to scripts.
+/// registered: which is what the `assets` script module hands to scripts.
 pub fn definition(eng: &Engine, reference: &str) -> Result<toml::Value> {
     let key = resolve(eng, reference)?;
     Ok(cached_definition(eng, &key, reference)?.body)
@@ -358,7 +361,8 @@ pub fn exists(eng: &Engine, reference: &str) -> bool {
 /// all came out of the text that just changed.
 pub fn reload(eng: &Engine, reference: &str) -> Result<()> {
     // The index is not an asset: nothing parses it into the cache, but every
-    // `id://` read through it, so a save moves the counter they watch.
+    // `id:
+    // ` read through it, so a save moves the counter they watch.
     if reference == INDEX_PATH {
         if let Some(files) = eng.try_resource::<crate::project::ProjectFiles>() {
             files.borrow().reload_index();
@@ -370,8 +374,8 @@ pub fn reload(eng: &Engine, reference: &str) -> Result<()> {
     let cache = state(eng)?;
     let mut state = cache.borrow_mut();
     let before = state.definitions.len() + state.parsed.len();
-    // An inline definition has no source to re-read — the cache entry is the
-    // only copy of it — so only the parse is dropped.
+    // An inline definition has no source to re-read: the cache entry is the
+    // only copy of it, so only the parse is dropped.
     if !matches!(key, AssetRef::Inline(_)) {
         state.definitions.shift_remove(&key);
     }
@@ -565,7 +569,7 @@ fn declared_type(value: &toml::Value) -> Option<String> {
 
 /// The entry `path#entry` names.
 ///
-/// Either a top-level table of that name, or one nested a single level down —
+/// Either a top-level table of that name, or one nested a single level down:
 /// which is how a library file groups its entries (`[clips.run]` is `#run`)
 /// without core having to know the group's name.
 fn entry_of<'a>(document: &'a toml::Value, entry: &str) -> Option<&'a toml::Value> {
@@ -579,7 +583,7 @@ fn entry_of<'a>(document: &'a toml::Value, entry: &str) -> Option<&'a toml::Valu
 }
 
 /// The asset file's text: from the pack in a packed run and from disk
-/// otherwise, which is `project::scene_text` — an asset document and a scene
+/// otherwise, which is `project::scene_text`: an asset document and a scene
 /// file resolve the same way and always have.
 fn read_document(eng: &Engine, path: &str) -> Result<toml::Value> {
     let source = crate::project::scene_text(eng, path)?;

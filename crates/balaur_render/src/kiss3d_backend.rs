@@ -17,8 +17,8 @@ use crate::kiss3d_camera::{
     publish_camera_2d,
 };
 use crate::{
-    ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig, Renderable,
-    Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
+    ClearColorConfig, GridConfig, PostConfig, Renderable, Renderable2d, ScreenshotRequest, Shape,
+    Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -73,6 +73,7 @@ struct Frontend {
     order_2d: Vec<Entity>,
     /// Last frame's immediate 2D shapes, detached before this frame's are drawn.
     transients: Vec<SceneNode2d>,
+    text: crate::world_text::Frame,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
@@ -115,6 +116,7 @@ impl Frontend {
             light_map: crate::light_map::LightMap::new(),
             order_2d: Vec::new(),
             transients: Vec::new(),
+            text: crate::world_text::Frame::default(),
             frame: 0,
             keyboard_shown: false,
             camera_buttons,
@@ -193,9 +195,17 @@ impl Frontend {
         self.light_map.sync(app, &mut self.scene_2d);
         // Immediate shapes go over the composite, unlit, like debug lines.
         crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
+        let tall = window.height() as f32;
+        crate::world_text::draw(
+            app,
+            &mut self.scene_2d,
+            &mut self.scene,
+            &mut self.text,
+            tall,
+        );
         draw_grid(app, window);
-        flush_debug_lines(app, window);
-        flush_debug_lines_2d(app, window);
+        crate::debug_lines::flush_debug_lines(app, window);
+        crate::debug_lines::flush_debug_lines_2d(app, window);
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
@@ -240,11 +250,36 @@ pub async fn run_windowed_async(
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
     balaur_ui::honour_lazy(&app.engine);
+    // `[window]` in project.toml, or its defaults when a project says
+    // nothing. Read before the window exists, so it cannot come from a
+    // resource the first frame inserts.
+    let window_settings = app
+        .manifest()
+        .map(|manifest| manifest.window.clone())
+        .unwrap_or_default();
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
+        vsync: window_settings.vsync,
+        samples: NumSamples::from_u32(window_settings.msaa).unwrap_or_else(|| {
+            tracing::warn!(
+                "project.toml asks for msaa = {}; this renderer offers 1 or 4, using 4",
+                window_settings.msaa
+            );
+            NumSamples::Four
+        }),
         ..CanvasSetup::default()
     };
-    let mut window = Window::new_with_setup(title, 1600, 1000, setup).await;
+    let mut window =
+        Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
+    if window_settings.fullscreen {
+        // Seed the state a script's own toggle drives, so `apply_window_config`
+        // puts the window up on the first frame through one path.
+        app.engine.insert_resource(WindowConfig {
+            fullscreen: true,
+            changed: true,
+            ..WindowConfig::default()
+        });
+    }
     window.set_ime_allowed(true);
     let mut f = Frontend::new();
     let mut last = Instant::now();
@@ -407,43 +442,6 @@ fn draw_grid(app: &App, window: &mut Window) {
             width,
             true,
         );
-    }
-}
-
-fn flush_debug_lines_2d(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLineBuffer2d>() else {
-        return;
-    };
-    for (a, b, c, width) in lines.borrow_mut().lines.drain(..) {
-        window.draw_line_2d(
-            Vec2::new(a[0], a[1]),
-            Vec2::new(b[0], b[1]),
-            Color::new(c[0], c[1], c[2], 1.0),
-            width,
-        );
-    }
-}
-
-fn flush_debug_lines(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLineBuffer>() else {
-        return;
-    };
-    for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
-        let a = Vec3::new(a[0], a[1], a[2]);
-        let b = Vec3::new(b[0], b[1], b[2]);
-        let color = Color::new(c[0], c[1], c[2], 1.0);
-        if on_top {
-            // depth_bias = 1.0 collapses depth to the near plane: the line
-            // renders over everything (editor rotation ball, overlays).
-            let polyline = kiss3d::renderer::Polyline3d::new(vec![a, b])
-                .with_color(color)
-                .with_width(width)
-                .with_perspective(perspective)
-                .with_depth_bias(1.0);
-            window.draw_polyline(&polyline);
-        } else {
-            window.draw_line(a, b, color, width, perspective);
-        }
     }
 }
 

@@ -1,0 +1,115 @@
+// Editing a `text2d` or `text3d` where it is drawn: double-click one in the
+// viewport and type over it, rather than crossing to the inspector for a word.
+
+use crate::model;
+use crate::style;
+use crate::util;
+use crate::viewport;
+
+// Two clicks closer together than this many seconds, and this many design
+// pixels apart, are one double-click.
+const GAP = 0.4;
+const SLOP = 6.0;
+// The field's box, in design pixels, opened over the point clicked.
+const W = 260.0;
+const H = 34.0;
+
+pub fn state() {
+    #{ at: -1.0, x: 0.0, y: 0.0, node: -1, buffer: "", box_x: 0.0, box_y: 0.0 }
+}
+
+// The text component on a node, whichever dimension it is in.
+fn component(node) {
+    match node.get("text2d") {
+        Some(found) => Some(("text2d", found)),
+        None => match node.get("text3d") {
+            Some(found) => Some(("text3d", found)),
+            None => None,
+        },
+    }
+}
+
+/// Whether the selection carries text, so the shell can offer the verb.
+pub fn editable(S) {
+    S.sel >= 0 && S.sel < S.doc.len() && component(S.doc[S.sel]).is_some()
+}
+
+// Watch for the second click of a pair over the selected text node.
+pub fn update(S) {
+    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_LEFT) {
+        return;
+    }
+    let (mx, my) = input::mouse_position();
+    let scale = util::max(S.ui_scale, 0.01);
+    let x = mx / scale;
+    let y = my / scale;
+    let now = engine::time();
+    let quick = now - S.textedit.at < GAP;
+    let near = util::abs(x - S.textedit.x) < SLOP && util::abs(y - S.textedit.y) < SLOP;
+    S.textedit.at = now;
+    S.textedit.x = x;
+    S.textedit.y = y;
+    if !quick || !near || !viewport::owns_pointer(S, x, y) || !editable(S) {
+        return;
+    }
+    let found = component(S.doc[S.sel]);
+    if let Some(pair) = found {
+        let (_, comp) = pair;
+        S.textedit.node = S.sel;
+        S.textedit.buffer = format!("{}", comp.get("text").unwrap_or(""));
+        // Opened where it was clicked, which is over the text itself: the
+        // 2D and 3D cameras project differently and the pointer does not.
+        S.textedit.box_x = x - W / 2.0;
+        S.textedit.box_y = y - H / 2.0;
+    }
+}
+
+// The field, over the point clicked. Enter keeps the text, Escape drops it.
+pub fn draw(S, k) {
+    if S.textedit.node < 0 {
+        return;
+    }
+    // The node may have gone, or the selection moved off it.
+    if S.textedit.node >= S.doc.len() || component(S.doc[S.textedit.node]).is_none() {
+        close(S);
+        return;
+    }
+    let rect = #{ x: S.textedit.box_x, y: S.textedit.box_y, w: W, h: H };
+    style::sheet(k, "textedit", rect, 8.0, 4.0, || {
+        let (text, changed, submitted) = ui::text_field("textedit-field", "", #{
+            value: S.textedit.buffer, width: W - 20.0,
+        });
+        if changed {
+            S.textedit.buffer = text;
+        }
+        if submitted {
+            commit(S);
+        }
+    });
+    if ui::shortcut("none", "Escape") {
+        close(S);
+    }
+}
+
+fn commit(S) {
+    let i = S.textedit.node;
+    if i < 0 || i >= S.doc.len() {
+        close(S);
+        return;
+    }
+    let found = component(S.doc[i]);
+    if let Some(pair) = found {
+        let (name, _) = pair;
+        // `set_component_prop` writes the selection's node, which is this one.
+        let was = S.sel;
+        S.sel = i;
+        model::set_component_prop(S, name, "text", S.textedit.buffer);
+        S.sel = was;
+    }
+    close(S);
+}
+
+pub fn close(S) {
+    S.textedit.node = -1;
+    S.textedit.buffer = "";
+}

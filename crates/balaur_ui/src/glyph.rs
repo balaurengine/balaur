@@ -15,7 +15,6 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow};
 use balaur_core::mesh::{MeshData, TextShape};
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, Weight, fontdb};
-use i_triangle::float::triangulator::Triangulator;
 use swash::scale::ScaleContext;
 use swash::zeno::{Command, PathData};
 
@@ -159,17 +158,16 @@ impl GlyphMesher {
                 shape.text
             ));
         }
-        let mut triangulator: Triangulator<u32, i32> = Triangulator::default();
-        let filled = triangulator.triangulate(&contours);
-        if filled.indices.len() < 3 {
+        let (points, triangles) = balaur_core::triangulate::triangulate_shape(&contours);
+        if triangles.is_empty() {
             return Err(anyhow!("'{}' filled to nothing", shape.text));
         }
-        Ok(fill_mesh(&filled.points, &filled.indices))
+        Ok(fill_mesh(&points, &triangles))
     }
 }
 
 /// The filled outline as a mesh in the z = 0 plane, facing +z.
-fn fill_mesh(points: &[[f32; 2]], indices: &[u32]) -> MeshData {
+fn fill_mesh(points: &[[f32; 2]], indices: &[[u32; 3]]) -> MeshData {
     let (mut min, mut max) = (points[0], points[0]);
     for p in points {
         min = [min[0].min(p[0]), min[1].min(p[1])];
@@ -181,7 +179,7 @@ fn fill_mesh(points: &[[f32; 2]], indices: &[u32]) -> MeshData {
     ];
     MeshData {
         positions: points.iter().map(|p| [p[0], p[1], 0.0]).collect(),
-        indices: indices.as_chunks::<3>().0.to_vec(),
+        indices: indices.to_vec(),
         normals: Some(vec![[0.0, 0.0, 1.0]; points.len()]),
         uvs: Some(
             points
@@ -289,7 +287,11 @@ pub(crate) fn install(reg: &mut balaur_plugin::Registry<'_>) {
         move |eng, shape| {
             let mut slot = mesher.borrow_mut();
             let mesher = slot.get_or_insert_with(|| {
-                let faces = crate::theme::font_faces(eng);
+                // The project's and the bundled faces only: a text mesh is
+                // real geometry — colliders fit it and rays pick it — so the
+                // machine's own fonts must not reach it.
+                let mut faces = crate::theme::font_faces(eng);
+                faces.retain(|face| face.chain != "system");
                 GlyphMesher::new(&faces, &balaur_core::strings::locale(eng))
             });
             mesher.mesh(shape)

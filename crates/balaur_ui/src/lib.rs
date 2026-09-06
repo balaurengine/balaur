@@ -23,7 +23,7 @@ pub mod glyph;
 mod images;
 mod pacing;
 mod splash;
-mod text;
+pub mod text;
 mod theme;
 mod vocabulary;
 mod widget_arrange;

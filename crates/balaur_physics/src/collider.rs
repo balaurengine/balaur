@@ -163,11 +163,17 @@ fn heightfield_collider(
     // The asset is f32; a f64 build widens each height here, once, on load.
     let heights: Vec<Real> = field.heights.iter().map(|h| scalar::real(*h)).collect();
     let grid = crate::rapier3d::parry::utils::Array2::new(field.rows, field.columns, heights);
-    Ok(ColliderBuilder::heightfield(grid, extent))
+    // The flag a trimesh gets by default, for the same reason: without it a
+    // character catches on the seam between two cells of flat ground.
+    let mut flags = crate::rapier3d::parry::shape::HeightFieldFlags::empty();
+    if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
+        flags |= crate::rapier3d::parry::shape::HeightFieldFlags::FIX_INTERNAL_EDGES;
+    }
+    Ok(ColliderBuilder::heightfield_with_flags(grid, extent, flags))
 }
 
 /// The collider described by `params`, in the `collider` schema's own
-/// vocabulary — so a script table and a scene-file entry build the same thing.
+/// vocabulary, so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
     let kind = params
         .get(k::KIND)
@@ -384,8 +390,8 @@ fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<P
 /// A one-way platform's direction, packed above the entity id in a collider's
 /// `user_data`.
 ///
-/// A hook cannot reach the component the axis was authored in — the step holds
-/// the world — so it travels with the collider. Six directions rather than a
+/// A hook cannot reach the component the axis was authored in: the step holds
+/// the world, so it travels with the collider. Six directions rather than a
 /// vector, because a platform's axis is a cardinal one in every game that has
 /// ever wanted this, and the encoding costs three bits.
 pub(crate) fn encode_one_way(entity_bits: u64, axis: [f32; 3]) -> u128 {
@@ -630,7 +636,7 @@ fn with_voxels(
 }
 
 /// A collider's shape as points and triangles, through parry's own
-/// tessellation — which every shape has, voxels included.
+/// tessellation: which every shape has, voxels included.
 fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Value> {
     let entity = balaur_core::entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
@@ -902,11 +908,11 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_collider_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("collider_mesh", &[c::COLLIDER_3D], "", "The collider's shape as points and triangles — including a voxel grid's — for drawing it or for spawning the pieces it broke into."),
+        ("collider_mesh", &[c::COLLIDER_3D], "", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
         ("collider_mass", &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
         ("collider_volume", &[c::COLLIDER_3D], "", "How much space the shape encloses."),
         ("swept_aabb", &[c::COLLIDER_3D], "", "The box the collider covers over the next step, its motion included: what the broad phase actually tests."),
-        ("handles", &[c::COLLIDER_3D], "", "The rapier handles behind this node — its body and its colliders — as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
+        ("handles", &[c::COLLIDER_3D], "", "The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
         ("aabb", &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
     ]);
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {

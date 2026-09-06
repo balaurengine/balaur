@@ -15,6 +15,8 @@ use crate::rapier2d::prelude::{
 };
 use crate::scalar::{self, Pose2, Real, Rotation2};
 
+use balaur_script::{Bindings, BindingsExt, NodeId};
+
 use crate::dim2::{PhysicsState2d, node_pose_2d};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
@@ -104,6 +106,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             ))
         }
         w::TRIMESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
+        w::VOXELS => voxel_collider(eng, params)?,
         w::HEIGHTFIELD => heightfield_collider(eng, params)?,
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
@@ -128,8 +131,24 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         .map(|p| scalar::v2(p[0], p[1]))
         .collect();
     match kind {
-        w::TRIMESH => ColliderBuilder2::trimesh(points, mesh.indices.clone())
-            .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}")),
+        // The flags 3D passes, for the same reason: without them a body
+        // catches on the seam between two triangles of flat ground.
+        w::TRIMESH => {
+            let mut flags = crate::rapier2d::prelude::TriMeshFlags::empty();
+            if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
+                flags |= crate::rapier2d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
+            }
+            if v::boolean(params, k::CLEAN, false) {
+                flags |= crate::rapier2d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
+                    | crate::rapier2d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
+                    | crate::rapier2d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
+            }
+            if v::boolean(params, k::ORIENTED, false) {
+                flags |= crate::rapier2d::prelude::TriMeshFlags::ORIENTED;
+            }
+            ColliderBuilder2::trimesh_with_flags(points, mesh.indices.clone(), flags)
+                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
+        }
         w::CONVEX_HULL => ColliderBuilder2::convex_hull(&points)
             .ok_or_else(|| anyhow!("those {} points have no hull", points.len())),
         _ => {
@@ -139,12 +158,38 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
                     points.len()
                 ));
             }
+            // `oriented` is opt-in: it reads the winding to decide which side
+            // is solid, so it is wrong on a chain wound the other way.
+            if v::boolean(params, k::ORIENTED, false) {
+                return Ok(ColliderBuilder2::oriented_polyline(points, None));
+            }
             Ok(ColliderBuilder2::polyline(points, None))
         }
     }
 }
 
 /// A 2D heightfield is one row of heights: a side-scroller's ground.
+/// A voxel grid from a `voxels` asset, the 2D twin of the 3D kind. parry
+/// classifies each cell from its neighbours, so a body sliding along a wall
+/// of them cannot catch on the seam between two.
+fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
+    let reference = params
+        .get(k::VOXELS)
+        .and_then(toml::Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("a voxels collider2d needs a `voxels` asset"))?;
+    let grid = balaur_core::assets::load_typed::<balaur_core::voxels::VoxelsData>(eng, reference)?;
+    let cells: Vec<crate::rapier2d::math::IVector> = grid
+        .cells
+        .iter()
+        .map(|c| scalar::cell2(c[0], c[1]))
+        .collect();
+    Ok(ColliderBuilder2::voxels(
+        scalar::v2(grid.size[0], grid.size[1]),
+        &cells,
+    ))
+}
+
 fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
     let reference = params
         .get(k::HEIGHTFIELD)
@@ -357,6 +402,10 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
             (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
             (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
             (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield" }"#),
+            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
+            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Take neighbouring triangles into account for a trimesh's contacts, so a body does not catch on the seam between two of them" }"#),
+            (k::CLEAN, r#"{ type = "bool", default = false, description = "Merge duplicate vertices and drop degenerate triangles when building a trimesh" }"#),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid" }"#),
             (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node" }"#),
             (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians" }"#),
             (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from" }"#),
@@ -377,6 +426,75 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
                 Ok(())
             }),
             get: Box::new(get_collider_params),
+        },
+    );
+}
+
+/// One voxel grid under a node, for the calls that edit it.
+fn with_voxels(
+    eng: &Engine,
+    node: NodeId,
+    f: impl FnOnce(&mut crate::rapier2d::parry::shape::Voxels),
+) -> Result<()> {
+    let entity = balaur_core::entity_of(node)?;
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let handle = first_collider(&state, entity)?;
+    let collider = &mut state.world.colliders[handle];
+    let voxels = collider
+        .shape_mut()
+        .as_voxels_mut()
+        .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+    f(voxels);
+    state.shape_revision = state.shape_revision.wrapping_add(1);
+    Ok(())
+}
+
+/// Editing a 2D voxel grid, the twin of `crate::collider::install_voxel_api`.
+pub(crate) fn install_voxel_2d_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_voxel", &[c::COLLIDER_2D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
+        ("voxel", &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
+        ("voxel_at", &[c::COLLIDER_2D], "", "The cell a world position falls in, as two whole numbers."),
+    ]);
+    m.function(
+        "set_voxel",
+        |eng: &Engine, (node, x, y, filled): (NodeId, i32, i32, bool)| {
+            with_voxels(eng, node, |voxels| {
+                voxels.set_voxel(scalar::cell2(x, y), filled);
+            })
+        },
+    );
+    m.function("voxel", |eng: &Engine, (node, x, y): (NodeId, i32, i32)| {
+        let entity = balaur_core::entity_of(node)?;
+        let state = eng.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        let handle = first_collider(&state, entity)?;
+        let voxels = state.world.colliders[handle]
+            .shape()
+            .as_voxels()
+            .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+        Ok(voxels
+            .voxel_state(scalar::cell2(x, y))
+            .is_some_and(|state| !state.is_empty()))
+    });
+    m.function(
+        "voxel_at",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let handle = first_collider(&state, entity)?;
+            let collider = &state.world.colliders[handle];
+            let voxels = collider
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            // The grid is in the collider's own space, so a world point has to
+            // come home first.
+            let local = collider.position().inverse() * scalar::v2(x, y);
+            let cell = voxels.voxel_at_point(local);
+            Ok((i64::from(cell.x), i64::from(cell.y)))
         },
     );
 }

@@ -7,7 +7,7 @@
 use anyhow::anyhow;
 use balaur_core::Engine;
 use balaur_core::entity_of;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::shape::words;
 use crate::{
@@ -16,6 +16,38 @@ use crate::{
     Renderable, Renderable2d, ScreenshotRequest, Shape2d, SpriteSheet2d, SpriteTexture,
     ViewportSnapshot, ViewportSnapshot2d, WindowConfig, set_color, set_shape2d, set_sprite,
 };
+
+/// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
+/// the rest of `opts` is the shaper's.
+fn push_text(
+    eng: &Engine,
+    at: [f32; 3],
+    text: String,
+    opts: Option<Value>,
+    in_3d: bool,
+) -> anyhow::Result<()> {
+    let pixels_per_unit = match &opts {
+        Some(Value::Map(entries)) => entries
+            .iter()
+            .find(|(key, _)| key == "pixels_per_unit")
+            .and_then(|(_, value)| match value {
+                Value::Num(n) => Some(*n as f32),
+                Value::Int(n) => Some(*n as f32),
+                _ => None,
+            }),
+        _ => None,
+    };
+    let style = crate::world_text::style_of(opts)?;
+    let buffer = eng.resource::<crate::world_text::TextDrawBuffer>();
+    buffer.borrow_mut().items.push(crate::world_text::TextDraw {
+        text,
+        at,
+        style,
+        pixels_per_unit: pixels_per_unit.unwrap_or(DEFAULT_PIXELS_PER_UNIT).max(1.0),
+        in_3d,
+    });
+    Ok(())
+}
 
 /// The 3D camera: where it looks from, whether it takes the mouse, and the
 /// pose, matrix and picking ray it published this frame.
@@ -77,8 +109,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
             let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
             let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
-            let world = eng.world();
-            Ok(crate::pick::along_ray(&world, origin, dir)
+            Ok(crate::pick::along_ray(eng, origin, dir)
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
         },
     );
@@ -235,6 +266,12 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
 
 /// What is drawn behind and around the scene: clear colour, ground grid,
 /// and the per-frame debug lines (3D and 2D).
+/// The text calls are here rather than in a module of their own because they
+/// are the same shape as the lines above them: one frame, no node, unrecorded.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one registration per call, and they belong beside the lines"
+)]
 pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
@@ -242,6 +279,9 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("set_grid_colors", &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
         ("draw_line", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
         ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels."),
+        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes `size`, `weight`, `italic`, `color`, `align`, `markup`, `max_width` and `pixels_per_unit`."),
+        ("draw_text", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
+        ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
@@ -310,6 +350,28 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
                 on_top.unwrap_or(false),
             ));
             Ok(())
+        },
+    );
+    // A block of text for one frame, in either pass. `pixels_per_unit` is
+    // the only key the shaper does not read, so it is taken out separately.
+    m.function(
+        "draw_text_2d",
+        |eng: &Engine, (x, y, text, opts): (f32, f32, String, Option<Value>)| {
+            push_text(eng, [x, y, 0.0], text, opts, false)
+        },
+    );
+    m.function(
+        "draw_text",
+        |eng: &Engine, (x, y, z, text, opts): (f32, f32, f32, String, Option<Value>)| {
+            push_text(eng, [x, y, z], text, opts, true)
+        },
+    );
+    m.function(
+        "text_size",
+        |eng: &Engine, (text, opts): (String, Option<Value>)| {
+            let style = crate::world_text::style_of(opts)?;
+            let [w, h] = crate::world_text::measure(eng, &text, &style)?;
+            Ok((w, h))
         },
     );
     // One 2D world-space line for one frame; width in pixels.

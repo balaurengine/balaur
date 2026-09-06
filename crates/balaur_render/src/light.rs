@@ -1,6 +1,6 @@
 //! `light2d` and `occluder2d`: what the 2D light map is built from.
 //!
-//! Both are resolved headless — the outline an occluder casts from, and the
+//! Both are resolved headless: the outline an occluder casts from, and the
 //! world-space light a backend draws, are computed here from the scene tree,
 //! so a test can assert on them without a GPU. The kiss3d backend
 //! (`light_map`) only rasterises what these hand it.
@@ -201,7 +201,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light2d",
         ComponentDef {
-            doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
+            doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -390,7 +390,7 @@ pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
 /// The node's `collider2d` outline, read through the component registry so
 /// the renderer never links against the physics plugin. `None` when there is
 /// no collider, or when its shape has no outline to trace (a heightfield, a
-/// mesh-backed one — those want an explicit `mesh` on the occluder).
+/// mesh-backed one. Those want an explicit `mesh` on the occluder).
 fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
     let params = {
         let registry = eng.try_resource::<balaur_core::ComponentRegistry>()?;
@@ -438,7 +438,7 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
 }
 
 /// The node's 2D shape as an outline: the fallback when nothing else says
-/// what this node's silhouette is. A polyline or polygon is not one of them —
+/// what this node's silhouette is. A polyline or polygon is not one of them:
 /// its points live in a mesh asset, which the occluder's own `mesh` names.
 fn shape_outline(eng: &Engine, entity: Entity) -> Vec<Vec2> {
     let world = eng.world();

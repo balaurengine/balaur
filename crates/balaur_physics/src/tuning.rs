@@ -186,7 +186,7 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
 
 pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_tuning", &[], "(opts: table)", "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers — prefer `[physics]` in project.toml."),
+        ("set_tuning", &[], "(opts: table)", "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]` in project.toml."),
         ("tuning", &[], "()", "The solver settings both worlds are running with."),
         ("quarantined", &[], "()", "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer."),
         ("counters", &[], "()", "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it."),

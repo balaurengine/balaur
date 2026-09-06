@@ -50,7 +50,7 @@ pub struct DrawBuffer2d {
     pub shapes: Vec<Draw2d>,
 }
 
-fn color_of(args: &Value) -> anyhow::Result<[f32; 4]> {
+pub(crate) fn color_of(args: &Value) -> anyhow::Result<[f32; 4]> {
     match args {
         Value::Nil => Ok([1.0, 1.0, 1.0, 1.0]),
         Value::Color(c) => Ok(*c),

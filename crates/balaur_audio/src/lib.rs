@@ -3,19 +3,19 @@
 //! `audio.play` hands back an integer handle; `stop`, `set_volume`,
 //! `set_pitch` and `is_playing` address it. The `sound` component gives a
 //! node a configured sound, triggered by `audio.play_on` / `audio.stop_on`.
-//! A sound with a place in the world — a `positional` component, or a `play`
-//! given a `position` — is heard from the `listener` node: see [`spatial`].
+//! A sound with a place in the world (a `positional` component, or a `play`
+//! given a `position`) is heard from the `listener` node: see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
 //! available (CI, headless servers) the plugin logs a warning once and every
-//! call still hands out the same handles — a game runs identically with and
+//! call still hands out the same handles: a game runs identically with and
 //! without a sound card. Anything that feeds a decision (`is_playing`, the
 //! `sound` component's "already started" check) is therefore tracked as
 //! intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
 //! A browser refuses to start audio until the page has seen a gesture, so
-//! there the device is opened on the first key, button or touch —
-//! `UserActivation` — rather than at load. `audio.ready` says whether it is
+//! there the device is opened on the first key, button or touch
+//! (`UserActivation`) rather than at load. `audio.ready` says whether it is
 //! open yet; before that every call takes the "no device" path above.
 
 use anyhow::{Result, anyhow, bail};
@@ -294,7 +294,7 @@ struct Routed {
 }
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
-/// gain, and — for a positional sound — where it plays from.
+/// gain, and, for a positional sound, where it plays from.
 pub struct Cue {
     pub volume: f32,
     pub pitch: f32,
@@ -331,8 +331,8 @@ impl AudioState {
         }
     }
 
-    /// Start a sound from its bytes — the `audio.*` bindings read paths
-    /// through the pack-aware project reader — and hand back its handle.
+    /// Start a sound from its bytes: the `audio.*` bindings read paths
+    /// through the pack-aware project reader, and hand back its handle.
     /// Never errors: no output device and bytes that will not decode both
     /// leave the handle silent, so a headless run behaves like a windowed
     /// one.
@@ -416,7 +416,7 @@ impl AudioState {
         handle
     }
 
-    /// Re-apply the mix to every live sound `moved` carries — the ones on it
+    /// Re-apply the mix to every live sound `moved` carries: the ones on it
     /// and the ones on any bus under it. What moving a slider does to what is
     /// already playing.
     ///
@@ -716,7 +716,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
     }
 }
 
-/// The `sound` scene key — the one an editor-saved `[nodes.sound]` writes.
+/// The `sound` scene key: the one an editor-saved `[nodes.sound]` writes.
 ///
 /// Takes the plugin `Registry` rather than `&mut App`: audio registers
 /// through the plugin seam, and `Registry::register_component` is that
@@ -816,7 +816,7 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
         let started = state.nodes.get(&entity).is_some_and(|s| s.handle.is_some());
         autoplay && has_file && !started
     };
-    // Re-applying the component must not restart a sound already started —
+    // Re-applying the component must not restart a sound already started:
     // the same rule the `animation` component holds for its autoplay clip.
     if start && let Err(why) = play_on(eng, entity) {
         tracing::warn!("sound autoplay: {why:#}");
@@ -886,7 +886,7 @@ fn point(value: Option<&Value>) -> Option<Vec3> {
 }
 
 /// Three numbers or one vector, so `set_listener(v)` and
-/// `set_listener(x, y, z)` both work — the spelling `node.set_position` takes.
+/// `set_listener(x, y, z)` both work: the spelling `node.set_position` takes.
 fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
     if let Some(point) = point(Some(x)) {
         return Ok(point);
@@ -899,7 +899,7 @@ fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
 }
 
 /// The emitter an options table asks for, or `None` when it names no
-/// `position` — which is what makes a sound flat rather than placed.
+/// `position`: which is what makes a sound flat rather than placed.
 fn emitter_from(opts: Option<&Value>) -> Option<Emitter> {
     let position = point(opt(opts, "position"))?;
     Some(Emitter::new(
@@ -1011,7 +1011,7 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// `audio.*`: the mix — which bus a sound plays through, and the sounds a
+/// `audio.*` covers the mix: which bus a sound plays through, and the sounds a
 /// project names rather than spells out.
 ///
 /// Its own group because the rest of `audio` is about one playback at a time
@@ -1020,7 +1020,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
         ("bus_volume", &[], "(bus: string)", "One bus's own gain, without its parents'."),
-        ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it — which is what a volume slider is."),
+        ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         ("events", &[], "()", "Every sound named in `audio/events.toml`, in name order."),
         ("play_event", &[], "(name: string, options: map)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
@@ -1102,7 +1102,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
 /// `audio.*`: where a sound is and where it is heard from.
 ///
 /// Its own group because the rest of `audio` is about what plays, and this
-/// is about where — the `listener` node's own half of the pair, and the
+/// is about where: the `listener` node's own half of the pair, and the
 /// emitter behind a handle that was played with a `position`.
 fn install_positional_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[

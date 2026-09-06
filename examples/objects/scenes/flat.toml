@@ -1,0 +1,148 @@
+# Instanced at run time, not from main.toml: a 2D component there would make
+# the editor treat the whole scene as 2D.
+[[nodes]]
+id = "n_camera2d"
+name = "Camera2D"
+parent = ""
+
+[nodes.camera]
+kind = "2d"
+zoom = 60.0
+
+[[nodes]]
+id = "n_flat"
+name = "Flat"
+parent = ""
+visible = false
+
+[[nodes]]
+id = "n_ellipse"
+name = "Ellipse"
+parent = "n_flat"
+position = [-7, 2.6, 0]
+
+[nodes.shape2d]
+kind = "ellipse"
+half_extents = [1.7, 1.05]
+color = [0.85, 0.6, 0.2, 1]
+
+[[nodes]]
+id = "n_star"
+name = "Star"
+parent = "n_flat"
+position = [-2.3, 2.6, 0]
+
+[nodes.shape2d]
+kind = "star"
+radius = 1.5
+inner_radius = 0.65
+points = 5
+color = [0.35, 0.65, 0.9, 1]
+
+[[nodes]]
+id = "n_ngon"
+name = "Ngon"
+parent = "n_flat"
+position = [2.3, 2.6, 0]
+
+[nodes.shape2d]
+kind = "ngon"
+radius = 1.4
+sides = 6
+color = [0.4, 0.75, 0.45, 1]
+
+[[nodes]]
+id = "n_capsule2d"
+name = "Capsule"
+parent = "n_flat"
+position = [7, 2.6, 0]
+
+[nodes.shape2d]
+kind = "capsule"
+radius = 0.7
+half_extents = [0.7, 1.2]
+color = [0.8, 0.45, 0.5, 1]
+
+[[nodes]]
+id = "n_union2d"
+name = "Union2D"
+parent = "n_flat"
+position = [-6, -2.6, 0]
+
+[nodes.boolean2d]
+op = "union"
+
+[[nodes]]
+id = "n_union2d_a"
+name = "A"
+parent = "n_union2d"
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [1.3, 1.3]
+
+[[nodes]]
+id = "n_union2d_b"
+name = "B"
+parent = "n_union2d"
+position = [1.1, 0.9, 0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 1.0
+
+[[nodes]]
+id = "n_difference2d"
+name = "Difference2D"
+parent = "n_flat"
+position = [0, -2.6, 0]
+
+[nodes.boolean2d]
+op = "difference"
+
+[[nodes]]
+id = "n_difference2d_a"
+name = "A"
+parent = "n_difference2d"
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [1.3, 1.3]
+
+[[nodes]]
+id = "n_difference2d_b"
+name = "B"
+parent = "n_difference2d"
+position = [1.1, 0.9, 0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 1.0
+
+[[nodes]]
+id = "n_intersection2d"
+name = "Intersection2D"
+parent = "n_flat"
+position = [6, -2.6, 0]
+
+[nodes.boolean2d]
+op = "intersection"
+
+[[nodes]]
+id = "n_intersection2d_a"
+name = "A"
+parent = "n_intersection2d"
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [1.3, 1.3]
+
+[[nodes]]
+id = "n_intersection2d_b"
+name = "B"
+parent = "n_intersection2d"
+position = [1.1, 0.9, 0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 1.0

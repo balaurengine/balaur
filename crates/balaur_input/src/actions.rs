@@ -42,7 +42,7 @@ pub(crate) enum Binding {
     /// `"axis:LeftStickX"`, and the half-axes `"axis:LeftStickY+"` and
     /// `"axis:LeftStickY-"` for a direction that should read as one action.
     Axis { name: String, half: Half },
-    /// `"keys:A,D"` — two keys as one axis, the first negative.
+    /// `"keys:A,D"`: two keys as one axis, the first negative.
     KeyPair(String, String),
 }
 
@@ -164,7 +164,7 @@ impl Binding {
 }
 
 /// One action's value, this frame and last, so an edge is a comparison rather
-/// than a special case per binding kind — a stick pushed past the threshold
+/// than a special case per binding kind: a stick pushed past the threshold
 /// fires `just_pressed` exactly as a key does.
 #[derive(Clone, Copy, Default)]
 struct ActionState {
@@ -229,7 +229,7 @@ impl InputActions {
     /// Declare the project's actions outright, replacing what was declared
     /// before and keeping the player's own rebindings on top.
     ///
-    /// For a host running a project other than its own — the editor, whose
+    /// For a host running a project other than its own: the editor, whose
     /// `project.toml` is the editor's and not the game's, so without this
     /// every action a played game asks for reads zero.
     pub(crate) fn declare(&mut self, actions: BTreeMap<String, Vec<Binding>>) {
@@ -262,7 +262,7 @@ impl InputActions {
 /// Recompute every action from this frame's raw input.
 ///
 /// Runs in `Stage::First`, after the gamepad poll and after a replay has
-/// restored the recorded snapshot — which is what makes a replayed action
+/// restored the recorded snapshot: which is what makes a replayed action
 /// identical to the one that was played, edges included.
 pub(crate) fn tick(eng: &Engine) {
     let actions = eng.resource::<InputActions>();
@@ -290,7 +290,7 @@ pub(crate) fn tick(eng: &Engine) {
 /// Load the project's table and the player's rebindings over it, once.
 ///
 /// Lazy because the manifest is read when the project loads, which is after
-/// every plugin has been built — and because a recording's header may have
+/// every plugin has been built, and because a recording's header may have
 /// put a table here first, in which case there is nothing to load.
 fn ensure_loaded(eng: &Engine) {
     let actions = eng.resource::<InputActions>();

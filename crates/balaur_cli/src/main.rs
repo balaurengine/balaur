@@ -286,7 +286,7 @@ fn main() -> Result<()> {
         }
         return balaur::boot_pack(&pack);
     }
-    match Cli::parse().command {
+    match Cli::parse_from(argv()).command {
         Command::Api => dump_api(),
         Command::Import {
             file,
@@ -685,10 +685,9 @@ fn edit_project(
             // This has to come before the source-tree guess, whose baked-in
             // path belongs to whatever machine did the build.
             let exe = std::env::current_exe().ok()?;
-            exe.parent()?
-                .join("editor")
-                .canonicalize()
-                .ok()
+            balaur_export::data_roots(exe.parent()?)
+                .into_iter()
+                .find_map(|root| root.join("editor").canonicalize().ok())
                 .map(|p| joinable(&p))
         })
         .or_else(|| {
@@ -993,6 +992,40 @@ fn dump_api() -> Result<()> {
     api["asset_types"] = serde_json::to_value(asset_types)?;
     println!("{}", serde_json::to_string_pretty(&api)?);
     Ok(())
+}
+
+/// The command line, plus the arguments a double-clicked bundle cannot give
+/// itself: Finder starts an app with none and a working directory of `/`, so
+/// `Balaur.app` would open on clap's help and quit.
+fn argv() -> Vec<std::ffi::OsString> {
+    let mut args: Vec<std::ffi::OsString> = std::env::args_os()
+        // Finder hands a bundle its process serial number on older systems.
+        .filter(|arg| !arg.to_string_lossy().starts_with("-psn_"))
+        .collect();
+    if args.len() > 1 {
+        return args;
+    }
+    let Some(project) = bundle_project() else {
+        return args;
+    };
+    args.push("edit".into());
+    args.push(project.into_os_string());
+    args
+}
+
+/// The project a bundle opens on: one under the home directory, made from the
+/// starter on first launch. Not `~/Documents`, whose first write is a macOS
+/// permission dialog — the warning this bundle exists to avoid.
+fn bundle_project() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    if !exe.parent()?.ends_with("Contents/MacOS") {
+        return None;
+    }
+    let project = PathBuf::from(std::env::var_os("HOME")?).join("Balaur");
+    if !project.join("project.toml").is_file() {
+        new_project(&project).ok()?;
+    }
+    Some(project)
 }
 
 fn new_project(path: &Path) -> Result<()> {

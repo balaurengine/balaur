@@ -72,3 +72,9 @@ pub(crate) fn position_of(v: Vector) -> glamx::Vec3 {
 pub(crate) const fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
     crate::rapier3d::math::IVector::new(x, y, z)
 }
+
+/// The same in 2D, which reads the x and y of a `voxels` asset's cells the
+/// way a 2D mesh collider reads the x and y of a mesh's points.
+pub(crate) const fn cell2(x: i32, y: i32) -> crate::rapier2d::math::IVector {
+    crate::rapier2d::math::IVector::new(x, y)
+}

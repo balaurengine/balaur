@@ -16,6 +16,10 @@ const W = 2.4;
 // A tip bone with no length set still needs a diamond to pick.
 const TIP_LENGTH = 0.35;
 const PICK_PX = 10.0;
+// A bone name is drawn at this many font pixels to the world unit, lifted
+// clear of the joint it names.
+const LABEL_PPU = 90.0;
+const LABEL_LIFT = 0.12;
 
 fn has_object(node, key) {
     match node.get(key) {
@@ -220,8 +224,26 @@ pub fn draw(S) {
                 } else {
                     draw_bone_3d(g, color);
                 }
+                label_bone(S, i, node, g, color);
             }
         }
+    }
+}
+
+// The bone's name at its origin, for the one under the pointer and the one
+// selected. Every bone at once is a wall of text; the Rig tool names them
+// all, because placing one is when the chain's shape is the question.
+fn label_bone(S, i, node, g, color) {
+    if S.tool != "bone" && S.rig.hover != Some(i) && i != S.sel {
+        return;
+    }
+    let opts = #{
+        size: 28.0, color: color, align: "center", pixels_per_unit: LABEL_PPU,
+    };
+    if S.mode2d {
+        render::draw_text_2d(g.origin[0], g.origin[1] + LABEL_LIFT, node.name, opts);
+    } else {
+        render::draw_text(g.origin[0], g.origin[1] + LABEL_LIFT, g.origin[2], node.name, opts);
     }
 }
 

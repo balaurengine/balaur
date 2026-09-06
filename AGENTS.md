@@ -1,59 +1,40 @@
 # Working in this repository
 
-Rules for anyone editing here, human or agent. `docs/NAMING.md` governs names;
-this file governs everything else. Where they disagree, that file wins.
+Rules for anyone editing here, human or agent. `docs/NAMING.md` governs names
+and wins where it disagrees with this file.
 
 ## Comments
 
-Prefer a name. A comment is a second thing to keep true, and it goes stale
-without failing anything.
+Prefer a name; a comment is a second thing to keep true. Write one only for:
 
-Write a comment only when the code cannot carry the point:
-
-- **why**, where the reason is not visible — a workaround, an order that
-  matters, a value chosen for a reason, a bug this shape avoids
-- **a contract that would surprise the reader** — `camera_pose` reports where
-  a backend put the camera, so it does not echo back what `set_camera` asked
+- **why**, where the reason is invisible — a workaround, an order that matters,
+  a value chosen for a reason
+- **a contract that would surprise the reader** — `camera_pose` reports where a
+  backend put the camera, not what `set_camera` asked
 - **a warning** — appending to a binary invalidates a macOS signature
 
-A comment is one or two lines. State the constraint and stop: no argument
-for why the code is correct, no history of what it replaced, no essay
-defending the design. If the reason needs a paragraph, it is architecture —
-put it in ARCHITECTURE.md and leave at most one line behind.
+One or two lines: state the constraint and stop. A reason needing a paragraph
+is architecture; put it in `ARCHITECTURE.md`.
 
-Do not write:
-
-- a restatement of the line below it
-- a divider or banner (`// ---- helpers ----`); the structure is the divider
-- commented-out code; git remembers it
-- a doc comment on a test whose name already says what it checks
-- a block of three-plus comment lines justifying a decision; that is prose
-  for a reviewer, and the reviewer is not the next reader
-
-The name is the documentation. `a_freed_node_stops_being_valid` needs no
-comment. If a comment feels necessary, first try renaming the thing.
+Never write: a restatement of the line below, a divider or banner,
+commented-out code, a doc comment on a test whose name already says it, or
+three-plus lines defending a decision.
 
 `scripts/comment_lints.py` enforces the mechanical half across every language
-in the tree, not just Rust — including the length cap: a plain-comment block
-longer than three lines fails CI.
+in the tree; a plain-comment block over three lines fails CI.
 
 ## Rune
 
-`obj.field = a || b` and `obj.field = a && b` **overwrite `a`** when `a` is a
-local: the short-circuit result lands in the local's slot as well as in the
-field. Parentheses do not help. Compute into a local first, then assign:
+`obj.field = a || b` (and `&&`) **overwrites `a`** when `a` is a local — the
+short-circuit result lands in the local's slot too. Parentheses do not help.
+Index targets (`arr[i] = a || b`) are affected; `let`, call arguments and `if`
+conditions are safe. Compute into a local first:
 
     let live = split || !document;
     S.viewport_live = live;
 
-The same shape with an index target (`arr[i] = a || b`) is affected. A plain
-`let`, a call argument and an `if` condition are all safe, and a left operand
-that is itself a field is safe.
-
-A `}` followed by `(` or `[` **continues the expression**: the block's own
-value is called, or indexed. So a statement `if ... { }` above a line starting
-with `(` compiles, runs, and fails at that line with a type that has nothing
-to do with it. Bind to a local first:
+A `}` followed by `(` or `[` **continues the expression**: the block's value is
+called or indexed, and the error names a type from the line above. Bind first:
 
     let work = case.run;
     if again { prepare(world); }
@@ -61,26 +42,21 @@ to do with it. Bind to a local first:
 
 ## Tests
 
-A test's name is a sentence about behaviour, not a label for a function:
-`freeing_a_node_frees_its_children`, not `test_free`.
-
-Assert on behaviour a caller can see. When a test asserts from inside a script,
-add one control that proves the script ran at all — otherwise the assertions
-hold vacuously when the script never executes.
-
-Feature tests and performance tests stay apart. Budgets live in
-`crates/balaur_bench/tests/` and assert orders of magnitude, never percentages:
-CI runners are shared and a gate that cries wolf gets ignored.
+- A test's name is a sentence about behaviour: `freeing_a_node_frees_its_children`,
+  not `test_free`.
+- Assert on behaviour a caller can see. A test asserting from inside a script
+  carries one control proving the script ran, or it holds vacuously.
+- Feature tests and performance tests stay apart. Budgets live in
+  `crates/balaur_bench/tests/` and assert orders of magnitude, never
+  percentages: a shared runner makes a tight gate cry wolf.
 
 ## Changelog
 
-`CHANGELOG.md` gets one line per feature, under Added, Fixed or Known issues.
-Name what changed and stop: no rationale, no commit hashes, no prose. The
-commit message and the code carry the reasoning.
+`CHANGELOG.md` gets one line per feature under Added, Fixed or Known issues.
+Name what changed and stop — no rationale, no commit hashes.
 
 ## Before committing
 
     ./scripts/lint.sh
 
-CI runs the same checks. Green locally and red on push means the two have
-drifted, which is a bug in the scripts, not in the commit.
+CI runs the same checks. Green locally and red on push is a bug in the scripts.

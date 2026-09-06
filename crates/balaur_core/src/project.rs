@@ -50,6 +50,66 @@ pub struct ProjectManifest {
     pub splash: String,
     /// How long the splash stays, in seconds of engine time.
     pub splash_seconds: f32,
+    /// The window a windowed build opens, and how it is drawn.
+    pub window: WindowSettings,
+    /// What the UI layer loads before it draws.
+    pub ui: UiSettings,
+}
+
+/// `[window]`: the window a windowed build opens, and how it is drawn.
+///
+/// A headless run holds these and opens nothing, so a project states them
+/// once and still ticks identically in CI.
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct WindowSettings {
+    /// Logical width. The backing store is this times the display's scale,
+    /// which is what the render targets are sized from.
+    pub width: u32,
+    pub height: u32,
+    /// Samples per pixel. `1`, the default, is off; `4` is the only other
+    /// count the renderer offers, and it costs two render targets of four
+    /// samples each — over a hundred megabytes at a retina backing store,
+    /// which is why a game asks for it rather than pays for it unasked.
+    pub msaa: u32,
+    /// Present in step with the display.
+    pub vsync: bool,
+    /// Open filling the screen. Scripts toggle it later through the same
+    /// state this seeds, so a game that starts fullscreen and a game that
+    /// switches into it take one path.
+    pub fullscreen: bool,
+}
+
+impl Default for WindowSettings {
+    fn default() -> Self {
+        Self {
+            width: 1600,
+            height: 1000,
+            msaa: 1,
+            vsync: true,
+            fullscreen: false,
+        }
+    }
+}
+
+/// `[ui]`: what the UI layer loads before it draws.
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct UiSettings {
+    /// Append the operating system's own faces to every font chain, so text
+    /// in a script balaur does not vendor draws instead of tofu.
+    ///
+    /// They are the largest files on the machine — one CJK collection runs
+    /// to tens of megabytes, and macOS ships three — so a game that only
+    /// ever draws the faces it vendors can turn them off and not pay for
+    /// them.
+    pub system_fonts: bool,
+}
+
+impl Default for UiSettings {
+    fn default() -> Self {
+        Self { system_fonts: true }
+    }
 }
 
 /// What a project says about one plugin: whether it wants it, and the
@@ -103,6 +163,10 @@ struct RawManifest {
     application: Application,
     #[serde(default)]
     plugins: BTreeMap<String, PluginChoice>,
+    #[serde(default)]
+    window: WindowSettings,
+    #[serde(default)]
+    ui: UiSettings,
 }
 
 #[derive(Deserialize)]
@@ -133,6 +197,8 @@ impl From<RawManifest> for ProjectManifest {
             plugins: raw.plugins,
             splash: raw.application.splash,
             splash_seconds: raw.application.splash_seconds.max(0.0),
+            window: raw.window,
+            ui: raw.ui,
         }
     }
 }
@@ -307,7 +373,8 @@ pub struct ProjectFiles {
     fs: std::rc::Rc<dyn crate::files::FileBackend>,
     /// The `assets/index.toml` a pack carries; a dev run reads the file.
     packed_index: Option<String>,
-    /// `id → path`, parsed on the first `id://` and dropped by
+    /// `id → path`, parsed on the first `id:
+    // ` and dropped by
     /// [`Self::reload_index`].
     index: std::cell::RefCell<Option<BTreeMap<String, String>>>,
 }
@@ -358,13 +425,15 @@ impl ProjectFiles {
         self
     }
 
-    /// Drop the parsed id index so the next `id://` re-reads
+    /// Drop the parsed id index so the next `id:
+    // ` re-reads
     /// `assets/index.toml`. What the watcher calls when that file is saved.
     pub fn reload_index(&self) {
         *self.index.borrow_mut() = None;
     }
 
-    /// The path an `id://<id>` reference names, with any `#entry` kept; a
+    /// The path an `id:
+    // <id>` reference names, with any `#entry` kept; a
     /// reference that is already a path comes back as it is.
     ///
     /// # Errors
@@ -522,7 +591,8 @@ impl ProjectFiles {
     }
 }
 
-/// The path a reference names: what `id://<id>` resolves to through
+/// The path a reference names: what `id:
+// <id>` resolves to through
 /// `assets/index.toml`, or the reference itself when it is already a path.
 ///
 /// # Errors

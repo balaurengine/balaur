@@ -3,8 +3,13 @@
 //! The renderer is not asked. Picking reads the same components a backend
 //! draws from, so it answers identically in a windowed run and a headless
 //! one — which is the only way the editor's own tests can cover it.
+//!
+//! A node's box narrows the field; the triangles decide, through parry, so a
+//! click between the spokes of a wheel misses it as the eye expects.
 
+use balaur_core::Engine;
 use balaur_core::hecs;
+use balaur_core::mesh::MeshData;
 use balaur_core::scene::GlobalTransform;
 use glamx::Vec3;
 
@@ -23,6 +28,47 @@ fn local_box(renderable: &Renderable) -> Option<(Vec3, Vec3)> {
         return Some((bounds.centre, bounds.half));
     };
     Some((Vec3::ZERO, Vec3::from_array(solid.half_extents())))
+}
+
+/// A scale no axis of which is zero, so dividing by it cannot explode.
+fn safe_scale(scale: Vec3) -> Vec3 {
+    Vec3::new(
+        if scale.x.abs() < 1e-6 { 1e-6 } else { scale.x },
+        if scale.y.abs() < 1e-6 { 1e-6 } else { scale.y },
+        if scale.z.abs() < 1e-6 { 1e-6 } else { scale.z },
+    )
+}
+
+/// Distance to the nearest triangle of `mesh`, or `None` for a miss.
+///
+/// The ray comes into the node's own space first, both ends scaled, so `t`
+/// still measures world distance and hits from different nodes compare.
+fn hit_mesh(at: &GlobalTransform, mesh: &MeshData, origin: Vec3, dir: Vec3) -> Option<f32> {
+    use parry3d::query::RayCast;
+
+    let inverse = at.rotation.inverse();
+    let scale = safe_scale(at.scale);
+    let ray = parry3d::query::Ray::new(
+        (inverse * (origin - at.position)) / scale,
+        (inverse * dir) / scale,
+    );
+    let mut best: Option<f32> = None;
+    for corners in &mesh.indices {
+        let point = |i: u32| mesh.positions.get(i as usize).map(|p| Vec3::from_array(*p));
+        let (Some(a), Some(b), Some(c)) = (point(corners[0]), point(corners[1]), point(corners[2]))
+        else {
+            continue;
+        };
+        let Some(distance) =
+            parry3d::shape::Triangle::new(a, b, c).cast_local_ray(&ray, f32::MAX, false)
+        else {
+            continue;
+        };
+        if best.is_none_or(|so_far| distance < so_far) {
+            best = Some(distance);
+        }
+    }
+    best
 }
 
 /// Distance along `dir` to the near face of the box, or `None` for a miss.
@@ -107,27 +153,87 @@ fn hit_sphere(at: &GlobalTransform, radius: f32, origin: Vec3, dir: Vec3) -> Opt
     Some(near.max(0.0) / length)
 }
 
+/// A candidate the box pass kept, and what its triangles can be found in.
+struct Candidate {
+    entity: hecs::Entity,
+    distance: f32,
+    at: GlobalTransform,
+    mesh: Option<String>,
+    built: Option<std::sync::Arc<MeshData>>,
+    /// A ball is smooth; its faceted mesh would pick *less* like what is
+    /// drawn, so its sphere distance is the answer.
+    refine: bool,
+}
+
+/// The `mesh` asset's triangles, resolved the way a collider resolves them.
+fn loaded(eng: &Engine, reference: &str) -> Option<MeshData> {
+    let definition = balaur_core::assets::load_typed::<MeshData>(eng, reference).ok()?;
+    balaur_core::mesh::load_from(eng, &definition).ok()
+}
+
 /// The nearest `Renderable` the ray meets, and how far along it that is.
 ///
 /// `dir` need not be a unit vector; the distance is in multiples of it, so
 /// only the ordering matters to a caller choosing what was clicked.
-pub(crate) fn along_ray(
-    world: &hecs::World,
-    origin: Vec3,
-    dir: Vec3,
-) -> Option<(hecs::Entity, f32)> {
-    let mut best: Option<(hecs::Entity, f32)> = None;
+///
+/// Boxes first, triangles second: a candidate whose box is further away than
+/// an exact hit already found is never loaded at all.
+fn candidates(world: &hecs::World, origin: Vec3, dir: Vec3) -> Vec<Candidate> {
+    let mut out: Vec<Candidate> = Vec::new();
     for (entity, renderable, at) in
         &mut world.query::<(hecs::Entity, &Renderable, &GlobalTransform)>()
     {
+        let ball = matches!(renderable.shape, Shape::Solid(Solid::Ball { .. }));
         let hit = match renderable.shape {
             Shape::Solid(Solid::Ball { radius, .. }) => hit_sphere(at, radius, origin, dir),
             _ => local_box(renderable)
                 .and_then(|(centre, half)| hit_box(at, centre, half, origin, dir)),
         };
         let Some(distance) = hit else { continue };
-        if best.is_none_or(|(_, best)| distance < best) {
-            best = Some((entity, distance));
+        out.push(Candidate {
+            entity,
+            distance,
+            at: *at,
+            mesh: renderable.mesh.clone(),
+            built: renderable.built.clone(),
+            refine: !ball,
+        });
+    }
+    out.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+    out
+}
+
+pub(crate) fn along_ray(eng: &Engine, origin: Vec3, dir: Vec3) -> Option<(hecs::Entity, f32)> {
+    let candidates = {
+        let world = eng.world();
+        candidates(&world, origin, dir)
+    };
+    let mut best: Option<(hecs::Entity, f32)> = None;
+    for candidate in candidates {
+        if best.is_some_and(|(_, so_far)| candidate.distance >= so_far) {
+            break;
+        }
+        let triangles = if candidate.refine {
+            match candidate.built {
+                Some(built) => Some(hit_mesh(&candidate.at, &built, origin, dir)),
+                None => candidate
+                    .mesh
+                    .as_deref()
+                    .filter(|name| !name.is_empty())
+                    .and_then(|name| loaded(eng, name))
+                    .map(|data| hit_mesh(&candidate.at, &data, origin, dir)),
+            }
+        } else {
+            None
+        };
+        let distance = match triangles {
+            // The triangles answered: a miss here is a miss, box or no box.
+            Some(Some(exact)) => exact,
+            Some(None) => continue,
+            None => candidate.distance,
+        };
+        if best.is_none_or(|(_, so_far)| distance < so_far) {
+            best = Some((candidate.entity, distance));
         }
     }
     best
@@ -326,7 +432,8 @@ mod tests {
             renderable(cuboid(1.0, 1.0, 1.0)),
             at(Vec3::new(0.0, 0.0, -20.0)),
         ));
-        let (entity, distance) = along_ray(&world, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0)).unwrap();
+        let found = candidates(&world, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0));
+        let (entity, distance) = (found[0].entity, found[0].distance);
         assert_eq!(entity, near);
         assert!(
             (distance - 4.0).abs() < 1e-5,
@@ -341,6 +448,8 @@ mod tests {
             renderable(cuboid(1.0, 1.0, 1.0)),
             at(Vec3::new(0.0, 0.0, -5.0)),
         ));
-        assert!(along_ray(&world, Vec3::new(50.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)).is_none());
+        assert!(
+            candidates(&world, Vec3::new(50.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)).is_empty()
+        );
     }
 }

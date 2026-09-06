@@ -145,6 +145,7 @@ library. A Gamend-hosted catalogue with the same manifest is
 | Events view authoring | Step 6, with `docs/PLAN-interactivity.md` step 3 |
 | Cost dock | Step 7 |
 | Library dock, stock content, templates | Step 8 |
+| Clicking exactly what is drawn | *Built 2026-09-06.* `pick` sorts by the box, then casts against the node's triangles through parry, so a click between the spokes of a wheel misses it. A `Bvh` over the boxes is `docs/PLAN-views-and-culling.md` step 1, for when the linear pass stops being enough |
 | Snap to vertex, edge, face | Not planned; grid snapping stays the one snap |
 | Mesh editing, sculpting | Not planned: they are a modeller, and a `.glb` from Blender is the answer |
 | A community library | `docs/PLAN-collaboration.md` |

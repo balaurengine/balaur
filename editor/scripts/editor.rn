@@ -33,6 +33,7 @@ mod shell;
 mod showcase;
 mod style;
 mod theme;
+mod textedit;
 mod tiles;
 mod util;
 mod viewport;
@@ -115,6 +116,7 @@ pub fn init(this) {
         mirror: (),
         theme: theme::dark(),
         gizmo: gizmo::state(),
+        textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
         tiles: tiles::state(),
@@ -233,6 +235,7 @@ pub fn update(this, dt) {
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
         gizmo::update(S);
+    textedit::update(S);
     }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
@@ -392,10 +395,8 @@ pub fn draw_ui(this) {
     center::modes(S);
     layout::compute(S);
     center::draw(S);
-    for side in docks::sides() {
-        docks::draw(S, S.theme, side);
-    }
-    chrome::top_bar(S);
+    // Every dock is nodes now: the scene lays them out, paints them, and calls
+    // `draw_dock_*` and `draw_status` to fill them.
     plugins::draw_windows(S, S.theme);
     if S.show_input {
         inputview::draw(S);
@@ -406,6 +407,9 @@ pub fn draw_ui(this) {
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
     exporter::draw(S);
+    // Under the sheets, over the viewport: a field that edits what is drawn
+    // belongs with the drawing, not over a dialog.
+    textedit::draw(S, S.theme);
     settings::draw(S);
     palette::draw(S);
 }
@@ -417,6 +421,28 @@ fn padded(n) {
         s = "0" + s;
     }
     s
+}
+
+// The shell's side docks: the scene lays the box out and paints it, and this
+// fills it. `docks::draw` still owns what goes in.
+pub fn draw_dock_left(this) {
+    docks::draw_body(this.S, this.S.theme, "left");
+}
+
+pub fn draw_dock_right(this) {
+    docks::draw_body(this.S, this.S.theme, "right");
+}
+
+pub fn draw_dock_bottom(this) {
+    docks::draw_bottom_body(this.S, this.S.theme);
+}
+
+pub fn draw_status(this) {
+    docks::draw_status(this.S, this.S.theme);
+}
+
+pub fn draw_top_bar(this) {
+    chrome::top_bar(this.S);
 }
 
 pub fn hot_reload(this) {

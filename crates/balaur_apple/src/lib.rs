@@ -4,7 +4,7 @@
 //! Everything here is asynchronous and answers on a queue the engine does not
 //! own, so nothing here invents a mechanism: a call returns an id, the
 //! completion crosses a channel, and [`ExternalIo`] lands it at
-//! [`Stage::First`] of a later tick — recorded, replayable, dispatched to a
+//! [`Stage::First`] of a later tick: recorded, replayable, dispatched to a
 //! handler method and to whoever awaits the id. It is `balaur_http` with
 //! GameKit where the socket is.
 //!
@@ -115,7 +115,7 @@ pub enum AppleCall {
     /// and answers with a token a server verifies against Apple's keys.
     SignIn,
     /// Whether a Sign in with Apple account is still good. The user id is the
-    /// game's to keep — the engine stores no accounts.
+    /// game's to keep: the engine stores no accounts.
     CredentialState { user: String },
     /// Game Center's own dashboard, opening on one of its screens.
     Dashboard { state: isize },
@@ -145,7 +145,7 @@ pub enum StoreCall {
     /// What this player currently owns, each with the signed transaction a
     /// server checks.
     Entitlements,
-    /// Ask the App Store to hand the device's purchases back — the button an
+    /// Ask the App Store to hand the device's purchases back: the button an
     /// App Store review requires a game to have.
     Restore,
     /// Tell StoreKit a transaction is dealt with. Until then it comes back
@@ -314,14 +314,14 @@ impl PlatformBackend for AppleBackend {
 pub struct AppleState {
     io: ExternalIo<AppleEvent>,
     handlers: DetHashMap<u64, Handler>,
-    /// Handlers that stay subscribed. What nobody asked for — a notification
+    /// Handlers that stay subscribed. What nobody asked for: a notification
     /// tapped, a URL opened, a push token, a transaction that landed on
-    /// another device — carries request 0 and reaches every one of them.
+    /// another device: carries request 0 and reaches every one of them.
     watchers: Vec<Handler>,
 }
 
 impl AppleState {
-    /// Start a call under `id` — an [`Engine::next_token`] value, so awaiting
+    /// Start a call under `id`: an [`Engine::next_token`] value, so awaiting
     /// it cannot collide with another subsystem's ids.
     pub fn start(&mut self, eng: &Engine, id: u64, call: &AppleCall, handler: Option<Handler>) {
         if let Some(handler) = handler {
@@ -513,7 +513,7 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Apple platform services that `platform.*` does not cover. \
          `identity` fetches what a server needs to verify a Game Center \
-         player — url, signature, salt and timestamp — and answers on a later \
+         player (url, signature, salt and timestamp) and answers on a later \
          tick as a map carrying `kind`, both to the node's `on_apple` method \
          and to whoever awaits the id. Achievements, leaderboards, sign-in \
          and cloud saves are `platform.*`, which speaks Game Center here.",
@@ -596,14 +596,14 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
             &[],
             "(node: node?, opts: table?)",
             "Open Game Center's dashboard over the game; `state` picks the page \
-             — default, leaderboards, achievements, challenges, profile, dashboard or friends.",
+: default, leaderboards, achievements, challenges, profile, dashboard or friends.",
         ),
         (
             "access_point",
             &[],
             "(active: bool, opts: table?)",
             "Show or hide Game Center's floating access point, and answer whether it is showing; \
-             `location` is a corner — top_leading, top_trailing, bottom_leading or bottom_trailing.",
+             `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         ),
     ]);
     m.function(
@@ -634,7 +634,7 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-/// Notifications, push and URLs — everything that arrives rather than
+/// Notifications, push and URLs: everything that arrives rather than
 /// answers.
 fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
@@ -780,7 +780,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             "restore_purchases",
             &[],
             "",
-            "Ask the App Store to hand this device's purchases back — the button a review expects a game to have.",
+            "Ask the App Store to hand this device's purchases back: the button a review expects a game to have.",
         ),
         (
             "finish_purchase",

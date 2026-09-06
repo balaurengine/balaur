@@ -41,8 +41,10 @@ first; a cycle is refused with a message.
 
 **Culling is a pure function the simulation may ask.** Bounds are computed
 per renderable at attach — a shape's extent, a mesh asset's box, a sprite's
-quad — and `render.in_view(node)` answers whether the current camera's
-frustum meets them, computed from the `camera` component and
+quad — kept in parry's `Bvh`, the incremental index rapier's own broad phase
+uses, so the pass is a traversal rather than a walk of every node, and the
+same tree answers picking. `render.in_view(node)` answers whether the current
+camera's frustum meets a node's bounds, computed from the `camera` component and
 `GlobalTransform` alone, so a headless run answers exactly as a windowed
 one. The backend uses the same answer to skip a draw. What makes that safe
 to expose is that it reads nothing the backend produced; a script that
@@ -67,7 +69,7 @@ mesh.
 | Need | Decision |
 | --- | --- |
 | Perspective and orthographic cameras, field of view, clip planes | Step 1: `camera.projection`, `fov`, `near`, `far`, `size`, applied through the fork's `new_with_frustum`; `render.set_camera` keeps taking eye and target |
-| Skipping nodes outside the camera | Step 1: frustum culling in 3D, rect culling in 2D, from bounds; `render.in_view`, `on_view_entered` / `on_view_exited` |
+| Skipping nodes outside the camera | Step 1: frustum culling in 3D, rect culling in 2D, from bounds; `render.in_view`, `on_view_entered` / `on_view_exited`. A chunked tile map and a voxel volume cull per chunk, over the chunks `docs/PLAN-tilemap.md` step 2 and `docs/PLAN-voxels.md` step 2 give them |
 | Visibility layers | Step 2: `cull_mask` on `camera` and `viewport`, over the `layers` `docs/PLAN-3d-rendering.md` step 1 puts on lights and renderables |
 | Repeated meshes in one call | Step 3: automatic instancing over `balaur_render::instancing`, the seam the authored `cloner` draws through; this is the same seam applied to whatever the scene repeats |
 | Anti-aliasing | Step 4: `viewport.msaa`, and `[render] msaa` in `project.toml` for the window's own view; FXAA and sharpening are `docs/PLAN-3d-rendering.md` step 5 |

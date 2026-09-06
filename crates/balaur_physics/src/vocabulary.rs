@@ -80,6 +80,7 @@ pub(crate) mod words {
         CONVEX_HULL,
         POLYLINE,
         HEIGHTFIELD,
+        VOXELS,
     ];
 
     pub(crate) const SOLID: &str = "solid";

@@ -33,6 +33,9 @@ libm.workspace = true
 gltf = { version = "1.4", default-features = false, features = ["utils", "names", "extras"] }
 sys-locale = "0.3"
 i_overlay = "8"
+# The one triangulator: `balaur_core::triangulate` is where it is named, and
+# `balaur_ui`'s glyph filler goes through that. `i_overlay`'s sibling.
+i_triangle = "0.48"
 base64 = "0.22"
 
 [dev-dependencies]

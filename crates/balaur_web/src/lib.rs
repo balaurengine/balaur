@@ -1,7 +1,7 @@
 //! The page a browser build runs in, as a Balaur plugin: `web.*` for scripts.
 //!
 //! A page is outside the simulation, so it is reached the way a socket is.
-//! Facts about it — the tab's visibility, the user agent, the location — are
+//! Facts about it (the tab's visibility, the user agent, the location) are
 //! read once per tick at [`Stage::First`], recorded, and answered from the
 //! recording on replay. A message from the parent frame arrives the same
 //! way, dispatched to `on_web_message` on the nodes that asked. Posting a
@@ -119,7 +119,7 @@ fn restore_web(eng: &Engine, value: &Json) {
     state.visible = captured.visible;
 }
 
-/// Drain the page's reports, record them, then dispatch — in arrival
+/// Drain the page's reports, record them, then dispatch, in arrival
 /// order, after the borrows are released so a handler may post back.
 fn pump_web_system(eng: &Engine, _: f32) {
     let mut dispatches: Vec<(Handler, Value)> = Vec::new();
@@ -176,7 +176,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
          node that called `listen`. Off the web every query answers nil.",
     );
     m.describe(&[
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_message(payload)` — or the `on_event` method the options name — called for every message the parent frame posts."),
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_message(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
         ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         ("visible", &[], "()", "Whether the tab is in front of the player; true off the web."),

@@ -1,43 +1,17 @@
 # Determinism, recording and replay
 
-Balaur promises that identical inputs produce bit-for-bit identical
-simulations on every platform. This page is how you use that promise: how to
-write a game that keeps it, how to check that it holds, and what to do when
-it does not.
+Identical inputs produce bit-for-bit identical simulation on every platform.
+How to keep that, check it, and debug it when it breaks. `ARCHITECTURE.md` says
+why the engine is built this way.
 
-`ARCHITECTURE.md` covers *why* the engine is built this way. This is the
-practical side.
-
-## Why you would want it
-
-- **Replays that are actually small.** A recorded session stores what the
-  player pressed, not what the world looked like. Minutes of play is
-  kilobytes.
-- **Bugs you can reproduce.** "It desynced sometimes" becomes "tick 4213,
-  node `n_ball_7`, component `body2d`".
-- **Multiplayer that sends inputs instead of state.** Deterministic lockstep
-  costs bandwidth proportional to the number of players, not the size of the
-  world — an RTS with 2000 units costs what pong costs.
+What it buys: replays that store what was pressed, not what the world looked
+like (minutes of play is kilobytes); "it desynced sometimes" becomes "tick 4213,
+node `n_ball_7`, component `body2d`"; and lockstep multiplayer that costs
+bandwidth per player rather than per object.
 
 ## The two tick callbacks
 
-The single most important rule: **simulation goes in `fixed_update`.**
-
-```rune
-// Runs on the fixed 60 Hz step. Zero or more times per frame, always the
-// same dt, immediately before physics. Simulation lives here.
-pub fn fixed_update(this, dt) {
-    if input::is_down(input::KEY_SPACE) {
-        physics3d::apply_impulse(this.node, 0.0, 5.0, 0.0);
-    }
-}
-
-// Runs once per frame with the real frame time. Presentation only:
-// anything a dropped frame may safely skip.
-pub fn update(this, dt) {
-    this.bob = this.bob + dt;
-}
-```
+**Simulation goes in `fixed_update`.**
 
 | | `update(dt)` | `fixed_update(dt)` |
 | --- | --- | --- |
@@ -46,178 +20,119 @@ pub fn update(this, dt) {
 | Before physics | no | yes |
 | Reproducible | no | yes |
 
-A force applied in `fixed_update` lands on the step it was meant for, on
-every machine. A force applied in `update` lands before however many physics
-steps that machine happened to run.
+```rune
+pub fn fixed_update(this, dt) {          // simulation
+    if input::is_down(input::KEY_SPACE) {
+        physics3d::apply_impulse(this.node, 0.0, 5.0, 0.0);
+    }
+}
 
-## Checking that it holds
+pub fn update(this, dt) {                // presentation only
+    this.bob = this.bob + dt;
+}
+```
 
-Pin the simulation step and write a hash of the world each tick:
+A force applied in `fixed_update` lands on the step it was meant for, on every
+machine; one applied in `update` lands before however many steps that machine
+ran.
+
+## Checking it
 
 ```bash
 balaur run my-game --fixed-tick --trace-digest run-a.txt
 ```
 
-Each line is `<tick> <digest>`. Two runs that produce different files parted
-at the first differing line. Run it on two machines and `diff` the results —
-that is the whole cross-platform check, and it is what CI does for every
-example on Linux, macOS and Windows.
+One `<tick> <digest>` per line. Two runs that differ parted at the first
+differing line — `diff` them across machines. CI does this for every example on
+Linux, macOS and Windows.
 
-## Recording a session
+## Recording
 
 ```bash
 balaur run my-game --fixed-tick --record session.blr
-```
-
-The file is JSON Lines: a header, one line per tick carrying that tick's
-external input and the step it ran at, and a trailer saying how the session
-ended. It records **input, not state** — the world is rebuilt by re-running
-your game against the same input.
-
-A run from the command line also writes a digest on every tick, which is what
-`--verify` compares. That costs a walk of every node per frame, so the editor
-records without them and writes one at the end instead: a play session answers
-"what happened", and only a run you mean to verify needs "and where did it
-part".
-
-The editor records every play session on its own, into its data directory, and
-the Session dock plays them back with a timeline of the input, requests, log
-lines and stops that went by. Nothing needs turning on. Its `verify` toggle
-turns per-tick digests on for the sessions recorded after it, and a replay
-then names the tick it parted from the recording on.
-
-A session replays into a scene the editor has torn down and built again, so
-everything the engine owns has to reproduce across that rebuild and not only
-across a fresh process: a node's digest label is its path rather than its
-entity, `physics.clear` replaces both worlds rather than draining them, and
-animation stands down while the engine is held.
-
-Play it back, re-checking every tick:
-
-```bash
 balaur replay session.blr --verify
-```
-
-```
-60 ticks replayed, every digest matched
-```
-
-If a tick disagrees it stops there and exits non-zero:
-
-```
-Error: tick 25: recorded a3391e01013eaf31 but replayed a3391e01013eaf30
-run `balaur replay <file> --entries-at 25` on both machines and diff
-```
-
-To find out *what* differed rather than just when, dump that tick's parts:
-
-```bash
 balaur replay session.blr --entries-at 25
 ```
 
-```
-n_platform/transform 0801bbde6c5fc306
-n_platform/body 88bae8672f02ed9f
-n_ball/transform 1e773bf22b6856a5
-```
-
-Each machine dumps from its own recording; `diff` the two and the line that
-differs names the node and the component. Node names come from the scene
-file's `id`, so they survive rename and reparent — two machines always agree
-on what to call the thing that broke.
-
-Replaying never touches the network. A recorded session that made an HTTP
-request replays the recorded reply; it does not make the request again.
+- The file is JSON Lines: a header, one line per tick (that tick's external
+  input and the step it ran at), a trailer. It records **input, not state**.
+- `--verify` re-checks every tick and stops at the first mismatch with a
+  non-zero exit, naming the recorded and replayed digests.
+- `--entries-at <tick>` dumps that tick's parts —
+  `n_ball/transform 1e773bf22b6856a5`. Dump on both machines and `diff`: the
+  differing line names the node and the component. Labels come from the scene's
+  `id`, so they survive rename and reparent.
+- A command-line run digests every tick; the editor records without them and
+  writes one at the end, since a play session answers "what happened" and only a
+  verified run needs "where did it part". The Session dock's `verify` toggle
+  turns per-tick digests on.
+- The editor records every play session into its data directory, and the Session
+  dock replays it with a timeline of input, requests, log lines and stops.
+- A replay never touches the network: a recorded HTTP request replays its
+  recorded reply.
 
 ## Rollback
 
-Recording answers "what happened"; a snapshot answers "put it back". Capture
-the world at a tick, keep the last few in a `SnapshotRing`, and when a late
-input arrives restore the tick before it and re-simulate forward. Because the
-simulation is deterministic, re-simulating the same inputs from the restored
-state reaches the same world the first run did -- the digest is how you check
-that, and `crates/balaur_core/tests/snapshot.rs` is the test that holds it.
+Recording answers "what happened"; a snapshot puts it back. Capture the world at
+a tick, keep the last few in a `SnapshotRing`, and when a late input arrives
+restore and re-simulate — deterministically, so the re-run reaches the same
+world.
 
 ```rust
 let taken = balaur_core::snapshot::capture(&app.engine);
-// ... ticks pass, a late input shows up ...
+// ... a late input shows up ...
 balaur_core::snapshot::restore(&app.engine, &taken);
 ```
 
-Each subsystem saves and restores its own state (transforms and RNG in core,
-rapier's worlds in physics, script instances through `save_state` /
-`load_state`). Give a script those two methods when only part of its state
-matters; leave them out and its plain fields are captured for it. Restore puts
-the node *set* back too: core's `nodes` source frees what was spawned since
-and respawns what was freed, before any other source writes into an entity.
+Each subsystem saves its own state (transforms and RNG in core, rapier's worlds
+in physics, script instances through `save_state`/`load_state`). Give a script
+those two methods when only part of its state matters; leave them out and its
+plain fields are captured. Restore puts the node *set* back too: core's `nodes`
+source frees what was spawned and respawns what was freed, before any other
+source writes. `crates/balaur_core/tests/snapshot.rs` holds it.
 
 ## What breaks determinism
 
-Most of these the engine already handles. The ones marked **your problem**
-are the ones to watch.
-
 | Hazard | Status |
 | --- | --- |
-| `rng::random`, `rng::range`, `rng::int` | Handled — seeded engine stream, recorded in the replay header |
-| `math::sin`, `cos`, `exp`, … | Handled — pure-Rust `libm`, identical everywhere |
-| `Quat::from_euler`, `Vec3::normalize`, … | Handled — `glamx` is pinned to `libm` and `scalar-math` |
+| `rng::random`, `rng::range`, `rng::int` | Handled — seeded stream, recorded in the replay header |
+| `math::sin`, `cos`, `exp`, … | Handled — pure-Rust `libm` |
+| `Quat::from_euler`, `Vec3::normalize`, … | Handled — `glamx` pinned to `libm` and `scalar-math` |
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
-| `x.powf(y)`, `x.powi(n)` | Handled — Rune's own, and our fork of it routes both through `libm` |
-| `engine::time()`, `engine::delta()` | **Your problem** — both accumulate real frame time. Use `engine::tick()`, or `fixed_update`'s `dt` |
-| Iterating the keys of an object | **Your problem** — `#{}` is hash-ordered, not insertion-ordered. Iterate a `Vec`, or `sort()` the keys first |
-| Hot reload mid-session | Handled in the editor, which ends the session on a reload; under `balaur run --record` the watcher is on and the recording spans the change, with only the header's script fingerprint to say the sources moved |
+| `x.powf(y)`, `x.powi(n)` | Handled — our Rune fork routes both through `libm` |
+| `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
+| Iterating an object's keys | **Yours** — `#{}` is hash-ordered. Iterate a `Vec`, or `sort()` the keys |
+| Hot reload mid-session | Handled in the editor, which ends the session on a reload. Under `--record` the recording spans the change, with only the header's script fingerprint to say so |
 
-Every float method Rune exposes is now safe to call directly. `sqrt`, `abs`,
-`floor`, `ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, so
-every platform already agreed on them; `powf` and `powi` were the two that did
-not, and `crates/balaur_script_rune/tests/pow.rs` asserts they now return the
-same bits `libm` does. Rune has no transcendentals of its own — `math::sin`
-and friends are the engine's, on the same `libm`.
-
-Rust is the side that still needs a rule, because `f32::sin` and its siblings
-are one keystroke away: `scripts/house_lints.py` fails the build on a bare
-`.sin()`, `f32::sin(x)`, `.powf()` and the rest of the inexact list.
+Every float method Rune exposes is safe to call: `sqrt`, `abs`, `floor`,
+`ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, and `powf` and
+`powi` are asserted against `libm` in `crates/balaur_script_rune/tests/pow.rs`.
+On the Rust side `scripts/house_lints.py` fails the build on a bare `.sin()`,
+`f32::sin(x)`, `.powf()` and the rest of the inexact list.
 
 ## Rules of thumb
 
 1. Simulation in `fixed_update`, presentation in `update`.
 2. Never branch simulation on accumulated time — `engine::tick()` is the exact
-   integer, `engine::time()` is a float that grew by whatever each frame took.
-3. Iterate a `Vec`, or sort an object's keys before walking them.
-4. Record a session in CI and `--verify` it. A determinism bug found the day
-   it lands costs an afternoon; found six months later it costs a rewrite.
+   integer.
+3. Iterate a `Vec`, or sort an object's keys first.
+4. Record a session in CI and `--verify` it.
 
-## Extending it
-
-Two hooks, for plugin authors.
-
-**A subsystem that receives things from outside** registers a replay source so
-its arrivals land in recordings:
+## Extending it, for plugin authors
 
 ```rust
-// Passive state the OS fills in — one line, from the plugin's `declare`.
+// Passive state the OS fills in, from the plugin's `declare`.
 reg.add_replay_resource::<InputSnapshot>("input");
-```
 
-If it also *sends* — a socket, a request — use `replay::ExternalIo` instead.
-It owns the worker channel and the recording, and the only way to reach the
-outside is through `start`, which does nothing while a replay is playing. You
-cannot forget the check, because there is no other way to get the sender.
-
-**A subsystem that computes state a component does not report** adds it to
-the digest, so a divergence in it is caught:
-
-```rust
-// `body3d` reports its kind, not its velocity — and velocity diverges first.
+// State a component does not report — `body3d` reports its kind, not velocity.
 reg.add_digest_source("physics", |eng, out| { /* push labelled entries */ });
-```
 
-**A subsystem that does something a timeline should show** records an event.
-Free when nothing is recording, so it can be called unconditionally:
-
-```rust
-// The outbound half of a request: only the reply is a replay source.
+// Something a timeline should show. Free when nothing is recording.
 replay::event(eng, "net.request", format!("{method} {url}"), None);
 ```
+
+A subsystem that also *sends* uses `replay::ExternalIo` instead of a replay
+resource: it owns the worker channel, and the only way out is `start`, which
+does nothing while a replay is playing.

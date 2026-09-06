@@ -39,8 +39,10 @@ pub mod shaders;
 mod shape;
 mod sheet;
 mod sprite;
+mod text_component;
 mod texture;
 mod tilemap;
+pub mod world_text;
 pub use camera::{Camera, CameraKind};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
@@ -55,6 +57,8 @@ pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
 mod app_icon;
 #[cfg(feature = "kiss3d")]
 mod bind_layout;
+#[cfg(feature = "kiss3d")]
+mod debug_lines;
 #[cfg(feature = "kiss3d")]
 mod device;
 #[cfg(all(
@@ -862,6 +866,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(DebugLineBuffer::default());
         reg.insert_resource(DebugLineBuffer2d::default());
         reg.insert_resource(DrawBuffer2d::default());
+        reg.insert_resource(world_text::TextDrawBuffer::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
@@ -891,6 +896,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         script_api::install_sprite_state_api(&mut *m);
         script_api::install_texture_api(&mut *m);
         draw_2d::install_draw_2d_api(&mut *m);
+        text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
@@ -907,6 +913,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::register_material_asset(reg);
         sheet::register_sheet_asset(reg);
         tilemap::register_tileset_asset(reg);
+        text_component::register_text2d_component(reg);
+        text_component::register_text3d_component(reg);
         tilemap::register_tilemap_component(reg);
         particles::register_particles_component(reg);
         // SceneSync, and after the core propagation system registered at
@@ -947,6 +955,9 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
     if let Some(shapes) = eng.try_resource::<DrawBuffer2d>() {
         shapes.borrow_mut().shapes.clear();
     }
+    if let Some(text) = eng.try_resource::<world_text::TextDrawBuffer>() {
+        text.borrow_mut().items.clear();
+    }
 }
 
 /// Presets over the render components. `2d` is terminal and lowercase; 3D
@@ -972,6 +983,28 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::RENDER,
             ],
             &[("shape2d", Some("kind = \"rect\""))],
+        )?,
+    );
+    reg.register_preset(
+        "text2d",
+        balaur_core::presets::preset(
+            "A block of text in the 2D pass",
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::RENDER,
+            ],
+            &[("text2d", Some(r#"text = "Text""#))],
+        )?,
+    );
+    reg.register_preset(
+        "text3d",
+        balaur_core::presets::preset(
+            "A block of text facing the camera",
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::RENDER,
+            ],
+            &[("text3d", Some(r#"text = "Text""#))],
         )?,
     );
     reg.register_preset(

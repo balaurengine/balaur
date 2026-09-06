@@ -258,60 +258,75 @@ fn open_icon(side) {
 }
 
 // Minimised: one handle that opens the dock back. A side dock's is a square
-// at the top of its column; the bottom dock's is the status strip itself.
-fn handle(S, k, side, r) {
-    let d = S.docks[side];
-    let p = panel(S, d.active);
-    if side == "bottom" {
-        style::sheet(k, side, r, 8, 0, || {
-            ui::add_space(2);
-            chrome::status_strip(S, k, r.w, || {
-                if ui::pill(icons::ui(open_icon(side)), #{
-                    role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
-                }) {
-                    S.docks[side].shut = false;
-                }
-            });
-        });
+pub fn draw_bottom_body(S, k) {
+    let d = S.docks.bottom;
+    if d.shut || d.tabs.len() == 0 {
         return;
     }
-    style::sheet(k, side, r, 0, 0, || {
-        ui::horizontal(#{ height: r.h }, || {
-            ui::add_space(2);
-            if ui::circle_button(icons::ui(open_icon(side)), #{
-                role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
-            }) {
-                S.docks[side].shut = false;
-            }
-        });
+    tab_row(S, k, "bottom", d);
+    ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
+        body(S, k, d.active);
     });
 }
 
-pub fn draw(S, k, side) {
+/// The strip along the foot of the bottom dock: what is playing, and the
+/// control that minimises the dock when it is open.
+pub fn draw_status(S, k) {
+    let d = S.docks.bottom;
+    chrome::status_strip(S, k, S.layout.bottom.w, || {
+        if d.shut && ui::pill(icons::ui(open_icon("bottom")), #{
+            role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+        }) {
+            S.docks.bottom.shut = false;
+        }
+    });
+}
+
+/// A dock's contents, drawn into the rect the scene's `draw` node hands over.
+///
+/// The sheet around it is the node's own paint now, so this draws no frame:
+/// the tab row, the panel, and for the bottom dock the status strip.
+pub fn draw_body(S, k, side) {
     let d = S.docks[side];
-    let r = S.layout[side];
-    if !style::placed(r) {
-        return;
-    }
     if d.shut {
-        handle(S, k, side, r);
+        handle_body(S, k, side);
         return;
     }
     if d.tabs.len() == 0 {
         return;
     }
-    style::sheet(k, side, r, 8, 0, || {
-        tab_row(S, k, side, d);
-        if side != "bottom" {
-            body(S, k, d.active);
-            return;
-        }
-        // The panel gets exactly its share, so the status strip lands at the
-        // foot whatever the panel drew above it.
-        ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
-            body(S, k, d.active);
+    tab_row(S, k, side, d);
+    if side != "bottom" {
+        body(S, k, d.active);
+        return;
+    }
+    ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
+        body(S, k, d.active);
+    });
+    ui::separator(k.line_soft);
+    chrome::status_strip(S, k, S.layout[side].w, || {});
+}
+
+// Minimised, without the sheet: one control that opens the dock back.
+fn handle_body(S, k, side) {
+    let p = panel(S, S.docks[side].active);
+    if side == "bottom" {
+        ui::add_space(2);
+        chrome::status_strip(S, k, S.layout[side].w, || {
+            if ui::pill(icons::ui(open_icon(side)), #{
+                role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+            }) {
+                S.docks[side].shut = false;
+            }
         });
-        ui::separator(k.line_soft);
-        chrome::status_strip(S, k, r.w, || {});
+        return;
+    }
+    ui::horizontal(#{ height: 34 }, || {
+        ui::add_space(2);
+        if ui::circle_button(icons::ui(open_icon(side)), #{
+            role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
+        }) {
+            S.docks[side].shut = false;
+        }
     });
 }

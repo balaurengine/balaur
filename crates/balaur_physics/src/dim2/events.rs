@@ -166,14 +166,23 @@ pub(crate) struct Hooks;
 
 impl PhysicsHooks for Hooks {
     fn modify_solver_contacts(&self, context: &mut ContactModificationContext<'_>) {
-        if let Some(axis) = context
-            .colliders
-            .get(context.collider1)
-            .and_then(|c| decode_one_way(c.user_data))
-        {
+        if let Some(axis) = one_way_axis(context) {
             context.update_as_oneway_platform(axis, 0.1);
         }
     }
+}
+
+/// The 2D twin of `crate::events::one_way_axis`: the platform's direction,
+/// whichever of the pair it is, in the first collider's frame.
+fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<crate::rapier2d::math::Vector> {
+    let first = context.colliders.get(context.collider1)?;
+    if let Some(axis) = decode_one_way(first.user_data) {
+        return Some(axis);
+    }
+    let second = context.colliders.get(context.collider2)?;
+    let axis = decode_one_way(second.user_data)?;
+    let world = second.position().rotation * axis;
+    Some(-(first.position().rotation.inverse() * world))
 }
 
 /// The 2D reading of the axis `crate::collider::encode_one_way` packed: the

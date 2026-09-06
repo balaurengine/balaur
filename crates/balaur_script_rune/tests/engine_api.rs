@@ -229,6 +229,191 @@ fn emitted_reports_what_this_frame_delivered() {
     );
 }
 
+/// Naming an emitter narrows a subscription to that node: `node.emit` is the
+/// push-to-many twin of `node.call`, and a subscriber that named one emitter
+/// never wakes for another's.
+#[test]
+fn a_subscription_that_names_an_emitter_hears_only_that_one() {
+    let dir = project(&[
+        (
+            "scoped.rn",
+            "pub fn init(this) {\n\
+             \x20   this.heard = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             }\n\
+             pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
+        ),
+        (
+            "any.rn",
+            "pub fn init(this) {\n\
+             \x20   this.heard = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\");\n\
+             }\n\
+             pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let a = spawn(&app, "A");
+    let b = spawn(&app, "B");
+    let scoped = spawn(&app, "Scoped");
+    let any = spawn(&app, "Any");
+    {
+        let host = app.engine.script_host().unwrap();
+        host.attach(balaur_core::node_id_of(scoped), "scoped.rn")
+            .unwrap();
+        host.attach(balaur_core::node_id_of(any), "any.rn").unwrap();
+    }
+    balaur_core::events::emit_from(&app.engine, a, "hit", balaur_script::Value::Num(1.0));
+    balaur_core::events::emit_from(&app.engine, b, "hit", balaur_script::Value::Num(10.0));
+    app.tick(0.016);
+
+    let host = rune(&app);
+    assert_eq!(
+        host.number_field(scoped, "heard"),
+        Some(1.0),
+        "A's emit lands, B's does not"
+    );
+    assert_eq!(
+        host.number_field(any, "heard"),
+        Some(11.0),
+        "a subscription with no emitter hears both"
+    );
+}
+
+/// An emit from no one reaches the catch-all and nothing else: a subscriber
+/// that asked for one node's events did not ask for the world's.
+#[test]
+fn an_unscoped_emit_skips_a_subscription_that_named_an_emitter() {
+    let dir = project(&[
+        (
+            "scoped.rn",
+            "pub fn init(this) {\n\
+             \x20   this.heard = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             }\n\
+             pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
+        ),
+        (
+            "any.rn",
+            "pub fn init(this) {\n\
+             \x20   this.heard = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\");\n\
+             }\n\
+             pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let _a = spawn(&app, "A");
+    let scoped = spawn(&app, "Scoped");
+    let any = spawn(&app, "Any");
+    {
+        let host = app.engine.script_host().unwrap();
+        host.attach(balaur_core::node_id_of(scoped), "scoped.rn")
+            .unwrap();
+        host.attach(balaur_core::node_id_of(any), "any.rn").unwrap();
+    }
+    balaur_core::events::emit(&app.engine, "hit", balaur_script::Value::Num(4.0));
+    app.tick(0.016);
+
+    let host = rune(&app);
+    assert_eq!(host.number_field(scoped, "heard"), Some(0.0));
+    assert_eq!(host.number_field(any, "heard"), Some(4.0));
+}
+
+/// Handlers run in subscription order, and naming an emitter does not move a
+/// subscriber up or down that order — the two are merged on the order the
+/// subscriptions were made, so there is one rule rather than an exception.
+#[test]
+fn subscription_order_holds_across_scoped_and_unscoped() {
+    let dir = project(&[
+        (
+            "counter.rn",
+            "pub fn init(this) { this.n = 0.0; }\n\
+             pub fn bump(this) { this.n = this.n + 1.0; this.n }\n",
+        ),
+        (
+            "first.rn",
+            "pub fn init(this) {\n\
+             \x20   this.at = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\");\n\
+             }\n\
+             pub fn on_hit(this, payload) {\n\
+             \x20   this.at = this.node.get_node(\"../Counter\").call(\"bump\");\n\
+             }\n",
+        ),
+        (
+            "second.rn",
+            "pub fn init(this) {\n\
+             \x20   this.at = 0.0;\n\
+             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             }\n\
+             pub fn on_hit(this, payload) {\n\
+             \x20   this.at = this.node.get_node(\"../Counter\").call(\"bump\");\n\
+             }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let a = spawn(&app, "A");
+    let counter = spawn(&app, "Counter");
+    let first = spawn(&app, "First");
+    let second = spawn(&app, "Second");
+    {
+        let host = app.engine.script_host().unwrap();
+        host.attach(balaur_core::node_id_of(counter), "counter.rn")
+            .unwrap();
+        // The catch-all subscribes first, the scoped one second.
+        host.attach(balaur_core::node_id_of(first), "first.rn")
+            .unwrap();
+        host.attach(balaur_core::node_id_of(second), "second.rn")
+            .unwrap();
+    }
+    balaur_core::events::emit_from(&app.engine, a, "hit", balaur_script::Value::Nil);
+    app.tick(0.016);
+
+    let host = rune(&app);
+    assert_eq!(host.number_field(first, "at"), Some(1.0));
+    assert_eq!(
+        host.number_field(second, "at"),
+        Some(2.0),
+        "the scoped subscriber subscribed second, so it runs second"
+    );
+}
+
+/// The asking twin, narrowed the same way `subscribe` is.
+#[test]
+fn emitted_from_reports_only_that_emitters_payloads() {
+    let dir = project(&[(
+        "watch.rn",
+        "pub fn init(this) { this.mine = 0.0; this.all = 0.0; }\n\
+         pub fn update(this, dt) {\n\
+         \x20   this.mine = events::emitted_from(this.node.get_node(\"../A\"), \"tick\").len() as f64;\n\
+         \x20   this.all = events::emitted(\"tick\").len() as f64;\n\
+         }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let a = spawn(&app, "A");
+    let b = spawn(&app, "B");
+    let node = spawn(&app, "W");
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur_core::node_id_of(node), "watch.rn")
+        .unwrap();
+
+    balaur_core::events::emit_from(&app.engine, a, "tick", balaur_script::Value::Nil);
+    balaur_core::events::emit_from(&app.engine, b, "tick", balaur_script::Value::Nil);
+    balaur_core::events::emit(&app.engine, "tick", balaur_script::Value::Nil);
+    app.tick(0.016);
+
+    let host = rune(&app);
+    assert_eq!(host.number_field(node, "mine"), Some(1.0));
+    assert_eq!(
+        host.number_field(node, "all"),
+        Some(3.0),
+        "emitted is every emitter's, the unattributed one included"
+    );
+}
+
 /// A reloaded script keeps its instance state, and `hot_reload` is where a
 /// script whose field shapes moved brings them forward.
 #[test]

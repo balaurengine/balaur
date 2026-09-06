@@ -97,6 +97,16 @@ fi
 rm -rf "$smoke"
 printf 'exported game ran clean\n'
 
+# Before the zip, because what a user runs is the executable inside it, and
+# after the smoke test, because a signature covers the bytes as they end up.
+if [[ $target == windows-* ]]; then
+  step "sign"
+  ./scripts/windows_sign.sh \
+    "$bundle/balaur$exe" \
+    "$bundle/templates/balaur-runtime-$target$exe" \
+    "$dist/balaur-runtime-$target$exe"
+fi
+
 step "archive"
 if [[ $target == windows-* ]]; then
   # 7z ships on the GitHub Windows images; bsdtar is the fallback.
@@ -109,6 +119,12 @@ else
   (cd "$dist" && tar -czf "balaur-editor-$target.tar.gz" "balaur-editor-$target")
 fi
 rm -rf "$bundle"
+
+# The Mac download people click is a bundle in a disk image, because that is
+# the only shape a notarization ticket staples to. The tarball stays for CI.
+if [ "$target" = macos-universal ]; then
+  ./scripts/macos_bundle.sh "$dist" "$bin"
+fi
 
 step "done"
 ls -l "$dist"

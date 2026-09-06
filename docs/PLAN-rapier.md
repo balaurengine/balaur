@@ -54,13 +54,23 @@
    `effective_dominance`, `is_moving`, `potential_energy`,
    `predict_position_with_forces`, `set_collider`, `solve_ik`, `voxel`,
    `voxel_at`, `set_voxel` — and `collider2d` the `voxels`, `voxelized_mesh`,
-   `convex_decomposition` and `fit` kinds. Beside the gaps, four defects:
-   `collider2d.one_way` is a no-op (`dim2/collider.rs:262-274` never calls
-   `encode_one_way`), the 2D `modify_contacts` hook never reaches a script
-   (`dim2/events.rs:160-220`), 2D `move_character` drops the node's rotation
-   (`dim2/character.rs:130`), and 2D colliders do not round-trip through
-   `get` (`dim2/collider.rs:276-285`: no `collider_params`, no offset, no
-   mesh kinds). `body2d` advertises `gyroscopic` and never applies it.
+   `convex_decomposition` and `fit` kinds. *`voxels` shipped 2026-09-06*, with
+   `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in
+   the 2D digest, because `docs/PLAN-tilemap.md` step 1 builds tile collision
+   on it.
+
+   The four defects this item listed were re-audited on 2026-09-06 and are
+   gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook
+   reads it (`dim2/events.rs:166-176`), `move_character` keeps the node's
+   rotation (`dim2/character.rs:103`), colliders round-trip through `get`
+   (`dim2/collider.rs:244-261`), `body2d` never advertised `gyroscopic`, and
+   a script physics hook is gone by design with the threaded solver (item 4).
+
+   One defect was real, in both dimensions, and is *fixed 2026-09-06*: a
+   one-way platform fired only when it was `collider1` of the pair, because
+   `update_as_oneway_platform` reads the axis in `collider1`'s frame and both
+   hooks tested that collider alone. They now test the other side too, turning
+   its axis into the first's frame and reversing it.
 6. **What rapier 0.35 still has that no scene or script reaches.** The rule
    is wrap everything and state the constraint, so each of these is a phase
    when someone asks: `IntegrationParameters.friction_model` and
@@ -91,6 +101,69 @@
    19 keys `set_tuning` accepts. The defects that break determinism — stale
    handles after a free, wheel state outside the snapshot — are
    `docs/PLAN-hardening.md` phase 1.
+
+7. **Internal edges. Fixed 2026-09-06.** A 3D `trimesh` collider already set
+   `TriMeshFlags::FIX_INTERNAL_EDGES` by default; the three shapes with the
+   same problem now do too. `collider3d`'s `heightfield` builds through
+   `heightfield_with_flags` with `HeightFieldFlags::FIX_INTERNAL_EDGES`,
+   defaulted on and turned off with `fix_internal_edges = false`;
+   `collider2d`'s `trimesh` takes the same three flag keys 3D takes; and
+   `collider2d` gained `oriented`, which builds an `oriented_polyline` —
+   opt-in, because the winding decides which side is solid.
+
+   A 2D `heightfield` has no flags to set: parry's 2D heightfield is a
+   polyline of segments, so `oriented` on the polyline is the whole story.
+   The same family is why `docs/PLAN-tilemap.md` step 1 builds tile collision
+   out of parry's `Voxels` rather than a row of cuboids, and why
+   `docs/PLAN-voxels.md` needs no fix at all — the voxel shape classifies its
+   own cells.
+
+8. **Where parry may be used, and what stays hand-written.** The rule is in
+   ARCHITECTURE.md ("parry: geometry every crate may use, for capability"),
+   and it replaces the older reflex that core must not learn parry. parry is
+   already linked into every build, the wasm bundle included, so a dependency
+   on it costs a shipped game nothing; it is taken for capability — `Bvh`
+   for culling and picking, exact ray and point queries — and never merely to
+   delete equivalent code. `primitive` (no UVs in parry's tessellations),
+   `csg` (parry has no mesh union or difference), `geometry2d`'s booleans on
+   `i_overlay` (parry has polygon intersection alone) and its convex hull
+   stay as they are.
+
+   Two follow-ups shipped 2026-09-06: `balaur_render`'s `pick` now casts
+   against the triangles (below), and `csg.rs` keeps only its real reason.
+
+   **Triangulation consolidated onto `i_triangle`, 2026-09-06.** parry's ear
+   clipper is `pub(crate)`, so the duplication to remove was our own: the
+   hand-written clipper in core and the `i_triangle` that `balaur_ui::glyph`
+   filled glyph outlines with. `balaur_core::triangulate` is now the only
+   place either is named, in two forms, because the two callers want
+   different things:
+
+   - `triangulate(points, ring)` returns triangles over the caller's own
+     points. The checked entry point hands every input point back
+     unchanged — winding and concavity included — so the mapping is exact.
+     It refuses a loop that crosses itself and names the crossing, because
+     filling one correctly needs a vertex there, and a vertex the author
+     never wrote has no uv, colour, morph offset or skin weight in the mesh
+     that indexes it.
+   - `triangulate_shape(contours)` returns the points a fill needed as well
+     as the triangles: holes subtracted rather than filled over, and the
+     crossing vertex included. What the glyph filler wants, and anything
+     else that can take a point it did not author.
+
+   `uncheck_triangulate` is not used and should not be: it preserves the
+   points but **aborts** on a clockwise loop — `slice::get_unchecked_mut` out
+   of bounds inside `i_tree`, a hard abort rather than an error — and
+   authored polygons cannot promise validated input. Worth reporting
+   upstream.
+
+   What changed for a scene: a self-crossing `polygons` loop used to fill
+   with two overlapping triangles and now reports where it crosses.
+
+   Everything else already wraps rapier or parry: the character and vehicle
+   controllers, the debug render pipeline, the query pipeline, and
+   `geometry3d`'s hull, convex decomposition, voxelisation, split, intersect
+   and pieces. What 2D lacks there is item 5's list, not new code.
 
 One question is advice rather than code: in 2D a `heightfield` is a polyline
 over a height array, which is a side-scroller's ground. Whether that beats

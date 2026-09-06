@@ -26,6 +26,15 @@ pub fn light() {
 pub fn apply(S) {
     let t = S.theme;
     ui::set_theme(t);
+    // The shell's own boxes are nodes, painted by a `widget_theme` rather than
+    // by the roles above: the pair swap together or the chrome and its
+    // contents disagree.
+    let shell = scene::get_node("Editor/Shell");
+    if shell is balaur::Node {
+        let params = util::obj(shell.get_component("widget"));
+        params["theme"] = if t.dark { "themes/shell-dark.toml" } else { "themes/shell-light.toml" };
+        shell.set_component("widget", params);
+    }
     let (r, g, b) = util::hex_to_rgb(t.bg);
     render::set_background(r, g, b);
     let (mr, mg, mb) = util::hex_to_rgb(t.grid);

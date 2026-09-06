@@ -148,6 +148,7 @@ const SYSTEM_FACES: &[&str] = &[
     "/System/Library/Fonts/Kohinoor.ttc",
     "/System/Library/Fonts/ThonburiUI.ttc",
     "/System/Library/Fonts/Apple Symbols.ttf",
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
 ];
 
 #[cfg(target_os = "windows")]
@@ -157,6 +158,7 @@ const SYSTEM_FACES: &[&str] = &[
     "C:\\Windows\\Fonts\\malgun.ttf",
     "C:\\Windows\\Fonts\\msyh.ttc",
     "C:\\Windows\\Fonts\\seguisym.ttf",
+    "C:\\Windows\\Fonts\\seguiemj.ttf",
 ];
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -166,6 +168,8 @@ const SYSTEM_FACES: &[&str] = &[
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
     "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/noto/NotoColorEmoji.ttf",
 ];
 
 /// Which chain a bundled file joins, from its name. Explicit, because a
@@ -193,6 +197,7 @@ fn chain_of(stem: &str) -> &'static str {
 }
 
 /// One face the theme found, and which chain it joins.
+#[derive(Clone)]
 pub(crate) struct FontFace {
     pub(crate) name: String,
     /// `heading`, `ui`, `mono`, `icons`, or `system` for an OS face.
@@ -200,19 +205,42 @@ pub(crate) struct FontFace {
     pub(crate) bytes: std::sync::Arc<Vec<u8>>,
 }
 
+/// The faces the operating system ships, whichever of them are present,
+/// read once for the life of the process.
+///
+/// These are the largest files on the machine — one CJK collection runs to
+/// tens of megabytes — and `font_faces` is called again for every mesher that
+/// wants them, so reading them per call meant a fresh copy of all of it each
+/// time. Cloning a face now clones an `Arc`.
+fn system_cache() -> &'static [FontFace] {
+    static LOADED: std::sync::OnceLock<Vec<FontFace>> = std::sync::OnceLock::new();
+    LOADED.get_or_init(|| {
+        SYSTEM_FACES
+            .iter()
+            .filter_map(|path| {
+                let bytes = std::fs::read(path).ok()?;
+                Some(FontFace {
+                    name: format!("system:{path}"),
+                    chain: "system",
+                    bytes: std::sync::Arc::new(bytes),
+                })
+            })
+            .collect()
+    })
+}
+
 /// The faces the operating system ships, whichever of them are present.
 pub(crate) fn system_faces() -> Vec<FontFace> {
-    SYSTEM_FACES
+    system_cache().to_vec()
+}
+
+/// The cached bytes for an OS face. Borrowed for the life of the process, so
+/// egui holds them without a copy of its own.
+fn system_static_bytes(name: &str) -> Option<&'static [u8]> {
+    system_cache()
         .iter()
-        .filter_map(|path| {
-            let bytes = std::fs::read(path).ok()?;
-            Some(FontFace {
-                name: format!("system:{path}"),
-                chain: "system",
-                bytes: std::sync::Arc::new(bytes),
-            })
-        })
-        .collect()
+        .find(|face| face.name == name)
+        .map(|face| face.bytes.as_slice())
 }
 
 /// Every face, in chain order: a project's own `fonts/*.ttf` first, then the
@@ -248,8 +276,18 @@ pub(crate) fn font_faces(eng: &Engine) -> Vec<FontFace> {
             tracing::info!("ui: loaded font {stem}");
         }
     }
-    faces.extend(system_faces());
+    if wants_system_fonts(eng) {
+        faces.extend(system_faces());
+    }
     faces
+}
+
+/// Whether this project wants the operating system's faces appended, from
+/// `[ui] system_fonts`. A project that says nothing gets them, so text in a
+/// script balaur does not vendor keeps drawing.
+fn wants_system_fonts(eng: &Engine) -> bool {
+    eng.try_resource::<balaur_core::project::ProjectManifest>()
+        .is_none_or(|manifest| manifest.borrow().ui.system_fonts)
 }
 
 /// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
@@ -264,10 +302,15 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
     let mut system_chain: Vec<String> = Vec::new();
 
     for face in faces {
-        fonts.font_data.insert(
-            face.name.clone(),
-            std::sync::Arc::new(egui::FontData::from_owned((*face.bytes).clone())),
-        );
+        // An OS face is cached for the process, so egui borrows those bytes;
+        // a project's own are small and reload, so they keep a copy.
+        let data = match system_static_bytes(&face.name) {
+            Some(bytes) => egui::FontData::from_static(bytes),
+            None => egui::FontData::from_owned((*face.bytes).clone()),
+        };
+        fonts
+            .font_data
+            .insert(face.name.clone(), std::sync::Arc::new(data));
         match face.chain {
             "heading" => heading_chain.push(face.name.clone()),
             "mono" => mono_chain.push(face.name.clone()),

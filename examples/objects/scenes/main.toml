@@ -1,5 +1,6 @@
 # Every object the engine builds, one row per category twelve units apart
-# along -z: primitives, paths, booleans, cloners, then a word and paint.
+# along -z: primitives, paths, booleans, cloners, then a word and paint. The
+# 2D layer the tour shows last is scenes/flat.toml.
 
 [[assets]]
 id = "ring"

@@ -53,7 +53,7 @@ impl Extension {
 /// about the build (Rust) or the ABI version (C).
 ///
 /// # Safety
-/// Loading any shared library runs its initialisers. This one additionally
+/// Loading any shared library runs its initialisers. This one also
 /// trusts the symbols to have the signatures their macro or header gives
 /// them, which the version check is what makes reasonable.
 pub unsafe fn load_extension(path: &Path) -> Result<Extension> {

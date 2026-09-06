@@ -230,7 +230,7 @@ impl RuneHost {
     }
 
     /// Stop at the next line a script runs. Nothing stops here: the request
-    /// is armed, and the pause arrives on the next synchronous call — the
+    /// is armed, and the pause arrives on the next synchronous call: the
     /// tick after this one, for a game whose scripts only run per frame.
     pub fn request_break(&self) {
         let mut state = self.state.borrow_mut();
