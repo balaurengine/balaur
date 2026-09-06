@@ -16,6 +16,7 @@ use balaur_core::Engine;
 use balaur_core::components;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
+use balaur_core::skeleton::Bone;
 use glamx::Vec4;
 
 use crate::clip::{Clip, Property, Wrap};
@@ -39,6 +40,8 @@ pub(crate) enum Effect {
     Call { entity: Entity, method: String },
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
+    /// Put a `polygon/deform` track's offsets on the node it deforms.
+    Deform { entity: Entity, offsets: Vec<f32> },
 }
 
 /// The method a node's script is called with when a tween on it ends.
@@ -195,7 +198,15 @@ fn advance_playback(
         playback.finished = playback.clip_name.clone();
     }
     let pose = sampler::sample(&clip, time);
-    write_pose(world, entity, &playback.root, &clip, &pose, effects);
+    write_pose(
+        world,
+        entity,
+        &playback.root,
+        playback.retarget.as_ref(),
+        &clip,
+        &pose,
+        effects,
+    );
     collect_calls(
         world,
         entity,
@@ -228,7 +239,15 @@ pub(crate) fn pose_now(eng: &Engine, entity: Entity) {
         let (time, _) = sampler::clip_time(clip, playback.time);
         let pose = sampler::sample(clip, time);
         let world = eng.world();
-        write_pose(&world, entity, &playback.root, clip, &pose, &mut effects);
+        write_pose(
+            &world,
+            entity,
+            &playback.root,
+            playback.retarget.as_ref(),
+            clip,
+            &pose,
+            &mut effects,
+        );
     }
     apply_effects(eng, &effects);
 }
@@ -242,14 +261,30 @@ pub(crate) fn write_pose(
     world: &World,
     entity: Entity,
     root: &str,
+    retarget: Option<&crate::retarget::Retarget>,
     clip: &Clip,
     pose: &[TrackValue],
     effects: &mut Vec<Effect>,
 ) {
     for (track, value) in clip.tracks.iter().zip(pose) {
-        let Some(target) = target_of(world, entity, root, &track.target) else {
+        // The track's own name is the canonical one a bone map is keyed by;
+        // what it drives on this rig is whatever the map says, and the track
+        // is left alone when the map says nothing.
+        let path = retarget
+            .and_then(|r| r.path(&track.target))
+            .unwrap_or(&track.target);
+        let Some(target) = target_of(world, entity, root, path) else {
             continue;
         };
+        // On the node rather than in a table: it is as long as the mesh, and
+        // deferred because this walk holds the world shared.
+        if let TrackValue::Deform(offsets) = value {
+            effects.push(Effect::Deform {
+                entity: target,
+                offsets: offsets.clone(),
+            });
+            continue;
+        }
         if let TrackValue::Property { value, channels } = *value {
             let Property::Component {
                 component,
@@ -269,11 +304,24 @@ pub(crate) fn write_pose(
         let Ok(mut transform) = world.get::<&mut Transform>(target) else {
             continue;
         };
+        // Rests are read once per track and only while retargeting: a clip
+        // played on the rig it was authored for pays nothing for this.
+        let rest = retarget.and(world.get::<&Bone>(target).ok());
         match *value {
-            TrackValue::Position(position) => transform.position = position,
-            TrackValue::Rotation(rotation) => transform.rotation = rotation,
+            TrackValue::Position(position) => {
+                transform.position = match retarget {
+                    Some(r) => r.position(&track.target, rest.as_deref(), position),
+                    None => position,
+                };
+            }
+            TrackValue::Rotation(rotation) => {
+                transform.rotation = match retarget {
+                    Some(r) => r.rotation(&track.target, rest.as_deref(), rotation),
+                    None => rotation,
+                };
+            }
             TrackValue::Scale(scale) => transform.scale = scale,
-            TrackValue::Property { .. } | TrackValue::None => {}
+            TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => {}
         }
     }
 }
@@ -383,6 +431,22 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 if let Some(host) = host.as_ref() {
                     host.call_on(balaur_core::node_id_of(*entity), method, &[]);
                 }
+            }
+            Effect::Deform { entity, offsets } => {
+                // Written into the offsets already there where there are any:
+                // a deform track runs every frame, and this is a vector as
+                // long as the mesh.
+                if let Ok(mut deform) = eng.world().get::<&mut balaur_core::mesh::Deform>(*entity) {
+                    deform.offsets.clear();
+                    deform.offsets.extend_from_slice(offsets);
+                    continue;
+                }
+                let _ = eng.world_mut().insert_one(
+                    *entity,
+                    balaur_core::mesh::Deform {
+                        offsets: offsets.clone(),
+                    },
+                );
             }
             Effect::TweenFinished { entity, id } => {
                 if let Some(host) = host.as_ref() {

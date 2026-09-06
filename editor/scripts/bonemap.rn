@@ -1,0 +1,265 @@
+// The Bone map dock: a canonical skeleton against this rig's bones, so a clip
+// authored for one rig plays on another. Writes a `bone_map` asset for
+// `animation.play(node, clip, { retarget = ... })` to read.
+
+use crate::model;
+use crate::rig;
+use crate::style;
+use crate::util;
+
+const NAME_W = 128.0;
+const PICK_W = 190.0;
+
+// The canonical humanoid, in the spelling `balaur_anim::retarget::HUMANOID`
+// uses. One list, because a map written against another one would not load.
+const HUMANOID = [
+    "Root", "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head",
+    "LeftShoulder", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+    "RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand",
+    "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "LeftToes",
+    "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes",
+];
+
+/// The dock's own state, hung on `S.bonemap`.
+pub fn state() {
+    #{ bones: #{}, path: "", rig: "", picking: None }
+}
+
+// The rig this map is being built against: the selection, or the rig above it
+// when a bone is what is selected.
+fn rig_root(S) {
+    let (node, found) = model::selected(S);
+    let found = match found {
+        Some(found) => found,
+        None => return None,
+    };
+    if rig::bone_count(S, S.sel) > 0 {
+        return Some(found);
+    }
+    // A selected bone maps the rig it hangs in, not itself: climbing to the
+    // top bone is what a click in the tree usually means here.
+    if !rig::is_bone(node) {
+        return None;
+    }
+    let top = found;
+    let parent = found.parent();
+    while parent is balaur::Node {
+        let doc_i = model::index_of_path(S, parent.path());
+        let is_bone = match doc_i {
+            Some(i) => rig::is_bone(S.doc[i]),
+            None => false,
+        };
+        if !is_bone {
+            break;
+        }
+        top = parent;
+        parent = parent.parent();
+    }
+    Some(top)
+}
+
+// The rig's bones as paths relative to its root, which is what a map stores.
+fn bone_paths(S) {
+    let root = match rig_root(S) {
+        Some(root) => root,
+        None => return [],
+    };
+    let base = root.path();
+    let out = [];
+    for bone in util::vec(skeleton::bones(root)) {
+        let full = bone.path();
+        if full != base {
+            out.push(full[base.len() + 1..]);
+        }
+    }
+    out
+}
+
+// A canonical name against the rig's own: the bone whose last segment matches
+// once both are stripped of case, spaces, dots and underscores. `LeftUpperArm`
+// finds `left_upper_arm`, `Left Upper Arm` and `mixamorig:LeftUpperArm`.
+pub fn guess(canonical, paths) {
+    let want = squash(canonical);
+    for path in paths {
+        if squash(util::leaf(path)) == want {
+            return Some(path);
+        }
+    }
+    // Then the looser match: a bone whose name ends with the canonical one,
+    // which is what an exporter's prefix leaves behind.
+    for path in paths {
+        if squash(util::leaf(path)).ends_with(want) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+// A name with its separators taken out, so `LeftUpperArm`, `left_upper_arm`,
+// `Left Upper Arm` and `mixamorig:LeftUpperArm` all compare the same.
+fn squash(name) {
+    let out = name.to_lowercase();
+    for sep in ["_", " ", ".", "-", ":"] {
+        out = out.replace(sep, "");
+    }
+    out
+}
+
+// Fill every row the rig agrees on and leave the rest empty, which is the
+// honest answer for a rig that does not have a bone.
+pub fn autofill(S) {
+    let paths = bone_paths(S);
+    if paths.len() == 0 {
+        log::warn("select a rig — a node with bones under it — before filling a bone map");
+        return;
+    }
+    let found = 0;
+    for name in HUMANOID {
+        match guess(name, paths) {
+            Some(path) => {
+                S.bonemap.bones[name] = path;
+                found += 1;
+            }
+            None => (),
+        }
+    }
+    log::info(format!("{} of {} canonical bones matched by name", found, HUMANOID.len()));
+}
+
+pub fn clear(S) {
+    S.bonemap.bones = #{};
+}
+
+// Where the map is written, under the project's `animations/`, named after
+// the rig so two rigs do not overwrite each other.
+fn default_path(S) {
+    let name = match rig_root(S) {
+        Some(root) => util::leaf(root.path()),
+        None => "rig",
+    };
+    format!("animations/{}.bonemap.toml", name.to_lowercase())
+}
+
+pub fn save(S) {
+    let mapped = #{};
+    for (name, path) in S.bonemap.bones.iter() {
+        if path != "" {
+            mapped[name] = path;
+        }
+    }
+    if mapped.len() == 0 {
+        log::warn("nothing to save: fill some rows first");
+        return;
+    }
+    let path = if S.bonemap.path == "" { default_path(S) } else { S.bonemap.path };
+    let doc = #{ type: "bone_map", bones: mapped };
+    let (ok, why) = script::attempt(|| fs::write(S.game_root + "/" + path, toml::encode(doc)));
+    if !ok {
+        log::warn(format!("writing {}: {:?}", path, why));
+        return;
+    }
+    S.bonemap.path = path;
+    log::info(format!("{} bones written to {}", mapped.len(), path));
+}
+
+pub fn body(S, k) {
+    ui::add_space(4);
+    let paths = bone_paths(S);
+    if paths.len() == 0 {
+        style::empty(k, "select a rig — a node with bones under it — to map its bones");
+        return;
+    }
+    verbs(S, k, paths);
+    ui::add_space(4);
+    ui::scroll("bonemap", #{ max_height: S.layout.body_h - 60.0 }, || {
+        ui::spacing(0, 1);
+        for name in HUMANOID {
+            row(S, k, paths, name);
+        }
+    });
+}
+
+fn verbs(S, k, paths) {
+    ui::horizontal(#{ height: 26 }, || {
+        ui::add_space(6);
+        let filled = 0;
+        for (_, path) in S.bonemap.bones.iter() {
+            if path != "" {
+                filled += 1;
+            }
+        }
+        ui::label(format!("{} of {} mapped · {} bones in the rig", filled, HUMANOID.len(), paths.len()),
+            style::mono_sm(k.faint));
+        ui::add_space(8);
+        if ui::pill("guess by name", #{
+            height: 22, size: 11, strong: true,
+            tooltip: "Fill every row whose canonical name matches a bone, ignoring case and separators",
+            fill: k.sage_soft, color: k.sage,
+        }) {
+            autofill(S);
+        }
+        ui::add_space(4);
+        if ui::pill("clear", #{
+            height: 22, size: 11, strong: true, tooltip: "Empty every row",
+            fill: k.sunken, color: k.dim,
+        }) {
+            clear(S);
+        }
+        ui::add_space(4);
+        if ui::pill("save", #{
+            height: 22, size: 11, strong: true,
+            tooltip: "Write the map as a `bone_map` asset, for animation.play's `retarget`",
+            fill: k.accent_soft, color: k.accent,
+        }) {
+            save(S);
+        }
+    });
+}
+
+fn row(S, k, paths, name) {
+    let picked = S.bonemap.bones.get(name).unwrap_or("");
+    let open = S.bonemap.picking == Some(name);
+    ui::horizontal(#{ height: 24 }, || {
+        ui::add_space(6);
+        ui::horizontal(#{ height: 24, width: NAME_W }, || {
+            ui::label(name, style::mono(if picked == "" { k.faint } else { k.text }));
+        });
+        if ui::pill(if picked == "" { "—" } else { picked }, #{
+            height: 22, size: 11, align: ui::ALIGN_LEFT, min_width: PICK_W,
+            tooltip: "Pick the bone this canonical name means on this rig",
+            fill: if picked == "" { k.panel } else { k.sunken },
+            color: if picked == "" { k.faint } else { k.text },
+            stroke: k.line_soft,
+        }) {
+            S.bonemap.picking = if open { None } else { Some(name) };
+        }
+        if picked != "" {
+            ui::add_space(4);
+            if ui::pill("×", #{
+                height: 22, size: 11, tooltip: "Leave this row empty",
+                fill: k.panel, color: k.faint,
+            }) {
+                S.bonemap.bones[name] = "";
+            }
+        }
+    });
+    if !open {
+        return;
+    }
+    // The picker, inline under its own row: a dock this narrow has nowhere
+    // to put a floating list, and the row it belongs to is the one thing a
+    // reader has to keep track of.
+    for path in paths {
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(6 + NAME_W);
+            if ui::pill(path, #{
+                height: 18, size: 10, align: ui::ALIGN_LEFT, min_width: PICK_W,
+                fill: if path == picked { k.accent_soft } else { k.panel },
+                color: if path == picked { k.accent } else { k.dim },
+            }) {
+                S.bonemap.bones[name] = path;
+                S.bonemap.picking = None;
+            }
+        });
+    }
+}

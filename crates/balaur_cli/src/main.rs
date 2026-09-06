@@ -128,6 +128,11 @@ enum Command {
         /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
         #[arg(long)]
         pkg: bool,
+        /// Print what the export would weigh and write nothing. Every script
+        /// is still compiled, because a size nobody can produce is not a
+        /// measurement.
+        #[arg(long)]
+        report: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -239,6 +244,12 @@ enum Command {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod import;
+// Both read a level file through `tiled`, which is a non-wasm dependency:
+// `balaur import` is a command line the browser has not got.
+#[cfg(not(target_arch = "wasm32"))]
+mod import_ldtk;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_tiled;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
@@ -345,6 +356,7 @@ fn main() -> Result<()> {
             ipa,
             apk,
             pkg,
+            report,
         } => export_game(&ExportArgs {
             path,
             output,
@@ -360,6 +372,7 @@ fn main() -> Result<()> {
             ipa,
             apk,
             pkg,
+            report,
         }),
         Command::Check { path, strict } => check_project(&path, strict),
         Command::Test {
@@ -837,6 +850,7 @@ struct ExportArgs {
     ipa: bool,
     apk: bool,
     pkg: bool,
+    report: bool,
 }
 
 /// The two policies balaur_export deliberately does not hold: where the
@@ -864,6 +878,7 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         ipa: args.ipa,
         apk: args.apk,
         pkg: args.pkg,
+        report_only: args.report,
         template_roots: balaur_export::default_roots(templates::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },

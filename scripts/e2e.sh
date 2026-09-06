@@ -135,6 +135,9 @@ for ex in examples/*/; do
   # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
   printf '  poly ...   '
   edit_step "$name: polygon" "$ex" polydemo
+  edit_step "$name: weights" "$ex" weightdemo
+  edit_step "$name: bone map" "$ex" bonemapdemo
+  edit_step "$name: physical bones" "$ex" ragdolldemo
   printf 'ok\n'
 
   # The Tiles tool builds its own map, so it runs on every example.

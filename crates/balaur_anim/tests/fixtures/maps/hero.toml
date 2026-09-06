@@ -1,0 +1,7 @@
+type = "bone_map"
+
+# The canonical humanoid against a rig whose artist named things differently.
+[bones]
+Hips = "pelvis"
+Spine = "spine_01"
+Head = "head"

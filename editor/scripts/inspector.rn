@@ -383,6 +383,31 @@ fn skeleton_section(S, k) {
             rig::overwrite_rest(S);
         }
     });
+    row(S, k, "Mirror", || {
+        for axis in ["x", "y"] {
+            if ui::pill(axis, #{
+                role: "row_action",
+                tooltip: format!("Reflect every bone's rest over this node's {} axis, and hand each bone's rest to the one whose name differs by a side", axis),
+            }) {
+                rig::mirror(S, axis);
+            }
+            ui::add_space(6);
+        }
+    });
+    row(S, k, "Ragdoll", || {
+        let built = node.contains_key("ragdoll");
+        if ui::pill(if built { "rebuild" } else { "physical bones" }, #{
+            role: "row_action", fill: k.sage_soft, color: k.sage,
+            tooltip: "Create Physical Skeleton: a body and a capsule per bone, hinged to its parent's, driven back onto the rig by the ragdoll component's blend",
+        }) {
+            rig::physical_bones(S);
+        }
+        if built {
+            ui::right(|| {
+                ui::label("blend below", style::mono_sm(k.faint));
+            });
+        }
+    });
 }
 
 // What the Polygon tool works on: the vertex and polygon counts, the rig's
@@ -436,6 +461,63 @@ fn polygon_section(S, k) {
             });
         }
     });
+    row(S, k, "Trace", || {
+        if ui::pill("from alpha", #{
+            role: "row_action", fill: k.sage_soft, color: k.sage,
+            tooltip: "Walk the texture's alpha and write the outline it finds as this polygon's points, replacing what is here",
+        }) {
+            polygon::trace(S);
+        }
+        ui::right(|| {
+            let (tolerance, changed) = ui::drag_value(S.polygon.tolerance, #{
+                width: 56, speed: 0.1, decimals: 1, min: 0.0, max: 64.0,
+                prefix: "px", prefix_color: k.accent,
+                fill: k.sunken, stroke: k.line_soft, color: k.text,
+            });
+            if changed {
+                S.polygon.tolerance = tolerance;
+            }
+        });
+    });
+    row(S, k, "Mirror", || {
+        for axis in ["x", "y"] {
+            if ui::pill(axis, #{
+                role: "row_action",
+                tooltip: format!("Reflect the picked vertices over this node's {} axis, and hand each bone's weights to the bone whose name differs by a side", axis),
+            }) {
+                polygon::mirror(S, axis);
+            }
+            ui::add_space(6);
+        }
+        ui::right(|| {
+            ui::label(if polygon::has_pick(S) {
+                format!("{} picked", polygon::picked(S).len())
+            } else {
+                "whole mesh"
+            }, style::mono_sm(k.faint));
+        });
+    });
+    if S.persona == "anim" {
+        row(S, k, "Deform", || {
+            if ui::pill("key", #{
+                role: "row_action", fill: k.accent_soft, color: k.accent,
+                tooltip: "Key every vertex's offset from its authored position on the armed clip, at the playhead",
+            }) {
+                polygon::key_deform(S);
+            }
+            ui::add_space(6);
+            if ui::pill("clear", #{
+                role: "row_action",
+                tooltip: "Put every vertex back on its authored position",
+            }) {
+                polygon::clear_deform(S);
+            }
+            ui::right(|| {
+                ui::label(if polygon::deformed(S) { "deformed" } else { "at rest" },
+                    style::mono_sm(if polygon::deformed(S) { k.accent } else { k.faint }));
+            });
+        });
+    }
     row(S, k, "Bones", || {
         if ui::pill("sync to rig", #{
             height: 24, size: 11, strong: true,

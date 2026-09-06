@@ -10,6 +10,9 @@ use anyhow::{Result, anyhow};
 use balaur_core::{Engine, entity_of, node_api};
 use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
 
+/// The option key `play` takes a bone map reference under.
+const RETARGET: &str = "retarget";
+
 use crate::player;
 use crate::tween::{self, TweenId};
 
@@ -28,21 +31,27 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
 /// Starting, queueing and holding a clip.
 fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`."),
+        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
         ("stop", &[crate::COMPONENT], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
         ("resume", &[crate::COMPONENT], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
         ("define", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
     ]);
-    // `opts` is `{ speed = 1.5, from_start = false }`, both optional. A flag
-    // in a trailing options table rather than a `play_from_start` (N9).
+    // `opts` is `{ speed = 1.5, from_start = false, retarget = "maps/hero.toml" }`,
+    // all optional. A flag in a trailing options table rather than a
+    // `play_from_start` (N9).
     m.function(
         "play",
         |eng: &Engine, (node, name, opts): (NodeId, String, Option<Value>)| {
             let entity = entity_of(node)?;
             if let Some(speed) = option(opts.as_ref(), "speed").as_ref().and_then(number) {
                 player::set_speed(eng, entity, speed);
+            }
+            // Before the clip starts: a map that will not load should stop
+            // the call rather than let one frame play unretargeted.
+            if let Some(Value::Str(reference)) = option(opts.as_ref(), RETARGET) {
+                player::set_retarget(eng, entity, &reference)?;
             }
             let from_start = !matches!(
                 option(opts.as_ref(), "from_start"),

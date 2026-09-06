@@ -51,7 +51,7 @@ pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
-pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
+pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 
 #[cfg(feature = "kiss3d")]
 mod app_icon;
@@ -898,6 +898,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         draw_2d::install_draw_2d_api(&mut *m);
         text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
+        tilemap::install_tilemap_terrain_api(&mut *m);
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         register_render_presets(reg)?;

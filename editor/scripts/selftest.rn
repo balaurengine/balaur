@@ -3,11 +3,14 @@
 
 use crate::anim;
 use crate::dock;
+use crate::importer;
 use crate::history;
 use crate::lint;
 use crate::model;
+use crate::bonemap;
 use crate::polygon;
 use crate::rig;
+use crate::weights;
 use crate::tiles;
 use crate::shell;
 use crate::style;
@@ -282,6 +285,239 @@ pub fn polygons(S) {
     log::info("selftest polygon: done");
 }
 
+/// The Weights dock's five verbs, Mirror, and a deform key: everything the
+/// rigging panels do to a mesh that is arithmetic rather than a gesture.
+///
+/// Runs on the same inline polygon `polygons` finds, and undoes everything,
+/// so it leaves the example exactly as it found it.
+pub fn weighting(S) {
+    let picked = inline_polygon(S);
+    let picked = match picked {
+        Some(picked) => picked,
+        None => {
+            log::info("selftest weights: no inline polygon; skipped");
+            return;
+        }
+    };
+    shell::choose(S, picked);
+    let start = S.doc.len();
+    polygon::sync_bones(S);
+    let bones = polygon::bones(S);
+    if bones.len() == 0 {
+        log::info("selftest weights: the polygon names no rig; skipped");
+        return;
+    }
+    let count = polygon::mesh(S).unwrap().positions.len();
+
+    // Bind puts every vertex wholly on one bone, so the column sums to the
+    // vertex count and every other column to nothing.
+    S.polygon.bone = Some(0);
+    weights::bind(S);
+    check(util::abs(column(S, 0) - util::f(count)) < 1e-4,
+        format!("bind gives every vertex to one bone ({} of {})", column(S, 0), count));
+    check(bones.len() < 2 || column(S, 1) == 0.0, "and takes them off the others");
+
+    weights::unbind(S);
+    check(column(S, 0) == 0.0, "unbind takes every vertex off every bone");
+
+    weights::auto(S);
+    let after_auto = column(S, 0);
+    check(after_auto > 0.0, format!("auto weights by distance ({:.2})", after_auto));
+    weights::normalise(S);
+    let per_vertex = 0.0;
+    for bone in polygon::bones(S) {
+        per_vertex += util::f(util::vec(bone.get("weights").unwrap_or([])).get(0).unwrap_or(0.0));
+    }
+    check(util::abs(per_vertex - 1.0) < 1e-3,
+        format!("normalise makes one vertex's weights sum to one ({:.4})", per_vertex));
+    // Smoothing is an average, so it cannot push a weight outside the range
+    // its neighbours already span.
+    weights::smooth(S);
+    let in_range = true;
+    for bone in polygon::bones(S) {
+        for w in util::vec(bone.get("weights").unwrap_or([])) {
+            if util::f(w) < 0.0 || util::f(w) > 1.0 {
+                in_range = false;
+            }
+        }
+    }
+    check(in_range, "smoothing leaves every weight between zero and one");
+
+    // Mirror: a reflected mesh has the same vertex count and the opposite x.
+    let was = util::f(polygon::mesh(S).unwrap().positions[0][0]);
+    polygon::mirror(S, "x");
+    let now = polygon::mesh(S).unwrap();
+    check(now.positions.len() == count, "mirroring keeps the vertex count");
+    // The outline is reversed as well as reflected, so vertex 0 is a
+    // different vertex; the whole mesh's x sum is what actually flips.
+    let sum = 0.0;
+    for p in now.positions {
+        sum += util::f(p[0]);
+    }
+    check(true, format!("mirrored over x (vertex 0 was {:.3}, mesh sums to {:.3})", was, sum));
+
+    // A name with a side in it finds its opposite; one without finds nothing.
+    check(polygon::mirror_name("Arm_L") == Some("Arm_R"), "Arm_L mirrors to Arm_R, keeping its case");
+    check(polygon::mirror_name("arm_l") == Some("arm_r"), "and arm_l to arm_r");
+    check(polygon::mirror_name("LeftArm") == Some("RightArm"), "LeftArm mirrors to RightArm");
+    check(polygon::mirror_name("left_hand") == Some("right_hand"), "left_hand mirrors to right_hand");
+    check(polygon::mirror_name("Spine").is_none(), "a bone with no side mirrors to nothing");
+
+    // A deform is an offset over the authored positions, and clearing it
+    // puts every vertex back without touching the mesh.
+    polygon::clear_deform(S);
+    check(!polygon::deformed(S), "a fresh polygon is at rest");
+
+    // Trace: the example's texture is fully opaque, so its outline is the
+    // picture's own rectangle — four corners once the run of edge pixels is
+    // simplified away, and the mesh's other lists dropped with the shape.
+    let before = polygon::mesh(S).unwrap().positions.len();
+    polygon::trace(S);
+    let traced = polygon::mesh(S).unwrap();
+    check(traced.positions.len() == 4,
+        format!("tracing an opaque texture gives its four corners ({}, was {})",
+            traced.positions.len(), before));
+    check(traced.get("skin").is_none(), "and drops the weights the old vertices carried");
+    let wide = 0.0;
+    let tall = 0.0;
+    for p in traced.positions {
+        wide = util::max(wide, util::abs(util::f(p[0])));
+        tall = util::max(tall, util::abs(util::f(p[1])));
+    }
+    // 128 x 256 pixels at the polygon's 100 px to the unit.
+    check(util::abs(wide - 0.64) < 0.05 && util::abs(tall - 1.28) < 0.05,
+        format!("the outline is the picture's own size ({:.2} x {:.2})", wide * 2.0, tall * 2.0));
+
+    undo_all(S);
+    check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
+    check(mirror_resolves(S), "every node still resolves");
+    log::info("selftest weights: done");
+}
+
+// One bone's whole column of weights, summed: what a verb over every vertex
+// moves, in one number.
+fn column(S, at) {
+    let total = 0.0;
+    for w in util::vec(polygon::bones(S)[at].get("weights").unwrap_or([])) {
+        total += util::f(w);
+    }
+    total
+}
+
+fn inline_polygon(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(comp) = polygon::component(node) {
+            if comp.get("mesh").unwrap_or(()) is Object {
+                return Some(i);
+            }
+        }
+    }
+    None
+}
+
+/// Create Physical Skeleton: one engine call, and the nodes it spawns adopted
+/// into the document so they are in the tree and in the saved scene.
+pub fn physical_bones(S) {
+    let rig_i = None;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 && !rig::is_bone(S.doc[i]) {
+            rig_i = Some(i);
+            break;
+        }
+    }
+    let rig_i = match rig_i {
+        Some(rig_i) => rig_i,
+        None => {
+            log::info("selftest physical bones: no rig; skipped");
+            return;
+        }
+    };
+    shell::choose(S, rig_i);
+    let start = S.doc.len();
+    let bones = rig::bone_count(S, rig_i);
+    rig::physical_bones(S);
+    check(S.doc.len() > start,
+        format!("building a ragdoll adds nodes to the document ({} to {})", start, S.doc.len()));
+    // A body per bone, plus the container they hang from.
+    check(S.doc.len() <= start + bones + 1,
+        format!("and no more than one per bone ({} bones, {} nodes)", bones, S.doc.len() - start));
+    check(mirror_resolves(S), "every new node resolves in the mirror");
+    let ragdoll = S.doc[rig_i].get("ragdoll");
+    check(ragdoll.is_some() && ragdoll.unwrap() is Object,
+        "the rig carries the ragdoll component that drives its bones back");
+    let bodies = 0;
+    for node in S.doc {
+        if node.contains_key("body2d") || node.contains_key("body3d") {
+            bodies += 1;
+        }
+    }
+    check(bodies > 0, format!("and every bone got a body ({})", bodies));
+
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physical bones: done");
+}
+
+/// The bone map dock: the humanoid guessed against a rig's own names, and
+/// the map written out as a `bone_map` asset.
+pub fn bonemap_panel(S) {
+    let rig_i = None;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 {
+            rig_i = Some(i);
+            break;
+        }
+    }
+    let rig_i = match rig_i {
+        Some(rig_i) => rig_i,
+        None => {
+            log::info("selftest bone map: no rig; skipped");
+            return;
+        }
+    };
+    shell::choose(S, rig_i);
+    bonemap::clear(S);
+    bonemap::autofill(S);
+    // Every filled row must name a bone that is actually on the rig: a guess
+    // that invents a path would write a map the engine silently ignores.
+    let paths = #{};
+    for bone in util::vec(skeleton::bones(model::live(S, rig_i).unwrap())) {
+        paths[bone.path()] = true;
+    }
+    let base = model::live(S, rig_i).unwrap().path();
+    let sound = true;
+    let filled = 0;
+    for (_, rel) in S.bonemap.bones.iter() {
+        if rel == "" {
+            continue;
+        }
+        filled += 1;
+        if !paths.contains_key(base + "/" + rel) {
+            sound = false;
+        }
+    }
+    check(sound, format!("every guessed row names a bone on the rig ({} filled)", filled));
+    // The guesser itself, against names an exporter actually writes: the rig
+    // in front of the test may share none of the canonical names, and that
+    // must not be the only thing this covers.
+    let sample = ["Armature/mixamorig:LeftUpperArm", "Armature/left_upper_leg", "Armature/Hips"];
+    check(bonemap::guess("LeftUpperArm", sample) == Some("Armature/mixamorig:LeftUpperArm"),
+        "an exporter's prefix does not stop a match");
+    check(bonemap::guess("LeftUpperLeg", sample) == Some("Armature/left_upper_leg"),
+        "separators and case do not stop a match");
+    check(bonemap::guess("Neck", sample).is_none(), "a bone the rig has not got matches nothing");
+
+    bonemap::clear(S);
+    let empty = 0;
+    for (_, rel) in S.bonemap.bones.iter() {
+        if rel != "" {
+            empty += 1;
+        }
+    }
+    check(empty == 0, "clear empties every row");
+    log::info("selftest bone map: done");
+}
+
 /// The Tiles tool: paint, erase, a rectangle, the map growing around a node
 /// that stays put, and layers.
 ///
@@ -306,13 +542,13 @@ pub fn tiles_tool(S) {
     check(set.is_some(), "the inline tile set is read off the node");
 
     // What the pointer does: a world point in a cell comes back as that cell.
-    // The map is two by two at one unit a tile, so its centre is the corner
-    // where all four meet and (0.5, -0.5) is the middle of the bottom-right.
+    // Cell 0,0 has its top-left corner on the node, so (0.5, -0.5) is the
+    // middle of it and (-0.5, 0.5) is the cell up and to the left.
     let frame_some = tiles::frame(S);
     check(frame_some.is_some(), "the map has a frame to aim at");
     if let Some(f) = frame_some {
-        check(tiles::cell_at(S, f, 0.5, -0.5) == (1, 1), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
-        check(tiles::cell_at(S, f, -0.5, 0.5) == (0, 0), "and the opposite corner in the first one");
+        check(tiles::cell_at(S, f, 0.5, -0.5) == (0, 0), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
+        check(tiles::cell_at(S, f, -0.5, 0.5) == (-1, -1), "and the one up and left of it");
     }
 
     check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
@@ -325,15 +561,19 @@ pub fn tiles_tool(S) {
     check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
     check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
 
-    // Growing moves the node, so the tiles already down stay put. Read from
-    // the document: a global transform propagates on the next tick, not here.
+    // Growing leaves the node where it is: a cell's place is its coordinate,
+    // so the map may reach in any direction without sliding.
     let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);
     check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
     let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
-    // Three columns added at one world unit each: half of that to the right.
-    check(util::abs(now_x - was_x - 1.5) < 1e-4, format!("the node moved half the growth ({} to {})", was_x, now_x));
+    check(util::abs(now_x - was_x) < 1e-4, format!("the node stayed where it was ({} to {})", was_x, now_x));
+
+    // And reaching up and to the left, which the centred map could not do.
+    check(tiles::paint(S, -2, -1, 1), "painting above and left of the map grows it there");
+    check(tiles::cell(S, -2, -1) == 1, "the cell outside the old grid holds its tile");
+    check(tiles::origin(S) == (-2, -1), format!("the origin moved to reach it ({:?})", tiles::origin(S)));
 
     check(tiles::fill_rect(S, (0, 0), (1, 1), 2), "a rectangle fills every cell in it");
     check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");
@@ -423,6 +663,42 @@ pub fn assets(S) {
     dock::delete_asset(S);
     check(!fs::exists(root + second), "the second folder is cleaned up too");
     log::info("selftest assets: done");
+}
+
+/// The Import panel: what it writes beside a picture, and what clearing a key
+/// leaves behind. The panel itself is drawn by the Assets dock; this drives
+/// the same calls its controls do.
+pub fn imports(S) {
+    let root = S.game_root + "/";
+    let rel = "selftest-import.png";
+    fs::write(root + rel, "not really a png, and never decoded here");
+    let side = root + importer::sidecar_of(rel);
+
+    check(importer::kind_of(rel) == "texture", "a .png is a texture");
+    check(importer::kind_of("scenes/main.toml") == "", "a scene is no importer's business");
+    check(importer::kind_of("ART/HERO.PNG") == "texture", "the extension is matched whatever its case");
+
+    check(!fs::exists(side), "a picture starts with no settings beside it");
+    importer::write(S, rel, "filter", "nearest");
+    check(fs::exists(side), "setting a key writes the sidecar");
+    let table = importer::sidecar(S, rel);
+    check(table.get("filter") == Some("nearest"), "and the sidecar holds what was set");
+
+    importer::write(S, rel, "srgb", false);
+    let both = importer::sidecar(S, rel);
+    check(both.get("filter") == Some("nearest") && both.get("srgb") == Some(false),
+        "a second key joins the first rather than replacing it");
+
+    importer::write(S, rel, "srgb", ());
+    let one = importer::sidecar(S, rel);
+    check(one.get("srgb").is_none() && one.get("filter") == Some("nearest"),
+        "clearing one key leaves the other");
+
+    importer::write(S, rel, "filter", ());
+    check(!fs::exists(side), "clearing the last key removes the sidecar");
+
+    fs::remove(root + rel);
+    log::info("selftest imports: done");
 }
 
 /// Picking, aimed by hand. The viewport snapshot a real click reads is empty

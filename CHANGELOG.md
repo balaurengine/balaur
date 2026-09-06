@@ -18,6 +18,7 @@ notes are that version's section.
 
 ### Scenes and assets
 
+- `balaur import level.tmx` and `level.ldtk` bring a Tiled map or an LDtk project in as tilesets, their atlases and a scene per level.
 - A frame's queued frees run as one pass per parent.
 - Children indexed by name: a path lookup is one hash per segment.
 - Freeing a node with no components asks no plugin anything.
@@ -27,6 +28,10 @@ notes are that version's section.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
 - Mesh (OBJ, glTF) and heightfield assets.
+- Import settings beside a file: `art/hero.png.toml`, with `[import.<kind>]` defaults in `project.toml`.
+- Nearest-neighbour filtering and linear-data textures, per image or per project.
+- An Import tab beside the Inspector: the selected file's settings, where each value comes from, and a clear that drops the key.
+- Bitmap font descriptors ride in a pack, so a `text2d` naming one draws in an exported game.
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
 - Comment-preserving TOML patching.
@@ -36,13 +41,16 @@ notes are that version's section.
 
 ### Rendering
 
+- Tile maps: a tileset that says what each tile is, collision from its solid cells as one voxel shape, autotiling from an ordered rule table, animated and light-blocking tiles, isometric and hexagonal layouts.
 - The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
 - 2D lights and shadows.
 - GPU skinning for 3D meshes.
 - Post-processing: bloom, SSAO, SSR, depth of field.
-- 2D and 3D skeletal animation; IK and look-at modifiers.
+- 2D and 3D skeletal animation; five modifier kinds in each: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`.
+- `polygon/deform` tracks: an `[dx, dy]` offset per vertex, added before skinning.
+- A clip played on another rig, through a `bone_map` against a `skeleton_profile`.
 - Quaternion rotation tracks.
 - More 2D and 3D shapes; polyline strips with gradients and textures.
 - Ten 3D primitives and six 2D ones, every one a mesh built headless.
@@ -59,6 +67,7 @@ notes are that version's section.
 - Full Rapier surface in 2D and 3D: body parameters, CCD, forces, sleep.
 - Joints with motors, limits and breaking; impulse and reduced-coordinate solvers.
 - Inverse kinematics.
+- Ragdolls built from a rig, blended back onto the bones by a weight.
 - Character controllers.
 - Query pipeline: raycasts, shape casts, point and shape queries.
 - Collision, contact-force and joint-break events.
@@ -126,6 +135,12 @@ notes are that version's section.
 - Plugin requirements and toggles.
 - `balaur test`.
 - Safe export directory check.
+- `balaur export` reports what the pack weighs, by section, extension and largest entry, and names the assets nothing references.
+- `balaur export --report` measures without writing.
+- `[export] strip` drops assets no scene, script or `keep` glob names.
+- `[export] images`, `fonts` and `audio` re-encode losslessly at export: PNG recompressed or written as WebP, a face subset to the characters the project shows, WAV written as FLAC.
+- Lossy export modes, each its own key: `images = "quantised"` with `images_quality`, and `audio = "vorbis"` with `audio_quality`.
+- `recode` in a picture's import settings overrides the export's mode for that file alone.
 - `scripts/lint.sh` mirrors CI; pre-push hook.
 - `examples/benchmark`: the Godot suites' physics and scene-tree cases, headless, in the editor or on the web.
 - `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run beside Godot's own results.
@@ -154,9 +169,11 @@ notes are that version's section.
 
 ### Editor
 
+- The Tiles tool paints in every direction, fills, draws lines, stamps blocks, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.
+- Rigging panels: a Weights dock with auto and smooth weights, modifier gizmos, bone names in the viewport, and Mirror in both tools. A mesh traced from a texture's alpha, deform keys, a Bone map dock, and Create Physical Skeleton.
 - The Tiles tool: a palette cut from the tile set, paint, erase, rectangle fill, layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
 - Profiler dock; `--timings`.

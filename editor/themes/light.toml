@@ -34,6 +34,9 @@ node_2d = "#8a6d1f"
 node_3d = "#2f6a9e"
 node_ui = "#6a4fa0"
 node_phys = "#4f7f78"
+# A rig modifier's reach, drawn over the bones it solves: a colour no bone
+# and no texture in the viewport is already using.
+modifier = "#7a3fa8"
 node_bone = "#a05a2c"
 
 # Text. A call site names one of these and says nothing else about type.

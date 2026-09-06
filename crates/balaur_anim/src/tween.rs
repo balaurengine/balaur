@@ -376,7 +376,9 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
     let (time, over) = sampler::clip_time(&clip, tween.time);
     if !tween.value {
         let pose = sampler::sample(&clip, time);
-        crate::system::write_pose(world, tween.node, "", &clip, &pose, effects);
+        // A tween is generated against the node it plays on, so there is
+        // nothing to retarget: its tracks already name that rig.
+        crate::system::write_pose(world, tween.node, "", None, &clip, &pose, effects);
         crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
     }
     if !over {
@@ -491,6 +493,7 @@ impl Builder<'_> {
             value: Vec4::ZERO,
             call: Some(method.to_string()),
             ease: None,
+            wide: Vec::new(),
         });
         Ok(())
     }
@@ -646,6 +649,7 @@ fn push_segment(
             value: held,
             call: None,
             ease: None,
+            wide: Vec::new(),
         });
     }
     track.keys.push(Key {
@@ -653,12 +657,14 @@ fn push_segment(
         value: from,
         call: None,
         ease: None,
+        wide: Vec::new(),
     });
     track.keys.push(Key {
         t: start + duration,
         value: to,
         call: None,
         ease,
+        wide: Vec::new(),
     });
 }
 
@@ -697,7 +703,7 @@ fn current_value(
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
         Property::Rotation => Vec4::from(transform.rotation),
-        Property::Component { .. } | Property::Call => Vec4::ZERO,
+        Property::Component { .. } | Property::Call | Property::Deform => Vec4::ZERO,
     })
 }
 

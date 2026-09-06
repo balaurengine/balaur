@@ -190,10 +190,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
-    let edges = {
-        let world = app.engine.world();
-        occluder_edges(&world, app.engine.root())
-    };
+    let edges = occluder_edges(&app.engine, app.engine.root());
     assert_eq!(edges.len(), 4, "{edges:?}");
     // The node's own transform is applied: the outline is in world space.
     for edge in &edges {
@@ -203,8 +200,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
     }
     add(&app, crate_node, "occluder2d", "closed = false");
     app.tick(1.0 / 60.0);
-    let world = app.engine.world();
-    let edges = occluder_edges(&world, app.engine.root());
+    let edges = occluder_edges(&app.engine, app.engine.root());
     assert_eq!(edges.len(), 3, "an open outline is a chain: {edges:?}");
 }
 

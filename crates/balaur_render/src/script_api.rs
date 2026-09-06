@@ -4,7 +4,7 @@
 //! Split out of `lib.rs`, which keeps the plugin, its components and its
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use balaur_core::Engine;
 use balaur_core::entity_of;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
@@ -449,16 +449,73 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// What `trace_texture` was asked for, with the defaults a Trace button uses.
+struct TraceOpts {
+    /// Alpha counted as opaque, `0..1`.
+    threshold: f32,
+    /// How many pixels of detail the simplifier may drop.
+    tolerance: f32,
+    pixels_per_unit: f32,
+    /// Whether the loops inside the shape come back too.
+    holes: bool,
+}
+
+impl TraceOpts {
+    fn of(opts: Option<&Value>) -> Self {
+        let mut out = Self {
+            threshold: 0.5,
+            tolerance: 2.0,
+            pixels_per_unit: crate::DEFAULT_PIXELS_PER_UNIT,
+            holes: false,
+        };
+        let Some(Value::Map(entries)) = opts else {
+            return out;
+        };
+        let number = |v: &Value| match v {
+            Value::Num(n) => Some(*n as f32),
+            Value::Int(n) => Some(*n as f32),
+            _ => None,
+        };
+        for (key, value) in entries {
+            match key.as_str() {
+                "threshold" => {
+                    out.threshold = number(value).unwrap_or(out.threshold).clamp(0.0, 1.0);
+                }
+                "tolerance" => out.tolerance = number(value).unwrap_or(out.tolerance).max(0.0),
+                "pixels_per_unit" => {
+                    out.pixels_per_unit = number(value).unwrap_or(out.pixels_per_unit).max(0.01);
+                }
+                "holes" => out.holes = matches!(value, Value::Bool(true)),
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
 /// Adjusting a sprite a node already has, and reading it back.
 /// The image's pixel size, from its header: what a tool placing UVs over a
 /// texture needs, in every build.
 pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[(
-        "texture_size",
-        &[],
-        "",
-        "An image's width and height in pixels, read from the file's own header.",
-    )]);
+    m.describe(&[
+        (
+            "texture_size",
+            &[],
+            "",
+            "An image's width and height in pixels, read from the file's own header.",
+        ),
+        (
+            "trace_texture",
+            &[],
+            "(path: string, opts: table) -> list",
+            "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, \
+             ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as \
+             opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, \
+             default 2), `pixels_per_unit` (default 100) and `holes` (include the loops inside \
+             the shape, default false). Counter-clockwise with y up, centred on the origin, the \
+             way a sprite at the same `pixels_per_unit` is drawn.",
+        ),
+    ]);
     m.function("texture_size", |eng: &Engine, path: String| {
         let bytes = eng
             .resource::<balaur_core::project::ProjectFiles>()
@@ -466,6 +523,42 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             .read(&path)?;
         crate::texture::image_size(&bytes, &path)
     });
+    m.function(
+        "trace_texture",
+        |eng: &Engine, (path, opts): (String, Option<Value>)| {
+            let opts = TraceOpts::of(opts.as_ref());
+            let bytes = eng
+                .resource::<balaur_core::project::ProjectFiles>()
+                .borrow()
+                .read(&path)?;
+            let image = image::load_from_memory(&bytes)
+                .with_context(|| format!("decoding the image {path}"))?
+                .to_rgba8();
+            let (w, h) = (image.width() as usize, image.height() as usize);
+            let cut = opts.threshold * 255.0;
+            let mask: Vec<bool> = image.pixels().map(|p| f32::from(p.0[3]) >= cut).collect();
+            let ppu = opts.pixels_per_unit;
+            let loops = balaur_core::geometry2d::trace(&mask, w, h);
+            let keep = if opts.holes { loops.len() } else { 1 };
+            // Pixel corners are y-down and measured from the top left; a
+            // polygon's points are y-up and centred, the same frame
+            // `default_uv` maps a texture in.
+            let local = |p: glamx::Vec2| {
+                Value::Vec2([(p.x - w as f32 / 2.0) / ppu, (h as f32 / 2.0 - p.y) / ppu])
+            };
+            Ok(Value::List(
+                loops
+                    .into_iter()
+                    .take(keep)
+                    .map(|outline| {
+                        let simplified =
+                            balaur_core::geometry2d::simplify(&outline, opts.tolerance);
+                        Value::List(simplified.into_iter().map(local).collect())
+                    })
+                    .collect(),
+            ))
+        },
+    );
 }
 
 pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {

@@ -54,6 +54,9 @@ pub struct ProjectManifest {
     pub window: WindowSettings,
     /// What the UI layer loads before it draws.
     pub ui: UiSettings,
+    /// `[import.<kind>]`: the default settings for every file of a kind.
+    /// See [`crate::import`].
+    pub import: BTreeMap<String, toml::Table>,
 }
 
 /// `[window]`: the window a windowed build opens, and how it is drawn.
@@ -167,6 +170,8 @@ struct RawManifest {
     window: WindowSettings,
     #[serde(default)]
     ui: UiSettings,
+    #[serde(default)]
+    import: BTreeMap<String, toml::Table>,
 }
 
 #[derive(Deserialize)]
@@ -199,6 +204,7 @@ impl From<RawManifest> for ProjectManifest {
             splash_seconds: raw.application.splash_seconds.max(0.0),
             window: raw.window,
             ui: raw.ui,
+            import: raw.import,
         }
     }
 }

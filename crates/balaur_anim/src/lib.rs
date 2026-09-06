@@ -40,6 +40,7 @@ pub mod clip;
 pub mod ease;
 pub mod modifier;
 pub mod player;
+pub mod retarget;
 pub mod sampler;
 mod snapshot;
 mod system;
@@ -48,17 +49,27 @@ pub mod tween;
 /// The component key, as the registry and every `describe` entry spell it.
 pub(crate) const COMPONENT: &str = "animation";
 
-/// The `animation` and `modifier2d` components' keys, for their schemas and readers alike.
+/// The `animation`, `modifier2d` and `modifier3d` components' keys, for their
+/// schemas and readers alike.
 pub(crate) mod keys {
+    pub(crate) const ANGLE_LIMIT: &str = "angle_limit";
     pub(crate) const AUTOPLAY: &str = "autoplay";
     pub(crate) const BONE: &str = "bone";
+    pub(crate) const CHAIN: &str = "chain";
+    pub(crate) const DAMPING: &str = "damping";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const FLIP: &str = "flip";
+    pub(crate) const GRAVITY: &str = "gravity";
+    pub(crate) const ITERATIONS: &str = "iterations";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const LIBRARY: &str = "library";
+    pub(crate) const MASS: &str = "mass";
     pub(crate) const ROOT: &str = "root";
     pub(crate) const SPEED: &str = "speed";
+    pub(crate) const STIFFNESS: &str = "stiffness";
     pub(crate) const TARGET: &str = "target";
+    pub(crate) const TOLERANCE: &str = "tolerance";
+    pub(crate) const USE_GRAVITY: &str = "use_gravity";
 }
 
 use balaur_plugin::Registry;
@@ -74,8 +85,9 @@ use balaur_core::{Engine, Stage};
 pub use crate::bindings::install_animation_api;
 pub use crate::player::{
     AnimationState, CLIP_ASSET_TYPE, Playback, current, define, is_playing, just_finished, pause,
-    play, play_from, queue, resume, seek, set_speed, stop, time,
+    play, play_from, queue, resume, seek, set_retarget, set_speed, stop, time,
 };
+pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
 pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin {
@@ -129,9 +141,22 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         // After the clip has posed the rig, so a modifier has the last word.
         reg.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(reg);
+        modifier::register_modifier3d_component(reg);
         reg.register_asset_type(CLIP_ASSET_TYPE, "animations", CLIP_ASSET_DOC, |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });
+        reg.register_asset_type(
+            retarget::BONE_MAP_ASSET_TYPE,
+            "animations",
+            retarget::MAP_ASSET_DOC,
+            |value| Ok(Rc::new(retarget::parse_map(value)?) as Rc<dyn Any>),
+        );
+        reg.register_asset_type(
+            retarget::PROFILE_ASSET_TYPE,
+            "animations",
+            retarget::PROFILE_ASSET_DOC,
+            |value| Ok(Rc::new(retarget::parse_profile(value)?) as Rc<dyn Any>),
+        );
         register_animation_component(reg);
         let mut m = reg.script_module("animation")?;
         install_animation_api(&mut *m);

@@ -100,6 +100,12 @@ pub enum Property {
         component: String,
         property: String,
     },
+    /// `polygon/deform`: an `[dx, dy]` offset per vertex, added to the mesh's
+    /// authored positions before it is skinned. Spelled like a component
+    /// property and deliberately not one — a free-form deformation is two
+    /// numbers per vertex, not the one to four a component property may hold,
+    /// and it is written onto the node rather than patched into a table.
+    Deform,
     /// The track has no property at all: its keys name methods to dispatch.
     /// A document says so by leaving `property` out.
     Call,
@@ -113,7 +119,7 @@ impl Property {
         match self {
             Self::Position | Self::RotationEuler | Self::Scale => Some(3),
             Self::Rotation => Some(4),
-            Self::Component { .. } => None,
+            Self::Component { .. } | Self::Deform => None,
             Self::Call => Some(0),
         }
     }
@@ -124,6 +130,7 @@ impl Property {
             "rotation_euler" => Ok(Self::RotationEuler),
             "rotation" => Ok(Self::Rotation),
             "scale" => Ok(Self::Scale),
+            DEFORM => Ok(Self::Deform),
             other => match other.split_once('/') {
                 Some((component, property))
                     if !component.is_empty() && !property.is_empty() && !property.contains('/') =>
@@ -134,8 +141,8 @@ impl Property {
                     })
                 }
                 _ => Err(anyhow!(
-                    "`property = \"{other}\"` is not \"position\", \"rotation_euler\", \"rotation\" \
-                     or \"scale\", and does not read as `component/property`"
+                    "`property = \"{other}\"` is not \"position\", \"rotation_euler\", \"rotation\", \
+                     \"scale\" or \"{DEFORM}\", and does not read as `component/property`"
                 )),
             },
         }
@@ -153,10 +160,15 @@ impl Property {
                 component,
                 property,
             } => format!("{component}/{property}"),
+            Self::Deform => DEFORM.to_string(),
             Self::Call => return None,
         })
     }
 }
+
+/// The one property spelled like a component's that is not one. Written here
+/// so the parser, the reader and the pose writer all say it once.
+pub const DEFORM: &str = "polygon/deform";
 
 /// How a track gets from one key to the next.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -208,6 +220,11 @@ pub struct Key {
     /// which is the convention the format's own examples are written in — so
     /// the first key of a track never carries one that matters.
     pub ease: Option<Easing>,
+    /// A key wider than four numbers, which today is only `polygon/deform`.
+    /// Empty on every other track, so the four-channel path — every
+    /// transform, every component property — keeps its fixed-size value and
+    /// allocates nothing per key.
+    pub wide: Vec<f32>,
 }
 
 /// One property of one node over time — or, with no property, one list of
@@ -218,10 +235,10 @@ pub struct Track {
     /// own node.
     pub target: String,
     pub property: Property,
-    /// How many of a key's four channels this track drives: three for a
-    /// transform, none for a method track, and for a component property
-    /// whatever its keys were authored with — one number for `shape/radius`,
-    /// four for `color/rgba`.
+    /// How many channels this track drives: three for a transform, none for
+    /// a method track, and for a component property whatever its keys were
+    /// authored with — one number for `shape/radius`, four for `color/rgba`.
+    /// A `polygon/deform` track goes past four and keys `Key::wide` instead.
     pub channels: usize,
     pub interp: Interp,
     /// Sorted by time at parse, so the sampler can assume it.
@@ -377,17 +394,65 @@ fn parse_key(
             value: Vec4::ZERO,
             call: Some(call),
             ease,
+            wide: Vec::new(),
         });
     }
     if value.get("call").is_some() {
         bail!("`call` belongs to a track that declares no `property`; this one animates a value");
+    }
+    if *property == Property::Deform {
+        let wide = parse_wide(value, channels)?;
+        return Ok(Key {
+            t,
+            value: Vec4::ZERO,
+            call: None,
+            ease,
+            wide,
+        });
     }
     Ok(Key {
         t,
         value: parse_value(value, channels)?,
         call: None,
         ease,
+        wide: Vec::new(),
     })
+}
+
+/// A deform key: two numbers per vertex, and the arity check that keeps the
+/// track square the way [`parse_value`] does for the narrow ones.
+///
+/// The first key fixes the vertex count and every later key must agree —
+/// a clip whose keys disagree would blend a vertex against nothing halfway
+/// through, and there is no sensible offset to invent for it.
+fn parse_wide(key: &toml::Value, channels: &mut Option<usize>) -> Result<Vec<f32>> {
+    let Some(items) = key.get("value").and_then(toml::Value::as_array) else {
+        bail!("a `{DEFORM}` key needs a `value`: a flat list of [dx, dy] per vertex");
+    };
+    if items.len() % 2 != 0 {
+        bail!(
+            "`value` holds {} numbers; a `{DEFORM}` key takes two per vertex",
+            items.len()
+        );
+    }
+    if let Some(wanted) = *channels
+        && items.len() != wanted
+    {
+        bail!(
+            "`value` holds {} numbers; this track takes {wanted} ({} vertices)",
+            items.len(),
+            wanted / 2
+        );
+    }
+    *channels = Some(items.len());
+    items
+        .iter()
+        .map(|number| {
+            as_f64(number)
+                .map(|v| v as f32)
+                .ok_or_else(|| anyhow!("`value` holds {}, not a number", number.type_str()))
+        })
+        .collect()
 }
 
 /// A key's numbers, and the arity check that keeps a track square.

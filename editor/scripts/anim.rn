@@ -404,6 +404,28 @@ pub fn add_key(S, t) {
     log::info(format!("key at {:.2}s ({} keys)", t, key_count(def)));
 }
 
+// Insert (or replace) a key on one named property of the selection, for a
+// tool that keys something a transform snapshot does not cover — the Polygon
+// tool's `polygon/deform` is the first.
+pub fn key_property(S, t, property, value) {
+    let def = ensure_clip(S);
+    let player_i = player_index(S);
+    let def = match def {
+        Some(def) => def,
+        None => {
+            log::warn(format!("the library has no clip called '{}'", clip_name(S.doc[player_i])));
+            return;
+        }
+    };
+    history::record(S, format!("key {}", property), None);
+    put_key(track_for(def, property, target_path(S, player_i)), t, value);
+    if t > length(def) {
+        def.length = t;
+    }
+    touch(S);
+    log::info(format!("{} keyed at {:.2}s", property, t));
+}
+
 // Delete the selection's keys at the playhead; other nodes' lanes keep theirs.
 pub fn delete_key_at(S, t) {
     let def = match definition(S) {

@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 374 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 383 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 | Feature | Default | Web template | What it is | Adds to a web build |
@@ -22,7 +22,7 @@ Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 | `web` | on | on | `web.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_web` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec. | `balaur_websocket` |
 | `webtransport` | on | off | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `naga`, `wgpu`, … (70 crates) |
+| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `naga`, `wgpu`, … (67 crates) |
 
 ## What the web template resolves
 

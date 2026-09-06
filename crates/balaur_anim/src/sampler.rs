@@ -16,7 +16,7 @@ use glamx::{Quat, Vec3, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TrackValue {
     Position(Vec3),
     /// Already a quaternion: euler keys are converted and slerped here, so a
@@ -33,6 +33,10 @@ pub enum TrackValue {
     /// A method track holds no value. It is a list of moments, and what
     /// happens at them is dispatched rather than posed.
     None,
+    /// A `polygon/deform` track's offsets, `[dx, dy]` per vertex, flat. The
+    /// one value that is not `Copy`, which is why [`Pose`] is a `Vec` of
+    /// these and not an array of them.
+    Deform(Vec<f32>),
 }
 
 /// One value per track, in the clip's own track order. Pairing a pose with
@@ -202,8 +206,52 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
             value: sample_channels(track, time),
             channels: track.channels,
         },
+        Property::Deform => TrackValue::Deform(sample_wide(track, time)),
         Property::Call => TrackValue::None,
     }
+}
+
+/// A track wider than four channels at `time`, interpolated channel by
+/// channel. The narrow path stays on `Vec4` — this is the deform track's
+/// alone, and it allocates one vector per sampled track per frame.
+fn sample_wide(track: &Track, time: f32) -> Vec<f32> {
+    let keys = &track.keys;
+    let (index, raw) = segment(keys, time);
+    let before = &keys[index].wide;
+    if raw <= 0.0 || track.interp == Interp::Step {
+        return before.clone();
+    }
+    let u = eased(keys, index, raw);
+    let after = &keys[index + 1].wide;
+    // A key that disagrees on width cannot be parsed, but a snapshot or a
+    // clip built in code can still hand one over; the shorter of the two is
+    // what both are known to hold.
+    let width = before.len().min(after.len());
+    match track.interp {
+        Interp::Step => before.clone(),
+        Interp::Linear => (0..width)
+            .map(|i| before[i] + (after[i] - before[i]) * u)
+            .collect(),
+        Interp::Cubic => {
+            let p0 = &keys[index.saturating_sub(1)].wide;
+            let p3 = &keys[(index + 2).min(keys.len() - 1)].wide;
+            (0..width)
+                .map(|i| {
+                    let at = |k: &Vec<f32>| k.get(i).copied().unwrap_or(before[i]);
+                    catmull_rom_f32(at(p0), before[i], after[i], at(p3), u)
+                })
+                .collect()
+        }
+    }
+}
+
+/// [`catmull_rom`] on one channel, for the wide path.
+fn catmull_rom_f32(p0: f32, p1: f32, p2: f32, p3: f32, u: f32) -> f32 {
+    let (u2, u3) = (u * u, u * u * u);
+    0.5 * ((2.0 * p1)
+        + (-p0 + p2) * u
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * u2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * u3)
 }
 
 /// The key at or before `time`, and how far from it to the next key `time`

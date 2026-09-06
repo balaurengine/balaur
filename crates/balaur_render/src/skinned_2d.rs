@@ -58,6 +58,36 @@ impl SkinHandle {
     }
 }
 
+/// A polygon's deformed vertex positions for the coming frame, or `None`
+/// when nothing has moved them since the last upload.
+///
+/// The joint palette rides the object uniform, which is rewritten every
+/// frame anyway; vertex positions are a whole buffer, so they are uploaded
+/// only on the frames a `polygon/deform` track actually changed them. A
+/// polygon with no deform track never sets this and never pays for it.
+#[derive(Clone)]
+pub(crate) struct DeformHandle(Rc<RefCell<Deformed>>);
+
+/// A polygon's vertex positions and whether they are still to be uploaded.
+///
+/// The buffer is kept between frames rather than handed over each time: a
+/// deform track rewrites it on every frame, and it is as long as the mesh.
+#[derive(Default)]
+pub(crate) struct Deformed {
+    positions: Vec<[f32; 2]>,
+    pending: bool,
+}
+
+impl DeformHandle {
+    /// This frame's positions, one call of `at` per vertex.
+    pub(crate) fn fill(&self, count: usize, mut at: impl FnMut(usize) -> [f32; 2]) {
+        let mut held = self.0.borrow_mut();
+        held.positions.clear();
+        held.positions.extend((0..count).map(&mut at));
+        held.pending = true;
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 struct FrameUniforms {
@@ -88,7 +118,7 @@ fn padded(m: &Mat3) -> [[f32; 4]; 3] {
 pub(crate) fn build(
     scene: &mut SceneNode2d,
     polygon: &PolygonMesh,
-) -> (SceneNode2d, Option<SkinHandle>) {
+) -> (SceneNode2d, Option<SkinHandle>, DeformHandle) {
     let ctxt = Context::get();
     let count = polygon.positions.len();
     let positions: Vec<[f32; 2]> = polygon.positions.iter().map(Vec2::to_array).collect();
@@ -118,12 +148,15 @@ pub(crate) fn build(
         mapped_at_creation: false,
     });
     let palette = Rc::new(RefCell::new(Vec::new()));
+    let deform = Rc::new(RefCell::new(Deformed::default()));
     let material = SkinnedMaterial::new(
         Buffers {
             positions: buffer(
                 "polygon_positions",
                 bytemuck::cast_slice(&positions),
-                wgpu::BufferUsages::VERTEX,
+                // Writable, because a `polygon/deform` track rewrites it in
+                // place rather than rebuilding the whole node each frame.
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             ),
             uvs: buffer(
                 "polygon_uvs",
@@ -149,6 +182,7 @@ pub(crate) fn build(
             object_uniform,
         },
         Rc::clone(&palette),
+        Rc::clone(&deform),
     );
     let material: Rc<RefCell<Box<dyn Material2d + 'static>>> =
         Rc::new(RefCell::new(Box::new(material)));
@@ -165,7 +199,7 @@ pub(crate) fn build(
     let node = SceneNode2d::new(Vec2::ONE, Pose2::IDENTITY, Some(object));
     scene.add_child(node.clone());
     let handle = polygon.skin.is_some().then_some(SkinHandle(palette));
-    (node, handle)
+    (node, handle, DeformHandle(deform))
 }
 
 struct Buffers {
@@ -201,6 +235,7 @@ struct SkinnedMaterial {
     texture_layout: wgpu::BindGroupLayout,
     buffers: Buffers,
     palette: Rc<RefCell<Vec<Mat3>>>,
+    deform: Rc<RefCell<Deformed>>,
 }
 
 fn uniform_entry(binding: u32, visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayoutEntry {
@@ -284,7 +319,11 @@ fn build_pipeline(
 }
 
 impl SkinnedMaterial {
-    fn new(buffers: Buffers, palette: Rc<RefCell<Vec<Mat3>>>) -> Self {
+    fn new(
+        buffers: Buffers,
+        palette: Rc<RefCell<Vec<Mat3>>>,
+        deform: Rc<RefCell<Deformed>>,
+    ) -> Self {
         let ctxt = Context::get();
         let (frame_layout, object_layout, texture_layout) = bind_group_layouts(&ctxt);
         let pipeline_layout = ctxt.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -320,7 +359,23 @@ impl SkinnedMaterial {
             texture_layout,
             buffers,
             palette,
+            deform,
         }
+    }
+
+    /// Upload the deformed positions a `polygon/deform` track left for this
+    /// frame, and take them: a frame that deformed nothing writes nothing.
+    fn write_deform(&self) {
+        let mut held = self.deform.borrow_mut();
+        if !held.pending {
+            return;
+        }
+        held.pending = false;
+        Context::get().write_buffer(
+            &self.buffers.positions,
+            0,
+            bytemuck::cast_slice(&held.positions),
+        );
     }
 
     /// The per-object uniform: the node's pose and scale as one matrix, its
@@ -377,6 +432,7 @@ impl Material2d for SkinnedMaterial {
         };
         ctxt.write_buffer(&self.frame_uniform, 0, bytemuck::bytes_of(&frame));
         self.write_object(transform, scale, data);
+        self.write_deform();
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<SkinnedGpuData>()
@@ -447,4 +503,50 @@ impl Material2d for SkinnedMaterial {
         render_pass.set_index_buffer(self.buffers.indices.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..1);
     }
+}
+
+/// The scene node a polygon draws through, with the handles a rig and a
+/// deform track write into it. `None` for a polygon with no triangles.
+pub(crate) fn build_polygon_node(
+    app: &balaur_core::App,
+    scene: &mut SceneNode2d,
+    renderable: &crate::Renderable2d,
+) -> Option<(SceneNode2d, Option<SkinHandle>, Option<DeformHandle>)> {
+    let polygon = renderable.polygon.as_ref()?;
+    if polygon.positions.is_empty() || polygon.indices.is_empty() {
+        return None;
+    }
+    let (mut node, skin, deform) = build(scene, polygon);
+    crate::texture::attach_texture_2d(&app.engine, &mut node, &polygon.texture);
+    Some((node, skin, Some(deform)))
+}
+
+/// This frame's vertex positions for a polygon carrying a `Deform`, or
+/// nothing to upload when it carries none.
+///
+/// Answers whether the buffer now holds deformed vertices, so the frame a
+/// deform track stops writing puts the authored positions back exactly once
+/// rather than uploading them again for the rest of the session.
+pub(crate) fn write_deform(
+    world: &balaur_core::hecs::World,
+    entity: balaur_core::hecs::Entity,
+    polygon: &crate::PolygonMesh,
+    handle: &DeformHandle,
+    was_deformed: bool,
+) -> bool {
+    let deform = world.get::<&balaur_core::mesh::Deform>(entity).ok();
+    let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
+    if !deforming {
+        if was_deformed {
+            handle.fill(polygon.positions.len(), |i| polygon.positions[i].to_array());
+        }
+        return false;
+    }
+    let deform = deform.expect("a deforming node has the component");
+    handle.fill(polygon.positions.len(), |i| {
+        let p = polygon.positions[i];
+        let [dx, dy] = deform.at(i);
+        [p.x + dx, p.y + dy]
+    });
+    true
 }

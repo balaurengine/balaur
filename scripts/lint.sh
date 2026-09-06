@@ -11,6 +11,7 @@ step "clippy window";     cargo clippy -p balaur_cli --features window --all-tar
 step "clippy extensions"; cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
 step "house";    python3 scripts/house_lints.py --fail-on-error
 step "comments"; python3 scripts/comment_lints.py --fail-on-error
+step "prose";    python3 scripts/prose_lints.py --fail-on-error
 step "api";      python3 scripts/api_lints.py --fail-on-error
 step "notices";  python3 scripts/third_party_notices.py --check
 

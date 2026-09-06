@@ -19,7 +19,9 @@ mod android;
 mod apple;
 mod bundle;
 mod config;
+pub mod recode;
 mod sign;
+pub mod size;
 
 use apple::AppleConfig;
 pub use bundle::web_shell;
@@ -67,6 +69,10 @@ pub struct Options<'a> {
     /// Modules to register before compiling, for a project whose scripts
     /// call something this binary adds rather than the engine.
     pub plugins: Option<&'a ExtraModules>,
+    /// Measure and print what the export would weigh, writing nothing. The
+    /// pack is still built and every script still compiled, because a size
+    /// nobody can produce is not a measurement.
+    pub report_only: bool,
     /// Called when the target's template is on none of the roots. `None`
     /// refuses instead of fetching: a download needs a network stack, a
     /// release to fetch from and somewhere to ask the user, and none of the
@@ -149,9 +155,17 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // machine exporting it is.
     let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
-    let pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
+    let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
     let apple = AppleConfig::load(&opts.path)?;
     let config = ExportConfig::load(&opts.path)?;
+    let summary = size::prepare(&mut pack, &config)?;
+    tracing::info!("\n{}", pack.report_with(&config.keep));
+    if summary.total_saved() > 0 {
+        tracing::info!("{summary}");
+    }
+    if opts.report_only {
+        return Ok(());
+    }
     let name = project_name(&opts.path);
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.

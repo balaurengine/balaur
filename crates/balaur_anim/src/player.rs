@@ -62,6 +62,11 @@ pub struct Playback {
     /// frame. Cleared at the top of every advance, which is after the script
     /// tick that could read it.
     pub finished: String,
+    /// The bone map this node plays other rigs' clips through, and the
+    /// reference it was loaded from so a snapshot can find it again. `None`
+    /// plays every track exactly as it was authored.
+    pub retarget: Option<crate::retarget::Retarget>,
+    pub(crate) retarget_reference: String,
 }
 
 impl Default for Playback {
@@ -79,6 +84,8 @@ impl Default for Playback {
             queue: Vec::new(),
             defined: DetHashMap::default(),
             finished: String::new(),
+            retarget: None,
+            retarget_reference: String::new(),
         }
     }
 }
@@ -131,6 +138,13 @@ pub struct AnimationState {
     /// else.
     pub(crate) next_tween: TweenId,
     pub(crate) accumulator: f32,
+    /// Every jiggle chain's dynamic points, keyed by the node carrying the
+    /// modifier. Ordered like `players`, and for the same reason.
+    pub(crate) jiggle: DetHashMap<Entity, crate::modifier::Jiggle>,
+    /// The jiggle springs' own fixed-step residual. Separate from
+    /// `accumulator` because the modifier system runs after the playhead has
+    /// already spent that one.
+    pub(crate) jiggle_accumulator: f32,
     /// The asset generation these players' clips were resolved at. When the
     /// cache moves past it — a file saved in dev mode, an editor writing a
     /// clip — every live playback re-resolves and keeps its playhead.
@@ -200,6 +214,37 @@ pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool
         playback.paused = false;
     }
     Ok(())
+}
+
+/// Play every clip on this node through a bone map, so a rig can run clips
+/// authored for another one.
+///
+/// The reference is loaded now rather than at the next step, so a map that
+/// will not parse is an error where the caller can see it. An empty
+/// reference takes the map off again.
+///
+/// # Errors
+/// When the reference names no `bone_map`, or the profile it names will not
+/// load.
+pub fn set_retarget(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
+    let retarget = if reference.trim().is_empty() {
+        None
+    } else {
+        let map = assets::load_typed::<crate::retarget::BoneMap>(eng, reference)
+            .with_context(|| format!("retargeting through '{reference}'"))?;
+        let profile = if map.profile.trim().is_empty() {
+            std::rc::Rc::new(crate::retarget::SkeletonProfile::humanoid())
+        } else {
+            assets::load_typed::<crate::retarget::SkeletonProfile>(eng, &map.profile)
+                .with_context(|| format!("the profile '{}' a bone map names", map.profile))?
+        };
+        Some(crate::retarget::Retarget { map, profile })
+    };
+    with_playback(eng, entity, |playback| {
+        playback.retarget.clone_from(&retarget);
+        playback.retarget_reference = reference.to_string();
+    })
+    .ok_or_else(|| anyhow!("this node has no `animation` component to retarget"))
 }
 
 /// Play `clip_name` once the current clip ends, after anything already queued.

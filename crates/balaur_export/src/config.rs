@@ -42,6 +42,37 @@ pub struct ExportConfig {
     /// when the key lives in a cloud HSM rather than in a file.
     pub windows_certificate: String,
     pub windows_timestamp_url: String,
+    /// Drop an asset no scene, script or keep-glob names. Off by default:
+    /// a script may compute a path this cannot see, and losing an asset is
+    /// worse than shipping one.
+    pub strip: bool,
+    /// Globs an export keeps whatever else it decides, for the paths a
+    /// script builds at run time.
+    pub keep: Vec<String>,
+    /// `keep`, `png`, `webp`, `smallest` or `quantised`: how an image is
+    /// re-encoded on the way into the pack. Every mode keeps the size;
+    /// `quantised` is the one that does not keep the pixels.
+    pub images: crate::recode::ImageMode,
+    /// imagequant's 0-100 quality target, which `images = "quantised"` reads
+    /// and every other mode ignores.
+    pub images_quality: u8,
+    /// `keep` or `subset`: whether a font is cut down to the characters the
+    /// project's scenes and scripts name.
+    pub fonts: crate::recode::FontMode,
+    /// Code points a subset font keeps beyond the ones found in the project,
+    /// as `first-last` hex ranges (`"0020-00FF"`), for text from a server or
+    /// typed by a player.
+    pub font_ranges: Vec<String>,
+    /// Faces that ship whole however `fonts` is set, as globs: the one a
+    /// text field or a line from a server draws with cannot be subset to the
+    /// characters this project happens to contain.
+    pub font_keep: Vec<String>,
+    /// `keep`, `flac` or `vorbis`: how uncompressed audio is re-encoded.
+    /// `flac` keeps every sample; `vorbis` does not.
+    pub audio: crate::recode::AudioMode,
+    /// libvorbis's -0.1 to 1.0 quality, which `audio = "vorbis"` reads and
+    /// every other mode ignores.
+    pub audio_quality: f32,
 }
 
 impl Default for ExportConfig {
@@ -57,6 +88,15 @@ impl Default for ExportConfig {
             windows_certificate: String::new(),
             // DigiCert's, which is what signtool's own documentation uses.
             windows_timestamp_url: "http://timestamp.digicert.com".into(),
+            strip: false,
+            keep: Vec::new(),
+            images: crate::recode::ImageMode::Keep,
+            images_quality: crate::recode::DEFAULT_IMAGES_QUALITY,
+            fonts: crate::recode::FontMode::Keep,
+            font_ranges: Vec::new(),
+            font_keep: Vec::new(),
+            audio: crate::recode::AudioMode::Keep,
+            audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
         }
     }
 }

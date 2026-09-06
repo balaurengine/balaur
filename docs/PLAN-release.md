@@ -8,8 +8,9 @@
 > staples, and Gatekeeper answers "Notarized Developer ID" for both the disk
 > image and the bundle inside it. What has not run is the CI job that does
 > this on a push. Windows signing is written (`scripts/windows_sign.sh`) and
-> waits on a certificate: Artifact Signing's identity validation is a portal
-> request a person makes, and until it clears the download stays unsigned.
+> wired: Artifact Signing validated the company on 2026-09-06 and the
+> `balaur-public` Public Trust profile is active. It has never run, so the
+> first push to main is the first time signtool meets the certificate.
 
 # Plan: binary releases
 
@@ -24,18 +25,28 @@ opens without a warning and updates itself.
    still asks Apple on first launch, which is why the `.dmg` is the download
    and the tarball stays beside it. The Hardened Runtime is on; Rune is an
    interpreter, so no JIT entitlement is needed.
-2. **Windows.** Written, and waiting on a certificate.
-   `scripts/windows_sign.sh` signs the editor and both copies of the runtime
-   template before the zip is made, through Azure Trusted Signing or a
-   `.pfx`, and signs nothing when neither is configured. An OV certificate's
-   key cannot be a file since 2023, so Trusted Signing — whose key is in an
-   HSM — is the path the engine's own download takes.
+2. **Windows.** Written and wired, unproven. `scripts/windows_sign.sh` signs
+   the editor and both copies of the runtime template before the zip is made,
+   through Artifact Signing or a `.pfx`, and signs nothing when neither is
+   configured. An OV certificate's key cannot be a file since 2023, so
+   Artifact Signing — whose key is in an HSM — is the path the engine's own
+   download takes. The certificate names the company, not the engine: a
+   Windows user sees `Napocapps Extremus Creo S.R.L.` as the publisher.
+   Only the editor is signed. A runtime template exists to have a pack
+   appended to it, and appending invalidates a signature — `balaur export`
+   signs the fused result instead, which is the order `standalone::extract`
+   already reads for. On macOS the template inside `Balaur.app` is the
+   exception: notarization refuses a bundle holding an unsigned Mach-O, and
+   `export --app` replaces that signature rather than appending past it.
 3. **Linux.** A tarball and an AppImage; no signing beyond the checksums.
 4. **Exported games.** `balaur export` signs with the developer's identity on
    macOS today; the same flag learns Windows signing, and the docs say what a
    store needs. Putting the signed result where a player can reach it is
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
    profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
+   What the export weighs is built: `balaur export` reports the pack by
+   section and extension, `--report` measures without writing, and `[export]`
+   `strip`, `images`, `fonts` and `audio` drop and re-encode losslessly.
 5. **The Download page** on the website reads the nightly by tag today
    (`RELEASE_TAG` in its `src/pages/download.tsx`); once a version is tagged it
    reads that release's assets and checksums, with the nightly as a channel
@@ -75,6 +86,7 @@ what says which.
 | Developer ID Application | `MACOS_CERTIFICATE_BASE64` | 2027-02-01 |
 | Apple app-specific password | `APPLE_APP_PASSWORD` | when the Apple ID password changes |
 | Artifact Signing principal | `AZURE_CLIENT_SECRET` (app `balaur-ci-signing`) | 2028-09-06 |
+| Artifact Signing identity validation | the `balaur` account, portal only | 2028-12-09 |
 
 A signing credential that lapses does not fail loudly: the scripts skip when
 one is absent, so the download goes out unsigned. Renew before the dates

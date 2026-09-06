@@ -53,6 +53,8 @@ tracing.workspace = true
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 # The importer behind `balaur import`; the browser has no command line.
 balaur_render = { workspace = true, features = ["aseprite"] }
+# Tiled and LDtk levels, read at import: the engine never sees either format.
+tiled = "0.16"
 ureq.workspace = true
 sha2.workspace = true
 dirs = "6"

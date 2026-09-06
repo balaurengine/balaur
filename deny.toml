@@ -16,6 +16,9 @@ yanked = "deny"
 # The unmaintained crates (rusttype, ttf-parser, paste) all come from kiss3d.
 # Actual vulnerabilities stay errors in cargo-deny regardless of this setting.
 unmaintained = "none"
+# `quick-xml` denial of service, reachable only through `balaur import
+# level.tmx`; docs/PLAN-tilemap.md "The Tiled dependency" says why and until when.
+ignore = ["RUSTSEC-2026-0194", "RUSTSEC-2026-0195"]
 
 [sources]
 unknown-registry = "deny"

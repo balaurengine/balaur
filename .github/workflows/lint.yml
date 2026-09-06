@@ -88,6 +88,11 @@ jobs:
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
+      # The changelog's lines are the website's changelog page: a sentence
+      # under 35 words, no filler, no em dash in prose. The roadmap's rows
+      # are reported, not failed.
+      - name: scripts/prose_lints.py
+        run: python3 scripts/prose_lints.py --fail-on-error
       # The script API's own names, against the tables in docs/NAMING.md.
       # Reads the committed dump rather than booting the engine, which the
       # docs workflow already does.

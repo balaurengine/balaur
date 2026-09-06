@@ -6,6 +6,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = ["recode-fonts"]
+# The font subsetter is HarfBuzz, and HarfBuzz is a C++ build. Off, a target
+# that has no C++ toolchain still compiles and ships its faces whole.
+recode-fonts = ["dep:hb-subset"]
+
 [dependencies]
 balaur = { workspace = true, default-features = false }
 balaur_plugin.workspace = true
@@ -14,9 +20,34 @@ serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
 zip = { version = "8", default-features = false, features = ["deflate"] }
+# Re-encoding assets smaller without changing what they mean.
+image = { version = "0.25", default-features = false, features = ["png"] }
+image-webp = "0.2"
+flacenc = { version = "0.5", default-features = false }
+hound = "3"
+# libimagequant is pure Rust from 4 on, so a browser tab quantises too; its
+# `threads` default is rayon, which builds for wasm but cannot spawn there.
+imagequant = { version = "4", default-features = false }
+
+# oxipng's deflate, HarfBuzz's subsetter and libvorbis are C builds: a browser
+# tab exports too, and none of them compiles for wasm. Off there, an export
+# keeps its PNGs, its whole faces and its WAVs, and says so.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+oxipng = { version = "10", default-features = false, features = ["parallel", "zopfli"] }
+imagequant = { version = "4", features = ["threads"] }
+vorbis_rs = "0.5"
+# `bundled` compiles HarfBuzz's subsetter from the crate's own sources; the
+# alternative asks pkg-config for a system copy no runner is promised to have.
+hb-subset = { version = "0.3", optional = true, features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"
+# A test's own sine has to be the same sine on every operating system, which
+# the platform's `sin` is not (DETERMINISM.md).
+libm.workspace = true
+# The runtime decodes FLAC and Vorbis through rodio's symphonia; so do the
+# tests that prove a re-encode kept the samples and the length.
+symphonia = { version = "0.5", default-features = false, features = ["flac", "ogg", "vorbis"] }
 
 [lints]
 workspace = true

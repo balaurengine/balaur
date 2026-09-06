@@ -1,7 +1,7 @@
 //! The `tileset` asset and the `tilemap` component, without a window.
 
 use balaur_core::{App, AppConfig, components, scene};
-use balaur_render::{Tilemap, Tileset};
+use balaur_render::{TileSet, Tilemap};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
@@ -78,10 +78,12 @@ fn a_tilemap_parses_cells_and_round_trips() {
         "an inline definition should have become a reference, got '{reference}'"
     );
 
-    let tileset = balaur_core::assets::load_typed::<Tileset>(&app.engine, reference)
+    let tileset = balaur_core::assets::load_typed::<TileSet>(&app.engine, reference)
         .expect("the inline tileset parses");
     assert_eq!(tileset.texture, "tests/fixtures/sprite_200x100.png");
-    assert!((tileset.tile_size - 50.0).abs() < 1e-6);
+    #[allow(clippy::float_cmp, reason = "a parsed size, not an arithmetic one")]
+    let square = tileset.tile_size == [50.0, 50.0];
+    assert!(square, "a square size reads as a pair");
     assert_eq!(tileset.columns, 4);
 
     let reloaded = node(&app);
@@ -170,7 +172,7 @@ tile_size = 50.0
         .get("tileset")
         .and_then(|v| v.as_str().map(str::to_string))
         .expect("the tileset reference reads back");
-    let Err(err) = balaur_core::assets::load_typed::<Tileset>(&app.engine, &reference) else {
+    let Err(err) = balaur_core::assets::load_typed::<TileSet>(&app.engine, &reference) else {
         panic!("a tileset without `columns` must not parse");
     };
     assert!(
@@ -213,4 +215,39 @@ fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
     let map = world.get::<&Tilemap>(entity).unwrap();
     assert_eq!(map.material, "materials/water.toml");
     assert_eq!(map.version, before + 1);
+}
+
+/// A level too big to read in a scene keeps its rows in a file of its own.
+#[test]
+fn a_map_may_keep_its_cells_in_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("levels")).unwrap();
+    std::fs::write(dir.path().join("levels/cave.cells"), "0 1 -1\n1 1 0\n").unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[assets]]\nid = \"set\"\ntype = \"tileset\"\ntexture = \"tests/fixtures/sprite_200x100.png\"\ntile_size = 50\ncolumns = 4\n\n[[nodes]]\nid = \"n\"\nname = \"Map\"\n\n[nodes.tilemap]\ntileset = \"#set\"\ncells = \"levels/cave.cells\"\n",
+    )
+    .unwrap();
+    let mut app = balaur::standard_app(balaur::AppConfig::dev(
+        dir.path().to_string_lossy().as_ref(),
+    ))
+    .unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let world = app.engine.world();
+    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Map").unwrap();
+    let map = world
+        .get::<&Tilemap>(node)
+        .expect("the map loaded its file");
+    assert_eq!(map.grid.len(), 2, "one row per line");
+    assert_eq!(
+        map.grid[0],
+        vec![Some(0), Some(1), None],
+        "-1 is an empty cell"
+    );
 }

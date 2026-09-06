@@ -24,6 +24,7 @@ pub mod collider;
 pub mod events;
 pub mod joint;
 pub mod query;
+pub mod tiles;
 
 use body::{add_body, with_body};
 use collider::{add_collider, collider_builder, max_contact_impulse};
@@ -46,6 +47,12 @@ pub struct PhysicsState2d {
     /// What each collider and joint was authored from, as in the 3D world:
     /// rapier keeps the shape, not the asset or the choices behind it.
     pub collider_params: DetHashMap<Entity, toml::Value>,
+    /// What each `tile_collision` was authored from, what it was last built
+    /// from, and the colliders it made — so a rebuild drops its own and
+    /// leaves the ones the node authored.
+    pub(crate) tile_params: DetHashMap<Entity, toml::Value>,
+    pub(crate) tile_built: DetHashMap<Entity, tiles::Built>,
+    pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     pub joint_params: DetHashMap<Entity, toml::Value>,
     /// What the last `move_character` found under each character's feet, as
     /// in 3D, so `is_grounded` reads rather than moves.
@@ -72,6 +79,9 @@ impl PhysicsState2d {
             queries_ready: false,
             joints: DetHashMap::default(),
             collider_params: DetHashMap::default(),
+            tile_params: DetHashMap::default(),
+            tile_built: DetHashMap::default(),
+            tile_colliders: DetHashMap::default(),
             joint_params: DetHashMap::default(),
             grounded: DetHashMap::default(),
             paused: false,
@@ -103,6 +113,9 @@ crate::shared::world::functions!(
 );
 
 fn step_system(eng: &Engine, _dt: f32) {
+    // A map whose cells moved rebuilds once, before the step that has to
+    // collide with them.
+    tiles::sync_tile_colliders(eng);
     {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
@@ -185,6 +198,9 @@ pub fn clear(eng: &Engine) {
     state.colliders.clear();
     state.joints.clear();
     state.collider_params.clear();
+    state.tile_params.clear();
+    state.tile_built.clear();
+    state.tile_colliders.clear();
     state.joint_params.clear();
     state.grounded.clear();
 }
@@ -276,6 +292,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
 fn build_physics2d(reg: &mut Registry<'_>) {
     reg.insert_resource(PhysicsState2d::new());
     reg.add_system(Stage::FixedUpdate, step_system);
+    tiles::register_tile_collision_component(reg);
     build_physics2d_digest(reg);
     build_physics2d_snapshot(reg);
 }
@@ -412,6 +429,7 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
         ("max_contact_impulse", &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
         ("overlaps", &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
+    crate::ragdoll::install_ragdoll_api(m, false);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
     m.function(

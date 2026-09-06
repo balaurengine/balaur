@@ -1,0 +1,2 @@
+# The rig's art is drawn pixel by pixel: linear sampling would blur its edges.
+filter = "nearest"

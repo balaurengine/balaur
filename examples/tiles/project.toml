@@ -1,0 +1,3 @@
+[application]
+name = "tiles"
+main_scene = "scenes/main.toml"

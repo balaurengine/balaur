@@ -1,10 +1,14 @@
-> **Status:** not started, but for the Tiles tool, which shipped 2026-09-05
-> (`docs/PLAN-editor.md` §6). Written 2026-09-05 from the Godot parity
-> investigation, rewritten 2026-09-06 after reading the code it touches: the
-> crate seam, the rule system and the two editing surfaces are new here. It
-> reverses a decision: `docs/PLAN-2d-games.md` marked autotile, terrains and
-> tile collision *not planned*; all three are planned here, and the tile
-> occluders `docs/PLAN-rendering.md` deferred move here too.
+> **Status:** everything but step 7 shipped 2026-09-06. What a tile is,
+> collision from the solid cells as one parry voxel shape, a map anchored on
+> its node with an origin and per-cell flags, the rule table with its
+> templates, animated and light-blocking tiles, per-tile data, the Tiles
+> tool's fill, line, pick, stamp and terrain brushes, a Set panel that writes
+> the tile set, isometric and hexagonal layouts, cells a level may keep in its
+> own file, and `balaur import` for Tiled and LDtk. Left: **quarter-tile
+> sheets** (step 7), which need the mesh to draw four sub-quads per cell. The
+> tileset editor is a panel in the Tiles dock rather than a document tab, and
+> D24 is fixed: the mirror inlines an asset file's definition, so a tileset
+> kept in a file draws in the editor.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
 
@@ -313,6 +317,24 @@ land, so the web bundle does not grow.
 Lossy, and said in the output: LDtk's perlin modifiers and its tile stacking
 do not import, and an image-collection tileset needs the `sprite_sheet` form.
 The source file stays the tool's; nothing exports back.
+
+### The Tiled dependency
+
+`tiled` 0.16 pins `quick-xml` 0.31, which carries two denial-of-service
+advisories (RUSTSEC-2026-0194 and -0195: a crafted start tag pins a CPU core,
+a crafted namespace list exhausts memory). 0.16 is its newest release, so
+there is no version to move to, and `deny.toml` ignores both.
+
+That is a judgement about where the XML comes from, not about the bugs. It is
+parsed by `balaur import level.tmx`, which a developer runs by hand on a file
+they chose, at author time. `tiled` is a `cfg(not(target_family = "wasm"))`
+dependency of `balaur_cli` alone: no shipped game links it, and nothing in the
+engine parses XML at run time. A pipeline that imported maps a stranger
+uploaded would be a different question, and would want a wall-clock bound
+around the parse.
+
+Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
+`.tmx` reader is the engine's own.
 
 ## 6. Steps
 

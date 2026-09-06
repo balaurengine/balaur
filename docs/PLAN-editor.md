@@ -72,18 +72,21 @@ Each of these is something the editor works around today.
 | Missing | Editor workaround now | Shape |
 |---|---|---|
 | A change feed | `model::source` caches with a 0.5 s TTL and re-reads; the Assets dock lists directories on the same timer | `fs::changed()` returning the paths the host's own `notify` watcher saw this frame, the way `input::dropped_files` reports drops. `engine::watch(dir)` adds a root, so a game's directory hot-reloads inside the editor (today only the editor's root is watched; play-in-editor reloads on ⌘S by calling `engine::reload_script`). |
-| `ui::window(id, opts, body)` | none: the only floating surfaces are `overlay` (positioned by the caller) and `modal` | egui `Window`: title, closable, resizable, position remembered per id; the surface a plugin gets when it asks for "a window" |
 | `ui::drag_source` / `ui::drop_target` | none: nothing can be dragged from the Assets dock onto a node or a property | egui's DnD, payload a string |
-| `task::frames(n)`, `task::seconds(t)`, `task::paused()` | flags in `S` | tokens the pump and the debugger wake |
-| `render::draw_text_2d` / `draw_text` | none: overlays cannot label a bone or a node | a world-anchored label in the line layer |
+| `task::paused()` | a flag in `S` | a token the debugger wakes |
 | `engine::export(root)`, `assets::import(path)` | CLI only | the two verbs an Export button and an Import command need, async-capable |
+
+Three rows have gone since this table was written: `ui::window` is
+`balaur_ui`'s `install_window`, `task::frames` and `task::seconds` are
+`balaur_script_rune`'s `task` module, and `render::draw_text_2d` /
+`draw_text` are what `rig::label_bone` names a bone with.
 
 ## 5. Phases
 
 Phase 3 is what remains, and it lands as the tools that need it do:
-drag-and-drop from the Assets dock, `draw_text` for bone names,
-`engine::export` / `assets::import` behind an Export button and an Import
-command, and the async self-tests once the tokens exist.
+drag-and-drop from the Assets dock, `engine::export` / `assets::import`
+behind an Export button and an Import command, and the async self-tests once
+`task::paused` exists.
 
 ## 6. Tools not yet built
 
@@ -127,55 +130,54 @@ and next keys behind the viewport, from the same sampler the preview uses.
 
 The profiler that was to measure both shipped on 2026-09-03.
 
-### Rigging panels
+### Rigging panels — built, 2026-09-06
 
 Measured on 2026-09-05 against what Godot 4's Skeleton2D, Polygon2D and
-Skeleton3D editors and Spine's setup mode show. Built: the Rig tool (a
-chain grown by clicking, picking in 2D and 3D, Reset and Overwrite Rest
-Pose), the Polygon tool's Points, Polygons, UV and Weights modes with a
-brush, `modifier2d` as inspector rows, the timeline dock, and `bone3d`
-from `balaur import`. What a rigger still reaches for, in the order it
-pays off; every entry is editor work over data the engine already has,
-except where it names the animation plan.
+Skeleton3D editors and Spine's setup mode show, and built out the next day
+against that list. What is there now:
 
-- **A weight table.** Spine's Weights view. A dock for the Weights mode
-  listing the selected vertices with one number per bone, editable in
-  place, with Bind and Unbind, Normalise, Auto (weights by distance to
+- **The Rig tool** — a chain grown by clicking, picking in 2D and 3D, Reset
+  and Overwrite Rest Pose — and the Polygon tool's Points, Polygons, UV and
+  Weights modes with a brush.
+- **A weight table** (`editor/scripts/weights.rn`, the Weights dock,
+  `weightdemo`). Spine's Weights view: the picked vertices, one editable
+  number per bone, a per-vertex sum that goes red when it is not one, and
+  Bind, Unbind, Normalise, Auto (weights by the square of the distance to
   each bone's segment, the same segment `rig::geometry` draws) and Smooth
-  (average with the vertices sharing an edge). Writes `mesh.skin.weights`
-  through `history`, as the brush does. Planned.
-- **Modifier gizmos.** Godot's SkeletonModification2D editor shows the
-  target and the elbow; here `look_at` and `two_bone_ik` are inspector
-  rows. Planned: a handle at the target node, a line from the driven bone,
-  and a `flip` toggle on the chain, drawn by `rig::draw` from the same
-  `modifier2d` table. Chain solvers and jiggle are the engine's first —
-  `docs/PLAN-animation-and-resources.md` "Rig tooling".
-- **Bone names in the viewport.** Needs `render.draw_text_2d` (§3); until
-  then the inspector's Skeleton row is the only place a bone is named.
-  Planned with §3.
-- **Mirror and symmetry.** Godot has neither; Spine mirrors bones, vertices
-  and weights across an axis. Planned as one verb, Mirror, in the Rig and
-  Polygon tools: reflect the selection's rest pose or vertices over the
-  node's x or y axis, and map each bone's weights to the bone whose name
-  differs by a `left`/`right` or `l_`/`r_` prefix.
-- **A mesh traced from the texture's alpha.** Spine's Generate. Planned:
-  a Trace button in the Polygon section that walks the image's alpha at a
-  threshold, simplifies the outline to a tolerance in pixels, and writes
-  `positions`; the image is already read headless for `natural_half_extents`,
-  so the tracer is CPU code in `balaur_core::geometry2d` with a test.
-- **Deform keys.** Spine's free-form deformation: a clip animating vertex
-  positions without a bone. The engine half is a `polygon/deform` track
-  (`docs/PLAN-animation-and-resources.md` "Rig tooling"); the editor half is
-  the Points mode recording a key when the Animate persona is armed, the
-  way a transform edit does today. Planned after the engine track.
-- **A bone map for retargeting.** Godot's BoneMap and SkeletonProfile
-  panel: an imported humanoid rig mapped to a canonical one so a clip
-  plays on another rig. The engine has no `bone_map` asset yet; when it
-  does, the panel is a two-column list of canonical names against the
-  rig's bones with a guess by name. Planned after the asset.
-- **Physical bones.** Godot's Create Physical Skeleton: a body and a
-  joint per bone, for a ragdoll. Engine first (`docs/PLAN-physics.md`);
-  the button is one command once a rig can be walked into bodies.
+  (average with the vertices sharing an edge, read whole before it writes,
+  so a pass does not feed on itself). Writes `mesh.skin.weights` through
+  `history`, as the brush does. The Polygon tool grew a vertex selection to
+  go with it: click to pick, and an empty pick means the whole mesh.
+- **Modifier gizmos** (`rig::draw_modifiers`). The chain a modifier actually
+  solves — `chain` walked the way the solver walks it, so `look_at` draws
+  one bone and `two_bone_ik` three — a dashed line to the target, and a
+  handle at the target that drags the node it names. `modifier3d` is drawn
+  by the same code from the same table.
+- **Bone names in the viewport** (`rig::label_bone`), on `draw_text_2d` /
+  `draw_text`, for the bone under the pointer, the selected one, and every
+  bone while the Rig tool is up.
+- **Mirror** in both tools. The Rig's reflects every bone's rest over the
+  node's x or y and hands each bone's rest to the bone whose name differs by
+  a side; the Polygon's reflects the picked vertices, reverses the outline so
+  the winding survives, and swaps the weights the same way. One spelling of
+  the side names (`polygon::mirror_name`) serves both, and the replacement
+  takes the case of the half it replaced, so `Arm_L` mirrors to `Arm_R`.
+- **A mesh traced from the texture's alpha.** Spine's Generate: a Trace
+  button with a tolerance in pixels, over `render.trace_texture`, over
+  `balaur_core::geometry2d`'s `trace` and `simplify` — a marched pixel
+  boundary and Ramer-Douglas-Peucker, both with headless tests.
+- **Deform keys.** The Points mode edits the offset rather than the mesh
+  while the Animate persona is armed, and the Deform row keys them on
+  `polygon/deform` at the playhead.
+- **A bone map** (`editor/scripts/bonemap.rn`, the Bone map dock,
+  `bonemapdemo`). Godot's BoneMap panel: the canonical humanoid against the
+  rig's own bones, a guess by name that ignores case, separators and an
+  exporter's prefix, and a `bone_map` asset written out for
+  `animation.play(node, clip, { retarget = … })`.
+- **Physical bones.** Godot's Create Physical Skeleton, as one call to
+  `physics2d.ragdoll` and one `model::adopt` of what it built, so the bodies
+  land in the tree and in the saved scene like anything the editor makes.
+
 - **Not planned:** slots, attachments and skins as Spine has them — a
   node with a `sprite` and `visible` is the same thing here; a separate
   Skeleton node — a rig is the bones under a node, by design

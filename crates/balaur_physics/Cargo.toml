@@ -25,6 +25,9 @@ tracing.workspace = true
 toml.workspace = true
 # Sizes the pool rapier's solver runs on.
 rayon = "1"
+# A ragdoll aims a tip bone along its gizmo angle, and that angle has to
+# resolve the same way on every platform.
+libm.workspace = true
 
 
 [dev-dependencies]

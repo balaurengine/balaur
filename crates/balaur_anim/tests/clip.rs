@@ -21,8 +21,8 @@ fn rejection(source: &str) -> String {
 }
 
 fn position_at(clip: &clip::Clip, time: f32) -> Vec3 {
-    match sampler::sample(clip, time)[0] {
-        TrackValue::Position(p) => p,
+    match &sampler::sample(clip, time)[0] {
+        TrackValue::Position(p) => *p,
         other => panic!("track 0 sampled as {other:?}, not a position"),
     }
 }
@@ -262,9 +262,9 @@ fn a_component_track_is_as_wide_as_its_keys() {
         "length = 1.0\n[[tracks]]\nproperty = \"shape/radius\"\nkeys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = 2.0 } ]",
     );
     assert_eq!(one.tracks[0].channels, 1, "a single number is one channel");
-    match sampler::sample(&one, 0.5)[0] {
+    match &sampler::sample(&one, 0.5)[0] {
         TrackValue::Property { value, channels } => {
-            assert_eq!(channels, 1);
+            assert_eq!(*channels, 1);
             assert!((value.x - 1.25).abs() < 1e-6, "sampled {value:?}");
         }
         other => panic!("a component track sampled as {other:?}"),

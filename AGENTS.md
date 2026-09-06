@@ -50,6 +50,32 @@ called or indexed, and the error names a type from the line above. Bind first:
   `crates/balaur_bench/tests/` and assert orders of magnitude, never
   percentages: a shared runner makes a tight gate cry wolf.
 
+## Writing
+
+Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
+
+- Bullets, not paragraphs. One per thing that landed: what it is, the key or
+  flag that turns it on, the number.
+- Lead with the claim, then the mechanism, then the measurement.
+  `**Fonts are cut to what the game shows.**`, then `fonts = "subset"`, then
+  421 KB to 92 KB.
+- A claim without a measurement is cut, not softened. "421 KB to 92 KB", never
+  "much smaller".
+- No throat-clearing: "the honest summary is", "it is worth noting",
+  "genuinely", "actually", "truly", "worth a look". State the fact.
+- Never invent a number, a flag or a file name. It comes from the code or from
+  a run, or it does not go in.
+- Em dashes stay in `- **Term** — text`, where they are typography. Not as a
+  prose splice.
+- Link the clip or the screenshot where one exists.
+
+The limits are numbers, and the website's CI enforces them on every post and
+manual page: 300 words of prose in a post, 35 words in a sentence, 60 in a
+paragraph, 4 paragraphs outside bullets. `scripts/prose_lints.py` holds
+`CHANGELOG.md` and `docs/ROADMAP.md` to the sentence rule here, and runs in
+`scripts/lint.sh`. Run the `avoid-ai-writing` skill over anything longer than
+a changelog line before committing it.
+
 ## Changelog
 
 `CHANGELOG.md` gets one line per feature under Added, Fixed or Known issues.

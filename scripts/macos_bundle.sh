@@ -96,6 +96,11 @@ if [ -n "${MACOS_CERTIFICATE_BASE64:-}" ]; then
   # a developer's login keychain makes the name ambiguous, and codesign stops.
   identity=$(security find-identity -v -p codesigning "$keychain" | awk 'NR==1 {print $2}')
   [ -n "$identity" ] || { printf '::error::the certificate holds no codesigning identity\n'; exit 1; }
+elif [ -n "$identity" ] && ! security find-identity -v -p codesigning | grep -qF "$identity"; then
+  # A name is not a certificate. A runner that has the identity variable but
+  # not the secret builds unsigned rather than failing on an empty keychain.
+  printf 'no certificate behind %s: building unsigned\n' "$identity"
+  identity=
 fi
 
 step "sign"

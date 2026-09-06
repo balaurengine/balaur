@@ -7,9 +7,10 @@ use crate::model;
 use crate::util;
 use crate::viewport;
 
-/// The rig tool's own state, hung on `S.rig`.
+/// The rig tool's own state, hung on `S.rig`. `drag` is the modifier target
+/// handle being moved.
 pub fn state() {
-    #{ hover: None }
+    #{ hover: None, drag: None }
 }
 
 const W = 2.4;
@@ -20,6 +21,12 @@ const PICK_PX = 10.0;
 // clear of the joint it names.
 const LABEL_PPU = 90.0;
 const LABEL_LIFT = 0.12;
+// The modifier target handle, in design px, and the width its chain is drawn
+// at: heavier than a bone, because it sits on top of one.
+const HANDLE_PX = 7.0;
+const CHAIN_W = 3.6;
+// The name halves Mirror swaps a bone across, longest first.
+const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"], [".l", ".r"]];
 
 fn has_object(node, key) {
     match node.get(key) {
@@ -87,7 +94,9 @@ pub fn geometry(S, i) {
     Some(#{ origin: util::xyz(o), tip: tip })
 }
 
-fn segment_distance(p, a, b) {
+// How far a point is from a bone's spine — what a weight by distance and
+// the viewport's own picking both measure.
+pub fn segment_distance(p, a, b) {
     let abx = b[0] - a[0];
     let aby = b[1] - a[1];
     let len2 = abx * abx + aby * aby;
@@ -228,6 +237,313 @@ pub fn draw(S) {
             }
         }
     }
+    draw_modifiers(S);
+}
+
+// The `modifier2d` or `modifier3d` table on a node, or `None`.
+pub fn modifier(node) {
+    for key in ["modifier2d", "modifier3d"] {
+        // `if let Some(x) = x` is rejected by Rune when the name is bound on
+        // both sides, so the table keeps a name of its own.
+        match node.get(key) {
+            Some(found) => {
+                if found is Object {
+                    return Some(found);
+                }
+            }
+            None => (),
+        }
+    }
+    None
+}
+
+fn modifier_key(node) {
+    if has_object(node, "modifier3d") { "modifier3d" } else { "modifier2d" }
+}
+
+// What a modifier reaches for and with: the world point of its target, and
+// the bones it actually solves, which `chain` makes a number not a shape.
+fn modifier_reach(S, i) {
+    let node = S.doc[i];
+    let comp = match modifier(node) {
+        Some(comp) => comp,
+        None => return None,
+    };
+    if comp.get("enabled") == Some(false) {
+        return None;
+    }
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return None,
+    };
+    let bone_path = comp.get("bone").unwrap_or("");
+    let driven = if bone_path == "" { found } else { found.get_node(bone_path) };
+    if !(driven is balaur::Node) {
+        return None;
+    }
+    let target_path = comp.get("target").unwrap_or("");
+    let target = if target_path == "" { () } else { found.get_node(target_path) };
+    let chain = [];
+    let at = model::index_of_path(S, driven.path());
+    let limit = util::max(1, util::i(util::f(comp.get("chain").unwrap_or(0.0))));
+    let kind = comp.get("kind").unwrap_or("look_at");
+    // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
+    // three by definition. The rest walk as far as `chain` allows.
+    let walk = match kind {
+        "look_at" => 1,
+        "two_bone_ik" => 3,
+        _ => if util::f(comp.get("chain").unwrap_or(0.0)) > 0.0 { limit } else { 64 },
+    };
+    while at.is_some() && chain.len() < walk {
+        let index = at.unwrap();
+        chain.push(index);
+        at = first_child_bone(S, index);
+    }
+    Some(#{
+        chain: chain,
+        target: if target is balaur::Node { Some(util::xyz(target.global_position())) } else { None },
+        kind: kind,
+    })
+}
+
+// Every enabled modifier's reach, over the bones already drawn: the chain in
+// the modifier's own colour, a line from its last bone to the target, and a
+// handle at the target itself.
+fn draw_modifiers(S) {
+    let k = S.theme;
+    let color = util::rgb(k.modifier);
+    for i in 0..S.doc.len() {
+        let reach = match modifier_reach(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let last = ();
+        for index in reach.chain {
+            let g = match geometry(S, index) {
+                Some(g) => g,
+                None => continue,
+            };
+            line_at(S, g.origin, g.tip, color, CHAIN_W);
+            last = g.tip;
+        }
+        let target = match reach.target {
+            Some(point) => point,
+            None => continue,
+        };
+        // A jiggle has no target; every other kind reaches for one, and the
+        // line is what says which bone is doing the reaching.
+        if last is Vec {
+            dashed(S, last, target, color);
+        }
+        handle(S, target, if S.rig.drag == Some(i) { viewport::hover_color() } else { color });
+    }
+}
+
+// A line in whichever layer the viewport is drawing: the 2D pass has its own,
+// and a 3D line in a 2D scene lands where nothing is looking.
+fn line_at(S, a, b, color, width) {
+    if S.mode2d {
+        render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
+    } else {
+        render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width);
+    }
+}
+
+// A dashed run, so a modifier's reach reads differently from a bone.
+fn dashed(S, a, b, color) {
+    let steps = 9;
+    for i in 0..steps {
+        if i % 2 == 1 {
+            continue;
+        }
+        let at = |t| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+        line_at(S, at(util::f(i) / util::f(steps)), at(util::f(i + 1) / util::f(steps)), color, W);
+    }
+}
+
+// A ring with a cross through it at the target, big enough to grab.
+fn handle(S, p, color) {
+    let h = HANDLE_PX * viewport::world_per_px(S);
+    let sides = 12;
+    for i in 0..sides {
+        let at = |j| {
+            let a = math::PI * 2.0 * util::f(j) / util::f(sides);
+            [p[0] + math::cos(a) * h, p[1] + math::sin(a) * h, p[2]]
+        };
+        line_at(S, at(i), at(i + 1), color, W);
+    }
+    line_at(S, [p[0] - h, p[1], p[2]], [p[0] + h, p[1], p[2]], color, W);
+    line_at(S, [p[0], p[1] - h, p[2]], [p[0], p[1] + h, p[2]], color, W);
+}
+
+// The modifier whose target handle is under the cursor, for dragging it.
+pub fn pick_handle(S, mx, my) {
+    let best = None;
+    let best_d = HANDLE_PX * 1.6 * viewport::world_per_px(S);
+    for i in 0..S.doc.len() {
+        let found = match modifier_reach(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        match found.target {
+            Some(p) => {
+                let d = math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my));
+                if d < best_d {
+                    best = Some(i);
+                    best_d = d;
+                }
+            }
+            None => (),
+        }
+    }
+    best
+}
+
+// Move a modifier's target node, which is what dragging its handle means:
+// the modifier itself has no position, and the node it aims at does.
+pub fn drag_handle(S, i, mx, my) {
+    let node = S.doc[i];
+    let comp = match modifier(node) {
+        Some(comp) => comp,
+        None => return,
+    };
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return,
+    };
+    let target = found.get_node(comp.get("target").unwrap_or(""));
+    if !(target is balaur::Node) {
+        return;
+    }
+    let at = match model::index_of_path(S, target.path()) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, "move modifier target", Some(format!("rig:target:{}", i)));
+    let parent = target.parent();
+    // The click is in world space; a target under a moved parent has to take
+    // it in that parent's frame, the way `add_bone` places a bone.
+    let (lx, ly) = if parent is balaur::Node {
+        let p = parent.global_position();
+        let angle = parent.global_rotation_euler().z;
+        let sc = parent.global_scale();
+        let (dx, dy) = (mx - p.x, my - p.y);
+        let c = math::cos(angle);
+        let sn = math::sin(angle);
+        ((c * dx + sn * dy) / (if util::abs(sc.x) > 1e-6 { sc.x } else { 1.0 }),
+         (-sn * dx + c * dy) / (if util::abs(sc.y) > 1e-6 { sc.y } else { 1.0 }))
+    } else {
+        (mx, my)
+    };
+    let z = util::f(util::vec3(S.doc[at].get("position").unwrap_or([]), [0.0, 0.0, 0.0])[2]);
+    S.doc[at].position = [lx, ly, z];
+    target.set_position(lx, ly, z);
+}
+
+// Flip the chain a two-bone modifier bends, which is the one property a
+// gizmo can offer that a number cannot: you see which way the elbow goes.
+pub fn flip_modifier(S, i) {
+    let node = S.doc[i];
+    let comp = match modifier(node) {
+        Some(comp) => comp,
+        None => return,
+    };
+    history::record(S, "flip modifier", None);
+    comp.flip = comp.get("flip") != Some(true);
+    model::apply_component(S, modifier_key(node));
+}
+
+// The same name on the other side, or `None`. Shared spelling with the
+// Polygon tool's, so a bone and its weights mirror to the same place.
+pub fn mirror_name(path) {
+    crate::polygon::mirror_name(path)
+}
+
+// Mirror every bone under the selection, handing each bone's rest to the one
+// whose name differs by a side. A rig with no side names reflects in place.
+pub fn mirror(S, axis) {
+    let root = match model::live(S, S.sel) {
+        Some(root) => root,
+        None => return,
+    };
+    let bones = util::vec(skeleton::bones(root));
+    if bones.len() == 0 {
+        log::warn("nothing to mirror: this node carries no bones");
+        return;
+    }
+    history::record(S, format!("mirror rig over {}", axis), None);
+    let base = root.path();
+    // Read every rest first: a mirror is a swap, and swapping in place would
+    // hand the second bone what the first had already been given.
+    let was = #{};
+    for bone in bones {
+        match model::index_of_path(S, bone.path()) {
+            Some(at) => {
+                let node = S.doc[at];
+                let key = if node.contains_key("bone3d") { "bone3d" } else { "bone2d" };
+                was[bone.path()] = #{ index: at, key: key, data: util::obj(node.get(key).unwrap_or(#{})) };
+            }
+            None => (),
+        }
+    }
+    let moved = 0;
+    for bone in bones {
+        let mine = match was.get(bone.path()) {
+            Some(found) => found,
+            None => continue,
+        };
+        let full = bone.path();
+        let rel = if full == base { "" } else { full[base.len() + 1..] };
+        let other = mirror_name(rel);
+        // Its opposite number's rest, reflected; or its own, for a bone with
+        // no side in its name.
+        let source = match other {
+            Some(twin) => was.get(base + "/" + twin).unwrap_or(mine),
+            None => mine,
+        };
+        let rest = reflect_rest(util::obj(source.data), axis);
+        S.doc[mine.index][mine.key] = rest;
+        moved += 1;
+        match model::live(S, mine.index) {
+            Some(live) => live.set_component(mine.key, rest),
+            None => (),
+        }
+    }
+    apply_rest(S);
+    log::info(format!("{} bones mirrored over {}", moved, axis));
+}
+
+// One bone's rest reflected: the axis's own component and the rotation about
+// z both change sign, because a reflection turns a right-handed frame into a
+// left-handed one.
+fn reflect_rest(data, axis) {
+    let out = util::obj(util::copy(data));
+    let p = util::vec(out.get("rest_position").unwrap_or([]));
+    if p.len() >= 2 {
+        let flipped = [];
+        for (i, v) in p.iter().enumerate() {
+            let sign = if (axis == "x" && i == 0) || (axis == "y" && i == 1) { -1.0 } else { 1.0 };
+            flipped.push(util::f(v) * sign);
+        }
+        out.rest_position = flipped;
+    }
+    let r = out.get("rest_rotation").unwrap_or(0.0);
+    if r is Vec {
+        let turned = util::vec3(r, [0.0, 0.0, 0.0]);
+        out.rest_rotation = [turned[0], turned[1], -turned[2]];
+    } else {
+        out.rest_rotation = -util::f(r);
+    }
+    // The gizmo angle is measured from +x; a mirror over y leaves it negated,
+    // and one over x reflects it about the vertical instead.
+    match out.get("angle") {
+        Some(was) => {
+            let a = -util::f(was);
+            out.angle = if axis == "x" { math::PI + a } else { a };
+        }
+        None => (),
+    }
+    out
 }
 
 // The bone's name at its origin, for the one under the pointer and the one
@@ -320,8 +636,21 @@ pub fn update(S, over_viewport, mx, my) {
         S.rig.hover = None;
         return;
     }
+    if !input::is_mouse_down(input::MOUSE_LEFT) {
+        S.rig.drag = None;
+    }
+    if let Some(drag) = S.rig.drag {
+        drag_handle(S, drag, mx, my);
+        return;
+    }
     S.rig.hover = if over_viewport { pick(S, mx, my) } else { None };
     if !(over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT)) {
+        return;
+    }
+    // A modifier's target handle wins over the bone under it: the handle is
+    // drawn on top and is the smaller thing to hit.
+    if let Some(at) = pick_handle(S, mx, my) {
+        S.rig.drag = Some(at);
         return;
     }
     if let Some(hover) = S.rig.hover {
@@ -366,6 +695,34 @@ fn sync_bones(S, root_i, transforms) {
             }
         }
     }
+}
+
+// Create Physical Skeleton: walk the rig into bodies and joints, and leave
+// the `ragdoll` component that drives the bones back from them. The nodes it
+// makes are ordinary ones, so they land in the tree and in the file.
+pub fn physical_bones(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, "create physical skeleton", None);
+    let build = if S.mode2d { physics2d::ragdoll } else { physics3d::ragdoll };
+    let (ok, made) = script::attempt(|| build(found, #{}));
+    if !ok {
+        log::warn(format!("physical bones: {:?}", made));
+        return;
+    }
+    // The bodies are new live nodes with no document rows; adopting the
+    // container brings the whole set in at once, and the rig itself has
+    // gained the `ragdoll` component that drives them back.
+    let bodies = util::vec(made);
+    if bodies.len() > 0 {
+        let container = bodies[0].parent();
+        let root_i = model::index_of_path(S, container.parent().path());
+        model::adopt(S, container, root_i);
+    }
+    model::adopt_components(S, S.sel);
+    log::info(format!("{} physical bones built", bodies.len()));
 }
 
 // Reset to Rest Pose, for every bone under the selection.

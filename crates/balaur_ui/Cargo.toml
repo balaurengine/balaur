@@ -15,7 +15,9 @@ toml.workspace = true
 serde.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
-image = { version = "0.25", default-features = false, features = ["png"] }
+# `webp` because an export may re-encode a PNG as lossless WebP: a headless
+# run still reads that sprite's size off the header.
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 # The wave in marked-up text is drawn with a sine that must not vary by OS.
 libm.workspace = true
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash"] }
