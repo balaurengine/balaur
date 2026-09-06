@@ -42,9 +42,11 @@ const BUCKET: f32 = 1.0 / 12.0;
 #[must_use]
 pub fn bucket(wanted: f32) -> f32 {
     let wanted = wanted.max(1.0);
-    // Geometric, not linear: a step matters in proportion to the size.
-    let steps = (wanted.ln() / BUCKET).ceil();
-    (steps * BUCKET).exp().max(1.0)
+    // Geometric, not linear: a step matters in proportion to the size. Through
+    // `libm`, because a measurement taken from this is promised to be the same
+    // on every platform and the system's own is not (DETERMINISM.md).
+    let steps = libm::ceil(f64::from(libm::logf(wanted)) / f64::from(BUCKET));
+    libm::expf((steps as f32) * BUCKET).max(1.0)
 }
 
 /// Everything a label needs shaped, in physical pixels.

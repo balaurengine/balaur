@@ -64,7 +64,7 @@ heightfield = "#ground"
 
 fn mesh_scene_2d(kind: &str, extra: &str) -> String {
     format!(
-            r#"{FLAT_MESH}
+                r#"{FLAT_MESH}
 [[nodes]]
 id = "n_floor"
 name = "Floor"
@@ -74,7 +74,7 @@ kind = "{kind}"
 mesh = "#floor"
 {extra}
 "#
-        )
+            )
 }
 
 /// The first collider's handle, for a scene that declares exactly one.

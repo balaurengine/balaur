@@ -302,10 +302,8 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
     let mut system_chain: Vec<String> = Vec::new();
 
     for face in faces {
-        // An OS face is cached for the process, so egui borrows those bytes
-        // rather than taking a second copy of every CJK collection on the
-        // machine. A project's own faces are small and reload, so they keep
-        // a copy of their own.
+        // An OS face is cached for the process, so egui borrows those bytes;
+        // a project's own are small and reload, so they keep a copy.
         let data = match system_static_bytes(&face.name) {
             Some(bytes) => egui::FontData::from_static(bytes),
             None => egui::FontData::from_owned((*face.bytes).clone()),

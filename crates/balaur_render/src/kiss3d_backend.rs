@@ -195,17 +195,17 @@ impl Frontend {
         self.light_map.sync(app, &mut self.scene_2d);
         // Immediate shapes go over the composite, unlit, like debug lines.
         crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
-        let viewport_height = window.height() as f32;
+        let tall = window.height() as f32;
         crate::world_text::draw(
             app,
             &mut self.scene_2d,
             &mut self.scene,
             &mut self.text,
-            viewport_height,
+            tall,
         );
         draw_grid(app, window);
-        flush_debug_lines(app, window);
-        flush_debug_lines_2d(app, window);
+        crate::debug_lines::flush_debug_lines(app, window);
+        crate::debug_lines::flush_debug_lines_2d(app, window);
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
@@ -445,42 +445,6 @@ fn draw_grid(app: &App, window: &mut Window) {
     }
 }
 
-fn flush_debug_lines_2d(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLineBuffer2d>() else {
-        return;
-    };
-    for (a, b, c, width) in lines.borrow_mut().lines.drain(..) {
-        window.draw_line_2d(
-            Vec2::new(a[0], a[1]),
-            Vec2::new(b[0], b[1]),
-            Color::new(c[0], c[1], c[2], 1.0),
-            width,
-        );
-    }
-}
-
-fn flush_debug_lines(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLineBuffer>() else {
-        return;
-    };
-    for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
-        let a = Vec3::new(a[0], a[1], a[2]);
-        let b = Vec3::new(b[0], b[1], b[2]);
-        let color = Color::new(c[0], c[1], c[2], 1.0);
-        if on_top {
-            // depth_bias = 1.0 collapses depth to the near plane: the line
-            // renders over everything (editor rotation ball, overlays).
-            let polyline = kiss3d::renderer::Polyline3d::new(vec![a, b])
-                .with_color(color)
-                .with_width(width)
-                .with_perspective(perspective)
-                .with_depth_bias(1.0);
-            window.draw_polyline(&polyline);
-        } else {
-            window.draw_line(a, b, color, width, perspective);
-        }
-    }
-}
 
 /// Apply fullscreen and cursor state scripts asked for since the last frame.
 fn apply_window_config(app: &App, window: &Window) {

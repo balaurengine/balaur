@@ -572,7 +572,7 @@ fn raster_size(
         let distance = (eye - global.position).length().max(0.01);
         // Half the frustum's height at that distance is what fills half the
         // viewport, so this is pixels to the world unit.
-        let half = (snapshot.fov / 2.0).tan().max(1e-4) * distance;
+        let half = libm::tanf(snapshot.fov / 2.0).max(1e-4) * distance;
         viewport_height / (2.0 * half)
     } else {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot2d>() else {
