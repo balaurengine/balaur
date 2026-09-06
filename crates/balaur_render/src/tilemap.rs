@@ -402,14 +402,21 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
         return;
     };
-    let grid = balaur_core::tiles::TileGrid {
-        tileset,
-        rows,
-        origin,
-        flags,
-        tile_world: [set.tile_size[0] / ppu, set.tile_size[1] / ppu],
-        version,
-    };
+    let grid = grid_of(
+        &Tilemap {
+            tileset,
+            cells: toml::Value::Boolean(false),
+            material: String::new(),
+            grid: rows,
+            origin,
+            flags,
+            terrain: Vec::new(),
+            seed: 0,
+            pixels_per_unit: ppu,
+            version,
+        },
+        &set,
+    );
     if let Ok(mut current) = world.get::<&mut balaur_core::tiles::TileGrid>(entity) {
         *current = grid;
         return;
@@ -421,7 +428,7 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
     // The world's borrow ends before the grid is mirrored: `sync_grid` takes
     // it again, and it loads an asset in between.
     let fresh = {
-        let mut world = eng.world_mut();
+        let world = eng.world_mut();
         if let Ok(mut map) = world.get::<&mut Tilemap>(entity) {
             let changed = map.tileset != next.tileset
                 || map.grid != next.grid

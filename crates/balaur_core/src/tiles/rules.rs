@@ -30,6 +30,8 @@ pub struct Terrain {
     pub name: String,
     pub value: u32,
     pub mode: Mode,
+    /// The tile a template's layout starts at.
+    pub first_tile: u32,
 }
 
 /// What a cell of a pattern demands of the value at that neighbour.
@@ -47,8 +49,6 @@ pub enum Demand {
     Filled,
     /// Exactly this value.
     Exactly(u32),
-    /// Any value but these.
-    Not(Vec<u32>),
 }
 
 impl Demand {
@@ -62,7 +62,6 @@ impl Demand {
             Self::Empty => value.is_none(),
             Self::Filled => value.is_some(),
             Self::Exactly(wanted) => value == Some(*wanted),
-            Self::Not(refused) => value.is_none_or(|value| !refused.contains(&value)),
         }
     }
 }
@@ -103,10 +102,13 @@ pub struct Rule {
 }
 
 impl Rule {
+    /// The demand at an offset. A pattern that is not `size * size` long — one
+    /// built by hand rather than parsed — demands nothing of the cells it does
+    /// not reach, because a rule table must not be able to panic a game.
     fn demand(&self, dx: i32, dy: i32) -> &Demand {
         let half = (self.size / 2) as i32;
         let index = (dy + half) as usize * self.size + (dx + half) as usize;
-        &self.pattern[index]
+        self.pattern.get(index).unwrap_or(&Demand::Any)
     }
 }
 
@@ -154,10 +156,15 @@ pub fn resolve(
                 continue;
             }
             let roll = hash(seed, column, row, index as u64);
+            // The roll is the rule's own, so a chance that came up short is
+            // short for every turn of it; and a rule naming no tile at all
+            // hands the cell to the next rule rather than giving up on it.
             if rule.chance < 1.0 && (roll % 1000) as f32 / 1000.0 >= rule.chance {
-                continue;
+                break;
             }
-            let tile = pick(&rule.tiles, roll >> 10)?;
+            let Some(tile) = pick(&rule.tiles, roll >> 10) else {
+                break;
+            };
             return Some((tile, *flags));
         }
     }
@@ -210,7 +217,7 @@ fn pick(tiles: &[(u32, u32)], roll: u64) -> Option<u32> {
         .map(|(_, weight)| u64::from(*weight).max(1))
         .sum();
     if total == 0 {
-        return tiles.first().map(|(tile, _)| *tile);
+        return None;
     }
     let mut at = roll % total;
     for (tile, weight) in tiles {
@@ -261,42 +268,39 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
                 Some("corners_and_sides") => Mode::CornersAndSides,
                 Some(other) => bail!("terrain '{name}': '{other}' is not a mode"),
             };
-            Ok(Terrain { name, value, mode })
+            let first_tile = table
+                .get("first_tile")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(0) as u32;
+            Ok(Terrain {
+                name,
+                value,
+                mode,
+                first_tile,
+            })
         })
         .collect()
 }
 
 /// `[[rules]]` on a tileset, and the templates that write them for you.
-pub fn parse_rules(value: &toml::Value) -> Result<Vec<Rule>> {
-    let terrains = parse_terrains(value)?;
+///
+/// Hand-written rules come first, because the first match wins: a template is
+/// the layout a sheet usually has, and the one tile it gets wrong is corrected
+/// by writing a rule for it rather than by abandoning the template.
+pub fn parse_rules(value: &toml::Value, terrains: &[Terrain]) -> Result<Vec<Rule>> {
     let mut out = Vec::new();
-    for terrain in &terrains {
-        if terrain.mode == Mode::Rules {
-            continue;
+    if let Some(list) = value.get("rules") {
+        let list = list
+            .as_array()
+            .ok_or_else(|| anyhow!("a tileset's `rules` is a list of tables"))?;
+        for (index, table) in list.iter().enumerate() {
+            out.push(parse_rule(index, table, terrains)?);
         }
-        let first = value
-            .get("terrains")
-            .and_then(toml::Value::as_array)
-            .and_then(|list| list.iter().find(|table| named(table, &terrain.name)))
-            .and_then(|table| table.get("first_tile"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0) as u32;
-        out.extend(template(terrain.mode, terrain.value, first));
     }
-    let Some(list) = value.get("rules") else {
-        return Ok(out);
-    };
-    let list = list
-        .as_array()
-        .ok_or_else(|| anyhow!("a tileset's `rules` is a list of tables"))?;
-    for (index, table) in list.iter().enumerate() {
-        out.push(parse_rule(index, table, &terrains)?);
+    for terrain in terrains {
+        out.extend(template(terrain.mode, terrain.value, terrain.first_tile));
     }
     Ok(out)
-}
-
-fn named(table: &toml::Value, name: &str) -> bool {
-    table.get("name").and_then(toml::Value::as_str) == Some(name)
 }
 
 fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result<Rule> {
@@ -352,7 +356,7 @@ fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result
         size,
         tiles,
         transforms,
-        chance: table.get("chance").and_then(as_f64).unwrap_or(1.0) as f32,
+        chance: chance_of(index, table)?,
         outside: match table.get("outside") {
             None | Some(toml::Value::String(_)) => match table
                 .get("outside")
@@ -369,6 +373,16 @@ fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result
     })
 }
 
+/// `chance`, which is a fraction: anything outside 0..=1 is a typo that would
+/// otherwise read as a rule that never fires.
+fn chance_of(index: usize, table: &toml::Value) -> Result<f32> {
+    let chance = table.get("chance").and_then(as_f64).unwrap_or(1.0) as f32;
+    if !(0.0..=1.0).contains(&chance) {
+        bail!("rule {index}: `chance` is a fraction of 0 to 1, not {chance}");
+    }
+    Ok(chance)
+}
+
 fn parse_tiles_of(index: usize, table: &toml::Value) -> Result<Vec<(u32, u32)>> {
     if let Some(tile) = table.get("tile").and_then(toml::Value::as_integer) {
         return Ok(vec![(tile as u32, 1)]);
@@ -377,6 +391,9 @@ fn parse_tiles_of(index: usize, table: &toml::Value) -> Result<Vec<(u32, u32)>> 
         .get("tiles")
         .and_then(toml::Value::as_array)
         .ok_or_else(|| anyhow!("rule {index} needs a `tile`, or `tiles` to pick between"))?;
+    if list.is_empty() {
+        bail!("rule {index}: `tiles` names none, so the rule could place nothing");
+    }
     list.iter()
         .map(|entry| match entry {
             toml::Value::Integer(tile) => Ok((*tile as u32, 1)),
@@ -491,27 +508,29 @@ fn blob_rules(terrain: u32, first: u32) -> Vec<Rule> {
     out
 }
 
-/// The eight neighbours, sides first, in the order the blob counts its bits.
+/// The eight neighbours, clockwise from north, which is the order the 47-tile
+/// sheets in circulation number their bits in: a sheet drawn for another tool
+/// drops in without its tiles being shuffled.
 const NEIGHBOURS: [(i32, i32); 8] = [
     (0, -1),
+    (1, -1),
     (1, 0),
+    (1, 1),
     (0, 1),
+    (-1, 1),
     (-1, 0),
     (-1, -1),
-    (1, -1),
-    (1, 1),
-    (-1, 1),
 ];
 
 /// Whether a mask is one of the 47: a corner counts only where both of the
 /// sides beside it are set.
 fn canonical(mask: u32) -> bool {
-    let side = |bit: u32| mask & (1 << bit) != 0;
-    let corner = |bit: u32| mask & (1 << bit) != 0;
-    let pairs = [(4, 3, 0), (5, 0, 1), (6, 1, 2), (7, 2, 3)];
-    pairs
+    let set = |bit: u32| mask & (1 << bit) != 0;
+    // Corner bit, and the two side bits either side of it.
+    let corners = [(1, 0, 2), (3, 2, 4), (5, 4, 6), (7, 6, 0)];
+    corners
         .iter()
-        .all(|(corner_bit, a, b)| !corner(*corner_bit) || (side(*a) && side(*b)))
+        .all(|(corner, a, b)| !set(*corner) || (set(*a) && set(*b)))
 }
 
 #[cfg(test)]

@@ -71,15 +71,26 @@ pub struct Tile {
 }
 
 impl Tile {
-    /// Which collider a tile belongs in, or `None` for one that collides
-    /// with nothing.
+    /// Which collider a tile belongs in, or `None` for one that collides with
+    /// nothing.
+    ///
+    /// Only a `full` tile joins a voxel group: a tile drawing its own polygons
+    /// gets a collider of its own, so answering a group for it would name a
+    /// shape its cells never reach.
     #[must_use]
     pub fn group(&self) -> Option<Group> {
         match (&self.collision, self.one_way) {
-            (Collision::None, _) => None,
-            (_, true) => Some(Group::OneWay),
-            (_, false) => Some(Group::Solid),
+            (Collision::Full, false) => Some(Group::Solid),
+            (Collision::Full, true) => Some(Group::OneWay),
+            (Collision::None | Collision::Shape(_), _) => None,
         }
+    }
+
+    /// Whether a body passes through this tile from below, whichever shape it
+    /// collides as.
+    #[must_use]
+    pub fn is_one_way(&self) -> bool {
+        self.one_way && self.collision != Collision::None
     }
 }
 
@@ -164,6 +175,8 @@ pub fn parse_tileset(value: &toml::Value) -> Result<TileSet> {
         }
         Ok(value)
     };
+    let terrains = rules::parse_terrains(value)?;
+    let rules = rules::parse_rules(value, &terrains)?;
     Ok(TileSet {
         texture,
         tile_size,
@@ -171,8 +184,8 @@ pub fn parse_tileset(value: &toml::Value) -> Result<TileSet> {
         margin: gap("margin")?,
         columns: columns as u32,
         tiles: parse_tiles(value)?,
-        terrains: rules::parse_terrains(value)?,
-        rules: rules::parse_rules(value)?,
+        terrains,
+        rules,
     })
 }
 
@@ -359,11 +372,15 @@ impl TileGrid {
     }
 
     /// Where a coordinate sits in `rows`, or `None` for one outside it.
+    ///
+    /// Bounded by the row's own length rather than by the widest of them: the
+    /// answer is the same, and a cell lookup does not walk the whole map to
+    /// find out how wide it is.
     #[must_use]
     pub fn index_of(&self, column: i32, row: i32) -> Option<(usize, usize)> {
         let column = usize::try_from(column - self.origin[0]).ok()?;
         let row = usize::try_from(row - self.origin[1]).ok()?;
-        (column < self.columns() && row < self.row_count()).then_some((column, row))
+        (column < self.rows.get(row)?.len()).then_some((column, row))
     }
 
     /// The tile at a coordinate, or `None` for an empty cell or one outside
@@ -433,10 +450,7 @@ impl TileGrid {
     #[must_use]
     pub fn group_cells(&self, set: &TileSet, group: Group) -> Vec<[i32; 2]> {
         self.filled()
-            .filter(|(_, _, id)| {
-                set.group(*id) == Some(group)
-                    && set.tile(*id).map(|tile| &tile.collision) == Some(&Collision::Full)
-            })
+            .filter(|(_, _, id)| set.group(*id) == Some(group))
             .map(|(column, row, _)| self.voxel_key(column, row))
             .collect()
     }
@@ -479,19 +493,81 @@ impl TileGrid {
         set.tile(self.cell(column, row)?)?.data.as_ref()
     }
 
-    /// Every cell whose tile draws its own collision polygons, with the
-    /// centre of the cell in the node's own space.
+    /// Every cell whose tile draws its own collision polygons, with the centre
+    /// of the cell in the node's own space and the turn the cell is drawn
+    /// with — a mirrored slope has to collide mirrored.
     #[must_use]
-    pub fn shaped_cells<'a>(&'a self, set: &'a TileSet) -> impl Iterator<Item = (Vec2, &'a Tile)> {
+    pub fn shaped_cells<'a>(
+        &'a self,
+        set: &'a TileSet,
+    ) -> impl Iterator<Item = (Vec2, &'a Tile, u8)> {
         self.filled().filter_map(move |(column, row, id)| {
             let tile = set.tile(id)?;
-            matches!(tile.collision, Collision::Shape(_))
-                .then(|| (self.cell_centre(column, row), tile))
+            matches!(tile.collision, Collision::Shape(_)).then(|| {
+                (
+                    self.cell_centre(column, row),
+                    tile,
+                    self.cell_flags(column, row),
+                )
+            })
         })
     }
 }
 
-/// A tile's polygon in world units, around the centre of the cell it sits in.
+/// The corners of a cell's tile, as which of the tile's own corners is drawn
+/// at each corner of the cell: top left, top right, bottom right, bottom left.
+///
+/// The renderer permutes a quad's texture coordinates exactly this way, so
+/// deriving the collider's turn from it is what keeps a mirrored slope from
+/// colliding the way it is not drawn.
+#[must_use]
+fn turned_corners(flags: u8) -> [usize; 4] {
+    let mut corners = [0, 1, 2, 3];
+    if flags & TRANSPOSE != 0 {
+        corners.swap(1, 3);
+    }
+    if flags & FLIP_X != 0 {
+        corners.swap(0, 1);
+        corners.swap(2, 3);
+    }
+    if flags & FLIP_Y != 0 {
+        corners.swap(0, 3);
+        corners.swap(1, 2);
+    }
+    corners
+}
+
+/// A point of the tile's own centred square, turned the way the cell is drawn.
+///
+/// The square's corners are `(±1, ±1)`, and a turn is the map carrying each
+/// corner of the tile to the corner of the cell it is drawn at.
+#[must_use]
+fn turn_unit(point: Vec2, flags: u8) -> Vec2 {
+    const CORNERS: [Vec2; 4] = [
+        Vec2::new(-1.0, 1.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(1.0, -1.0),
+        Vec2::new(-1.0, -1.0),
+    ];
+    if flags == 0 {
+        return point;
+    }
+    let turned = turned_corners(flags);
+    let at = |corner: usize| {
+        turned
+            .iter()
+            .position(|drawn| *drawn == corner)
+            .unwrap_or(corner)
+    };
+    // The square's two top corners are a basis, so where they land is the
+    // whole map: `point` is written in that basis and read back in the turned
+    // one.
+    let (a, b) = ((point.y - point.x) / 2.0, (point.y + point.x) / 2.0);
+    CORNERS[at(0)] * a + CORNERS[at(1)] * b
+}
+
+/// A tile's polygon in world units, around the centre of the cell it sits in,
+/// turned the way that cell's `flags` draw it.
 ///
 /// Authored in tile pixels with y down from the tile's top-left corner, which
 /// is what every tile editor exports.
@@ -500,15 +576,18 @@ pub fn polygon_in_world(
     points: &[[f32; 2]],
     tile_pixels: [f32; 2],
     tile_world: [f32; 2],
+    flags: u8,
 ) -> Vec<Vec2> {
-    let scale = Vec2::new(
-        tile_world[0] / tile_pixels[0].max(f32::MIN_POSITIVE),
-        tile_world[1] / tile_pixels[1].max(f32::MIN_POSITIVE),
-    );
     let half = Vec2::new(tile_world[0], tile_world[1]) / 2.0;
     points
         .iter()
-        .map(|[x, y]| Vec2::new(x * scale.x - half.x, half.y - y * scale.y))
+        .map(|[x, y]| {
+            let unit = Vec2::new(
+                x / tile_pixels[0].max(f32::MIN_POSITIVE) * 2.0 - 1.0,
+                1.0 - y / tile_pixels[1].max(f32::MIN_POSITIVE) * 2.0,
+            );
+            turn_unit(unit, flags) * half
+        })
         .collect()
 }
 
@@ -622,8 +701,41 @@ mod tests {
     #[test]
     fn a_tile_polygon_lands_around_the_cell_it_is_in() {
         let square = [[0.0, 0.0], [16.0, 0.0], [16.0, 16.0], [0.0, 16.0]];
-        let world = polygon_in_world(&square, [16.0, 16.0], [1.0, 1.0]);
+        let world = polygon_in_world(&square, [16.0, 16.0], [1.0, 1.0], 0);
         assert_eq!(world[0], Vec2::new(-0.5, 0.5), "pixels count y down");
         assert_eq!(world[2], Vec2::new(0.5, -0.5));
+    }
+
+    /// A slope filling the bottom-right half of its tile. Mirrored, it has to
+    /// fill the bottom-left half — a body walking up it from the other side.
+    #[test]
+    fn a_turned_tile_collides_the_way_it_is_drawn() {
+        let slope = [[16.0, 0.0], [16.0, 16.0], [0.0, 16.0]];
+        let upright = polygon_in_world(&slope, [16.0, 16.0], [2.0, 2.0], 0);
+        assert_eq!(upright[0], Vec2::new(1.0, 1.0), "the high corner is right");
+        let mirrored = polygon_in_world(&slope, [16.0, 16.0], [2.0, 2.0], FLIP_X);
+        assert_eq!(mirrored[0], Vec2::new(-1.0, 1.0), "and now it is left");
+        let flipped = polygon_in_world(&slope, [16.0, 16.0], [2.0, 2.0], FLIP_Y);
+        assert_eq!(flipped[0], Vec2::new(1.0, -1.0));
+    }
+
+    /// Every turn is a symmetry of the cell: it moves the corners around and
+    /// never off the tile, whatever combination of flags names it.
+    #[test]
+    fn a_turn_keeps_the_tile_inside_its_own_cell() {
+        let corners = [[0.0, 0.0], [16.0, 0.0], [16.0, 16.0], [0.0, 16.0]];
+        for flags in 0..8u8 {
+            let world = polygon_in_world(&corners, [16.0, 16.0], [1.0, 1.0], flags);
+            let mut seen: Vec<[i32; 2]> = world
+                .iter()
+                .map(|p| [(p.x * 2.0) as i32, (p.y * 2.0) as i32])
+                .collect();
+            seen.sort_unstable();
+            assert_eq!(
+                seen,
+                vec![[-1, -1], [-1, 1], [1, -1], [1, 1]],
+                "flags {flags} moved a corner off the cell"
+            );
+        }
     }
 }

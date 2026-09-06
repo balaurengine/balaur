@@ -16,7 +16,7 @@ use balaur_plugin::Registry;
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::{add_collider_at, with_material};
 use crate::rapier2d::prelude::ColliderBuilder as ColliderBuilder2;
-use crate::scalar::{self, Pose2};
+use crate::scalar::{self, Pose2, Rotation2};
 use crate::vocabulary::{component as c, keys as k};
 
 /// What each node's colliders were built from, so a map rebuilds only when
@@ -30,14 +30,7 @@ pub(crate) struct Built {
 /// The `tile_collision` component: the material a map's cells collide with.
 /// The shapes come from the map; a tile that names no collision is a hole.
 pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
-    let schema = [
-        balaur_core::components::ComponentDef::schema(&[(
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Whether the map's cells collide at all" }"#,
-        )]),
-        crate::collider::shared_collider_schema(),
-    ]
-    .join("\n");
+    let schema = crate::collider::shared_collider_schema();
     reg.register_component(
         c::TILE_COLLISION,
         ComponentDef {
@@ -173,7 +166,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
             .collect();
         let size = scalar::v2(grid.tile_world[0], grid.tile_world[1]);
         let builder = with_material(ColliderBuilder2::voxels(size, &keys), &params);
-        let builder = builder.active_hooks(hooks(group));
+        let builder = builder.active_hooks(hooks_for(group == Group::OneWay));
         // The voxel lattice is the grid's own: cell (0, 0) starts at the
         // node, so the collider needs no offset.
         add_collider_at(eng, entity, builder, Pose2::IDENTITY)?;
@@ -181,26 +174,34 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
             mark_one_way(eng, entity);
         }
     }
-    for (centre, tile) in grid.shaped_cells(&set).collect::<Vec<_>>() {
+    for (centre, tile, flags) in grid.shaped_cells(&set).collect::<Vec<_>>() {
         let Collision::Shape(polygons) = &tile.collision else {
             continue;
         };
         for polygon in polygons {
-            let points: Vec<_> =
-                balaur_core::tiles::polygon_in_world(polygon, set.tile_size, grid.tile_world)
-                    .into_iter()
-                    .map(|p| scalar::v2(p.x, p.y))
-                    .collect();
+            let turned = balaur_core::tiles::polygon_in_world(
+                polygon,
+                set.tile_size,
+                grid.tile_world,
+                flags,
+            );
+            let points: Vec<_> = turned.iter().map(|p| scalar::v2(p.x, p.y)).collect();
             let Some(shape) = ColliderBuilder2::convex_hull(&points) else {
                 tracing::warn!("tile_collision: a tile's polygon has no hull");
                 continue;
             };
+            // A shaped tile is in no voxel group, so the hook that makes a
+            // platform one-way has to go on its own collider.
+            let shape = shape.active_hooks(hooks_for(tile.is_one_way()));
             add_collider_at(
                 eng,
                 entity,
                 with_material(shape, &params),
-                Pose2::from_parts(scalar::v2(centre.x, centre.y), Default::default()),
+                Pose2::from_parts(scalar::v2(centre.x, centre.y), Rotation2::IDENTITY),
             )?;
+            if tile.is_one_way() {
+                mark_one_way(eng, entity);
+            }
         }
     }
     let after = handles_of(eng, entity);
@@ -211,16 +212,17 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     Ok(())
 }
 
-/// A one-way group asks rapier for the contact hook; the axis rides in the
+/// A one-way collider asks rapier for the contact hook; the axis rides in the
 /// collider's `user_data`, as it does for a `collider2d`.
-fn hooks(group: Group) -> crate::rapier2d::prelude::ActiveHooks {
-    match group {
-        Group::OneWay => crate::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS,
-        Group::Solid => crate::rapier2d::prelude::ActiveHooks::empty(),
+fn hooks_for(one_way: bool) -> crate::rapier2d::prelude::ActiveHooks {
+    if one_way {
+        crate::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS
+    } else {
+        crate::rapier2d::prelude::ActiveHooks::empty()
     }
 }
 
-/// Pack the upward axis into the collider the one-way group just made.
+/// Pack the upward axis into the collider that was just added.
 fn mark_one_way(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
