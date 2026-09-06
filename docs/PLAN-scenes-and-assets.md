@@ -84,4 +84,5 @@ roadmap and ARCHITECTURE.md already use.
    types. What it does not cover: a font, which egui reads once when the UI
    plugin starts, so a changed face needs the font definitions rebuilt.
 5. `balaur import` for `.aseprite`; sheet rectangles and slices on `sprite`.
+   `.tmx` and `.ldtk` join it in `docs/PLAN-tilemap.md` step 9.
 6. The id index, when a project outgrows paths.

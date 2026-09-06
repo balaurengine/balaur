@@ -54,7 +54,11 @@
    `effective_dominance`, `is_moving`, `potential_energy`,
    `predict_position_with_forces`, `set_collider`, `solve_ik`, `voxel`,
    `voxel_at`, `set_voxel` — and `collider2d` the `voxels`, `voxelized_mesh`,
-   `convex_decomposition` and `fit` kinds. Beside the gaps, four defects:
+   `convex_decomposition` and `fit` kinds. Two of those are now owed to a
+   plan: `docs/PLAN-tilemap.md` step 1 builds tile collision out of the 2D
+   `voxels` kind, for the internal-edge handling that keeps a body from
+   catching on a seam, and its one-way tiles wait on the `one_way` defect
+   below. Beside the gaps, four defects:
    `collider2d.one_way` is a no-op (`dim2/collider.rs:262-274` never calls
    `encode_one_way`), the 2D `modify_contacts` hook never reaches a script
    (`dim2/events.rs:160-220`), 2D `move_character` drops the node's rotation
@@ -91,6 +95,48 @@
    19 keys `set_tuning` accepts. The defects that break determinism — stale
    handles after a free, wheel state outside the snapshot — are
    `docs/PLAN-hardening.md` phase 1.
+
+7. **Internal edges are fixed on one shape in four.** A 3D `trimesh`
+   collider sets `TriMeshFlags::FIX_INTERNAL_EDGES` by default
+   (`collider.rs:44-46`), which is what keeps a character from catching on
+   the seam between two triangles of a flat floor. The other three shapes
+   with the same problem do not:
+
+   | Shape | Today | Should be |
+   | --- | --- | --- |
+   | `collider3d` `heightfield` | `ColliderBuilder::heightfield(grid, extent)` (`collider.rs:166`) | `heightfield_with_flags` with `HeightFieldFlags::FIX_INTERNAL_EDGES`, on by default like the trimesh |
+   | `collider2d` `trimesh` | `ColliderBuilder2::trimesh` (`dim2/collider.rs:131`) | `trimesh_with_flags`; the flag is not dimension-gated |
+   | `collider2d` `polyline` | `ColliderBuilder2::polyline(points, None)` (`dim2/collider.rs:142`) | `PolylineFlags::ORIENTED`, which parry documents as removing "the spurious sideways push a body gets at a convex corner" — the 2D form of the same defect, on the shape a side-scroller's ground uses |
+
+   A 2D `heightfield` has no flags to set: parry's 2D heightfield is a
+   polyline of segments, so `ORIENTED` on the polyline is the whole story.
+   The same family is why `docs/PLAN-tilemap.md` step 1 builds tile collision
+   out of parry's `Voxels` rather than a row of cuboids, and why
+   `docs/PLAN-voxels.md` needs no fix at all — the voxel shape classifies its
+   own cells.
+
+8. **Where parry may be used, and what stays hand-written.** The rule is in
+   ARCHITECTURE.md ("parry: geometry every crate may use, for capability"),
+   and it replaces the older reflex that core must not learn parry. parry is
+   already linked into every build, the wasm bundle included, so a dependency
+   on it costs a shipped game nothing; it is taken for capability — `Bvh`
+   for culling and picking, exact ray and point queries — and never merely to
+   delete equivalent code. `primitive` (no UVs in parry's tessellations),
+   `csg` (parry has no mesh union or difference), `geometry2d`'s booleans on
+   `i_overlay` (parry has polygon intersection alone) and `triangulate` stay
+   as they are.
+
+   Two follow-ups when that lands: `balaur_render`'s `pick` is bounds-only
+   and becomes an exact ray cast against the mesh, over a `Bvh`
+   (`docs/PLAN-editor-ergonomics.md`); and `crates/balaur_core/src/csg.rs`
+   opens with a rationale that says core "should not learn to" depend on
+   parry, which is no longer the rule — the paragraph keeps its real reason,
+   that parry cannot do union or difference at all.
+
+   Everything else already wraps rapier or parry: the character and vehicle
+   controllers, the debug render pipeline, the query pipeline, and
+   `geometry3d`'s hull, convex decomposition, voxelisation, split, intersect
+   and pieces. What 2D lacks there is item 5's list, not new code.
 
 One question is advice rather than code: in 2D a `heightfield` is a polyline
 over a height array, which is a side-scroller's ground. Whether that beats

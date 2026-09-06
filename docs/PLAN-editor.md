@@ -105,15 +105,16 @@ The palette is what asked for `ui.image_button` and `region` on `ui.image`:
 an atlas has to be shown a tile at a time and clicked. Both are general
 widgets, not a tile-set feature.
 
-Two things it does not do. **Autotiling** — a rule table on the tile set
-(`[[autotile]]` with a bitmask per tile) the painter consults after each
-stroke — is not built; it is a `tileset` asset change before it is a tool
-change, and the tool has no rule to consult until the asset carries one.
-And the map grows to the right and down only: it is centred on its node, so
-the painter moves the node by half of what it added to hold the tiles
-already down still, and a cell left of column zero has nowhere to go. Both
-are `docs/PLAN-tilemap.md`'s, behind the tileset metadata a terrain brush
-needs before it can paint.
+Two things it does not do. **Autotiling** is not built: it is a `tileset`
+asset change before it is a tool change, and the tool has no rule to consult
+until the asset carries one. `docs/PLAN-tilemap.md` §2 is what the asset
+would carry — an ordered rule table, first match wins, with the bitmask
+terrains Godot and Tiled use as sugar over it — and §4 puts the editor for it
+in a document tab in the centre, not in this dock: a rule matrix does not fit
+in 212 px. And the map grows to the right and down only: it is centred on its
+node, so the painter moves the node by half of what it added to hold the
+tiles already down still, and a cell left of column zero has nowhere to go,
+which `origin` on the map replaces in that plan's step 2.
 
 ### Curve editor and onion skin
 

@@ -48,6 +48,46 @@ feature unification from rapier, which means a crate built without physics in
 its graph — `cargo test -p balaur_anim` — would silently get the platform
 libm and the SIMD paths instead. Pinning them makes every build the same one.
 
+### parry: geometry every crate may use, for capability
+
+parry is in every build already. `balaur_physics` is not optional, so
+`parry2d` and `parry3d` link into the desktop binaries and the wasm bundle
+alike — `cargo tree -p balaur --target wasm32-unknown-unknown` shows both. A
+crate that takes parry as a dependency therefore adds **no bytes** to a
+shipped game; what it adds is compile time to that crate's own unit build.
+
+So the question is not which crate may depend on parry, but what parry is
+taken for. parry is a geometry library, not a backend — the backend is
+rapier — so core using parry's algorithms leaves "core never depends on a
+backend" intact. Two constraints keep it that way:
+
+- **No parry type crosses a public API.** Signatures take and return glam
+  types; a plugin author must not inherit parry's version through ours.
+- **`enhanced-determinism` is named explicitly** by every crate that depends
+  on parry. Physics enables it, and feature unification would hand it to the
+  others for free in an engine build — but `cargo test -p balaur_core` would
+  then run a different parry than the engine does, which is the exact failure
+  pinning glamx to `libm` and `scalar-math` exists to prevent.
+
+Taken **for capability, not to delete equivalent code**: `Bvh`, the
+incremental spatial index rapier's own broad phase uses, for frustum culling
+and for picking what is drawn instead of its bounding box; exact ray and
+point queries against a mesh; and the 2D shape tools 3D already exposes.
+
+Kept hand-written, each for a reason that survived the audit:
+
+- **`balaur_core::primitive`.** parry's `to_trimesh` and `to_polyline` return
+  positions and indices with no UVs and no normals, and have no torus, prism,
+  pyramid, tube, star or ngon.
+- **`balaur_core::csg`.** parry has `intersect_meshes` and nothing else — no
+  union, no difference. The BSP does all three.
+- **`geometry2d`'s booleans on `i_overlay`**, which does union, intersection,
+  difference and xor with holes, in fixed point, and is what georust's `geo`
+  uses for the same job. parry offers polygon *intersection* alone.
+- **`triangulate` and the 2D hull.** parry has both. Swapping working,
+  deterministic, tested code for equivalent code moves the triangles of every
+  polygon mesh — and the digest with them — and buys nothing.
+
 ### The `Engine` handle
 
 `Engine` is a cheaply clonable handle (`Rc`) over the world, resources,
@@ -2020,7 +2060,7 @@ release finished.
 | Item | Plan |
 | --- | --- |
 | A green `main`, and the holes the 2026-09-04 audit found: widget clicks and the animation player outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root, a `f64` switch that leaves `f32` on | `docs/PLAN-hardening.md`. Phase 0 is CI: every push since 2026-09-03 has failed it, for six independent reasons, and nothing blocks a red push |
-| Tile maps: collision from the tileset, terrains and autotile, animated and occluding tiles, chunking, the Tiles tool and a tileset editor, isometric and hexagonal layouts, Tiled and LDtk import | `docs/PLAN-tilemap.md` |
+| Tile maps: collision from the tileset as a physics component over a core grid, terrains and rule-based autotiling with a rule editor, animated and occluding tiles, chunked cells in their own file, the Tiles tool and a tileset document, quarter-tile sheets, isometric and hexagonal layouts, Tiled and LDtk import | `docs/PLAN-tilemap.md` |
 | Curve editor and onion skin | `docs/PLAN-editor.md` §6 |
 | Rigging panels: a weight table, modifier gizmos, bone names in the viewport, mirror and symmetry, a mesh traced from alpha, deform keys, a bone map | `docs/PLAN-editor.md` §6 "Rigging panels". The Rig and Polygon tools, four mesh modes with a brush, and the rest-pose verbs are built |
 | Editor ergonomics: multi-select and box select, group, align and distribute, hide, lock and isolate, an outliner filter, drag-in import, light and camera gizmos, view modes, a pen tool, a material panel, an Events view that authors, a cost dock, and a library of materials, skies, models and templates | `docs/PLAN-editor-ergonomics.md`. `S.sel` is one index today and every command reads it; the fork's wireframe, normals and UV materials are the view modes |
@@ -2044,7 +2084,7 @@ release finished.
 | Interactivity without a script: pointer, key, action and resize hooks on any drawn node, states with transitions, scene variables in the digest, event bindings edited in the Events view and convertible to a script, and orbit, first-person, third-person and click-to-move rigs as presets | `docs/PLAN-interactivity.md`. Picking is headless already (`render.pick_ray`), tweens and `patch_component` are the transition, and every binding resolves to a call a script makes |
 | Normal-mapped lit sprites | `docs/PLAN-rendering.md`. 2D lights and shadows are built; tile occluders moved to `docs/PLAN-tilemap.md` |
 | Camera projection (perspective or orthographic, `fov`, `near`, `far`), frustum culling and `render.in_view`, cull masks, automatic instancing, MSAA, level of detail in the mesh asset, 2D batching, `multimesh` | `docs/PLAN-views-and-culling.md`. Occlusion culling is not planned until a scene asks |
-| Drawing terrain: a mesher for the `heightfield` and `voxels` assets, and tools to paint them | no plan yet; both asset types exist and physics builds colliders from them — nothing draws either |
+| Voxels: block types in a `voxel_set`, a greedy chunk mesher with baked ambient occlusion, a chunked binary grid file, a Voxels tool with a plane lock and a slice view, `.vox` and mesh-voxelisation import, and heightfield meshing beside it | `docs/PLAN-voxels.md`. The physics half is built: the `voxels` asset, `collider3d`'s `voxels` and `voxelized_mesh` kinds over parry's ghost-collision-free voxel shape, `physics3d.set_voxel` and `geometry3d.voxelize`. Nothing draws or edits a grid |
 | More than one view: a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture | `docs/PLAN-views-and-culling.md` steps 4 and 5 |
 | Video playback: a movie on a texture with its audio on a bus | no plan yet; nothing decodes a container, and a frame would ride the texture path sprites use. Render-side only — a video never feeds simulation state |
 | Post-process materials on `camera.post`, and Balaur's shader helpers published as a package | `docs/PLAN-shaders.md` |

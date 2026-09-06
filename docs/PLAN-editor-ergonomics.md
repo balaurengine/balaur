@@ -145,6 +145,7 @@ library. A Gamend-hosted catalogue with the same manifest is
 | Events view authoring | Step 6, with `docs/PLAN-interactivity.md` step 3 |
 | Cost dock | Step 7 |
 | Library dock, stock content, templates | Step 8 |
+| Clicking exactly what is drawn | Step 1: `pick` tests a box or a sphere today, so a click near a thin model selects it and a click through a doorway does not miss. An exact ray cast against the mesh, over the `Bvh` `docs/PLAN-views-and-culling.md` step 1 builds, is the same call physics already makes |
 | Snap to vertex, edge, face | Not planned; grid snapping stays the one snap |
 | Mesh editing, sculpting | Not planned: they are a modeller, and a `.glb` from Blender is the answer |
 | A community library | `docs/PLAN-collaboration.md` |

@@ -193,6 +193,7 @@ fn chain_of(stem: &str) -> &'static str {
 }
 
 /// One face the theme found, and which chain it joins.
+#[derive(Clone)]
 pub(crate) struct FontFace {
     pub(crate) name: String,
     /// `heading`, `ui`, `mono`, `icons`, or `system` for an OS face.

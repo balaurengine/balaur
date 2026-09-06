@@ -96,6 +96,14 @@ pub struct TextState {
     family: Option<String>,
     /// Bitmap fonts by asset name, with their page's box in the atlas.
     pages: HashMap<String, BitmapPage>,
+    /// The project's and the bundled faces, without the system's: what a
+    /// measurement is allowed to see.
+    own: Vec<crate::theme::FontFace>,
+    locale: String,
+    /// Built from `own` the first time something measures. Separate from
+    /// `fonts` on purpose: drawing may fall back to whatever the machine has,
+    /// and a number that reaches a script may not.
+    strict: Option<FontSystem>,
 }
 
 /// A loaded bitmap font: the descriptor, and where its page sits.
@@ -165,6 +173,13 @@ impl TextState {
             layouts: HashMap::new(),
             family,
             pages: HashMap::new(),
+            own: faces
+                .iter()
+                .filter(|face| face.chain != "system")
+                .cloned()
+                .collect(),
+            locale: locale.to_string(),
+            strict: None,
         }
     }
 
@@ -197,6 +212,31 @@ impl TextState {
         })
     }
 
+    /// The size `request` lays out to, measured against the project's own
+    /// fonts and the bundled ones only.
+    ///
+    /// Never the system's: a machine's fonts differ, and a width that reaches
+    /// a script must not. Nothing is rasterised, so this costs no atlas.
+    pub fn measure(&mut self, request: &Request) -> Vec2 {
+        if self.strict.is_none() {
+            self.strict = Some(Self::system_of(&self.own, &self.locale));
+        }
+        let Some(fonts) = self.strict.as_mut() else {
+            return Vec2::ZERO;
+        };
+        let family = self.family.clone();
+        let buffer = shape_into(fonts, family.as_deref(), request);
+        let mut extent = Vec2::ZERO;
+        for run in buffer.layout_runs() {
+            extent.x = extent.x.max(run.line_w);
+            extent.y = extent.y.max(run.line_top + run.line_height);
+        }
+        if let Some(width) = request.width {
+            extent.x = width;
+        }
+        extent
+    }
+
     /// Lay `request` out, from the cache when it was seen before.
     ///
     /// Rasterises into the atlas but uploads nothing: a consumer mirrors the
@@ -227,6 +267,31 @@ impl TextState {
         shaped
     }
 
+    /// One font system over `faces`, with those faces as the fallback chain.
+    fn system_of(faces: &[crate::theme::FontFace], locale: &str) -> FontSystem {
+        let mut db = fontdb::Database::new();
+        let mut families: Vec<&'static str> = Vec::new();
+        for face in faces {
+            let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
+            let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
+            for id in db.load_font_source(fontdb::Source::Binary(data)) {
+                let Some(info) = db.face(id) else { continue };
+                let Some((name, _)) = info.families.first() else {
+                    continue;
+                };
+                let leaked: &'static str = Box::leak(name.clone().into_boxed_str());
+                if !families.contains(&leaked) {
+                    families.push(leaked);
+                }
+            }
+        }
+        FontSystem::new_with_locale_and_db_and_fallback(
+            locale.to_string(),
+            db,
+            ChainFallback { families },
+        )
+    }
+
     fn layout(&mut self, request: &Request) -> Shaped {
         // A bitmap font has one glyph per character and no contextual forms,
         // so it lays out rather than shapes.
@@ -236,44 +301,8 @@ impl TextState {
             return shaped;
         }
         let parsed = spans_of(request);
-        let align = parsed.align.unwrap_or(request.align);
-        let size = request.size.max(1.0);
         let family = self.family.clone();
-        let base = match &family {
-            Some(name) => Attrs::new().family(Family::Name(name)),
-            None => Attrs::new(),
-        };
-        let base = base
-            .weight(Weight(request.weight))
-            .style(if request.italic {
-                Style::Italic
-            } else {
-                Style::Normal
-            });
-
-        let mut buffer = Buffer::new(&mut self.fonts, Metrics::new(size, size * LINE_HEIGHT));
-        {
-            let mut buffer = buffer.borrow_with(&mut self.fonts);
-            buffer.set_wrap(if request.width.is_some() {
-                Wrap::WordOrGlyph
-            } else {
-                Wrap::None
-            });
-            buffer.set_size(request.width, None);
-            let spans: Vec<(&str, Attrs<'_>)> = parsed
-                .spans
-                .iter()
-                .enumerate()
-                .map(|(index, span)| (span.text.as_str(), span_attrs(&base, span, index, size)))
-                .collect();
-            let alignment = match align {
-                Align::Start => None,
-                Align::Center => Some(cosmic_text::Align::Center),
-                Align::End => Some(cosmic_text::Align::End),
-            };
-            buffer.set_rich_text(spans, &base, Shaping::Advanced, alignment);
-            buffer.shape_until_scroll(true);
-        }
+        let buffer = shape_into(&mut self.fonts, family.as_deref(), request);
         self.place(&buffer, &parsed, request.width)
     }
 
@@ -371,6 +400,49 @@ impl TextState {
             pictures,
         }
     }
+}
+
+/// Shape `request` into a buffer on `fonts`. One place, so a measurement and
+/// a drawing can never lay the same text out differently.
+fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &Request) -> Buffer {
+    let parsed = spans_of(request);
+    let align = parsed.align.unwrap_or(request.align);
+    let size = request.size.max(1.0);
+    let base = match family {
+        Some(name) => Attrs::new().family(Family::Name(name)),
+        None => Attrs::new(),
+    };
+    let base = base
+        .weight(Weight(request.weight))
+        .style(if request.italic {
+            Style::Italic
+        } else {
+            Style::Normal
+        });
+    let mut buffer = Buffer::new(fonts, Metrics::new(size, size * LINE_HEIGHT));
+    {
+        let mut borrowed = buffer.borrow_with(fonts);
+        borrowed.set_wrap(if request.width.is_some() {
+            Wrap::WordOrGlyph
+        } else {
+            Wrap::None
+        });
+        borrowed.set_size(request.width, None);
+        let spans: Vec<(&str, Attrs<'_>)> = parsed
+            .spans
+            .iter()
+            .enumerate()
+            .map(|(index, span)| (span.text.as_str(), span_attrs(&base, span, index, size)))
+            .collect();
+        let alignment = match align {
+            Align::Start => None,
+            Align::Center => Some(cosmic_text::Align::Center),
+            Align::End => Some(cosmic_text::Align::End),
+        };
+        borrowed.set_rich_text(spans, &base, Shaping::Advanced, alignment);
+        borrowed.shape_until_scroll(true);
+    }
+    buffer
 }
 
 /// The runs a request breaks into: its marks, or the whole text as one.
