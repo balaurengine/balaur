@@ -48,7 +48,7 @@ notes are that version's section.
 - 2D lights and shadows.
 - GPU skinning for 3D meshes.
 - Post-processing: bloom, SSAO, SSR, depth of field.
-- 2D and 3D skeletal animation; five modifier kinds in each — `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`.
+- 2D and 3D skeletal animation; five modifier kinds in each: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`.
 - `polygon/deform` tracks: an `[dx, dy]` offset per vertex, added before skinning.
 - A clip played on another rig, through a `bone_map` against a `skeleton_profile`.
 - Quaternion rotation tracks.
@@ -173,7 +173,7 @@ notes are that version's section.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.
-- Rigging panels: a Weights dock with auto and smooth weights, modifier gizmos, bone names in the viewport, Mirror in both tools, a mesh traced from a texture's alpha, deform keys, a Bone map dock, and Create Physical Skeleton.
+- Rigging panels: a Weights dock with auto and smooth weights, modifier gizmos, bone names in the viewport, and Mirror in both tools. A mesh traced from a texture's alpha, deform keys, a Bone map dock, and Create Physical Skeleton.
 - The Tiles tool: a palette cut from the tile set, paint, erase, rectangle fill, layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
 - Profiler dock; `--timings`.

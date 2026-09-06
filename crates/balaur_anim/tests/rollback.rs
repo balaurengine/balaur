@@ -216,3 +216,77 @@ fn a_player_on_a_node_the_snapshot_never_saw_is_dropped_by_the_restore() {
         "a player spawned after the snapshot is not part of the world it restores"
     );
 }
+
+/// A jiggle spring is simulation state this plugin owns outright, so it goes
+/// in the snapshot for the same reason a playhead does: restored without it,
+/// the chain settles from wherever it happened to be swinging.
+#[test]
+fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
+    let mut app = app();
+    let root = app.engine.root();
+    let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
+    app.engine
+        .world_mut()
+        .insert_one(rig, StableId("rig".into()))
+        .unwrap();
+    let mut bone = |name: &str, parent: Entity, rest: &str| {
+        let e = scene::spawn_node(&mut app.engine.world_mut(), name, parent);
+        app.engine
+            .world_mut()
+            .insert_one(e, StableId(name.to_string()))
+            .unwrap();
+        let params: toml::Value = toml::from_str(rest).unwrap();
+        components::add(&app.engine, e, "bone2d", Some(&params)).unwrap();
+        e
+    };
+    let hip = bone("Hip", rig, "rest_position = [0.0, 0.0]");
+    bone("Tail", hip, "rest_position = [1.0, 0.0]\nlength = 1.0");
+    balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    let params: toml::Value =
+        toml::from_str("kind = \"jiggle\"\nuse_gravity = true\nstiffness = 5.0").unwrap();
+    components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
+
+    tick(&mut app, 20);
+    let taken = snapshot::capture(&app.engine);
+    let mid = digest::of(&app.engine);
+    let swinging = app
+        .engine
+        .world()
+        .get::<&Transform>(hip)
+        .unwrap()
+        .rotation
+        .to_array()
+        .map(f32::to_bits);
+
+    // Let it swing on, then put the world back where it was.
+    tick(&mut app, 40);
+    let later = app
+        .engine
+        .world()
+        .get::<&Transform>(hip)
+        .unwrap()
+        .rotation
+        .to_array()
+        .map(f32::to_bits);
+    assert_ne!(swinging, later, "the spring should keep moving");
+
+    snapshot::restore(&app.engine, &taken);
+    assert_eq!(
+        digest::of(&app.engine),
+        mid,
+        "a restored spring must hash the way it did"
+    );
+
+    // And re-simulating from there lands on the same pose, bit for bit: a
+    // spring whose points came back wrong diverges within a tick or two.
+    tick(&mut app, 40);
+    let again = app
+        .engine
+        .world()
+        .get::<&Transform>(hip)
+        .unwrap()
+        .rotation
+        .to_array()
+        .map(f32::to_bits);
+    assert_eq!(later, again, "the re-simulation should retrace the swing");
+}
