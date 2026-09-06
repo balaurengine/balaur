@@ -8,17 +8,23 @@ use crate::util;
 use crate::viewport;
 
 /// The polygon tool's own state, hung on `S.polygon`. `chain` is the loop
-/// being clicked out, `backdrop` the UV reference node.
+/// being clicked out, `backdrop` the UV reference node, `picked` the vertices
+/// the Weights dock lists and Mirror reflects.
 pub fn state() {
     #{
         hover: None, drag: None, chain: None, mode: "points", texture: None,
-        bone: None, radius: 40.0, strength: 0.5, backdrop: (),
+        bone: None, radius: 40.0, strength: 0.5, backdrop: (), picked: [],
+        threshold: 0.5, tolerance: 2.0,
     }
 }
 
 const W = 2.0;
 const PICK_PX = 8.0;
 const MARK_PX = 4.0;
+
+// The name halves Mirror swaps a bone's weights across, longest first so
+// `left` is tried before `l`. Every pair is matched both ways.
+const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"], [".l", ".r"]];
 
 // The modes the selection offers. An `occluder2d` is an outline and nothing
 // else: it has no triangles to draw, no texture to lay UVs over, and no rig.
@@ -84,6 +90,30 @@ pub fn editable(S) {
         },
         None => false,
     }
+}
+
+// The polygon's world frame, for a tool outside this module that has to
+// place a vertex the way the viewport does.
+pub fn world_frame(S) {
+    frame(S)
+}
+
+// One vertex in world space, deform included, as `[x, y]`.
+pub fn world_point(S, mesh, f, at) {
+    world_points(S, mesh, f, false).get(at).unwrap_or([f.x, f.y])
+}
+
+// The live node the polygon's skin names as its rig, or `None`.
+pub fn rig_root(S) {
+    let (node, found) = model::selected(S);
+    let comp = component(node);
+    if found.is_none() || comp.is_none() {
+        return None;
+    }
+    let found = found.unwrap();
+    let skel = comp.unwrap().get("skeleton").unwrap_or("");
+    let rig = if skel == "" { found } else { found.get_node(skel) };
+    if rig is balaur::Node { Some(rig) } else { None }
 }
 
 // The polygon's world frame: how a local vertex lands on screen.
@@ -352,8 +382,15 @@ pub fn move_vertex(S, at, wx, wy) {
         Some(target) => target,
         None => return,
     };
-    begin(S, "move vertex", Some(format!("poly:move:{}:{}", S.sel, at)));
     let (lx, ly) = to_local(f, wx, wy);
+    // Armed, a drag is a deformation of the shape rather than a change to it:
+    // the offset moves and the mesh the clip deforms stays where it was.
+    if deforming(S) {
+        let (rx, ry) = point(mesh.positions[at]);
+        set_deform(S, at, lx - rx, ly - ry);
+        return;
+    }
+    begin(S, "move vertex", Some(format!("poly:move:{}:{}", S.sel, at)));
     mesh.positions[at] = [lx, ly];
     apply(S);
 }
@@ -515,6 +552,308 @@ pub fn paint(S, at, amount) {
     apply(S);
 }
 
+// ------------------------------------------------------------ selection
+
+// The vertices the Weights dock lists and Mirror reflects. An empty pick
+// means the whole mesh, so a first-time user gets the obvious thing.
+pub fn picked(S) {
+    let count = match mesh(S) {
+        Some(mesh) => mesh.positions.len(),
+        None => 0,
+    };
+    let out = [];
+    for i in S.polygon.picked {
+        if i < count {
+            out.push(i);
+        }
+    }
+    if out.len() > 0 {
+        return out;
+    }
+    let all = [];
+    for i in 0..count {
+        all.push(i);
+    }
+    all
+}
+
+// Whether the pick is a real one rather than the whole-mesh fallback.
+pub fn has_pick(S) {
+    S.polygon.picked.len() > 0
+}
+
+pub fn pick_vertex(S, at, add) {
+    if !add {
+        S.polygon.picked = [at];
+        return;
+    }
+    let kept = [];
+    let had = false;
+    for i in S.polygon.picked {
+        if i == at {
+            had = true;
+        } else {
+            kept.push(i);
+        }
+    }
+    if !had {
+        kept.push(at);
+    }
+    S.polygon.picked = kept;
+}
+
+pub fn clear_pick(S) {
+    S.polygon.picked = [];
+}
+
+// --------------------------------------------------------------- mirror
+
+// The same name on the other side, or `None` when it names no side. Tried
+// longest first, so `left_arm` does not match on its leading `l`.
+pub fn mirror_name(path) {
+    let lower = path.to_lowercase();
+    for pair in SIDE_PAIRS {
+        for (from, to) in [(pair[0], pair[1]), (pair[1], pair[0])] {
+            if lower.starts_with(from) {
+                return Some(to + path[from.len()..]);
+            }
+            if lower.ends_with(from) {
+                return Some(path[..path.len() - from.len()] + to);
+            }
+            match lower.find(from) {
+                Some(at) => return Some(path[..at] + to + path[at + from.len()..]),
+                None => (),
+            }
+        }
+    }
+    None
+}
+
+// Reflect the picked vertices over the node's own x or y axis, and hand each
+// bone's weights to the bone whose name differs by a side.
+//
+// Godot has no such verb; Spine's is what a rigger reaches for after
+// weighting one arm.
+pub fn mirror(S, axis) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    if !editable(S) {
+        log::warn("this polygon's mesh is a file; make it inline to mirror it");
+        return;
+    }
+    let at = picked(S);
+    begin(S, format!("mirror vertices over {}", axis), None);
+    for i in at {
+        let p = mesh.positions[i];
+        if axis == "x" {
+            mesh.positions[i] = [-util::f(p[0]), util::f(p[1])];
+        } else {
+            mesh.positions[i] = [util::f(p[0]), -util::f(p[1])];
+        }
+    }
+    // A reflection reverses the outline's winding, and a mesh whose outline
+    // runs the other way triangulates inside out.
+    if !has_pick(S) {
+        reverse_outline(mesh);
+    }
+    mirror_weights(mesh);
+    let uvs_some = mesh.get("uvs");
+    if let Some(uvs) = uvs_some {
+        // UVs are laid over the texture, not over the shape: a mirrored
+        // vertex keeps the pixels it had, which is the whole point of
+        // mirroring a weighted half.
+        let _ = uvs;
+    }
+    apply(S);
+    log::info(format!("mirrored {} vertices over {}", at.len(), axis));
+}
+
+// Reverse the outline in place, leaving internal vertices and remapping every
+// polygon index onto the new order.
+fn reverse_outline(mesh) {
+    let outline = outline_count(mesh);
+    if outline < 3 {
+        return;
+    }
+    let map = #{};
+    for i in 0..outline {
+        map[format!("{}", i)] = outline - 1 - i;
+    }
+    let swap = |list| {
+        if !(list is Vec) {
+            return;
+        }
+        for i in 0..(outline / 2) {
+            let j = outline - 1 - i;
+            let keep = list[i];
+            list[i] = list[j];
+            list[j] = keep;
+        }
+    };
+    swap(mesh.positions);
+    swap(mesh.get("uvs").unwrap_or(()));
+    for bone in bone_list(mesh) {
+        swap(bone.get("weights").unwrap_or(()));
+    }
+    for ring in util::vec(mesh.get("polygons").unwrap_or([])) {
+        for j in 0..ring.len() {
+            match map.get(format!("{}", ring[j])) {
+                Some(to) => ring[j] = to,
+                None => (),
+            }
+        }
+    }
+}
+
+// Every bone's weights handed to its opposite number, both ways at once, so
+// one call mirrors a whole rig rather than half of it twice.
+fn mirror_weights(mesh) {
+    let bones = bone_list(mesh);
+    let by_path = #{};
+    for (i, bone) in bones.iter().enumerate() {
+        by_path[bone.path] = i;
+    }
+    let taken = [];
+    for bone in bones {
+        taken.push(util::vec(bone.get("weights").unwrap_or([])));
+    }
+    for bone in bones {
+        match mirror_name(bone.path) {
+            Some(other) => {
+                match by_path.get(other) {
+                    Some(from) => bone.weights = taken[from],
+                    None => (),
+                }
+            }
+            None => (),
+        }
+    }
+}
+
+// ---------------------------------------------------------------- trace
+
+// Trace the texture's alpha into this polygon's outline. Spine's Generate:
+// the shape a sprite already has, without clicking it out.
+pub fn trace(S) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return,
+    };
+    let texture = comp.get("texture").unwrap_or("");
+    if texture == "" {
+        log::warn("this polygon has no texture to trace");
+        return;
+    }
+    if !editable(S) {
+        log::warn("this polygon's mesh is a file; make it inline to trace into it");
+        return;
+    }
+    let opts = #{
+        threshold: S.polygon.threshold,
+        tolerance: S.polygon.tolerance,
+        pixels_per_unit: pixels_per_unit(S),
+    };
+    let (ok, out) = script::attempt(|| render::trace_texture(S.game_root + "/" + texture, opts));
+    if !ok {
+        log::warn(format!("tracing {}: {:?}", texture, out));
+        return;
+    }
+    let loops = util::vec(out);
+    if loops.len() == 0 || util::vec(loops[0]).len() < 3 {
+        log::warn(format!("{} has no opaque pixels at this threshold", texture));
+        return;
+    }
+    begin(S, "trace polygon", None);
+    let mesh = match ensure_mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let points = [];
+    for p in util::vec(loops[0]) {
+        points.push([p.x, p.y]);
+    }
+    mesh.positions = points;
+    // The old UVs, weights and drawn polygons indexed vertices that are gone;
+    // a trace is a new shape, not an edit of the one that was there.
+    mesh.remove("uvs");
+    mesh.remove("polygons");
+    mesh.remove("skin");
+    mesh.internal = 0;
+    S.polygon.picked = [];
+    S.polygon.bone = None;
+    apply(S);
+    log::info(format!("traced {} points from {}", points.len(), texture));
+}
+
+// ---------------------------------------------------------- deform keys
+
+// Free-form deformation: an offset per vertex, over the mesh's authored
+// positions, which the engine adds before it skins. Spine's FFD.
+//
+// The offsets live on the tool rather than in the document, because the
+// document's `positions` are the rest the offsets are measured from — the
+// same thing the engine adds them to. Moving a vertex with the Animate
+// persona armed edits the offset; moving one otherwise edits the rest.
+
+// Whether a vertex drag is deforming rather than reshaping.
+pub fn deforming(S) {
+    S.persona == "anim" && S.clip is Object && mesh(S).is_some()
+}
+
+// The offsets, grown to the mesh and zero where they have not been set.
+pub fn deform(S) {
+    let count = match mesh(S) {
+        Some(mesh) => mesh.positions.len(),
+        None => 0,
+    };
+    let out = util::vec(S.polygon.get("deform").unwrap_or([]));
+    while out.len() < count * 2 {
+        out.push(0.0);
+    }
+    S.polygon.deform = out;
+    out
+}
+
+pub fn deformed(S) {
+    for v in util::vec(S.polygon.get("deform").unwrap_or([])) {
+        if util::f(v) != 0.0 {
+            return true;
+        }
+    }
+    false
+}
+
+fn set_deform(S, at, dx, dy) {
+    let out = deform(S);
+    if at * 2 + 1 >= out.len() {
+        return;
+    }
+    out[at * 2] = dx;
+    out[at * 2 + 1] = dy;
+    S.polygon.deform = out;
+}
+
+pub fn clear_deform(S) {
+    S.polygon.deform = [];
+}
+
+// Key the offsets on the armed clip, at the playhead. One track for the whole
+// mesh, because a deform is one value with two numbers per vertex.
+pub fn key_deform(S) {
+    if mesh(S).is_none() {
+        return;
+    }
+    crate::anim::key_property(S, S.anim.time, "polygon/deform", deform(S));
+}
+
+// Read the offsets back off the clip at the playhead, so scrubbing shows the
+// deform the way scrubbing shows a transform.
+pub fn read_deform(S, value) {
+    S.polygon.deform = util::vec(value);
+}
+
 fn uv_of(S, mesh, i, p) {
     let uvs_some = mesh.get("uvs");
     if let Some(uvs) = uvs_some {
@@ -530,8 +869,13 @@ fn uv_of(S, mesh, i, p) {
 
 fn world_points(S, mesh, f, in_uv) {
     let out = [];
+    let offsets = if in_uv { [] } else { util::vec(S.polygon.get("deform").unwrap_or([])) };
     for (i, p) in mesh.positions.iter().enumerate() {
         let (lx, ly) = point(p);
+        if i * 2 + 1 < offsets.len() {
+            lx += util::f(offsets[i * 2]);
+            ly += util::f(offsets[i * 2 + 1]);
+        }
         if in_uv {
             let uv = uv_of(S, mesh, i, p);
             let (ux, uy) = uv_to_local(S, util::f(uv[0]), util::f(uv[1]));

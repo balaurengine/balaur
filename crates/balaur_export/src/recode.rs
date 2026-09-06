@@ -121,6 +121,10 @@ fn smaller_of(one: Option<Vec<u8>>, other: Option<Vec<u8>>) -> Option<Vec<u8>> {
 }
 
 /// oxipng over a PNG's own bytes, which keeps every pixel and the dimensions.
+///
+/// Absent on wasm, where oxipng's deflate does not build: the WebP path still
+/// runs, so `Smallest` in a browser tab means WebP or nothing.
+#[cfg(not(target_family = "wasm"))]
 fn shrink_png(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
     if format != ImageFormat::Png {
         return Ok(None);
@@ -215,7 +219,12 @@ fn to_flac(bytes: &[u8]) -> Result<Option<Vec<u8>>> {
     Ok(Some(sink.into_inner()))
 }
 
-#[cfg(feature = "recode-fonts")]
+#[cfg(target_family = "wasm")]
+fn shrink_png(_bytes: &[u8], _format: ImageFormat) -> Result<Option<Vec<u8>>> {
+    Ok(None)
+}
+
+#[cfg(all(feature = "recode-fonts", not(target_family = "wasm")))]
 fn subset_face(bytes: &[u8], keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     if keep.is_empty() {
         return Ok(None);
@@ -237,7 +246,7 @@ fn subset_face(bytes: &[u8], keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     Ok(Some(out).filter(|out| out.len() < bytes.len()))
 }
 
-#[cfg(not(feature = "recode-fonts"))]
+#[cfg(not(all(feature = "recode-fonts", not(target_family = "wasm"))))]
 fn subset_face(_bytes: &[u8], _keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
@@ -294,6 +303,25 @@ mod tests {
             assert!(out.len() < source.len(), "{mode:?} grew the image");
             assert_eq!(read_rgba(&out), (width, height, pixels.clone()), "{mode:?}");
         }
+    }
+
+    #[test]
+    fn measure_me() {
+        for name in ["editor/assets/balaur-logo.png", "examples/rig/art/limb.png"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(name);
+            let src = std::fs::read(&path).unwrap();
+            let png = image(&src, ImageMode::Png).unwrap().map_or(src.len(), |v| v.len());
+            let webp = image(&src, ImageMode::Webp).unwrap().map_or(src.len(), |v| v.len());
+            let best = image(&src, ImageMode::Smallest).unwrap().map_or(src.len(), |v| v.len());
+            println!("MEASURE {name}: source {} png {png} webp {webp} smallest {best}", src.len());
+        }
+        let face = ui_face();
+        let keep: BTreeSet<char> = "Hello, world! The quick brown fox jumps over the lazy dog 0123456789".chars().collect();
+        let sub = font(&face, &keep).unwrap().unwrap();
+        println!("MEASURE font: source {} subset {}", face.len(), sub.len());
+        let wav = sample_wav();
+        let flac = audio(&wav, AudioMode::Flac).unwrap().unwrap();
+        println!("MEASURE wav: source {} flac {}", wav.len(), flac.len());
     }
 
     #[test]

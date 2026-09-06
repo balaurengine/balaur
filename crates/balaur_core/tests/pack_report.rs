@@ -184,3 +184,46 @@ fn the_reports_display_names_every_section_and_the_unreferenced_count() {
     }
     assert!(printed.contains("1 file nothing references, 32 B"));
 }
+
+/// The UI finds faces by listing `fonts/`, so no scene names one and a strip
+/// that trusted references alone would take a project's text away.
+#[test]
+fn a_font_is_never_unreferenced_though_nothing_names_it() {
+    let mut pack = Pack {
+        manifest: "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n".into(),
+        ..Pack::default()
+    };
+    pack.scenes
+        .insert("scenes/main.toml".into(), "nodes = []\n".into());
+    pack.assets
+        .insert("fonts/ui-Regular.ttf".into(), vec![1, 2, 3]);
+    pack.assets.insert("art/unused.png".into(), vec![4, 5, 6]);
+    assert_eq!(pack.unreferenced(&[]), vec!["art/unused.png".to_string()]);
+}
+#[test]
+fn print_a_real_report() {
+    use balaur_core::pack::Pack;
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut pack = Pack {
+        manifest: std::fs::read_to_string(root.join("editor/project.toml")).unwrap(),
+        ..Pack::default()
+    };
+    for entry in std::fs::read_dir(root.join("editor/scripts")).unwrap() {
+        let p = entry.unwrap().path();
+        let name = format!("scripts/{}", p.file_name().unwrap().to_string_lossy());
+        pack.scripts.insert(name, std::fs::read(&p).unwrap());
+    }
+    for entry in std::fs::read_dir(root.join("editor/scenes")).unwrap() {
+        let p = entry.unwrap().path();
+        let name = format!("scenes/{}", p.file_name().unwrap().to_string_lossy());
+        pack.scenes.insert(name, std::fs::read_to_string(&p).unwrap());
+    }
+    for (dir, prefix) in [("editor/fonts", "fonts"), ("editor/assets", "assets")] {
+        for entry in std::fs::read_dir(root.join(dir)).unwrap() {
+            let p = entry.unwrap().path();
+            let name = format!("{prefix}/{}", p.file_name().unwrap().to_string_lossy());
+            pack.assets.insert(name, std::fs::read(&p).unwrap());
+        }
+    }
+    println!("----8<----\n{}\n---->8----", pack.report());
+}

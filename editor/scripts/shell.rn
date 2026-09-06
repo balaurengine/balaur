@@ -483,6 +483,8 @@ fn states() {
         "breakdemo": break_demo,
         "rigdemo": crate::selftest::rigging,
         "polydemo": crate::selftest::polygons,
+        "weightdemo": crate::selftest::weighting,
+        "bonemapdemo": crate::selftest::bonemap_panel,
         "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
         "assetdemo": crate::selftest::assets,

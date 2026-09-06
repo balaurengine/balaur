@@ -38,6 +38,7 @@ pub mod events;
 pub mod geometry;
 pub mod joint;
 pub mod query;
+pub mod ragdoll;
 pub(crate) mod scalar;
 mod shared;
 pub mod tuning;
@@ -154,6 +155,10 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
         );
         reg.insert_resource(PhysicsState::new());
         reg.add_system(Stage::FixedUpdate, step_system);
+        // After both steps, so the bodies have moved and the bone transform
+        // the blend reads is still the one the clip wrote this frame.
+        reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
+        ragdoll::register_ragdoll_component(reg);
         build_physics_digest(reg);
         build_physics_snapshot(reg);
         debug::build(reg);
@@ -166,6 +171,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
             install_world_controls(&mut *m);
             debug::install_debug_api(&mut *m);
             tuning::install_tuning_api(&mut *m);
+            ragdoll::install_blend_api(&mut *m);
         }
         let mut m = reg.script_module("physics3d")?;
         m.module_doc(
@@ -195,6 +201,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
         joint::install_joint_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);
+        ragdoll::install_ragdoll_api(&mut *m, true);
         body::register_body_component(reg);
         collider::register_collider_component(reg);
         joint::register_joint_component(reg);

@@ -8,10 +8,11 @@
 //! name whatever bytes it ends up holding, because every reader identifies an
 //! image by its content and no scene has to be rewritten.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
 use balaur::Pack;
+use balaur::import::words;
 
 use crate::config::ExportConfig;
 use crate::recode::{self, AudioMode, FontMode, ImageMode, Saving};
@@ -101,9 +102,12 @@ pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
         pack.strip(&config.keep);
     }
     let keep = code_points(pack, config);
+    // Disjoint fields: the settings beside a file are read while its bytes
+    // are being replaced.
+    let settings = &pack.scenes;
     for (path, bytes) in &mut pack.assets {
         let before = bytes.len();
-        let Some(smaller) = smaller(path, bytes, config, &keep)? else {
+        let Some(smaller) = smaller(path, bytes, config, &keep, settings)? else {
             continue;
         };
         let after = smaller.len();
@@ -124,27 +128,70 @@ fn smaller(
     bytes: &[u8],
     config: &ExportConfig,
     keep: &BTreeSet<char>,
+    settings: &BTreeMap<String, String>,
 ) -> Result<Option<Vec<u8>>> {
     use balaur::import::{kind_of, kinds};
+    let own = recode_word(settings, path);
+    let own = own.as_deref();
+    let images = image_mode(own, config.images);
+    let audio = audio_mode(own, config.audio);
     match kind_of(path) {
         // The mode is read before the bytes are: an export that asked for no
         // re-encoding must not fail over a file that does not decode.
-        Some(kinds::TEXTURE) if config.images != ImageMode::Keep => {
-            recode::image(bytes, config.images)
-        }
-        Some(kinds::AUDIO) if config.audio != AudioMode::Keep => {
-            recode::audio(bytes, config.audio)
-        }
+        Some(kinds::TEXTURE) if images != ImageMode::Keep => recode::image(bytes, images),
+        Some(kinds::AUDIO) if audio != AudioMode::Keep => recode::audio(bytes, audio),
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.
         Some(kinds::FONT)
             if config.fonts == FontMode::Subset
+                && own != Some(words::KEEP)
                 && !path.ends_with(".fnt")
                 && !kept_whole(path, &config.font_keep) =>
         {
             recode::font(bytes, keep)
         }
         _ => Ok(None),
+    }
+}
+
+/// What a file's own import sidecar says about re-encoding, if it says
+/// anything: `recode` beside the file beats the `[export]` mode for it alone,
+/// which is how one picture opts out of a pass the rest of them take.
+fn recode_word(settings: &BTreeMap<String, String>, path: &str) -> Option<String> {
+    let text = settings.get(&balaur::import::sidecar_of(path))?;
+    let table: toml::Table = toml::from_str(text).ok()?;
+    Some(
+        table
+            .get(balaur::import::keys::RECODE)?
+            .as_str()?
+            .to_string(),
+    )
+}
+
+/// The image mode one file is re-encoded under: its own word, or the export's.
+fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
+    match own {
+        None => fallback,
+        Some(words::KEEP) => ImageMode::Keep,
+        Some("png") => ImageMode::Png,
+        Some("webp") => ImageMode::Webp,
+        Some("smallest") => ImageMode::Smallest,
+        Some(other) => {
+            tracing::warn!("recode: '{other}' is not a way to re-encode a picture");
+            fallback
+        }
+    }
+}
+
+/// The audio mode one file is re-encoded under: its own word, or the export's.
+fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
+    match own {
+        None => fallback,
+        Some(words::KEEP) => AudioMode::Keep,
+        Some("flac") => AudioMode::Flac,
+        // A picture's word on a sound is not a mistake worth a warning: one
+        // `[import.texture]` default reaches every file of its own kind only.
+        Some(_) => fallback,
     }
 }
 
@@ -242,6 +289,45 @@ mod tests {
     }
 
     /// Every printable ASCII character, whatever the project's own text holds.
+    /// One picture opts out of the pass the rest of them take.
+    #[test]
+    fn a_files_own_recode_setting_beats_the_export_mode() {
+        use crate::recode::ImageMode;
+        let mut config = ExportConfig::default();
+        config.images = ImageMode::Smallest;
+        let source = sample_png();
+        let mut pack = pack_with("art/kept.png", source.clone());
+        pack.assets.insert("art/shrunk.png".into(), source.clone());
+        pack.scenes
+            .insert("art/kept.png.toml".into(), "recode = \"keep\"\n".into());
+        let summary = prepare(&mut pack, &config).unwrap();
+        assert_eq!(
+            pack.assets["art/kept.png"], source,
+            "the file that asked to be kept is the author's bytes"
+        );
+        assert_eq!(
+            summary.savings.len(),
+            1,
+            "and the other one was still re-encoded"
+        );
+        assert_eq!(summary.savings[0].path, "art/shrunk.png");
+    }
+
+    /// A gradient with enough structure that a re-encode can win.
+    fn sample_png() -> Vec<u8> {
+        let pixels = image::RgbaImage::from_fn(64, 48, |x, y| {
+            image::Rgba([(x * 4 % 256) as u8, (y * 4 % 256) as u8, 0, 255])
+        });
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgba8(pixels)
+            .write_to(
+                &mut std::io::Cursor::new(&mut out),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+        out
+    }
+
     #[test]
     fn the_kept_code_points_always_cover_ascii() {
         let pack = pack_with("art/a.png", Vec::new());

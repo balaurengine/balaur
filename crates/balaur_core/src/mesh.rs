@@ -81,6 +81,39 @@ pub struct MeshSkin {
 /// How many bones may influence one vertex, which is what the shader blends.
 pub const INFLUENCES_PER_VERTEX: usize = 4;
 
+/// Free-form deformation: an offset per vertex, added to a mesh's authored
+/// positions before it is skinned.
+///
+/// Written on a node by a clip's `polygon/deform` track and read by whatever
+/// draws that node, which is why the type is here rather than in either of
+/// them: `balaur_anim` may not depend on `balaur_render`, and the offsets are
+/// per-frame output, not something a scene file carries. A node with no
+/// deform track never gets one.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Deform {
+    /// Flat `[dx, dy, dx, dy, ...]`, in the mesh's own space. Shorter than
+    /// the mesh is legal: the vertices past its end are simply not moved.
+    pub offsets: Vec<f32>,
+}
+
+impl Deform {
+    /// One vertex's offset, or zero for a vertex the track does not reach.
+    #[must_use]
+    pub fn at(&self, vertex: usize) -> [f32; 2] {
+        match (self.offsets.get(vertex * 2), self.offsets.get(vertex * 2 + 1)) {
+            (Some(&x), Some(&y)) => [x, y],
+            _ => [0.0, 0.0],
+        }
+    }
+
+    /// Whether anything is actually displaced. A track that sampled all
+    /// zeroes should cost the same as no track at all.
+    #[must_use]
+    pub fn is_rest(&self) -> bool {
+        self.offsets.iter().all(|&v| v == 0.0)
+    }
+}
+
 /// The `kind` a mesh definition names to be built out of a shaped string.
 pub const TEXT_SHAPE_KIND: &str = "text";
 

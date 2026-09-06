@@ -4,6 +4,12 @@
 //! internally and so lands on the same vertices on every platform; the
 //! triangulation is the engine's own ear clipping. A polygon is a list of
 //! `[x, y]` pairs or vectors, outline order, either winding.
+//!
+//! [`trace`] and [`simplify`] are the shape half of the editor's Trace
+//! button: an alpha mask in, an outline out. They are here rather than in
+//! the renderer because they touch no image format and no GPU — the caller
+//! decodes the picture and hands over booleans — which is what lets a
+//! headless test assert the outline of a square.
 
 use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -13,6 +19,181 @@ use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
 
 use crate::engine::Engine;
+
+/// Every closed boundary between the set and the unset pixels of a mask,
+/// in pixel-corner coordinates with y downward, largest loop first.
+///
+/// Marching the boundary rather than the pixels: each set pixel with an unset
+/// neighbour contributes that one edge, directed so the set side is on the
+/// left, and the edges chain head-to-tail into loops. The result is
+/// watertight and lands on integers, so tracing the same picture twice gives
+/// the same vertices on every platform.
+///
+/// A mask shorter than `width * height` is read as unset past its end, which
+/// is what an image that failed to decode fully looks like.
+#[must_use]
+pub fn trace(mask: &[bool], width: usize, height: usize) -> Vec<Vec<Vec2>> {
+    if width == 0 || height == 0 {
+        return Vec::new();
+    }
+    let set = |x: isize, y: isize| -> bool {
+        if x < 0 || y < 0 || x >= width as isize || y >= height as isize {
+            return false;
+        }
+        mask.get(y as usize * width + x as usize).copied().unwrap_or(false)
+    };
+    // Edges keyed by where they start. A corner where two loops touch
+    // diagonally starts two edges, so the value is a list and a walk takes
+    // whichever is left — which splits the touch into two loops rather than
+    // joining them into one that crosses itself.
+    let mut edges: std::collections::BTreeMap<(i32, i32), Vec<(i32, i32)>> =
+        std::collections::BTreeMap::new();
+    let mut edge = |from: (i32, i32), to: (i32, i32)| {
+        edges.entry(from).or_default().push(to);
+    };
+    for y in 0..height as isize {
+        for x in 0..width as isize {
+            if !set(x, y) {
+                continue;
+            }
+            let (x0, y0) = (x as i32, y as i32);
+            let (x1, y1) = (x0 + 1, y0 + 1);
+            if !set(x, y - 1) {
+                edge((x0, y0), (x1, y0));
+            }
+            if !set(x + 1, y) {
+                edge((x1, y0), (x1, y1));
+            }
+            if !set(x, y + 1) {
+                edge((x1, y1), (x0, y1));
+            }
+            if !set(x - 1, y) {
+                edge((x0, y1), (x0, y0));
+            }
+        }
+    }
+    let mut loops = Vec::new();
+    // `BTreeMap` rather than a hash map: the loop a trace starts from decides
+    // the order of the answer, and that order has to be the same every run.
+    while let Some(&start) = edges.keys().next() {
+        let mut points = Vec::new();
+        let mut at = start;
+        loop {
+            let Some(nexts) = edges.get_mut(&at) else { break };
+            let Some(next) = nexts.pop() else { break };
+            if nexts.is_empty() {
+                edges.remove(&at);
+            }
+            points.push(Vec2::new(at.0 as f32, at.1 as f32));
+            at = next;
+            if at == start {
+                break;
+            }
+        }
+        // Three points is the least that encloses anything; a shorter walk
+        // is a dead end left by a diagonal touch and has no area to keep.
+        if points.len() >= 3 {
+            loops.push(drop_collinear(&points));
+        }
+    }
+    loops.sort_by(|a, b| {
+        doubled_area(b)
+            .abs()
+            .total_cmp(&doubled_area(a).abs())
+            .then_with(|| a.len().cmp(&b.len()))
+    });
+    loops
+}
+
+/// The points of a traced loop with every one that sits on the straight line
+/// between its neighbours removed. A pixel boundary is mostly straight runs,
+/// and this turns each into its two ends before anything else looks at it.
+fn drop_collinear(points: &[Vec2]) -> Vec<Vec2> {
+    let n = points.len();
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let (before, at, after) = (points[(i + n - 1) % n], points[i], points[(i + 1) % n]);
+        let (a, b) = (at - before, after - at);
+        if (a.x * b.y - a.y * b.x).abs() > f32::EPSILON {
+            out.push(at);
+        }
+    }
+    if out.len() >= 3 { out } else { points.to_vec() }
+}
+
+/// Ramer-Douglas-Peucker on a closed loop: drop every point closer than
+/// `tolerance` to the line its kept neighbours span.
+///
+/// The loop is cut at its first point and the one furthest from it, and each
+/// half simplified as an open chain, because RDP needs two fixed ends and a
+/// closed loop has none — cutting anywhere else lets the split itself survive
+/// as a vertex the shape does not need.
+#[must_use]
+pub fn simplify(points: &[Vec2], tolerance: f32) -> Vec<Vec2> {
+    if points.len() < 4 || tolerance <= 0.0 {
+        return points.to_vec();
+    }
+    let first = 0;
+    let second = (1..points.len())
+        .max_by(|&a, &b| {
+            (points[a] - points[first])
+                .length_squared()
+                .total_cmp(&(points[b] - points[first]).length_squared())
+        })
+        .unwrap_or(0);
+    let mut out = Vec::new();
+    let mut half = |from: usize, to: usize| {
+        let chain: Vec<Vec2> = if from < to {
+            points[from..=to].to_vec()
+        } else {
+            points[from..].iter().chain(&points[..=to]).copied().collect()
+        };
+        let mut kept = rdp(&chain, tolerance);
+        // The last point of one half is the first of the other; keeping both
+        // would double every cut vertex.
+        if kept.len() > 1 {
+            kept.pop();
+        }
+        out.extend(kept);
+    };
+    half(first, second);
+    half(second, first);
+    if out.len() >= 3 { out } else { points.to_vec() }
+}
+
+/// RDP on an open chain, keeping both ends.
+fn rdp(points: &[Vec2], tolerance: f32) -> Vec<Vec2> {
+    if points.len() < 3 {
+        return points.to_vec();
+    }
+    let (a, b) = (points[0], points[points.len() - 1]);
+    let mut worst = (0usize, 0.0f32);
+    for (i, &p) in points.iter().enumerate().take(points.len() - 1).skip(1) {
+        let d = point_to_segment(p, a, b);
+        if d > worst.1 {
+            worst = (i, d);
+        }
+    }
+    if worst.1 <= tolerance {
+        return vec![a, b];
+    }
+    let mut out = rdp(&points[..=worst.0], tolerance);
+    out.pop();
+    out.extend(rdp(&points[worst.0..], tolerance));
+    out
+}
+
+/// How far `p` is from the segment `a`-`b`, which is the distance to the
+/// nearer end when the segment has no length to project onto.
+fn point_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f32 {
+    let ab = b - a;
+    let len = ab.length_squared();
+    if len <= f32::EPSILON {
+        return (p - a).length();
+    }
+    let t = ((p - a).dot(ab) / len).clamp(0.0, 1.0);
+    (p - (a + ab * t)).length()
+}
 
 fn point_of(value: &Value) -> Result<Vec2> {
     match value {
@@ -260,6 +441,32 @@ pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
 
 #[cfg(test)]
 mod tests {
+    use super::{simplify, trace};
+
+    /// A filled square, traced and simplified, is four corners — not four
+    /// corners with the two cuts left in twice.
+    #[test]
+    fn a_simplified_loop_names_each_corner_once() {
+        let mask = vec![true; 10 * 10];
+        let outline = trace(&mask, 10, 10).remove(0);
+        let corners = simplify(&outline, 2.0);
+        assert_eq!(corners.len(), 4, "a square has four corners: {corners:?}");
+        for (at, corner) in corners.iter().enumerate() {
+            let next = corners[(at + 1) % corners.len()];
+            assert_ne!(*corner, next, "a corner is repeated");
+        }
+    }
+
+    /// Tracing is the shape of the mask, whatever else is in the picture.
+    #[test]
+    fn a_hole_is_a_loop_of_its_own() {
+        let mut mask = vec![true; 5 * 5];
+        mask[2 * 5 + 2] = false;
+        let loops = trace(&mask, 5, 5);
+        assert_eq!(loops.len(), 2, "the outline and the hole");
+        assert_eq!(loops[1].len(), 4, "the hole is one pixel square");
+    }
+
     use super::*;
 
     fn square(x: f32, y: f32, side: f32) -> Vec<Vec2> {

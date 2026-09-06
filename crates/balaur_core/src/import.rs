@@ -10,9 +10,6 @@
 //! them for nothing and computes the same world, which is why nothing here
 //! is allowed to move an extent.
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 use crate::engine::Engine;
 use crate::project::{ProjectFiles, ProjectManifest};
 
@@ -26,12 +23,12 @@ pub mod kinds {
 }
 
 /// Setting keys, so a reader, the editor and the exporter spell them alike.
+///
+/// A key is here once something reads it: a setting a backend cannot honour
+/// would be a promise the picture does not keep.
 pub mod keys {
     pub const FILTER: &str = "filter";
     pub const SRGB: &str = "srgb";
-    pub const REPEAT: &str = "repeat";
-    pub const MIPMAPS: &str = "mipmaps";
-    pub const PREMULTIPLY: &str = "premultiply";
     pub const RECODE: &str = "recode";
 }
 
@@ -39,9 +36,9 @@ pub mod keys {
 pub mod words {
     pub const NEAREST: &str = "nearest";
     pub const LINEAR: &str = "linear";
-    pub const REPEAT: &str = "repeat";
-    pub const MIRROR: &str = "mirror";
-    pub const CLAMP: &str = "clamp";
+    /// `recode = "keep"`: ship this file's own bytes whatever the export's
+    /// mode is.
+    pub const KEEP: &str = "keep";
 }
 
 /// Which kind a file belongs to, by extension, or `None` for a file no
@@ -53,7 +50,9 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
         .and_then(|e| e.to_str())?
         .to_ascii_lowercase();
     match extension.as_str() {
-        "png" | "jpg" | "jpeg" | "webp" | "bmp" | "tga" => Some(kinds::TEXTURE),
+        // The formats the renderer decodes. A picture in another one is not a
+        // texture here, however an image editor spells it.
+        "png" | "webp" => Some(kinds::TEXTURE),
         "ogg" | "wav" | "mp3" | "flac" => Some(kinds::AUDIO),
         "ttf" | "otf" | "ttc" | "fnt" => Some(kinds::FONT),
         "glb" | "gltf" | "obj" => Some(kinds::MODEL),
@@ -119,14 +118,24 @@ fn defaults(eng: &Engine, path: &str) -> toml::Table {
 ///
 /// Folded into the name a texture is uploaded under, so changing one
 /// image's filter re-uploads that image and leaves the rest alone.
+///
+/// The engine's own digest rather than `DefaultHasher`, whose numbers are not
+/// promised to be the same from one Rust release to the next, and key by key
+/// in sorted order so two tables holding the same settings stamp alike
+/// however they were written.
 #[must_use]
 pub fn stamp(settings: &toml::Table) -> String {
     if settings.is_empty() {
         return String::new();
     }
-    let mut hasher = DefaultHasher::new();
-    settings.to_string().hash(&mut hasher);
-    format!("{:x}", hasher.finish())
+    let mut keys: Vec<&String> = settings.keys().collect();
+    keys.sort_unstable();
+    let mut hash = crate::assets::FNV_OFFSET;
+    for key in keys {
+        hash = crate::assets::digest_bytes(hash, key.as_bytes());
+        hash = crate::assets::digest_bytes(hash, settings[key].to_string().as_bytes());
+    }
+    format!("{hash:016x}")
 }
 
 /// A string setting, or `fallback` when it is missing or of another type.
@@ -154,6 +163,7 @@ mod tests {
     #[test]
     fn a_file_sorts_into_the_kind_its_extension_names() {
         assert_eq!(kind_of("art/hero.PNG"), Some(kinds::TEXTURE));
+        assert_eq!(kind_of("art/photo.jpg"), None, "the engine reads no JPEG");
         assert_eq!(kind_of("sfx/hit.wav"), Some(kinds::AUDIO));
         assert_eq!(kind_of("fonts/pixel.fnt"), Some(kinds::FONT));
         assert_eq!(kind_of("scenes/main.toml"), None);
@@ -170,6 +180,15 @@ mod tests {
     fn a_scene_is_not_mistaken_for_a_sidecar() {
         assert!(!is_sidecar("scenes/main.toml"));
         assert!(!is_sidecar("animations/walk.toml"));
+    }
+
+    /// Two tables holding the same settings are the same settings, so the
+    /// texture they name is uploaded once.
+    #[test]
+    fn the_order_a_table_was_written_in_does_not_change_its_stamp() {
+        let one: toml::Table = toml::from_str("filter = \"nearest\"\nsrgb = false").unwrap();
+        let other: toml::Table = toml::from_str("srgb = false\nfilter = \"nearest\"").unwrap();
+        assert_eq!(stamp(&one), stamp(&other));
     }
 
     #[test]

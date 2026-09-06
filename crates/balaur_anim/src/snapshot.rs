@@ -73,6 +73,9 @@ struct PlayerFrame {
     queue: Vec<String>,
     defined: Vec<(String, String)>,
     finished: String,
+    /// The bone map reference, re-resolved on restore the way the clip is.
+    #[serde(default)]
+    retarget: String,
 }
 
 /// One running tween, generated clip included: a tween that ended between the
@@ -174,6 +177,7 @@ fn capture(eng: &Engine) -> Value {
                     .map(|(name, reference)| (name.clone(), reference.clone()))
                     .collect(),
                 finished: playback.finished.clone(),
+                retarget: playback.retarget_reference.clone(),
             })
             .collect(),
         tweens: state
@@ -234,6 +238,13 @@ fn restore(eng: &Engine, value: &Value) {
         .iter()
         .map(|(_, player)| clip_for(eng, player))
         .collect();
+    // Resolved here, beside the clips and for the same reason: loading takes
+    // the asset cache's borrow. A map that no longer loads leaves the
+    // playhead playing untargeted rather than dropping the frame.
+    let maps: Vec<Option<crate::retarget::Retarget>> = resolved
+        .iter()
+        .map(|(_, player)| map_for(eng, &player.retarget))
+        .collect();
     let tweens: Vec<(TweenId, Tween)> = {
         let world = eng.world();
         let root = eng.root();
@@ -288,8 +299,8 @@ fn restore(eng: &Engine, value: &Value) {
         state.jiggle.insert(entity, chain);
     }
     state.players.clear();
-    for ((entity, player), clip) in resolved.into_iter().zip(clips) {
-        state.players.insert(entity, playback_of(player, clip));
+    for (((entity, player), clip), map) in resolved.into_iter().zip(clips).zip(maps) {
+        state.players.insert(entity, playback_of(player, clip, map));
     }
     state.tweens.clear();
     for (handle, tween) in tweens {
@@ -334,7 +345,29 @@ fn clip_for(eng: &Engine, player: &PlayerFrame) -> Option<std::rc::Rc<Clip>> {
     assets::load_typed::<Clip>(eng, &reference).ok()
 }
 
-fn playback_of(player: PlayerFrame, clip: Option<std::rc::Rc<Clip>>) -> Playback {
+/// The bone map a restored playhead was playing through, re-resolved.
+fn map_for(eng: &Engine, reference: &str) -> Option<crate::retarget::Retarget> {
+    if reference.trim().is_empty() {
+        return None;
+    }
+    let map = assets::load_typed::<crate::retarget::BoneMap>(eng, reference)
+        .inspect_err(|why| tracing::warn!("restoring the bone map '{reference}': {why:#}"))
+        .ok()?;
+    let profile = if map.profile.trim().is_empty() {
+        std::rc::Rc::new(crate::retarget::SkeletonProfile::humanoid())
+    } else {
+        assets::load_typed::<crate::retarget::SkeletonProfile>(eng, &map.profile)
+            .inspect_err(|why| tracing::warn!("restoring a skeleton profile: {why:#}"))
+            .ok()?
+    };
+    Some(crate::retarget::Retarget { map, profile })
+}
+
+fn playback_of(
+    player: PlayerFrame,
+    clip: Option<std::rc::Rc<Clip>>,
+    retarget: Option<crate::retarget::Retarget>,
+) -> Playback {
     let mut playback = Playback {
         library: player.library,
         autoplay: player.autoplay,
@@ -347,6 +380,8 @@ fn playback_of(player: PlayerFrame, clip: Option<std::rc::Rc<Clip>>) -> Playback
         root: player.root,
         queue: player.queue,
         finished: player.finished,
+        retarget,
+        retarget_reference: player.retarget,
         ..Playback::default()
     };
     for (name, reference) in player.defined {

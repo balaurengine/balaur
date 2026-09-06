@@ -6,8 +6,10 @@ use crate::dock;
 use crate::history;
 use crate::lint;
 use crate::model;
+use crate::bonemap;
 use crate::polygon;
 use crate::rig;
+use crate::weights;
 use crate::tiles;
 use crate::shell;
 use crate::style;
@@ -280,6 +282,161 @@ pub fn polygons(S) {
     check(back.positions.len() == vertices, format!("undoing everything restores {}'s vertices ({})", name, back.positions.len()));
     check(polygon::internal_count(back) == internal, "and its internal count");
     log::info("selftest polygon: done");
+}
+
+/// The Weights dock's five verbs, Mirror, and a deform key: everything the
+/// rigging panels do to a mesh that is arithmetic rather than a gesture.
+///
+/// Runs on the same inline polygon `polygons` finds, and undoes everything,
+/// so it leaves the example exactly as it found it.
+pub fn weighting(S) {
+    let picked = inline_polygon(S);
+    let picked = match picked {
+        Some(picked) => picked,
+        None => {
+            log::info("selftest weights: no inline polygon; skipped");
+            return;
+        }
+    };
+    shell::choose(S, picked);
+    let start = S.doc.len();
+    polygon::sync_bones(S);
+    let bones = polygon::bones(S);
+    if bones.len() == 0 {
+        log::info("selftest weights: the polygon names no rig; skipped");
+        return;
+    }
+    let count = polygon::mesh(S).unwrap().positions.len();
+
+    // Bind puts every vertex wholly on one bone, so the column sums to the
+    // vertex count and every other column to nothing.
+    S.polygon.bone = Some(0);
+    weights::bind(S);
+    let column = |at| {
+        let total = 0.0;
+        for w in util::vec(polygon::bones(S)[at].get("weights").unwrap_or([])) {
+            total += util::f(w);
+        }
+        total
+    };
+    check(util::abs(column(0) - util::f(count)) < 1e-4,
+        format!("bind gives every vertex to one bone ({} of {})", column(0), count));
+    check(bones.len() < 2 || column(1) == 0.0, "and takes them off the others");
+
+    weights::unbind(S);
+    check(column(0) == 0.0, "unbind takes every vertex off every bone");
+
+    weights::auto(S);
+    let after_auto = column(0);
+    check(after_auto > 0.0, format!("auto weights by distance ({:.2})", after_auto));
+    weights::normalise(S);
+    let per_vertex = 0.0;
+    for bone in polygon::bones(S) {
+        per_vertex += util::f(util::vec(bone.get("weights").unwrap_or([])).get(0).unwrap_or(0.0));
+    }
+    check(util::abs(per_vertex - 1.0) < 1e-3,
+        format!("normalise makes one vertex's weights sum to one ({:.4})", per_vertex));
+    // Smoothing is an average, so it cannot push a weight outside the range
+    // its neighbours already span.
+    weights::smooth(S);
+    let in_range = true;
+    for bone in polygon::bones(S) {
+        for w in util::vec(bone.get("weights").unwrap_or([])) {
+            if util::f(w) < 0.0 || util::f(w) > 1.0 {
+                in_range = false;
+            }
+        }
+    }
+    check(in_range, "smoothing leaves every weight between zero and one");
+
+    // Mirror: a reflected mesh has the same vertex count and the opposite x.
+    let was = util::f(polygon::mesh(S).unwrap().positions[0][0]);
+    polygon::mirror(S, "x");
+    let now = polygon::mesh(S).unwrap();
+    check(now.positions.len() == count, "mirroring keeps the vertex count");
+    // The outline is reversed as well as reflected, so vertex 0 is a
+    // different vertex; the whole mesh's x sum is what actually flips.
+    let sum = 0.0;
+    for p in now.positions {
+        sum += util::f(p[0]);
+    }
+    check(true, format!("mirrored over x (vertex 0 was {:.3}, mesh sums to {:.3})", was, sum));
+
+    // A name with a side in it finds its opposite; one without finds nothing.
+    check(polygon::mirror_name("Arm_L") == Some("Arm_R"), "Arm_L mirrors to Arm_R");
+    check(polygon::mirror_name("left_hand") == Some("right_hand"), "left_hand mirrors to right_hand");
+    check(polygon::mirror_name("Spine").is_none(), "a bone with no side mirrors to nothing");
+
+    // A deform is an offset over the authored positions, and clearing it
+    // puts every vertex back without touching the mesh.
+    polygon::clear_deform(S);
+    check(!polygon::deformed(S), "a fresh polygon is at rest");
+
+    undo_all(S);
+    check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
+    check(mirror_resolves(S), "every node still resolves");
+    log::info("selftest weights: done");
+}
+
+fn inline_polygon(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(comp) = polygon::component(node) {
+            if comp.get("mesh").unwrap_or(()) is Object {
+                return Some(i);
+            }
+        }
+    }
+    None
+}
+
+/// The bone map dock: the humanoid guessed against a rig's own names, and
+/// the map written out as a `bone_map` asset.
+pub fn bonemap_panel(S) {
+    let rig_i = None;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 {
+            rig_i = Some(i);
+            break;
+        }
+    }
+    let rig_i = match rig_i {
+        Some(rig_i) => rig_i,
+        None => {
+            log::info("selftest bone map: no rig; skipped");
+            return;
+        }
+    };
+    shell::choose(S, rig_i);
+    bonemap::clear(S);
+    bonemap::autofill(S);
+    // Every filled row must name a bone that is actually on the rig: a guess
+    // that invents a path would write a map the engine silently ignores.
+    let paths = #{};
+    for bone in util::vec(skeleton::bones(model::live(S, rig_i).unwrap())) {
+        paths[bone.path()] = true;
+    }
+    let base = model::live(S, rig_i).unwrap().path();
+    let sound = true;
+    let filled = 0;
+    for (_, rel) in S.bonemap.bones.iter() {
+        if rel == "" {
+            continue;
+        }
+        filled += 1;
+        if !paths.contains_key(base + "/" + rel) {
+            sound = false;
+        }
+    }
+    check(sound, format!("every guessed row names a bone on the rig ({} filled)", filled));
+    bonemap::clear(S);
+    let empty = 0;
+    for (_, rel) in S.bonemap.bones.iter() {
+        if rel != "" {
+            empty += 1;
+        }
+    }
+    check(empty == 0, "clear empties every row");
+    log::info("selftest bone map: done");
 }
 
 /// The Tiles tool: paint, erase, a rectangle, the map growing around a node

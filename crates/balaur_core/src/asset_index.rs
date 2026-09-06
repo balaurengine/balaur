@@ -54,10 +54,13 @@ pub fn encode(index: &BTreeMap<String, String>) -> String {
     out
 }
 
+/// Whether a path is a document this index may write into: TOML, and not the
+/// import settings that sit beside a file of another kind.
 fn is_toml(path: &str) -> bool {
     Path::new(path)
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+        && !crate::import::is_sidecar(path)
 }
 
 /// The project a path belongs to: the nearest ancestor holding a

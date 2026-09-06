@@ -51,6 +51,12 @@ struct Slot2d {
     flip: (bool, bool),
     /// A skinned polygon's joint palette, rewritten every frame from the rig.
     skin: Option<crate::skinned_2d::SkinHandle>,
+    /// A polygon's vertex buffer, for the frames a `polygon/deform` track
+    /// has moved its vertices off the mesh's authored positions.
+    deform: Option<crate::skinned_2d::DeformHandle>,
+    /// Whether the last frame wrote a deform, so returning to rest uploads
+    /// the authored positions once instead of every frame after.
+    deformed: bool,
     /// A polyline's pieces with where along the chain each sits, so a
     /// gradient can colour them every frame under the node's tint.
     pieces: Vec<(SceneNode2d, f32)>,
@@ -850,14 +856,54 @@ fn build_polygon_node(
     app: &App,
     scene: &mut SceneNode2d,
     renderable: &Renderable2d,
-) -> Option<(SceneNode2d, Option<crate::skinned_2d::SkinHandle>)> {
+) -> Option<(
+    SceneNode2d,
+    Option<crate::skinned_2d::SkinHandle>,
+    Option<crate::skinned_2d::DeformHandle>,
+)> {
     let polygon = renderable.polygon.as_ref()?;
     if polygon.positions.is_empty() || polygon.indices.is_empty() {
         return None;
     }
-    let (mut node, skin) = crate::skinned_2d::build(scene, polygon);
+    let (mut node, skin, deform) = crate::skinned_2d::build(scene, polygon);
     crate::texture::attach_texture_2d(&app.engine, &mut node, &polygon.texture);
-    Some((node, skin))
+    Some((node, skin, Some(deform)))
+}
+
+/// This frame's vertex positions for a polygon carrying a `Deform`, or
+/// nothing to upload when it carries none.
+///
+/// Answers whether the buffer now holds deformed vertices, so the frame a
+/// deform track stops writing puts the authored positions back exactly once
+/// rather than uploading them again for the rest of the session.
+fn write_deform(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    polygon: &crate::PolygonMesh,
+    handle: &crate::skinned_2d::DeformHandle,
+    was_deformed: bool,
+) -> bool {
+    let deform = world.get::<&balaur_core::mesh::Deform>(entity).ok();
+    let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
+    if !deforming {
+        if was_deformed {
+            handle.set(polygon.positions.iter().map(Vec2::to_array).collect());
+        }
+        return false;
+    }
+    let deform = deform.expect("a deforming node has the component");
+    handle.set(
+        polygon
+            .positions
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let [dx, dy] = deform.at(i);
+                [p.x + dx, p.y + dy]
+            })
+            .collect(),
+    );
+    true
 }
 
 /// The joint matrices a skinned polygon deforms by this frame, resolved
@@ -1056,13 +1102,13 @@ fn sync_2d(
                     build_polyline_node(app, scene, &renderable, width, closed).map(
                         |(node, built)| {
                             pieces = built;
-                            (node, None)
+                            (node, None, None)
                         },
                     )
                 }
-                _ => build_2d_node(scene, &renderable).map(|node| (node, None)),
+                _ => build_2d_node(scene, &renderable).map(|node| (node, None, None)),
             };
-            let Some((mut node, skin)) = built else {
+            let Some((mut node, skin, deform)) = built else {
                 continue;
             };
             if let Some(sprite) = &renderable.sprite {
@@ -1080,6 +1126,8 @@ fn sync_2d(
                     version: renderable.version,
                     flip: (false, false),
                     skin,
+                    deform,
+                    deformed: false,
                     pieces,
                 },
             );
@@ -1096,6 +1144,9 @@ fn sync_2d(
         // Every frame: the rig moved even when nothing about the polygon did.
         if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
             handle.set(polygon_palette(&world, entity, polygon));
+        }
+        if let (Some(handle), Some(polygon)) = (&slot.deform, renderable.polygon.as_deref()) {
+            slot.deformed = write_deform(&world, entity, polygon, handle, slot.deformed);
         }
         tint_pieces(slot, &renderable);
         // Every sync, not just on rebuild: frames and flips are UV changes, so

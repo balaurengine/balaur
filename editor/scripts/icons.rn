@@ -44,6 +44,8 @@ pub fn panel(id) {
         "session" => "\u{e3ee}",
         "profiler" => "\u{e150}",
         "tiles" => "\u{e464}",
+        "weights" => "\u{e3ec}",
+        "bonemap" => "\u{e0b0}",
         _ => "\u{e546}",
     }
 }

@@ -2,6 +2,7 @@
 // shell and edit the game given to `balaur edit`; `S` is its one state object.
 
 mod anim;
+mod bonemap;
 mod center;
 mod chrome;
 mod defs;
@@ -36,6 +37,7 @@ mod theme;
 mod textedit;
 mod tiles;
 mod util;
+mod weights;
 mod viewport;
 
 // Below this many design pixels wide the shell drops every label its icon
@@ -119,6 +121,8 @@ pub fn init(this) {
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        weights: weights::state(),
+        bonemap: bonemap::state(),
         tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),

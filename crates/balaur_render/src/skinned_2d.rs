@@ -58,6 +58,22 @@ impl SkinHandle {
     }
 }
 
+/// A polygon's deformed vertex positions for the coming frame, or `None`
+/// when nothing has moved them since the last upload.
+///
+/// The joint palette rides the object uniform, which is rewritten every
+/// frame anyway; vertex positions are a whole buffer, so they are uploaded
+/// only on the frames a `polygon/deform` track actually changed them. A
+/// polygon with no deform track never sets this and never pays for it.
+#[derive(Clone)]
+pub(crate) struct DeformHandle(Rc<RefCell<Option<Vec<[f32; 2]>>>>);
+
+impl DeformHandle {
+    pub(crate) fn set(&self, positions: Vec<[f32; 2]>) {
+        *self.0.borrow_mut() = Some(positions);
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 struct FrameUniforms {
@@ -88,7 +104,7 @@ fn padded(m: &Mat3) -> [[f32; 4]; 3] {
 pub(crate) fn build(
     scene: &mut SceneNode2d,
     polygon: &PolygonMesh,
-) -> (SceneNode2d, Option<SkinHandle>) {
+) -> (SceneNode2d, Option<SkinHandle>, DeformHandle) {
     let ctxt = Context::get();
     let count = polygon.positions.len();
     let positions: Vec<[f32; 2]> = polygon.positions.iter().map(Vec2::to_array).collect();
@@ -118,12 +134,15 @@ pub(crate) fn build(
         mapped_at_creation: false,
     });
     let palette = Rc::new(RefCell::new(Vec::new()));
+    let deform = Rc::new(RefCell::new(None));
     let material = SkinnedMaterial::new(
         Buffers {
             positions: buffer(
                 "polygon_positions",
                 bytemuck::cast_slice(&positions),
-                wgpu::BufferUsages::VERTEX,
+                // Writable, because a `polygon/deform` track rewrites it in
+                // place rather than rebuilding the whole node each frame.
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             ),
             uvs: buffer(
                 "polygon_uvs",
@@ -149,6 +168,7 @@ pub(crate) fn build(
             object_uniform,
         },
         Rc::clone(&palette),
+        Rc::clone(&deform),
     );
     let material: Rc<RefCell<Box<dyn Material2d + 'static>>> =
         Rc::new(RefCell::new(Box::new(material)));
@@ -165,7 +185,7 @@ pub(crate) fn build(
     let node = SceneNode2d::new(Vec2::ONE, Pose2::IDENTITY, Some(object));
     scene.add_child(node.clone());
     let handle = polygon.skin.is_some().then_some(SkinHandle(palette));
-    (node, handle)
+    (node, handle, DeformHandle(deform))
 }
 
 struct Buffers {
@@ -201,6 +221,7 @@ struct SkinnedMaterial {
     texture_layout: wgpu::BindGroupLayout,
     buffers: Buffers,
     palette: Rc<RefCell<Vec<Mat3>>>,
+    deform: Rc<RefCell<Option<Vec<[f32; 2]>>>>,
 }
 
 fn uniform_entry(binding: u32, visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayoutEntry {
@@ -284,7 +305,11 @@ fn build_pipeline(
 }
 
 impl SkinnedMaterial {
-    fn new(buffers: Buffers, palette: Rc<RefCell<Vec<Mat3>>>) -> Self {
+    fn new(
+        buffers: Buffers,
+        palette: Rc<RefCell<Vec<Mat3>>>,
+        deform: Rc<RefCell<Option<Vec<[f32; 2]>>>>,
+    ) -> Self {
         let ctxt = Context::get();
         let (frame_layout, object_layout, texture_layout) = bind_group_layouts(&ctxt);
         let pipeline_layout = ctxt.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -320,7 +345,21 @@ impl SkinnedMaterial {
             texture_layout,
             buffers,
             palette,
+            deform,
         }
+    }
+
+    /// Upload the deformed positions a `polygon/deform` track left for this
+    /// frame, and take them: a frame that deformed nothing writes nothing.
+    fn write_deform(&self) {
+        let Some(positions) = self.deform.borrow_mut().take() else {
+            return;
+        };
+        Context::get().write_buffer(
+            &self.buffers.positions,
+            0,
+            bytemuck::cast_slice(&positions),
+        );
     }
 
     /// The per-object uniform: the node's pose and scale as one matrix, its
@@ -377,6 +416,7 @@ impl Material2d for SkinnedMaterial {
         };
         ctxt.write_buffer(&self.frame_uniform, 0, bytemuck::bytes_of(&frame));
         self.write_object(transform, scale, data);
+        self.write_deform();
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<SkinnedGpuData>()

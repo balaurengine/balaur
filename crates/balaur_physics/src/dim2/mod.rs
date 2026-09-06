@@ -429,6 +429,7 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
         ("max_contact_impulse", &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
         ("overlaps", &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
+    crate::ragdoll::install_ragdoll_api(m, false);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
     m.function(

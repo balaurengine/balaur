@@ -376,7 +376,9 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
     let (time, over) = sampler::clip_time(&clip, tween.time);
     if !tween.value {
         let pose = sampler::sample(&clip, time);
-        crate::system::write_pose(world, tween.node, "", &clip, &pose, effects);
+        // A tween is generated against the node it plays on, so there is
+        // nothing to retarget: its tracks already name that rig.
+        crate::system::write_pose(world, tween.node, "", None, &clip, &pose, effects);
         crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
     }
     if !over {

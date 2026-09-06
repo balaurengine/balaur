@@ -839,6 +839,17 @@ pub fn index_of_live(S, node) {
     None
 }
 
+// The document index of the node at an absolute scene path, for a tool
+// holding a live node and needing the document row behind it.
+pub fn index_of_path(S, path) {
+    for (i, found) in S.refs.iter().enumerate() {
+        if found is balaur::Node && found.is_valid() && found.path() == path {
+            return Some(i);
+        }
+    }
+    None
+}
+
 pub fn selected(S) {
     (S.doc[S.sel], live(S, S.sel))
 }
@@ -1015,6 +1026,58 @@ pub fn add_child(S, preset) {
         S.refs.push(());
     }
     S.sel = S.doc.len() - 1;
+}
+
+// Take a live subtree the engine built into the document, so it lands in the
+// tree, the inspector and the saved scene like anything the editor made.
+//
+// An engine call that spawns nodes — `physics2d.ragdoll` is the first — has
+// no way to write document rows, and a row is what the editor edits. Nodes
+// already mirrored are left alone, so calling this twice is not two copies.
+pub fn adopt(S, found, parent_i) {
+    if !(found is balaur::Node && found.is_valid()) {
+        return None;
+    }
+    let at = index_of_path(S, found.path());
+    let index = match at {
+        Some(at) => at,
+        None => {
+            let name = found.name();
+            let entry = #{
+                id: fresh_id(S.doc, name),
+                name: name,
+                parent: match parent_i {
+                    Some(parent_i) => S.doc[parent_i].get("id").unwrap_or(""),
+                    None => "",
+                },
+                position: util::xyz(found.position()),
+                rotation_euler: util::xyz(found.rotation_euler()),
+                scale: util::xyz(found.scale()),
+            };
+            for component in found.component_names() {
+                entry[component] = found.get_component(component);
+            }
+            S.doc.push(entry);
+            S.refs.push(found);
+            S.doc.len() - 1
+        }
+    };
+    for child in found.children() {
+        adopt(S, child, Some(index));
+    }
+    Some(index)
+}
+
+// Re-read one node's components off the live tree into its document row, for
+// an engine call that wrote a component the editor did not.
+pub fn adopt_components(S, i) {
+    let found = match live(S, i) {
+        Some(found) => found,
+        None => return,
+    };
+    for component in found.component_names() {
+        S.doc[i][component] = found.get_component(component);
+    }
 }
 
 // Attach the game's scripts to the mirrored nodes (absolute paths, so the

@@ -25,6 +25,12 @@ pub const ASSET_EXTENSIONS: &[&str] = &[
 /// bytes went, few enough to read at a glance.
 const LARGEST_ENTRIES: usize = 10;
 
+/// Directories the engine reads by listing rather than by reference, so
+/// nothing in a scene names their contents: `balaur_ui` loads every face under
+/// `fonts/` when the UI starts. Stripping one of these would take a project's
+/// text away with it.
+pub const LOADED_WHOLE: &[&str] = &["fonts/"];
+
 /// A content hash, so a decoded pack can prove an entry arrived intact and a
 /// materialised file can be cached under a name that changes with its bytes.
 #[must_use]
@@ -307,6 +313,9 @@ impl Pack {
     /// it, or an `id://` the project's index resolves to it. `keep` holds
     /// globs — `*` inside a path segment, `**` across them — for the paths a
     /// script computes instead of writing.
+    ///
+    /// A file under [`LOADED_WHOLE`] is never reported: the engine finds those
+    /// by listing the directory, so no document names one.
     #[must_use]
     pub fn unreferenced(&self, keep: &[String]) -> Vec<String> {
         let references = self.references();
@@ -314,6 +323,7 @@ impl Pack {
             .keys()
             .filter(|key| {
                 !is_referenced(key, &references)
+                    && !LOADED_WHOLE.iter().any(|dir| key.starts_with(dir))
                     && !keep.iter().any(|pattern| glob_matches(pattern, key))
             })
             .cloned()
