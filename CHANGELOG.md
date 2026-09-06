@@ -176,6 +176,11 @@ notes are that version's section.
 - Rigging panels: a Weights dock with auto and smooth weights, modifier gizmos, bone names in the viewport, and Mirror in both tools. A mesh traced from a texture's alpha, deform keys, a Bone map dock, and Create Physical Skeleton.
 - The Tiles tool: a palette cut from the tile set, paint, erase, rectangle fill, layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
+- Script completion, hover and signature help in the Script persona and in `balaur lsp`.
+- Go-to-definition with cmd+B, document symbols, find references, and a Docs dock rendering the reference from the live engine.
+- `balaur fmt` formats a project's scripts; alt+shift+F formats the visible buffer.
+- Rename across the files a script's `mod` declarations reach, with the matches listed first; cmd+shift+R.
+- A VS Code extension in `editors/code` over the same server, with Neovim and Zed recipes.
 - Profiler dock; `--timings`.
 - Showcase and UI audit scripts.
 - Stage shell with tabbed, resizable, animated docks.

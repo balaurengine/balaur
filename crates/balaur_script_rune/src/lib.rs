@@ -20,6 +20,7 @@ mod packed;
 mod pause;
 mod profile;
 mod script_module;
+mod shared;
 mod task;
 mod tooling;
 mod value;
@@ -48,11 +49,10 @@ pub use inspect::Finding;
 use inspect::{PublicSignature, public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
-pub use tooling::{
-    At, Completion, Hover, Kind, Location, Symbol, classify, line_col_of, offset_of,
-};
 use script_module::script_module;
+use shared::{SHARED_FNS, trampoline};
 use task::WaitFuture;
+pub use tooling::{Completion, Hover, Kind, Location, Symbol, offset_of};
 pub use value::{Color, Node, Vec2, Vec3};
 
 /// The Rune backend, as an `AppConfig::script_backend` factory.
@@ -248,54 +248,6 @@ thread_local! {
     /// live as long as the thread; a test spawning many apps leaks a few
     /// handles, which the process outlives.
     static HOSTS: RefCell<Vec<RuneHost>> = const { RefCell::new(Vec::new()) };
-
-    /// The functions behind `script::require`'s exports. A required module's
-    /// entries are native trampolines holding only a slot here, because a
-    /// unit-bound `Function` value called from *inside another unit's* VM
-    /// execution dispatches into the wrong unit; a call routed through Rust
-    /// lands correctly.
-    static SHARED_FNS: RefCell<Vec<Function>> = const { RefCell::new(Vec::new()) };
-}
-
-/// A native function forwarding to `SHARED_FNS[slot]` with `arity` args.
-/// Arity is fixed per wrapper because Rune native functions are typed;
-/// script-model functions keep their whole signature on one line, which is
-/// where the arity was read from.
-fn trampoline(slot: usize, arity: usize) -> Option<Function> {
-    fn relay(slot: usize, args: Vec<rune::Value>) -> rune::Value {
-        // Cloned out before the call: the callee may itself require.
-        let function = SHARED_FNS.with(|f| f.borrow()[slot].try_clone().ok());
-        let outcome = function.map(|f| f.call::<rune::Value>(args).into_result());
-        match outcome {
-            Some(Ok(value)) => value,
-            Some(Err(err)) => {
-                tracing::error!("a required function failed: {err}");
-                rune::to_value(()).expect("unit always converts")
-            }
-            None => rune::to_value(()).expect("unit always converts"),
-        }
-    }
-    Some(match arity {
-        0 => Function::new(move || relay(slot, Vec::new())),
-        1 => Function::new(move |a: rune::Value| relay(slot, vec![a])),
-        2 => Function::new(move |a: rune::Value, b: rune::Value| relay(slot, vec![a, b])),
-        3 => Function::new(move |a: rune::Value, b: rune::Value, c: rune::Value| {
-            relay(slot, vec![a, b, c])
-        }),
-        4 => Function::new(
-            move |a: rune::Value, b: rune::Value, c: rune::Value, d: rune::Value| {
-                relay(slot, vec![a, b, c, d])
-            },
-        ),
-        5 => Function::new(
-            move |a: rune::Value,
-                  b: rune::Value,
-                  c: rune::Value,
-                  d: rune::Value,
-                  e: rune::Value| { relay(slot, vec![a, b, c, d, e]) },
-        ),
-        _ => return None,
-    })
 }
 
 struct State {

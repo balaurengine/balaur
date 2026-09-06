@@ -161,59 +161,54 @@ impl Server {
                     self.publish(writer)?;
                 }
             }
-            "textDocument/completion" => {
-                let items = self.at(&message["params"], |host, key, source, line, column| {
-                    Ok(host
-                        .complete(key, source, line, column)?
-                        .iter()
-                        .map(completion)
-                        .collect())
-                });
+            // Every other request answers with one value, or `null`: a
+            // client that waits for an answer hangs without one.
+            _ if id.is_some() => {
+                let result = self.answer(method, &message["params"]);
                 write_message(
                     writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": result }),
                 )?;
             }
-            "textDocument/hover" => {
-                let found = self.one(&message["params"], |host, key, source, line, column| {
-                    Ok(host.hover(key, source, line, column)?.map(|h| {
-                        json!({ "contents": { "kind": "markdown", "value": markdown(&h) } })
+            _ => {}
+        }
+        Ok(false)
+    }
+
+    /// The answer to one request, or `Json::Null` for a method we do not
+    /// serve. Split from `handle`, which is then about the document's
+    /// lifecycle and the frames around it.
+    fn answer(&self, method: &str, params: &Json) -> Json {
+        match method {
+            "textDocument/completion" => self.at(params, |host, key, source, line, column| {
+                Ok(host
+                    .complete(key, source, line, column)?
+                    .iter()
+                    .map(completion)
+                    .collect())
+            }),
+            "textDocument/hover" => self.one(params, |host, key, source, line, column| {
+                Ok(host
+                    .hover(key, source, line, column)?
+                    .map(|h| json!({ "contents": { "kind": "markdown", "value": markdown(&h) } })))
+            }),
+            "textDocument/signatureHelp" => self.one(params, |host, key, source, line, column| {
+                Ok(host
+                    .signature_help(key, source, line, column)?
+                    .map(|(h, active)| {
+                        json!({
+                            "signatures": [{
+                                "label": format!("{}{}", h.title, h.detail),
+                                "documentation": h.doc,
+                            }],
+                            "activeSignature": 0,
+                            "activeParameter": active,
+                        })
                     }))
-                });
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
-                )?;
-            }
-            "textDocument/signatureHelp" => {
-                let found = self.one(&message["params"], |host, key, source, line, column| {
-                    Ok(host
-                        .signature_help(key, source, line, column)?
-                        .map(|(h, active)| {
-                            json!({
-                                "signatures": [{
-                                    "label": format!("{}{}", h.title, h.detail),
-                                    "documentation": h.doc,
-                                }],
-                                "activeSignature": 0,
-                                "activeParameter": active,
-                            })
-                        }))
-                });
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
-                )?;
-            }
-            "textDocument/formatting" => {
-                let edit = self.formatting(&message["params"]);
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": edit }),
-                )?;
-            }
+            }),
+            "textDocument/formatting" => self.formatting(params),
             "textDocument/definition" => {
-                let found = self.one(&message["params"], |host, key, source, line, column| {
+                self.one(params, |host, key, source, line, column| {
                     // A definition with no file is engine API; the URL is
                     // what a client should open, so it goes back as one.
                     Ok(host.definition(key, source, line, column)?.map(|d| {
@@ -223,74 +218,43 @@ impl Server {
                             json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })
                         }
                     }))
-                });
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
-                )?;
+                })
             }
-            "textDocument/documentSymbol" => {
-                let items = self.whole(&message["params"], |host, key, source| {
-                    Ok(host
-                        .symbols(key, source)?
-                        .iter()
-                        .map(|one| {
-                            json!({
-                                "name": one.name,
-                                "kind": if one.kind == balaur::rune::Kind::Function { 12 } else { 7 },
-                                "detail": one.detail,
-                                "range": span(one.line.max(1), one.column),
-                                "selectionRange": span(one.line.max(1), one.column),
-                            })
+            "textDocument/documentSymbol" => self.whole(params, |host, key, source| {
+                Ok(host
+                    .symbols(key, source)?
+                    .iter()
+                    .map(|one| {
+                        json!({
+                            "name": one.name,
+                            "kind": if one.kind == balaur::rune::Kind::Function { 12 } else { 7 },
+                            "detail": one.detail,
+                            "range": span(one.line.max(1), one.column),
+                            "selectionRange": span(one.line.max(1), one.column),
                         })
-                        .collect())
-                });
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
-                )?;
-            }
-            "textDocument/references" => {
-                let items = self.at(&message["params"], |host, key, source, line, column| {
-                    let offset = balaur::rune::offset_of(source, line, column);
-                    let name = word_at(source, offset);
-                    if name.is_empty() {
-                        return Ok(Vec::new());
-                    }
-                    Ok(host
-                        .references(key, source, &name)?
-                        .iter()
-                        .map(|one| {
-                            json!({
-                                "uri": self.uri_of(&one.file),
-                                "range": span(one.line, one.column),
-                            })
+                    })
+                    .collect())
+            }),
+            "textDocument/references" => self.at(params, |host, key, source, line, column| {
+                let offset = balaur::rune::offset_of(source, line, column);
+                let name = word_at(source, offset);
+                if name.is_empty() {
+                    return Ok(Vec::new());
+                }
+                Ok(host
+                    .references(key, source, &name)?
+                    .iter()
+                    .map(|one| {
+                        json!({
+                            "uri": self.uri_of(&one.file),
+                            "range": span(one.line, one.column),
                         })
-                        .collect())
-                });
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
-                )?;
-            }
-            "textDocument/rename" => {
-                let edit = self.rename(&message["params"]);
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": edit }),
-                )?;
-            }
-            // A request we do not serve still needs an answer, or a client
-            // that waits for one hangs.
-            _ if id.is_some() => {
-                write_message(
-                    writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": null }),
-                )?;
-            }
-            _ => {}
+                    })
+                    .collect())
+            }),
+            "textDocument/rename" => self.rename(params),
+            _ => Json::Null,
         }
-        Ok(false)
     }
 
     /// Run `f` for the file and position a request names, answering `null`

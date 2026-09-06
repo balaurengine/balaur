@@ -106,7 +106,7 @@ pub struct Location {
 
 /// What the caret sits after, which decides what may follow it.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum At {
+pub(crate) enum At {
     /// `physics2d::ray|` — an engine module's own name is known.
     Module { module: String, prefix: String },
     /// `node.body2d.app|` — the receiver named a registered component.
@@ -134,27 +134,15 @@ pub fn offset_of(source: &str, line: usize, column: usize) -> usize {
     for (n, text) in source.split('\n').enumerate() {
         if n + 1 == line.max(1) {
             let want = column.saturating_sub(1);
-            let mut taken = 0;
-            for (i, _) in text.char_indices() {
-                if taken == want {
-                    return at + i;
-                }
-                taken += 1;
-            }
-            return at + text.len();
+            return at
+                + text
+                    .char_indices()
+                    .nth(want)
+                    .map_or_else(|| text.len(), |(i, _)| i);
         }
         at += text.len() + 1;
     }
     source.len()
-}
-
-/// The 1-based line and column of a byte offset.
-pub fn line_col_of(source: &str, offset: usize) -> (usize, usize) {
-    let offset = offset.min(source.len());
-    let before = &source[..offset];
-    let line = before.matches('\n').count() + 1;
-    let start = before.rfind('\n').map_or(0, |at| at + 1);
-    (line, source[start..offset].chars().count() + 1)
 }
 
 fn is_word(c: char) -> bool {
@@ -176,7 +164,7 @@ fn word_before(source: &str, offset: usize) -> (&str, usize) {
 ///
 /// A receiver chain is walked backwards one segment at a time, so
 /// `node.body2d.` reports the component and `get_node("Hip").` does not.
-pub fn classify(source: &str, offset: usize) -> At {
+pub(crate) fn classify(source: &str, offset: usize) -> At {
     let (prefix, start) = word_before(source, offset);
     let prefix = prefix.to_string();
     let head = &source[..start];
@@ -233,7 +221,10 @@ const GENERIC: &[(&str, &str)] = &[
     ("get", "Read one of the component's properties by name."),
     ("set", "Write one of the component's properties by name."),
     ("has", "Whether the node carries this component."),
-    ("add", "Give the node this component, with the given properties."),
+    (
+        "add",
+        "Give the node this component, with the given properties.",
+    ),
     ("remove", "Take this component off the node."),
     ("props", "Every property of this component, as an object."),
 ];
@@ -253,13 +244,13 @@ impl RuneHost {
         let at = classify(source, offset_of(source, line, column));
         let mut out = Vec::new();
         match &at {
-            At::Module { module, prefix } => self.complete_module(module, prefix, &mut out),
+            At::Module { module, prefix } => Self::complete_module(module, prefix, &mut out),
             At::Handle { component, prefix } => {
                 Self::complete_handle(component, prefix, &mut out);
             }
             At::This { prefix } => self.complete_this(key, source, prefix, &mut out),
             At::Instance { prefix } => self.complete_instance(prefix, &mut out)?,
-            At::Bare { prefix } => self.complete_bare(key, source, prefix, &mut out)?,
+            At::Bare { prefix } => self.complete_bare(key, source, prefix, &mut out),
         }
         out.sort_by(|a, b| a.label.cmp(&b.label));
         out.dedup_by(|a, b| a.label == b.label && a.kind == b.kind);
@@ -268,7 +259,7 @@ impl RuneHost {
 
     /// `physics2d::` — that module's functions and constants, and nothing
     /// else: a module path admits no locals.
-    fn complete_module(&self, module: &str, prefix: &str, out: &mut Vec<Completion>) {
+    fn complete_module(module: &str, prefix: &str, out: &mut Vec<Completion>) {
         let modules = collect_modules();
         let Some(found) = modules.get(module) else {
             return;
@@ -424,13 +415,7 @@ impl RuneHost {
 
     /// A bare prefix: module names, this file's own functions and the locals
     /// its unit compiled, `use` paths, and keywords.
-    fn complete_bare(
-        &self,
-        key: &str,
-        source: &str,
-        prefix: &str,
-        out: &mut Vec<Completion>,
-    ) -> Result<()> {
+    fn complete_bare(&self, key: &str, source: &str, prefix: &str, out: &mut Vec<Completion>) {
         for (name, module) in collect_modules() {
             if !name.starts_with(prefix) {
                 continue;
@@ -487,7 +472,6 @@ impl RuneHost {
                 });
             }
         }
-        Ok(())
     }
 
     /// `source` formatted, or the message saying why it could not be.
@@ -531,12 +515,12 @@ impl RuneHost {
         if name.is_empty() {
             return Ok(None);
         }
-        Ok(self.describe(key, source, &source[..start], name))
+        Ok(Self::describe(key, source, &source[..start], name))
     }
 
     /// The one thing `name` means, given what precedes it. The same four
     /// sources completion reads, asked for one answer instead of a list.
-    fn describe(&self, key: &str, source: &str, head: &str, name: &str) -> Option<Hover> {
+    fn describe(key: &str, source: &str, head: &str, name: &str) -> Option<Hover> {
         let modules = collect_modules();
         if let Some(before) = head.strip_suffix("::") {
             let (module, _) = word_before(before, before.len());
@@ -730,7 +714,7 @@ impl RuneHost {
             if rel == key {
                 continue;
             }
-            if let Some(text) = self.source_of(&rel).ok() {
+            if let Ok(text) = self.source_of(&rel) {
                 files.push((rel, text));
             }
         }
@@ -799,7 +783,7 @@ impl RuneHost {
             // Right to left, so an earlier hit's column still points at the
             // character it did before a longer name was written after it.
             let mut sorted = hits;
-            sorted.sort_by(|a, b| (b.line, b.column).cmp(&(a.line, a.column)));
+            sorted.sort_by_key(|hit| std::cmp::Reverse((hit.line, hit.column)));
             for hit in sorted {
                 let Some(line) = lines.get_mut(hit.line.saturating_sub(1)) else {
                     continue;
@@ -845,7 +829,7 @@ impl RuneHost {
                 if seen.contains(&child) {
                     continue;
                 }
-                if let Some(found) = self.source_of(&child).ok() {
+                if let Ok(found) = self.source_of(&child) {
                     queue.push((child, found));
                 }
             }
@@ -887,9 +871,7 @@ impl RuneHost {
         if name.is_empty() {
             return Ok(None);
         }
-        Ok(self
-            .describe(key, source, &source[..start], name)
-            .map(|found| (found, active)))
+        Ok(Self::describe(key, source, &source[..start], name).map(|found| (found, active)))
     }
 
     /// Every function the unit compiled for this source, `mod` files
@@ -920,7 +902,11 @@ fn locals_before(source: &str, prefix: &str) -> BTreeSet<String> {
         let Some(rest) = line.trim_start().strip_prefix("let ") else {
             continue;
         };
-        let name: String = rest.trim_start().chars().take_while(|c| is_word(*c)).collect();
+        let name: String = rest
+            .trim_start()
+            .chars()
+            .take_while(|c| is_word(*c))
+            .collect();
         if !name.is_empty() && name.starts_with(prefix) {
             out.insert(name);
         }
@@ -963,7 +949,10 @@ pub(crate) fn symbol_rows(found: &[Symbol]) -> Result<rune::Value> {
             ("name", rune::to_value(one.name.clone())?),
             ("kind", rune::to_value(one.kind.name())?),
             ("detail", rune::to_value(one.detail.clone())?),
-            ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+            (
+                "line",
+                rune::to_value(i64::try_from(one.line).unwrap_or(0))?,
+            ),
             (
                 "column",
                 rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
@@ -980,7 +969,10 @@ pub(crate) fn location_row(found: Option<&Location>) -> Result<rune::Value> {
     };
     row(&[
         ("file", rune::to_value(one.file.clone())?),
-        ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+        (
+            "line",
+            rune::to_value(i64::try_from(one.line).unwrap_or(0))?,
+        ),
         (
             "column",
             rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
@@ -1001,10 +993,7 @@ pub(crate) fn location_rows(found: &[Location]) -> Result<rune::Value> {
 fn row(fields: &[(&str, rune::Value)]) -> Result<rune::Value> {
     let mut object = rune::runtime::Object::new();
     for (key, value) in fields {
-        object.insert(
-            rune::alloc::String::try_from(*key)?,
-            value.clone(),
-        )?;
+        object.insert(rune::alloc::String::try_from(*key)?, value.clone())?;
     }
     Ok(rune::to_value(object)?)
 }

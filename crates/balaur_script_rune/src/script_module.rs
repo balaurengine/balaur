@@ -7,8 +7,9 @@ use anyhow::Result;
 use rune::runtime::Function;
 
 use crate::inspect::{export_rows, finding_rows};
+use crate::shared::{SHARED_FNS, trampoline};
 use crate::tooling::{completion_rows, hover_row, location_row, location_rows, symbol_rows};
-use crate::{HOSTS, RuneHost, SHARED_FNS, trampoline};
+use crate::{HOSTS, RuneHost};
 
 /// Everything a script may ask about — or borrow from — another script.
 ///
@@ -36,6 +37,44 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
+    // `script::shared(f, arity)` — a callback made in this unit, callable
+    // from another unit's VM. Arity is explicit: a wrapper is typed.
+    script
+        .function("shared", |f: Function, arity: i64| -> rune::Value {
+            let arity = usize::try_from(arity).unwrap_or(usize::MAX);
+            let wrapped = SHARED_FNS.with(|shared| {
+                let mut shared = shared.borrow_mut();
+                shared.push(f);
+                trampoline(shared.len() - 1, arity)
+            });
+            if let Some(function) = wrapped {
+                return rune::to_value(function).expect("a function always converts");
+            }
+            tracing::error!("script::shared: arity {arity} is past the five rune allows");
+            rune::to_value(()).expect("unit always converts")
+        })
+        .build()?;
+    // `let (ok, value) = script::attempt(|| risky())`: the closure's
+    // error becomes a value instead of ending the caller, which is what
+    // a tool wants from a call that may legitimately fail.
+    script
+        .function("attempt", |f: Function| -> rune::Value {
+            let outcome = match f.call::<rune::Value>(()).into_result() {
+                Ok(value) => rune::to_value((true, value)),
+                Err(err) => rune::to_value((false, err.to_string())),
+            };
+            outcome.expect("a tuple always converts")
+        })
+        .build()?;
+    inspection_verbs(&mut script, slot)?;
+    tooling_verbs(&mut script, slot)?;
+    Ok(script)
+}
+
+/// What a tool asks about a file: what it declares, what is wrong with it,
+/// and what it exports. Split from `script_module` so each stays about one
+/// thing.
+fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     // `script::functions("scripts/lib.rn")` — what that script declares,
     // so a tool reads the host's own signatures instead of parsing.
     script
@@ -139,7 +178,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
                 let (line, column) = at(line, column);
                 match host
                     .signature_help(&RuneHost::normalize_key(path), source, line, column)
-                    .and_then(|found| signature_row(found))
+                    .and_then(signature_row)
                 {
                     Ok(value) => value,
                     Err(err) => {
@@ -150,6 +189,13 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             },
         )
         .build()?;
+    Ok(())
+}
+
+/// The verbs an editor asks about a caret: what completes, what is under
+/// it, where it is defined, what a file declares, and the two that write.
+/// Split from `script_module` so each stays about one thing.
+fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     // `script::api()` — every module scripts can reach, as the JSON string
     // `balaur api` prints. The Docs dock reads the live engine through this,
     // so a plugin's own module is in the reference the editor shows.
@@ -208,22 +254,19 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
     // appears as a whole word across the `mod` graph. Textual, so a caller
     // shows the list before writing anything.
     script
-        .function(
-            "references",
-            move |path: &str, source: &str, name: &str| {
-                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-                match host
-                    .references(&RuneHost::normalize_key(path), source, name)
-                    .and_then(|found| location_rows(&found))
-                {
-                    Ok(value) => value,
-                    Err(err) => {
-                        tracing::error!("script::references({path}): {err}");
-                        rune::to_value(()).expect("unit always converts")
-                    }
+        .function("references", move |path: &str, source: &str, name: &str| {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match host
+                .references(&RuneHost::normalize_key(path), source, name)
+                .and_then(|found| location_rows(&found))
+            {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::error!("script::references({path}): {err}");
+                    rune::to_value(()).expect("unit always converts")
                 }
-            },
-        )
+            }
+        })
         .build()?;
     // `script::rename(path, source, from, to)` — every file a rename would
     // rewrite, as `[#{ file, source }]`. Nothing is written: the caller shows
@@ -260,36 +303,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
-    // `script::shared(f, arity)` — a callback made in this unit, callable
-    // from another unit's VM. Arity is explicit: a wrapper is typed.
-    script
-        .function("shared", |f: Function, arity: i64| -> rune::Value {
-            let arity = usize::try_from(arity).unwrap_or(usize::MAX);
-            let wrapped = SHARED_FNS.with(|shared| {
-                let mut shared = shared.borrow_mut();
-                shared.push(f);
-                trampoline(shared.len() - 1, arity)
-            });
-            if let Some(function) = wrapped {
-                return rune::to_value(function).expect("a function always converts");
-            }
-            tracing::error!("script::shared: arity {arity} is past the five rune allows");
-            rune::to_value(()).expect("unit always converts")
-        })
-        .build()?;
-    // `let (ok, value) = script::attempt(|| risky())`: the closure's
-    // error becomes a value instead of ending the caller, which is what
-    // a tool wants from a call that may legitimately fail.
-    script
-        .function("attempt", |f: Function| -> rune::Value {
-            let outcome = match f.call::<rune::Value>(()).into_result() {
-                Ok(value) => rune::to_value((true, value)),
-                Err(err) => rune::to_value((false, err.to_string())),
-            };
-            outcome.expect("a tuple always converts")
-        })
-        .build()?;
-    Ok(script)
+    Ok(())
 }
 
 /// A script counts lines and columns from one, and a negative one is a caller
@@ -311,7 +325,10 @@ fn signature_row(found: Option<(crate::Hover, usize)>) -> Result<rune::Value> {
         ("title", rune::to_value(one.title)?),
         ("detail", rune::to_value(one.detail)?),
         ("doc", rune::to_value(one.doc)?),
-        ("active", rune::to_value(i64::try_from(active).unwrap_or(0))?),
+        (
+            "active",
+            rune::to_value(i64::try_from(active).unwrap_or(0))?,
+        ),
     ] {
         object.insert(rune::alloc::String::try_from(key)?, value)?;
     }

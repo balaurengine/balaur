@@ -677,7 +677,10 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
                     Value::Map(vec![
                         (k::X.into(), Value::Num(f64::from(c.x / scale))),
                         (k::Y.into(), Value::Num(f64::from(c.y / scale))),
-                        (k::INDEX.into(), Value::Int(c.index as i64)),
+                        (
+                            k::INDEX.into(),
+                            Value::Int(i64::try_from(c.index).unwrap_or(i64::MAX)),
+                        ),
                     ])
                 });
                 Ok((text, changed, clicked, caret))

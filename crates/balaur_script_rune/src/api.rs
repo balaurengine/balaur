@@ -91,6 +91,25 @@ pub(crate) fn collect_modules() -> BTreeMap<String, Module> {
 /// Takes the `Module` map it is filling rather than a `Bindings`, because
 /// there is no plugin here whose declarations something could record.
 fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
+    script_entries(modules);
+    task_entries(modules);
+    for (module, doc) in [
+        (
+            "script",
+            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+        ),
+        (
+            "task",
+            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+        ),
+    ] {
+        modules.entry(module.to_string()).or_default().doc = doc.to_string();
+    }
+}
+
+/// The `script` module's own entries. It is the module a tool talks to, so it
+/// carries the most of them.
+fn script_entries(modules: &mut BTreeMap<String, Module>) {
     for (module, name, args, doc) in [
         (
             "script",
@@ -182,6 +201,14 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
             "(f: fn, arity: int)",
             "Wrap a script function so it can be called from several places with a fixed argument count.",
         ),
+    ] {
+        record(modules, module, name, args, doc);
+    }
+}
+
+/// The `task` module's own entries.
+fn task_entries(modules: &mut BTreeMap<String, Module>) {
+    for (module, name, args, doc) in [
         (
             "task",
             "wait",
@@ -201,23 +228,16 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
             "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it.",
         ),
     ] {
-        let entry = modules.entry(module.to_string()).or_default();
-        entry.functions.insert(name.to_string());
-        entry.docs.insert(name.to_string(), doc.to_string());
-        entry.signatures.insert(name.to_string(), args.to_string());
+        record(modules, module, name, args, doc);
     }
-    for (module, doc) in [
-        (
-            "script",
-            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
-        ),
-        (
-            "task",
-            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
-        ),
-    ] {
-        modules.entry(module.to_string()).or_default().doc = doc.to_string();
-    }
+}
+
+/// One host-installed entry, folded into the module it belongs to.
+fn record(modules: &mut BTreeMap<String, Module>, module: &str, name: &str, args: &str, doc: &str) {
+    let entry = modules.entry(module.to_string()).or_default();
+    entry.functions.insert(name.to_string());
+    entry.docs.insert(name.to_string(), doc.to_string());
+    entry.signatures.insert(name.to_string(), args.to_string());
 }
 
 /// Every module scripts can reach, with its functions and its constants:
