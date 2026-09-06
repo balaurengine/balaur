@@ -1,0 +1,75 @@
+{
+  "name": "balaur",
+  "displayName": "Balaur",
+  "description": "Rune script support for the Balaur game engine: diagnostics, completion, hover, go-to-definition, symbols, formatting and rename, from the engine's own language server.",
+  "version": "0.1.0",
+  "publisher": "balaurengine",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/balaurengine/balaur.git"
+  },
+  "homepage": "https://balaurengine.org",
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "balaur",
+    "rune",
+    "gamedev"
+  ],
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "onLanguage:rune",
+    "workspaceContains:project.toml"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "rune",
+        "extensions": [
+          ".rn"
+        ],
+        "aliases": [
+          "Rune",
+          "rune"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rune",
+        "path": "./syntaxes/balaur.tmLanguage.json",
+        "scopeName": "source.rune"
+      }
+    ],
+    "commands": [
+      {
+        "command": "balaur.restartServer",
+        "title": "Balaur: Restart language server"
+      }
+    ],
+    "configuration": {
+      "title": "Balaur",
+      "properties": {
+        "balaur.serverPath": {
+          "type": "string",
+          "default": "balaur",
+          "description": "The balaur binary to run as the language server. An absolute path, or a name found on PATH."
+        },
+        "balaur.projectRoot": {
+          "type": "string",
+          "default": "",
+          "description": "The project the server boots, relative to the workspace folder. Empty means the folder holding project.toml."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

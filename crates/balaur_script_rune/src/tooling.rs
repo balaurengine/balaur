@@ -215,7 +215,7 @@ fn handle_methods() -> BTreeMap<String, BTreeMap<String, (String, String)>> {
     let mut out: BTreeMap<String, BTreeMap<String, (String, String)>> = BTreeMap::new();
     for (module_name, module) in collect_modules() {
         for (name, components) in &module.acts_on {
-            let signature = module.signatures.get(name).cloned().unwrap_or_default();
+            let signature = signature_display(module.signatures.get(name));
             let doc = module.docs.get(name).cloned().unwrap_or_default();
             for component in components {
                 out.entry(component.clone()).or_default().insert(
@@ -280,7 +280,7 @@ impl RuneHost {
             out.push(Completion {
                 label: name.clone(),
                 kind: Kind::Function,
-                detail: found.signatures.get(name).cloned().unwrap_or_default(),
+                detail: signature_display(found.signatures.get(name)),
                 doc: found.docs.get(name).cloned().unwrap_or_default(),
                 insert: name.clone(),
             });
@@ -383,7 +383,7 @@ impl RuneHost {
                 out.push(Completion {
                     label: name.clone(),
                     kind: Kind::Method,
-                    detail: node.signatures.get(name).cloned().unwrap_or_default(),
+                    detail: signature_display(node.signatures.get(name)),
                     doc: node.docs.get(name).cloned().unwrap_or_default(),
                     insert: name.clone(),
                 });
@@ -550,7 +550,7 @@ impl RuneHost {
             }
             return Some(Hover {
                 title: format!("{module}::{name}"),
-                detail: found.signatures.get(name).cloned().unwrap_or_default(),
+                detail: signature_display(found.signatures.get(name)),
                 doc: found.docs.get(name).cloned().unwrap_or_default(),
             });
         }
@@ -584,7 +584,7 @@ impl RuneHost {
             if node.functions.contains(name) {
                 return Some(Hover {
                     title: format!("node.{name}"),
-                    detail: node.signatures.get(name).cloned().unwrap_or_default(),
+                    detail: signature_display(node.signatures.get(name)),
                     doc: node.docs.get(name).cloned().unwrap_or_default(),
                 });
             }
@@ -1013,4 +1013,18 @@ fn row(fields: &[(&str, rune::Value)]) -> Result<rune::Value> {
 /// lays the reference out one page per module, anchored by function name.
 fn reference_url(module: &str) -> String {
     format!("https://balaurengine.org/docs/reference/modules/{module}")
+}
+
+/// A signature as it reads beside a name. The typed seam records
+/// `(NodeId, f32) -> ()`, which follows the name directly; a raw registration
+/// records only its types, and needs a separator or it runs into the name.
+fn signature_display(signature: Option<&String>) -> String {
+    let Some(signature) = signature else {
+        return String::new();
+    };
+    if signature.starts_with('(') {
+        signature.clone()
+    } else {
+        format!(": {signature}")
+    }
 }
