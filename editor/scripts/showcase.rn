@@ -47,6 +47,7 @@ pub fn start(S, name) {
     match name {
         "scenes" => scenes(S, q),
         "scripting" => scripting(S, q),
+        "completion" => completion(S, q),
         "animation" => animation(S, q),
         "physics" => physics(S, q),
         "input" => input_clip(S, q),
@@ -436,6 +437,47 @@ fn scripting(S, q) {
         }
     });
     act(q, 860, || restore_source(S, rel, q));
+}
+
+// Completion, `examples/hello`: the caret lands after a module path and the
+// popup opens under it. The caret is placed rather than typed, the way
+// `edit_source` writes the buffer rather than typing into it.
+fn completion(S, q) {
+    let rel = "scripts/spinner.rn";
+    act(q, 1, || {
+        q.kept[rel] = model::source(S, rel).unwrap_or("");
+    });
+    click(S, q, 30, || spot(S, "script_tab"), || shell::set_persona(S, "script"));
+    click_row(S, q, 90, "Spinner");
+    act(q, 150, || {
+        let line = line_of(S, rel, "this.angle += dt");
+        open_at(S, rel, line, "    physics2d::ray");
+    });
+    act(q, 320, || restore_source(S, rel, q));
+}
+
+// Put `text` on its own line after `line`, and open the popup with the caret
+// at its end. The caret's screen position is the gutter's own geometry, which
+// is what the code pane hands the popup when a person puts it there.
+fn open_at(S, rel, line, text) {
+    let source = model::source(S, rel).unwrap_or("");
+    let lines = source.split('\n').collect::<Vec>();
+    let out = [];
+    let index = 0;
+    for (i, one) in lines.iter().enumerate() {
+        out.push(one);
+        if i + 1 == line {
+            out.push(text);
+        }
+    }
+    let joined = out.join("\n");
+    let head = out.iter().take(line).collect::<Vec>().join("\n");
+    let at = head.chars().count() + 1 + text.chars().count();
+    S.script_buffers[S.game_root + "/" + rel] = joined;
+    let (x, y) = gutter_spot(S, line + 1);
+    crate::complete::update(S, rel, joined, #{
+        x: x + 34.0 + (text.chars().count() as f64) * 6.6, y: y + LINE_H, index: at,
+    });
 }
 
 // The rig scene carries a `camera` node, which outvotes the editor's own
