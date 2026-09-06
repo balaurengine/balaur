@@ -51,6 +51,7 @@
   },
   "component_docs": {
     "animation": "Plays animation clips on a node: the library to play them from, one to start when the scene loads, and the rate every clip on the node runs at. The `animation` script module drives the playhead from there.",
+    "bindings": "What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.",
     "body2d": "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",
     "body3d": "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
     "bone2d": "Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.",
@@ -63,9 +64,11 @@
     "cloner": "Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.",
     "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
+    "environment": "The scene's atmosphere: the sky it sits under and is lit by, the ambient light, fog, exposure, tonemap, colour grading and the shadow budget. The last `current` one in tree order wins, so a level can carry two and switch between them. Per-view effects stay on `camera.post`.",
     "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
     "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
     "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
+    "light3d": "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
     "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, and `jiggle` lets a chain trail the pose on a spring.",
@@ -78,6 +81,7 @@
     "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
+    "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
     "text2d": "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
@@ -89,6 +93,9 @@
   "component_tags": {
     "animation": [
       "animation"
+    ],
+    "bindings": [
+      "interaction"
     ],
     "body2d": [
       "2d",
@@ -137,6 +144,10 @@
       "3d",
       "physics"
     ],
+    "environment": [
+      "3d",
+      "render"
+    ],
     "joint2d": [
       "2d",
       "physics"
@@ -147,6 +158,10 @@
     ],
     "light2d": [
       "2d",
+      "render"
+    ],
+    "light3d": [
+      "3d",
       "render"
     ],
     "listener": [
@@ -193,6 +208,9 @@
     "sprite": [
       "2d",
       "render"
+    ],
+    "states": [
+      "interaction"
     ],
     "text2d": [
       "2d",
@@ -244,6 +262,14 @@
         "default": 1.0,
         "description": "Playback rate for every clip on this node",
         "type": "float"
+      }
+    },
+    "bindings": {
+      "rows": {
+        "default": [],
+        "description": "The binding rows, each `{ event, when, action, target, value }`",
+        "shorthand": true,
+        "type": "strings"
       }
     },
     "body2d": {
@@ -1697,6 +1723,149 @@
         "type": "asset"
       }
     },
+    "environment": {
+      "ambient": {
+        "default": [
+          0.125,
+          0.14,
+          0.157,
+          1.0
+        ],
+        "description": "Light every surface gets whatever the lights do",
+        "type": "color"
+      },
+      "contrast": {
+        "default": 1.0,
+        "description": "Contrast around mid grey",
+        "min": 0.0,
+        "type": "float"
+      },
+      "current": {
+        "default": true,
+        "description": "Whether this is the environment the scene draws under; the last current one in tree order wins",
+        "type": "bool"
+      },
+      "exposure": {
+        "default": 1.0,
+        "description": "Linear multiplier before the tonemap",
+        "min": 0.0,
+        "type": "float"
+      },
+      "fog": {
+        "default": "none",
+        "description": "How fog thickens with distance",
+        "options": [
+          "none",
+          "linear",
+          "exponential",
+          "exponential_squared"
+        ],
+        "type": "enum"
+      },
+      "fog_color": {
+        "default": [
+          0.624,
+          0.706,
+          0.784,
+          1.0
+        ],
+        "description": "What distance fades toward",
+        "type": "color"
+      },
+      "fog_density": {
+        "default": 0.02,
+        "description": "Thickness, for exponential fog",
+        "min": 0.0,
+        "type": "float"
+      },
+      "fog_end": {
+        "default": 80.0,
+        "description": "Where linear fog is total, in world units",
+        "min": 0.0,
+        "type": "float"
+      },
+      "fog_height_falloff": {
+        "default": 0.0,
+        "description": "How fast fog thins with height; zero fills the scene evenly",
+        "min": 0.0,
+        "type": "float"
+      },
+      "fog_start": {
+        "default": 10.0,
+        "description": "Where linear fog begins, in world units",
+        "min": 0.0,
+        "type": "float"
+      },
+      "gamma": {
+        "default": 1.0,
+        "description": "Gamma applied in linear space",
+        "min": 0.01,
+        "type": "float"
+      },
+      "saturation": {
+        "default": 1.0,
+        "description": "Colour multiplier around luminance; zero is grey",
+        "min": 0.0,
+        "type": "float"
+      },
+      "shadow_distance": {
+        "default": 60.0,
+        "description": "How far from the camera shadows are drawn",
+        "min": 0.0,
+        "type": "float"
+      },
+      "shadow_resolution": {
+        "default": 2048,
+        "description": "Side of the shadow map, in texels",
+        "min": 256,
+        "type": "int"
+      },
+      "shadow_softness": {
+        "default": 1.0,
+        "description": "How far a shadow's edge is blurred",
+        "min": 0.0,
+        "type": "float"
+      },
+      "shadows": {
+        "default": true,
+        "description": "Whether any light casts shadows at all",
+        "type": "bool"
+      },
+      "show_sky": {
+        "default": true,
+        "description": "False lights the scene from the sky without drawing it, leaving the background colour",
+        "type": "bool"
+      },
+      "sky": {
+        "asset": "texture",
+        "default": "",
+        "description": "Equirectangular .hdr or .exr; it draws behind the scene and lights it. Empty is no sky",
+        "type": "asset"
+      },
+      "sky_intensity": {
+        "default": 1.0,
+        "description": "Brightness of the sky, and of the light it casts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "sky_rotation": {
+        "default": 0.0,
+        "description": "Turn of the sky about y, in degrees",
+        "type": "float"
+      },
+      "tonemap": {
+        "default": "neutral",
+        "description": "The curve the HDR film is mapped through",
+        "options": [
+          "none",
+          "aces",
+          "reinhard",
+          "agx",
+          "neutral"
+        ],
+        "type": "enum"
+      }
+    },
     "joint2d": {
       "anchor": {
         "default": [
@@ -2015,6 +2184,64 @@
         "type": "bool"
       }
     },
+    "light3d": {
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Light colour, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "inner": {
+        "default": 20.0,
+        "description": "Half-angle of a spot light's full-brightness cone, in degrees",
+        "max": 179.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "intensity": {
+        "default": 3.0,
+        "description": "Brightness multiplier; over 1 blows past white",
+        "min": 0.0,
+        "type": "float"
+      },
+      "kind": {
+        "default": "directional",
+        "description": "A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims",
+        "options": [
+          "directional",
+          "point",
+          "spot"
+        ],
+        "type": "enum"
+      },
+      "layers": {
+        "default": -1,
+        "description": "Light-layer bitmask; a node is lit when its own `layers` share a bit with these. -1 is every layer",
+        "type": "int"
+      },
+      "outer": {
+        "default": 35.0,
+        "description": "Half-angle a spot light fades to nothing at, in degrees",
+        "max": 179.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "radius": {
+        "default": 30.0,
+        "description": "How far a point or spot light reaches, in world units",
+        "min": 0.0,
+        "type": "float"
+      },
+      "shadows": {
+        "default": true,
+        "description": "Whether this light casts shadows from the nodes that say they cast",
+        "type": "bool"
+      }
+    },
     "listener": {
       "current": {
         "default": true,
@@ -2023,11 +2250,21 @@
       }
     },
     "mesh": {
+      "layers": {
+        "default": -1,
+        "description": "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer",
+        "type": "int"
+      },
       "material": {
         "asset": "material",
         "default": "",
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
+      },
+      "shadows": {
+        "default": true,
+        "description": "Whether this casts a shadow from the lights that cast",
+        "type": "bool"
       },
       "skeleton": {
         "default": "",
@@ -2534,6 +2771,11 @@
         ],
         "type": "enum"
       },
+      "layers": {
+        "default": -1,
+        "description": "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer",
+        "type": "int"
+      },
       "material": {
         "asset": "material",
         "default": "",
@@ -2557,6 +2799,11 @@
         "description": "Cuts around the axis, or across a plane",
         "min": 3,
         "type": "int"
+      },
+      "shadows": {
+        "default": true,
+        "description": "Whether this casts a shadow from the lights that cast",
+        "type": "bool"
       },
       "sides": {
         "default": 4,
@@ -2713,6 +2960,19 @@
         "default": "",
         "description": "Image file, project-relative; required",
         "type": "string"
+      }
+    },
+    "states": {
+      "current": {
+        "default": "",
+        "description": "The state this node is in; empty is the pose the scene gave it",
+        "type": "string"
+      },
+      "duration": {
+        "default": 0.0,
+        "description": "Seconds a transition takes; zero snaps",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "text2d": {
@@ -4224,6 +4484,7 @@
       "constants": [],
       "doc": "Files on disk, project-relative unless the path is absolute, so a script cannot wander the filesystem by accident. This is the disk itself: a packed build's contents are reached through `assets` and `scene.source`.",
       "docs": {
+        "copy": "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model.",
         "exists": "Whether a project-relative path has anything at it, file or directory.",
         "list": "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there.",
         "mkdir": "Create a project-relative directory and every parent it needs.",
@@ -4234,6 +4495,7 @@
         "write": "Write text to a project-relative file, creating the directory it goes in."
       },
       "functions": [
+        "copy",
         "exists",
         "list",
         "mkdir",
@@ -4245,6 +4507,7 @@
       ],
       "name": "fs",
       "signatures": {
+        "copy": "(from: string, to: string)",
         "exists": "(path: string)",
         "list": "(path: string)",
         "mkdir": "(path: string)",
@@ -5444,8 +5707,17 @@
       }
     },
     {
-      "acts_on": {},
-      "components": [],
+      "acts_on": {
+        "go": [
+          "states"
+        ],
+        "state": [
+          "states"
+        ]
+      },
+      "components": [
+        "states"
+      ],
       "constants": [],
       "doc": "What every node has: its name and path, its transform in local and world space, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.position()`).",
       "docs": {
@@ -5465,6 +5737,7 @@
         "global_scale": "The node's scale in world space, as of the last transform sync.",
         "global_visible": "What the renderer sees: false when the node or any ancestor is hidden.",
         "global_z_index": "The layer the node actually draws on, with every ancestor's added in.",
+        "go": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
         "has_component": "Whether the node carries the named component.",
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "has_tag": "Whether the node is filed under a name.",
@@ -5491,6 +5764,7 @@
         "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
         "stable_id": "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not.",
+        "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
@@ -5513,6 +5787,7 @@
         "global_scale",
         "global_visible",
         "global_z_index",
+        "go",
         "has_component",
         "has_method",
         "has_tag",
@@ -5539,6 +5814,7 @@
         "set_visible",
         "set_z_index",
         "stable_id",
+        "state",
         "tags",
         "translate",
         "visible",
@@ -5562,6 +5838,7 @@
         "global_scale": "()",
         "global_visible": "(node)",
         "global_z_index": "(node)",
+        "go": "(state: string)",
         "has_component": "(component: string)",
         "has_method": "(method: string)",
         "has_tag": "(node, tag: string)",
@@ -5588,6 +5865,7 @@
         "set_visible": "(node, on: bool)",
         "set_z_index": "(node, z: int, relative: bool)",
         "stable_id": "()",
+        "state": "()",
         "tags": "(node)",
         "translate": "(x: float, y: float, z: float)",
         "visible": "(node)",
@@ -7127,12 +7405,32 @@
           "value": "3d"
         },
         {
+          "name": "FOG_EXPONENTIAL",
+          "value": "exponential"
+        },
+        {
+          "name": "FOG_EXPONENTIAL_SQUARED",
+          "value": "exponential_squared"
+        },
+        {
+          "name": "FOG_LINEAR",
+          "value": "linear"
+        },
+        {
+          "name": "FOG_NONE",
+          "value": "none"
+        },
+        {
           "name": "LIGHT_DIRECTIONAL",
           "value": "directional"
         },
         {
           "name": "LIGHT_POINT",
           "value": "point"
+        },
+        {
+          "name": "LIGHT_SPOT",
+          "value": "spot"
         },
         {
           "name": "SHAPE_BALL",
@@ -7197,6 +7495,26 @@
         {
           "name": "SHAPE_TUBE",
           "value": "tube"
+        },
+        {
+          "name": "TONEMAP_ACES",
+          "value": "aces"
+        },
+        {
+          "name": "TONEMAP_AGX",
+          "value": "agx"
+        },
+        {
+          "name": "TONEMAP_NEUTRAL",
+          "value": "neutral"
+        },
+        {
+          "name": "TONEMAP_NONE",
+          "value": "none"
+        },
+        {
+          "name": "TONEMAP_REINHARD",
+          "value": "reinhard"
         }
       ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
@@ -7258,6 +7576,7 @@
         "shape2d": "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.",
         "shape3d": "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.",
         "sprite": "The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite.",
+        "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
         "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
         "text": "The text a node draws, as it was last set \u2014 not the localized string a `text_key` resolves to.",
         "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face \u2014 so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest.",
@@ -7323,6 +7642,7 @@
         "shape2d",
         "shape3d",
         "sprite",
+        "stats",
         "terrain",
         "text",
         "text_size",
@@ -7389,6 +7709,7 @@
         "shape2d": "NodeId -> (String, f32, f32)",
         "shape3d": "NodeId -> (String, f32, f32, f32)",
         "sprite": "NodeId -> (String, u32, u32, u32)",
+        "stats": "() -> Value",
         "terrain": "(NodeId, i64, i64) -> i64",
         "text": "NodeId -> String",
         "text_size": "(String, Option<Value>) -> (f32, f32)",
@@ -7560,6 +7881,8 @@
       "doc": "The node tree: its root, lookup by path, spawning and instancing. Also the component and preset vocabulary an editor builds its palette from.",
       "docs": {
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
+        "bindable_events": "Every event a `[[nodes.bindings]]` row may answer, in the order an editor offers them.",
+        "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component.",
         "component_schema": "A component type's property schema as a table; nil for a name nothing registered.",
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
@@ -7570,14 +7893,20 @@
         "preset_info": "A preset's description, tags and the components it adds; nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
         "root": "The tree's root node.",
+        "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
         "spawn": "Create one empty named node under the given parent, or under the root when none is given.",
+        "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only.",
+        "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
+        "variables": "Every declared variable as `{ name, type, value, persist }`, in name order.",
         "with_component": "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."
       },
       "functions": [
         "apply_preset",
+        "bindable_events",
+        "binding_actions",
         "component_properties",
         "component_schema",
         "component_tags",
@@ -7588,15 +7917,21 @@
         "preset_info",
         "presets",
         "root",
+        "set_variable",
         "source",
         "spawn",
+        "switch",
         "tagged",
         "unmet_expectations",
+        "variable",
+        "variables",
         "with_component"
       ],
       "name": "scene",
       "signatures": {
         "apply_preset": "(node: node, name: string)",
+        "bindable_events": "()",
+        "binding_actions": "()",
         "component_properties": "(name: string, params: any)",
         "component_schema": "(name: string)",
         "component_tags": "(name: string)",
@@ -7607,10 +7942,14 @@
         "preset_info": "(name: string)",
         "presets": "()",
         "root": "()",
+        "set_variable": "(name: string, value: any)",
         "source": "(path: string)",
         "spawn": "(name: string, parent: node?)",
+        "switch": "(path: string, options: map?)",
         "tagged": "(tag: string)",
         "unmet_expectations": "(node: node)",
+        "variable": "(name: string)",
+        "variables": "()",
         "with_component": "(component: string)"
       }
     },
@@ -7620,29 +7959,56 @@
       "constants": [],
       "doc": "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
       "docs": {
+        "api": "Every module scripts can reach, as the JSON string `balaur api` prints; a tool reads the live engine rather than a file that may be stale.",
         "attempt": "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed.",
         "check": "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing.",
+        "complete": "Every completion valid at that caret, as `[#{ label, kind, detail, doc, insert }]`; an editor passes the buffer it is showing.",
+        "definition": "Where the name at that caret is defined, as `#{ file, line, column, url }`; engine API carries its reference page rather than a file.",
         "exports": "The tunable properties a script declares in `exports()`, with their defaults.",
+        "format": "That source laid out by Rune's own formatter; the source unchanged when it will not parse.",
         "functions": "The public functions a script file declares, with their argument names.",
+        "hover": "What is under that caret, as `#{ title, detail, doc }`, or `()` when it is nothing the engine knows.",
+        "references": "Every place that name appears as a whole word across the files this one's `mod` declarations reach, as `[#{ file, line, column, url }]`.",
+        "rename": "Every file a rename would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",
         "require": "Load another script file as a module, compiled once and shared by every caller afterwards.",
-        "shared": "Wrap a script function so it can be called from several places with a fixed argument count."
+        "shared": "Wrap a script function so it can be called from several places with a fixed argument count.",
+        "signature": "The call the caret is inside, as `#{ title, detail, doc, active }`, where `active` is the argument being typed.",
+        "symbols": "What that file declares, as `[#{ name, kind, detail, line, column }]`: its public functions and its `exports()` properties."
       },
       "functions": [
+        "api",
         "attempt",
         "check",
+        "complete",
+        "definition",
         "exports",
+        "format",
         "functions",
+        "hover",
+        "references",
+        "rename",
         "require",
-        "shared"
+        "shared",
+        "signature",
+        "symbols"
       ],
       "name": "script",
       "signatures": {
+        "api": "()",
         "attempt": "(f: fn)",
         "check": "(path: string, source: string)",
+        "complete": "(path: string, source: string, line: int, column: int)",
+        "definition": "(path: string, source: string, line: int, column: int)",
         "exports": "(path: string)",
+        "format": "(path: string, source: string)",
         "functions": "(path: string)",
+        "hover": "(path: string, source: string, line: int, column: int)",
+        "references": "(path: string, source: string, name: string)",
+        "rename": "(path: string, source: string, from: string, to: string)",
         "require": "(path: string)",
-        "shared": "(f: fn, arity: int)"
+        "shared": "(f: fn, arity: int)",
+        "signature": "(path: string, source: string, line: int, column: int)",
+        "symbols": "(path: string, source: string)"
       }
     },
     {
@@ -7953,7 +8319,7 @@
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
         "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
-        "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
+        "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, any line clicked, and the caret as `#{ x, y, index }`.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
         "color": "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed.",
         "cursor_y": "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from.",
@@ -8070,7 +8436,7 @@
         "central_rect": "() -> (f32, f32, f32, f32)",
         "circle_button": "(String, Option<Value>) -> bool",
         "clipboard": "() -> String",
-        "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>)",
+        "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>, Value)",
         "code_line": "(String, Value, Option<Value>) -> ()",
         "color": "Option<Value> -> (Vec<f64>, bool)",
         "cursor_y": "() -> f64",

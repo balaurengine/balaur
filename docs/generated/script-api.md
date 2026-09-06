@@ -17,7 +17,7 @@ cannot drift from what scripts actually see.
 | [`engine`](#engine) | 18 | 0 | the engine |
 | [`events`](#events) | 5 | 0 | the engine |
 | [`export`](#export) | 5 | 0 | the engine |
-| [`fs`](#fs) | 8 | 0 | the engine |
+| [`fs`](#fs) | 9 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
 | [`geometry2d`](#geometry2d) | 9 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
@@ -27,18 +27,18 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 46 | 0 | the engine |
+| [`node`](#node) | 48 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 66 | 48 | the engine |
 | [`physics3d`](#physics3d) | 89 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`render`](#render) | 63 | 20 | the engine |
+| [`render`](#render) | 64 | 30 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 5 | 0 | the engine |
-| [`scene`](#scene) | 16 | 0 | the engine |
-| [`script`](#script) | 6 | 0 | the engine |
+| [`scene`](#scene) | 22 | 0 | the engine |
+| [`script`](#script) | 15 | 0 | the engine |
 | [`settings`](#settings) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
@@ -95,7 +95,7 @@ cannot drift from what scripts actually see.
 
 ## `fs`
 
-**Functions:** `exists`, `list`, `mkdir`, `mtime`, `read`, `remove`, `rename`, `write`
+**Functions:** `copy`, `exists`, `list`, `mkdir`, `mtime`, `read`, `remove`, `rename`, `write`
 
 ## `gamend`
 
@@ -174,7 +174,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_visible`, `global_z_index`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_visible`, `set_z_index`, `stable_id`, `tags`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_visible`, `set_z_index`, `stable_id`, `state`, `tags`, `translate`, `visible`, `z_index`
 
 ## `physics`
 
@@ -256,16 +256,21 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `set_terrain`, `set_text`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `terrain`, `text`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `set_terrain`, `set_text`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `stats`, `terrain`, `text`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
-**Constants** (20):
+**Constants** (30):
 
 | Name | Value |
 | --- | --- |
 | `CAMERA_2D` | `2d` |
 | `CAMERA_3D` | `3d` |
+| `FOG_EXPONENTIAL` | `exponential` |
+| `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
+| `FOG_LINEAR` | `linear` |
+| `FOG_NONE` | `none` |
 | `LIGHT_DIRECTIONAL` | `directional` |
 | `LIGHT_POINT` | `point` |
+| `LIGHT_SPOT` | `spot` |
 | `SHAPE_BALL` | `ball` |
 | `SHAPE_CAPSULE` | `capsule` |
 | `SHAPE_CIRCLE` | `circle` |
@@ -281,7 +286,8 @@ cannot drift from what scripts actually see.
 | `SHAPE_RECT` | `rect` |
 | `SHAPE_STAR` | `star` |
 | `SHAPE_TORUS` | `torus` |
-| `SHAPE_TUBE` | `tube` |
+
+…and 6 more.
 
 ## `replay`
 
@@ -310,11 +316,11 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `apply_preset`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `source`, `spawn`, `tagged`, `unmet_expectations`, `with_component`
+**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `spawn`, `switch`, `tagged`, `unmet_expectations`, `variable`, `variables`, `with_component`
 
 ## `script`
 
-**Functions:** `attempt`, `check`, `exports`, `functions`, `require`, `shared`
+**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `format`, `functions`, `hover`, `references`, `rename`, `require`, `shared`, `signature`, `symbols`
 
 ## `settings`
 

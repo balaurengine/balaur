@@ -23,6 +23,8 @@ flow nothing checks.
 - a 3d rig at rest is identity and a turned bone swings its vertices
 - a bad schema is rejected at registration
 - a ball is not picked at the corner a box would have
+- a bare name asks whether the flag is set
+- a bare prefix offers modules and the files own functions
 - a bevel rounds the edges off
 - a bigger size scales the boxes
 - a binary file reads by id too
@@ -102,10 +104,12 @@ flow nothing checks.
 - a colour reads back as it was set
 - a colour set from a script reads back
 - a colour that is not hex names the param
+- a comparison reads the variable it names
 - a compile error fails the build
 - a component attached behind the registry is still removed in debug
 - a component can carry several tags
 - a component handle binds the node for the module driving it
+- a component handle offers what acts on that component
 - a component handle refuses a function no driving module declares
 - a component track can drive a child node
 - a component track is as wide as its keys
@@ -132,6 +136,8 @@ flow nothing checks.
 - a datagram over the path limit is refused rather than sent
 - a datagram over the size limit is refused rather than sent
 - a declared action reads the key it is bound to
+- a definition in a submodule names that file and line
+- a definition in the engine carries a reference page not a file
 - a definition may carry its vertices instead
 - a definition may name a file to import
 - a definition missing its shape says so
@@ -320,6 +326,8 @@ flow nothing checks.
 - a missing texture is an error
 - a misspelled capability names the ones that exist
 - a modal runs its body
+- a module path narrows to the prefix typed
+- a module path offers that modules functions and constants
 - a module the project asks for still loads
 - a module the project turns off does not load
 - a name the two worlds share has one meaning
@@ -452,6 +460,7 @@ flow nothing checks.
 - a re simulated tick does not award an achievement twice
 - a read from a tick that can still roll back goes out at once
 - a readonly property changing does not change the digest
+- a receiver of unknown type offers runes own methods
 - a recoded asset keeps the name its scene uses
 - a recoded image keeps its pixels and its size
 - a recorded plugin is found under its own name
@@ -499,6 +508,7 @@ flow nothing checks.
 - a rig that has not started playing is at rest
 - a ring traces its outside and its hole largest first
 - a rollback across a playing clip restores the playhead
+- a rollback puts a jiggle spring back mid swing
 - a rolled back spawn mints the id it minted before
 - a root draws on the surface it names
 - a root is not mistaken for one of its own modules
@@ -508,6 +518,8 @@ flow nothing checks.
 - a rotation track is sampled as a quaternion the short way round
 - a rotation track takes quaternion keys and slerps between them
 - a row lays its children out along its own direction
+- a row names an event and an action this build knows
+- a row round trips through the component
 - a rune project that calls the engine can be exported
 - a rune script awaits a request and takes another through on response
 - a rune script logs in and calls a hook
@@ -524,6 +536,7 @@ flow nothing checks.
 - a scene files a node under its tags
 - a scene is not mistaken for a sidecar
 - a scene property is on this before init runs
+- a scene table declares the long form and the short one
 - a scene with no light2d collects nothing
 - a scenes own characters are kept
 - a schema declaring an asset property without naming its type is rejected
@@ -719,6 +732,7 @@ flow nothing checks.
 - a union is both solids less the overlap
 - a uuid from the engine stream is well formed and repeats from a seed
 - a value inside a helper is previewable
+- a value is coerced to the type that was declared
 - a value tween is read not written
 - a vec2 fills red and green
 - a vec3 pads the field after it to sixteen
@@ -807,6 +821,7 @@ flow nothing checks.
 - an id reference loads the file the index names
 - an id reference resolves through the asset index
 - an image is a span of its own with a box
+- an image param binds the slot it is named for
 - an image with nothing left to save is left alone
 - an images size comes off its header
 - an import carries the side buffer and the texture along
@@ -846,6 +861,7 @@ flow nothing checks.
 - an override reaches the transform too
 - an override retunes a prefabs script
 - an undeclared action reads zero rather than failing
+- an undeclared variable never satisfies a row
 - an undecodable image is an error naming the file
 - an unknown body kind is rejected with its name
 - an unknown collider kind is refused by name
@@ -918,6 +934,7 @@ flow nothing checks.
 - changing kind keeps the body
 - changing only the frame does not force a rebuild
 - changing the texture forces a rebuild
+- clauses join with and and or
 - clearing the breakpoints lets update run through
 - clicking a tab writes the pages node name
 - closing raises the pitch and opening lowers it
@@ -1021,6 +1038,7 @@ flow nothing checks.
 - focus skips what it could not activate
 - focus walks the menu in scene order and wraps
 - focusable false is skipped and a plain label stays out
+- formatting is idempotent
 - frames held between begin and play do not move the replayed tick
 - freeing a listener node leaves the ears where they were
 - freeing a node drops its sound on the next sweep
@@ -1051,6 +1069,7 @@ flow nothing checks.
 - hiding the focused widget releases focus
 - hierarchy reads back what it wrote
 - holding a key does not re fire
+- hovering a function returns the line the reference prints
 - ids inside an instance are prefixed by the instance
 - immediate shapes are accepted from a script
 - importing a module nobody registered says which
@@ -1148,7 +1167,6 @@ flow nothing checks.
 - presence is unsupported rather than pretended
 - presets carry the parameters that distinguish them
 - print a real report
-- print logo smallest
 - project files serve a packed asset without touching disk
 - pushing a tick twice replaces it rather than filling the ring
 - pushing to an unjoined topic is refused
@@ -1163,6 +1181,7 @@ flow nothing checks.
 - reapplying the same tilemap does not bump the version
 - rebinding replaces what the project declared
 - rebinding to something unparseable is refused
+- references reach the files a mod declaration names
 - reload forgets a file so the next load reads it again
 - reload script picks up a rewritten file
 - reloading the paused script lifts the pause
@@ -1180,6 +1199,8 @@ flow nothing checks.
 - renaming a parent does not break its children
 - renaming moves a subtree
 - renaming onto a later siblings name makes the earlier one the answer
+- renaming rewrites every file the name reaches
+- renaming to something that is not an identifier is refused
 - reparenting keeps the world pose and moves the child
 - reparenting moves a node between its parents lookups
 - replacing accepts an empty directory the user made
@@ -1255,7 +1276,9 @@ flow nothing checks.
 - stripping removes exactly what the report named
 - subscription order holds across scoped and unscoped
 - swapping replaces the binary and directories
+- symbols are the files public functions and its exports
 - text and layout helpers run
+- text compares as text
 - the 2d body carries the same properties
 - the 2d camera reports its centre and zoom
 - the 2d world has the same shape of api
@@ -1322,6 +1345,7 @@ flow nothing checks.
 - the page packs every frame at canvas size
 - the pause request stops the game at the next line a script runs
 - the payload is the library and the pack in a stable order
+- the pbr module links over the mesh contract
 - the platform and device id are stable facts
 - the plist carries the projects identifier and its own keys
 - the plugin builds without an output device
@@ -1377,6 +1401,7 @@ flow nothing checks.
 - the widget layer can be placed and turned off
 - then on a tween already over starts at once
 - then waits for the other tween and starts from where it left the node
+- this offers the scripts own exports and functions
 - ticking a headless app with render does not panic
 - ticking advances the clock by the step given
 - ticking with audio does not panic
@@ -1432,5 +1457,6 @@ flow nothing checks.
 - world transforms compose down the chain
 - world transforms report the composed result
 - writing a manifest leaves what it does not describe alone
+- writing a variable nothing declared says so
 - writing one file leaves the others stamps alone
-- zz measure lossy
+- writing the same value is not a change
