@@ -45,26 +45,25 @@ fn current(S, list) {
     None
 }
 
-/// The dock's own controls: which module, and a filter over its functions.
-pub fn tools(S, k, room) {
-    let list = modules(S);
-    if list.len() == 0 {
-        return;
-    }
-    let names = [];
-    for m in list {
-        names.push(m.name);
-    }
-    let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
-        width: util::max(96.0, util::min(room - 120.0, 150.0)),
-        size: 11, height: 22, color: k.text,
+/// The module picker and a filter over its functions. In the body rather than
+/// the tab row: the dock carries fourteen tabs, and these would sit on them.
+fn controls(S, k, list) {
+    ui::horizontal(#{ height: 26 }, || {
+        ui::add_space(6);
+        let names = [];
+        for m in list {
+            names.push(m.name);
+        }
+        let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
+            width: 150, size: 11, height: 22, color: k.text,
+        });
+        if changed {
+            S.docs.pick = picked;
+            S.docs.fn_pick = "";
+        }
+        ui::add_space(6);
+        search::field(S, k, "docs", "filter functions", 150.0);
     });
-    if changed {
-        S.docs.pick = picked;
-        S.docs.fn_pick = "";
-    }
-    ui::add_space(6);
-    search::field(S, k, "docs", "filter functions", util::max(96.0, util::min(room - 160.0, 150.0)));
 }
 
 pub fn draw(S, k) {
@@ -73,6 +72,7 @@ pub fn draw(S, k) {
         style::empty(k, "the engine reported no modules");
         return;
     }
+    controls(S, k, list);
     let found = current(S, list);
     let m = match found {
         Some(m) => m,
@@ -82,7 +82,7 @@ pub fn draw(S, k) {
         }
     };
     let query = search::query(S, "docs");
-    ui::scroll("docs", #{ max_height: S.layout.body_h - 8.0 }, || {
+    ui::scroll("docs", #{ max_height: S.layout.body_h - 34.0 }, || {
         if m.doc != "" {
             ui::horizontal(#{ height: 30 }, || {
                 ui::add_space(6);

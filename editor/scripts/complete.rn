@@ -200,6 +200,9 @@ pub fn draw(S, k) {
         role: "sheet", x: S.complete.x, y: S.complete.y + 4.0, w: W, h: h,
         padding_x: 6, padding_y: 6,
     }, || {
+        // Rows are ROW tall and nothing between them; egui's default spacing
+        // would push the doc line past the sheet the height above reserved.
+        ui::spacing(0, 0);
         let first = util::max(0, util::min(S.complete.pick - rows + 1, S.complete.items.len() - rows));
         for n in 0..rows {
             let i = first + n;

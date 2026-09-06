@@ -246,10 +246,6 @@ fn tools(S, k, id, width) {
         dock::output_tools(S, k, room);
         return;
     }
-    if id == "docs" {
-        crate::docs::tools(S, k, room);
-        return;
-    }
     if S.compact || room < 150.0 {
         return;
     }
