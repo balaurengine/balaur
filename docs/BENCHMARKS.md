@@ -36,15 +36,15 @@ Milliseconds for the whole loop, lower is better. Godot's numbers are its own pu
 
 | operation | Balaur | Godot |
 | --- | ---: | ---: |
-| `add_children` | 22.44 ms | 28.19 ms |
-| `delete_children_in_order` | 37.45 ms | 9.82 ms |
-| `delete_children_reverse` | 38.11 ms | 6.10 ms |
-| `delete_children_random` | 41.65 ms | 19.63 ms |
-| `get_node` | 64.15 ms | 29.60 ms |
+| `add_children` | 24.33 ms | 28.19 ms |
+| `delete_children_in_order` | 13.35 ms | 9.82 ms |
+| `delete_children_reverse` | 14.47 ms | 6.10 ms |
+| `delete_children_random` | 17.04 ms | 19.63 ms |
+| `get_node` | 51.69 ms | 29.60 ms |
 
 ## How it was measured
 
-Balaur `45a5ba59a` against Godot 4.7-stable (official) on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-05. The scenes are the [godot-rapier benchmark suite](https://github.com/Ughuuu/benchmarks-repo)'s ([post](https://godot.rapier.rs/blog/v0-35-0), [docs](https://godot.rapier.rs/docs/documentation/performance)), body for body; each runs 300 timed steps at 60 Hz after a settle, and the tables show the median physics tick.
+Balaur `c862aad11` against Godot 4.7-stable (official) on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-06. The scenes are the [godot-rapier benchmark suite](https://github.com/Ughuuu/benchmarks-repo)'s ([post](https://godot.rapier.rs/blog/v0-35-0), [docs](https://godot.rapier.rs/docs/documentation/performance)), body for body; each runs 300 timed steps at 60 Hz after a settle, and the tables show the median physics tick.
 
 ## Running it
 
