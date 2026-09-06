@@ -43,7 +43,7 @@ indices = [[0, 1, 2], [0, 2, 3]]
 
 fn heightfield_scene(extra: &str) -> String {
     format!(
-        r#"[[assets]]
+        r##"[[assets]]
 id = "ground"
 type = "heightfield"
 rows = 3
@@ -58,13 +58,13 @@ name = "Ground"
 kind = "heightfield"
 heightfield = "#ground"
 {extra}
-"#
+"##
     )
 }
 
 fn mesh_scene_2d(kind: &str, extra: &str) -> String {
     format!(
-                                r#"{FLAT_MESH}
+        r##"{FLAT_MESH}
 [[nodes]]
 id = "n_floor"
 name = "Floor"
@@ -73,8 +73,8 @@ name = "Floor"
 kind = "{kind}"
 mesh = "#floor"
 {extra}
-"#
-                            )
+"##
+    )
 }
 
 /// The first collider's handle, for a scene that declares exactly one.
@@ -221,10 +221,10 @@ half_extents = [4.0, 0.1]
 one_way = true
 "#;
 
-const RISE: &str = r#"pub fn init(this) {
+const RISE: &str = r"pub fn init(this) {
     this.node.body2d.set_linear_velocity(0.0, 15.0);
 }
-"#;
+";
 
 #[test]
 fn a_one_way_platform_lets_a_body_through_whichever_side_of_the_pair_it_is() {
