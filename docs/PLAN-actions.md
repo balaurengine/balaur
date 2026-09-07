@@ -30,7 +30,7 @@ Built, and load-bearing here:
 
 | Have | Where |
 | --- | --- |
-| Seven export targets: `linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64` as one fused executable each; a macOS `.app` with `--app`; an iOS `.app`; an Android APK layout; a web directory with a shell page | `crates/balaur_export`, `bundle.rs::{Bundle, export_macos_app, export_bundle}` |
+| Eight export targets: `linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64`, `windows-arm64` as one fused executable each; a macOS `.app` with `--app`; an iOS `.app`; an Android APK layout; a web directory with a shell page | `crates/balaur_export`, `bundle.rs::{Bundle, export_macos_app, export_bundle}` |
 | A macOS `.app` signed as it is exported, ad-hoc or with `--sign <identity>`, its entitlements written from `[apple] capabilities` | `bundle.rs::codesign`, `apple.rs::write_entitlements` |
 | An Android layout assembled and signed, when the SDK is on the machine | `balaur export --apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
