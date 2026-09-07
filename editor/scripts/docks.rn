@@ -9,19 +9,42 @@ use crate::left;
 use crate::style;
 use crate::util;
 
+// What a folded side dock's rail has room for inside its sheet.
+const RAIL_W = 22.0;
+
 pub fn sides() {
     ["left", "bottom", "right"]
 }
 
 pub fn state() {
-    #{
-        left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
-        bottom: #{
-            tabs: ["output", "problems", "assets", "docs", "timeline", "debugger", "session", "profiler", "cost", "library", "tiles", "weights", "bonemap"],
-            active: "output", shut: false,
-        },
-        right: #{ tabs: ["inspector", "import"], active: "inspector", shut: false },
+    crate::defs::persona_docks("scene")
+}
+
+/// Swap the open panels for the ones a persona works with. What is open is
+/// the persona's; what may be opened is not, so a panel closed here comes
+/// back from the logo menu without changing persona.
+pub fn apply_persona(S, id) {
+    let want = crate::defs::persona_docks(id);
+    for side in sides() {
+        // A dock the reader folded away stays folded: the persona says which
+        // panels, not whether the sheet is up.
+        want[side].shut = S.docks[side].shut;
     }
+    S.docks = want;
+}
+
+/// Every panel the menu can open, in the order it lists them.
+pub fn known(S) {
+    util::keys_sorted(panels(S))
+}
+
+// Where a panel lands when it is opened from the menu rather than moved.
+fn homes() {
+    #{ scene: "left", outline: "left", inspector: "right", import: "right" }
+}
+
+pub fn home(id) {
+    homes().get(id).unwrap_or("bottom")
 }
 
 /// Name and icon per panel; `tall` asks the bottom dock for its taller size.
@@ -67,27 +90,44 @@ pub fn adopt(S, id) {
     if side_of(S, id).is_some() {
         return;
     }
-    S.docks.bottom.tabs.push(id);
+    S.docks[home(id)].tabs.push(id);
 }
 
-/// Bring a panel forward wherever it lives, opening its dock if it is shut.
-///
-/// A tool that cannot be used without its dock says so, rather than leaving
-/// the tab to be hunted for.
-pub fn reveal(S, id) {
-    if side_of(S, id).is_none() {
-        adopt(S, id);
-    }
+/// Take a panel out of its dock. Nothing is destroyed: the logo menu lists
+/// every panel whether it is open or not, and puts this one back.
+pub fn close(S, id) {
     let side = match side_of(S, id) {
         Some(side) => side,
         None => return,
     };
-    S.docks[side].active = id;
-    S.docks[side].shut = false;
+    let kept = [];
+    for t in S.docks[side].tabs {
+        if t != id {
+            kept.push(t);
+        }
+    }
+    S.docks[side].tabs = kept;
+    if S.docks[side].active == id {
+        S.docks[side].active = kept.get(0).unwrap_or("");
+    }
+}
+
+/// Open a closed panel, or close an open one: what the logo menu's rows do.
+pub fn toggle(S, id) {
+    if side_of(S, id).is_some() {
+        close(S, id);
+    } else {
+        show(S, id);
+    }
 }
 
 fn panel(S, id) {
     panels(S).get(id).unwrap_or(#{ name: id, icon: icons::panel(id), tall: false })
+}
+
+/// What a panel is called, for a menu row outside this module.
+pub fn name(S, id) {
+    panel(S, id).name
 }
 
 /// Which dock holds `id`, or `None` when a plugin has been unloaded.
@@ -109,8 +149,12 @@ pub fn showing(S, id) {
     }
 }
 
-/// Bring `id` up wherever it lives, opening its dock.
+/// Bring `id` up wherever it lives, opening it and its dock.
+///
+/// A closed panel is opened first: a tool that cannot be used without its
+/// dock says so, rather than leaving the tab to be hunted for.
 pub fn show(S, id) {
+    adopt(S, id);
     let found = side_of(S, id);
     if let Some(side) = found {
         S.docks[side].active = id;
@@ -179,40 +223,28 @@ fn body(S, k, id) {
     }
 }
 
+// The tab row, and the tiles in it. A small window gets a step less of both:
+// the row is chrome, and chrome is what a short window has least room for.
+pub fn row_h(S) {
+    if S.compact { 24.0 } else { 28.0 }
+}
+
+fn tab_h(S) {
+    if S.compact { 20.0 } else { 22.0 }
+}
+
 fn tab_row(S, k, side, d) {
-    ui::horizontal(#{ height: 30 }, || {
-        ui::spacing(4, 0);
+    ui::horizontal(#{ height: row_h(S) }, || {
+        ui::spacing(3, 0);
         ui::add_space(2);
         for id in d.tabs {
-            let p = panel(S, id);
-            let active = d.active == id;
-            let label = p.name;
-            if id == "problems" {
-                let (errors, warnings) = crate::lint::counts(S);
-                if errors + warnings > 0 {
-                    label += format!(" {}", errors + warnings);
-                }
-            }
-            if ui::pill(label, #{
-                role: if active { "tab_on" } else { "tab" },
-                menu: || {
-                    ui::menu_item(format!("Move {} to", p.name), #{ color: k.faint });
-                    for other in sides() {
-                        if other != side {
-                            if ui::menu_item(format!("   {}", other), #{ color: k.text }) {
-                                move_to(S, id, other);
-                            }
-                        }
-                    }
-                },
-            }) {
-                S.docks[side].active = id;
-            }
+            tab(S, k, side, d, id);
         }
         ui::right(|| {
-            ui::add_space(4);
+            ui::add_space(2);
             if ui::pill(icons::ui(shut_icon(side)), #{
-                role: "icon_button", height: 24, size: 11.5, tooltip: "Minimise",
+                role: "icon_button", height: tab_h(S), size: 10.5, padding_x: 5,
+                tooltip: "Minimise",
             }) {
                 S.docks[side].shut = true;
             }
@@ -222,14 +254,62 @@ fn tab_row(S, k, side, d) {
     ui::separator(k.line_soft);
 }
 
-// How wide the tab row's own pills are, from the names: a flat width per tab
+// One tab: its name, the count Problems carries, and the mark that closes it,
+// in one tile so the two read as a single control.
+fn tab(S, k, side, d, id) {
+    let p = panel(S, id);
+    let active = d.active == id;
+    let label = p.name;
+    if id == "problems" {
+        let (errors, warnings) = crate::lint::counts(S);
+        if errors + warnings > 0 {
+            label += format!(" {}", errors + warnings);
+        }
+    }
+    let h = tab_h(S);
+    ui::frame(#{ fill: if active { k.accent_soft } else { "none" }, radius: 5 }, || {
+        ui::horizontal(#{ height: h, tight: true }, || {
+            ui::spacing(0, 0);
+            if ui::pill(label, #{
+                role: if active { "tab_on" } else { "tab" },
+                height: h, fill: "none", padding_x: 7,
+                menu: || tab_menu(S, k, side, id, p.name),
+            }) {
+                S.docks[side].active = id;
+            }
+            if ui::pill(icons::ui("close"), #{
+                height: h, min_width: 13, size: 8, fill: "none", padding_x: 2,
+                color: if active { k.accent } else { k.faint },
+                tooltip: format!("Close {}", p.name),
+            }) {
+                close(S, id);
+            }
+        });
+    });
+}
+
+fn tab_menu(S, k, side, id, name) {
+    if ui::menu_item(format!("Close {}", name), #{ color: k.text, width: 150 }) {
+        close(S, id);
+    }
+    ui::menu_item("Move to", #{ color: k.faint, width: 150 });
+    for other in sides() {
+        if other != side {
+            if ui::menu_item(format!("   {}", other), #{ color: k.text, width: 150 }) {
+                move_to(S, id, other);
+            }
+        }
+    }
+}
+
+// How wide the tab row's own tiles are, from the names: a flat width per tab
 // ran the hint over the row as soon as `Bone map` joined.
 fn tabs_width(S, id) {
     let total = 0.0;
     for tab in S.docks[side_for(S, id)].tabs {
-        // 11 px, semibold: about 6.4 px a character, plus the pill's padding
-        // and the gap to the next one.
-        total += 18.0 + 6.4 * util::f(panel(S, tab).name.len());
+        // 11 px, semibold: about 6.4 px a character, plus the pill's padding,
+        // the close mark and the gap to the next one.
+        total += 30.0 + 6.4 * util::f(panel(S, tab).name.len());
     }
     total
 }
@@ -281,10 +361,16 @@ fn open_icon(side) {
     }
 }
 
-// Minimised: one handle that opens the dock back. A side dock's is a square
+/// Whether a dock is down to its rail: folded away, or emptied of every tab.
+/// An emptied dock is not a blank sheet — it gives its width back.
+pub fn folded(S, side) {
+    let d = S.docks[side];
+    d.shut || d.tabs.len() == 0
+}
+
 pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
-    if d.shut || d.tabs.len() == 0 {
+    if folded(S, "bottom") {
         return;
     }
     tab_row(S, k, "bottom", d);
@@ -312,11 +398,11 @@ pub fn draw_status(S, k) {
 /// the tab row, the panel, and for the bottom dock the status strip.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
-    if d.shut {
-        handle_body(S, k, side);
+    if d.tabs.len() == 0 {
         return;
     }
-    if d.tabs.len() == 0 {
+    if d.shut {
+        handle_body(S, k, side);
         return;
     }
     tab_row(S, k, side, d);
@@ -331,26 +417,42 @@ pub fn draw_body(S, k, side) {
     chrome::status_strip(S, k, S.layout[side].w, || {});
 }
 
-// Minimised, without the sheet: one control that opens the dock back.
+// Minimised, without the sheet: the control that opens the dock back, and
+// under it one mark per panel it holds, so a folded dock still says what is
+// in it and opens straight onto the one that is wanted.
 fn handle_body(S, k, side) {
-    let p = panel(S, S.docks[side].active);
+    let d = S.docks[side];
     if side == "bottom" {
         ui::add_space(2);
         chrome::status_strip(S, k, S.layout[side].w, || {
             if ui::pill(icons::ui(open_icon(side)), #{
-                role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
+                role: "icon_button", height: 22, size: 10.5, padding_x: 5,
+                tooltip: "Open the dock",
             }) {
                 S.docks[side].shut = false;
             }
         });
         return;
     }
-    ui::horizontal(#{ height: 30 }, || {
-        ui::add_space(2);
-        if ui::circle_button(icons::ui(open_icon(side)), #{
-            role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
+    ui::vertical(|| {
+        ui::spacing(0, 3);
+        if ui::pill(icons::ui(open_icon(side)), #{
+            height: 22, min_width: RAIL_W, size: 10.5, padding_x: 0, radius: 5,
+            fill: k.sunken, color: k.dim, tooltip: "Open the dock",
         }) {
             S.docks[side].shut = false;
+        }
+        for id in d.tabs {
+            let p = panel(S, id);
+            if ui::pill(p.icon, #{
+                height: 22, min_width: RAIL_W, size: 12, padding_x: 0, radius: 5,
+                fill: if d.active == id { k.accent_soft } else { "none" },
+                color: if d.active == id { k.accent } else { k.faint },
+                tooltip: p.name,
+            }) {
+                S.docks[side].active = id;
+                S.docks[side].shut = false;
+            }
         }
     });
 }

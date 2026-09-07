@@ -67,6 +67,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::MAX,
     k::MAX_HEIGHT,
     k::MENU,
+    k::MENU_CLICK,
     k::MIN,
     k::MIN_WIDTH,
     k::OFF_FILL,
@@ -1041,11 +1042,7 @@ pub(crate) fn left_pill(
     if let Some(tip) = opts.string(k::TOOLTIP) {
         response = response.on_hover_text(tip);
     }
-    if let Some(menu) = opts.callback(k::MENU) {
-        response.context_menu(|ui| {
-            let _ = scoped(eng, ui, menu);
-        });
-    }
+    crate::widget_layout::attach_menus(eng, &response, opts);
     Ok(response.clicked())
 }
 

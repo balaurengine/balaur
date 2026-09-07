@@ -51,3 +51,8 @@ web-time = "1"
 # The console, for the log lines a browser has no stderr for, and the window,
 # which is what opens a URL in a tab.
 web-sys = { version = "0.3", features = ["console", "Window"] }
+
+# The browser outside emscripten, which keeps process ids: the one salt an
+# install id can draw there, since `std::process::id` panics on that target.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+js-sys = "0.3"

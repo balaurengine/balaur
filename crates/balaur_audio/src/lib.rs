@@ -13,10 +13,10 @@
 //! `sound` component's "already started" check) is therefore tracked as
 //! intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
-//! The device is opened by the first call that needs one, not at load: the
-//! open asks the OS for its default output config, and on macOS that reads
-//! the directory the executable sits in. A browser defers it further, to the
-//! first gesture (`UserActivation`), because it refuses audio before one.
+//! A browser refuses to start audio until the page has seen a gesture, so
+//! there the device is opened on the first key, button or touch
+//! (`UserActivation`) rather than at load. `audio.ready` says whether it is
+//! open yet; before that every call takes the "no device" path above.
 
 use anyhow::{Result, anyhow, bail};
 use balaur_core::components::{ComponentDef, as_f64};
@@ -258,9 +258,6 @@ const DEFAULT_MAX_DISTANCE: f32 = 50.0;
 
 pub struct AudioState {
     device: Option<backend::Device>,
-    /// Whether the open has been tried. Nothing tries until a sound plays or
-    /// `ready` is read, so a run that makes no sound never opens a device.
-    opened: bool,
     /// True while the device waits for `UserActivation`: a browser refuses
     /// to start audio before a gesture, so the open is deferred to one.
     awaiting_activation: bool,
@@ -334,16 +331,6 @@ impl AudioState {
         }
     }
 
-    /// Open the output device, once, unless a browser is still waiting for
-    /// its gesture. Every path that needs a device calls this first.
-    fn open_if_needed(&mut self) {
-        if self.opened || self.awaiting_activation {
-            return;
-        }
-        self.opened = true;
-        self.device = open_device();
-    }
-
     /// Start a sound from its bytes: the `audio.*` bindings read paths
     /// through the pack-aware project reader, and hand back its handle.
     /// Never errors: no output device and bytes that will not decode both
@@ -410,7 +397,6 @@ impl AudioState {
                 applied,
             },
         );
-        self.open_if_needed();
         if let Some(device) = &self.device {
             let started = backend::play(
                 device,
@@ -653,7 +639,6 @@ fn open_on_activation_system(eng: &Engine, _: f32) {
         return;
     }
     state.awaiting_activation = false;
-    state.opened = true;
     state.device = open_device();
 }
 
@@ -702,10 +687,11 @@ impl balaur_plugin::Plugin for AudioPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let eager = !cfg!(target_family = "wasm");
+        let device = if eager { open_device() } else { None };
         reg.insert_resource(AudioState {
-            device: None,
-            opened: false,
-            awaiting_activation: cfg!(target_family = "wasm"),
+            device,
+            awaiting_activation: !eager,
             playing: DetHashMap::default(),
             routing: DetHashMap::default(),
             nodes: DetHashMap::default(),
@@ -1002,10 +988,7 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         Ok(())
     });
     m.function("ready", |eng: &Engine, ()| {
-        let state = eng.resource::<AudioState>();
-        let mut state = state.borrow_mut();
-        state.open_if_needed();
-        Ok(state.device.is_some())
+        Ok(eng.resource::<AudioState>().borrow().device.is_some())
     });
     m.function("is_playing", |eng: &Engine, handle: i64| {
         Ok(eng

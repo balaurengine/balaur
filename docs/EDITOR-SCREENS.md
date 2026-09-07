@@ -20,9 +20,10 @@ the 1240 px compact threshold. The screenshots are regenerated; the prose is not
 
 ## 1. The skeleton
 
-Fixed: nothing docks, floats or re-arranges. A persona re-fills four regions and
-may re-order the dock. Drawn by `editor.rn:draw_ui` in this order: persona bar,
-status bar, tree, inspector, dock, centre.
+Fixed: nothing floats. A persona re-fills four regions and states which panels
+are open in each dock; a tab's close mark takes one away and the mark menu at
+the head of the bar puts it back. Drawn by `editor.rn:draw_ui` in this order:
+persona bar, status bar, tree, inspector, dock, centre.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -53,7 +54,7 @@ status bar, tree, inspector, dock, centre.
 
 | Region | Size | Code | Resizable |
 |---|---|---|---|
-| persona bar | 56 px | `chrome::persona_bar` | no |
+| persona bar | 40 px | `chrome::top_bar` | no |
 | status bar | 28 px | `chrome::status_bar` | no |
 | tree + secondary | 262 px | `left::draw` | no |
 | inspector | 308 px | `inspector::draw` | no |
@@ -67,8 +68,11 @@ status bar, tree, inspector, dock, centre.
 
 ## 2. Personas
 
-Five, `defs::personas()`. Switching resets the tool to Select and points the
-document tab and dock at that persona's defaults. Selection is persona-independent.
+Five, `defs::personas()`. Switching resets the tool to Select, points the
+document tab at that persona's default and opens the panels `defs::persona_docks`
+names, in the docks it names them for. That is all a persona does to the docks:
+what it opens closes again from the tab, and what it leaves out opens from the
+mark menu without changing persona. Selection is persona-independent.
 
 | | Scene | Script | Animate | Physics | Interface |
 |---|---|---|---|---|---|
@@ -76,7 +80,7 @@ document tab and dock at that persona's defaults. Selection is persona-independe
 | secondary panel | Scenes | Rune modules | Clips | Collision | Interface |
 | viewport chips | 3D·Perspective, Snap 8 px, Guides | — | Motion path, Snap 8 px | Show colliders, Sleep bodies | Safe area, 1920×1080 |
 | inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |
-| default dock | output | output | timeline | output | output |
+| panels open | scene outline · output problems assets · inspector import | scene outline · output problems docs debugger · inspector | scene outline · timeline output library · inspector | scene · output problems profiler · inspector | scene outline · output problems assets · inspector import |
 | screenshot | `01-scene-3d`, `02-scene-2d` | `03-script` | `04-animate` | `05-physics` | `06-interface` |
 
 ---
@@ -170,8 +174,10 @@ region in the shell.
 
 ## 5. Bottom dock — `dock::draw`
 
-Eleven built-in tabs plus one per registered plugin. 150 px; 212 px for
-timeline, debugger, session, profiler and cost.
+Seventeen panels exist; the persona says which of them are open, and a
+registered plugin's joins the bottom dock. 150 px; 212 px for timeline,
+debugger, session, profiler and cost. Every tab carries a close mark, and a
+dock emptied of tabs gives its column back to the scene.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -225,6 +231,16 @@ timeline, debugger, session, profiler and cost.
 Six control shapes: numeric field, select, toggle, slider, script chip, asset row.
 Component sections are generated from `scene::component_schema`, so a plugin's
 component gets a section — and its label width — for free.
+
+---
+
+### 5a. The mark menu — `menu::draw`
+
+The mark at the head of the bar is the shell's one menu, opened with a left
+click: the command palette, Settings and Export, then every panel there is with
+a tick beside the open ones, two to a line, then the row that puts the current
+persona's panels back. A folded side dock is a rail of the same marks: the one
+that opens it, then one per panel it holds.
 
 ---
 

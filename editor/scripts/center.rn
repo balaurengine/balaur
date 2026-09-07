@@ -209,8 +209,10 @@ fn viewport(S, k) {
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
-    ui::overlay("vp-chips", #{ x: vp.x, y: vp.y }, || {
-        ui::horizontal((), || {
+    // Sized, so the row is clipped to the scene: unsized, a persona with one
+    // chip too many painted its last over the inspector beside it.
+    ui::overlay("vp-chips", #{ x: vp.x, y: vp.y, w: vp.w, h: HUD_H }, || {
+        ui::horizontal(#{ height: HUD_H }, || {
             ui::spacing(6, 0);
             for c in defs::chips(S.persona) {
                 let label = c[1];
@@ -228,7 +230,11 @@ fn viewport(S, k) {
             if S.persona == "scene" {
                 ui::add_space(8);
                 view_chip(S, k);
-                bookmark_chips(S, k);
+                // The camera slots are the first thing a small window drops:
+                // four numbered pills for what ⌥1-4 already does.
+                if !S.compact {
+                    bookmark_chips(S, k);
+                }
             }
         });
     });

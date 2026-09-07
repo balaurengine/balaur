@@ -191,6 +191,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
             Some(tip) => response.on_hover_text(tip),
             None => response,
         };
+        crate::widget_layout::attach_menus(eng, &response, opts);
         Ok(response.clicked())
     })
 }

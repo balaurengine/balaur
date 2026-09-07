@@ -21,8 +21,9 @@ A change opens with `cargo check` and closes with `scripts/precommit.sh`.
 These land in the same commit as the code:
 
 - **`docs/ROADMAP.md`** changes when the change moves something on it. It is
-  the only record of what a version holds. A row says have, planned, fallback
-  or not planned, and names the crate or protocol.
+  the only record of what a version holds. A row is one sentence and at most 25
+  words, says have, planned, fallback or not planned, and names the crate or
+  protocol.
 - **The plan** it came from, so `docs/PLAN-*.md` says what is left.
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
 - **A devlog post** in the website repo's `blog/` when a user can see the
@@ -107,6 +108,12 @@ a line before committing it, for the half a regex cannot judge.
 
 A roadmap row says what the thing is, at the level somebody using the engine
 reads. Never a date, a plan's phase number, a CI job or a defect id.
+
+The row is also the card on the website's roadmap page, which is generated from
+this file, so it is held to one sentence and 25 words and that build fails over
+either. Everything the sentence cannot hold goes where a reader can follow it:
+what is not planned and why into the `PLAN-*.md` the row links to, and what
+shipped into the devlog post the site pairs with a built row.
 
 ## Checks
 

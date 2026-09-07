@@ -565,6 +565,7 @@ dependencies = [
  "i_overlay",
  "i_triangle",
  "indexmap",
+ "js-sys",
  "libm",
  "rustc-hash 2.1.3",
  "serde",

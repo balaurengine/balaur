@@ -21,6 +21,7 @@ free_space() {
 
 case $mode in
   --sizes)
+    printf 'entries in target/debug/deps: %s\n' "$(ls -f target/debug/deps 2>/dev/null | wc -l | tr -d ' ')"
     du -sh target/* 2>/dev/null | sort -h | tail -12
     sccache --show-stats 2>/dev/null | grep -E 'Cache size|Max cache size' || true
     ;;
@@ -31,13 +32,12 @@ case $mode in
   --prune)
     printf 'deps entries before: %s\n' "$(ls -f target/debug/deps 2>/dev/null | wc -l | tr -d ' ')"
     rm -rf target/debug/incremental target/shape/*/debug/incremental
+    # Nothing writes a loose object any more: `.cargo/config.toml` builds this
+    # host with `split-debuginfo=packed`, so every `.o` here predates that and
+    # holds the debug info of a binary that will be rebuilt before it is read.
+    find target -type f -path '*/deps/*' -name '*.o' -delete
     if command -v cargo-sweep >/dev/null 2>&1; then
       cargo sweep --time "$STALE_DAYS" --recursive target
-    else
-      # What cargo-sweep does, by hand: an artifact cargo still wants and
-      # cannot find is rebuilt, so age is a safe test. Directories stay.
-      find target -type f \( -path '*/deps/*' -o -path '*/build/*' -o -path '*/examples/*' \) \
-        -mtime +"$STALE_DAYS" -delete
     fi
     printf 'deps entries after:  %s\n' "$(ls -f target/debug/deps 2>/dev/null | wc -l | tr -d ' ')"
     ;;

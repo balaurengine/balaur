@@ -77,7 +77,9 @@ pub fn set_persona(S, id) {
     } else {
         S.doctab = "scene";
     }
-    crate::docks::show(S, if id == "anim" { "timeline" } else { "output" });
+    // A persona is a set of open panels and nothing more: what it opens can
+    // be closed again from a tab, and what it leaves out opened from the menu.
+    crate::docks::apply_persona(S, id);
 }
 
 /// Show a document tab, opening it when it was closed.
@@ -700,7 +702,7 @@ fn state_show(S, name) {
 pub fn set_tool(S, tool) {
     S.tool = tool;
     if tool == "tiles" {
-        crate::docks::reveal(S, "tiles");
+        crate::docks::show(S, "tiles");
     }
 }
 

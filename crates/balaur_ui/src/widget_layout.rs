@@ -180,11 +180,26 @@ fn hover_text(response: egui::Response, opts: &Opts, tip: String) -> egui::Respo
     }
 }
 
+/// Hang a control's menus off its response: `menu` opens on a right click
+/// wherever the pointer is, `menu_click` on a left click under the control.
+pub(crate) fn attach_menus(eng: &Engine, response: &egui::Response, opts: &Opts) {
+    if let Some(menu) = opts.callback(k::MENU) {
+        response.context_menu(|ui| {
+            let _ = scoped(eng, ui, menu);
+        });
+    }
+    if let Some(menu) = opts.callback(k::MENU_CLICK) {
+        egui::Popup::menu(response).show(|ui| {
+            let _ = scoped(eng, ui, menu);
+        });
+    }
+}
+
 /// `ui.pill` and `ui.menu_item`.
 pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("pill", &[], "", "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click."),
-        ("menu_item", &[], "", "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu."),
+        ("pill", &[], "", "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click."),
+        ("menu_item", &[], "", "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu."),
     ]);
     m.function(
         "pill",
@@ -231,16 +246,18 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),
                     None => button.stroke(Stroke::NONE),
                 };
+                // The gap either side of the label, when the caller or its
+                // role names one. Put back after: the spacing is the row's.
+                let was = ui.spacing().button_padding.x;
+                if let Some(pad) = opts.opt_px(k::PADDING_X) {
+                    ui.spacing_mut().button_padding.x = pad;
+                }
                 let mut response = enabled_add(ui, button, &opts);
+                ui.spacing_mut().button_padding.x = was;
                 if let Some(tip) = opts.string(k::TOOLTIP) {
                     response = hover_text(response, &opts, tip);
                 }
-                // Right-click context menu: the callback draws menu items.
-                if let Some(menu) = opts.callback(k::MENU) {
-                    response.context_menu(|ui| {
-                        let _ = scoped(eng, ui, menu);
-                    });
-                }
+                attach_menus(eng, &response, &opts);
                 Ok(response.clicked())
             })
         },
@@ -251,24 +268,36 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
+                let h = opts.px(k::HEIGHT, 26.0);
                 let (rect, response) =
-                    ui.allocate_exact_size(vec2(sc(180.0), sc(26.0)), Sense::click());
+                    ui.allocate_exact_size(vec2(opts.px(k::WIDTH, 180.0), h), Sense::click());
                 if response.hovered() {
-                    ui.painter().rect_filled(
-                        rect,
-                        pill_radius(sc(26.0)),
-                        Color32::from_white_alpha(10),
-                    );
+                    ui.painter()
+                        .rect_filled(rect, pill_radius(h), Color32::from_white_alpha(10));
                 }
                 let color = opts.color(k::COLOR, Color32::WHITE);
-                let galley = ui.painter().layout_no_wrap(
-                    s.clone(),
-                    FontId::new(opts.px(k::SIZE, 12.5), theme::family("ui")),
-                    color,
-                );
+                let size = opts.px(k::SIZE, 12.5);
+                let galley =
+                    ui.painter()
+                        .layout_no_wrap(s.clone(), FontId::new(size, theme::family("ui")), color);
                 let y = rect.center().y - galley.size().y / 2.0;
                 ui.painter()
                     .galley(pos2(rect.min.x + sc(10.0), y), galley, color);
+                // The shortcut, or whatever else names the row's other half.
+                if let Some(trailing) = opts.string(k::TRAILING) {
+                    let tint = opts.opt_color(k::TRAILING_COLOR).unwrap_or(color);
+                    let galley = ui.painter().layout_no_wrap(
+                        trailing,
+                        FontId::new(opts.px(k::TRAILING_SIZE, 11.0), theme::family("ui")),
+                        tint,
+                    );
+                    let ty = rect.center().y - galley.size().y / 2.0;
+                    ui.painter().galley(
+                        pos2(rect.max.x - sc(10.0) - galley.size().x, ty),
+                        galley,
+                        tint,
+                    );
+                }
                 if response.clicked() {
                     ui.close();
                     return Ok(true);

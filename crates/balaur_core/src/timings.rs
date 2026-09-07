@@ -10,6 +10,13 @@
 //! Measurement is nine `Instant::now()` calls a frame, one per stage plus the
 //! frame itself, which is beneath the noise of the work being measured. Named
 //! spans cost one more per span, and only a plugin that asks for them pays.
+//!
+//! [`Timings::stages`] covers the stages and nothing else: a windowed loop
+//! mirrors the world into its scene graph, draws the UI and presents outside
+//! them, which is most of a frame in the editor. That work reports itself
+//! through [`record`] and [`note_wall`], and lands in the next frame's table
+//! because a span filed after the stages ran misses the publish that ended
+//! them.
 
 // Measuring wall time is what this module is for; the doc above is the
 // argument that none of it reaches the simulation.
@@ -45,6 +52,10 @@ pub const STAGE_NAMES: [&str; 8] = [
 pub struct Timings {
     /// Wall time of the whole frame, stages and everything between them.
     pub frame: Duration,
+    /// Frame to frame as the loop driving the window measured it: the stages,
+    /// the syncs, the UI pass, present and the wait for the next frame. Zero
+    /// under a driver that reports none, such as a headless run.
+    pub wall: Duration,
     /// Per stage, in `STAGE_NAMES` order.
     pub stages: [Duration; 8],
     /// How many fixed steps the accumulator drained. Zero is normal on a fast
@@ -65,6 +76,21 @@ impl Timings {
     }
 }
 
+/// File `elapsed` under `name`, for work timed somewhere a closure cannot
+/// wrap — an awaited render, or a cost the window reports after the fact.
+pub fn record(eng: &Engine, name: &str, elapsed: Duration) {
+    if let Some(timings) = eng.try_resource::<Timings>() {
+        timings.borrow_mut().pending.push((name.to_string(), elapsed));
+    }
+}
+
+/// Note the frame period the loop measured, for [`Timings::wall`].
+pub fn note_wall(eng: &Engine, frame: Duration) {
+    if let Some(timings) = eng.try_resource::<Timings>() {
+        timings.borrow_mut().wall = frame;
+    }
+}
+
 /// Time `body` and file it under `name` for this frame.
 ///
 /// The seam for anything finer than a stage: a plugin wraps the work it wants
@@ -74,13 +100,7 @@ impl Timings {
 pub fn measure<T>(eng: &Engine, name: &str, body: impl FnOnce() -> T) -> T {
     let started = Instant::now();
     let out = body();
-    let elapsed = started.elapsed();
-    if let Some(timings) = eng.try_resource::<Timings>() {
-        timings
-            .borrow_mut()
-            .pending
-            .push((name.to_string(), elapsed));
-    }
+    record(eng, name, started.elapsed());
     out
 }
 
@@ -91,6 +111,8 @@ pub(crate) fn publish(eng: &Engine, frame: Duration, stages: [Duration; 8], fixe
     };
     let mut timings = timings.borrow_mut();
     timings.frame = frame;
+    // Not `wall`: the loop writes that, and the last one it measured stands
+    // until it measures another.
     timings.stages = stages;
     timings.fixed_steps = fixed_steps;
     timings.spans = std::mem::take(&mut timings.pending);
@@ -121,6 +143,7 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
     }
     Value::Map(vec![
         ("frame".to_string(), seconds(timings.frame)),
+        ("wall".to_string(), seconds(timings.wall)),
         (
             "fixed_steps".to_string(),
             Value::Int(i64::from(timings.fixed_steps)),
@@ -148,6 +171,8 @@ pub struct TimingLog {
     frames: u64,
     frame_total: Duration,
     frame_worst: Duration,
+    wall_total: Duration,
+    wall_worst: Duration,
     stage_totals: [Duration; 8],
     stage_worst: [Duration; 8],
     spans: Vec<(String, Duration, Duration)>,
@@ -159,6 +184,8 @@ impl TimingLog {
         self.frames += 1;
         self.frame_total += timings.frame;
         self.frame_worst = self.frame_worst.max(timings.frame);
+        self.wall_total += timings.wall;
+        self.wall_worst = self.wall_worst.max(timings.wall);
         for (i, stage) in timings.stages.iter().enumerate() {
             self.stage_totals[i] += *stage;
             self.stage_worst[i] = self.stage_worst[i].max(*stage);
@@ -221,6 +248,16 @@ impl TimingLog {
             100.0 * Timings::share(self.frame_total / frames),
             self.frames,
         );
+        if self.wall_total > Duration::ZERO {
+            let _ = writeln!(
+                out,
+                "{:width$}  {:>9}  {:>9}  {:>8.1}%   frame to frame",
+                "wall",
+                millis(self.wall_total / frames),
+                millis(self.wall_worst),
+                100.0 * Timings::share(self.wall_total / frames),
+            );
+        }
         out
     }
 }

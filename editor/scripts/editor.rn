@@ -25,6 +25,7 @@ mod layout;
 mod library;
 mod left;
 mod lint;
+mod menu;
 mod model;
 mod overlays;
 mod palette;
@@ -314,8 +315,11 @@ pub fn update(this, dt) {
         }
     }
     // What moves without input asks for the next pass; the rest waits for one.
+    // A dock folding away and a gizmo drag both move the picture while the
+    // pointer holds still, so both are in the list.
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+        || layout::animating(S) || S.gizmo.drag is Object
     {
         ui::request_repaint();
     }

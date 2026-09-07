@@ -31,9 +31,10 @@ parent = "shell"
 [nodes.widget]
 kind = "panel"
 text = ""
-# The bar's own row is 36; a panel keeps 8 inside each edge, so the box that
-# holds it is that much taller.
-height = 52
+# The bar's own row is 30, and this sheet keeps 5 inside each edge: the one
+# strip that is chrome from edge to edge takes less than a panel would.
+height = 40
+padding = 5
 gap = 0
 
 [[nodes]]
@@ -63,6 +64,9 @@ parent = "body"
 kind = "panel"
 text = ""
 width = 236
+# What a sheet keeps inside its edge. Stated rather than left to the widget
+# theme because a folded dock writes a smaller one and needs this back.
+padding = 8
 
 [[nodes]]
 id = "left_body"
@@ -90,6 +94,7 @@ parent = "body"
 kind = "panel"
 text = ""
 width = 288
+padding = 8
 
 [[nodes]]
 id = "right_body"

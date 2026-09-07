@@ -123,6 +123,7 @@ pub(crate) mod keys {
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MENU: &str = "menu";
+    pub(crate) const MENU_CLICK: &str = "menu_click";
     pub(crate) const MIN: &str = "min";
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";

@@ -11,19 +11,24 @@ use crate::style;
 use crate::theme;
 use crate::util;
 
-const PAD_X = 10.0;
+// What the head sheet keeps inside its edge, plus the row's own first step.
+const PAD_X = 7.0;
 // The brand mark, and the name beside it when there is room.
-const MARK_W = 26.0;
+const MARK_W = 24.0;
 const NAME_W = 52.0;
-// The transport's three buttons: 28 px each on 4 px spacing, in a 96 px block.
-const BUTTON_PITCH = 32.0;
-const BLOCK_W = 96.0;
+// The transport's three buttons: 26 px each on 3 px spacing, in an 87 px block.
+const BUTTON_PITCH = 29.0;
+const BLOCK_W = 87.0;
 // The theme switch and the command pill at the bar's right end.
-const THEME_W = 30.0;
-const CMD_W = 130.0;
-const CMD_W_COMPACT = 30.0;
+const THEME_W = 26.0;
+const CMD_W = 118.0;
+const CMD_W_COMPACT = 26.0;
 // One document tab, as the showcase's pointer estimates it.
-const TAB_W = 112.0;
+const TAB_W = 104.0;
+// The bar's own row, a step shorter in a small window.
+fn row_h(S) {
+    if S.compact { 26.0 } else { 30.0 }
+}
 
 // The edited project's mark, when it ships one, else balaur's. A project
 // that brought its own logo gets its own name beside it too.
@@ -58,8 +63,8 @@ fn plural(n, word) {
 
 // Where the first persona pill starts, after the brand.
 fn personas_x(S) {
-    let name = if S.compact { 0.0 } else { 7.0 + NAME_W };
-    S.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 12.0
+    let name = if S.compact { 0.0 } else { 3.0 + NAME_W };
+    S.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 8.0
 }
 
 /// Where one persona pill's centre lands in the bar, in design px, so the
@@ -81,7 +86,7 @@ pub fn persona_spot(S, id) {
 pub fn doc_spot(S, id) {
     let bar = S.layout.bar;
     let per = crate::layout::persona_w(S);
-    let first = personas_x(S) + (defs::personas().len() as f64) * per + 16.0;
+    let first = personas_x(S) + (defs::personas().len() as f64) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
     (first + slot * (TAB_W + 4.0) + TAB_W / 2.0, bar.y + bar.h / 2.0)
 }
@@ -98,43 +103,52 @@ pub fn transport_spot(S, n) {
 /// sheet around it is the node's own paint.
 pub fn top_bar(S) {
     let k = S.theme;
+    let h = row_h(S);
     {
-        ui::horizontal(#{ height: 30 }, || {
+        ui::horizontal(#{ height: h }, || {
+            ui::spacing(4, 0);
             ui::add_space(2);
             let mark = brand(S);
-            ui::image(mark.logo, #{ height: MARK_W, radius: 13, bg: "#ffffff", padding: 3 });
+            // The mark is the shell's one menu: everything the editor has
+            // that is not a persona, a document or the transport hangs here.
+            ui::image_button(mark.logo, #{
+                height: h - 6.0, radius: 12, fill: "#ffffff", padding: 2,
+                tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
+            });
             if !S.compact {
-                ui::add_space(7);
-                ui::label(mark.name, #{ size: 16, font: ui::FONT_HEADING, color: k.text });
+                ui::add_space(3);
+                ui::label(mark.name, #{ size: 15, font: ui::FONT_HEADING, color: k.text });
             }
-            ui::add_space(12);
+            ui::add_space(8);
             for p in defs::personas() {
                 let active = S.persona == p.id;
                 let label = if S.compact { "" } else { p.name };
                 if ui::pill(label, #{
                     role: if active { "navtab_on" } else { "navtab" },
+                    height: h - 4.0, padding_x: if S.compact { 6 } else { 8 },
                     icon: p.icon, tooltip: p.name,
                 }) {
                     shell::set_persona(S, p.id);
                 }
             }
-            ui::add_space(12);
+            ui::add_space(8);
             doc_tabs(S, k);
             ui::right(|| {
                 if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
-                    height: 30, min_width: THEME_W, size: 16, radius: 8,
+                    height: h, min_width: THEME_W, size: 14, radius: 8, padding_x: 0,
                     fill: k.sunken, color: k.dim, tooltip: "Toggle theme",
                 }) {
                     theme::set_dark(S, !k.dark);
                 }
                 if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                    height: 30, size: 11.5, radius: 8, icon: icons::ui("search"),
+                    height: h, min_width: CMD_W_COMPACT, size: 11.5, radius: 8,
+                    padding_x: if S.compact { 0 } else { 9 }, icon: icons::ui("search"),
                     fill: k.sunken, color: k.faint, tooltip: "⌘K",
                 }) {
                     shell::open_palette(S, "");
                 }
-                ui::add_space(6);
-                ui::horizontal(#{ height: 30, width: BLOCK_W }, || {
+                ui::add_space(4);
+                ui::horizontal(#{ height: h, width: BLOCK_W }, || {
                     ui::right(|| transport(S, k));
                 });
             });
@@ -161,9 +175,10 @@ fn doc_tabs(S, k) {
     if S.events_open {
         tab(S, k, "events", icons::ui("events"), "events", true);
     }
-    ui::add_space(4);
+    ui::add_space(2);
     if ui::pill(if S.compact { "" } else { "Split" }, #{
         role: if S.split { "navtab_on" } else { "navtab" }, icon: icons::ui("split"),
+        height: row_h(S) - 4.0, padding_x: if S.compact { 6 } else { 8 },
         tooltip: "Show the code and the viewport at once (⌘\\)",
     }) {
         shell::toggle_split(S);
@@ -174,17 +189,19 @@ fn doc_tabs(S, k) {
 // tile, so the two read as one control.
 fn tab(S, k, id, icon, label, closable) {
     let active = S.doctab == id;
+    let h = row_h(S) - 4.0;
     ui::frame(#{ fill: if active { k.accent_soft } else { k.panel }, radius: 5 }, || {
-        ui::horizontal(#{ height: 24, tight: true }, || {
+        ui::horizontal(#{ height: h, tight: true }, || {
             ui::spacing(0, 0);
             if ui::pill(label, #{
                 role: if active { "navtab_on" } else { "navtab" }, icon: icon, fill: "none",
+                height: h, padding_x: 8,
             }) {
                 shell::open_doc(S, id);
             }
             if closable {
                 if ui::pill(icons::ui("close"), #{
-                    height: 24, min_width: 20, size: 10.5, fill: "none",
+                    height: h, min_width: 15, size: 9, fill: "none", padding_x: 2,
                     color: if active { k.accent } else { k.faint }, tooltip: "Close",
                 }) {
                     shell::close_doc(S, id);
@@ -198,8 +215,8 @@ fn tab(S, k, id, icon, label, closable) {
 // session pauses through the player, or the scripts would run on and the
 // replay would stop reproducing the recording.
 fn transport(S, k) {
-    ui::horizontal(#{ height: 30, width: BLOCK_W, tight: true }, || {
-        ui::spacing(4, 0);
+    ui::horizontal(#{ height: row_h(S), width: BLOCK_W, tight: true }, || {
+        ui::spacing(3, 0);
         let replaying = crate::session::loaded(S);
         let running = S.playing || replaying;
         if ui::circle_button(icons::ui("play"), #{

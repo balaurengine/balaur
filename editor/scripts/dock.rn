@@ -952,7 +952,11 @@ pub fn profiler(S, k) {
         style::empty(k, "no timings yet");
         return;
     }
-    let frame_ms = util::f(timings.frame) * 1000.0;
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render are named spans, and `wall` is what the loop took.
+    let stage_ms = util::f(timings.frame) * 1000.0;
+    let wall_ms = util::f(timings.wall) * 1000.0;
+    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
     ui::add_space(8);
     ui::horizontal((), || {
         ui::add_space(12);
@@ -965,7 +969,7 @@ pub fn profiler(S, k) {
         );
         if over {
             ui::add_space(8);
-            ui::label("over budget", style::mono_sm(k.accent));
+            ui::label(format!("{} fps", fixed(1000.0 / frame_ms, 1)), style::mono_sm(k.accent));
         }
     });
     ui::add_space(6);

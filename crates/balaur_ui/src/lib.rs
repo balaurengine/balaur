@@ -168,6 +168,12 @@ impl balaur_plugin::Plugin for UiPlugin {
 /// Called by a windowed backend once per frame with the frame's egui
 /// context. Does nothing when the `UiPlugin` is not installed.
 pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
+    let started = balaur_core::time::Instant::now();
+    pass(eng, ctx);
+    pacing::note_pass(eng, started.elapsed());
+}
+
+fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };

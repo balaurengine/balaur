@@ -222,6 +222,10 @@ enum Command {
         /// "light", "play"), mirroring the design prototype's startPersona.
         #[arg(long)]
         state: Option<String>,
+        /// Print what each frame cost when the editor closes. The editor's
+        /// own shell is most of a frame, so this is how a slow one is read.
+        #[arg(long)]
+        timings: bool,
     },
     /// Play back a session recorded with `run --record`.
     ///
@@ -379,7 +383,8 @@ fn dispatch(command: Command) -> Result<()> {
             frames,
             offscreen,
             state,
-        } => edit_project(&path, editor, frames, offscreen, state),
+            timings,
+        } => edit_project(&path, editor, frames, offscreen, state, timings),
         Command::Export {
             path,
             output,
@@ -727,6 +732,7 @@ fn edit_project(
     frames: Option<u64>,
     offscreen: bool,
     state: Option<String>,
+    timings: bool,
 ) -> Result<()> {
     let game = joinable(
         &path
@@ -776,10 +782,17 @@ fn edit_project(
             }
         });
     }
-    if offscreen {
-        return balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1);
+    // Registered last, so the frame it folds in is the whole frame.
+    let log = timings.then(|| log_timings(&mut app));
+    let ran = if offscreen {
+        balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+    } else {
+        balaur::run(app, "balaur editor")
+    };
+    if let Some(log) = &log {
+        print!("{}", log.borrow().report());
     }
-    balaur::run(app, "balaur editor")
+    ran
 }
 
 /// Boot a standard app in a scratch project and print what scripts can reach.

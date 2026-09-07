@@ -1,6 +1,6 @@
-// Every glyph the shell draws, named for what it means. Phosphor Regular, in
-// the icons chain each font family falls back to; swapping the set is this
-// file and nothing else.
+// Every glyph the shell draws, named for what it means. Phosphor Fill, in the
+// icons chain each font family falls back to; every weight of the set shares
+// its codepoints, so a solid shell is the font file and nothing else.
 
 /// A viewport tool, by `defs::tools` id.
 pub fn tool(id) {
@@ -61,7 +61,11 @@ pub fn panel(id) {
 pub fn ui(name) {
     match name {
         "add" => "\u{e3d4}",
+        "check" => "\u{e182}",
         "close" => "\u{e4f6}",
+        "reset" => "\u{e038}",
+        "settings" => "\u{e270}",
+        "export" => "\u{eaf0}",
         "minimise" => "\u{e32a}",
         "open" => "\u{e13c}",
         "shut" => "\u{e136}",

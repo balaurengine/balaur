@@ -66,6 +66,34 @@ fn a_measured_span_is_filed_under_its_name() {
     );
 }
 
+/// Work the loop times outside the stages — the scene mirror, the UI pass,
+/// the render it awaited — has no closure to wrap and is filed by hand.
+#[test]
+fn a_recorded_span_is_filed_with_the_next_frame() {
+    let mut app = app();
+    balaur_core::timings::record(&app.engine, "test/awaited", Duration::from_millis(7));
+    assert!(spans(&app).is_empty(), "the frame it belongs to has not ended");
+    app.tick(FIXED_DT);
+    let spans = spans(&app);
+    let (_, seconds) = spans
+        .iter()
+        .find(|(name, _)| name == "test/awaited")
+        .unwrap_or_else(|| panic!("{spans:?}"));
+    assert!((seconds - 0.007).abs() < 1e-6, "{seconds}");
+}
+
+/// The stages are the smaller half of a windowed frame, so the loop reports
+/// the period it measured and it outlives the publishes between.
+#[test]
+fn the_frame_period_the_loop_measured_outlives_a_publish() {
+    let mut app = app();
+    assert_eq!(last(&app).wall, Duration::ZERO, "no loop has measured one");
+    balaur_core::timings::note_wall(&app.engine, Duration::from_millis(33));
+    app.tick(FIXED_DT);
+    app.tick(FIXED_DT);
+    assert_eq!(last(&app).wall, Duration::from_millis(33));
+}
+
 /// How many of the frame's raw spans carry `name`, before the reader sums
 /// them. Core measures its own work too, so a count has to be of one name.
 fn counted(app: &App, name: &str) -> usize {

@@ -175,9 +175,13 @@ impl Frontend {
         let input_seen = crate::kiss3d_input::pump_input(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
+        // What the window last spent, filed before this frame's own spans so
+        // a dock reads the frame in the order it ran.
+        report_render_cost(app, window);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
         let reloaded = self.assets_reloaded(app);
+        let sync_started = Instant::now();
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
         sync(
@@ -230,6 +234,7 @@ impl Frontend {
         draw_grid(app, window);
         crate::debug_lines::flush_debug_lines(app, window);
         crate::debug_lines::flush_debug_lines_2d(app, window);
+        balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
@@ -244,6 +249,20 @@ impl Frontend {
         self.frame += 1;
         take_screenshot_if_due(app, window, self.frame);
         !app.engine.quit_requested()
+    }
+}
+
+/// File what the window reported for the frame it last drew: the true frame
+/// period, the CPU time inside `render`, and the GPU's, which is the half of
+/// a frame no stage covers.
+fn report_render_cost(app: &App, window: &Window) {
+    let Some(timings) = window.render_timings() else {
+        return;
+    };
+    balaur_core::timings::note_wall(&app.engine, timings.frame_wall);
+    balaur_core::timings::record(&app.engine, "render cpu", timings.total);
+    if let Some(gpu) = timings.gpu_total() {
+        balaur_core::timings::record(&app.engine, "render gpu", gpu);
     }
 }
 
