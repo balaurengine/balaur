@@ -1,8 +1,6 @@
-// Walk with WASD, look with the mouse. The camera and the character are one
-// node, so there is one transform and nothing to keep in step.
-//
-// Raw keys rather than actions, so the rig works in a project that has
-// declared none. A game that wants rebinding swaps them for `input::action_*`.
+// Walk with WASD, look with the mouse; the camera and the character are one
+// node. Raw keys rather than actions, so the rig works in a project that has
+// declared none: swap them for `input::action_*` to rebind.
 
 pub fn exports() {
     #{ speed: 4.5, sensitivity: 0.12, gravity: 24.0, jump: 7.0, pitch: 0.0, yaw: 0.0 }

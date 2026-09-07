@@ -699,6 +699,7 @@ mod tests {
         let layout = layout(dir.path());
         let config = AndroidConfig {
             abis: vec![Abi::Arm64V8a, Abi::X86_64],
+            ..Default::default()
         };
         config.prune(layout).unwrap();
         assert_eq!(super::carried(&layout.join("lib")), ["arm64-v8a", "x86_64"]);
@@ -710,6 +711,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("lib/arm64-v8a")).unwrap();
         let config = AndroidConfig {
             abis: vec![Abi::X86],
+            ..Default::default()
         };
         let err = config
             .prune(dir.path())

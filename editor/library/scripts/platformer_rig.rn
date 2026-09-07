@@ -1,7 +1,6 @@
-// Left, right and jump over the 2D character controller.
-//
-// Raw keys rather than actions, so the rig works in a project that has
-// declared none. A game that wants rebinding swaps them for `input::action_*`.
+// Left, right and jump over the 2D character controller. Raw keys rather than
+// actions, so the rig works in a project that has declared none: swap them for
+// `input::action_*` to rebind.
 
 pub fn exports() {
     #{ speed: 6.0, jump: 9.0, gravity: 24.0 }
