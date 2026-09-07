@@ -47,7 +47,7 @@ it also own it?
 | `*State` | Owned and mutated by exactly one subsystem, across frames; every writer goes through that subsystem's API |
 | *(none)* | Immutable after insertion (`ProjectRoot`, `ScriptArgs`, `ProjectManifest`) |
 
-The suffix is actionable, not decorative: `DebugLineBuffer` names the owner that
+The suffix does work, not decoration: `DebugLineBuffer` names the owner that
 must drain it (as `DebugLines`, a headless run grew a `Vec` nothing emptied),
 and `*Snapshot`'s headless clause is why a script reading `render.camera_2d()`
 headless gets zeros rather than the config's defaults. A type spanning two

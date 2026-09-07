@@ -72,9 +72,12 @@ Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
 The limits are numbers, and the website's CI enforces them on every post and
 manual page: 300 words of prose in a post, 35 words in a sentence, 60 in a
 paragraph, 4 paragraphs outside bullets. `scripts/prose_lints.py` holds
-`CHANGELOG.md` and `docs/ROADMAP.md` to the sentence rule here, and runs in
-`scripts/lint.sh`. Run the `avoid-ai-writing` skill over anything longer than
-a changelog line before committing it.
+`CHANGELOG.md` and `docs/ROADMAP.md` to the sentence rule here, and holds every
+hand-written `.md` to the mechanical half of the `avoid-ai-writing` skill: the
+vocabulary a model reaches for, the transitions it opens with, the closers it
+lands on, and the markup its chat interfaces leak. That runs in
+`scripts/lint.sh`. Run the skill itself over anything longer than a changelog
+line before committing it, for the half a regex cannot judge.
 
 ## Changelog
 
