@@ -469,6 +469,23 @@ fn event_value(event: AppleEvent) -> Value {
     Value::Map(pairs)
 }
 
+/// Deliver the URL the game was launched with, once the engine is up.
+///
+/// The window layer holds it, because the application delegate is handed it
+/// before this crate exists. A game reads it as an ordinary URL arrival:
+/// being opened with a link and being handed one mid-run are the same event
+/// to whoever is listening.
+///
+/// Does nothing off Apple, so a caller needs no target of its own.
+#[cfg(target_vendor = "apple")]
+pub fn deliver_launch_url(url: String) {
+    crate::arrivals::deliver_launch_url(url);
+}
+
+/// Deliver the URL the game was launched with. Nothing does off Apple.
+#[cfg(not(target_vendor = "apple"))]
+pub fn deliver_launch_url(_url: String) {}
+
 pub struct ApplePlugin {
     manifest: balaur_plugin::Manifest,
 }

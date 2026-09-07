@@ -86,17 +86,29 @@ ran() { # ran <executable>
 if [[ $target == macos-* ]]; then
   bundle_identity "$work/identity.p12"
   keychain=$work/signing-check.keychain-db
-  # An identity must not outlive the job on a shared runner, and deleting the
-  # keychain takes it back out of the search list too.
-  trap 'security delete-keychain "$keychain" 2>/dev/null; rm -rf "$work"' EXIT
+  # Each keychain its own element: `-s` replaces the whole list, and putting
+  # it back by word-splitting one string mangles a path with a space in it.
+  held=()
+  while IFS= read -r line; do
+    line=$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/^"//; s/"$//')
+    [ -n "$line" ] && held+=("$line")
+  done < <(security list-keychains -d user)
+  # An identity must not outlive the job on a shared runner, and the list it
+  # was put in front of goes back exactly as it was.
+  restore() {
+    security delete-keychain "$keychain" 2>/dev/null
+    [ ${#held[@]} -gt 0 ] && security list-keychains -d user -s "${held[@]}"
+    rm -rf "$work"
+    return 0
+  }
+  trap restore EXIT
   security create-keychain -p "$password" "$keychain"
   security set-keychain-settings -lut 3600 "$keychain"
   security unlock-keychain -p "$password" "$keychain"
   security import "$work/identity.p12" -k "$keychain" -P "$password" -T /usr/bin/codesign
   security set-key-partition-list -S apple-tool:,apple:,codesign: \
     -s -k "$password" "$keychain" >/dev/null
-  # shellcheck disable=SC2046 # each keychain is its own word
-  security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+  security list-keychains -d user -s "$keychain" "${held[@]}"
 
   step "export, signed"
   app=$work/game.app

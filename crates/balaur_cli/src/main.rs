@@ -311,20 +311,32 @@ fn main() -> Result<()> {
     // so boot it and never look at argv. A plain build finds nothing here and
     // carries on as the CLI.
     if let Some(pack) = balaur::standalone::own_pack()? {
-        // A shipped game has no command line to ask for a frame budget, and a
-        // smoke test that never exits is not a smoke test. This is the seam CI
-        // uses to prove an exported game actually boots and runs.
-        if let Some(frames) = frame_budget() {
-            let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(&pack)?))?;
-            app.load_project()?;
-            for _ in 0..frames {
-                app.tick(balaur::FIXED_DT);
-            }
-            return Ok(());
-        }
-        return balaur::boot_pack(&pack);
+        return boot_own_pack(&pack);
     }
-    match Cli::parse_from(argv()).command {
+    dispatch(Cli::parse_from(argv()).command)
+}
+
+/// The pack appended to this executable, booted as the game it is.
+#[cfg(not(target_arch = "wasm32"))]
+fn boot_own_pack(pack: &[u8]) -> Result<()> {
+    // A shipped game has no command line to ask for a frame budget, and a
+    // smoke test that never exits is not a smoke test. This is the seam CI
+    // uses to prove an exported game actually boots and runs.
+    let Some(frames) = frame_budget() else {
+        return balaur::boot_pack(pack);
+    };
+    let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(pack)?))?;
+    app.load_project()?;
+    for _ in 0..frames {
+        app.tick(balaur::FIXED_DT);
+    }
+    Ok(())
+}
+
+/// Each subcommand, to the one function that runs it.
+#[cfg(not(target_arch = "wasm32"))]
+fn dispatch(command: Command) -> Result<()> {
+    match command {
         Command::Api => dump_api(),
         Command::Import {
             file,

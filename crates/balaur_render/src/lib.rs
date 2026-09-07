@@ -25,6 +25,22 @@ pub mod light;
 pub mod light3d;
 pub mod material;
 pub mod mesh;
+/// The URL the app was launched with, taken once.
+///
+/// It lives in the window layer because UIKit hands it to the application
+/// delegate before the engine boots, and nothing else is awake that early.
+/// `None` on every other platform, and on the second ask.
+#[cfg(all(feature = "kiss3d", target_os = "ios"))]
+pub fn take_launch_url() -> Option<String> {
+    kiss3d::window::take_launch_url()
+}
+
+/// The URL the app was launched with. Only iOS delivers one this way.
+#[cfg(not(all(feature = "kiss3d", target_os = "ios")))]
+pub fn take_launch_url() -> Option<String> {
+    None
+}
+
 #[cfg(feature = "kiss3d")]
 mod morph;
 mod particles;

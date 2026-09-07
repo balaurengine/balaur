@@ -5,7 +5,9 @@
 > and validation, and `shaders::register_shader_module` for a plugin's own
 > module. ARCHITECTURE.md's shader sections and the manual's Shaders page are
 > the record; all of it is verified on a GPU through `balaur run --offscreen`.
-> Phase 9 is what is left.
+> Phase 9 is what is left, and its design was settled on 2026-09-07: the
+> camera lists its passes in order. What blocks the build is named below and
+> is not in this repository.
 
 # Plan: shaders — what is left
 
@@ -15,15 +17,52 @@
 field. A user shader on that chain is the same `material` asset over a
 full-screen pass: the input is the rendered colour (and depth, where a pass
 wants it), the output replaces it, and `features` picks a variant as anywhere
-else. What has to be decided is the order — where a user pass sits among the
-built-in ones — and whether a material declares that or the camera does.
+else.
+
+**The camera lists its passes, in order. Decided 2026-09-07.** `post` stops
+being a flag set and becomes an ordered list mixing the built-in names with
+material ids:
+
+```toml
+[nodes.camera]
+post = ["ssao", "colour_grade", "bloom"]
+```
+
+What runs is what the list reads, top to bottom. The alternative was a
+`stage = "after_tonemap"` on the material, which makes one material reusable
+across cameras but needs a slot vocabulary the engine has to keep meaningful
+as passes change, and leaves two materials in one slot with no order between
+them. A third — a `post_materials` key that always runs last — was rejected
+for the limit it makes permanent: no fog before SSAO, no grade before bloom.
+
+The cost of the decision is that the four built-ins gain a real order Balaur
+hands the renderer, rather than one the renderer fixes.
+
+**What blocks it is in the fork, not here.** `camera.post` reaches kiss3d as
+four independent booleans — `set_bloom_enabled`, `set_ssao_enabled`,
+`set_ssr_enabled`, `set_dof_enabled` (`kiss3d_backend.rs`, `apply_post`) —
+and their order lives inside the HDR pipeline. `Window` takes no chain and no
+user pass: `PostProcessingEffect` exists in the fork but is not wired to
+`Window`, and its own documentation says one effect at a time. So the fork
+needs an ordered chain that runs built-in passes and user WGSL passes over
+the HDR film before anything here can honour the list above. Landing the
+schema first would promise an order the renderer ignores, which is why it
+has not been.
+
+The Balaur half, once the fork can take a chain: `post` parses to an ordered
+`Vec` of built-in-or-material, `PostConfig` carries it, and a material in the
+list builds the pipeline `shader_material.rs` already builds for a screen
+reader, over the whole film rather than around one object.
 
 ## Shader packages
 
 The plugin half is built: `shaders::register_shader_module` mounts a plugin's
 module beside the engine's own, so a project's shader imports it like any
 other. What is left is publishing Balaur's own helpers as a crates.io
-package, which is a release action rather than engine work.
+package, which is a release action rather than engine work. Left out of
+phase 9 on 2026-09-07: it means owning a crate name and a version cadence
+before anyone has asked for the helpers, and a project that wants its own
+module already has `shaders::register_shader_module`.
 
 ## Open questions
 
