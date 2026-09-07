@@ -42,7 +42,6 @@ def workspace():
     for pkg in meta["packages"]:
         src = Path(pkg["manifest_path"]).parent
         crates[pkg["name"]] = {
-            "description": pkg.get("description") or "",
             "deps": sorted(
                 d["name"] for d in pkg["dependencies"]
                 if d["name"].startswith("balaur") and d["kind"] is None
@@ -51,58 +50,11 @@ def workspace():
                 d["name"] for d in pkg["dependencies"]
                 if d["name"].startswith("balaur") and d["kind"] == "dev"
             ),
-            "external": sorted(
-                d["name"] for d in pkg["dependencies"]
-                if not d["name"].startswith("balaur") and d["kind"] is None
-            ),
-            "purpose": module_doc(src / "src" / "lib.rs") or module_doc(src / "src" / "main.rs"),
             "dir": src,
             "features": pkg["features"],
             "manifest": Path(pkg["manifest_path"]),
         }
     return dict(sorted(crates.items()))
-
-
-def module_doc(path):
-    """The leading //! block, as one paragraph."""
-    if not path.exists():
-        return ""
-    lines = []
-    for line in path.read_text().splitlines():
-        if line.startswith("//!"):
-            lines.append(line[3:].strip())
-        elif lines:
-            break
-    while lines and not lines[-1]:
-        lines.pop()
-    para = []
-    for line in lines:
-        if not line:
-            break
-        para.append(line)
-    return plain_links(" ".join(para))
-
-
-def plain_links(text):
-    """Drop rustdoc's intra-doc links, keeping what they read as.
-
-    `[`Transport`](balaur_core::transport::Transport)` resolves inside
-    rustdoc and nowhere else; rendered as markdown it is a link to a page
-    that does not exist, which fails the website's build.
-    """
-    return re.sub(r"\[(`[^`\]]+`)\]\([^)\s]*::[^)\s]*\)", r"\1", text)
-
-
-def public_surface(crate):
-    """Count public items, and name the traits and types a crate owns."""
-    kinds = {"fn": [], "struct": [], "enum": [], "trait": [], "const": [], "type": []}
-    for rs in sorted((crate["dir"] / "src").rglob("*.rs")):
-        for m in re.finditer(
-            r"^pub (?:async )?(?:unsafe )?(fn|struct|enum|trait|const|type) ([A-Za-z_][A-Za-z0-9_]*)",
-            rs.read_text(), re.M,
-        ):
-            kinds[m.group(1)].append(m.group(2))
-    return {k: sorted(set(v)) for k, v in kinds.items()}
 
 
 def script_api():
@@ -126,15 +78,6 @@ def module_owners():
     return owners
 
 
-def test_names():
-    """Every test, as a sentence. An undocumented flow is an untested one."""
-    out = run("cargo", "test", "--workspace", "--", "--list")
-    # Split off the trailing ": test", not the first colon: a name like
-    # `det::tests::a_flow` would otherwise be reported as the module `det`.
-    paths = [line.rsplit(":", 1)[0] for line in out.splitlines() if line.endswith(": test")]
-    return sorted({p.rsplit("::", 1)[-1] for p in paths})
-
-
 def drift(name, have, want):
     """What changed, so a red build names the lines and not just the file."""
     diff = list(difflib.unified_diff(
@@ -147,30 +90,6 @@ def drift(name, have, want):
 
 def write(name, body):
     (OUT / name).write_text(BANNER + body)
-
-
-def gen_crates(crates):
-    body = "# Crates\n\nOne section per workspace crate: what it is for, what it\ndepends on inside the workspace, and what it exports.\n\n"
-    for name, c in crates.items():
-        body += f"## `{name}`\n\n"
-        if c["description"]:
-            body += f"{c['description']}\n\n"
-        if c["purpose"]:
-            body += f"{c['purpose']}\n\n"
-        body += f"- **workspace deps:** {', '.join(f'`{d}`' for d in c['deps']) or 'none'}\n"
-        ext = c["external"]
-        body += f"- **external deps:** {len(ext)}"
-        if ext:
-            body += f" ({', '.join(ext[:8])}{', …' if len(ext) > 8 else ''})"
-        body += "\n"
-        s = public_surface(c)
-        counts = ", ".join(f"{len(v)} {k}" for k, v in s.items() if v) or "nothing public"
-        body += f"- **public surface:** {counts}\n"
-        for kind in ("trait", "struct", "enum"):
-            if s[kind]:
-                body += f"- **{kind}s:** {', '.join(f'`{n}`' for n in s[kind])}\n"
-        body += "\n"
-    return body
 
 
 def gen_graph(crates):
@@ -555,13 +474,6 @@ def gen_assets(asset_types, functions, components):
     return "".join(out)
 
 
-def gen_flows(names):
-    body = "# Behaviour covered by tests\n\nEvery test in the workspace, as a sentence. A flow that is not here is a\nflow nothing checks.\n\n"
-    for n in names:
-        body += f"- {n.replace('_', ' ')}\n"
-    return body
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if the files on disk are stale")
@@ -572,7 +484,6 @@ def main():
     api = script_api()
     owners = module_owners()
     files = {
-        "crates.md": gen_crates(crates),
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
         "components.md": gen_components(
@@ -590,7 +501,6 @@ def main():
             ),
             api.get("components", {}),
         ),
-        "behaviour.md": gen_flows(test_names()),
         "features.md": gen_features(crates),
         # The raw probe, for tools that render their own reference (the
         # website builds its per-component pages from it).

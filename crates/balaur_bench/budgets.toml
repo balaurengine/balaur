@@ -1,6 +1,6 @@
 # The one place a performance number lives: written by `bench.py --record`
 # from a real run, multiplied by 10 so a shared runner passes, and read
-# by `bench.py --check` and crates/balaur_bench/tests/budgets.rs.
+# by `bench.py --check`.
 
 [ceiling_ns]
 "attach_first/rune" = 523753480

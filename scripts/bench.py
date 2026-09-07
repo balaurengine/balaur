@@ -5,10 +5,10 @@ A raw nanosecond count says little. At 60 fps a frame is 16.667 ms, so what
 matters is how much of it a workload eats — that is the number worth acting on.
 
 crates/balaur_bench/budgets.toml holds one ceiling per benchmark, and is the
-only place a performance number lives: `--record` writes it from a real run,
-`--check` reports against it, and tests/budgets.rs gates on it in CI. The
-ceilings are not measurements — they carry enough headroom to survive a shared
-runner, so a regression in kind fails and a slow morning does not.
+only place a performance number lives: `--record` writes it from a real run
+and `--check` reports against it. Nothing in CI gates on them, because a shared
+runner times a benchmark badly. The ceilings are not measurements: they carry
+enough headroom that a regression in kind shows and a slow morning does not.
 """
 import argparse
 import json
@@ -20,9 +20,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUDGETS = ROOT / "crates" / "balaur_bench" / "budgets.toml"
-# What a recorded number is multiplied by to become a ceiling. Ten, because a
-# gate that cries wolf on a shared runner gets ignored, which is worse than no
-# gate — the doctrine tests/budgets.rs was already written to.
+# What a recorded number is multiplied by to become a ceiling. Ten, so a
+# reading off a shared runner still means something.
 HEADROOM = 10.0
 FRAME_NS = 16_666_667  # 60 fps
 
@@ -97,7 +96,7 @@ def record(results):
     lines = [
         "# The one place a performance number lives: written by `bench.py --record`\n",
         f"# from a real run, multiplied by {HEADROOM:g} so a shared runner passes, and read\n",
-        "# by `bench.py --check` and crates/balaur_bench/tests/budgets.rs.\n\n",
+        "# by `bench.py --check`.\n\n",
         "[ceiling_ns]\n",
     ]
     lines += [f'"{name}" = {round(ns * HEADROOM)}\n' for name, ns in results.items()]

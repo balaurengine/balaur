@@ -71,9 +71,9 @@ called or indexed, and the error names a type from the line above. Bind first:
   not `test_free`.
 - Assert on behaviour a caller can see. A test asserting from inside a script
   carries one control proving the script ran, or it holds vacuously.
-- Feature tests and performance tests stay apart. Budgets live in
-  `crates/balaur_bench/tests/` and assert orders of magnitude, never
-  percentages: a shared runner makes a tight gate cry wolf.
+- Feature tests and performance tests stay apart. Benchmarks live in
+  `crates/balaur_bench/benches/` and no CI job gates on them: a shared runner
+  times them badly. `scripts/bench.py --check` reports what moved.
 - The suites that boot an app over real sockets gate on `BALAUR_E2E`, so a
   plain `cargo test` stays fast. `scripts/e2e_tests.sh` runs them.
 

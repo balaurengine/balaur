@@ -179,9 +179,7 @@ fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
     match own {
         None => fallback,
         Some(words::KEEP) => ImageMode::Keep,
-        Some("png") => ImageMode::Png,
         Some("webp") => ImageMode::Webp,
-        Some("smallest") => ImageMode::Smallest,
         Some(other) => {
             tracing::warn!("recode: '{other}' is not a way to re-encode a picture");
             fallback
@@ -301,8 +299,6 @@ mod tests {
     #[test]
     fn a_files_own_recode_setting_beats_the_export_mode() {
         use crate::recode::ImageMode;
-        // WebP, not Smallest: the sidecar is what is under test, and the
-        // oxipng modes would run zopfli over both files to prove it.
         let config = ExportConfig {
             images: ImageMode::Webp,
             ..ExportConfig::default()

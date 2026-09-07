@@ -32,15 +32,10 @@ pub enum ImageMode {
     /// Ship the author's bytes.
     #[default]
     Keep,
-    /// Run `oxipng` over a PNG.
-    Png,
     /// Write the pixels as lossless WebP.
     Webp,
-    /// Try both and keep whichever won. Lossless: a lossy mode is asked for
-    /// by name, never arrived at by a search for the smaller file.
-    Smallest,
-    /// Cut the image to a 256-colour palette with alpha, then run the PNG
-    /// path over it. Lossy.
+    /// Cut the image to a 256-colour palette with alpha, then write it as a
+    /// PNG. Lossy.
     Quantised,
 }
 
@@ -103,9 +98,7 @@ pub fn image_at(bytes: &[u8], mode: ImageMode, quality: u8) -> Result<Option<Vec
     }
     let candidate = match mode {
         ImageMode::Keep => None,
-        ImageMode::Png => shrink_png(bytes, format)?,
         ImageMode::Webp => to_webp(bytes, format)?,
-        ImageMode::Smallest => smaller_of(shrink_png(bytes, format)?, to_webp(bytes, format)?),
         ImageMode::Quantised => quantise(bytes, format, quality)?,
     };
     Ok(candidate.filter(|out| out.len() < bytes.len()))
@@ -141,33 +134,6 @@ pub fn audio_at(bytes: &[u8], mode: AudioMode, quality: f32) -> Result<Option<Ve
     Ok(candidate.filter(|out| out.len() < bytes.len()))
 }
 
-/// Whichever of two candidates is smaller.
-fn smaller_of(one: Option<Vec<u8>>, other: Option<Vec<u8>>) -> Option<Vec<u8>> {
-    match (one, other) {
-        (Some(a), Some(b)) => Some(if b.len() < a.len() { b } else { a }),
-        (found, None) | (None, found) => found,
-    }
-}
-
-/// oxipng over a PNG's own bytes, which keeps every pixel and the dimensions.
-///
-/// Absent on wasm, where oxipng's deflate does not build: the WebP path still
-/// runs, so `Smallest` in a browser tab means WebP or nothing.
-#[cfg(not(target_family = "wasm"))]
-fn shrink_png(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
-    if format != ImageFormat::Png {
-        return Ok(None);
-    }
-    let mut options = oxipng::Options::max_compression();
-    // Zopfli's deflate is the whole point of the pass; `Safe` drops only
-    // chunks that cannot affect what the image looks like.
-    options.deflater = oxipng::Deflater::Zopfli(oxipng::ZopfliOptions::default());
-    options.strip = oxipng::StripChunks::Safe;
-    let out = oxipng::optimize_from_memory(bytes, &options)
-        .map_err(|why| anyhow!("optimizing the PNG: {why}"))?;
-    Ok(Some(out))
-}
-
 /// The image's pixels as lossless WebP, at the source's dimensions.
 fn to_webp(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
     // A source that is already WebP gains nothing from this encoder, and no
@@ -195,9 +161,8 @@ fn to_webp(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
 
 /// The image cut to a 256-colour palette with alpha, as a PNG.
 ///
-/// The palette is written back out as RGBA and left to the PNG path to index:
-/// oxipng reduces a 256-colour image to a palette itself, and where that pass
-/// is absent the plain re-encode still carries far fewer distinct colours.
+/// The palette is written back out as RGBA rather than indexed: the re-encode
+/// still carries far fewer distinct colours, which is where the saving is.
 fn quantise(bytes: &[u8], format: ImageFormat, quality: u8) -> Result<Option<Vec<u8>>> {
     if format != ImageFormat::Png {
         return Ok(None);
@@ -240,8 +205,7 @@ fn quantise(bytes: &[u8], format: ImageFormat, quality: u8) -> Result<Option<Vec
     DynamicImage::ImageRgba8(mapped)
         .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
         .map_err(|why| anyhow!("encoding the quantised PNG: {why}"))?;
-    let shrunk = shrink_png(&out, ImageFormat::Png)?;
-    Ok(smaller_of(shrunk, Some(out)))
+    Ok(Some(out))
 }
 
 /// A RIFF/WAVE header, which is the only sound this module re-encodes.
@@ -389,15 +353,6 @@ fn wav_floats(
     clippy::unnecessary_wraps,
     reason = "the signature of the encoder this stands in for"
 )]
-fn shrink_png(_bytes: &[u8], _format: ImageFormat) -> Result<Option<Vec<u8>>> {
-    Ok(None)
-}
-
-#[cfg(target_family = "wasm")]
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "the signature of the encoder this stands in for"
-)]
 fn to_vorbis(_bytes: &[u8], _quality: f32) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
@@ -482,8 +437,6 @@ mod tests {
         let source = sample_png(64, 48);
         let (width, height, pixels) = read_rgba(&source);
         assert_eq!((width, height), (64, 48));
-        // WebP only: the oxipng modes prove the same invariant through zopfli,
-        // which costs minutes a run.
         let out = image(&source, ImageMode::Webp)
             .unwrap()
             .expect("something smaller");
@@ -501,12 +454,12 @@ mod tests {
     fn a_jpeg_is_never_re_encoded() {
         let mut jpeg = vec![0xFF, 0xD8, 0xFF, 0xE0];
         jpeg.extend_from_slice(&[0u8; 64]);
-        assert_eq!(image(&jpeg, ImageMode::Smallest).unwrap(), None);
+        assert_eq!(image(&jpeg, ImageMode::Webp).unwrap(), None);
     }
 
     #[test]
     fn bytes_that_are_not_an_image_are_an_error() {
-        assert!(image(b"not an image at all", ImageMode::Smallest).is_err());
+        assert!(image(b"not an image at all", ImageMode::Webp).is_err());
     }
 
     /// One second of a quiet sine, the shape a game's sound effect has.

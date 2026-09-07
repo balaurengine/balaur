@@ -7,9 +7,7 @@ drift. Do not edit these by hand.
 
 - [api.json](api.json)
 - [assets.md](assets.md)
-- [behaviour.md](behaviour.md)
 - [components.md](components.md)
 - [crate-graph.md](crate-graph.md)
-- [crates.md](crates.md)
 - [features.md](features.md)
 - [script-api.md](script-api.md)

@@ -29,11 +29,10 @@ hound = "3"
 # `threads` default is rayon, which builds for wasm but cannot spawn there.
 imagequant = { version = "4", default-features = false }
 
-# oxipng's deflate, HarfBuzz's subsetter and libvorbis are C builds: a browser
-# tab exports too, and none of them compiles for wasm. Off there, an export
-# keeps its PNGs, its whole faces and its WAVs, and says so.
+# HarfBuzz's subsetter and libvorbis are C builds: a browser tab exports too,
+# and neither compiles for wasm. Off there, an export keeps its whole faces
+# and its WAVs, and says so.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-oxipng = { version = "10", default-features = false, features = ["parallel", "zopfli"] }
 imagequant = { version = "4", features = ["threads"] }
 vorbis_rs = "0.5"
 # The fork vendors HarfBuzz, so no runner is asked for a system copy, and it

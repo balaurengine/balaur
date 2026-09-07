@@ -159,8 +159,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+      # Prebuilt, as with nextest above: `cargo install` rebuilt the coverage
+      # tool from source every run, for 2m35s of the job's clock.
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@nextest
+      # rust-toolchain.toml pins only rustfmt and clippy.
+      - name: llvm-tools
+        run: rustup component add llvm-tools-preview
       - name: Measure
         run: ./scripts/coverage.sh
       # Per crate, in the run summary, because one workspace percentage is

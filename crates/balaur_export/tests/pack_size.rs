@@ -1,8 +1,7 @@
 //! The size pass over a pack of the engine's own assets, proved on real files
 //! rather than on generated ones.
 //!
-//! Only the no-op case: every mode that re-encodes runs oxipng's zopfli, which
-//! took twenty-three minutes of a CI run. `recode`'s own tests cover the rest.
+//! Only the no-op case; `recode`'s own tests cover each mode's encoder.
 
 use std::path::PathBuf;
 

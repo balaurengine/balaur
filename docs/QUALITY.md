@@ -180,11 +180,11 @@ cannot describe an engine that does not exist.
 
 ## Performance
 
-Budgets live in `crates/balaur_bench/tests/budgets.rs` and assert orders of
-magnitude, never percentages: a shared, throttled runner makes a tight gate cry
-wolf, which is worse than no gate. Every ceiling is ten times a measured run,
-written once into `budgets.toml` by `scripts/bench.py --record`. They catch an
-accidental O(n²), a lock held across a frame, or a compile in the hot path.
+Budgets live in `crates/balaur_bench/budgets.toml`, one ceiling per benchmark,
+each ten times a measured run and written by `scripts/bench.py --record`.
+`scripts/bench.py --check` reports against them. Nothing in CI gates on them: a
+shared, throttled runner times a benchmark badly, and a gate that cries wolf
+gets ignored. Read them when a change should have moved a number.
 
 `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a real run, case for
 case against Godot with Rapier, Box2D v3 and Jolt.
