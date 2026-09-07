@@ -911,18 +911,28 @@ fn export_game(args: &ExportArgs) -> Result<()> {
     })
 }
 
-/// What this binary adds to a project it compiles: the editor's `export`,
-/// which the editor's own scripts call and the engine does not carry.
+/// What this binary adds to a project it compiles: the editor's `export` and
+/// `import`, which the editor's own scripts call and the engine does not
+/// carry. A project that compiles without them is a project the editor cannot
+/// open.
 #[cfg(not(target_family = "wasm"))]
 fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plugin>> {
-    move || vec![Box::new(export_api::ExportPlugin::new(project.clone()))]
+    move || {
+        vec![
+            Box::new(export_api::ExportPlugin::new(project.clone())),
+            Box::new(import_api::ImportPlugin::new(project.clone())),
+        ]
+    }
 }
 
 fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     let found = balaur::check_project_using(
         path,
-        &mut [Box::new(export_api::ExportPlugin::new(path.to_path_buf()))],
+        &mut [
+            Box::new(export_api::ExportPlugin::new(path.to_path_buf())),
+            Box::new(import_api::ImportPlugin::new(path.to_path_buf())),
+        ],
     )?;
     #[cfg(target_family = "wasm")]
     let found = balaur::check_project(path)?;
