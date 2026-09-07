@@ -468,7 +468,7 @@ impl RuneHost {
                     &balaur_script::Value::Map(vec![
                         (
                             "type".to_string(),
-                            balaur_script::Value::Str(kind.to_string().into()),
+                            balaur_script::Value::Str(kind.to_string()),
                         ),
                         ("default".to_string(), default),
                     ]),
