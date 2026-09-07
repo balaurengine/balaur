@@ -74,7 +74,7 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    name: build ${{ matrix.platform }}
+    name: build ${{ matrix.platform }}${{ matrix.variant && format(' · {0}', matrix.variant) }}
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -88,6 +88,13 @@ jobs:
             host: ubuntu-latest
           - platform: web
             host: ubuntu-latest
+          # A second web template, cut to the features a project that draws
+          # its own UI needs. It uploads beside the full one rather than
+          # replacing it, so a game picks the smaller module when it fits.
+          - platform: web
+            host: ubuntu-latest
+            variant: minimal
+            web-features: window,web
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -95,6 +102,8 @@ jobs:
       - uses: ./.github/actions/build-engine
         with:
           platform: ${{ matrix.platform }}
+          variant: ${{ matrix.variant }}
+          web-features: ${{ matrix.web-features }}
           attest: ${{ github.event_name == 'push' }}
 
   # Exports a game with each template and checks the result is what the OS

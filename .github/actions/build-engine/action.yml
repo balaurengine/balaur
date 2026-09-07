@@ -29,6 +29,14 @@ inputs:
     description: Cargo features for the web template, replacing its default.
     required: false
     default: ""
+  variant:
+    description: >-
+      Names a second build of the same platform, so several can be uploaded
+      side by side: `2d`, `server` or `threads` become
+      `balaur-template-web-2d` and so on. Empty is the platform's own build,
+      the one a release ships.
+    required: false
+    default: ""
   build-deps:
     description: >-
       Install the system libraries the build links on Linux. Turn off if the
@@ -59,7 +67,8 @@ runs:
         if [ -n '${{ inputs.target }}' ]; then
           echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
         elif [ -n '${{ inputs.platform }}' ]; then
-          echo 'artifact=balaur-template-${{ inputs.platform }}' >>"$GITHUB_OUTPUT"
+          variant='${{ inputs.variant }}'
+          echo "artifact=balaur-template-${{ inputs.platform }}${variant:+-$variant}" >>"$GITHUB_OUTPUT"
         else
           echo '::error::build-engine needs either a target or a platform'
           exit 1

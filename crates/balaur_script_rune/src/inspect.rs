@@ -286,7 +286,14 @@ impl RuneHost {
             return;
         }
         let rendered = String::from_utf8_lossy(buf.as_slice());
-        tracing::error!("[{key}] {label}:\n{}", rendered.trim_end());
+        let rendered = rendered.trim_end();
+        // An error against a source the unit does not hold renders to nothing,
+        // and a blank line says less than the message it replaced.
+        if rendered.is_empty() {
+            tracing::error!("[{key}] {label}: {err}");
+            return;
+        }
+        tracing::error!("[{key}] {label}:\n{rendered}");
     }
 
     /// Compile `key` from `source` and report every diagnostic instead of
