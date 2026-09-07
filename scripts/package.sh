@@ -108,8 +108,9 @@ rm -rf "$smoke"
 # The editor only, and before the zip: a runtime template exists to have a
 # pack appended to it, and `balaur export` signs that result itself. Signing a
 # template would hand every unsigned export a broken signature instead of none.
+
 # A push only: Trusted Signing bills per signature, and signing_check.sh
-# already proves the path on a branch with a certificate it throws away.
+# proves the path on a branch with a certificate it throws away.
 if [[ $target == windows-* ]] && [ "${GITHUB_EVENT_NAME:-}" = push ]; then
   step "sign"
   ./scripts/windows_sign.sh "$bundle/balaur$exe"
