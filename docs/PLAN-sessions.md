@@ -236,29 +236,19 @@ is the bar for every step, as it was for the lockstep tests.
 6. **Host migration.** Ends with: the host killed, the game continues.
 7. **The editor.** The Network dock and "Play as two".
 
-## 3b. Open defect: a session recorded in the editor cannot verify
+## 3b. What a digest covers, and why a session in the editor once could not
 
-`sessiondemo` fails its last check on every example, and has since before
-2026-09-07: `replay::diverged()` reports tick 1, the first tick compared.
+`digest::entries` narrows its node walk to `eng.debug_scope()`, so inside an
+editor the game is the subtree checked and the editor's own nodes are not.
+The sources a plugin registers did not know that, and animation and physics
+reported every node in the world.
 
-The game reproduces perfectly. Dumping both sides with `BALAUR_DUMP=1` shows
-82 labels recorded and 83 replayed, every shared one identical, and the extra
-one is `animation/bottom/tween`. `bottom` is the **editor's own dock**, from
-`editor/scenes/main.toml`, not a node of the game: starting play opens the
-Output dock, and replaying opens it again at a different moment, so a tween
-exists on one side and not the other.
+So `sessiondemo` never verified: the game reproduced exactly, every shared
+label matching, and the replay carried one extra entry, a tween on the
+editor's own bottom dock, which animates when play opens the Output dock.
+`digest::scope_of` hands a source the same scope. Fixed 2026-09-07.
 
-The cause is that `digest::entries` walks the whole world, and under
-`balaur edit` that world holds the editor's interface as well as the game.
-A session recorded there is a digest of both. Nothing is wrong with the
-game's simulation, and nothing about the recording is salvageable while the
-editor is free to animate.
-
-Fixing it means deciding what a session's digest covers. A digest scoped to
-the game's subtree is the obvious answer, but `digest::digest` is also what
-`scripts/determinism_trace.sh` and the determinism CI compare, so narrowing
-it is a change to the engine's central promise rather than to the editor, and
-wants its own decision. Until then the check fails and says why.
+A source added later has to ask for the scope too; nothing makes it.
 
 ## 4. What CI can prove
 
