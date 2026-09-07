@@ -297,7 +297,38 @@ fn absolute(path: &Path) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{installer_identity, which};
+    use super::{installer_identity, nested_code, which};
+
+    #[test]
+    fn a_bundle_signs_what_it_contains_before_itself() {
+        let work = tempfile::tempdir().unwrap();
+        let app = work.path().join("Game.app");
+        for dir in ["Contents/Frameworks", "Contents/PlugIns"] {
+            std::fs::create_dir_all(app.join(dir)).unwrap();
+        }
+        for file in [
+            "Contents/Frameworks/b.dylib",
+            "Contents/Frameworks/a.dylib",
+            "Contents/Frameworks/notes.txt",
+            "Contents/PlugIns/one.bundle",
+        ] {
+            std::fs::write(app.join(file), []).unwrap();
+        }
+        std::fs::create_dir_all(app.join("Contents/Frameworks/Store.framework")).unwrap();
+        let found: Vec<String> = nested_code(&app)
+            .iter()
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            found,
+            ["Store.framework", "a.dylib", "b.dylib", "one.bundle"],
+            "sorted within a directory, and the frameworks before the plug-ins"
+        );
+        assert!(
+            !found.iter().any(|name| name == "notes.txt"),
+            "a file that carries no signature is not signed"
+        );
+    }
 
     #[test]
     fn an_installer_identity_is_the_application_one_renamed() {

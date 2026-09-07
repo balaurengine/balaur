@@ -6,13 +6,12 @@
 //! same sampler a clip does. Nothing here writes a second interpolator's
 //! worth of expectations — the curves themselves are `tests/ease.rs`.
 
-mod common;
 
 use balaur_anim::{AnimationPlugin, AnimationState, tween};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components};
-use common::Calls;
+use crate::common::Calls;
 use glamx::Vec3;
 use std::f32::consts::FRAC_PI_2;
 

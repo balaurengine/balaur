@@ -94,8 +94,16 @@ if grep -q 'ERROR' <<<"$out"; then
   printf '::error::the exported game logged errors\n'
   exit 1
 fi
-rm -rf "$smoke"
 printf 'exported game ran clean\n'
+
+# The signing paths, with a certificate the check makes and throws away. Only
+# where the engine's own workflow asks: a game building a custom engine wants
+# its build, not this repository's proof that signing still works.
+if [ -n "${BALAUR_SIGNING_CHECK:-}" ]; then
+  step "signing"
+  ./scripts/signing_check.sh "$bundle/balaur$exe" "$target"
+fi
+rm -rf "$smoke"
 
 # The editor only, and before the zip: a runtime template exists to have a
 # pack appended to it, and `balaur export` signs that result itself. Signing a

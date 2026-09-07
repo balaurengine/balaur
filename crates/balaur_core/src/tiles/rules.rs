@@ -686,6 +686,36 @@ mod tests {
     }
 
     #[test]
+    fn a_quartered_terrain_resolves_every_cell_to_one_tile() {
+        let rules = template(Mode::Quarters, 1, 10);
+        assert_eq!(rules.len(), 1, "the neighbourhood decides the picture, not a rule");
+        let rows: &[&[i32]] = &[&[1, -1], &[1, 1]];
+        for (x, y) in [(0, 0), (0, 1), (1, 1)] {
+            let (tile, flags) = resolve(&rules, &painted(rows), &inside(rows), x, y, 5)
+                .expect("every painted cell resolves");
+            assert_eq!(tile, 10, "to the tile the terrain starts at");
+            assert_eq!(flags, 0, "and never turned");
+        }
+        assert!(
+            resolve(&rules, &painted(rows), &inside(rows), 1, 0, 5).is_none(),
+            "an unpainted cell stays empty"
+        );
+    }
+
+    #[test]
+    fn a_corner_reads_its_two_sides_before_its_diagonal() {
+        assert_eq!(Quarter::of(true, true, true), Quarter::Fill);
+        assert_eq!(Quarter::of(true, true, false), Quarter::Inner);
+        assert_eq!(Quarter::of(false, false, true), Quarter::Outer);
+        assert_eq!(
+            Quarter::of(true, false, true),
+            Quarter::Horizontal,
+            "the terrain carries on across, so the edge does too"
+        );
+        assert_eq!(Quarter::of(false, true, true), Quarter::Vertical);
+    }
+
+    #[test]
     fn the_blob_template_is_forty_seven_tiles() {
         assert_eq!(template(Mode::CornersAndSides, 1, 0).len(), 47);
     }

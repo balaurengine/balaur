@@ -50,6 +50,7 @@ shipped tab keeps its history.
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. Built: the canvas, `fs` behind a backend, the editor as a page, reload driven by the write, IndexedDB projects, a folder opened from a machine, and the pack and web-bundle exports. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the 2026-09-04 audit's holes: widget clicks outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root. Phase 0 is CI. The animation player is in both since 2026-09-06. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
 | **Node conversions** — reparent, move to the top level, make scene root, save a branch as a scene, make an instance local, fit a collider or an occluder to what is drawn, sprite and shape to polygon, bake a boolean. Phase 0 is that plan's registry defect: `sprite`, `polygon`, `shape2d` and `boolean2d` all claim `Renderable2d` and every `remove` hook drops it unconditionally (N16). | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
+| **A graph that writes Rune** — a `graphs/*.toml` asset whose save emits the `.rn` beside it, a node palette generated from `api.json`, and a canvas over `egui-snarl` 0.12 as a `graph` widget kind. The binding rows grow an order, an `else`, a `wait` and an expression first. A graph runtime is **not planned**: the emitted script is what the digest, the debugger and hot reload see. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 
 ## Scripts and assets
 
@@ -58,7 +59,9 @@ shipped tab keeps its history.
 | **Rune scripting** — one deterministic language with a `math` module, exported properties, component handles on nodes, a Debug Adapter Protocol debugger, hot reload, named events between scripts, and a self-documenting API that `balaur api` prints. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Scenes, assets and packs** — prefabs with per-path overrides, stable `id://` references that survive a rename, import settings beside each file, sprite sheets, Aseprite, Tiled and LDtk import, and sha256-verified binary packs. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export and atlases. Built: the sidecar, `[import.<kind>]` defaults, nearest filtering, linear-data textures and the editor's Import section. | 0.2 | [PLAN-textures.md](PLAN-textures.md) |
+| **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. Mixamo is the case: its downloads are FBX, and a rig there is a rig the retargeter already handles. | 0.7 | no plan |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, an asset dropped when nothing names it. A pack is held whole in memory today; `ExternalIo`, the `assets` cache and pack hashing are the pieces. | 0.6 | no plan |
+| **Scripts you can take** — the library grows a `script` kind: fifteen small scripts with `exports()`, dropped onto a node and edited in place. Movement in both dimensions, orbit, first-person, third-person and click-to-move cameras, follow, patrol, spawner, timer, health, pickup, parallax. The rigs `PLAN-interactivity.md` step 5 wants are these files plus the component each needs. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 
@@ -72,6 +75,7 @@ shipped tab keeps its history.
 | **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | 0.7 | [PLAN-physics.md](PLAN-physics.md) |
 | **Animation blending** — blend trees and state machines. A rig is otherwise complete: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle` in 2D and 3D, retargeting through a `bone_map`, deform tracks, and ragdolls. What is missing is running two clips at once. | 0.2 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. The sampler, the easing curves and the timeline dock are there. | 0.3 | no plan |
+| **Root motion** — a clip that moves the character rather than sliding under it: the root bone's delta per tick handed to `character2d` and `character3d` instead of the transform. Blending is 0.2; nothing reads a root track today. | 0.7 | no plan |
 | **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, a tick rate setting. | 0.2 | [PLAN-time.md](PLAN-time.md) |
 | **The rest of rapier** — named collision layers, solver tuning carried in a recording's header, and a solver that actually threads. Everything else rapier has is built; a `f64` world is **not planned**, and `parallel` is inert until the physics hooks stop calling scripts. | (0.3) | [PLAN-rapier.md](PLAN-rapier.md) |
 | **Node destruction that is not quadratic in siblings** — and a sibling reorder. `docs/BENCHMARKS.md` measures the first at fifty times Godot's. | (0.3) | no plan |
@@ -86,6 +90,7 @@ shipped tab keeps its history.
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk and voice activity, echo cancellation, positional voice on a bus, a browser path. Voice never enters the simulation, the digest or a recording. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, pads on iOS and Android. Rumble and DualSense and DualShock 4 sensors are built. | 0.5 | [PLAN-input.md](PLAN-input.md) |
 | **More widget kinds** — as games ask for them, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw. | (0.5) | no plan |
+| **A controller-only shell** — what a console and a television ask of an interface: directional focus between widgets rather than `focus_next` alone, an on-screen keyboard for a text field, safe-area insets applied to layout rather than only reported by `render.safe_area`, and button glyphs that follow the pad. | 0.8 | no plan |
 
 ## Rendering
 
@@ -100,6 +105,7 @@ shipped tab keeps its history.
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus. Nothing decodes a container; render-side only, and a video never feeds simulation state. | 0.3 | no plan |
 | **Post-process materials** — a user pass on `camera.post`, and Balaur's shader helpers published as a package. | 0.3 | [PLAN-shaders.md#post-process-materials](PLAN-shaders.md#post-process-materials) |
+| **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through. Neither exists in any dimension; `environment` carries flat fog and the deferred pass a decal wants is the kiss3d fork's. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 
 ## Networking
 
@@ -152,6 +158,8 @@ waits for its tick to settle.
 | **The shell a phone has** — `engine.open_url` and the `open_url` binding work on every desktop and in a browser tab, and on neither phone: iOS wants `UIApplication.openURL:` and Android an `ACTION_VIEW` intent, so both report that they have no opener. `engine.reveal` is desktop-only and stays there. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
+| **Per-platform project settings** — `[application.android]` and its siblings over `project.toml`: window mode, tick rate, feature set and asset variant per target, resolved at export rather than branched in a script. | 0.7 | no plan |
+| **Suspend and resume** — a phone call, a locked screen, an alt-tab and a console's suspend: hooks a script answers, audio released and taken back, a save on the way out, and a tick that pauses rather than catching up on return. Nothing in the tree answers a `Suspended` event. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, a pack sealed with ChaCha20-Poly1305 under a project key, names out of a unit. Never a DRM wrapper, a packer, anti-cheat or anti-debugging. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |

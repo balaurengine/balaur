@@ -61,6 +61,10 @@ jobs:
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       WINDOWS_CERTIFICATE_BASE64: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      # Sign an exported game with a certificate the runner makes, and read
+      # the result back (scripts/signing_check.sh). No secret, so a fork's
+      # pull request proves the same paths a push does.
+      BALAUR_SIGNING_CHECK: "1"
     steps:
       - uses: actions/checkout@v7
       # The same action a game's own repository calls to build a custom

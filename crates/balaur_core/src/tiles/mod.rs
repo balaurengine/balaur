@@ -717,6 +717,84 @@ mod tests {
         }
     }
 
+    /// A sheet whose one terrain is drawn in quarters: fill 0, horizontal 1,
+    /// vertical 2, outer 3, inner 4.
+    fn quartered() -> TileSet {
+        set("texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nfirst_tile = 0")
+    }
+
+    #[test]
+    fn a_cell_with_nothing_beside_it_is_four_outer_corners() {
+        let (set, grid) = (quartered(), grid(&[&[0]]));
+        assert_eq!(grid.quarters(&set, 0, 0), Some([3, 3, 3, 3]));
+    }
+
+    #[test]
+    fn a_cell_walled_in_by_its_own_terrain_is_four_fills() {
+        let (set, grid) = (quartered(), grid(&[&[0, 0, 0], &[0, 0, 0], &[0, 0, 0]]));
+        assert_eq!(grid.quarters(&set, 1, 1), Some([0, 0, 0, 0]));
+    }
+
+    #[test]
+    fn an_edge_runs_the_way_the_terrain_carries_on() {
+        let set = quartered();
+        let across = grid(&[&[0, 0, 0]]);
+        assert_eq!(
+            across.quarters(&set, 1, 0),
+            Some([1, 1, 1, 1]),
+            "a strip with nothing above or below draws four horizontal edges"
+        );
+        let down = grid(&[&[0], &[0], &[0]]);
+        assert_eq!(
+            down.quarters(&set, 0, 1),
+            Some([2, 2, 2, 2]),
+            "and a strip with nothing either side draws four vertical ones"
+        );
+    }
+
+    #[test]
+    fn a_corner_the_terrain_wraps_around_is_an_inner_one() {
+        let (set, grid) = (
+            quartered(),
+            grid(&[&[-1, 0, 0], &[0, 0, 0], &[0, 0, 0]]),
+        );
+        let quarters = grid.quarters(&set, 1, 1).expect("the cell is quartered");
+        assert_eq!(
+            quarters[0], 4,
+            "its west and north are the terrain and its north-west is not"
+        );
+        assert_eq!(quarters[2], 0, "while the corner away from the hole is filled");
+    }
+
+    #[test]
+    fn a_tile_no_quartered_terrain_claims_is_drawn_as_one_quad() {
+        let (set, grid) = (quartered(), grid(&[&[7]]));
+        assert_eq!(grid.quarters(&set, 0, 0), None);
+        assert_eq!(grid.quarters(&set, 9, 9), None, "and so is an empty cell");
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "whole pixels, halved exactly")]
+    fn a_quarter_is_the_corner_of_its_own_tile() {
+        let set = quartered();
+        assert_eq!(set.quarter_rect(0, 0), [0.0, 0.0, 4.0, 4.0]);
+        assert_eq!(set.quarter_rect(0, 2), [4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(set.quarter_rect(1, 3), [8.0, 4.0, 4.0, 4.0], "tile 1 is the next along");
+    }
+
+    #[test]
+    fn a_terrain_whose_block_is_not_five_in_a_row_names_its_tiles() {
+        let named = set("texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1, 2, 3, 6]");
+        let grid = grid(&[&[-1, 0], &[0, 0]]);
+        let quarters = grid.quarters(&named, 1, 1).expect("the cell is quartered");
+        assert_eq!(quarters[0], 6, "the inner corner is where the sheet keeps it");
+        let wrong = toml::from_str::<toml::Value>(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1]",
+        )
+        .unwrap();
+        assert!(parse_tileset(&wrong).is_err(), "a short list is a typo, not a default");
+    }
+
     #[test]
     #[allow(clippy::float_cmp, reason = "a parsed size, not an arithmetic one")]
     fn a_square_tile_size_is_the_same_as_a_pair() {

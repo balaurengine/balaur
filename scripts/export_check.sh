@@ -95,12 +95,21 @@ android)
   layout="$work/project-android"
   [ -d "$layout" ] || fail "no $layout"
   [ -f "$layout/assets/game.bpak" ] || fail "the exported layout carries no pack"
-  [ -f "$layout/lib/arm64-v8a/libmain.so" ] || fail "the exported layout has no libmain.so"
+  for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+    [ -f "$layout/lib/$abi/libmain.so" ] ||
+      fail "the exported layout has no $abi libmain.so"
+  done
   apk="$work/project-android.apk"
   [ -f "$apk" ] || fail "--apk assembled nothing at $apk"
   # The pack has to survive zipping, or the game launches to nothing.
   unzip -l "$apk" | grep -q 'assets/game.bpak' ||
     fail "the assembled APK does not contain assets/game.bpak"
+  # An ABI dropped between the layout and the zip is an install a device
+  # never gets offered, and nothing else in this run would notice.
+  for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+    unzip -l "$apk" | grep -q "lib/$abi/libmain.so" ||
+      fail "the assembled APK carries no $abi library"
+  done
   cp "$apk" "$dist/balaur-example-debug.apk"
   printf '\nexported %s\n' "$dist/balaur-example-debug.apk"
   ;;

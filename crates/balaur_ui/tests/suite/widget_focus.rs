@@ -1,12 +1,11 @@
 //! What the widget layer decides about a tree rather than where it puts it:
 //! focus, themes, locales and surfaces.
 
-mod support;
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::hecs::Entity;
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
-use support::*;
+use crate::support::*;
 
 /// Focus follows the tree that was drawn, not the arena: an accept on a
 /// button under a hidden panel would fire an `on_click` nobody could see.

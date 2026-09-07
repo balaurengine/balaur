@@ -1,11 +1,10 @@
 //! Where the widget layer puts things: containers, sizes, clicks.
 
-mod support;
 
 use balaur_core::hecs::Entity;
 use egui::pos2;
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
-use support::*;
+use crate::support::*;
 
 #[test]
 fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {

@@ -49,18 +49,12 @@ impl Abi {
 /// [android]
 /// abis = ["arm64-v8a", "x86_64"]
 /// ```
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct AndroidConfig {
     /// Which of the template's ABIs the export keeps. Empty means every one
     /// the template carries, so a game that says nothing ships everywhere.
     pub abis: Vec<Abi>,
-}
-
-impl Default for AndroidConfig {
-    fn default() -> Self {
-        Self { abis: Vec::new() }
-    }
 }
 
 impl AndroidConfig {
@@ -404,7 +398,53 @@ fn debug_keystore() -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{payload_files, version_key};
+    use super::{Abi, AndroidConfig, payload_files, version_key};
+
+    /// A layout carrying every ABI the template ships.
+    fn layout(dir: &std::path::Path) -> &std::path::Path {
+        for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
+            std::fs::create_dir_all(dir.join("lib").join(abi)).unwrap();
+            std::fs::write(dir.join("lib").join(abi).join("libmain.so"), b"so").unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn a_project_that_names_no_abi_keeps_every_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = layout(dir.path());
+        AndroidConfig::default().prune(layout).unwrap();
+        assert_eq!(super::carried(&layout.join("lib")).len(), 4);
+    }
+
+    #[test]
+    fn the_abis_a_project_names_are_the_ones_that_survive() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = layout(dir.path());
+        let config = AndroidConfig {
+            abis: vec![Abi::Arm64V8a, Abi::X86_64],
+        };
+        config.prune(layout).unwrap();
+        assert_eq!(
+            super::carried(&layout.join("lib")),
+            ["arm64-v8a", "x86_64"]
+        );
+    }
+
+    #[test]
+    fn an_abi_the_template_does_not_carry_names_the_ones_it_does() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("lib/arm64-v8a")).unwrap();
+        let config = AndroidConfig {
+            abis: vec![Abi::X86],
+        };
+        let err = config
+            .prune(dir.path())
+            .expect_err("an ABI with no library")
+            .to_string();
+        assert!(err.contains("x86"), "{err}");
+        assert!(err.contains("arm64-v8a"), "{err}");
+    }
 
     #[test]
     fn build_tools_sort_by_version_and_not_by_string() {
