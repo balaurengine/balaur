@@ -301,18 +301,19 @@ fn set_threads(count: usize) {
         .build_global();
 }
 
-/// A browser has no pool to size: the solver is built without `parallel`
-/// there, so nothing reaches rayon.
+/// The page sizes the pool, by the count it hands `initThreadPool` before the
+/// engine starts. Building one here would race that and poison it, and a
+/// plain wasm build has no pool at all.
 #[cfg(target_family = "wasm")]
 fn set_threads(_count: usize) {}
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(not(target_family = "wasm"), target_feature = "atomics"))]
 fn threads() -> usize {
     rayon::current_num_threads()
 }
 
-/// The one thread a browser runs the solver on.
-#[cfg(target_family = "wasm")]
+/// The one thread a plain wasm build runs the solver on.
+#[cfg(all(target_family = "wasm", not(target_feature = "atomics")))]
 fn threads() -> usize {
     1
 }

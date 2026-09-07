@@ -49,7 +49,7 @@ keeps its history and the tag's notes are the rows themselves.
 | **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets, with undo, prefabs, ray picking and the Rig, Polygon and Tiles tools. | 0.1 | no plan |
 | **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 | no plan |
-| **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.7 | no plan |
+| **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 | no plan |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -68,6 +68,7 @@ keeps its history and the tag's notes are the rows themselves.
 | --- | :-: | --- |
 | **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. | 0.1 | no plan |
 | **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 | no plan |
+| **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export. | 0.2 | [PLAN-textures.md](PLAN-textures.md) |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
@@ -86,8 +87,13 @@ keeps its history and the tag's notes are the rows themselves.
 | --- | :-: | --- |
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 | no plan |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls and tweens. | 0.1 | no plan |
-| **Falling sand** — a 2D cellular grid of sand, water, lava and fire, in a `balaur_cells` plugin on the fixed step and in the digest. | 0.7 | no plan |
-| **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | 0.7 | [PLAN-physics.md](PLAN-physics.md) |
+| **Soft bodies** — `softbody2d` and `softbody3d`: a deformable mesh with stiffness, damping and pressure, drawn down the skinning path, on the fixed step. | 0.7 | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
+| **Cloth and rope** — a sheet that hangs and a rope of linked segments over the same solver, pinned to a node and cut by a script. | 0.7 | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
+| **Tearing** — a threshold on a soft body: past it the body splits into two bodies and two meshes, mid-step and in the digest. | 0.9 | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
+| **Falling sand** — a 2D cellular grid of sand, water, lava and fire, in a `balaur_cells` plugin on the fixed step and in the digest. | 0.9 | no plan |
+| **Fluids** — `fluid2d` and `fluid3d`: particles with a rest density and a viscosity, with emitters and drains, drawn as points before a surface. | 0.9 | [PLAN-physics.md#fluids](PLAN-physics.md#fluids) |
+| **Gases and smoke** — a buoyant volume that rises, spreads and cools, read by the renderer as a density field rather than as particles. | 1.0 | [PLAN-physics.md#gases-and-smoke](PLAN-physics.md#gases-and-smoke) |
+| **Granular materials** — sand, mud and snow as a fluid with friction and a yield stress, in 2D and 3D, on the fixed step. | 1.0 | [PLAN-physics.md#granular-materials](PLAN-physics.md#granular-materials) |
 | **Animation blending** — blend trees and state machines, so a rig that is otherwise complete can run two clips at once. | 0.2 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. | 0.3 | no plan |
 | **Root motion** — a clip that moves the character rather than sliding under it, its root delta handed to `character2d` and `character3d` per tick. | 0.7 | no plan |
@@ -99,18 +105,33 @@ keeps its history and the tag's notes are the rows themselves.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Widgets, text and the batteries** — fourteen widget kinds over cosmic-text, with text in the world, audio buses, input actions, saves and localisation beside them. | 0.1 | no plan |
 | **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 | no plan |
 | **Navigation** — a `navmesh` asset, paths over it, and `agent2d` and `agent3d` with avoidance, all on the fixed step and in the digest. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk, echo cancellation and positional voice, never entering the simulation or the digest. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
-| **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.5 | [PLAN-input.md](PLAN-input.md) |
-| **More widget kinds** — as games ask for them, since the tree, its theme and its focus order are built and a kind is a schema and a draw. | (0.5) | no plan |
+| **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.8 | [PLAN-input.md](PLAN-input.md) |
 | **Behaviour trees** — a tree asset ticked on the fixed step and in the digest, with the navigation agents and the script API as its leaves. | 1.0 | no plan |
 | **Dialogue** — a `dialogue` plugin over an ink-shaped script, its lines addressed by key so `strings.tr` translates them. | 1.0 | no plan |
 | **Touch controls a phone needs** — `touch_button` and `touch_stick` widget kinds, pinch, swipe and long-press recognisers, and a keyboard height a layout can read. | 0.8 | [PLAN-input.md](PLAN-input.md) |
 | **Sound that fills a room** — effects on a bus: reverb, EQ, a compressor and a limiter, ducking, HRTF, and long music streamed rather than decoded whole. | 0.9 | no plan |
 | **Translations as a pipeline** — import from `.csv` and gettext `.po`, an asset remapped per locale, a dock naming every missing key, and pseudolocalisation. | 1.0 | no plan |
+
+## User interface
+
+| Item | Milestone | Plan |
+| --- | :-: | --- |
+| **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text in the world, and the batteries: audio buses, input actions, saves, localisation. | 0.1 | no plan |
+| **Lists, trees and tables** — `list`, `tree` and `table` kinds with selection, columns, and only the rows in view built, which every dock hand-rolls today. | 0.2 | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
+| **Menus, popups and tooltips** — a menu bar, a context menu, a tooltip and a toast in a scene, over a pass that draws above the widget tree. | 0.2 | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
+| **Text a game can edit** — a multi-line `text` kind, a `code` kind with the gutter and colouring the editor has, a numeric `spin`, and links a label reports. | 0.2 | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
+| **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
+| **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
+| **Pickers, and drag and drop** — a colour wheel and a file chooser as widget kinds, with a payload one widget offers and another takes. | 0.5 | [PLAN-widgets.md#pickers-and-drag](PLAN-widgets.md#pickers-and-drag) |
+| **Accessibility** — a screen reader over the widget tree, text scaling, captions, and colour-blind-safe defaults. | 0.6 | no plan |
 | **A controller-only shell** — directional focus between widgets, an on-screen keyboard, safe-area insets applied to layout, and button glyphs that follow the pad. | 0.8 | no plan |
+
+The `widget` component is what a scene holds, and `ui::*` is what the editor
+draws itself with. `PLAN-widgets.md` is the list of what only the second one
+can do today, in the batches it would be built in.
 
 ## Rendering
 
@@ -128,7 +149,7 @@ keeps its history and the tag's notes are the rows themselves.
 | **Terrain sculpting and foliage** — brushes over the `heightfield` asset, splat maps for the textures between them, and grass and trees scattered by painting. | 0.9 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **Occlusion culling** — what stands behind a wall skipped, over a software depth rasteriser. | 0.9 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Global illumination** — light that bounces, in real time: a screen-space pass or an SDF probe field, since nothing in the kiss3d fork does it. | 0.9 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
-| **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through, both passes of our own. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
+| **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through, both passes of our own. | 0.9 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 
 ## Networking
 
@@ -164,7 +185,6 @@ side each step belongs to.
 | **Apple and the `platform` module** — sign-in, achievements, leaderboards, cloud saves and purchases behind one module, over Game Center, iCloud and StoreKit, with an export that signs. | 0.1 | no plan |
 | **An MCP server** — `balaur mcp` over stdio, with the project, `check`, a headless run and a screenshot as tools an agent drives. | 0.5 | [PLAN-mcp.md](PLAN-mcp.md) |
 | **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, and comments anchored to nodes. | 0.7 | [PLAN-collaboration.md](PLAN-collaboration.md) |
-| **Accessibility** — a screen reader over the widget tree, text scaling, captions, and colour-blind-safe defaults. | 0.6 | no plan |
 | **A crash report that reproduces itself** — the recording, the log and the build id in one file. | 0.5 | no plan |
 | **A library others publish to** — a Gamend-hosted catalogue over the manifest `editor/library/` already uses, with a hash per entry and a name saying who published it. | 1.1 | [PLAN-collaboration.md](PLAN-collaboration.md) |
 | **Steam** — sign-in, achievements, leaderboards, cloud saves and purchases behind `platform`, with the overlay, Workshop, lobbies and Steam Input beside it. | 0.6 | [PLAN-steam.md](PLAN-steam.md) |

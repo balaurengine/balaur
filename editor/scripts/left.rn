@@ -129,18 +129,25 @@ fn tree_row(S, k, row) {
 // `kids` is bucketed by the parent's **id**, so the recursion carries an id
 // too. Descending by name path is what used to make every nested node
 // invisible: no bucket is ever keyed by a path.
-fn walk(S, k, kids, parent_id, depth) {
+// The open tree as a flat array, deepest-first order preserved. Nothing here
+// draws: `ui::list` then asks for the rows on screen and no others, so the
+// document's size decides this loop and the viewport decides the drawing.
+fn flatten(S, kids, parent_id, depth) {
+    let out = [];
     let children = kids.get(parent_id).unwrap_or([]);
     for (j, i) in children.iter().enumerate() {
         let node = S.doc[i];
         let id = node.get("id").unwrap_or("");
         let is_last = j == children.len() - 1;
         let has_kids = kids.contains_key(id);
-        tree_row(S, k, #{ index: i, depth: depth, is_last: is_last, has_kids: has_kids });
+        out.push(#{ index: i, depth: depth, is_last: is_last, has_kids: has_kids });
         if has_kids && !S.collapsed.contains_key(id) {
-            walk(S, k, kids, id, depth + 1);
+            for row in flatten(S, kids, id, depth + 1) {
+                out.push(row);
+            }
         }
     }
+    out
 }
 
 
@@ -334,9 +341,10 @@ pub fn tree_body(S, k) {
         }
         kids[parent].push(i);
     }
-    ui::scroll("tree", #{ max_height: S.layout.left.h - 98.0 }, || {
-        ui::spacing(4, 1);
-        walk(S, k, kids, "", 0);
+    let rows = flatten(S, kids, "", 0);
+    ui::list("tree", #{ max_height: S.layout.left.h - 98.0, row_height: ROW_H + 1.0 },
+        rows.len(), |i| {
+        tree_row(S, k, rows[i]);
     });
 }
 

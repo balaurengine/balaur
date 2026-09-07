@@ -288,6 +288,16 @@ mod web_export;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_store;
 
+// Rayon's pool, built from Web Workers because `std::thread` spawns none on
+// this target. The page awaits `initThreadPool` before `start`; only the
+// shared-memory template has it, and rapier's solver is what uses it.
+#[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub use wasm_bindgen_rayon::init_thread_pool;
+
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
 /// load. Everything the CLI would do from argv is native-only below.

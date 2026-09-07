@@ -116,8 +116,19 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> 
 /// The stack is popped even when the callback fails, so one bad handler does
 /// not leave every later widget drawing into a dead `Ui`.
 pub(crate) fn scoped(eng: &Engine, ui: &mut egui::Ui, callback: CallbackId) -> anyhow::Result<()> {
+    scoped_with(eng, ui, callback, &[])
+}
+
+/// `scoped`, with arguments for the callback: what `ui.list` hands a row its
+/// index with, so one closure draws every row rather than one per row.
+pub(crate) fn scoped_with(
+    eng: &Engine,
+    ui: &mut egui::Ui,
+    callback: CallbackId,
+    args: &[balaur_script::Value],
+) -> anyhow::Result<()> {
     push(ui);
-    let result = eng.invoke(callback, &[]).map(|_| ());
+    let result = eng.invoke(callback, args).map(|_| ());
     pop();
     result
 }

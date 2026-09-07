@@ -106,6 +106,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("scroll", &[], "", "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content."),
+        ("list", &[], "(id, opts, count, |i|)", "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels."),
         ("add_space", &[], "", "Insert blank space along the current layout, in design pixels."),
         ("separator", &[], "", "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
         ("spacing", &[], "", "Set the gap between the current container's widgets, in design pixels."),
@@ -130,6 +131,37 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 }
                 area.show(ui, |ui| {
                     result = scoped(eng, ui, cb);
+                });
+                result
+            })
+        },
+    );
+    // The rows are one height, so egui can place the scroll from arithmetic
+    // and hand back only the range on screen. That range is what the script
+    // draws: a list of the document's nodes costs its viewport, not itself.
+    m.function(
+        "list",
+        |eng: &Engine, (id, opts, count, cb): (String, Option<Value>, i64, CallbackId)| {
+            let opts = Opts::with_roles(opts);
+            let row_h = sc(opts.px(k::ROW_HEIGHT, 20.0)).max(1.0);
+            let rows = usize::try_from(count).unwrap_or(0);
+            with_ui(|ui| {
+                let mut result = Ok(());
+                let mut area = egui::ScrollArea::vertical()
+                    .id_salt(id)
+                    .auto_shrink([false, false]);
+                let max_h = opts.px(k::MAX_HEIGHT, 0.0);
+                if max_h > 0.0 {
+                    area = area.max_height(max_h);
+                }
+                area.show_rows(ui, row_h, rows, |ui, range| {
+                    for row in range {
+                        let index = Value::Int(i64::try_from(row).unwrap_or(0));
+                        result = crate::bridge::scoped_with(eng, ui, cb, &[index]);
+                        if result.is_err() {
+                            break;
+                        }
+                    }
                 });
                 result
             })

@@ -154,6 +154,7 @@ pub(crate) mod keys {
     pub(crate) const ROLE: &str = "role";
     pub(crate) const ROUND: &str = "round";
     pub(crate) const SCRIM: &str = "scrim";
+    pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";

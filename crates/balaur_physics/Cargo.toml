@@ -28,10 +28,10 @@ toml.workspace = true
 libm.workspace = true
 
 
-# The solver threads on rayon, which spawns through `std::thread` — unsupported
-# on wasm32-unknown-unknown, the `+atomics` threads template included, where
-# only `sleep` gains an implementation. So both stop here.
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
+# The solver threads on rayon. Native spawns its own workers; the shared-memory
+# template gets them as Web Workers from `initThreadPool`. A plain wasm build
+# has neither, so it takes neither the feature nor the crate that sizes it.
+[target.'cfg(any(not(target_family = "wasm"), target_feature = "atomics"))'.dependencies]
 rapier3d = { workspace = true, features = ["parallel"] }
 rapier2d = { workspace = true, features = ["parallel"] }
 rayon = "1"
