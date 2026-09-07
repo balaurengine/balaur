@@ -863,6 +863,70 @@ pub fn linting(S) {
     log::info("selftest lint: done");
 }
 
+/// `--state tooldemo`: what the caret is offered, what is under it, and what a
+/// rename would rewrite. The buffer, not the file: a tool answers about what
+/// is on screen, and the test must not write over a script.
+pub fn tooling(S) {
+    let script = first_script(S);
+    if !check(script.is_some(), "the scene attaches a script to ask about") {
+        return;
+    }
+    let rel = script.unwrap();
+    let source = model::source(S, rel).unwrap_or("");
+    let probe = source + "\n// physics2d::a\n";
+    let line = probe.split('\n').collect::<Vec>().len() - 1;
+
+    // Completion: a module path offers that module and nothing else.
+    let found = script::complete(rel, probe, line, 17);
+    if check(found is Vec && found.len() > 0, "a module path completes") {
+        let names = [];
+        for one in found {
+            names.push(one.label);
+        }
+        check(util::contains(names, "add_body"),
+            format!("physics2d::a offers add_body (got {})", util::join(names, ", ")));
+        check(found[0].doc != "", "the first completion carries its doc line");
+    }
+
+    // The popup opens on that caret and closes when it moves off.
+    crate::complete::update(S, rel, probe, #{ x: 100.0, y: 100.0, index: probe.chars().count() - 1 });
+    check(S.complete.open, "the popup opens where a caret sits after a module path");
+    crate::complete::reset(S);
+    check(!S.complete.open, "and closes when it is reset");
+
+    // Hover: a declared function answers with what the host knows about it.
+    let at = line_of_text(source, "pub fn");
+    if at > 0 {
+        check(script::hover(rel, source, at, 8) is Object,
+            "hovering a declared function answers");
+    }
+
+    // Symbols: what the file declares, from the host rather than a parser.
+    check(script::symbols(rel, source) is Vec, "the file reports its symbols");
+
+    // Find and replace reaches the same files a rename does.
+    let hits = script::find(rel, source, "fn ");
+    check(hits is Vec && hits.len() > 0, "find reaches the text in the file");
+
+    // Formatting is idempotent, and neither verb writes anything.
+    let once = script::format(rel, source);
+    check(script::format(rel, once) == once, "formatting twice is formatting once");
+    check(script::rename(rel, source, "this", "that") is Vec,
+        "a rename answers with the files it would rewrite");
+    check(model::source(S, rel).unwrap_or("") == source, "and writes none of them");
+    log::info("selftest tooling: done");
+}
+
+// The 1-based line a needle first appears on, 0 when it does not.
+fn line_of_text(source, needle) {
+    for (i, line) in source.split('\n').collect::<Vec>().iter().enumerate() {
+        if line.contains(needle) {
+            return i + 1;
+        }
+    }
+    0
+}
+
 // Prefabs in the editor: an instance's nodes are in the tree, an edit inside
 // one becomes an override and an edit back to the prefab's value stops being
 // one. Which component it edits is discovered — headless registers no `color`.

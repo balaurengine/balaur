@@ -19,7 +19,7 @@ pub fn open(S, mode) {
     }
     S.refactor.open = true;
     S.refactor.mode = mode;
-    S.refactor.from = word_at_caret(S, rel);
+    S.refactor.from = if mode == "rename" { word_at_caret(S, rel) } else { "" };
     S.refactor.to = "";
     S.refactor.hits = [];
     S.refactor.written = [];
@@ -84,13 +84,22 @@ pub fn preview(S) {
         return;
     }
     let source = source_of(S, rel);
-    let hits = script::references(rel, source, S.refactor.from);
+    let renaming = S.refactor.mode == "rename";
+    let hits = if renaming {
+        script::references(rel, source, S.refactor.from)
+    } else {
+        script::find(rel, source, S.refactor.from)
+    };
     S.refactor.hits = if hits is Vec { hits } else { [] };
     if S.refactor.to == "" {
         S.refactor.written = [];
         return;
     }
-    let written = script::rename(rel, source, S.refactor.from, S.refactor.to);
+    let written = if renaming {
+        script::rename(rel, source, S.refactor.from, S.refactor.to)
+    } else {
+        script::replace(rel, source, S.refactor.from, S.refactor.to)
+    };
     S.refactor.written = if written is Vec { written } else { [] };
 }
 
@@ -106,7 +115,8 @@ pub fn apply(S) {
         S.script_dirty[abs] = true;
         ui::set_text(("edit:" + abs), one.source);
     }
-    log::info(format!("renamed {} to {} in {} files",
+    log::info(format!("{} {} to {} in {} files",
+        if S.refactor.mode == "rename" { "renamed" } else { "replaced" },
         S.refactor.from, S.refactor.to, S.refactor.written.len()));
     close(S);
 }
@@ -124,14 +134,16 @@ pub fn draw(S, k) {
     let box_r = #{ x: r.x + r.w - w - 20.0, y: r.y + 16.0, w: w, h: 260.0 };
     style::sheet(k, "refactor", box_r, 14.0, 12.0, || {
         style::section_label(k, if S.refactor.mode == "rename" { "rename" } else { "replace" });
-        let (from, from_changed, _) = ui::text_field("refactor-from", "name",
+        let (from, from_changed, _) = ui::text_field("refactor-from",
+            if S.refactor.mode == "rename" { "name" } else { "text to find" },
             util::merge(style::field(k, w - 40.0), #{ value: S.refactor.from }));
         if from_changed {
             S.refactor.from = from;
             preview(S);
         }
         ui::add_space(4);
-        let (to, to_changed, _) = ui::text_field("refactor-to", "new name",
+        let (to, to_changed, _) = ui::text_field("refactor-to",
+            if S.refactor.mode == "rename" { "new name" } else { "replace with" },
             util::merge(style::field(k, w - 40.0), #{ value: S.refactor.to }));
         if to_changed {
             S.refactor.to = to;

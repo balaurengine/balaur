@@ -596,6 +596,7 @@ fn states() {
         "timingsdemo": crate::selftest::timings,
         "placedemo": crate::selftest::placing,
         "lintdemo": crate::selftest::linting,
+        "tooldemo": crate::selftest::tooling,
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
