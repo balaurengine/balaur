@@ -4,7 +4,6 @@
 use balaur_core::tiles::TileSet;
 
 /// The four corners of a quad around a centre, clockwise from the top left.
-#[cfg(feature = "kiss3d")]
 pub(crate) fn corners_of(centre: glamx::Vec2, half: glamx::Vec2) -> [glamx::Vec2; 4] {
     [
         centre + glamx::Vec2::new(-half.x, half.y),
@@ -15,7 +14,6 @@ pub(crate) fn corners_of(centre: glamx::Vec2, half: glamx::Vec2) -> [glamx::Vec2
 }
 
 /// A sheet rect as the four texture coordinates a quad wants.
-#[cfg(feature = "kiss3d")]
 pub(crate) fn rect_uvs(rect: [f32; 4], sheet: glamx::Vec2, inset: glamx::Vec2) -> [glamx::Vec2; 4] {
     let [x, y, w, h] = rect;
     let min = glamx::Vec2::new(x / sheet.x, y / sheet.y) + inset;
@@ -30,7 +28,6 @@ pub(crate) fn rect_uvs(rect: [f32; 4], sheet: glamx::Vec2, inset: glamx::Vec2) -
 
 /// The four corners of a tile on the sheet, in the order the quad above
 /// wants them, turned by the cell's flags.
-#[cfg(feature = "kiss3d")]
 pub(crate) fn tile_uvs(
     set: &TileSet,
     id: u32,
