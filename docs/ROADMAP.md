@@ -13,12 +13,12 @@ letting one grow.
 
 | Milestone | State | What it is |
 | --- | --- | --- |
-| **0.1** | built | The engine as it stands, waiting on a tag |
+| **0.1** | built | The engine as it stands |
 | **0.2** | building | Nothing blocks an ordinary game |
-| **0.3** | planned | The picture: what draws, and what authors it |
+| **0.3** | planned | Everything you see |
 | **0.4** | planned | Multiplayer, end to end |
 | **0.5** | planned | A game built without writing a script |
-| **0.6** | planned | A game gets out: export, stores, the browser |
+| **0.6** | planned | A game gets out |
 | **Later** | planned | When a game asks |
 
 **This file is the source for the website's

@@ -40,7 +40,7 @@ pub struct Options<'a> {
     /// Where the result goes. Each shape names its own default.
     pub output: Option<PathBuf>,
     /// The platform to build a standalone game for, naming a template
-    /// (`linux-x64`, `macos-universal`, `windows-x64`, `ios`, `android`).
+    /// (`linux-x64`, `macos-universal`, `windows-arm64`, `ios`, `android`).
     pub target: Option<String>,
     /// A runtime template to append to, bypassing lookup entirely.
     pub template: Option<PathBuf>,
@@ -94,11 +94,12 @@ pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:
 /// the desktops a player downloads, then the platforms that ship a bundle.
-pub const TARGETS: [&str; 7] = [
+pub const TARGETS: [&str; 8] = [
     "linux-x64",
     "linux-arm64",
     "macos-universal",
     "windows-x64",
+    "windows-arm64",
     "ios",
     "android",
     "web",
@@ -157,6 +158,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
     let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
     let apple = AppleConfig::load(&opts.path)?;
+    let android = android::AndroidConfig::load(&opts.path)?;
     let config = ExportConfig::load(&opts.path)?;
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));
@@ -183,6 +185,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &name,
             output,
             &apple,
+            &android,
             &shell,
         )?;
         return finish_bundle(kind, &written, opts, &config, &apple, &name);

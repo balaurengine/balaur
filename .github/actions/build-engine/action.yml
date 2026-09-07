@@ -103,12 +103,27 @@ runs:
       run: |
         set -euo pipefail
         bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
-        {
-          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang"
-          echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++"
-          echo "AR_aarch64_linux_android=$bin/llvm-ar"
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
-        } >>"$GITHUB_ENV"
+        # One line per ABI the template carries: the Rust target, and the
+        # clang the NDK names it by, which for armv7 is not the triple.
+        for pair in \
+          aarch64-linux-android:aarch64-linux-android \
+          armv7-linux-androideabi:armv7a-linux-androideabi \
+          i686-linux-android:i686-linux-android \
+          x86_64-linux-android:x86_64-linux-android; do
+          target=${pair%%:*}
+          prefix=${pair#*:}
+          env=$(echo "$target" | tr 'a-z-' 'A-Z_')
+          {
+            echo "CC_${target//-/_}=$bin/$prefix$API-clang"
+            echo "CXX_${target//-/_}=$bin/$prefix$API-clang++"
+            echo "AR_${target//-/_}=$bin/llvm-ar"
+            echo "CARGO_TARGET_${env}_LINKER=$bin/$prefix$API-clang"
+          } >>"$GITHUB_ENV"
+        done
+      env:
+        # The manifest's minSdkVersion in scripts/package_template.sh; a
+        # library built for a newer API would not load on a device it names.
+        API: "26"
 
     # The bindgen CLI has to be the exact version the build links against, so
     # the pin is read off Cargo.lock rather than written down twice.
@@ -126,8 +141,13 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --component rust-src --profile minimal
+        rustup toolchain install nightly --profile minimal
+        # A separate `component add`. Asking for rust-src during `toolchain
+        # install` can report success and leave the component missing, and the
+        # build then fails deep in `-Z build-std` with a missing Cargo.lock.
+        rustup component add rust-src --toolchain nightly
         rustup target add wasm32-unknown-unknown --toolchain nightly
+        test -f "$(rustc +nightly --print sysroot)/lib/rustlib/src/rust/library/Cargo.lock"
 
     - shell: bash
       env:

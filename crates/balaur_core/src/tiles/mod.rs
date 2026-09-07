@@ -12,7 +12,7 @@ use glamx::Vec2;
 
 pub mod rules;
 
-pub use rules::{Mode, Outside, Rule, Terrain, resolve, template};
+pub use rules::{Mode, Outside, Quarter, Rule, Terrain, resolve, template};
 
 use crate::components::as_f64;
 
@@ -149,6 +149,30 @@ impl TileSet {
     #[must_use]
     pub fn group(&self, id: u32) -> Option<Group> {
         self.tile(id).and_then(Tile::group)
+    }
+
+    /// The terrain a cell drawn in quarters belongs to, found by the one tile
+    /// its rules place. `None` for every tile drawn as one quad.
+    #[must_use]
+    pub fn quarters_terrain(&self, id: u32) -> Option<&Terrain> {
+        self.terrains
+            .iter()
+            .find(|terrain| terrain.mode == Mode::Quarters && terrain.first_tile == id)
+    }
+
+    /// The pixel rect of one quarter of a tile: `[x, y, w, h]`, the corner
+    /// counted clockwise from the top left.
+    #[must_use]
+    pub fn quarter_rect(&self, id: u32, corner: usize) -> [f32; 4] {
+        let [x, y, w, h] = self.tile_rect(id);
+        let (half_w, half_h) = (w / 2.0, h / 2.0);
+        let (dx, dy) = match corner {
+            0 => (0.0, 0.0),
+            1 => (half_w, 0.0),
+            2 => (half_w, half_h),
+            _ => (0.0, half_h),
+        };
+        [x + dx, y + dy, half_w, half_h]
     }
 
     /// The pixel rect of a tile on the sheet: `[x, y, w, h]`.
@@ -378,6 +402,10 @@ fn odd_row(row: f32) -> bool {
     (row.rem_euclid(2.0) - 1.0).abs() < 0.5
 }
 
+/// The four corners of a cell, clockwise from the top left: the order a
+/// quarter's tile, its rect and its quad are all counted in.
+const CORNERS: [(i32, i32); 4] = [(-1, -1), (1, -1), (1, 1), (-1, 1)];
+
 /// A cell drawn mirrored left to right.
 pub const FLIP_X: u8 = 1;
 /// A cell drawn mirrored top to bottom.
@@ -548,6 +576,22 @@ impl TileGrid {
             }
         }
         out
+    }
+
+    /// The tile each corner of a cell takes its picture from, clockwise from
+    /// the top left, for a cell whose terrain is drawn in quarters.
+    ///
+    /// `None` is a cell drawn as one quad, which is every cell of every other
+    /// terrain. The answer is the neighbourhood's alone, so a hand-placed
+    /// tile autotiles the same way a painted one does.
+    #[must_use]
+    pub fn quarters(&self, set: &TileSet, column: i32, row: i32) -> Option<[u32; 4]> {
+        let terrain = set.quarters_terrain(self.cell(column, row)?)?;
+        let same = |dx: i32, dy: i32| self.cell(column + dx, row + dy) == Some(terrain.first_tile);
+        Some(CORNERS.map(|(dx, dy)| {
+            let quarter = Quarter::of(same(dx, 0), same(0, dy), same(dx, dy));
+            terrain.quarters[quarter.index()]
+        }))
     }
 
     /// What the tile at a cell carries, for a game that reads it.

@@ -58,23 +58,49 @@ PLIST
   ;;
 
 android)
-  target=aarch64-linux-android
-  step "build ($target)"
-  rustup target add "$target"
-  # The template is a NativeActivity library, not an executable — Android
-  # dlopens libmain.so and calls android_main. See crates/balaur_android.
-  cargo build --release -p balaur_android --target "$target"
-  lib="target/$target/release/libmain.so"
-  [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
+  # Every ABI Play installs, each with the Rust target that builds it. The
+  # template carries all four; `[android] abis` picks what an export keeps.
+  abis="arm64-v8a:aarch64-linux-android armeabi-v7a:armv7-linux-androideabi \
+x86:i686-linux-android x86_64:x86_64-linux-android"
 
-  step "stage (apk layout)"
   # Laid out the way an APK expects, so the remaining step is assembling and
   # signing one — which needs aapt2 and a keystore that belongs to whoever
   # ships the game, not to CI.
   skeleton="$dist/balaur-template-android"
   rm -rf "$skeleton"
-  mkdir -p "$skeleton/lib/arm64-v8a" "$skeleton/assets"
-  cp "$lib" "$skeleton/lib/arm64-v8a/libmain.so"
+  mkdir -p "$skeleton/assets"
+
+  for pair in $abis; do
+    abi=${pair%%:*}
+    target=${pair#*:}
+    step "build ($abi, $target)"
+    rustup target add "$target"
+    # The template is a NativeActivity library, not an executable — Android
+    # dlopens libmain.so and calls android_main. See crates/balaur_android.
+    cargo build --release -p balaur_android --target "$target"
+    lib="target/$target/release/libmain.so"
+    [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
+
+    # Android 15 maps a 64-bit library on 16 KB pages and Play rejects one
+    # linked for less. .cargo/config.toml sets it; this reads it back.
+    case "$abi" in
+    arm64-v8a | x86_64)
+      loads=$(readelf -lW "$lib" | awk '$1 == "LOAD" { print $NF }')
+      [ -n "$loads" ] || { printf '::error::no LOAD segments in %s\n' "$lib"; exit 1; }
+      for align in $loads; do
+        [ "$((align))" -ge 16384 ] || {
+          printf '::error::%s libmain.so is aligned to %s, under 16 KB\n' "$abi" "$align"
+          exit 1
+        }
+      done
+      ;;
+    esac
+
+    mkdir -p "$skeleton/lib/$abi"
+    cp "$lib" "$skeleton/lib/$abi/libmain.so"
+  done
+
+  step "stage (apk layout)"
   # `android.app.lib_name` is how NativeActivity finds the library, so it has
   # to stay in step with [lib] name in crates/balaur_android/Cargo.toml.
   cat >"$skeleton/AndroidManifest.xml" <<'MANIFEST'

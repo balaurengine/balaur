@@ -14,6 +14,118 @@ use anyhow::{Context, Result, bail};
 use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 
+/// An ABI the template carries, in the spelling a project and an APK write.
+///
+/// The set is closed: an ABI this exporter does not know is one the template
+/// has no library for, and a misspelling would silently ship fewer devices.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum Abi {
+    #[serde(rename = "arm64-v8a")]
+    Arm64V8a,
+    #[serde(rename = "armeabi-v7a")]
+    ArmeabiV7a,
+    X86,
+    #[serde(rename = "x86_64")]
+    X86_64,
+}
+
+impl Abi {
+    /// The directory name under `lib/`, which is the same string a project
+    /// writes and the name `package_template.sh` stages.
+    pub(crate) const fn dir(self) -> &'static str {
+        match self {
+            Self::Arm64V8a => "arm64-v8a",
+            Self::ArmeabiV7a => "armeabi-v7a",
+            Self::X86 => "x86",
+            Self::X86_64 => "x86_64",
+        }
+    }
+}
+
+/// The `[android]` table of a project.
+///
+/// ```toml
+/// [android]
+/// abis = ["arm64-v8a", "x86_64"]
+/// ```
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct AndroidConfig {
+    /// Which of the template's ABIs the export keeps. Empty means every one
+    /// the template carries, so a game that says nothing ships everywhere.
+    pub abis: Vec<Abi>,
+}
+
+impl Default for AndroidConfig {
+    fn default() -> Self {
+        Self { abis: Vec::new() }
+    }
+}
+
+impl AndroidConfig {
+    /// The `[android]` table of a project, or the defaults when there is none.
+    pub(crate) fn load(project: &Path) -> Result<Self> {
+        #[derive(serde::Deserialize)]
+        struct Manifest {
+            #[serde(default)]
+            android: AndroidConfig,
+        }
+        let path = project.join("project.toml");
+        let Ok(source) = std::fs::read_to_string(&path) else {
+            return Ok(Self::default());
+        };
+        let manifest: Manifest = toml::from_str(&source)
+            .with_context(|| format!("parsing [android] in {}", path.display()))?;
+        Ok(manifest.android)
+    }
+
+    /// Drop the ABIs this game does not ship from an exported layout, after
+    /// the template has been copied into it.
+    ///
+    /// # Errors
+    /// When the project names an ABI the template has no library for: a
+    /// silently missing ABI is an install the player never gets offered.
+    pub(crate) fn prune(&self, layout: &Path) -> Result<()> {
+        if self.abis.is_empty() {
+            return Ok(());
+        }
+        let lib = layout.join("lib");
+        for abi in &self.abis {
+            let dir = lib.join(abi.dir());
+            if !dir.is_dir() {
+                bail!(
+                    "[android] abis names {}, which this template does not carry. \
+                     It has: {}",
+                    abi.dir(),
+                    carried(&lib).join(", ")
+                );
+            }
+        }
+        for name in carried(&lib) {
+            if !self.abis.iter().any(|a| a.dir() == name) {
+                std::fs::remove_dir_all(lib.join(&name))
+                    .with_context(|| format!("dropping the {name} library"))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The ABI directories a layout holds, sorted so a message reads the same twice.
+fn carried(lib: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(lib) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
 /// The Android SDK, and the newest build-tools and platform in it.
 pub(crate) struct Sdk {
     build_tools: PathBuf,

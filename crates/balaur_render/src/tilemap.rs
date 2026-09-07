@@ -968,13 +968,12 @@ fn rebuild_chunks(
 /// The digest carries the cell size and the animation frame too, so a map
 /// that was rescaled or a tile that turned over rebuilds like an edit.
 #[cfg(feature = "kiss3d")]
-#[allow(clippy::type_complexity, reason = "one map of one thing, named below")]
 fn chunks_of(
     grid: &balaur_core::tiles::TileGrid,
     set: &TileSet,
     seconds: f32,
     frame: i64,
-) -> std::collections::BTreeMap<[i32; 2], (Vec<(i32, i32, u32, u8)>, u64)> {
+) -> std::collections::BTreeMap<[i32; 2], (Vec<Cell>, u64)> {
     let seed = [
         grid.tile_world[0].to_bits().into(),
         grid.tile_world[1].to_bits().into(),
@@ -982,24 +981,48 @@ fn chunks_of(
     ]
     .into_iter()
     .fold(0xcbf2_9ce4_8422_2325, mix);
-    let mut out: std::collections::BTreeMap<[i32; 2], (Vec<(i32, i32, u32, u8)>, u64)> =
+    let mut out: std::collections::BTreeMap<[i32; 2], (Vec<Cell>, u64)> =
         std::collections::BTreeMap::new();
     for (column, row, id) in grid.filled() {
         let id = animated(set, id, seconds);
         let flags = grid.cell_flags(column, row);
+        let quarters = grid.quarters(set, column, row);
         let key = [column.div_euclid(CHUNK), row.div_euclid(CHUNK)];
         let entry = out.entry(key).or_insert_with(|| (Vec::new(), seed));
-        entry.0.push((column, row, id, flags));
+        entry.0.push(Cell {
+            column,
+            row,
+            id,
+            flags,
+            quarters,
+        });
+        // The quarters ride in the digest because a quartered cell is drawn
+        // from its neighbours, which a chunk of its own may not hold.
         for part in [
             i64::from(column) as u64,
             i64::from(row) as u64,
             id.into(),
             flags.into(),
-        ] {
+        ]
+        .into_iter()
+        .chain(quarters.into_iter().flatten().map(u64::from))
+        {
             entry.1 = mix(entry.1, part);
         }
     }
     out
+}
+
+/// One cell as the mesh builder wants it: where it is, what it draws with,
+/// and the tile each corner takes its picture from when the terrain is
+/// drawn in quarters.
+#[cfg(feature = "kiss3d")]
+struct Cell {
+    column: i32,
+    row: i32,
+    id: u32,
+    flags: u8,
+    quarters: Option<[u32; 4]>,
 }
 
 /// One more number folded into a digest.
@@ -1018,7 +1041,7 @@ fn build_chunk_node(
     tileset: &TileSet,
     grid: &balaur_core::tiles::TileGrid,
     sheet: glamx::Vec2,
-    cells: &[(i32, i32, u32, u8)],
+    cells: &[Cell],
 ) -> kiss3d::scene::SceneNode2d {
     use kiss3d::resource::GpuMesh2d;
 
@@ -1028,19 +1051,34 @@ fn build_chunk_node(
     let mut coords: Vec<glamx::Vec2> = Vec::new();
     let mut uvs: Vec<glamx::Vec2> = Vec::new();
     let mut faces: Vec<[u32; 3]> = Vec::new();
-    for (column, row, id, flags) in cells.iter().copied() {
-        let centre = grid.cell_centre(column, row);
-        let half = glamx::Vec2::new(grid.tile_world[0], grid.tile_world[1]) / 2.0;
+    let mut quad = |corners: [glamx::Vec2; 4], uv: [glamx::Vec2; 4]| {
         let base = coords.len() as u32;
-        coords.extend([
-            centre + glamx::Vec2::new(-half.x, half.y),
-            centre + glamx::Vec2::new(half.x, half.y),
-            centre + glamx::Vec2::new(half.x, -half.y),
-            centre + glamx::Vec2::new(-half.x, -half.y),
-        ]);
-        uvs.extend(tile_uvs(tileset, id, sheet, inset, flags));
+        coords.extend(corners);
+        uvs.extend(uv);
         faces.push([base, base + 1, base + 2]);
         faces.push([base, base + 2, base + 3]);
+    };
+    for cell in cells {
+        let centre = grid.cell_centre(cell.column, cell.row);
+        let half = glamx::Vec2::new(grid.tile_world[0], grid.tile_world[1]) / 2.0;
+        let Some(quarters) = cell.quarters else {
+            quad(
+                corners_of(centre, half),
+                tile_uvs(tileset, cell.id, sheet, inset, cell.flags),
+            );
+            continue;
+        };
+        // A quarter sits in the corner it is cut from, and the corners of a
+        // half-sized quad are exactly the four quarter centres. The cell's
+        // turn is not applied: its neighbours already decided which way each
+        // quarter faces.
+        let quarter = half / 2.0;
+        for (corner, tile) in quarters.into_iter().enumerate() {
+            quad(
+                corners_of(corners_of(centre, quarter)[corner], quarter),
+                rect_uvs(tileset.quarter_rect(tile, corner), sheet, inset),
+            );
+        }
     }
     let mesh = GpuMesh2d::new(coords, faces, Some(uvs), true);
     kiss3d::scene::SceneNode2d::mesh(
@@ -1068,6 +1106,31 @@ fn animation_frame(set: &TileSet, seconds: f32) -> i64 {
         .fold(0, |sum, step| sum.wrapping_mul(31).wrapping_add(step))
 }
 
+/// The four corners of a quad around a centre, clockwise from the top left.
+#[cfg(feature = "kiss3d")]
+fn corners_of(centre: glamx::Vec2, half: glamx::Vec2) -> [glamx::Vec2; 4] {
+    [
+        centre + glamx::Vec2::new(-half.x, half.y),
+        centre + glamx::Vec2::new(half.x, half.y),
+        centre + glamx::Vec2::new(half.x, -half.y),
+        centre + glamx::Vec2::new(-half.x, -half.y),
+    ]
+}
+
+/// A sheet rect as the four texture coordinates a quad wants.
+#[cfg(feature = "kiss3d")]
+fn rect_uvs(rect: [f32; 4], sheet: glamx::Vec2, inset: glamx::Vec2) -> [glamx::Vec2; 4] {
+    let [x, y, w, h] = rect;
+    let min = glamx::Vec2::new(x / sheet.x, y / sheet.y) + inset;
+    let max = glamx::Vec2::new((x + w) / sheet.x, (y + h) / sheet.y) - inset;
+    [
+        glamx::Vec2::new(min.x, min.y),
+        glamx::Vec2::new(max.x, min.y),
+        glamx::Vec2::new(max.x, max.y),
+        glamx::Vec2::new(min.x, max.y),
+    ]
+}
+
 /// The four corners of a tile on the sheet, in the order the quad above
 /// wants them, turned by the cell's flags.
 #[cfg(feature = "kiss3d")]
@@ -1078,15 +1141,7 @@ fn tile_uvs(
     inset: glamx::Vec2,
     flags: u8,
 ) -> [glamx::Vec2; 4] {
-    let [x, y, w, h] = set.tile_rect(id);
-    let min = glamx::Vec2::new(x / sheet.x, y / sheet.y) + inset;
-    let max = glamx::Vec2::new((x + w) / sheet.x, (y + h) / sheet.y) - inset;
-    let mut corners = [
-        glamx::Vec2::new(min.x, min.y),
-        glamx::Vec2::new(max.x, min.y),
-        glamx::Vec2::new(max.x, max.y),
-        glamx::Vec2::new(min.x, max.y),
-    ];
+    let mut corners = rect_uvs(set.tile_rect(id), sheet, inset);
     if flags & balaur_core::tiles::TRANSPOSE != 0 {
         corners.swap(1, 3);
     }

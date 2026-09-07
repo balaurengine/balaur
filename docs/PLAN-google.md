@@ -1,6 +1,10 @@
-> **Status:** not started. Written down on 2026-09-03 so the order was decided
-> before the first line: an APK that can hold Java first, because every Google
-> service on Android is a Java library and the template declares
+> **Status:** not started, bar one line: `.cargo/config.toml` links the 64-bit
+> Android targets with `max-page-size=16384` as of 2026-09-07, so the existing
+> template is aligned the way Android 15 asks. Nothing reads that back yet.
+>
+> Written down on 2026-09-03 so the order was decided before the first line:
+> an APK that can hold Java first, because every Google service on Android is
+> a Java library and the template declares
 > `android:hasCode="false"`; the application id and the app bundle with it,
 > because Play resolves an OAuth client against the package name and the
 > signing certificate, and accepts an AAB rather than an APK; Play Games
@@ -44,18 +48,21 @@ Missing, and each one blocks everything below it:
 - **An app bundle.** Play takes an AAB for a new app; the export produces an
   APK layout. `bundletool` is the missing step, and Play Asset Delivery is
   only reachable through an AAB.
-- **16 KB page alignment.** Android 15 requires it of native libraries, and
-  nothing in `.cargo/config.toml` sets `max-page-size` for
-  `aarch64-linux-android`. This is not a Google-services problem — it is a
-  today problem for the existing template, and it belongs in step 1.
 - **Java of our own, and a way to find it.** `jni` and `ndk-context` are
   already in the graph through `android-activity` — at two major versions,
   0.21 and 0.22, so a new crate has to pick the one it shares objects with.
   What is missing is any class of ours to call, and anything caching the
   activity's class loader, without which `FindClass` from an engine thread
   sees only the platform's classes.
-- **One ABI.** The template builds `arm64-v8a` alone. Play wants `x86_64`
-  too for Chromebooks, emulators and Play Games on PC.
+- **One ABI.** The template builds `arm64-v8a` alone. All four are planned:
+  `x86_64` for Chromebooks, emulators and Play Games on PC, `armeabi-v7a` and
+  `x86` for the 32-bit devices still installing from Play. What a store or a
+  sideload asks for is the developer's to pick, so the template carries every
+  ABI rather than the two this repo would have chosen.
+- **The alignment flag is set, and nothing proves it.**
+  `.cargo/config.toml` links the 64-bit Android targets with
+  `max-page-size=16384`, which is what Android 15 asks of a native library. No
+  CI step reads the alignment back out of a built `.so`, so step 1 adds one.
 
 ## 1. Design
 
@@ -107,6 +114,9 @@ aapt2 route and carries no dex at all.
 application_id = "com.studio.game"
 min_sdk = 26
 target_sdk = 35
+# Defaults to every ABI the template carries; a game that knows it ships to
+# phones alone drops the rest rather than paying for them in every install.
+abis = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 capabilities = ["play-games", "play-billing", "play-integrity"]
 # Play Games and Sign in with Google resolve against this; it comes from the
 # Play Console, and Play App Signing may rewrite the certificate behind it.
@@ -117,6 +127,19 @@ The exporter rewrites the manifest's package, label and the `meta-data` each
 capability needs, and refuses a capability whose configuration is missing —
 a Play Games build with no project id fails at export rather than at the
 player's first launch.
+
+**`min_sdk` has a floor the project cannot see.** The template's `libmain.so`
+is compiled against the NDK's `aarch64-linux-android26`, so 26 is the
+binary's own minimum however low the manifest claims to go. An export that
+took `min_sdk = 21` at its word would ship a manifest promising what the
+library cannot do, and the failure would land on a player's device rather
+than in the build. So the exporter clamps: below the template's floor is an
+error that names the floor, and a game that wants lower rebuilds the template
+against a lower NDK level.
+
+The same trap is already live on Apple, where `[apple] min_os` is free text
+and the template is built at `IPHONEOS_DEPLOYMENT_TARGET=15.0`. One check
+serves both, and `docs/PLAN-apple.md` should grow the matching line.
 
 **Determinism.** A platform result is external input: recorded per tick,
 re-fed on replay. Two rules, both easy to get wrong:
@@ -161,7 +184,8 @@ Every Google service an Android game reaches for, and where each stands here.
 | AdMob and every other ads SDK | Not planned. Ads decide a game's data policy, its store listing and its privacy manifest; that is a game's decision to declare, not an engine's to link |
 | Google Play Games on PC | Have, once step 3 lands: the same APIs, an `x86_64` ABI from step 1, and a keyboard-and-mouse input map the engine already has |
 | Android App Bundle, `bundletool`, Play App Signing | Step 1 |
-| 16 KB page alignment, `x86_64` ABI, target SDK upkeep | Step 1. None of it is Google-services work; all of it is why an exported game would be rejected today |
+| All four ABIs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` | Step 1. The developer picks what to ship; a template that carries one ABI makes that choice for them |
+| 16 KB page alignment, target SDK upkeep | Step 1. The link flag is set; what is missing is a CI check that reads it back. None of it is Google-services work; all of it is why an exported game would be rejected today |
 | GameActivity in place of NativeActivity | Not planned yet. It buys text input and motion-event handling, and it costs a kiss3d and `android-activity` change — a window decision, not a services one |
 | Google Play Games Services v1 | Not planned. v2 is what a new integration gets, and v1's explicit sign-in flow is the thing v2 removed |
 
@@ -171,10 +195,11 @@ Ordered so the APK is shippable before it is clever, and each step leaves
 something that works.
 
 1. **An APK a developer can publish.** The `[android]` table; the exporter
-   rewriting package, label and version; `max-page-size=16384` in
-   `.cargo/config.toml`; an `x86_64` ABI in the template; and `bundletool`
-   producing an AAB beside the APK. No Google code yet, and every existing
-   game gets better.
+   rewriting package, label and version; all four ABIs in the template, with
+   `[android] abis` naming the subset an export keeps; a CI check that the
+   64-bit libraries are 16 KB aligned, which `.cargo/config.toml` already
+   links for; and `bundletool` producing an AAB beside the APK. No Google code
+   yet, and every existing game gets better.
 2. **A dex, and one call across it.** The Gradle template, one Java class,
    `jni` and `ndk-context` in `crates/balaur_google`, the class loader cached
    at `android_main`, and one round trip — Java to Rust to a script handler —
@@ -209,8 +234,8 @@ move it. What a runner can check:
   an emulator far enough to log a line
 - an exported game carries the project's application id, its capabilities'
   manifest entries, and the pack in `assets/`
-- `bundletool build-apks` accepts the AAB, and every native library in it is
-  16 KB aligned
+- `bundletool build-apks` accepts the AAB, it carries every ABI the export
+  asked for, and each 64-bit library in it is 16 KB aligned
 - the plugin's replay test passes: a recorded session of canned platform
   events replays to a bit-identical digest with no Play services present
 

@@ -51,7 +51,7 @@ host_stream() {
     # nextest gives each test its own process and runs them in parallel. It
     # has no doctest runner, so those stay with cargo.
     if command -v cargo-nextest >/dev/null 2>&1; then
-      cargo nextest run --workspace || bad=1
+      cargo nextest run --workspace --no-fail-fast || bad=1
       cargo test --workspace --doc || bad=1
     else
       cargo test --workspace || bad=1
