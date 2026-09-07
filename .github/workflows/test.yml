@@ -133,3 +133,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build twice, compare
         run: ./scripts/reproducible_build.sh
+
+  # What the tests actually reach, reported rather than gated: a threshold is
+  # a number people write tests against, and nothing here should turn red
+  # because a well-tested change moved a percentage.
+  coverage:
+    name: line coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+      - name: Measure
+        run: ./scripts/coverage.sh | tee coverage.txt
+      - name: Summarise
+        run: |
+          printf '## Line coverage\n\n```\n%s\n```\n' \
+            "$(grep -E '^[0-9.]+% coverage' coverage.txt || tail -3 coverage.txt)" \
+            >>"$GITHUB_STEP_SUMMARY"
