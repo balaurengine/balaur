@@ -26,9 +26,8 @@ jobs:
         run: cargo fmt --all --check
 
   # Clippy is Rust's linter: what rustc allows but the project treats as an
-  # error. Per OS because `#[cfg(windows)]` code is compiled nowhere else, once
-  # per feature flag because a feature that is off is not compiled either, and
-  # once for wasm because a browser build reaches neither.
+  # error. Per OS, per feature flag and once for wasm, because code that is
+  # not compiled is not linted.
   clippy:
     name: clippy · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -65,9 +64,8 @@ jobs:
         if: runner.os == 'macOS'
         run: cargo clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings
       # Nothing above compiles `#[cfg(target_family = "wasm")]` code, so a
-      # browser-only mistake used to reach CI as a failed download in
-      # build.yml. Features and flags are the web template's, from
-      # scripts/package_template.sh.
+      # browser-only mistake used to reach CI as a failed download. Flags are
+      # the web template's, from scripts/package_template.sh.
       - name: Target `wasm32`
         if: runner.os == 'Linux'
         run: |

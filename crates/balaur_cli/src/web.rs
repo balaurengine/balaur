@@ -114,19 +114,26 @@ pub async fn open_project(
         EDITOR_ROOT,
         PROJECT_ROOT,
         &canvas_id,
-        &mut exporter(&editor_pack_url),
+        &mut editor_plugins(&editor_pack_url),
     )
     .await
     .map_err(err)
 }
 
-/// The editor's `export`, told where the module a web bundle ships is served
-/// from: beside the editor's own pack, which is how a page serves the set.
-fn exporter(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 1] {
-    [Box::new(crate::web_export::WebExportPlugin::new(
-        std::path::PathBuf::from(PROJECT_ROOT),
-        directory_of(editor_pack_url),
-    ))]
+/// The editor's own verbs. `export` is told where the module a web bundle
+/// ships is served from: beside the editor's own pack, which is how a page
+/// serves the set. `import` is here so a drop answers the same way it does on
+/// a desktop, with the error a tab has to give.
+fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 2] {
+    [
+        Box::new(crate::web_export::WebExportPlugin::new(
+            std::path::PathBuf::from(PROJECT_ROOT),
+            directory_of(editor_pack_url),
+        )),
+        Box::new(crate::import_api::ImportPlugin::new(
+            std::path::PathBuf::from(PROJECT_ROOT),
+        )),
+    ]
 }
 
 /// The directory part of a URL: everything before the last slash, with any

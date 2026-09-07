@@ -90,6 +90,7 @@ fn handles(file: &Path) -> bool {
         .is_some_and(|e| IMPORTED.contains(&e.as_str()))
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn import(file: &Path, project: &Path) -> Value {
     match crate::import::import_file(file, project, &[]) {
         Ok(imported) => {
@@ -105,4 +106,17 @@ fn import(file: &Path, project: &Path) -> Value {
         }
         Err(e) => Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]),
     }
+}
+
+/// A tab has none of the importers: they read a `.glb` or an `.aseprite`
+/// off disk through crates the browser build leaves out.
+#[cfg(target_family = "wasm")]
+fn import(file: &Path, _project: &Path) -> Value {
+    Value::Map(vec![(
+        "error".into(),
+        Value::Str(format!(
+            "importing {} needs the desktop app; a tab has no importers",
+            file.display()
+        )),
+    )])
 }

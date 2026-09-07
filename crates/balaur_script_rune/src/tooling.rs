@@ -767,7 +767,7 @@ impl RuneHost {
     /// refused rather than producing a file that will not parse.
     ///
     /// # Errors
-    /// If `to` is not a Rune identifier, or the context cannot be built.
+    /// If `to` is not a Rune identifier.
     pub fn rename(
         &self,
         key: &str,
@@ -781,7 +781,7 @@ impl RuneHost {
         if !to.chars().all(is_word) {
             anyhow::bail!("`{to}` is not an identifier");
         }
-        self.rewrite(key, source, from, to, true)
+        Ok(self.rewrite(key, source, from, to, true))
     }
 
     /// Every file a find and replace would rewrite. Textual on both sides, so
@@ -789,7 +789,7 @@ impl RuneHost {
     /// alone as one.
     ///
     /// # Errors
-    /// If the context cannot be built.
+    /// If `from` is empty, which would match everywhere.
     pub fn replace(
         &self,
         key: &str,
@@ -800,7 +800,7 @@ impl RuneHost {
         if from.is_empty() {
             anyhow::bail!("nothing to replace");
         }
-        self.rewrite(key, source, from, to, false)
+        Ok(self.rewrite(key, source, from, to, false))
     }
 
     /// `rename` and `replace` in one; nothing is written either way.
@@ -811,8 +811,8 @@ impl RuneHost {
         from: &str,
         to: &str,
         whole: bool,
-    ) -> Result<Vec<(String, String)>> {
-        let found = self.search(key, source, from, whole)?;
+    ) -> Vec<(String, String)> {
+        let found = self.search(key, source, from, whole);
         let mut by_file: BTreeMap<String, Vec<Location>> = BTreeMap::new();
         for one in found {
             by_file.entry(one.file.clone()).or_default().push(one);
@@ -844,7 +844,7 @@ impl RuneHost {
             }
             out.push((file, lines.join("\n")));
         }
-        Ok(out)
+        out
     }
 
     /// Every file this one's `mod` declarations reach, itself included.
