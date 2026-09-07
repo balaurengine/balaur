@@ -106,16 +106,19 @@ pub fn place(S, entry) {
         Some(rel) => rel,
         None => return,
     };
-    match entry.kind {
+    // Rune's `match` has no or-patterns, so the two kinds that instance are
+    // one condition rather than two arms.
+    if entry.kind == "sky" {
+        // A sky is already under `skies/`, so only the naming is left.
+        dropin::name_sky(S, rel, "library sky");
+    } else if entry.kind == "scene" || entry.kind == "model" {
         // A lighting setup and a model are both scenes: instanced where a
         // dropped one would be.
-        "scene" => dropin::take(S, S.game_root + "/" + rel),
-        "model" => dropin::take(S, S.game_root + "/" + rel),
-        // A sky is already under `skies/`, so only the naming is left.
-        "sky" => dropin::name_sky(S, rel, "library sky"),
+        dropin::take(S, S.game_root + "/" + rel);
+    } else {
         // A material is a file the inspector then points a node at, so the
         // placing is the copy and the log line says where it landed.
-        _ => log::info("added " + rel),
+        log::info("added " + rel);
     }
 }
 
