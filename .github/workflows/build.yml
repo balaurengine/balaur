@@ -92,10 +92,9 @@ jobs:
           - platform: web
             host: ubuntu-latest
             label: every feature
-          # The shared-memory module, for a host that sends COOP and COEP.
-          # A browser cannot load it otherwise, and cannot load the plain one
-          # with threads, so the two ship side by side and a game picks by
-          # where it is served from.
+          # The shared-memory module, for a host that sends COOP and COEP. A
+          # browser loads it nowhere else and cannot thread the plain one, so
+          # the two ship side by side and a game picks by where it is served.
           - platform: web
             host: ubuntu-latest
             variant: threads

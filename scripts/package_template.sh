@@ -105,11 +105,9 @@ MANIFEST
 
 web)
   target=wasm32-unknown-unknown
-  # WEB_THREADS builds the shared-memory variant. Threading is a property of
-  # the compiled module, not a runtime switch: atomics make the memory shared,
-  # and a browser refuses a shared module unless the page is cross-origin
-  # isolated (COOP and COEP). So it is a second template, not a second path
-  # through this one, and a game picks by where it is hosted.
+  # WEB_THREADS builds the shared-memory variant: threading is a property of
+  # the module, not a runtime switch, and a browser refuses a shared one off a
+  # page that is not cross-origin isolated. So it is a second template.
   threads=${WEB_THREADS:-}
   name=balaur-template-web${threads:+-threads}
   step "build ($target, windowed${threads:+, threads})"
