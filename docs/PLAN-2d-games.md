@@ -359,7 +359,7 @@ in the game; "not planned" is a deliberate no.
 | iOS: signed, on a device, portrait lock, audio session, a localized name, a splash | `docs/PLAN-mobile-export.md` for signing and the first frame; `docs/PLAN-apple.md` gains `orientation`, `audio_session`, `name_localized`; have: `[application] splash` and `splash_seconds`, drawn by the runtime over the first seconds, on every target |
 | Android: Gradle, AAB and APK, signing, orientation, keep-awake, immersive, vibration, back | `docs/PLAN-google.md` steps 1–2 plus `[android] orientation`, `keep_awake`, `immersive`; all four ABIs are step 1, `[android] abis` picks which an export keeps |
 | Windows and Linux 64-bit, macOS | Have; Linux arm64 too |
-| Windows arm64 | Step 4's long tail |
+| Windows arm64 | Have: `windows-arm64`, built on an ARM runner; `docs/PLAN-release.md` §3 owns the download |
 | 32-bit desktop | Not planned |
 | Store uploads, TestFlight, itch, MSIX | `docs/PLAN-deploy.md`; MSIX is a row to add there |
 | Store videos | Have: `render.screenshot` per frame from a tool script; an encoder **not planned** |

@@ -4,10 +4,10 @@ What each milestone carries. A **0.1** row is built and waiting on a tag; every
 other row does not exist yet. `CHANGELOG.md` is the per-feature record of what
 0.1 holds, and `docs/PLAN-*.md` is how each unbuilt item gets there.
 
-`Later` is work that waits for a game that asks for it, with no version against
-it. A milestone in parentheses, `(0.2)`, is in-tree work the public page does
-not carry. A milestone holds about ten rows; past that, split it rather than
-letting one grow.
+Every row carries a version; nothing waits in a pile without one. A milestone
+in parentheses, `(0.2)`, is in-tree work the public page does not carry. A
+milestone holds about ten rows; past that, split it rather than letting one
+grow.
 
 ## Milestones
 
@@ -19,7 +19,8 @@ letting one grow.
 | **0.4** | planned | Multiplayer, end to end |
 | **0.5** | planned | A game built without writing a script |
 | **0.6** | planned | A game gets out |
-| **Later** | planned | When a game asks |
+| **0.7** | planned | What a bigger game asks for |
+| **0.8** | planned | Consoles and headsets |
 
 **This file is the source for the website's
 [roadmap page](https://balaurengine.org/docs/roadmap)**, which is the long form
@@ -42,7 +43,7 @@ shipped tab keeps its history.
 | **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets. Undo, copy and paste, a searchable inspector, prefab overrides, ray picking, a profiler dock, and the Rig, Polygon and Tiles tools. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Tile maps** — what is left: quarter-tile sheets, where a cell is four half-tiles picked by its corners. | 0.5 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — completion, hover, signature help, go-to-definition, document and workspace symbols, references, rename, find and replace, and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. A Docs dock renders the reference from the live engine. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
-| **Semantic tokens, inlay hints and code actions** — the LSP surface the script tooling left out: colouring from the compiler rather than a TextMate grammar, inferred types shown inline, and a quick fix on a diagnostic. Held until completion, hover and rename are in use and the gaps are known rather than guessed. | Later | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
+| **Semantic tokens, inlay hints and code actions** — the LSP surface the script tooling left out: colouring from the compiler rather than a TextMate grammar, inferred types shown inline, and a quick fix on a diagnostic. Held until completion, hover and rename are in use and the gaps are known rather than guessed. | 0.7 | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select and box select, group, align, distribute, hide, lock, isolate, outliner facet chips, drag-in import, light and camera gizmos, view modes and camera bookmarks, a Pen tool, a material panel, an authoring Events view, a Cost dock, and `editor/library` with `balaur new --template`. Built 2026-09-07. What is left: the material panel's preview sphere, which wants a frame drawn offscreen into a texture, and a `path3d` pen; the Pen edits `path2d`. | 0.2 | [PLAN-editor-ergonomics.md](PLAN-editor-ergonomics.md) |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -67,8 +68,8 @@ shipped tab keeps its history.
 | --- | :-: | --- |
 | **Rapier in 2D and 3D** — bodies, joints with motors and breaking, character controllers, the query pipeline, collision events, every collider shape including editable voxels, ray-cast vehicles, layers, and a multithreaded solver. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Rigs and animation** — 2D and 3D skeletons with `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, and tweens. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
-| **Falling sand** — a 2D cellular grid of sand, water, lava and fire, with its rules in a `cell_set` table and one texture per chunk to draw it. Bodies couple through parry's 2D `Voxels` collider, which `collider2d` already has. Not physics and not in rapier: a `balaur_cells` plugin behind a feature that is off in `default`. On the fixed step and in the digest. A grid inside a networked simulation, 3D, GPU compute and a rule written in script are **not planned**. | Later | no plan |
-| **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | Later | [PLAN-physics.md](PLAN-physics.md) |
+| **Falling sand** — a 2D cellular grid of sand, water, lava and fire, with its rules in a `cell_set` table and one texture per chunk to draw it. Bodies couple through parry's 2D `Voxels` collider, which `collider2d` already has. Not physics and not in rapier: a `balaur_cells` plugin behind a feature that is off in `default`. On the fixed step and in the digest. A grid inside a networked simulation, 3D, GPU compute and a rule written in script are **not planned**. | 0.7 | no plan |
+| **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | 0.7 | [PLAN-physics.md](PLAN-physics.md) |
 | **Animation blending** — blend trees and state machines. A rig is otherwise complete: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle` in 2D and 3D, retargeting through a `bone_map`, deform tracks, and ragdolls. What is missing is running two clips at once. | 0.2 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. The sampler, the easing curves and the timeline dock are there. | 0.3 | no plan |
 | **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, a tick rate setting. | 0.2 | [PLAN-time.md](PLAN-time.md) |
@@ -97,7 +98,7 @@ shipped tab keeps its history.
 | **Culling and level of detail** — camera projection, frustum culling and `render.in_view`, cull masks, automatic instancing, MSAA, level of detail in the mesh asset, 2D batching, `multimesh`. Occlusion culling waits for a scene that asks. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Voxels and terrain** — block types in a `voxel_set`, a greedy chunk mesher with baked ambient occlusion, a chunked binary grid file, a Voxels tool with a plane lock and a slice view, `.vox` and mesh-voxelisation import, and heightfield meshing beside it. The physics half is built; nothing draws or edits a grid. | 0.3 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
-| **Video playback** — a movie on a texture with its audio on a bus. Nothing decodes a container; render-side only, and a video never feeds simulation state. | Later | no plan |
+| **Video playback** — a movie on a texture with its audio on a bus. Nothing decodes a container; render-side only, and a video never feeds simulation state. | 0.3 | no plan |
 | **Post-process materials** — a user pass on `camera.post`, and Balaur's shader helpers published as a package. | 0.3 | [PLAN-shaders.md#post-process-materials](PLAN-shaders.md#post-process-materials) |
 
 ## Networking
@@ -111,7 +112,7 @@ shipped tab keeps its history.
 | **State replication and RPC** — deltas generated off the component registry, addressed by `StableId` rather than by path. | 0.4 | [PLAN-networking.md#3-steps](PLAN-networking.md#3-steps) |
 | **Client prediction and reconciliation** — the client runs ahead and is corrected against the server; nodes it does not own are interpolated a send interval behind. | 0.4 | [PLAN-networking.md#hiding-latency](PLAN-networking.md#hiding-latency) |
 | **Lag compensation and interest management** — a server rewinding to the tick the shooter saw, and a bandwidth budget per observer. A client-authoritative hit is never planned. | 0.4 | [PLAN-networking.md#3-steps](PLAN-networking.md#3-steps) |
-| **WebRTC data channels** — for browser peer-to-peer without a relay. Never raw UDP, never ENet. | Later | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
+| **WebRTC data channels** — for browser peer-to-peer without a relay. Never raw UDP, never ENet. | 0.7 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
 
 ## Gamend
 
@@ -120,9 +121,9 @@ shipped tab keeps its history.
 | **A game server per lobby** — launched and registered by Gamend. | 0.4 | [PLAN-gamend.md#3-steps](PLAN-gamend.md#3-steps) |
 | **Lobby tokens and rejoin** — lobby-scoped tokens, and a grace period to rejoin. | 0.4 | [PLAN-gamend.md#1-design](PLAN-gamend.md#1-design) |
 | **The match record** — the match recording uploaded as the lobby's record. | 0.4 | [PLAN-gamend.md#1-design](PLAN-gamend.md#1-design) |
-| **A WebRTC relay for browsers** — so a browser peer joins a session through Gamend. | Later | [PLAN-gamend.md#2-the-surface](PLAN-gamend.md#2-the-surface) |
+| **A WebRTC relay for browsers** — so a browser peer joins a session through Gamend. | 0.7 | [PLAN-gamend.md#2-the-surface](PLAN-gamend.md#2-the-surface) |
 | **Typed bindings for the whole API** — in place of `rest` and `push`. The engine's `gamend` module has nine calls today. | 0.4 | [PLAN-gamend.md#engine-side-in-this-repository](PLAN-gamend.md#engine-side-in-this-repository) |
-| **Skill matchmaking** — queues and ratings; the work is in the Gamend server. | Later | [gamend ROADMAP.md](https://github.com/appsinacup/gamend/blob/main/ROADMAP.md) |
+| **Skill matchmaking** — queues and ratings; the work is in the Gamend server. | 0.7 | [gamend ROADMAP.md](https://github.com/appsinacup/gamend/blob/main/ROADMAP.md) |
 
 Server steps run in the `gamend` repository; `PLAN-gamend.md` marks which
 side each step belongs to.
@@ -133,7 +134,7 @@ side each step belongs to.
 | --- | :-: | --- |
 | **Apple and the `platform` module** — sign-in, achievements, leaderboards, cloud saves and presence behind one module, with Game Center, iCloud, in-app purchase, notifications, and an export that writes `Info.plist` and signs. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **An MCP server** — `balaur mcp` over stdio with the project, `check`, a headless run and a screenshot as tools, and `balaur edit --mcp` exposing the palette to an agent. Files are the API; generation stays an extension. | 0.5 | [PLAN-mcp.md](PLAN-mcp.md) |
-| **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table if a team asks. | Later | [PLAN-collaboration.md](PLAN-collaboration.md) |
+| **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table if a team asks. | 0.7 | [PLAN-collaboration.md](PLAN-collaboration.md) |
 | **Accessibility** — a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults. The retained tree carries text, `focusable` and a focus order, and egui can emit an AccessKit tree. | 0.6 | no plan |
 | **A crash report that reproduces itself** — the recording, the log and the build id in one file. `replay` and `logbuf` are the halves. | 0.5 | no plan |
 | **Steam** — sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase. | 0.6 | [PLAN-steam.md](PLAN-steam.md) |
@@ -151,13 +152,13 @@ waits for its tick to settle.
 | **The shell a phone has** — `engine.open_url` and the `open_url` binding work on every desktop and in a browser tab, and on neither phone: iOS wants `UIApplication.openURL:` and Android an `ACTION_VIEW` intent, so both report that they have no opener. `engine.reveal` is desktop-only and stays there. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
-| **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | Later | [PLAN-embed.md](PLAN-embed.md) |
+| **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, a pack sealed with ChaCha20-Poly1305 under a project key, names out of a unit. Never a DRM wrapper, a packer, anti-cheat or anti-debugging. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
-| **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | Later | no plan |
-| **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | Later | no plan |
+| **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
+| **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | 0.8 | no plan |
 | **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |
 | **The self-signed signing pass in CI** — signing on every target, the reusable workflows and the editor's Export sheet are built. | (0.6) | [PLAN-actions.md](PLAN-actions.md) |
-| **Parallel system execution** — once profiling demands it. The gameplay tick is serial by design. | (Later) | no plan |
+| **Parallel system execution** — once profiling demands it. The gameplay tick is serial by design. | (0.7) | no plan |
 
 Benchmarks are not on the roadmap: `examples/benchmark` and
 `scripts/bench_compare.py` write `docs/BENCHMARKS.md` from a run on a real

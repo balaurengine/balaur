@@ -335,12 +335,15 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
                 .get("first_tile")
                 .and_then(toml::Value::as_integer)
                 .unwrap_or(0) as u32;
+            // Before the literal: a field initialiser moves `name`, and the
+            // borrow below it would read what had already moved.
+            let quarters = quarters_of(&name, table, first_tile)?;
             Ok(Terrain {
                 name,
                 value,
                 mode,
                 first_tile,
-                quarters: quarters_of(&name, table, first_tile)?,
+                quarters,
             })
         })
         .collect()

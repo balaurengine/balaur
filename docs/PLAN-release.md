@@ -38,8 +38,14 @@ opens without a warning and updates itself.
    already reads for. On macOS the template inside `Balaur.app` is the
    exception: notarization refuses a bundle holding an unsigned Mach-O, and
    `export --app` replaces that signature rather than appending past it.
-3. **Linux.** A tarball and an AppImage; no signing beyond the checksums.
-4. **Exported games.** `balaur export` signs with the developer's identity on
+3. **Windows on ARM.** Built as `windows-arm64` on a `windows-11-arm`
+   runner rather than cross-compiled, so `package.sh`'s smoke export runs the
+   game it just made. It signs through the same profile the x64 download does,
+   and `balaur update` resolves an ARM host to it. Windows emulates x64 well
+   enough that the older download ran, which is why this came late rather than
+   never: an emulated editor pays for every frame it draws.
+4. **Linux.** A tarball and an AppImage; no signing beyond the checksums.
+5. **Exported games.** `balaur export` signs with the developer's identity on
    macOS today; the same flag learns Windows signing, and the docs say what a
    store needs. Putting the signed result where a player can reach it is
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
@@ -47,7 +53,7 @@ opens without a warning and updates itself.
    What the export weighs is built: `balaur export` reports the pack by
    section and extension, `--report` measures without writing, and `[export]`
    `strip`, `images`, `fonts` and `audio` drop and re-encode losslessly.
-5. **The Download page** on the website reads the nightly by tag today
+6. **The Download page** on the website reads the nightly by tag today
    (`RELEASE_TAG` in its `src/pages/download.tsx`); once a version is tagged it
    reads that release's assets and checksums, with the nightly as a channel
    beside it.
@@ -75,7 +81,7 @@ what says which.
 
 1. macOS signing and notarization. Proven by hand on 2026-09-06; the CI job
    that runs it on every push has not fired yet.
-2. Windows signing; Linux tarball and AppImage.
+2. Windows signing; the `windows-arm64` download; Linux tarball and AppImage.
 3. The Download page wired to a tagged release beside the nightly; `balaur
    update` verified against a real published tag.
 
