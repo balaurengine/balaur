@@ -254,3 +254,86 @@ fn renaming_to_something_that_is_not_an_identifier_is_refused() {
     assert!(host.rename("main.rn", SCRIPT, "assist", "2fast").is_err());
     assert!(host.rename("main.rn", SCRIPT, "assist", "").is_err());
 }
+
+/// Section 4 of the plan: every documented function hovers to its doc line.
+///
+/// `api_lints.py` fails CI on a function with no doc, so this asserts the
+/// popup is as complete as the reference rather than sampling it.
+#[test]
+fn every_documented_function_hovers_to_its_doc_line() {
+    let (_dir, app) = host();
+    let host = rune(&app);
+    let api: serde_json::Value =
+        serde_json::from_str(&balaur::rune::api_json(&host).unwrap()).unwrap();
+    let mut checked = 0;
+    let mut missing = Vec::new();
+    for module in api["modules"].as_array().unwrap() {
+        let name = module["name"].as_str().unwrap();
+        for (function, doc) in module["docs"].as_object().unwrap() {
+            let Some(doc) = doc.as_str().filter(|d| !d.is_empty()) else {
+                continue;
+            };
+            // One line naming the call, and the caret inside the name.
+            let source = format!("pub fn init(this) {{\n    {name}::{function}();\n}}\n");
+            let column = 5 + name.len() + 2 + 1;
+            let found = host.hover("main.rn", &source, 2, column).unwrap();
+            match found {
+                Some(one) if one.doc == doc => checked += 1,
+                _ => missing.push(format!("{name}::{function}")),
+            }
+        }
+    }
+    assert!(checked > 600, "only {checked} functions hovered");
+    assert!(
+        missing.is_empty(),
+        "{} documented functions do not hover to their doc: {:?}",
+        missing.len(),
+        &missing[..missing.len().min(10)]
+    );
+}
+
+/// Section 4 of the plan: formatting is idempotent over the editor's own
+/// scripts, which are the largest body of Rune in the tree.
+#[test]
+fn formatting_the_editors_own_scripts_is_idempotent() {
+    let (_dir, app) = host();
+    let host = rune(&app);
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../editor/scripts")
+        .canonicalize()
+        .expect("the editor's scripts are in the tree");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "rn") {
+            continue;
+        }
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let source = std::fs::read_to_string(&path).unwrap();
+        let Ok(once) = host.format(&name, &source) else {
+            continue;
+        };
+        let twice = host.format(&name, &once).unwrap();
+        assert_eq!(once, twice, "formatting {name} twice differs from once");
+        checked += 1;
+    }
+    assert!(checked > 30, "only {checked} editor scripts were formatted");
+}
+
+/// A completion is offered for every module the engine reports, so a module
+/// added by a plugin is reachable without touching the provider.
+#[test]
+fn every_module_completes_from_a_bare_prefix() {
+    let (_dir, app) = host();
+    let rune = rune(&app);
+    let api: serde_json::Value =
+        serde_json::from_str(&balaur::rune::api_json(&rune).unwrap()).unwrap();
+    for module in api["modules"].as_array().unwrap() {
+        let name = module["name"].as_str().unwrap();
+        let found = complete_after(&rune, name);
+        assert!(
+            found.contains(&name.to_string()),
+            "`{name}` does not complete: {found:?}"
+        );
+    }
+}

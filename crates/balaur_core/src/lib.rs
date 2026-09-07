@@ -19,8 +19,8 @@ pub mod csg;
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
-// Opening a URL or a folder is the OS's job, and a browser tab has neither.
-#[cfg(not(target_family = "wasm"))]
+// Opening a URL is a shell's job and a tab is one; revealing a folder is a
+// desktop's alone, so only that half is gated, inside.
 pub mod desktop;
 pub mod desktop_api;
 pub mod digest;

@@ -1,5 +1,6 @@
-//! The OS shell around a running game: handing it a URL to open, or a file to
-//! show in the file manager.
+//! The shell around a running game: handing it a URL to open, or a file to
+//! show in the file manager. A browser tab is a shell too, and opens a URL
+//! with `window.open`; only revealing a file needs a desktop.
 //!
 //! Both are effects on the world outside the simulation and neither is
 //! recorded, the way rumble is not: a replay must not open a browser window,
@@ -8,7 +9,9 @@
 //! The tools are each platform's own, called with arguments rather than
 //! through a shell, so nothing here interpolates a string into a command line.
 
+#[cfg(not(target_family = "wasm"))]
 use std::path::Path;
+#[cfg(not(target_family = "wasm"))]
 use std::process::Command;
 
 use anyhow::{Result, bail};
@@ -27,9 +30,28 @@ pub fn open_url(url: &str) -> Result<()> {
     if !OPENABLE.iter().any(|scheme| url.starts_with(scheme)) {
         bail!("open_url takes an http, https or mailto URL, not {url:?}");
     }
+    hand_over(url)
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn hand_over(url: &str) -> Result<()> {
     spawn(&opener(), &[url])
 }
 
+/// A new tab, which is what a browser has instead of an opener. A popup
+/// blocker may refuse one that no click led to, and says so by handing back
+/// nothing.
+#[cfg(target_family = "wasm")]
+fn hand_over(url: &str) -> Result<()> {
+    let window = web_sys::window().ok_or_else(|| anyhow::anyhow!("no window to open from"))?;
+    match window.open_with_url_and_target(url, "_blank") {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => bail!("the browser refused to open {url:?}; a popup blocker wants a click"),
+        Err(_) => bail!("the browser could not open {url:?}"),
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
 /// Show a file in the file manager, selected where the platform can.
 ///
 /// # Errors
@@ -55,6 +77,7 @@ pub fn reveal(path: &Path) -> Result<()> {
     spawn(&opener(), &[&dir.to_string_lossy()])
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn opener() -> String {
     if cfg!(target_os = "macos") {
         "open".into()
@@ -65,6 +88,7 @@ fn opener() -> String {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 /// Hand the work over and stop caring: a file manager runs for as long as the
 /// player leaves it open, which is not something a frame waits for.
 fn spawn(program: &str, args: &[&str]) -> Result<()> {

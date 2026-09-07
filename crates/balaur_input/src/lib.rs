@@ -18,6 +18,9 @@ use balaur_script::{Bindings, BindingsExt, Value};
 pub mod actions;
 pub mod gamepad;
 pub mod haptics;
+// A pad's motion and touchpad come from reading its HID reports, which a tab
+// cannot do; `GamepadState` gates the field the same way.
+#[cfg(not(target_family = "wasm"))]
 mod sensors;
 
 pub use actions::InputActions;

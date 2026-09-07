@@ -185,6 +185,18 @@ fn script_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "find",
+            "(path: string, source: string, needle: string)",
+            "Every place that text appears across the files this one's `mod` declarations reach, matched as text rather than as an identifier.",
+        ),
+        (
+            "script",
+            "replace",
+            "(path: string, source: string, from: string, to: string)",
+            "Every file a find and replace would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",
+        ),
+        (
+            "script",
             "rename",
             "(path: string, source: string, from: string, to: string)",
             "Every file a rename would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",

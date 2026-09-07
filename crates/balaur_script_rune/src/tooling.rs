@@ -708,6 +708,24 @@ impl RuneHost {
     /// # Errors
     /// If the context cannot be built.
     pub fn references(&self, key: &str, source: &str, name: &str) -> Result<Vec<Location>> {
+        self.search(key, source, name, true)
+    }
+
+    /// Every place `needle` appears across the same files, matched as text
+    /// rather than as an identifier: the find half of find and replace.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn find(&self, key: &str, source: &str, needle: &str) -> Result<Vec<Location>> {
+        self.search(key, source, needle, false)
+    }
+
+    /// `references` and `find` in one: `whole` decides whether a match has to
+    /// stand alone as an identifier.
+    fn search(&self, key: &str, source: &str, name: &str, whole: bool) -> Result<Vec<Location>> {
+        if name.is_empty() {
+            return Ok(Vec::new());
+        }
         let mut out = Vec::new();
         let mut files = vec![(key.to_string(), source.to_string())];
         for rel in self.module_graph(key, source) {
@@ -728,7 +746,7 @@ impl RuneHost {
                         .chars()
                         .next()
                         .is_none_or(|c| !is_word(c));
-                    if before && after {
+                    if !whole || (before && after) {
                         out.push(Location {
                             file: rel.clone(),
                             line: line + 1,
@@ -764,7 +782,38 @@ impl RuneHost {
         if !to.chars().all(is_word) {
             anyhow::bail!("`{to}` is not an identifier");
         }
-        let found = self.references(key, source, from)?;
+        self.rewrite(key, source, from, to, true)
+    }
+
+    /// Every file a find and replace would rewrite. Textual on both sides, so
+    /// the replacement need not be an identifier and a match need not stand
+    /// alone as one.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn replace(
+        &self,
+        key: &str,
+        source: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<(String, String)>> {
+        if from.is_empty() {
+            anyhow::bail!("nothing to replace");
+        }
+        self.rewrite(key, source, from, to, false)
+    }
+
+    /// `rename` and `replace` in one; nothing is written either way.
+    fn rewrite(
+        &self,
+        key: &str,
+        source: &str,
+        from: &str,
+        to: &str,
+        whole: bool,
+    ) -> Result<Vec<(String, String)>> {
+        let found = self.search(key, source, from, whole)?;
         let mut by_file: BTreeMap<String, Vec<Location>> = BTreeMap::new();
         for one in found {
             by_file.entry(one.file.clone()).or_default().push(one);

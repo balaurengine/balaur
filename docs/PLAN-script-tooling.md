@@ -1,7 +1,8 @@
-> **Status:** not started. Written 2026-09-05 from the Godot parity
-> investigation: the language server and the Script persona report errors and
-> nothing else. Rewritten 2026-09-06 after checking the two open questions
-> against the tree; section 5 records what they turned out to be.
+> **Status:** built, 2026-09-07. Every step below landed; `CHANGELOG.md` is
+> the per-feature record. Written 2026-09-05 from the Godot parity
+> investigation, when the language server and the Script persona reported
+> errors and nothing else. Section 5 records what the two open questions
+> turned out to be.
 
 # Plan: completion, hover, go-to-definition, formatting and rename
 

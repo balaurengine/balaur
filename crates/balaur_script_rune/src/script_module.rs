@@ -268,6 +268,43 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             }
         })
         .build()?;
+    // `script::find(path, source, needle)` — every place that text appears
+    // across the `mod` graph, matched as text rather than as an identifier.
+    script
+        .function("find", move |path: &str, source: &str, needle: &str| {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match host
+                .find(&RuneHost::normalize_key(path), source, needle)
+                .and_then(|found| location_rows(&found))
+            {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::error!("script::find({path}): {err}");
+                    rune::to_value(()).expect("unit always converts")
+                }
+            }
+        })
+        .build()?;
+    // `script::replace(path, source, from, to)` — every file a find and
+    // replace would rewrite, as `[#{ file, source }]`. Nothing is written.
+    script
+        .function(
+            "replace",
+            move |path: &str, source: &str, from: &str, to: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host
+                    .replace(&RuneHost::normalize_key(path), source, from, to)
+                    .and_then(|written| rename_rows(&written))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::replace({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
     // `script::rename(path, source, from, to)` — every file a rename would
     // rewrite, as `[#{ file, source }]`. Nothing is written: the caller shows
     // the list, then writes what it chooses.

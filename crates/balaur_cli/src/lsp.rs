@@ -118,6 +118,7 @@ impl Server {
                             "documentFormattingProvider": true,
                             "definitionProvider": true,
                             "documentSymbolProvider": true,
+                            "workspaceSymbolProvider": true,
                             "referencesProvider": true,
                             "renameProvider": true,
                         },
@@ -220,6 +221,7 @@ impl Server {
                     }))
                 })
             }
+            "workspace/symbol" => self.workspace_symbols(params),
             "textDocument/documentSymbol" => self.whole(params, |host, key, source| {
                 Ok(host
                     .symbols(key, source)?
@@ -227,7 +229,7 @@ impl Server {
                     .map(|one| {
                         json!({
                             "name": one.name,
-                            "kind": if one.kind == balaur::rune::Kind::Function { 12 } else { 7 },
+                            "kind": symbol_kind(one.kind),
                             "detail": one.detail,
                             "range": span(one.line.max(1), one.column),
                             "selectionRange": span(one.line.max(1), one.column),
@@ -334,6 +336,42 @@ impl Server {
             );
         }
         json!({ "changes": changes })
+    }
+
+    /// Every symbol in the project whose name contains the query, as the flat
+    /// `SymbolInformation` list `workspace/symbol` wants. The per-file answer
+    /// over every script a scene attaches: there is no project-wide index, and
+    /// a project is a few dozen files.
+    fn workspace_symbols(&self, params: &Json) -> Json {
+        let query = params["query"].as_str().unwrap_or("").to_lowercase();
+        let mut out = Vec::new();
+        for rel in balaur::scene_scripts(&self.root) {
+            let Some(source) = self.source_of(&rel) else {
+                continue;
+            };
+            let found = match self.host.symbols(&rel, &source) {
+                Ok(found) => found,
+                Err(err) => {
+                    tracing::error!("{rel}: {err:#}");
+                    continue;
+                }
+            };
+            for one in found {
+                if !query.is_empty() && !one.name.to_lowercase().contains(&query) {
+                    continue;
+                }
+                out.push(json!({
+                    "name": one.name,
+                    "kind": symbol_kind(one.kind),
+                    "containerName": rel,
+                    "location": {
+                        "uri": self.uri_of(&rel),
+                        "range": span(one.line.max(1), one.column),
+                    },
+                }));
+            }
+        }
+        Json::Array(out)
     }
 
     /// `at` for a request about a whole file rather than a position.
@@ -491,6 +529,16 @@ fn markdown(one: &balaur::rune::Hover) -> String {
         out.push_str(&one.doc);
     }
     out
+}
+
+/// The LSP `SymbolKind` for what a script declares: a function, or a property
+/// its `exports()` returned.
+fn symbol_kind(kind: balaur::rune::Kind) -> u8 {
+    if kind == balaur::rune::Kind::Function {
+        12
+    } else {
+        7
+    }
 }
 
 /// A one-character range at a 1-based line and column, which is what a
