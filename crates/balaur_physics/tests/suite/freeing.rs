@@ -9,7 +9,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{App, components, snapshot};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 fn app() -> App {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();

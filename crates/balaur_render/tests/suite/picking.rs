@@ -5,8 +5,7 @@ use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 use balaur_core::scene::{Transform, find_node};
 
-/// The log buffer is global and tests run in parallel.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// One triangle filling the lower-left half of a two-by-two box, so the
 /// upper-right quadrant is inside the node's bounds and outside its geometry.

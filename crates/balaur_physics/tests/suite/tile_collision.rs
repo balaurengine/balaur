@@ -7,7 +7,7 @@ use balaur_physics::PhysicsState2d;
 use balaur_physics::rapier2d::math::IVector;
 
 /// The log buffer is global and tests run in parallel.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// A two-by-two map of one-unit cells, three of them solid. `pixels_per_unit`
 /// matches `tile_size`, so a cell is one world unit and cell 0,0 has its

@@ -3,7 +3,7 @@
 
 use balaur::{AppConfig, standard_app};
 
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// A scene with two balls on the y axis, both immovable world geometry, and
 /// `body` running in `Near`'s `init`. "Near" and "Far" are from the point of

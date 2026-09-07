@@ -8,7 +8,7 @@ use balaur_core::App;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, GlobalTransform};
 
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// A 2D rig of three bones lying along +x, with the given script on it.
 const RIG: &str = r#"[[nodes]]

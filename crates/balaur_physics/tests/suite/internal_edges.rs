@@ -10,7 +10,7 @@ use balaur_physics::rapier3d::parry::shape::HeightFieldFlags;
 use balaur_physics::{PhysicsState, PhysicsState2d};
 
 /// The log buffer is global and tests run in parallel.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// A project of one scene and one script, stepped `frames` times.
 fn run(scene: &str, script: &str, frames: u32) -> App {

@@ -3,7 +3,7 @@
 
 use balaur::{AppConfig, standard_app};
 
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// A project whose scene declares a cube mesh and a small voxel grid, so the
 /// asset-backed shapes have something to be built from.

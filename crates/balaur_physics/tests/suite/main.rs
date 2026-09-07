@@ -4,6 +4,10 @@
 //! one binary per crate links it once, and nextest still gives each test
 //! its own process.
 
+/// The log buffer is one per process, so every test that reads it takes this
+/// lock: a mutex per module cannot exclude the other modules.
+pub(crate) static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 mod api;
 mod bodies;
 mod colliders;

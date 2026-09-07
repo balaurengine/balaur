@@ -3,7 +3,7 @@
 
 use balaur::{AppConfig, standard_app};
 
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// Run a project made of `scene` and one script, and report what it logged as
 /// an error.

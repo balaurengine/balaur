@@ -8,8 +8,7 @@
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 
-/// The log buffer is global and tests run in parallel.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 fn run(body: &str) -> (App, Vec<String>) {
     let _guard = LOG

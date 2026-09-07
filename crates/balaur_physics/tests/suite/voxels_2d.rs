@@ -7,7 +7,7 @@ use balaur_physics::PhysicsState2d;
 use balaur_physics::rapier2d::math::IVector;
 
 /// The log buffer is global and tests run in parallel.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 const SCENE: &str = r##"[[assets]]
 id = "wall"

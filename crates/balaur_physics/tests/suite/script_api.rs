@@ -6,9 +6,7 @@
 
 use balaur::{AppConfig, standard_app};
 
-/// The log buffer is global and tests run in parallel, so one test's error
-/// would surface in another's assertions.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use crate::LOG;
 
 /// Run `body` inside a script's `init`, then report anything logged as an
 /// error. A binding that is missing or mistyped shows up there.
