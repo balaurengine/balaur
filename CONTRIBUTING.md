@@ -15,8 +15,8 @@ is what a pull request is held to.
   `ARCHITECTURE.md` and `docs/PLAN-*.md`.
 - AI-assisted contributions are welcome, at the same bar: you stand behind
   every line, with tests and docs.
-- One concern per pull request. Code, tests, docs and a `CHANGELOG.md` line
-  land together.
+- One concern per pull request. Code, tests and docs land together, and
+  `docs/ROADMAP.md` moves when the change moves something on it.
 - Names follow `docs/NAMING.md`; comments and prose follow `AGENTS.md`.
 - A change that alters a recorded determinism digest says why.
 - Contributions are MIT licensed. No CLA.

@@ -932,8 +932,9 @@ kiss3d window; scripts implement `draw_ui`, run once per frame in the egui pass.
 
 ## The editor is a game
 
-`editor/` is a regular Balaur project: one node whose scripts draw the shell —
-five personas, a fixed five-region layout, the command palette as the single
+`editor/` is a regular Balaur project: one node whose scripts draw the shell,
+over a tree of `widget` nodes the engine lays out and the scripts read back —
+five personas, tabbed and resizable docks, the command palette as the single
 overlay, dark and light token sets.
 
 - `balaur edit <project>` puts the game's path in `engine.args()`. The editor

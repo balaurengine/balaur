@@ -43,23 +43,23 @@ jobs:
           # export in package.sh runs the game it just made.
           - os: windows-11-arm
             target: windows-arm64
-    # What the Mac and Windows downloads are signed with. Only a push carries
-    # the three that switch signing on: a pull request's artifacts are thrown
-    # away, and signing them spends quota and sits in Apple's notary queue.
+    # What the Mac and Windows downloads are signed with. A fork's pull
+    # request is handed no secret, so the scripts skip and build the same
+    # shape unsigned; a branch here signs and notarizes the way a push does.
     env:
       MACOS_SIGN_IDENTITY: ${{ vars.MACOS_SIGN_IDENTITY }}
-      MACOS_CERTIFICATE_BASE64: ${{ github.event_name == 'push' && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
+      MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      TRUSTED_SIGNING_ENDPOINT: ${{ github.event_name == 'push' && vars.TRUSTED_SIGNING_ENDPOINT || '' }}
+      TRUSTED_SIGNING_ENDPOINT: ${{ vars.TRUSTED_SIGNING_ENDPOINT }}
       TRUSTED_SIGNING_ACCOUNT: ${{ vars.TRUSTED_SIGNING_ACCOUNT }}
       TRUSTED_SIGNING_PROFILE: ${{ vars.TRUSTED_SIGNING_PROFILE }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      WINDOWS_CERTIFICATE_BASE64: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
+      WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       # Sign an exported game with a certificate the runner makes, and read
       # the result back (scripts/signing_check.sh). No secret, so a fork's

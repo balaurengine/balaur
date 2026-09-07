@@ -61,21 +61,22 @@ opens without a warning and updates itself.
 ## Cutting a release
 
 Versioning began at **0.1.0** (2026-09-03). The engine is pre-1.0, so a minor
-bump carries breaking changes and the changelog's `### Breaking` section is
-what says which.
+bump carries breaking changes, and the roadmap row that moved is what says
+which.
 
 1. `[workspace.package] version` in the root `Cargo.toml`, and `cargo check`
    once so `Cargo.lock` follows.
-2. `CHANGELOG.md`: rename `## Unreleased` to `## <version> — <date>` and open
-   a fresh empty `Unreleased`. One line per feature; the reasoning lives in
-   `ARCHITECTURE.md` and the plans, not here.
-3. `docs/ROADMAP.md`: strike whatever the release finished, and say the new
-   version in its opening.
-4. The plan for anything finished loses the part that is now built, and is
+2. `docs/ROADMAP.md`: rewrite the rows the release finished as what landed,
+   and say the new version in its opening. Those rows are the notes: there is
+   no changelog, and the reasoning lives in `ARCHITECTURE.md` and the plans.
+3. The plan for anything finished loses the part that is now built, and is
    retired outright when nothing is left in it.
-5. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
-6. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
+4. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
+5. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
    draft, and publishing stays a decision.
+
+A patch release moves no roadmap row. What it fixed is written on the draft
+itself, in the release's own notes, and nowhere else.
 
 ## Phases
 
@@ -102,5 +103,5 @@ above, not after a release goes quiet.
 
 1. **Who holds the certificates.** The maintainers; CI has them as secrets
    and never a contributor's fork.
-2. **Release cadence.** Nightly always; tags when the changelog has something
-   to say.
+2. **Release cadence.** Nightly always; tags when the roadmap has something
+   to say, or when a fix should not wait for one.

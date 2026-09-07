@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ERRORS = ["CHANGELOG.md"]
+ERRORS: list[str] = []
 REPORTS = ["docs/ROADMAP.md"]
 
 MAX_SENTENCE = 35

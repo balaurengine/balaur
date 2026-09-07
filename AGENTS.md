@@ -20,9 +20,9 @@ A change opens with `cargo check` and closes with `scripts/precommit.sh`.
 
 These land in the same commit as the code:
 
-- **`CHANGELOG.md`** gets one line under Added, Fixed or Known issues.
-- **`docs/ROADMAP.md`** changes when the change moves something on it. A row
-  says have, planned, fallback or not planned, and names the crate or protocol.
+- **`docs/ROADMAP.md`** changes when the change moves something on it. It is
+  the only record of what a version holds. A row says have, planned, fallback
+  or not planned, and names the crate or protocol.
 - **The plan** it came from, so `docs/PLAN-*.md` says what is left.
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
 - **A devlog post** in the website repo's `blog/` when a user can see the
@@ -99,15 +99,14 @@ Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
 The limits are numbers, and the website's CI enforces them on every post and
 manual page: 300 words of prose in a post, 35 words in a sentence, 60 in a
 paragraph, 4 paragraphs outside bullets. `scripts/prose_lints.py` holds
-`CHANGELOG.md` and `docs/ROADMAP.md` to the sentence rule here, and holds every
-hand-written `.md` to the mechanical half of the `avoid-ai-writing` skill: the
-vocabulary a model reaches for, the transitions it opens with, the closers it
-lands on, and the markup its chat interfaces leak. Run the skill itself over
-anything longer than a changelog line before committing it, for the half a
-regex cannot judge.
+`docs/ROADMAP.md` to the sentence rule here, and holds every hand-written `.md`
+to the mechanical half of the `avoid-ai-writing` skill: the vocabulary a model
+reaches for, the transitions it opens with, the closers it lands on, and the
+markup its chat interfaces leak. Run the skill itself over anything longer than
+a line before committing it, for the half a regex cannot judge.
 
-`CHANGELOG.md` gets one line per feature under Added, Fixed or Known issues.
-Name what changed and stop: no rationale, no commit hashes.
+A roadmap row says what the thing is, at the level somebody using the engine
+reads. Never a date, a plan's phase number, a CI job or a defect id.
 
 ## Checks
 
