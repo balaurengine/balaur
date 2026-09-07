@@ -143,15 +143,20 @@ desktop platforms. Beyond `cargo test --workspace`:
 
 ## End to end, over every example
 
-`scripts/e2e.sh` runs each of the six examples twenty ways, on three platforms:
+`scripts/e2e.sh` runs each of the nine examples thirty-one ways, on three
+platforms:
 
+- **check** — every script a scene attaches, compiled. The cheapest gate, and
+  the only one that names a file and a line rather than a symptom.
 - **run** — dev mode from sources.
 - **export**, twice — the packs must be identical.
 - **play** — the exported pack, no sources, no compiler.
-- **edit**, sixteen times — the editor booted headless against every example:
-  the scene it opens, then `undo`, `layout`, `rig`, `polygon`, `showcase`,
-  `plugin`, `clipboard`, `assets`, `picking`, `props`, `instances`, `placing`,
-  `timings`, `session`, `theme`.
+- **edit**, twenty-six times — the editor booted headless against every
+  example: the scene it opens, then `undo`, `layout`, `rig`, `polygon`,
+  `weights`, `bone map`, `physical bones`, `tiles`, `showcase`, `plugin`,
+  `clipboard`, `script paths`, `assets`, `picking`, `props`, `instances`,
+  `placing`, `timings`, `session`, `theme`, `selection`, `events`, `library`,
+  `pen`, `drag-in`.
 
 Two bars: **a clean exit and a clean log.** A logged `ERROR` fails, and so does
 the editor's `did not resolve in the mirror` — an invariant it states at WARN,

@@ -88,6 +88,12 @@ for ex in examples/*/; do
     continue
   fi
 
+  # The editor's Problems list, headless: every script a scene attaches,
+  # compiled. Cheaper than running one, and it names the file and the line.
+  printf '  check ...  '
+  step "$name: check" check "$ex"
+  printf 'ok\n'
+
   printf '  run ...    '
   step "$name: run" run "$ex" --headless --frames 120
   printf 'ok\n'
