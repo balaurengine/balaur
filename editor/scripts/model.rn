@@ -975,8 +975,9 @@ pub fn instance_scene(S, rel) {
         n += 1;
         name = format!("{}{}", base, n);
     }
+    let id = fresh_id(S.doc, name);
     S.doc.push(#{
-        id: fresh_id(S.doc, name),
+        id: id,
         name: name,
         parent: S.doc[S.sel].get("id").unwrap_or(""),
         instance: rel,
@@ -986,8 +987,11 @@ pub fn instance_scene(S, rel) {
     // than grown a node: `expand_instances` reads the file again with it.
     expand_instances(S);
     build_mirror(S);
+    // By id, not by name: expanding puts the prefab's own rows in the
+    // document, and a prefab whose root shares the file's name then has two
+    // rows called the same thing, of which the instance is the first.
     for (i, node) in S.doc.iter().enumerate() {
-        if node.name == name {
+        if node.get("id").unwrap_or("") == id {
             selection::only(S, i);
         }
     }
