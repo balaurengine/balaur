@@ -43,7 +43,9 @@ package, which is a release action rather than engine work.
    work. A CPU probe over textures, samplers and interpolated inputs may
    simply not be there yet — the caret preview reads the GPU instead, so
    nothing is blocked on the answer.
-5. **A shader graph.** Not planned, but the module system is what would make
+5. **A shader graph.** Planned for 1.0 now that `docs/PLAN-authoring-without-code.md`
+   brings a node canvas: a graph emits WESL the way that one emits Rune. The
+   module system is what makes
    one honest: a node is a function in a module, a graph is imports and
    calls, and the output is readable WESL a user can take over. Every graph
    built on string concatenation regrets it. If it is ever built, it is built

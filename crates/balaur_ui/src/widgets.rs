@@ -265,6 +265,14 @@ pub(crate) fn sc(v: f32) -> f32 {
     v * scale()
 }
 
+/// The corner a filled shape gets when it asks for none.
+///
+/// Nothing in the editor is meant to have a square corner, so the fallback
+/// rounds rather than not. It is the radius `image_button` already chose, so
+/// an image and the button around it agree instead of one being a plate with
+/// a square picture on it.
+pub(crate) const DEFAULT_RADIUS: f32 = 3.0;
+
 pub(crate) fn pill_radius(h: f32) -> CornerRadius {
     CornerRadius::same((h / 2.0).min(127.0) as u8)
 }

@@ -16,7 +16,7 @@ pub fn state() {
 pub fn kinds() {
     [
         ["material", "Materials"], ["sky", "Skies"], ["model", "Models"],
-        ["scene", "Lighting"], ["template", "Templates"],
+        ["scene", "Lighting"], ["rig", "Rigs"], ["template", "Templates"],
     ]
 }
 
@@ -111,9 +111,9 @@ pub fn place(S, entry) {
     if entry.kind == "sky" {
         // A sky is already under `skies/`, so only the naming is left.
         dropin::name_sky(S, rel, "library sky");
-    } else if entry.kind == "scene" || entry.kind == "model" {
-        // A lighting setup and a model are both scenes: instanced where a
-        // dropped one would be.
+    } else if entry.kind == "scene" || entry.kind == "model" || entry.kind == "rig" {
+        // A lighting setup, a model and a rig are all scenes: instanced where
+        // a dropped one would be, with the scripts a rig needs already in.
         dropin::take(S, S.game_root + "/" + rel);
     } else {
         // A material is a file the inspector then points a node at, so the

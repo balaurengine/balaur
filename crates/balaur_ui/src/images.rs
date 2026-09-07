@@ -7,7 +7,7 @@ use egui::{Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 use crate::UiState;
 use crate::bridge::with_ui;
 use crate::vocabulary::keys as k;
-use crate::widgets::{Opts, pill_radius, sc};
+use crate::widgets::{DEFAULT_RADIUS, Opts, pill_radius, sc};
 
 /// A project image as an egui texture, cached by path.
 ///
@@ -108,7 +108,7 @@ pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Resul
         let texture = texture_of(eng, &ui.ctx().clone(), path)?;
         let (uv, drawn) = image_uv(texture.size_vec2(), opts);
         let size = image_size(drawn, opts);
-        let radius = opts.px(k::RADIUS, 0.0);
+        let radius = opts.px(k::RADIUS, DEFAULT_RADIUS);
         let padding = opts.px(k::PADDING, 0.0);
         if let Some(bg) = opts.opt_color(k::BG) {
             // Backing plate (e.g. white circle behind a logo) with padding.
@@ -158,7 +158,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
         let padding = opts.px(k::PADDING, 2.0);
         let total = size + vec2(padding * 2.0, padding * 2.0);
         let (rect, response) = ui.allocate_exact_size(total, Sense::click());
-        let corner = pill_radius(opts.px(k::RADIUS, 3.0) * 2.0);
+        let corner = pill_radius(opts.px(k::RADIUS, DEFAULT_RADIUS) * 2.0);
         let selected = opts.boolean(k::SELECTED, false);
         if let Some(fill) = opts.opt_color(k::FILL) {
             ui.painter().rect_filled(rect, corner, fill);

@@ -1,0 +1,45 @@
+# Left, right and jump over the 2D character controller, and a camera that
+# trails the player without a script of its own.
+
+[[nodes]]
+id = "rig_platformer"
+name = "Platformer rig"
+
+[[nodes]]
+id = "rig_platformer_player"
+name = "Player"
+parent = "rig_platformer"
+position = [0, 0, 0]
+script = "scripts/platformer_rig.rn"
+
+[nodes.shape2d]
+kind = "capsule"
+radius = 0.4
+height = 1.2
+color = "#e8c37a"
+
+[nodes.character2d]
+height = 1.2
+radius = 0.4
+
+[nodes.collider2d]
+kind = "capsule"
+radius = 0.4
+height = 1.2
+
+[[nodes]]
+id = "rig_platformer_camera"
+name = "Camera"
+parent = "rig_platformer"
+position = [0, 0, 10]
+
+[nodes.camera]
+kind = "2d"
+current = true
+zoom = 48
+
+[nodes.modifier2d]
+kind = "follow"
+target = "../Player"
+lag = 0.18
+offset = [0, 1, 0]

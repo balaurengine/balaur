@@ -806,7 +806,7 @@ mod tests {
             let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
             for (name, body) in [
                 ("AndroidManifest.xml", &b"proto"[..]),
-                ("resources.pb", b"table"),
+                ("resources.pb", &b"table"[..]),
             ] {
                 zip.start_file(name, options).unwrap();
                 std::io::Write::write_all(&mut zip, body).unwrap();

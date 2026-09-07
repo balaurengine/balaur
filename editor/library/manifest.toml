@@ -103,3 +103,42 @@ note = "A character, a floor and a camera that follows."
 id = "viewer"
 name = "3D viewer"
 note = "An orbit camera over a lit turntable."
+
+[[entries]]
+id = "rig_third_person"
+kind = "rig"
+name = "Third person camera"
+file = "rigs/third_person.toml"
+note = "A pivot that trails a node, with the camera behind it. No script."
+
+[[entries]]
+id = "rig_orbit_camera"
+kind = "rig"
+name = "Orbit camera"
+file = "rigs/orbit_camera.toml"
+needs = ["scripts/orbit_camera.rn"]
+note = "Drag to turn, wheel to pull back, around whatever the pivot follows."
+
+[[entries]]
+id = "rig_first_person"
+kind = "rig"
+name = "First person"
+file = "rigs/first_person.toml"
+needs = ["scripts/first_person.rn"]
+note = "WASD and the mouse, on one node that is both eyes and capsule."
+
+[[entries]]
+id = "rig_click_to_move"
+kind = "rig"
+name = "Click to move"
+file = "rigs/click_to_move.toml"
+needs = ["scripts/click_to_move.rn"]
+note = "Click the ground and walk there, over a flat level."
+
+[[entries]]
+id = "rig_platformer"
+kind = "rig"
+name = "Platformer"
+file = "rigs/platformer.toml"
+needs = ["scripts/platformer_rig.rn"]
+note = "Left, right and jump in 2D, with a camera that trails the player."

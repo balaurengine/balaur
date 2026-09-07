@@ -1,0 +1,52 @@
+// Drag to turn, wheel to pull back. The camera owns only its own place under
+// the pivot, so the rig works wherever the pivot is put and whatever it is
+// following. Angles are degrees, which is what the inspector shows.
+
+pub fn exports() {
+    #{
+        distance: 8.0,
+        min_distance: 1.5,
+        max_distance: 60.0,
+        sensitivity: 0.4,
+        zoom_step: 1.0,
+        yaw: 0.0,
+        pitch: -15.0,
+        min_pitch: -80.0,
+        max_pitch: 80.0,
+    }
+}
+
+pub fn init(this) {
+    this.range = this.distance;
+}
+
+pub fn update(this, dt) {
+    if input::is_mouse_down(input::MOUSE_LEFT) {
+        let (dx, dy) = input::mouse_delta();
+        this.yaw -= dx * this.sensitivity;
+        this.pitch = math::clamp(
+            this.pitch - dy * this.sensitivity,
+            this.min_pitch,
+            this.max_pitch,
+        );
+    }
+    let (_, wheel) = input::scroll_delta();
+    if wheel != 0.0 {
+        this.range = math::clamp(
+            this.range - wheel * this.zoom_step,
+            this.min_distance,
+            this.max_distance,
+        );
+    }
+    let yaw = this.yaw * math::PI / 180.0;
+    let pitch = this.pitch * math::PI / 180.0;
+    // On a sphere around the pivot, and turned to face back down at it: with
+    // no yaw the camera sits at +z and looks along -z, which is the pivot.
+    let flat = math::cos(pitch) * this.range;
+    this.node.set_position(
+        math::sin(yaw) * flat,
+        -math::sin(pitch) * this.range,
+        math::cos(yaw) * flat,
+    );
+    this.node.set_rotation_degrees(this.pitch, this.yaw, 0.0);
+}

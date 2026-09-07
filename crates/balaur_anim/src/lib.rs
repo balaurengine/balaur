@@ -38,6 +38,7 @@
 pub mod bindings;
 pub mod clip;
 pub mod ease;
+mod gizmo;
 pub mod modifier;
 pub mod player;
 pub mod retarget;

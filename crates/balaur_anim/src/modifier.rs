@@ -430,7 +430,7 @@ fn table_of(m: &Params) -> toml::Value {
 
 /// A node's 2D world pose composed from local transforms, so a bone this
 /// frame has already moved sees the move.
-fn pose_2d(world: &World, entity: Entity) -> Mat3 {
+pub(crate) fn pose_2d(world: &World, entity: Entity) -> Mat3 {
     let mut matrix = Mat3::IDENTITY;
     for e in ancestry(world, entity) {
         if let Ok(t) = world.get::<&Transform>(e) {
@@ -441,7 +441,7 @@ fn pose_2d(world: &World, entity: Entity) -> Mat3 {
 }
 
 /// The 3D twin of [`pose_2d`].
-fn pose_3d(world: &World, entity: Entity) -> Mat4 {
+pub(crate) fn pose_3d(world: &World, entity: Entity) -> Mat4 {
     let mut matrix = Mat4::IDENTITY;
     for e in ancestry(world, entity) {
         if let Ok(t) = world.get::<&Transform>(e) {
@@ -498,11 +498,11 @@ fn angle_of(m: &Mat3) -> f32 {
     libm::atan2f(m.x_axis.y, m.x_axis.x)
 }
 
-fn origin_2d(m: &Mat3) -> Vec2 {
+pub(crate) fn origin_2d(m: &Mat3) -> Vec2 {
     Vec2::new(m.z_axis.x, m.z_axis.y)
 }
 
-fn origin_3d(m: &Mat4) -> Vec3 {
+pub(crate) fn origin_3d(m: &Mat4) -> Vec3 {
     m.w_axis.truncate()
 }
 
@@ -517,7 +517,7 @@ fn first_child_bone(world: &World, entity: Entity) -> Option<Entity> {
 
 /// The bones a chain solver works on: `root` and its first-child bones, at
 /// most `len` of them, or as far as the rig goes when `len` is zero.
-fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
+pub(crate) fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
     let cap = if len == 0 {
         MAX_CHAIN
     } else {
@@ -1165,44 +1165,6 @@ fn follow_point(world: &World, node: Entity, goal: Vec3, lag: f32, dim3: bool, s
     }
 }
 
-/// Where the modifier's target is, for a tool that draws the reach.
-#[must_use]
-pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
-    let world = eng.world();
-    let (target, dim3) = match world.get::<&Modifier2d>(entity) {
-        Ok(m) => (m.0.target.clone(), false),
-        Err(_) => (
-            world.get::<&Modifier3d>(entity).ok()?.0.target.clone(),
-            true,
-        ),
-    };
-    let target = scene::find_node(&world, entity, &target)?;
-    Some(if dim3 {
-        origin_3d(&pose_3d(&world, target)).truncate()
-    } else {
-        origin_2d(&pose_2d(&world, target))
-    })
-}
-
-/// The bones a modifier drives, for a tool that draws the chain it solves.
-///
-/// The editor's gizmo needs the same walk the solver makes — a `chain` of two
-/// on a rig five deep draws two bones, not five — and this is that walk.
-#[must_use]
-pub fn chain_of_node(eng: &Engine, entity: Entity) -> Vec<Entity> {
-    let world = eng.world();
-    let (bone_path, chain) = match world.get::<&Modifier2d>(entity) {
-        Ok(m) => (m.0.bone.clone(), m.0.chain),
-        Err(_) => match world.get::<&Modifier3d>(entity) {
-            Ok(m) => (m.0.bone.clone(), m.0.chain),
-            Err(_) => return Vec::new(),
-        },
-    };
-    let bone = if bone_path.is_empty() {
-        Some(entity)
-    } else {
-        scene::find_node(&world, entity, &bone_path)
-    };
-    bone.map(|bone| chain_of(&world, bone, chain))
-        .unwrap_or_default()
-}
+// The editor's gizmo asks these two; they read the same walk the solver
+// makes, so they keep the module's public path.
+pub use crate::gizmo::{chain_of_node, target_of};

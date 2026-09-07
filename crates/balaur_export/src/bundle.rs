@@ -89,6 +89,10 @@ fn replace_export(dir: &Path, pack_inside: &Path) -> Result<()> {
 }
 
 /// Copy a bundle template and put the pack where that platform looks for it.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what to write, and what each platform adds; a struct here would exist to satisfy a count"
+)]
 pub(crate) fn export_bundle(
     kind: Bundle,
     template: &Path,

@@ -1,0 +1,55 @@
+// Click the ground, walk there. The click is the mouse ray against the plane
+// the character already stands on, so a flat level needs no navmesh to point
+// at and nothing has to be baked first.
+
+pub fn exports() {
+    #{ speed: 4.0, gravity: 24.0, arrive: 0.15 }
+}
+
+pub fn init(this) {
+    this.goal_x = 0.0;
+    this.goal_z = 0.0;
+    this.walking = false;
+    this.vy = 0.0;
+}
+
+pub fn update(this, dt) {
+    if !input::mouse_just_pressed(input::MOUSE_LEFT) {
+        return;
+    }
+    let (ox, oy, oz, dx, dy, dz) = render::mouse_ray();
+    // A ray running along the plane never meets it, and one pointing above
+    // the horizon meets it behind the camera.
+    if dy > -1e-4 {
+        return;
+    }
+    let feet = this.node.global_position().y;
+    let t = (feet - oy) / dy;
+    if t <= 0.0 {
+        return;
+    }
+    this.goal_x = ox + dx * t;
+    this.goal_z = oz + dz * t;
+    this.walking = true;
+}
+
+pub fn fixed_update(this, dt) {
+    if physics3d::is_grounded(this.node) {
+        this.vy = 0.0;
+    } else {
+        this.vy -= this.gravity * dt;
+    }
+    let here = this.node.global_position();
+    let toward_x = this.goal_x - here.x;
+    let toward_z = this.goal_z - here.z;
+    let far = math::sqrt(toward_x * toward_x + toward_z * toward_z);
+    if !this.walking || far < this.arrive {
+        this.walking = false;
+        physics3d::move_character(this.node, 0.0, this.vy * dt, 0.0);
+        return;
+    }
+    // Normalised by the distance left, so the last step does not overshoot
+    // into a walk that never settles.
+    let step = this.speed * dt / far;
+    physics3d::move_character(this.node, toward_x * step, this.vy * dt, toward_z * step);
+}

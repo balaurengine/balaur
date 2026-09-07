@@ -1,0 +1,20 @@
+# Eyes on a capsule: the camera and the character controller are one node, so
+# looking and walking are the same transform and nothing can drift apart.
+
+[[nodes]]
+id = "rig_first_person"
+name = "First person rig"
+position = [0, 1, 0]
+script = "scripts/first_person.rn"
+
+[nodes.character3d]
+snap_to_ground = 0.3
+
+[nodes.collider3d]
+kind = "capsule"
+radius = 0.35
+height = 1.2
+
+[nodes.camera]
+kind = "3d"
+current = true

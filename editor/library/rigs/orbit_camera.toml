@@ -1,0 +1,23 @@
+# Drag to turn, wheel to pull back. The pivot trails what it watches and the
+# camera orbits it, so a designer moves one node and the script never has to
+# know where anything else is.
+
+[[nodes]]
+id = "rig_orbit"
+name = "Orbit rig"
+
+[nodes.modifier3d]
+kind = "follow"
+target = "../Subject"
+lag = 0.15
+
+[[nodes]]
+id = "rig_orbit_camera"
+name = "Camera"
+parent = "rig_orbit"
+position = [0, 2, 8]
+script = "scripts/orbit_camera.rn"
+
+[nodes.camera]
+kind = "3d"
+current = true

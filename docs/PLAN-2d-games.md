@@ -297,7 +297,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume`, which makes a bus it does not know; `define_bus` **not planned** |
-| Effects on a bus: a limiter, reverb | Not planned: buses are gain, not a graph (`bus.rs:1-18`). Fallback: normalise the files offline |
+| Effects on a bus: a limiter, reverb | Roadmap 0.9, "Sound that fills a room": buses are gain today (`bus.rs:1-18`), and that milestone makes them a graph. Until then, normalise the files offline |
 | Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
 | Content downloaded at run time: a manifest, a pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |

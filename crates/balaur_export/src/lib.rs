@@ -39,8 +39,8 @@ pub struct Options<'a> {
     pub path: PathBuf,
     /// Where the result goes. Each shape names its own default.
     pub output: Option<PathBuf>,
-    /// The platform to build a standalone game for, naming a template
-    /// (`linux-x64`, `macos-universal`, `windows-arm64`, `ios`, `android`).
+    /// The platform to build a standalone game for, naming a template.
+    /// `TARGETS` is every one of them.
     pub target: Option<String>,
     /// A runtime template to append to, bypassing lookup entirely.
     pub template: Option<PathBuf>,
