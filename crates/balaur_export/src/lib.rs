@@ -62,6 +62,9 @@ pub struct Options<'a> {
     pub ipa: bool,
     /// Assemble the Android layout into an installable APK.
     pub apk: bool,
+    /// Also build the AAB Play takes for a new app. The APK stays: it is what
+    /// installs on a device, and what every store that is not Play takes.
+    pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
     /// Where runtime templates are looked for, most specific first.
@@ -358,6 +361,9 @@ fn finish_bundle(
             Ok(())
         }
         Bundle::Android => {
+            if opts.aab {
+                android::bundle(written, written, &opts.path, config)?;
+            }
             if opts.apk || !config.android_keystore.is_empty() {
                 android::assemble(written, written, &opts.path, config)?;
             }

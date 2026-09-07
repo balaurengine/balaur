@@ -230,7 +230,7 @@ pub fn draw(S, k) {
         }
         if item.doc != "" {
             ui::separator(k.line);
-            ui::horizontal(#{ height: 26, width: W - 12.0 }, || {
+            ui::horizontal(#{ height: 24, width: W - 12.0 }, || {
                 ui::add_space(4);
                 ui::label(clip(item.doc, 78), style::mono_sm(k.dim));
             });

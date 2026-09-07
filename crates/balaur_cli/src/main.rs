@@ -138,6 +138,10 @@ enum Command {
         /// Android's debug identity when the project names none.
         #[arg(long)]
         apk: bool,
+        /// Also build the AAB Play takes for a new app. Needs the SDK, a JDK
+        /// and `bundletool.jar`, which Google ships apart from the SDK.
+        #[arg(long)]
+        aab: bool,
         /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
         #[arg(long)]
         pkg: bool,
@@ -378,6 +382,7 @@ fn main() -> Result<()> {
             profile,
             ipa,
             apk,
+            aab,
             pkg,
             report,
         } => export_game(&ExportArgs {
@@ -394,6 +399,7 @@ fn main() -> Result<()> {
             profile,
             ipa,
             apk,
+            aab,
             pkg,
             report,
         }),
@@ -875,6 +881,7 @@ struct ExportArgs {
     profile: Option<PathBuf>,
     ipa: bool,
     apk: bool,
+    aab: bool,
     pkg: bool,
     report: bool,
 }
@@ -903,6 +910,7 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         profile: args.profile.clone(),
         ipa: args.ipa,
         apk: args.apk,
+        aab: args.aab,
         pkg: args.pkg,
         report_only: args.report,
         template_roots: balaur_export::default_roots(templates::cache_dir()),

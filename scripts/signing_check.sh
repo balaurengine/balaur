@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # Sign an exported game with a certificate this script makes, and check what
-# came out: `--sign`, the hardened runtime, and a pack that still reads from
-# behind a signature all run on every push, with no secret to leak and
-# nothing a fork's pull request cannot do.
-#
-# The root is a throwaway, so `codesign --verify` and `signtool verify` answer
-# for the shape of the signature and never for who signed it. What needs a
-# real identity -- notarization, a provisioning profile, a keystore -- is not
-# here and cannot be: see docs/PLAN-actions.md.
+# came out. The root is a throwaway, so `codesign --verify` and `signtool
+# verify` answer for the shape of a signature and never for who signed it;
+# what needs a real identity is docs/PLAN-actions.md's, not this script's.
 #
 # Usage: signing_check.sh <balaur-binary> <target>
 set -euo pipefail

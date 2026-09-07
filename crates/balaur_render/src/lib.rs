@@ -45,6 +45,8 @@ pub mod stats;
 mod sync_2d;
 mod text_component;
 mod texture;
+#[cfg(feature = "kiss3d")]
+mod tile_quad;
 mod tilemap;
 pub mod world_text;
 pub use camera::{Camera, CameraKind};

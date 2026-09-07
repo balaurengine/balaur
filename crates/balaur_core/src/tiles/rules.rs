@@ -688,7 +688,11 @@ mod tests {
     #[test]
     fn a_quartered_terrain_resolves_every_cell_to_one_tile() {
         let rules = template(Mode::Quarters, 1, 10);
-        assert_eq!(rules.len(), 1, "the neighbourhood decides the picture, not a rule");
+        assert_eq!(
+            rules.len(),
+            1,
+            "the neighbourhood decides the picture, not a rule"
+        );
         let rows: &[&[i32]] = &[&[1, -1], &[1, 1]];
         for (x, y) in [(0, 0), (0, 1), (1, 1)] {
             let (tile, flags) = resolve(&rules, &painted(rows), &inside(rows), x, y, 5)

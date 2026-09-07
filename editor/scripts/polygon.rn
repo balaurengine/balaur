@@ -1139,7 +1139,7 @@ pub fn mode_chips(S, k) {
     for id in modes(S) {
         let on = mode == id;
         if ui::pill(mode_name(id), #{
-            height: 26, size: 11, strong: true,
+            height: 24, size: 11, strong: true,
             fill: if on { k.accent_soft } else { k.panel },
             stroke: k.line_soft,
             color: if on { k.accent } else { k.dim },

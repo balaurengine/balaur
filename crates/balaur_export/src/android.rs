@@ -403,6 +403,131 @@ pub(crate) fn assemble(
     Ok(apk)
 }
 
+/// What to install when the JDK is missing. `apksigner` is a JVM program too,
+/// so an Android export has always wanted one.
+const JDK: &str = "install a JDK — Android Studio carries one";
+
+/// Where `bundletool.jar` is: what the project names, then the variable, then
+/// beside the SDK. Google ships it on its own, so the SDK never holds it.
+fn bundletool(project: &Path, config: &ExportConfig) -> Result<PathBuf> {
+    let named = ExportConfig::beside(project, &config.bundletool)
+        .or_else(|| std::env::var_os("BALAUR_BUNDLETOOL").map(PathBuf::from));
+    if let Some(path) = named {
+        if path.is_file() {
+            return Ok(path);
+        }
+        bail!("no bundletool.jar at {}", path.display());
+    }
+    let beside = std::env::var_os("ANDROID_HOME")
+        .or_else(|| std::env::var_os("ANDROID_SDK_ROOT"))
+        .map(|root| PathBuf::from(root).join("bundletool.jar"));
+    match beside {
+        Some(path) if path.is_file() => Ok(path),
+        _ => bail!(
+            "no bundletool.jar: it is not part of the SDK. Download it from \
+             https://github.com/google/bundletool/releases, then set \
+             BALAUR_BUNDLETOOL or [export] bundletool to where it is."
+        ),
+    }
+}
+
+/// Assemble a layout directory into a signed AAB, the shape Play takes for a
+/// new app and the only one Play Asset Delivery is reachable through.
+///
+/// aapt2 writes the protobuf manifest a bundle wants, this packs the module
+/// around it, `bundletool` makes the bundle, and `jarsigner` signs it — an
+/// AAB takes a JAR signature, which `apksigner` does not write.
+pub(crate) fn bundle(
+    layout: &Path,
+    output: &Path,
+    project: &Path,
+    config: &ExportConfig,
+) -> Result<PathBuf> {
+    let sdk = Sdk::find()?;
+    let jar = bundletool(project, config)?;
+    let aab = output.with_extension("aab");
+    let work = aab.with_extension("staging");
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work)?;
+
+    // --proto-format is the whole reason this needs no protobuf of its own:
+    // aapt2 encodes the manifest and the resource table the way a bundle reads.
+    let linked = work.join("proto.apk");
+    run(
+        Command::new(sdk.program("aapt2")?)
+            .arg("link")
+            .arg("--proto-format")
+            .arg("-o")
+            .arg(&linked)
+            .arg("--manifest")
+            .arg(layout.join("AndroidManifest.xml"))
+            .arg("-I")
+            .arg(&sdk.platform_jar),
+        "aapt2 link --proto-format",
+    )?;
+
+    let module = work.join("base.zip");
+    write_module(&module, &linked, layout)?;
+    let _ = std::fs::remove_file(&aab);
+    run(
+        Command::new(tool("java", JDK)?)
+            .arg("-jar")
+            .arg(&jar)
+            .arg("build-bundle")
+            .arg(format!("--modules={}", module.display()))
+            .arg(format!("--output={}", aab.display())),
+        "bundletool build-bundle",
+    )?;
+
+    let keystore = keystore_for(project, config)?;
+    run(
+        Command::new(tool("jarsigner", JDK)?)
+            .arg("-keystore")
+            .arg(&keystore.path)
+            .args(["-storepass", &keystore.store_password])
+            .args(["-keypass", &keystore.key_password])
+            // A JDK's defaults still reach for SHA-1, which Play refuses.
+            .args(["-sigalg", "SHA256withRSA", "-digestalg", "SHA-256"])
+            .arg(&aab)
+            .arg(&keystore.alias),
+        "jarsigner",
+    )?;
+    std::fs::remove_dir_all(&work)?;
+    tracing::info!("bundled {} ({})", aab.display(), keystore.what);
+    Ok(aab)
+}
+
+/// The base module a bundle is made of: aapt2's protobuf manifest and resource
+/// table at the names bundletool reads, and the payload under its own roots.
+fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(module)?);
+    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .last_modified_time(zip::DateTime::default());
+
+    let mut linked = zip::ZipArchive::new(std::fs::File::open(linked)?)
+        .context("reopening what aapt2 linked")?;
+    for (from, to) in [
+        ("AndroidManifest.xml", "manifest/AndroidManifest.xml"),
+        ("resources.pb", "resources.pb"),
+    ] {
+        let mut entry = linked
+            .by_name(from)
+            .with_context(|| format!("aapt2 wrote no {from}"))?;
+        let mut body = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut body)?;
+        zip.start_file(to, options)?;
+        zip.write_all(&body)?;
+    }
+    for (name, path) in payload_files(layout) {
+        zip.start_file(&name, options)
+            .with_context(|| format!("adding {name}"))?;
+        zip.write_all(&std::fs::read(&path)?)?;
+    }
+    zip.finish()?;
+    Ok(())
+}
+
 /// The native library and the pack, added to what aapt2 linked.
 ///
 /// A `.so` goes in uncompressed: the loader maps it out of the APK, and a
@@ -663,6 +788,43 @@ mod tests {
             .expect_err("a floor under the template's")
             .to_string();
         assert!(err.contains("21") && err.contains("26"), "{err}");
+    }
+
+    #[test]
+    fn the_base_module_puts_aapt2s_output_where_bundletool_reads_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let linked = dir.path().join("proto.apk");
+        {
+            let mut zip = zip::ZipWriter::new(std::fs::File::create(&linked).unwrap());
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            for (name, body) in [("AndroidManifest.xml", &b"proto"[..]), ("resources.pb", b"table")]
+            {
+                zip.start_file(name, options).unwrap();
+                std::io::Write::write_all(&mut zip, body).unwrap();
+            }
+            zip.finish().unwrap();
+        }
+        let layout = dir.path().join("layout");
+        std::fs::create_dir_all(layout.join("lib/arm64-v8a")).unwrap();
+        std::fs::create_dir_all(layout.join("assets")).unwrap();
+        std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
+        std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
+
+        let module = dir.path().join("base.zip");
+        super::write_module(&module, &linked, &layout).unwrap();
+
+        let zip = zip::ZipArchive::new(std::fs::File::open(&module).unwrap()).unwrap();
+        let mut names: Vec<&str> = zip.file_names().collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            [
+                "assets/game.bpak",
+                "lib/arm64-v8a/libmain.so",
+                "manifest/AndroidManifest.xml",
+                "resources.pb",
+            ]
+        );
     }
 
     #[test]

@@ -48,14 +48,14 @@ fn current(S, list) {
 /// The module picker and a filter over its functions. In the body rather than
 /// the tab row: the dock carries fourteen tabs, and these would sit on them.
 fn controls(S, k, list) {
-    ui::horizontal(#{ height: 26 }, || {
+    ui::horizontal(#{ height: 24 }, || {
         ui::add_space(6);
         let names = [];
         for m in list {
             names.push(m.name);
         }
         let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
-            width: 150, size: 11, height: 22, color: k.text,
+            width: 150, size: 11, height: 24, color: k.text,
         });
         if changed {
             S.docs.pick = picked;
@@ -99,13 +99,13 @@ pub fn draw(S, k) {
             shown += 1;
             let picked = name == S.docs.fn_pick;
             let sig = signatures.get(name).unwrap_or("");
-            ui::horizontal(#{ height: 18 }, || {
+            ui::horizontal(#{ height: 20 }, || {
                 ui::add_space(6);
                 ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
             });
             let doc = docs.get(name).unwrap_or("");
             if doc != "" {
-                ui::horizontal(#{ height: 16 }, || {
+                ui::horizontal(#{ height: 20 }, || {
                     ui::add_space(16);
                     ui::label(doc, style::mono_sm(k.faint));
                 });
@@ -114,7 +114,7 @@ pub fn draw(S, k) {
         if m.constants.len() > 0 && query == "" {
             style::section_label(k, "constants");
             for c in m.constants {
-                ui::horizontal(#{ height: 16 }, || {
+                ui::horizontal(#{ height: 20 }, || {
                     ui::add_space(6);
                     ui::label(c.name, style::mono(k.text));
                     ui::add_space(8);

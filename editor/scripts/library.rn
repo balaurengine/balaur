@@ -160,7 +160,7 @@ fn card(S, k, title, note, on_click) {
                     on_click();
                 }
             });
-            ui::horizontal(#{ height: 26, width: CARD_W }, || {
+            ui::horizontal(#{ height: 24, width: CARD_W }, || {
                 ui::label(note, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
             });
         });
@@ -171,7 +171,7 @@ fn card(S, k, title, note, on_click) {
 pub fn panel(S, k) {
     let known = catalogue(S);
     ui::add_space(6);
-    ui::horizontal(#{ height: 22 }, || {
+    ui::horizontal(#{ height: 24 }, || {
         ui::add_space(8);
         ui::spacing(4, 0);
         for chip in kinds() {
@@ -229,16 +229,16 @@ fn templates(S, k, known) {
     ui::scroll("library-templates", (), || {
         for row in known.templates {
             let entry = util::obj(row);
-            ui::horizontal(#{ height: 26 }, || {
+            ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(8);
-                ui::horizontal(#{ height: 26, width: 130 }, || {
+                ui::horizontal(#{ height: 24, width: 130 }, || {
                     ui::label(entry.name, style::mono(k.text));
                 });
                 ui::label(entry.get("note").unwrap_or(""), style::mono_sm(k.faint));
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill(icons::ui("copy") + "  copy command", #{
-                        height: 20, size: 10, fill: k.sunken, color: k.sage,
+                        height: 20, size: 10.5, fill: k.sunken, color: k.sage,
                     }) {
                         let command = format!("balaur new my-game --template {}", entry.id);
                         ui::set_clipboard(command);

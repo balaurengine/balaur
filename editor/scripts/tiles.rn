@@ -905,12 +905,12 @@ pub fn set_panel(S, k) {
     let one_way = tile.get("one_way").unwrap_or(false) == true;
     let occluder = tile.get("occluder").unwrap_or(false) == true;
     ui::add_space(4);
-    ui::horizontal(#{ height: 26 }, || {
+    ui::horizontal(#{ height: 24 }, || {
         ui::add_space(8);
         ui::label(format!("tile {}", S.tiles.tile), style::mono_sm(k.dim));
         ui::add_space(8);
         if ui::pill("Solid", #{
-            height: 22, size: 11,
+            height: 24, size: 11,
             fill: if solid { k.accent_soft } else { k.panel },
             stroke: k.line_soft,
             color: if solid { k.accent } else { k.dim },
@@ -918,7 +918,7 @@ pub fn set_panel(S, k) {
             edit_tile(S, "collision", if solid { () } else { "full" });
         }
         if ui::pill("One-way", #{
-            height: 22, size: 11,
+            height: 24, size: 11,
             fill: if one_way { k.accent_soft } else { k.panel },
             stroke: k.line_soft,
             color: if one_way { k.accent } else { k.dim },
@@ -926,7 +926,7 @@ pub fn set_panel(S, k) {
             edit_tile(S, "one_way", if one_way { () } else { true });
         }
         if ui::pill("Blocks light", #{
-            height: 22, size: 11,
+            height: 24, size: 11,
             fill: if occluder { k.accent_soft } else { k.panel },
             stroke: k.line_soft,
             color: if occluder { k.accent } else { k.dim },
@@ -936,13 +936,13 @@ pub fn set_panel(S, k) {
     });
     let named = terrains(S);
     if named.len() > 0 {
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::add_space(8);
             ui::label("terrain", style::mono_sm(k.faint));
             for entry in named {
                 let on = tile.get("terrain").unwrap_or("") == entry.name;
                 if ui::pill(entry.name, #{
-                    height: 22, size: 11,
+                    height: 24, size: 11,
                     fill: if on { k.accent_soft } else { k.panel },
                     stroke: k.line_soft,
                     color: if on { k.accent } else { k.dim },
@@ -1005,13 +1005,13 @@ pub fn palette(S, k) {
     });
     if S.tiles.mode == "stamp" {
         let (wide, tall) = S.tiles.stamp;
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::add_space(8);
             ui::label("block", style::mono_sm(k.faint));
             for size in [1, 2, 3, 4] {
                 let on = wide == size;
                 if ui::pill(format!("{} wide", size), #{
-                    height: 22, size: 11,
+                    height: 24, size: 11,
                     fill: if on { k.accent_soft } else { k.panel },
                     stroke: k.line_soft,
                     color: if on { k.accent } else { k.dim },
@@ -1022,7 +1022,7 @@ pub fn palette(S, k) {
             for size in [1, 2, 3, 4] {
                 let on = tall == size;
                 if ui::pill(format!("{} tall", size), #{
-                    height: 22, size: 11,
+                    height: 24, size: 11,
                     fill: if on { k.accent_soft } else { k.panel },
                     stroke: k.line_soft,
                     color: if on { k.accent } else { k.dim },
@@ -1038,12 +1038,12 @@ pub fn palette(S, k) {
             ui::add_space(6);
             style::empty(k, "This tile set names no terrains, so there is nothing to paint.");
         } else {
-            ui::horizontal(#{ height: 26 }, || {
+            ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(8);
                 for entry in named {
                     let on = S.tiles.terrain == entry.value;
                     if ui::pill(entry.name, #{
-                        height: 22, size: 11,
+                        height: 24, size: 11,
                         fill: if on { k.accent_soft } else { k.panel },
                         stroke: k.line_soft,
                         color: if on { k.accent } else { k.dim },
@@ -1106,7 +1106,7 @@ pub fn palette(S, k) {
         for layer in found {
             let on = layer.index == S.sel;
             if ui::pill(layer.name, #{
-                height: 22, size: 11,
+                height: 24, size: 11,
                 fill: if on { k.accent_soft } else { k.panel },
                 stroke: k.line_soft,
                 color: if on { k.accent } else { k.dim },

@@ -156,14 +156,14 @@ pub fn draw(S, k) {
         ui::add_space(6);
         ui::scroll("refactor-hits", #{ max_height: 120 }, || {
             for hit in S.refactor.hits {
-                ui::horizontal(#{ height: 18 }, || {
+                ui::horizontal(#{ height: 20 }, || {
                     ui::add_space(4);
                     ui::label(format!("{}:{}", hit.file, hit.line), style::mono_sm(k.dim));
                 });
             }
         });
         ui::add_space(8);
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             let ready = S.refactor.to != "" && S.refactor.written.len() > 0;
             if ui::pill("Apply", #{
                 role: "button", min_width: 70,

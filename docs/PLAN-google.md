@@ -101,22 +101,26 @@ AAB (uploadable). `--apk` stays for the no-Google path: a
 game that declares no Play capabilities exports through the existing
 aapt2 route and carries no dex at all.
 
-**The AAB is a zip we can write.** `bundletool build-bundle` is mostly an
-archiver, and everything it needs is already on the export path. `aapt2 link
---proto-format` emits the protobuf manifest and `resources.pb` that a bundle
-wants, and aapt2 is what assembles the APK today. `BundleConfig.pb` is a
-protobuf small enough to write by hand. The `zip` crate already packs the APK.
-So the bundle is built here, with no jar on a developer's machine and no new
-crate in the graph.
+**The AAB is Google's tools, not ours.** Writing the bundle in Rust was
+weighed and dropped. It is buildable — `aapt2 link --proto-format` emits the
+protobuf manifest a bundle wants, so nothing here would encode protobuf by
+hand — but it buys nothing, because the signature cannot be written that way.
+An AAB takes a JAR signature, a PKCS#7 block this tree has no crate for, and
+`jarsigner` is what writes one. That means a JDK. And a JDK was never
+avoidable: `apksigner` is `exec java -jar`, so every Android export has
+needed one since the first APK.
 
-What we cannot write is the signature. An AAB is signed the old JAR way — a
-manifest, a signature file and a PKCS#7 block — and this tree has no CMS, no
-RSA and nothing that reads a keystore. `jarsigner` from the JDK does it in one
-call, and anyone uploading to Play has one under Android Studio. So `--aab`
-builds unsigned and signs when a JDK is there, saying which happened, the way
-`--apk` already says which key it used. `bundletool build-apks` proves the
-result in CI and never runs on an export. When step 2 brings Gradle, Gradle
-produces the AAB and this goes.
+Once a JVM is a given, `bundletool` costs nothing beyond the jar. So `--aab`
+runs aapt2, packs the base module with the `zip` crate that already packs the
+APK, and hands it to `bundletool build-bundle` and `jarsigner`. The only code
+of ours that knows the format is which two files aapt2's output maps onto.
+
+**No toolchain of our own.** The SDK is found, never shipped: `Sdk::find`
+reads `ANDROID_HOME` the way Google's own tools do, and the license does not
+let this repo redistribute the SDK anyway. `bundletool.jar` is the one thing
+the SDK does not carry, so `[export] bundletool` or `BALAUR_BUNDLETOOL` names
+it and the error says where to get it. Vendoring a JDK and an SDK would add
+hundreds of megabytes and a license flow to a download that is one binary.
 
 **Capabilities are declared in `project.toml` and written at export.**
 

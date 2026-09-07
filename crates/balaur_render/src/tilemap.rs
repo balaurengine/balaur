@@ -3,6 +3,8 @@
 //! kiss3d mirror at the bottom of the file is feature-gated.
 
 use crate::shape::{keys as k, words};
+#[cfg(feature = "kiss3d")]
+use crate::tile_quad::{corners_of, rect_uvs, tile_uvs};
 use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
@@ -1077,10 +1079,9 @@ fn build_chunk_node(
             );
             continue;
         };
-        // A quarter sits in the corner it is cut from, and the corners of a
-        // half-sized quad are exactly the four quarter centres. The cell's
-        // turn is not applied: its neighbours already decided which way each
-        // quarter faces.
+        // A quarter sits in the corner it is cut from, and a half-sized quad's
+        // corners are the four quarter centres. The cell's turn stays off: its
+        // neighbours already decided which way each quarter faces.
         let quarter = half / 2.0;
         for (corner, tile) in quarters.into_iter().enumerate() {
             quad(
@@ -1113,56 +1114,6 @@ fn animation_frame(set: &TileSet, seconds: f32) -> i64 {
         .filter_map(|tile| tile.animation.as_ref())
         .map(|animation| (seconds * animation.fps.max(0.0)) as i64)
         .fold(0, |sum, step| sum.wrapping_mul(31).wrapping_add(step))
-}
-
-/// The four corners of a quad around a centre, clockwise from the top left.
-#[cfg(feature = "kiss3d")]
-fn corners_of(centre: glamx::Vec2, half: glamx::Vec2) -> [glamx::Vec2; 4] {
-    [
-        centre + glamx::Vec2::new(-half.x, half.y),
-        centre + glamx::Vec2::new(half.x, half.y),
-        centre + glamx::Vec2::new(half.x, -half.y),
-        centre + glamx::Vec2::new(-half.x, -half.y),
-    ]
-}
-
-/// A sheet rect as the four texture coordinates a quad wants.
-#[cfg(feature = "kiss3d")]
-fn rect_uvs(rect: [f32; 4], sheet: glamx::Vec2, inset: glamx::Vec2) -> [glamx::Vec2; 4] {
-    let [x, y, w, h] = rect;
-    let min = glamx::Vec2::new(x / sheet.x, y / sheet.y) + inset;
-    let max = glamx::Vec2::new((x + w) / sheet.x, (y + h) / sheet.y) - inset;
-    [
-        glamx::Vec2::new(min.x, min.y),
-        glamx::Vec2::new(max.x, min.y),
-        glamx::Vec2::new(max.x, max.y),
-        glamx::Vec2::new(min.x, max.y),
-    ]
-}
-
-/// The four corners of a tile on the sheet, in the order the quad above
-/// wants them, turned by the cell's flags.
-#[cfg(feature = "kiss3d")]
-fn tile_uvs(
-    set: &TileSet,
-    id: u32,
-    sheet: glamx::Vec2,
-    inset: glamx::Vec2,
-    flags: u8,
-) -> [glamx::Vec2; 4] {
-    let mut corners = rect_uvs(set.tile_rect(id), sheet, inset);
-    if flags & balaur_core::tiles::TRANSPOSE != 0 {
-        corners.swap(1, 3);
-    }
-    if flags & balaur_core::tiles::FLIP_X != 0 {
-        corners.swap(0, 1);
-        corners.swap(2, 3);
-    }
-    if flags & balaur_core::tiles::FLIP_Y != 0 {
-        corners.swap(0, 3);
-        corners.swap(1, 2);
-    }
-    corners
 }
 
 #[cfg(test)]

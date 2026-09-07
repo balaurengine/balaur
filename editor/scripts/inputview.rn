@@ -81,14 +81,14 @@ pub fn draw(S) {
             ui::horizontal(#{ height: 30 }, || {
                 for chip in chips {
                     ui::pill(chip, #{
-                        height: 28, size: 12.5, strong: true,
+                        height: 30, size: 11.5, strong: true,
                         fill: k.accent_fill, color: k.on_accent,
                     });
                     ui::add_space(4);
                 }
                 for name in actions {
                     ui::pill(name, #{
-                        height: 28, size: 12.5, strong: true,
+                        height: 30, size: 11.5, strong: true,
                         fill: k.sunken, stroke: k.accent, color: k.accent,
                     });
                     ui::add_space(4);

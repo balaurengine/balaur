@@ -184,7 +184,7 @@ pub fn draw(S) {
                 ui::label(icons::ui("search"), #{ size: 16, color: k.accent });
                 ui::add_space(4);
                 let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
-                    size: 15, width: 440, autofocus: true, color: k.text,
+                    size: 16, width: 440, autofocus: true, color: k.text,
                 });
                 S.palette_query = text;
                 ui::right(|| {
@@ -210,10 +210,10 @@ pub fn draw(S) {
                     matched += 1;
                     let hit = #{ run: false };
                     let highlighted = first;
-                    ui::horizontal(#{ height: 40 }, || {
+                    ui::horizontal(#{ height: 30 }, || {
                         ui::add_space(8);
                         if ui::pill(cmd.label, #{
-                            height: 40, size: 13.5, align: ui::ALIGN_LEFT,
+                            height: 30, size: 13.5, align: ui::ALIGN_LEFT,
                             min_width: 430,
                             icon: cmd.icon, icon_size: 14, icon_color: k.accent,
                             fill: if highlighted { k.sunken } else { "#00000000" },

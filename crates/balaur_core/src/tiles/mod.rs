@@ -720,7 +720,9 @@ mod tests {
     /// A sheet whose one terrain is drawn in quarters: fill 0, horizontal 1,
     /// vertical 2, outer 3, inner 4.
     fn quartered() -> TileSet {
-        set("texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nfirst_tile = 0")
+        set(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nfirst_tile = 0",
+        )
     }
 
     #[test]
@@ -754,16 +756,16 @@ mod tests {
 
     #[test]
     fn a_corner_the_terrain_wraps_around_is_an_inner_one() {
-        let (set, grid) = (
-            quartered(),
-            grid(&[&[-1, 0, 0], &[0, 0, 0], &[0, 0, 0]]),
-        );
+        let (set, grid) = (quartered(), grid(&[&[-1, 0, 0], &[0, 0, 0], &[0, 0, 0]]));
         let quarters = grid.quarters(&set, 1, 1).expect("the cell is quartered");
         assert_eq!(
             quarters[0], 4,
             "its west and north are the terrain and its north-west is not"
         );
-        assert_eq!(quarters[2], 0, "while the corner away from the hole is filled");
+        assert_eq!(
+            quarters[2], 0,
+            "while the corner away from the hole is filled"
+        );
     }
 
     #[test]
@@ -779,20 +781,32 @@ mod tests {
         let set = quartered();
         assert_eq!(set.quarter_rect(0, 0), [0.0, 0.0, 4.0, 4.0]);
         assert_eq!(set.quarter_rect(0, 2), [4.0, 4.0, 4.0, 4.0]);
-        assert_eq!(set.quarter_rect(1, 3), [8.0, 4.0, 4.0, 4.0], "tile 1 is the next along");
+        assert_eq!(
+            set.quarter_rect(1, 3),
+            [8.0, 4.0, 4.0, 4.0],
+            "tile 1 is the next along"
+        );
     }
 
     #[test]
     fn a_terrain_whose_block_is_not_five_in_a_row_names_its_tiles() {
-        let named = set("texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1, 2, 3, 6]");
+        let named = set(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1, 2, 3, 6]",
+        );
         let grid = grid(&[&[-1, 0], &[0, 0]]);
         let quarters = grid.quarters(&named, 1, 1).expect("the cell is quartered");
-        assert_eq!(quarters[0], 6, "the inner corner is where the sheet keeps it");
+        assert_eq!(
+            quarters[0], 6,
+            "the inner corner is where the sheet keeps it"
+        );
         let wrong = toml::from_str::<toml::Value>(
             "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1]",
         )
         .unwrap();
-        assert!(parse_tileset(&wrong).is_err(), "a short list is a typo, not a default");
+        assert!(
+            parse_tileset(&wrong).is_err(),
+            "a short list is a typo, not a default"
+        );
     }
 
     #[test]

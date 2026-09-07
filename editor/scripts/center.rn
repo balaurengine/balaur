@@ -53,7 +53,7 @@ fn rail(S, k) {
                 ui::horizontal((), || {
                     ui::add_space(6);
                     if ui::circle_button(icons::ui("restore"), #{
-                        role: "tool", d: 28, size: 13, tooltip: "Show the tools",
+                        role: "tool", d: 28, size: 11.5, tooltip: "Show the tools",
                     }) {
                         S.rail_shut = false;
                     }
@@ -155,7 +155,7 @@ fn bookmark_chips(S, k) {
         let key = format!("{}", slot);
         let held = S.bookmarks.get(key);
         if ui::pill(key, #{
-            height: 20, size: 10, min_width: 20, radius: 4,
+            height: 20, size: 10.5, min_width: 20, radius: 4,
             fill: if held.is_some() { k.accent_soft } else { k.sunken },
             color: if held.is_some() { k.accent } else { k.faint },
             tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
@@ -249,11 +249,11 @@ fn viewport(S, k) {
                     // and `ui::right` then pushes it off the stage's edge.
                     ui::horizontal(#{ height: 20, width: 94 }, || {
                         ui::spacing(2, 0);
-                        if ui::pill("−", #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill("−", #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
                         ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
-                        if ui::pill(icons::ui("add"), #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill(icons::ui("add"), #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });
@@ -289,7 +289,7 @@ fn hooks_sheet(S, k) {
         }
         if S.script_dirty.contains_key(S.game_root + "/" + rel) {
             ui::add_space(8);
-            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
+            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10.5 }));
         }
     });
 }
@@ -350,7 +350,7 @@ fn code_pane(S, k) {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
         let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
-            size: 12.5, gutter_width: 34, gutter_color: k.faint,
+            size: 11.5, gutter_width: 34, gutter_color: k.faint,
             k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
             k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
             k_punc: k.k_punc,

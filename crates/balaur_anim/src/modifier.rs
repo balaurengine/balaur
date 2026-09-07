@@ -1025,19 +1025,19 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
             .map(|(_, e, m, dim3)| (e, m, dim3))
             .collect()
     };
-    let steps = jiggle_steps(eng, dt, &work);
+    let steps = fixed_steps(eng, dt, &work);
     for (entity, m, dim3) in work.drain(..) {
         run_one(eng, entity, &m, dim3, steps);
     }
 }
 
-/// How many fixed ticks the jiggle springs owe this frame, advanced once for
-/// the whole system rather than once per modifier.
+/// How many fixed ticks the modifiers that remember owe this frame, advanced
+/// once for the whole system rather than once per modifier.
 ///
-/// The accumulator only moves when something is actually jiggling, so a scene
-/// with no springs in it does not carry a residual into the frame one appears.
-fn jiggle_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
-    if !work.iter().any(|(_, m, _)| m.kind == Kind::Jiggle) {
+/// The accumulator only moves when one of them is in the scene, so a scene
+/// with none carries no residual into the frame the first one appears.
+fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
+    if !work.iter().any(|(_, m, _)| m.kind.has_memory()) {
         return 0;
     }
     let Some(state) = eng.try_resource::<AnimationState>() else {
@@ -1117,7 +1117,51 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
             let chain = chain_of(&world, bone, m.chain);
             ccdik(&world, &chain, point, m, dim3);
         }
+        (Kind::Follow, _) => follow_point(&world, bone, point + m.offset, m.lag, dim3, steps),
         (Kind::Jiggle, _) => unreachable!("handled above"),
+    }
+}
+
+/// Move a node toward a point, closing the same share of the gap per fixed
+/// tick so the path it takes does not change with the frame rate.
+///
+/// The node's own transform is the memory, so nothing is kept beside the
+/// scene and a rollback puts a follower back where the snapshot had it.
+fn follow_point(world: &World, node: Entity, goal: Vec3, lag: f32, dim3: bool, steps: u32) {
+    let here = if dim3 {
+        origin_3d(&pose_3d(world, node))
+    } else {
+        origin_2d(&pose_2d(world, node)).extend(0.0)
+    };
+    if !goal.is_finite() || !here.is_finite() {
+        return;
+    }
+    // Exponential, so `steps` ticks at once land where that many one at a
+    // time would: a frame that hitched does not overshoot.
+    let share = if lag <= 0.0 {
+        1.0
+    } else {
+        1.0 - libm::expf(-(steps as f32) * FIXED_DT / lag)
+    };
+    let want = here + (goal - here) * share;
+    // A world point is written as a local one, because a follower may hang
+    // under a parent that is itself moving.
+    let local = match world.get::<&Parent>(node).map(|p| p.0) {
+        Ok(parent) if dim3 => pose_3d(world, parent).inverse().transform_point3(want),
+        Ok(parent) => {
+            let placed = pose_2d(world, parent).inverse() * want.truncate().extend(1.0);
+            Vec3::new(placed.x, placed.y, want.z)
+        }
+        Err(_) => want,
+    };
+    let Ok(mut transform) = world.get::<&mut Transform>(node) else {
+        return;
+    };
+    transform.position.x = local.x;
+    transform.position.y = local.y;
+    // A 2D follower keeps whatever depth it was given: z is the draw order.
+    if dim3 {
+        transform.position.z = local.z;
     }
 }
 

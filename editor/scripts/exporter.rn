@@ -79,7 +79,7 @@ fn folder_button(S, k) {
         return;
     }
     if ui::pill("Open folder", #{
-        height: 26, size: 12, radius: 8, tooltip: "Show the last export in the file manager",
+        height: 24, size: 11.5, radius: 8, tooltip: "Show the last export in the file manager",
         fill: k.sunken, color: k.dim,
     }) {
         engine::reveal(S.exporter.landed);
@@ -127,7 +127,7 @@ fn target_row(S, k, row) {
     });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
-        ui::horizontal(#{ height: 18 }, || {
+        ui::horizontal(#{ height: 20 }, || {
             ui::add_space(20);
             ui::label(said, style::mono_sm(if status == "failed" { k.accent } else { k.faint }));
         });
@@ -145,7 +145,7 @@ fn export_button(S, k, name, installed, fetchable, status) {
     }
     let label = if installed { "export" } else { "download & export" };
     if ui::pill(label, #{
-        height: 20, size: 10, strong: true,
+        height: 20, size: 10.5, strong: true,
         tooltip: "Export the project for this target",
         fill: k.sunken, color: k.dim,
     }) {

@@ -501,3 +501,69 @@ fn every_kind_reads_back_the_way_it_was_written() {
     let why = components::add(&app.engine, rig, "modifier2d", Some(&bad)).unwrap_err();
     assert!(format!("{why:#}").contains("wobble"), "{why:#}");
 }
+
+/// A follower and the node it chases, side by side under one parent so the
+/// follower's own move cannot carry the target with it.
+fn following(app: &App, lag: f32, offset: (f32, f32), target: (f32, f32)) -> Entity {
+    let root = app.engine.root();
+    let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
+    let follower = node_at(app, "Follower", rig, 0.0, 0.0);
+    node_at(app, "Target", rig, target.0, target.1);
+    let params: toml::Value = toml::from_str(&format!(
+        "kind = \"follow\"\ntarget = \"../Target\"\nlag = {lag}\noffset = [{}, {}, 0.0]",
+        offset.0, offset.1
+    ))
+    .unwrap();
+    components::add(&app.engine, follower, "modifier2d", Some(&params)).unwrap();
+    follower
+}
+
+#[test]
+fn a_follower_with_no_lag_lands_on_its_target_and_its_offset() {
+    let mut app = app();
+    let follower = following(&app, 0.0, (0.0, 2.0), (3.0, 1.0));
+    app.tick(1.0 / 60.0);
+    let at = global_xy(&app, follower);
+    assert!(
+        (at - Vec2::new(3.0, 3.0)).length() < 1e-4,
+        "the follower landed at {at:?}"
+    );
+}
+
+#[test]
+fn a_lagging_follower_closes_the_gap_without_passing_it() {
+    let mut app = app();
+    let follower = following(&app, 0.25, (0.0, 0.0), (4.0, 0.0));
+    app.tick(1.0 / 60.0);
+    let first = global_xy(&app, follower).x;
+    assert!(
+        first > 0.0 && first < 4.0,
+        "one tick moved it part of the way, to {first}"
+    );
+    for _ in 0..120 {
+        app.tick(1.0 / 60.0);
+    }
+    let settled = global_xy(&app, follower).x;
+    assert!(
+        (settled - 4.0).abs() < 1e-2,
+        "and it settles on the target, at {settled}"
+    );
+}
+
+#[test]
+fn a_follower_takes_the_same_path_at_any_frame_rate() {
+    let mut slow = app();
+    let one = following(&slow, 0.5, (0.0, 0.0), (10.0, 0.0));
+    slow.tick(4.0 / 60.0);
+    let mut fast = app();
+    let many = following(&fast, 0.5, (0.0, 0.0), (10.0, 0.0));
+    for _ in 0..4 {
+        fast.tick(1.0 / 60.0);
+    }
+    let (one, many) = (global_xy(&slow, one).x, global_xy(&fast, many).x);
+    assert!(one > 0.0, "the follower moved at all, to {one}");
+    assert!(
+        (one - many).abs() < 1e-4,
+        "one long frame landed at {one} and four short ones at {many}"
+    );
+}

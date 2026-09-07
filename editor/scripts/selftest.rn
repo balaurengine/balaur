@@ -1145,19 +1145,19 @@ pub fn font_sheet(S) {
                 ui::horizontal(#{ height: 24, width: 92 }, || {
                     ui::label(name, style::mono_sm(k.faint));
                 });
-                ui::label(sample, #{ size: 15, color: k.text });
+                ui::label(sample, #{ size: 16, color: k.text });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: 15, font: ui::FONT_HEADING, color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: 16, font: ui::FONT_HEADING, color: k.text });
         ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
         ui::add_space(6);
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
                 ui::label(crate::icons::tool(id), #{ size: 16, color: k.text });
@@ -1166,7 +1166,7 @@ pub fn font_sheet(S) {
                 ui::label(crate::icons::persona(id), #{ size: 16, color: k.accent });
             }
         });
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
                 ui::label(crate::icons::panel(id), #{ size: 16, color: k.text });

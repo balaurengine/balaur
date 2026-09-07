@@ -212,7 +212,7 @@ fn tab_row(S, k, side, d) {
         ui::right(|| {
             ui::add_space(4);
             if ui::pill(icons::ui(shut_icon(side)), #{
-                role: "icon_button", height: 22, size: 12, tooltip: "Minimise",
+                role: "icon_button", height: 24, size: 11.5, tooltip: "Minimise",
             }) {
                 S.docks[side].shut = true;
             }
@@ -299,7 +299,7 @@ pub fn draw_status(S, k) {
     let d = S.docks.bottom;
     chrome::status_strip(S, k, S.layout.bottom.w, || {
         if d.shut && ui::pill(icons::ui(open_icon("bottom")), #{
-            role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+            role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
         }) {
             S.docks.bottom.shut = false;
         }
@@ -338,14 +338,14 @@ fn handle_body(S, k, side) {
         ui::add_space(2);
         chrome::status_strip(S, k, S.layout[side].w, || {
             if ui::pill(icons::ui(open_icon(side)), #{
-                role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+                role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
             }) {
                 S.docks[side].shut = false;
             }
         });
         return;
     }
-    ui::horizontal(#{ height: 34 }, || {
+    ui::horizontal(#{ height: 30 }, || {
         ui::add_space(2);
         if ui::circle_button(icons::ui(open_icon(side)), #{
             role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),

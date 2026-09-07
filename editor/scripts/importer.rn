@@ -147,7 +147,7 @@ fn row(S, k, rel, kind, spec) {
                 let now = if effective is String { effective } else { spec.fallback };
                 let (picked, changed) = ui::dropdown(
                     format!("import:{}:{}", rel, key), now, spec.options,
-                    #{ width: control_w(S) - 6.0, size: 11.5, height: 22, color: k.text,
+                    #{ width: control_w(S) - 6.0, size: 11.5, height: 24, color: k.text,
                        tooltip: spec.help },
                 );
                 if changed {
@@ -157,7 +157,7 @@ fn row(S, k, rel, kind, spec) {
         });
         ui::horizontal(#{ height: 24, width: note_w(S) }, || {
             if has_own {
-                if ui::pill("clear", #{ height: 20, size: 10, strong: true,
+                if ui::pill("clear", #{ height: 20, size: 10.5, strong: true,
                     tooltip: "Drop this key and follow the project again",
                     fill: k.sunken, color: k.dim }) {
                     write(S, rel, key, ());
@@ -196,11 +196,11 @@ pub fn panel(S, k) {
     }
     let kind = kind_of(rel);
     ui::add_space(6);
-    ui::horizontal(#{ height: 22 }, || {
+    ui::horizontal(#{ height: 24 }, || {
         ui::add_space(10);
-        ui::label(util::last_segment(rel), #{ size: 12, strong: true, color: k.text });
+        ui::label(util::last_segment(rel), #{ size: 11.5, strong: true, color: k.text });
     });
-    ui::horizontal(#{ height: 18 }, || {
+    ui::horizontal(#{ height: 20 }, || {
         ui::add_space(10);
         let where_from = if fs::exists(full(S, sidecar_of(rel))) { sidecar_of(util::last_segment(rel)) } else { "no settings file yet" };
         ui::label(format!("{}  ·  {}", kind, where_from), style::mono_sm(k.faint));
