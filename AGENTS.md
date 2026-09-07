@@ -113,12 +113,15 @@ reads. Never a date, a plan's phase number, a CI job or a defect id.
 | Command | What it covers |
 | --- | --- |
 | `cargo check` | the loop while the code is still moving |
-| `scripts/precommit.sh --lints` | fmt, every clippy shape, the lints that read files |
+| `scripts/precommit.sh --files` | fmt and the five lints that only read files |
+| `scripts/precommit.sh --lints` | the above, plus every clippy shape and cargo-deny |
 | `scripts/precommit.sh` | the above, plus the tests and both kinds of docs |
 | `scripts/precommit.sh --e2e` | the above, plus the socket suites and the example pipeline |
 
-Each runs the checks in three streams, and each feature shape keeps its own
+Each runs the checks in parallel streams, and each feature shape keeps its own
 target directory: a shape switch is what rebuilds the world, not a second run.
+The run prints how long each stream took, and `CONTRIBUTING.md` holds what a
+tier costs cold and warm.
 
 Install the hook once, and a push runs the lints on its own:
 
