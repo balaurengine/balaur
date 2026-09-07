@@ -160,3 +160,65 @@ fn signed_area(points: &[Vec2], ring: &[u32]) -> f32 {
 fn cross(o: Vec2, a: Vec2, b: Vec2) -> f32 {
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
 }
+
+#[cfg(test)]
+mod shape_tests {
+    use super::triangulate_shape;
+
+    /// The area of the triangles a fill produced, for comparing against the
+    /// area the outline encloses.
+    fn area(points: &[[f32; 2]], triangles: &[[u32; 3]]) -> f32 {
+        triangles
+            .iter()
+            .map(|[a, b, c]| {
+                let (a, b, c) = (
+                    points[*a as usize],
+                    points[*b as usize],
+                    points[*c as usize],
+                );
+                ((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])).abs() / 2.0
+            })
+            .sum()
+    }
+
+    fn square(x: f32, y: f32, side: f32) -> Vec<[f32; 2]> {
+        vec![
+            [x, y],
+            [x + side, y],
+            [x + side, y + side],
+            [x, y + side],
+        ]
+    }
+
+    #[test]
+    fn a_square_fills_to_its_own_area() {
+        let (points, triangles) = triangulate_shape(&[square(0.0, 0.0, 1.0)]);
+        assert!(!triangles.is_empty(), "a square filled to nothing");
+        assert!((area(&points, &triangles) - 1.0).abs() < 1e-3);
+    }
+
+    /// A letter is several contours at once, which is how a word arrives.
+    #[test]
+    fn two_apart_squares_both_fill() {
+        let (points, triangles) =
+            triangulate_shape(&[square(0.0, 0.0, 1.0), square(2.0, 0.0, 1.0)]);
+        assert!((area(&points, &triangles) - 2.0).abs() < 1e-3);
+    }
+
+    /// The counter in an `o`: subtracted, not filled over.
+    #[test]
+    fn a_hole_is_taken_out_of_what_holds_it() {
+        let mut hole = square(0.25, 0.25, 0.5);
+        hole.reverse();
+        let (points, triangles) = triangulate_shape(&[square(0.0, 0.0, 1.0), hole]);
+        assert!((area(&points, &triangles) - 0.75).abs() < 1e-3);
+    }
+
+    /// A word set at a game's scale is smaller than one unit across.
+    #[test]
+    fn a_shape_under_one_unit_across_still_fills() {
+        let (points, triangles) = triangulate_shape(&[square(0.0, 0.0, 0.01)]);
+        assert!(!triangles.is_empty(), "a small square filled to nothing");
+        assert!(area(&points, &triangles) > 0.0);
+    }
+}

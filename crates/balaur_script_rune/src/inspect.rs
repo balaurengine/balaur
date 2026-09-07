@@ -6,7 +6,6 @@
 //! checker and `script::functions` are the callers.
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use rune::ast::Spanned as _;
@@ -357,35 +356,6 @@ impl RuneHost {
         Ok(findings)
     }
 
-    /// Compile `key` from `source` and keep the unit, for a tool that wants
-    /// what it declares rather than what is wrong with it. `None` when the
-    /// source does not compile, which is not an error to a caller mid-keystroke.
-    ///
-    /// # Errors
-    /// If the context cannot be built.
-    pub(crate) fn build_unit(&self, key: &str, source: &str) -> Result<Option<Arc<rune::Unit>>> {
-        let (ctx, _) = self.context()?;
-        let (path, packed) = {
-            let state = self.state.borrow();
-            match &state.pack {
-                Some(pack) => (PathBuf::from(key), Some(pack.scripts.clone())),
-                None => (state.project_root.join(key), None),
-            }
-        };
-        let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
-        let mut diagnostics = Diagnostics::new();
-        let mut loader = PackSourceLoader {
-            scripts: packed.clone().unwrap_or_default(),
-        };
-        let mut prepared = rune::prepare(&mut sources)
-            .with_context(&ctx)
-            .with_diagnostics(&mut diagnostics);
-        if packed.is_some() {
-            prepared = prepared.with_source_loader(&mut loader);
-        }
-        Ok(prepared.build().ok().map(Arc::new))
-    }
 
     /// The defaults `exports()` declares for `key`, evaluated once per file.
     ///

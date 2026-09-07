@@ -440,7 +440,7 @@ impl RuneHost {
                 insert: declared.name,
             });
         }
-        for name in self.unit_functions(key, source) {
+        for name in self.declared_functions(key, source) {
             if !name.starts_with(prefix) {
                 continue;
             }
@@ -922,20 +922,25 @@ impl RuneHost {
         Ok(Self::describe(key, source, &source[..start], name).map(|found| (found, active)))
     }
 
-    /// Every function the unit compiled for this source, `mod` files
-    /// included. A source that will not compile has none, which is why the
-    /// caller also reads the file's own `pub fn`s.
-    pub(crate) fn unit_functions(&self, key: &str, source: &str) -> BTreeSet<String> {
+    /// Every function this file's `mod` graph declares.
+    ///
+    /// Read off the text rather than off a compiled unit. Compiling one cost
+    /// 50 ms on a 1429-line script, paid on every keystroke, and mid-edit a
+    /// buffer usually does not compile — so it paid in full and answered with
+    /// nothing. The `mod` graph is the same one `references` walks.
+    pub(crate) fn declared_functions(&self, key: &str, source: &str) -> BTreeSet<String> {
         let mut out = BTreeSet::new();
-        let Ok(Some(unit)) = self.build_unit(key, source) else {
-            return out;
-        };
-        let Some(debug) = unit.debug_info() else {
-            return out;
-        };
-        for signature in debug.functions.values() {
-            if let Some(base) = signature.path.base_name() {
-                out.insert(base.to_string());
+        for rel in self.module_graph(key, source) {
+            let text = if rel == key {
+                source.to_string()
+            } else {
+                match self.source_of(&rel) {
+                    Ok(text) => text,
+                    Err(_) => continue,
+                }
+            };
+            for declared in crate::inspect::public_functions(&text) {
+                out.insert(declared.name);
             }
         }
         out
