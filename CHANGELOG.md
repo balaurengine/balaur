@@ -54,6 +54,7 @@ notes are that version's section.
 - `shadows` and `layers` on `mesh` and `shape3d` say what casts and what each light reaches.
 - `render.stats` reports a frame's draws, triangles, texture bytes and a cloner's copies, per node, without a GPU.
 - Tile maps: a tileset that says what each tile is, collision from its solid cells as one voxel shape, autotiling from an ordered rule table, animated and light-blocking tiles, isometric and hexagonal layouts.
+- Quarter-tile terrains: `mode = "quarters"` draws a cell as four quarters chosen by the cells touching each corner, so a five-tile RPG-Maker-A2 sheet covers all 47 neighbourhoods.
 - The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
@@ -177,6 +178,7 @@ notes are that version's section.
 - In-app purchases.
 - Notifications, push and URL handling.
 - `[apple]` manifest; export writes `Info.plist`, entitlements and signs macOS apps.
+- `scripts/signing_check.sh` signs an exported game with a certificate the runner makes and reads the signature back, so `--sign`, the hardened runtime and the pack behind a certificate table are checked on every push.
 - Rollback-safe store writes.
 
 ### Editor

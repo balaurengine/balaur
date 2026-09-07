@@ -30,6 +30,23 @@ What each wants, when someone wires it up:
 `engine.reveal` is not coming to either: showing a file in a file manager
 needs a file manager, and neither a phone nor a tab has one.
 
+## Suspend and resume
+
+Nothing in the tree answers a suspend. A phone call, a locked screen, an
+alt-tab and a console's suspend all arrive as one question: what happens to
+the tick, the audio device and the save.
+
+| Piece | What it wants |
+| --- | --- |
+| The event | winit's `Suspended` and `Resumed` on desktop and Android, `applicationWillResignActive` through `objc2` on iOS, `visibilitychange` on a page |
+| The tick | Paused, not caught up. The accumulator drains up to four steps a frame, so a minute in the background would otherwise arrive as a minute of simulation |
+| Audio | The device released on the way out and taken back on the way in, since a phone gives it to the caller |
+| The save | A hook a script answers, `on_suspend(this)`, before the process may be killed without another frame |
+| The digest | A suspend is not simulation: it must not enter the digest, or two machines that paused differently would part |
+
+A recorded session replays through a suspend, because the pause is outside
+the recorded input and the tick count is unchanged by it.
+
 ## Web
 
 **Built.** `balaur export --target web` writes a `.wasm`, its glue and a

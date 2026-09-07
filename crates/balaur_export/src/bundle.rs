@@ -116,10 +116,16 @@ pub(crate) fn export_bundle(
     }
     replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
-    // After the copy, because pruning reads the layout the template just
-    // became: a game that names its ABIs keeps those and drops the rest.
+    // After the copy, because both read the layout the template just became:
+    // a game keeps the ABIs it names, and the manifest stops being the
+    // template's own.
     if kind == Bundle::Android {
         android.prune(&output)?;
+        let path = output.join("AndroidManifest.xml");
+        let staged = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        std::fs::write(&path, android.manifest(&staged, name)?)
+            .with_context(|| format!("writing {}", path.display()))?;
     }
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),

@@ -1,10 +1,11 @@
 > **Status:** not started, bar the part of step 1 that is not Google's. On
 > 2026-09-07 the template gained all four ABIs, `[android] abis` picks the
 > subset an export keeps, `.cargo/config.toml` links the 64-bit targets with
-> `max-page-size=16384`, and CI reads both back — the alignment off the ELF in
-> `package_template.sh`, the ABIs out of the assembled APK in
-> `export_check.sh`. What is left of step 1 is the application id, the
-> manifest rewrite and the AAB.
+> `max-page-size=16384`, and the `[android]` table now carries the application
+> id, label, version and SDK floors that the exporter writes into the staged
+> manifest. CI reads each back — the alignment off the ELF in
+> `package_template.sh`, the ABIs and the rewritten package out of the export
+> in `export_check.sh`. The AAB is what is left of step 1.
 >
 > Written down on 2026-09-03 so the order was decided before the first line:
 > an APK that can hold Java first, because every Google service on Android is
@@ -32,6 +33,7 @@ Built, and not built for this:
 | An APK out of `balaur export --target android --apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
 | The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
+| An application id, label, version and SDK floors the game owns | `[android]` in `project.toml`, `AndroidConfig::manifest` |
 | All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_template.sh`, `android::{Abi, AndroidConfig}` |
 | 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_template.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
@@ -46,11 +48,6 @@ Missing, and each one blocks everything below it:
   `zipalign` and `apksigner` over a hand-written manifest. Play services ship
   as AARs on Google's Maven repository, with transitive dependencies,
   manifest fragments to merge and resources to compile.
-- **An application id the developer owns.** The template is
-  `package="org.balaur.template"` and the exporter never rewrites it — an
-  Android game exported today is literally the template's package. Play
-  Games, Billing and Integrity all resolve against the package name plus the
-  signing certificate.
 - **An app bundle.** Play takes an AAB for a new app; the export produces an
   APK layout. `bundletool` is the missing step, and Play Asset Delivery is
   only reachable through an AAB.
@@ -103,6 +100,23 @@ builds, and whose output is both an APK (installable, what CI checks) and an
 AAB (uploadable). `--apk` stays for the no-Google path: a
 game that declares no Play capabilities exports through the existing
 aapt2 route and carries no dex at all.
+
+**The AAB is a zip we can write.** `bundletool build-bundle` is mostly an
+archiver, and everything it needs is already on the export path. `aapt2 link
+--proto-format` emits the protobuf manifest and `resources.pb` that a bundle
+wants, and aapt2 is what assembles the APK today. `BundleConfig.pb` is a
+protobuf small enough to write by hand. The `zip` crate already packs the APK.
+So the bundle is built here, with no jar on a developer's machine and no new
+crate in the graph.
+
+What we cannot write is the signature. An AAB is signed the old JAR way — a
+manifest, a signature file and a PKCS#7 block — and this tree has no CMS, no
+RSA and nothing that reads a keystore. `jarsigner` from the JDK does it in one
+call, and anyone uploading to Play has one under Android Studio. So `--aab`
+builds unsigned and signs when a JDK is there, saying which happened, the way
+`--apk` already says which key it used. `bundletool build-apks` proves the
+result in CI and never runs on an export. When step 2 brings Gradle, Gradle
+produces the AAB and this goes.
 
 **Capabilities are declared in `project.toml` and written at export.**
 
@@ -180,7 +194,8 @@ Every Google service an Android game reaches for, and where each stands here.
 | Firebase Analytics, Remote Config, Cloud Messaging, Auth, Firestore | Not planned as engine code. Each is a Java library with no engine seam to sit on, and a game that wants one wants its own; Gamend is where this engine's server-side answers live. Revisit if `google.call(class, method, args)` in step 9 proves too thin |
 | AdMob and every other ads SDK | Not planned. Ads decide a game's data policy, its store listing and its privacy manifest; that is a game's decision to declare, not an engine's to link |
 | Google Play Games on PC | Have, once step 3 lands: the same APIs, the `x86_64` ABI the template already carries, and a keyboard-and-mouse input map the engine already has |
-| Android App Bundle, `bundletool`, Play App Signing | Step 1 |
+| Android App Bundle, Play App Signing | Step 1, written here rather than shelled out; see §1 |
+| `bundletool` | CI only, to prove the AAB. Never on a developer's export path |
 | All four ABIs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` | Have. The template carries every one and `[android] abis` drops what a game does not ship, so the choice is the developer's |
 | 16 KB page alignment | Have, and checked off the ELF rather than assumed |
 | Target SDK upkeep | Step 1. Not Google-services work; it is why an exported game would be rejected today |
@@ -192,10 +207,10 @@ Every Google service an Android game reaches for, and where each stands here.
 Ordered so the APK is shippable before it is clever, and each step leaves
 something that works.
 
-1. **An APK a developer can publish.** The rest of the `[android]` table,
-   which today holds only `abis`; the exporter rewriting package, label and
-   version; and `bundletool` producing an AAB beside the APK. No Google code
-   yet, and every existing game gets better.
+1. **An AAB beside the APK.** All that is left of the publishable APK: the
+   bundle Play takes for a new app. Written as §1's "the AAB is a zip we can
+   write" says, with `jarsigner` for the signature and `bundletool build-apks`
+   in CI to prove it. No Google code yet.
 2. **A dex, and one call across it.** The Gradle template, one Java class,
    `jni` and `ndk-context` in `crates/balaur_google`, the class loader cached
    at `android_main`, and one round trip — Java to Rust to a script handler —

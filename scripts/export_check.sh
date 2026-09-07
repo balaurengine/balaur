@@ -99,6 +99,8 @@ android)
     [ -f "$layout/lib/$abi/libmain.so" ] ||
       fail "the exported layout has no $abi libmain.so"
   done
+  grep -q 'package="org.balaur.project"' "$layout/AndroidManifest.xml" ||
+    fail "the manifest still names the template, not the game"
   apk="$work/project-android.apk"
   [ -f "$apk" ] || fail "--apk assembled nothing at $apk"
   # The pack has to survive zipping, or the game launches to nothing.

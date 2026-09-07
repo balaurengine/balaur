@@ -49,6 +49,11 @@ Missing:
   person, third person, click to move and platformer are each a script a
   project writes again.
 
+Broken, and on the way up the ladder: Convert to script writes the equivalent
+Rune and attaches it, and leaves the rows in place. `interact.rs` fires the
+bindings and then the script hook, so every converted action runs twice. The
+rung has to be a step, not a fork, before a graph is added above it.
+
 ## 1. Design
 
 ### A. A script is a library entry

@@ -172,6 +172,8 @@ the module.
 | Morph targets and vertex colours | Built: `MeshData` carries both, and a material asks for the colours with `features = { vertex_color = true }` |
 | Instancing (*fork* `set_instances`) | Built: `balaur_render::instancing`, which the `cloner` draws through |
 | Baked lightmaps | Not planned; nothing in the fork bakes, and IBL plus shadows is what a design tool ships |
+| Decals: a texture projected onto what is under it | Step 9. Not in the fork: a screen-space pass over the depth buffer, with a `decal` component carrying a projector box |
+| Volumetric fog and light shafts | Step 9. Not in the fork either: a froxel march the shadow atlas already has the data for |
 
 ## 3. Steps
 
@@ -196,6 +198,9 @@ the module.
 8. **Layers.** `shaders/layers.wesl` and its inspector folds, last because it
    is the designer's face over everything above and should not be designed
    before the parts exist.
+9. **Decals and volumetrics.** A `decal` component projecting onto the depth
+   buffer, and a froxel march for fog a light shafts through. Both are new
+   passes rather than fork features, and both want step 1's shadow atlas.
 
 ## 4. What CI can prove, and what it cannot
 

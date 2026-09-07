@@ -1,5 +1,8 @@
-> **Status:** steps 1-8 built on 2026-09-05; the self-signed CI signing pass
-> of §5 is the one piece not written. Signing is applied by `balaur export` on
+> **Status:** every step built; steps 1-8 on 2026-09-05 and the self-signed
+> CI signing pass of §5 on 2026-09-07
+> (`scripts/signing_check.sh`, run from `package.sh` where
+> `BALAUR_SIGNING_CHECK` is set, which is the engine's own `build.yml` and
+> nowhere else). Signing is applied by `balaur export` on
 > every target, the Export sheet is in the editor, and
 > `.github/actions/{setup,export-game,build-engine}` exist with
 > `docs/actions.md` and the website's Continuous integration page beside them.
@@ -260,11 +263,22 @@ Every place a game from this engine could be asked to prove who made it.
   own build. `setup` cannot be: it downloads a published release, and a run
   proving it would prove the last release rather than this commit.
 - The signing code runs in CI with a **self-signed** identity: a
-  certificate `security create-keychain` and `openssl req` make on the
-  runner, so `--sign`, `--options runtime`, the frameworks-first order and
-  the Windows trailer read are all exercised without a secret. `codesign
-  --verify --strict` and `signtool verify` pass against the throwaway
-  root; a stranger's machine would not trust it, and that is the point.
+  certificate `openssl req` makes on the runner, imported into a keychain
+  `security create-keychain` makes beside it, so `--sign`, `--options
+  runtime` and the Windows trailer read are all exercised without a secret.
+  `codesign --verify --strict` and `signtool verify /pa` pass against the
+  throwaway root; a stranger's machine would not trust it, and that is the
+  point. The check reads the signature back rather than trusting the exit
+  code: the authority is the name the script made, the hardened runtime flag
+  is on the bundle, and the signed game runs for 60 frames, which is the
+  only thing that proves a pack still reads from behind a certificate table.
+- The frameworks-first order is a unit test, not a CI step: an exported
+  bundle carries no framework to sign second, so `nested_code` is asserted
+  over a bundle a test builds (`crates/balaur_export/src/sign.rs`).
+- One thing outside the repository is in the path: both signing tools ask a
+  timestamp authority, so a signing check can fail for a reason that is not
+  a defect here. The alternative is signing untimestamped, which is not what
+  a release does and so would prove less.
 - The recorded editor session that clicks Export replays without
   exporting, asserted (`ExternalIo` refuses under `replay::suppressed`),
   the same protection `docs/PLAN-deploy.md` gives a real account.

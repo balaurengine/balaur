@@ -106,7 +106,9 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   cat >"$skeleton/AndroidManifest.xml" <<'MANIFEST'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.balaur.template">
+    package="org.balaur.template"
+    android:versionCode="1"
+    android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
   <application android:label="Balaur" android:hasCode="false">
     <activity

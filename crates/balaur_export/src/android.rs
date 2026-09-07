@@ -49,12 +49,40 @@ impl Abi {
 /// [android]
 /// abis = ["arm64-v8a", "x86_64"]
 /// ```
-#[derive(Clone, Debug, Default, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct AndroidConfig {
+    /// The identifier Play resolves an OAuth client, a licence and an update
+    /// against. Empty keeps the invented `org.balaur.<name>`.
+    pub application_id: String,
+    /// The name under the icon. Empty means the project's own.
+    pub label: String,
+    /// `versionName`: what a player is shown.
+    pub version: String,
+    /// `versionCode`: what Play orders updates by, and the only one it reads.
+    pub version_code: u32,
+    /// The floor may not go under the template's, which is the API its
+    /// libraries were built against.
+    pub min_sdk: u32,
+    pub target_sdk: u32,
     /// Which of the template's ABIs the export keeps. Empty means every one
     /// the template carries, so a game that says nothing ships everywhere.
     pub abis: Vec<Abi>,
+}
+
+impl Default for AndroidConfig {
+    fn default() -> Self {
+        Self {
+            application_id: String::new(),
+            label: String::new(),
+            version: "1.0".into(),
+            version_code: 1,
+            // 0 defers to the template's own, read at export.
+            min_sdk: 0,
+            target_sdk: 35,
+            abis: Vec::new(),
+        }
+    }
 }
 
 impl AndroidConfig {
@@ -104,6 +132,119 @@ impl AndroidConfig {
         }
         Ok(())
     }
+}
+
+    /// The identifier this APK ships with: the project's, or the invented one
+    /// for a game that declares none.
+    pub(crate) fn identifier(&self, name: &str) -> String {
+        if self.application_id.is_empty() {
+            let id: String = name
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            format!("org.balaur.{id}")
+        } else {
+            self.application_id.clone()
+        }
+    }
+
+    /// The template's manifest, rewritten to name this game.
+    ///
+    /// # Errors
+    /// When the identifier is not one Play accepts, when `min_sdk` goes under
+    /// the API the template's libraries were built for, or when the template
+    /// has lost an attribute this rewrites — each would otherwise be found by
+    /// the store, or by a player whose device cannot load the library.
+    pub(crate) fn manifest(&self, template: &str, name: &str) -> Result<String> {
+        let id = self.identifier(name);
+        if let Err(bad) = check_identifier(&id) {
+            // A game named "2048" invents an id Play refuses, and the fix is
+            // to declare one rather than to have us invent a second guess.
+            if self.application_id.is_empty() {
+                bail!("{bad} It came from the project name; declare one.");
+            }
+            return Err(bad);
+        }
+        let floor: u32 = attr(template, "android:minSdkVersion")?.parse().context(
+            "the template's android:minSdkVersion is not a number; \
+             scripts/package_template.sh writes it",
+        )?;
+        let min_sdk = if self.min_sdk == 0 { floor } else { self.min_sdk };
+        if min_sdk < floor {
+            bail!(
+                "[android] min_sdk = {min_sdk} is under {floor}, the API this \
+                 template's libraries were built against. A device below it \
+                 installs the game and cannot load it."
+            );
+        }
+        if self.target_sdk < min_sdk {
+            bail!("[android] target_sdk = {} is under min_sdk = {min_sdk}", self.target_sdk);
+        }
+        let label = if self.label.is_empty() {
+            name
+        } else {
+            self.label.as_str()
+        };
+        let mut xml = set_attr(template, "package", &id)?;
+        xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
+        xml = set_attr(&xml, "android:versionName", &self.version)?;
+        xml = set_attr(&xml, "android:minSdkVersion", &min_sdk.to_string())?;
+        xml = set_attr(&xml, "android:targetSdkVersion", &self.target_sdk.to_string())?;
+        set_attr(&xml, "android:label", &escape(label))
+    }
+}
+
+/// An application id Play takes: two or more segments, each a Java identifier.
+fn check_identifier(id: &str) -> Result<()> {
+    let segments: Vec<&str> = id.split('.').collect();
+    let shaped = segments.len() > 1
+        && segments.iter().all(|s| {
+            s.starts_with(|c: char| c.is_ascii_alphabetic())
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
+    if !shaped {
+        bail!(
+            "[android] application_id = \"{id}\" is not one Play accepts: two or \
+             more dot-separated segments, each starting with a letter and \
+             holding only letters, digits and underscores."
+        );
+    }
+    Ok(())
+}
+
+/// The value of one `name="value"` attribute.
+fn attr<'a>(xml: &'a str, name: &str) -> Result<&'a str> {
+    let open = format!("{name}=\"");
+    let start = xml
+        .find(&open)
+        .with_context(|| format!("the template manifest has no {name}"))?
+        + open.len();
+    let len = xml[start..]
+        .find('"')
+        .with_context(|| format!("{name} in the template manifest is unterminated"))?;
+    Ok(&xml[start..start + len])
+}
+
+/// One `name="value"` attribute, rewritten. The template and this pair are
+/// written together, so a missing attribute is a break rather than a default.
+fn set_attr(xml: &str, name: &str, value: &str) -> Result<String> {
+    let found = attr(xml, name)?;
+    let open = format!("{name}=\"");
+    let start = xml.find(&open).expect("attr found it") + open.len();
+    Ok(format!(
+        "{}{value}{}",
+        &xml[..start],
+        &xml[start + found.len()..]
+    ))
+}
+
+/// The five characters an XML attribute may not hold as itself.
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// The ABI directories a layout holds, sorted so a message reads the same twice.
@@ -444,6 +585,84 @@ mod tests {
             .to_string();
         assert!(err.contains("x86"), "{err}");
         assert!(err.contains("arm64-v8a"), "{err}");
+    }
+
+    /// The manifest scripts/package_template.sh stages.
+    const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.balaur.template"
+    android:versionCode="1"
+    android:versionName="1.0">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <application android:label="Balaur" android:hasCode="false">
+  </application>
+</manifest>
+"#;
+
+    #[test]
+    fn a_game_that_declares_nothing_still_stops_being_the_template() {
+        let xml = AndroidConfig::default().manifest(TEMPLATE, "Tide").unwrap();
+        assert!(xml.contains(r#"package="org.balaur.Tide""#), "{xml}");
+        assert!(xml.contains(r#"android:label="Tide""#), "{xml}");
+        assert!(!xml.contains("org.balaur.template"), "{xml}");
+        // The template's own floor, kept because the project named none.
+        assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
+    }
+
+    #[test]
+    fn the_project_names_the_id_the_version_and_the_label() {
+        let config = AndroidConfig {
+            application_id: "com.studio.tide".into(),
+            label: "Tide & Sand".into(),
+            version: "2.3".into(),
+            version_code: 17,
+            target_sdk: 34,
+            ..AndroidConfig::default()
+        };
+        let xml = config.manifest(TEMPLATE, "Tide").unwrap();
+        assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
+        assert!(xml.contains(r#"android:versionCode="17""#), "{xml}");
+        assert!(xml.contains(r#"android:versionName="2.3""#), "{xml}");
+        assert!(xml.contains(r#"android:targetSdkVersion="34""#), "{xml}");
+        // An ampersand in a label is not an entity waiting to happen.
+        assert!(xml.contains(r#"android:label="Tide &amp; Sand""#), "{xml}");
+    }
+
+    #[test]
+    fn an_id_play_would_refuse_is_refused_here() {
+        for id in ["tide", "com.2studio.tide", "com..tide"] {
+            let config = AndroidConfig {
+                application_id: id.into(),
+                ..AndroidConfig::default()
+            };
+            let err = config
+                .manifest(TEMPLATE, "Tide")
+                .expect_err("an id Play would refuse")
+                .to_string();
+            assert!(err.contains(id), "{err}");
+        }
+    }
+
+    #[test]
+    fn a_project_name_that_makes_no_id_says_to_declare_one() {
+        let err = AndroidConfig::default()
+            .manifest(TEMPLATE, "2048")
+            .expect_err("an id starting with a digit")
+            .to_string();
+        assert!(err.contains("declare one"), "{err}");
+    }
+
+    #[test]
+    fn a_min_sdk_under_the_library_it_would_load_is_refused() {
+        let config = AndroidConfig {
+            min_sdk: 21,
+            ..AndroidConfig::default()
+        };
+        let err = config
+            .manifest(TEMPLATE, "Tide")
+            .expect_err("a floor under the template's")
+            .to_string();
+        assert!(err.contains("21") && err.contains("26"), "{err}");
     }
 
     #[test]

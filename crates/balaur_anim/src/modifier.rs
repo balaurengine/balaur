@@ -50,6 +50,7 @@ const TWO_BONE_IK: &str = "two_bone_ik";
 const FABRIK: &str = "fabrik";
 const CCDIK: &str = "ccdik";
 const JIGGLE: &str = "jiggle";
+const FOLLOW: &str = "follow";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
@@ -58,6 +59,7 @@ enum Kind {
     Fabrik,
     Ccdik,
     Jiggle,
+    Follow,
 }
 
 impl Kind {
@@ -68,6 +70,7 @@ impl Kind {
             Some(FABRIK) => Ok(Self::Fabrik),
             Some(CCDIK) => Ok(Self::Ccdik),
             Some(JIGGLE) => Ok(Self::Jiggle),
+            Some(FOLLOW) => Ok(Self::Follow),
             Some(other) => Err(anyhow!("unknown modifier kind '{other}'")),
         }
     }
@@ -79,6 +82,7 @@ impl Kind {
             Self::Fabrik => FABRIK,
             Self::Ccdik => CCDIK,
             Self::Jiggle => JIGGLE,
+            Self::Follow => FOLLOW,
         }
     }
 
@@ -86,6 +90,12 @@ impl Kind {
     /// does not: it follows the pose it was given.
     const fn wants_target(self) -> bool {
         !matches!(self, Self::Jiggle)
+    }
+
+    /// Whether where the kind lands depends on where it was, which is what
+    /// makes it owe fixed ticks rather than reading the frame's own `dt`.
+    const fn has_memory(self) -> bool {
+        matches!(self, Self::Jiggle | Self::Follow)
     }
 }
 
@@ -115,6 +125,10 @@ pub struct Params {
     mass: f32,
     gravity: Vec3,
     use_gravity: bool,
+    /// Seconds a `follow` node takes to close most of the gap. Zero snaps.
+    lag: f32,
+    /// Where a `follow` node sits relative to its target, in world units.
+    offset: Vec3,
     flip: bool,
     enabled: bool,
 }
@@ -152,7 +166,7 @@ pub struct Jiggle {
 }
 
 fn schema() -> String {
-    let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE]);
+    let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE, FOLLOW]);
     // Down, at about two thirds of earth's: a chain that hangs rather than
     // drops. A 2D rig reads the third number as nothing, so both dimensions
     // take the same one.
@@ -161,7 +175,7 @@ fn schema() -> String {
         (
             k::KIND,
             &format!(
-                r#"{{ type = "enum", default = "{LOOK_AT}", options = [{kinds}], description = "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length ({FABRIK} or {CCDIK}), or let a chain lag behind the pose ({JIGGLE})" }}"#
+                r#"{{ type = "enum", default = "{LOOK_AT}", options = [{kinds}], description = "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length ({FABRIK} or {CCDIK}), let a chain lag behind the pose ({JIGGLE}), or trail the target at an offset ({FOLLOW})" }}"#
             ),
         ),
         (
@@ -211,6 +225,14 @@ fn schema() -> String {
             r#"{ type = "bool", default = false, description = "Whether a jiggle chain is pulled by `gravity`" }"#,
         ),
         (
+            k::LAG,
+            r#"{ type = "float", default = 0.0, description = "Seconds a follow node takes to close most of the gap to its target; 0 pins it there" }"#,
+        ),
+        (
+            k::OFFSET,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where a follow node sits relative to its target, in world units" }"#,
+        ),
+        (
             k::FLIP,
             r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way" }"#,
         ),
@@ -224,10 +246,13 @@ fn schema() -> String {
 const DOC_2D: &str = "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone \
                       toward a target node, `two_bone_ik` bends a root, middle and tip chain so \
                       the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, \
-                      and `jiggle` lets a chain trail the pose on a spring.";
+                      `jiggle` lets a chain trail the pose on a spring, and `follow` moves the \
+                      node itself to its target plus `offset`, `lag` seconds behind.";
 
 const DOC_3D: &str = "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, \
-                      `fabrik`, `ccdik` and `jiggle`, posing bones after the clip has run. A \
+                      `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has \
+                      run -- `follow` moves the node rather than a bone, so a camera trails what \
+                      it watches without a script. A \
                       chain solver turns each bone by the shortest arc onto the solved point, so \
                       a bone's twist about its own aim is left as the clip wrote it.";
 
@@ -344,6 +369,9 @@ fn params_of(params: &toml::Value) -> Result<Params> {
         mass: number(k::MASS, 0.75),
         gravity: vector(params, k::GRAVITY, Vec3::new(0.0, -6.0, 0.0)),
         use_gravity: flag(k::USE_GRAVITY, false),
+        // A lag below zero would grow the gap instead of closing it.
+        lag: number(k::LAG, 0.0).max(0.0),
+        offset: vector(params, k::OFFSET, Vec3::ZERO),
         flip: flag(k::FLIP, false),
         enabled: flag(k::ENABLED, true),
     })
@@ -385,6 +413,16 @@ fn table_of(m: &Params) -> toml::Value {
         ),
     );
     put(k::USE_GRAVITY, toml::Value::Boolean(m.use_gravity));
+    put(k::LAG, toml::Value::Float(f64::from(m.lag)));
+    put(
+        k::OFFSET,
+        toml::Value::Array(
+            [m.offset.x, m.offset.y, m.offset.z]
+                .into_iter()
+                .map(|v| toml::Value::Float(f64::from(v)))
+                .collect(),
+        ),
+    );
     put(k::FLIP, toml::Value::Boolean(m.flip));
     put(k::ENABLED, toml::Value::Boolean(m.enabled));
     toml::Value::Table(out)

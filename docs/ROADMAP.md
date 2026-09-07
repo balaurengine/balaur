@@ -41,7 +41,7 @@ shipped tab keeps its history.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets. Undo, copy and paste, a searchable inspector, prefab overrides, ray picking, a profiler dock, and the Rig, Polygon and Tiles tools. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
-| **Tile maps** — what is left: quarter-tile sheets, where a cell is four half-tiles picked by its corners. | 0.5 | [PLAN-tilemap.md](PLAN-tilemap.md) |
+| **Tile maps** — a tileset that says what each tile is, voxel collision from its solid cells, autotiling from an ordered rule table, animated and occluding tiles, isometric and hexagonal layouts, and Tiled and LDtk import. Quarter-tile terrains landed 2026-09-07: a cell is four quarters, each picked by the cells touching that corner, so a five-tile sheet covers all 47 neighbourhoods. | 0.1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — completion, hover, signature help, go-to-definition, document and workspace symbols, references, rename, find and replace, and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. A Docs dock renders the reference from the live engine. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Semantic tokens, inlay hints and code actions** — the LSP surface the script tooling left out: colouring from the compiler rather than a TextMate grammar, inferred types shown inline, and a quick fix on a diagnostic. Held until completion, hover and rename are in use and the gaps are known rather than guessed. | 0.7 | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
@@ -90,7 +90,7 @@ shipped tab keeps its history.
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk and voice activity, echo cancellation, positional voice on a bus, a browser path. Voice never enters the simulation, the digest or a recording. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, pads on iOS and Android. Rumble and DualSense and DualShock 4 sensors are built. | 0.5 | [PLAN-input.md](PLAN-input.md) |
 | **More widget kinds** — as games ask for them, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw. | (0.5) | no plan |
-| **A controller-only shell** — what a console and a television ask of an interface: directional focus between widgets rather than `focus_next` alone, an on-screen keyboard for a text field, safe-area insets applied to layout rather than only reported by `render.safe_area`, and button glyphs that follow the pad. | 0.8 | no plan |
+| **A controller-only shell** — what a console and a television ask of an interface. Directional focus between widgets, not `focus_next` alone. An on-screen keyboard for a text field. Safe-area insets applied to layout, not only reported by `render.safe_area`. Button glyphs that follow the pad. | 0.8 | no plan |
 
 ## Rendering
 
@@ -105,7 +105,7 @@ shipped tab keeps its history.
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus. Nothing decodes a container; render-side only, and a video never feeds simulation state. | 0.3 | no plan |
 | **Post-process materials** — a user pass on `camera.post`, and Balaur's shader helpers published as a package. | 0.3 | [PLAN-shaders.md#post-process-materials](PLAN-shaders.md#post-process-materials) |
-| **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through. Neither exists in any dimension; `environment` carries flat fog and the deferred pass a decal wants is the kiss3d fork's. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
+| **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through. `environment` carries flat fog; neither of these is in the fork's list, so both are passes of our own. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 
 ## Networking
 
@@ -159,13 +159,13 @@ waits for its tick to settle.
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **Per-platform project settings** — `[application.android]` and its siblings over `project.toml`: window mode, tick rate, feature set and asset variant per target, resolved at export rather than branched in a script. | 0.7 | no plan |
-| **Suspend and resume** — a phone call, a locked screen, an alt-tab and a console's suspend: hooks a script answers, audio released and taken back, a save on the way out, and a tick that pauses rather than catching up on return. Nothing in the tree answers a `Suspended` event. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
+| **Suspend and resume** — a phone call, a locked screen, a console's suspend. Hooks a script answers, audio released and taken back, a save on the way out, and a tick that pauses rather than catching up. Nothing answers a `Suspended` event today. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, a pack sealed with ChaCha20-Poly1305 under a project key, names out of a unit. Never a DRM wrapper, a packer, anti-cheat or anti-debugging. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
 | **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | 0.8 | no plan |
 | **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |
-| **The self-signed signing pass in CI** — signing on every target, the reusable workflows and the editor's Export sheet are built. | (0.6) | [PLAN-actions.md](PLAN-actions.md) |
+| **Signing, checked on every push** — `balaur export` signs on every target, and the reusable workflows and the editor's Export sheet are built. `scripts/signing_check.sh` signs a game with a certificate the runner makes and reads the signature back. Built 2026-09-07. What still needs a real identity: notarization, a provisioning profile, a keystore. | (0.2) | [PLAN-actions.md](PLAN-actions.md) |
 | **Parallel system execution** — once profiling demands it. The gameplay tick is serial by design. | (0.7) | no plan |
 
 Benchmarks are not on the roadmap: `examples/benchmark` and
