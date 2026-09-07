@@ -446,7 +446,7 @@ fn an_exported_constant_is_a_property() {
         .collect();
 
     let mut named = named;
-    named.sort();
+    named.sort_unstable();
     assert_eq!(
         named,
         [("SPEED", "float"), ("TARGET", "node")],
