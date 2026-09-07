@@ -356,7 +356,6 @@ impl RuneHost {
         Ok(findings)
     }
 
-
     /// The defaults `exports()` declares for `key`, evaluated once per file.
     ///
     /// Declaration order is not recoverable — Rune objects do not keep it —

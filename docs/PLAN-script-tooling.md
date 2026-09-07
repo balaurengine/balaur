@@ -130,14 +130,17 @@ showcase, the way `--state lintdemo` covers the Problems dock.
    fourth return value, which touches two call sites:
    `editor/scripts/center.rn:279` and `crates/balaur_ui/tests/pass.rs:145`.
 
-## 6. Open questions
+## 6. Answered, with a measurement
 
 1. **Types the compiler does not know.** `this.speed` is whatever `exports()`
    returned; `node.get_node("Hip")` is a node. Completion after a value of
    unknown type falls back to every method a node has, which is long but not
    wrong. Whether `exports()` becomes typed is `docs/PLAN-scripting.md`'s
    `#[export]` phase.
-2. **Where the unit for completion comes from.** `check_source` builds a unit
-   and drops it. Completion wants the same unit kept for one keystroke.
-   Whether that is a cache on `Tooling` or a second compile per request is
-   measured in step 1, not guessed.
+2. **Where the unit for completion comes from.** Answered: nowhere. Compiling
+   one to list a file's functions cost 50 ms on a 1429-line script, paid on
+   every keystroke, and mid-edit a buffer usually does not compile, so it paid
+   in full and answered with nothing. `declared_functions` walks the `mod`
+   graph as text instead, which is what `references` already does. A
+   completion is now 1 ms after `::`, 1 ms on a component handle and 3 ms on a
+   bare prefix, measured on `editor/scripts/model.rn`.
