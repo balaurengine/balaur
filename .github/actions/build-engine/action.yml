@@ -29,6 +29,14 @@ inputs:
     description: Cargo features for the web template, replacing its default.
     required: false
     default: ""
+  threads:
+    description: >-
+      Build the web template with wasm atomics and a shared memory. The module
+      a browser gets is a different one, loadable only on a cross-origin
+      isolated page, so this produces a template beside the plain one rather
+      than replacing it. Needs a nightly toolchain, which this action installs.
+    required: false
+    default: "false"
   variant:
     description: >-
       Names a second build of the same platform, so several can be uploaded
@@ -111,10 +119,20 @@ runs:
         want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
         cargo install wasm-bindgen-cli --version "$want" --locked
 
+    # `-Z build-std` rebuilds std with atomics, and that is nightly only. It
+    # is installed beside the pinned stable, never over it.
+    - if: inputs.platform == 'web' && inputs.threads == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --component rust-src --profile minimal
+        rustup target add wasm32-unknown-unknown --toolchain nightly
+
     - shell: bash
       env:
         BALAUR_FEATURES: ${{ inputs.features }}
         WEB_FEATURES: ${{ inputs.web-features }}
+        WEB_THREADS: ${{ inputs.threads == 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         if [ -n '${{ inputs.target }}' ]; then

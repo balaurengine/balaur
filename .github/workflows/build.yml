@@ -74,7 +74,7 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    name: build ${{ matrix.platform }}${{ matrix.variant && format(' · {0}', matrix.variant) }}
+    name: build ${{ matrix.platform }}${{ matrix.label && format(' · {0}', matrix.label) }}
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -86,15 +86,21 @@ jobs:
             host: macos-latest
           - platform: android
             host: ubuntu-latest
+          # The template a release ships. Its feature list is the default in
+          # scripts/package_template.sh, named there and nowhere else so the
+          # two cannot drift.
           - platform: web
             host: ubuntu-latest
-          # A second web template, cut to the features a project that draws
-          # its own UI needs. It uploads beside the full one rather than
-          # replacing it, so a game picks the smaller module when it fits.
+            label: every feature
+          # The shared-memory module, for a host that sends COOP and COEP.
+          # A browser cannot load it otherwise, and cannot load the plain one
+          # with threads, so the two ship side by side and a game picks by
+          # where it is served from.
           - platform: web
             host: ubuntu-latest
-            variant: minimal
-            web-features: window,web
+            variant: threads
+            label: threads
+            threads: "true"
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -104,6 +110,7 @@ jobs:
           platform: ${{ matrix.platform }}
           variant: ${{ matrix.variant }}
           web-features: ${{ matrix.web-features }}
+          threads: ${{ matrix.threads }}
           attest: ${{ github.event_name == 'push' }}
 
   # Exports a game with each template and checks the result is what the OS
