@@ -125,11 +125,14 @@ name = "Torus"
 parent = "n_world"
 position = [-4, 1, 0]
 
+# The physically based contract: `shaders/metal.wesl` imports `package::pbr`
+# and sets two numbers; everything else the surface needs comes from there.
 [nodes.shape3d]
 kind = "torus"
 radius = 0.7
 tube_radius = 0.22
 color = [0.85, 0.6, 0.2, 1]
+material = "materials/metal.toml"
 
 [[nodes]]
 id = "n_pyramid"

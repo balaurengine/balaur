@@ -49,8 +49,16 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@nextest
+      # A process per test, run in parallel, rather than one binary at a time.
+      # nextest has no doctest runner, so those stay with cargo.
       - name: Unit and integration tests
-        run: cargo test --workspace
+        shell: bash
+        run: |
+          cargo nextest run --workspace --no-fail-fast
+          cargo test --workspace --doc
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests
@@ -131,5 +139,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build twice, compare
         run: ./scripts/reproducible_build.sh
+
+  # What the tests actually reach, reported rather than gated: a threshold is
+  # a number people write tests against, and nothing here should turn red
+  # because a well-tested change moved a percentage.
+  coverage:
+    name: line coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+      - name: Measure
+        run: ./scripts/coverage.sh | tee coverage.txt
+      - name: Summarise
+        run: |
+          printf '## Line coverage\n\n```\n%s\n```\n' \
+            "$(grep -E '^[0-9.]+% coverage' coverage.txt || tail -3 coverage.txt)" \
+            >>"$GITHUB_STEP_SUMMARY"

@@ -278,3 +278,139 @@ pub fn colliders(S) {
         render::draw_line(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
     }
 }
+
+
+/// Where a node aims in 3D: -z turned by its rotation, the direction a
+/// `light3d` shines and a `camera` looks.
+fn forward_of(found) {
+    let r = found.global_rotation_euler();
+    let b = util::basis_from_euler([r.x, r.y, r.z]);
+    // The basis holds the local axes as columns; -z is the third, negated.
+    [-b[2][0], -b[2][1], -b[2][2]]
+}
+
+fn line3(a, b, c, width) {
+    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width);
+}
+
+/// A ring of `radius` about `center` in the plane spanned by `u` and `v`.
+fn ring3(center, u, v, radius, c, width) {
+    let prev = util::vadd(center, util::vscale(u, radius));
+    for t in 1..25 {
+        let a = (t as f64) / 24.0 * math::PI * 2.0;
+        let next = util::vadd(center, util::vadd(
+            util::vscale(u, math::cos(a) * radius),
+            util::vscale(v, math::sin(a) * radius)));
+        line3(prev, next, c, width);
+        prev = next;
+    }
+}
+
+/// Two axes across `dir`, for drawing a circle or a cone about it.
+fn across(dir) {
+    let up = if util::abs(dir[1]) > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let (u, _) = util::vnorm(util::vcross(dir, up));
+    let (v, _) = util::vnorm(util::vcross(dir, u));
+    (u, v)
+}
+
+/// Every `light3d` and `camera` in the scene, drawn as what it is: an arrow
+/// for a sun, a sphere at a point light's reach, a cone for a spot, and a
+/// frustum for a camera. Nothing here draws for the game.
+pub fn lights3d(S) {
+    let k = S.theme;
+    for (i, node) in S.doc.iter().enumerate() {
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let light_some = node.get("light3d");
+        if let Some(light) = light_some {
+            if light is Object {
+                light3d_gizmo(found, light, crate::selection::contains(S, i), k);
+            }
+        }
+        if node.get("camera").is_some() {
+            camera_gizmo(S, found, crate::selection::contains(S, i), k);
+        }
+    }
+}
+
+fn light3d_gizmo(found, light, selected, k) {
+    let c = if selected { util::rgb(k.accent) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
+    let p = util::xyz(found.global_position());
+    let dir = forward_of(found);
+    let kind = light.get("kind").unwrap_or(render::LIGHT_DIRECTIONAL);
+    let width = if selected { 2.0 } else { 1.0 };
+    // The body every kind shares: a small star at the node.
+    for axis in 0..3 {
+        let step = [0.0, 0.0, 0.0];
+        step[axis] = 0.18;
+        line3(util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
+    }
+    if kind == render::LIGHT_DIRECTIONAL {
+        // A sun: parallel rays through the node, so its aim reads at a glance.
+        let (u, v) = across(dir);
+        for step in [-1.0, 0.0, 1.0] {
+            for other in [-1.0, 0.0, 1.0] {
+                let base = util::vadd(p, util::vadd(util::vscale(u, step * 0.35), util::vscale(v, other * 0.35)));
+                line3(base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
+            }
+        }
+        return;
+    }
+    let radius = util::f(light.get("radius").unwrap_or(30.0));
+    if kind == render::LIGHT_SPOT {
+        let outer = util::f(light.get("outer").unwrap_or(35.0)) * math::PI / 180.0;
+        let inner = util::f(light.get("inner").unwrap_or(20.0)) * math::PI / 180.0;
+        let (u, v) = across(dir);
+        // The cone is drawn at a length the camera can see rather than at the
+        // attenuation radius, which is usually far past the scene.
+        let reach = util::min(radius, 12.0);
+        let tip = util::vadd(p, util::vscale(dir, reach));
+        for angle in [inner, outer] {
+            let r = reach * math::tan(angle);
+            ring3(tip, u, v, r, c, width);
+            for step in [0.0, math::PI / 2.0, math::PI, math::PI * 1.5] {
+                let edge = util::vadd(tip, util::vadd(
+                    util::vscale(u, math::cos(step) * r),
+                    util::vscale(v, math::sin(step) * r)));
+                line3(p, edge, c, width);
+            }
+        }
+        return;
+    }
+    // A point light: its reach as three rings, the way a sphere is drawn.
+    ring3(p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
+    ring3(p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+}
+
+/// A camera's frustum, out to a length that fits a viewport rather than to its
+/// far plane, which is usually past the whole scene.
+const FRUSTUM_REACH = 4.0;
+
+fn camera_gizmo(S, found, selected, k) {
+    let c = if selected { util::rgb(k.accent) } else { util::rgb(k.dim) };
+    let width = if selected { 2.0 } else { 1.0 };
+    let p = util::xyz(found.global_position());
+    let dir = forward_of(found);
+    let (u, v) = across(dir);
+    let camera = util::obj(found.get_component("camera"));
+    let fov = util::f(camera.get("fov").unwrap_or(60.0)) * math::PI / 180.0;
+    let half = FRUSTUM_REACH * math::tan(fov / 2.0);
+    let centre = util::vadd(p, util::vscale(dir, FRUSTUM_REACH));
+    let corners = [];
+    for signs in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+        corners.push(util::vadd(centre, util::vadd(
+            util::vscale(u, signs[0] * half * 1.6),
+            util::vscale(v, signs[1] * half))));
+    }
+    for n in 0..4 {
+        line3(p, corners[n], c, width);
+        line3(corners[n], corners[(n + 1) % 4], c, width);
+    }
+    // Which way is up, so a rolled camera reads as rolled.
+    let top = util::vscale(util::vadd(corners[2], corners[3]), 0.5);
+    line3(top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
+}

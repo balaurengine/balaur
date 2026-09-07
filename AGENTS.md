@@ -1,7 +1,32 @@
 # Working in this repository
 
 Rules for anyone editing here, human or agent. `docs/NAMING.md` governs names
-and wins where it disagrees with this file.
+and wins where it disagrees with this file. `CONTRIBUTING.md` covers how the
+project is run and what a pull request carries.
+
+## How to work
+
+A change opens with `cargo check` and closes with `scripts/precommit.sh`.
+
+1. **Read the plan first.** `ARCHITECTURE.md` says how the engine fits
+   together; `docs/PLAN-*.md` holds the work in progress. A plan's own steps
+   are the order to do them in.
+2. **Loop on `cargo check`,** or `cargo check -p <crate>` for one crate. It is
+   the fastest signal while the code is still moving.
+3. **Write the test with the code,** not after it. A behaviour with no test is
+   a behaviour the next change may delete.
+4. **Close with `scripts/precommit.sh`.** It runs what CI runs. Green locally
+   and red on push is a bug in the script, worth fixing there.
+
+These land in the same commit as the code:
+
+- **`docs/ROADMAP.md`** changes when the change moves something on it. It is
+  the only record of what a version holds. A row says have, planned, fallback
+  or not planned, and names the crate or protocol.
+- **The plan** it came from, so `docs/PLAN-*.md` says what is left.
+- **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
+- **A devlog post** in the website repo's `blog/` when a user can see the
+  change. One post per feature, with a picture or a clip.
 
 ## Comments
 
@@ -49,6 +74,8 @@ called or indexed, and the error names a type from the line above. Bind first:
 - Feature tests and performance tests stay apart. Budgets live in
   `crates/balaur_bench/tests/` and assert orders of magnitude, never
   percentages: a shared runner makes a tight gate cry wolf.
+- The suites that boot an app over real sockets gate on `BALAUR_E2E`, so a
+  plain `cargo test` stays fast. `scripts/e2e_tests.sh` runs them.
 
 ## Writing
 
@@ -72,17 +99,29 @@ Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
 The limits are numbers, and the website's CI enforces them on every post and
 manual page: 300 words of prose in a post, 35 words in a sentence, 60 in a
 paragraph, 4 paragraphs outside bullets. `scripts/prose_lints.py` holds
-`CHANGELOG.md` and `docs/ROADMAP.md` to the sentence rule here, and runs in
-`scripts/lint.sh`. Run the `avoid-ai-writing` skill over anything longer than
-a changelog line before committing it.
+`docs/ROADMAP.md` to the sentence rule here, and holds every hand-written `.md`
+to the mechanical half of the `avoid-ai-writing` skill: the vocabulary a model
+reaches for, the transitions it opens with, the closers it lands on, and the
+markup its chat interfaces leak. Run the skill itself over anything longer than
+a line before committing it, for the half a regex cannot judge.
 
-## Changelog
+A roadmap row says what the thing is, at the level somebody using the engine
+reads. Never a date, a plan's phase number, a CI job or a defect id.
 
-`CHANGELOG.md` gets one line per feature under Added, Fixed or Known issues.
-Name what changed and stop — no rationale, no commit hashes.
+## Checks
 
-## Before committing
+| Command | What it covers |
+| --- | --- |
+| `cargo check` | the loop while the code is still moving |
+| `scripts/precommit.sh --lints` | fmt, every clippy shape, the lints that read files |
+| `scripts/precommit.sh` | the above, plus the tests and both kinds of docs |
+| `scripts/precommit.sh --e2e` | the above, plus the socket suites and the example pipeline |
 
-    ./scripts/lint.sh
+Each runs the checks in three streams, and each feature shape keeps its own
+target directory: a shape switch is what rebuilds the world, not a second run.
 
-CI runs the same checks. Green locally and red on push is a bug in the scripts.
+Install the hook once, and a push runs the lints on its own:
+
+    git config core.hooksPath .githooks
+
+`docs/QUALITY.md` names every check and what it is for.

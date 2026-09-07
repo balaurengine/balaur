@@ -29,6 +29,22 @@ inputs:
     description: Cargo features for the web template, replacing its default.
     required: false
     default: ""
+  threads:
+    description: >-
+      Build the web template with wasm atomics and a shared memory. The module
+      a browser gets is a different one, loadable only on a cross-origin
+      isolated page, so this produces a template beside the plain one rather
+      than replacing it. Needs a nightly toolchain, which this action installs.
+    required: false
+    default: "false"
+  variant:
+    description: >-
+      Names a second build of the same platform, so several can be uploaded
+      side by side: `2d`, `server` or `threads` become
+      `balaur-template-web-2d` and so on. Empty is the platform's own build,
+      the one a release ships.
+    required: false
+    default: ""
   build-deps:
     description: >-
       Install the system libraries the build links on Linux. Turn off if the
@@ -59,7 +75,8 @@ runs:
         if [ -n '${{ inputs.target }}' ]; then
           echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
         elif [ -n '${{ inputs.platform }}' ]; then
-          echo 'artifact=balaur-template-${{ inputs.platform }}' >>"$GITHUB_OUTPUT"
+          variant='${{ inputs.variant }}'
+          echo "artifact=balaur-template-${{ inputs.platform }}${variant:+-$variant}" >>"$GITHUB_OUTPUT"
         else
           echo '::error::build-engine needs either a target or a platform'
           exit 1
@@ -79,18 +96,34 @@ runs:
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ steps.what.outputs.artifact }}-${{ inputs.features }}${{ inputs.web-features }}
+        save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - if: inputs.platform == 'android'
       shell: bash
       run: |
         set -euo pipefail
         bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
-        {
-          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang"
-          echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++"
-          echo "AR_aarch64_linux_android=$bin/llvm-ar"
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
-        } >>"$GITHUB_ENV"
+        # One line per ABI the template carries: the Rust target, and the
+        # clang the NDK names it by, which for armv7 is not the triple.
+        for pair in \
+          aarch64-linux-android:aarch64-linux-android \
+          armv7-linux-androideabi:armv7a-linux-androideabi \
+          i686-linux-android:i686-linux-android \
+          x86_64-linux-android:x86_64-linux-android; do
+          target=${pair%%:*}
+          prefix=${pair#*:}
+          env=$(echo "$target" | tr 'a-z-' 'A-Z_')
+          {
+            echo "CC_${target//-/_}=$bin/$prefix$API-clang"
+            echo "CXX_${target//-/_}=$bin/$prefix$API-clang++"
+            echo "AR_${target//-/_}=$bin/llvm-ar"
+            echo "CARGO_TARGET_${env}_LINKER=$bin/$prefix$API-clang"
+          } >>"$GITHUB_ENV"
+        done
+      env:
+        # The manifest's minSdkVersion in scripts/package_template.sh; a
+        # library built for a newer API would not load on a device it names.
+        API: "26"
 
     # The bindgen CLI has to be the exact version the build links against, so
     # the pin is read off Cargo.lock rather than written down twice.
@@ -102,10 +135,25 @@ runs:
         want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
         cargo install wasm-bindgen-cli --version "$want" --locked
 
+    # `-Z build-std` rebuilds std with atomics, and that is nightly only. It
+    # is installed beside the pinned stable, never over it.
+    - if: inputs.platform == 'web' && inputs.threads == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal
+        # A separate `component add`. Asking for rust-src during `toolchain
+        # install` can report success and leave the component missing, and the
+        # build then fails deep in `-Z build-std` with a missing Cargo.lock.
+        rustup component add rust-src --toolchain nightly
+        rustup target add wasm32-unknown-unknown --toolchain nightly
+        test -f "$(rustc +nightly --print sysroot)/lib/rustlib/src/rust/library/Cargo.lock"
+
     - shell: bash
       env:
         BALAUR_FEATURES: ${{ inputs.features }}
         WEB_FEATURES: ${{ inputs.web-features }}
+        WEB_THREADS: ${{ inputs.threads == 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         if [ -n '${{ inputs.target }}' ]; then

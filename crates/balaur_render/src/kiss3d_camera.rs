@@ -111,6 +111,8 @@ pub(crate) fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window)
     vp.fov = std::f32::consts::FRAC_PI_4;
     let scale = window.scale_factor() as f32;
     vp.scale_factor = scale;
+    vp.width = (window.width() as f32 / scale) as u32;
+    vp.height = (window.height() as f32 / scale) as u32;
     vp.view_proj = camera.transformation().to_cols_array();
     if let Some(input) = app.engine.try_resource::<InputSnapshot>() {
         let (mx, my) = {

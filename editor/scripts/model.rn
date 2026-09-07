@@ -3,6 +3,7 @@
 // tree from the same TOML (scripts not attached, physics paused until play).
 
 use crate::history;
+use crate::selection;
 use crate::util;
 
 // Project reads, cached on `S`: four panels read the disk while drawing, so
@@ -46,7 +47,9 @@ pub fn line_count(S, rel) {
     entry.lines.unwrap()
 }
 
-// The script's engine-facing hooks, analysed once per cached read.
+// The script's engine-facing hooks, read once per cached read. The host's own
+// `script::symbols` rather than a parser here, so the outline, the Events tab
+// and an editor outside Balaur all name the same functions.
 pub fn hooks(S, rel) {
     let text = match source(S, rel) {
         Some(text) => text,
@@ -54,7 +57,15 @@ pub fn hooks(S, rel) {
     };
     let entry = S.sources[rel];
     if entry.hooks.is_none() {
-        let (_, hooks) = crate::highlight::analyze(text);
+        let found = script::symbols(rel, text);
+        let hooks = [];
+        if found is Vec {
+            for one in found {
+                if one.kind == "function" {
+                    hooks.push(#{ name: one.name, line: one.line, detail: one.detail });
+                }
+            }
+        }
         entry.hooks = Some(hooks);
     }
     entry.hooks.unwrap()
@@ -252,6 +263,27 @@ fn slug(name) {
         out = out[..out.len() - 1];
     }
     if out.len() > 2 { out } else { "n_node" }
+}
+
+/// A name no sibling has yet, for a node the editor makes.
+pub fn unique_name(doc, base) {
+    let name = base;
+    let n = 1;
+    while name_taken(doc, name) {
+        n += 1;
+        name = format!("{}{}", base, n);
+    }
+    name
+}
+
+/// The document row carrying `id`, or `None`.
+pub fn index_of_id(doc, id) {
+    for (i, node) in doc.iter().enumerate() {
+        if node.get("id").unwrap_or("") == id {
+            return Some(i);
+        }
+    }
+    None
 }
 
 pub fn fresh_id(doc, name) {
@@ -615,7 +647,7 @@ pub fn load(S) {
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
     expand_instances(S);
-    S.sel = 0;
+    selection::only(S, 0);
     history::reset(S);
     build_mirror(S);
 }
@@ -677,12 +709,11 @@ fn absolute_files(S, value) {
         }
         if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
             let abs = S.game_root + "/" + value;
-            // An asset kept in a file names its own files relative to the
-            // game, and the mirror's root is the editor's: inline the
-            // definition so what it names is resolved here (D24).
+            // Inlined so what the asset names resolves against the editor's
+            // root (D24); only one declaring `type`, since a scene is TOML too.
             if value.ends_with(".toml") {
                 let (ok, loaded) = script::attempt(|| assets::load(abs));
-                if ok && loaded is Object {
+                if ok && loaded is Object && loaded.contains_key("type") {
                     return absolute_files(S, loaded);
                 }
             }
@@ -944,8 +975,9 @@ pub fn instance_scene(S, rel) {
         n += 1;
         name = format!("{}{}", base, n);
     }
+    let id = fresh_id(S.doc, name);
     S.doc.push(#{
-        id: fresh_id(S.doc, name),
+        id: id,
         name: name,
         parent: S.doc[S.sel].get("id").unwrap_or(""),
         instance: rel,
@@ -955,9 +987,12 @@ pub fn instance_scene(S, rel) {
     // than grown a node: `expand_instances` reads the file again with it.
     expand_instances(S);
     build_mirror(S);
+    // By id, not by name: expanding puts the prefab's own rows in the
+    // document, and a prefab whose root shares the file's name then has two
+    // rows called the same thing, of which the instance is the first.
     for (i, node) in S.doc.iter().enumerate() {
-        if node.name == name {
-            S.sel = i;
+        if node.get("id").unwrap_or("") == id {
+            selection::only(S, i);
         }
     }
     log::info("instanced " + rel);
@@ -1006,13 +1041,7 @@ pub fn add_child(S, preset) {
     }
     history::record(S, "add node", None);
     let parent = S.doc[S.sel];
-    let base = "Node";
-    let name = base;
-    let n = 1;
-    while name_taken(S.doc, name) {
-        n += 1;
-        name = format!("{}{}", base, n);
-    }
+    let name = unique_name(S.doc, "Node");
     let entry = #{
         id: fresh_id(S.doc, name),
         name: name,
@@ -1035,7 +1064,7 @@ pub fn add_child(S, preset) {
     } else {
         S.refs.push(());
     }
-    S.sel = S.doc.len() - 1;
+    selection::only(S, S.doc.len() - 1);
 }
 
 // Take a live subtree the engine built into the document, so it lands in the
@@ -1109,7 +1138,7 @@ pub fn open_scene(S, rel) {
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
     expand_instances(S);
-    S.sel = 0;
+    selection::only(S, 0);
     history::reset(S);
     build_mirror(S);
     log::info("opened " + rel);
@@ -1145,8 +1174,12 @@ fn doc_value(S, name, data, previous) {
 }
 
 pub fn sync_component_doc(S, name) {
-    let node = S.doc[S.sel];
-    let found = match live(S, S.sel) {
+    sync_component_doc_at(S, S.sel, name);
+}
+
+pub fn sync_component_doc_at(S, i, name) {
+    let node = S.doc[i];
+    let found = match live(S, i) {
         Some(found) => found,
         None => return,
     };
@@ -1238,18 +1271,32 @@ pub fn apply_component(S, name) {
     }
 }
 
+/// Write one property across the selection: every selected node that carries
+/// the component takes the value, and the whole write is one history step.
 pub fn set_component_prop(S, name, prop, value) {
-    let found = match live(S, S.sel) {
+    history::record(S, format!("set {}.{}", name, prop), Some(format!("prop:{}:{}:{}", name, prop, S.sel)));
+    for i in selection::all(S) {
+        let has = match live(S, i) {
+            Some(found) => found.has_component(name),
+            None => false,
+        };
+        if has {
+            set_component_prop_at(S, i, name, prop, value);
+        }
+    }
+}
+
+fn set_component_prop_at(S, i, name, prop, value) {
+    let found = match live(S, i) {
         Some(found) => found,
         None => return,
     };
-    history::record(S, format!("set {}.{}", name, prop), Some(format!("prop:{}:{}:{}", name, prop, S.sel)));
-    let node = S.doc[S.sel];
+    let node = S.doc[i];
     let data = util::obj(found.get_component(name));
     let params = doc_value(S, name, data, node.get(name));
     params[prop] = value;
     found.set_component(name, absolute_files(S, params));
-    sync_component_doc(S, name);
+    sync_component_doc_at(S, i, name);
     // `doc_value` keeps the document's spelling of an asset property, which is
     // exactly wrong for the one property that was just retyped, so it is
     // stamped back over afterwards.
@@ -1262,28 +1309,27 @@ pub fn set_component_prop(S, name, prop, value) {
     }
 }
 
-// Duplicate the selected node (without children), then rebuild the mirror.
+// Duplicate every selected node (without children), then rebuild the mirror.
 pub fn duplicate_selected(S) {
     if refuse_structure(S, "duplicate a node") {
         return;
     }
     history::record(S, "duplicate node", None);
-    let src = S.doc[S.sel];
-    let copy = #{};
-    for (key, value) in src.iter() {
-        copy[key] = util::copy(value);
+    let made = [];
+    for i in selection::all(S) {
+        let src = S.doc[i];
+        let copy = #{};
+        for (key, value) in src.iter() {
+            copy[key] = util::copy(value);
+        }
+        copy.name = unique_name(S.doc, src.name);
+        // The copy carried the original's id, which the engine then had to
+        // regenerate for itself; children address a parent by id, so it is ours.
+        copy.id = fresh_id(S.doc, copy.name);
+        S.doc.push(copy);
+        made.push(S.doc.len() - 1);
     }
-    let base = src.name;
-    let n = 2;
-    while name_taken(S.doc, format!("{}{}", base, n)) {
-        n += 1;
-    }
-    copy.name = format!("{}{}", base, n);
-    // The copy carried the original's id, which the engine then had to
-    // regenerate for itself; children address a parent by id, so it is ours.
-    copy.id = fresh_id(S.doc, copy.name);
-    S.doc.insert(S.sel + 1, copy);
-    S.sel += 1;
+    selection::set(S, made);
     build_mirror(S);
 }
 
@@ -1330,35 +1376,50 @@ pub fn paste_nodes(S, text) {
         // A pasted node joins the selection's parent, not its own old one.
         copy.parent = S.doc[S.sel].parent;
         S.doc.insert(S.sel + 1, copy);
-        S.sel += 1;
+        selection::only(S, S.sel + 1);
     }
     build_mirror(S);
     true
 }
 
 pub fn delete_selected(S) {
-    if S.doc.len() <= 1 {
-        log::warn("cannot delete the last node");
+    let rows = selection::all(S);
+    if S.doc.len() <= rows.len() {
+        log::warn("cannot delete every node");
         return;
     }
     if refuse_structure(S, "delete a node") {
         return;
     }
-    history::record(S, format!("delete {}", S.doc[S.sel].name), None);
-    let victim = S.doc[S.sel];
-    if let Some(found) = live(S, S.sel) {
-        found.queue_free();
+    let label = if rows.len() > 1 {
+        format!("delete {} nodes", rows.len())
+    } else {
+        format!("delete {}", S.doc[S.sel].name)
+    };
+    history::record(S, label, None);
+    let doomed = #{};
+    for i in rows {
+        doomed[S.doc[i].id] = true;
+        if let Some(found) = live(S, i) {
+            found.queue_free();
+        }
     }
     let kept = [];
     for (i, node) in S.doc.iter().enumerate() {
-        if i != S.sel && !has_ancestor(S.doc, node, victim.id) {
+        let gone = doomed.contains_key(node.id);
+        for id in doomed.keys() {
+            if has_ancestor(S.doc, node, id) {
+                gone = true;
+            }
+        }
+        if !gone {
             kept.push(node);
         }
     }
     S.doc = kept;
-    S.sel = util::clamp(S.sel, 0, S.doc.len() - 1);
+    selection::only(S, util::clamp(S.sel, 0, S.doc.len() - 1));
     build_mirror(S);
-    log::info("deleted " + victim.name);
+    log::info(label);
 }
 
 pub fn stats(S) {

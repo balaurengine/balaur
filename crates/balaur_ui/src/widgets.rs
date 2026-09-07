@@ -265,6 +265,14 @@ pub(crate) fn sc(v: f32) -> f32 {
     v * scale()
 }
 
+/// The corner a filled shape gets when it asks for none.
+///
+/// Nothing in the editor is meant to have a square corner, so the fallback
+/// rounds rather than not. It is the radius `image_button` already chose, so
+/// an image and the button around it agree instead of one being a plate with
+/// a square picture on it.
+pub(crate) const DEFAULT_RADIUS: f32 = 3.0;
+
 pub(crate) fn pill_radius(h: f32) -> CornerRadius {
     CornerRadius::same((h / 2.0).min(127.0) as u8)
 }
@@ -850,14 +858,23 @@ impl Gutter {
     }
 }
 
-/// Returns the buffer, whether it changed, and the gutter line clicked this
-/// frame, if any: `breakpoints` marks lines, `current_line` highlights one.
+/// Where the text cursor sits: screen position of its bottom-left corner, and
+/// its character index into the buffer. `None` when the editor is not focused.
+pub(crate) struct Caret {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) index: usize,
+}
+
+/// Returns the buffer, whether it changed, the gutter line clicked this frame
+/// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
+/// one.
 pub(crate) fn code_editor(
     eng: &Engine,
     id: &str,
     source: &str,
     opts: &Opts,
-) -> anyhow::Result<(String, bool, Option<i64>)> {
+) -> anyhow::Result<(String, bool, Option<i64>, Option<Caret>)> {
     // `language` overrides; otherwise highlight whatever the project is
     // written in, so an editor shows Rune as Rune.
     let language = opts.string(k::LANGUAGE).unwrap_or_else(|| {
@@ -883,7 +900,7 @@ pub(crate) fn code_editor(
     let colors = SyntaxColors::from_opts(opts);
     let marks = Marks::from_opts(opts);
     let font = FontId::new(size, theme::family(w::MONO));
-    let (changed, clicked) = with_ui(|ui| {
+    let (changed, clicked, caret) = with_ui(|ui| {
         let font = font.clone();
         let row_h = ui
             .painter()
@@ -892,6 +909,7 @@ pub(crate) fn code_editor(
             .y;
         let mut changed = false;
         let mut clicked = None;
+        let mut caret = None;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let n_lines = buffer.split('\n').count().max(1);
@@ -902,22 +920,32 @@ pub(crate) fn code_editor(
                 job.wrap.max_width = f32::INFINITY;
                 ui.fonts_mut(|f| f.layout_job(job))
             };
-            let response = ui.add(
-                egui::TextEdit::multiline(&mut buffer)
-                    .id(egui::Id::new(id.to_string()))
-                    .frame(egui::Frame::NONE)
-                    .desired_width(ui.available_width())
-                    .layouter(&mut layouter),
-            );
-            changed = response.changed();
+            // `show` rather than `add`: a popup has to open under the caret,
+            // and only the output carries the galley it sits in.
+            let output = egui::TextEdit::multiline(&mut buffer)
+                .id(egui::Id::new(id.to_string()))
+                .frame(egui::Frame::NONE)
+                .desired_width(ui.available_width())
+                .layouter(&mut layouter)
+                .show(ui);
+            changed = output.response.changed();
+            if let Some(range) = output.cursor_range {
+                let at = range.primary;
+                let rect = output.galley.pos_from_cursor(at);
+                caret = Some(Caret {
+                    x: output.galley_pos.x + rect.left(),
+                    y: output.galley_pos.y + rect.bottom(),
+                    index: at.index.into(),
+                });
+            }
         });
-        Ok((changed, clicked))
+        Ok((changed, clicked, caret))
     })?;
     state
         .borrow_mut()
         .text_buffers
         .insert(id.to_string(), buffer.clone());
-    Ok((buffer, changed, clicked))
+    Ok((buffer, changed, clicked, caret))
 }
 
 /// A left-aligned pill row (tree rows, list rows, menu items): custom paint

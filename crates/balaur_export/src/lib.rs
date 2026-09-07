@@ -39,8 +39,8 @@ pub struct Options<'a> {
     pub path: PathBuf,
     /// Where the result goes. Each shape names its own default.
     pub output: Option<PathBuf>,
-    /// The platform to build a standalone game for, naming a template
-    /// (`linux-x64`, `macos-universal`, `windows-x64`, `ios`, `android`).
+    /// The platform to build a standalone game for, naming a template.
+    /// `TARGETS` is every one of them.
     pub target: Option<String>,
     /// A runtime template to append to, bypassing lookup entirely.
     pub template: Option<PathBuf>,
@@ -62,6 +62,9 @@ pub struct Options<'a> {
     pub ipa: bool,
     /// Assemble the Android layout into an installable APK.
     pub apk: bool,
+    /// Also build the AAB Play takes for a new app. The APK stays: it is what
+    /// installs on a device, and what every store that is not Play takes.
+    pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
     /// Where runtime templates are looked for, most specific first.
@@ -94,11 +97,12 @@ pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:
 /// the desktops a player downloads, then the platforms that ship a bundle.
-pub const TARGETS: [&str; 7] = [
+pub const TARGETS: [&str; 8] = [
     "linux-x64",
     "linux-arm64",
     "macos-universal",
     "windows-x64",
+    "windows-arm64",
     "ios",
     "android",
     "web",
@@ -157,6 +161,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
     let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
     let apple = AppleConfig::load(&opts.path)?;
+    let android = android::AndroidConfig::load(&opts.path)?;
     let config = ExportConfig::load(&opts.path)?;
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));
@@ -183,6 +188,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &name,
             output,
             &apple,
+            &android,
             &shell,
         )?;
         return finish_bundle(kind, &written, opts, &config, &apple, &name);
@@ -355,6 +361,9 @@ fn finish_bundle(
             Ok(())
         }
         Bundle::Android => {
+            if opts.aab {
+                android::bundle(written, written, &opts.path, config)?;
+            }
             if opts.apk || !config.android_keystore.is_empty() {
                 android::assemble(written, written, &opts.path, config)?;
             }

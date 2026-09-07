@@ -22,7 +22,58 @@ pub enum Mode {
     Corners,
     /// Sides and corners together, the 47-tile blob.
     CornersAndSides,
+    /// Four quarters per cell, each from the three cells touching its corner.
+    /// Five pictures cover all 47 neighbourhoods; see [`Quarter`].
+    Quarters,
 }
+
+/// Which of a quartered terrain's five pictures a corner of a cell takes.
+///
+/// The names are the boundary, not the neighbour: `Horizontal` is a corner
+/// whose terrain ends above or below it, so the edge it draws runs across.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Quarter {
+    /// The two cells beside the corner and the one diagonally across it are
+    /// all the terrain, so the corner is inside it.
+    Fill,
+    /// The cell above or below is not the terrain.
+    Horizontal,
+    /// The cell beside is not the terrain.
+    Vertical,
+    /// Neither of the two is, so the terrain turns a convex corner here.
+    Outer,
+    /// Both are and the diagonal is not, so it turns a concave one.
+    Inner,
+}
+
+impl Quarter {
+    /// The picture a corner takes, from what the three cells touching it are.
+    #[must_use]
+    pub fn of(horizontal: bool, vertical: bool, diagonal: bool) -> Self {
+        match (horizontal, vertical, diagonal) {
+            (true, true, true) => Self::Fill,
+            (true, true, false) => Self::Inner,
+            (true, false, _) => Self::Horizontal,
+            (false, true, _) => Self::Vertical,
+            (false, false, _) => Self::Outer,
+        }
+    }
+
+    /// Where it sits in a terrain's [`Terrain::quarters`].
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Self::Fill => 0,
+            Self::Horizontal => 1,
+            Self::Vertical => 2,
+            Self::Outer => 3,
+            Self::Inner => 4,
+        }
+    }
+}
+
+/// How many tiles a quartered terrain draws from.
+pub const QUARTER_TILES: usize = 5;
 
 /// A painted value, and what it is called.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,6 +83,9 @@ pub struct Terrain {
     pub mode: Mode,
     /// The tile a template's layout starts at.
     pub first_tile: u32,
+    /// For [`Mode::Quarters`], the tile each of the five pictures comes from,
+    /// in [`Quarter::index`] order. Meaningless under any other mode.
+    pub quarters: [u32; QUARTER_TILES],
 }
 
 /// What a cell of a pattern demands of the value at that neighbour.
@@ -274,20 +328,54 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
                 Some("sides") => Mode::Sides,
                 Some("corners") => Mode::Corners,
                 Some("corners_and_sides") => Mode::CornersAndSides,
+                Some("quarters") => Mode::Quarters,
                 Some(other) => bail!("terrain '{name}': '{other}' is not a mode"),
             };
             let first_tile = table
                 .get("first_tile")
                 .and_then(toml::Value::as_integer)
                 .unwrap_or(0) as u32;
+            // Before the literal: a field initialiser moves `name`, and the
+            // borrow below it would read what had already moved.
+            let quarters = quarters_of(&name, table, first_tile)?;
             Ok(Terrain {
                 name,
                 value,
                 mode,
                 first_tile,
+                quarters,
             })
         })
         .collect()
+}
+
+/// `quarters` on a terrain: the five tiles it draws from, in
+/// [`Quarter::index`] order. Sheets disagree about that order, so a terrain
+/// whose block is not five in a row names them.
+fn quarters_of(name: &str, table: &toml::Value, first: u32) -> Result<[u32; QUARTER_TILES]> {
+    let Some(list) = table.get("quarters") else {
+        let mut tiles = [first; QUARTER_TILES];
+        for (index, tile) in tiles.iter_mut().enumerate() {
+            *tile = first + index as u32;
+        }
+        return Ok(tiles);
+    };
+    let list = list
+        .as_array()
+        .filter(|list| list.len() == QUARTER_TILES)
+        .ok_or_else(|| {
+            anyhow!(
+                "terrain '{name}': `quarters` is {QUARTER_TILES} tile ids -- fill, horizontal, vertical, outer, inner"
+            )
+        })?;
+    let mut tiles = [0; QUARTER_TILES];
+    for (slot, value) in tiles.iter_mut().zip(list) {
+        *slot = value
+            .as_integer()
+            .and_then(|tile| u32::try_from(tile).ok())
+            .ok_or_else(|| anyhow!("terrain '{name}': a `quarters` entry is a tile id"))?;
+    }
+    Ok(tiles)
 }
 
 /// `[[rules]]` on a tileset, and the templates that write them for you.
@@ -443,6 +531,27 @@ pub fn template(mode: Mode, terrain: u32, first: u32) -> Vec<Rule> {
         Mode::Sides => mask_rules(terrain, first, &SIDES),
         Mode::Corners => mask_rules(terrain, first, &CORNERS),
         Mode::CornersAndSides => blob_rules(terrain, first),
+        // One tile for the whole terrain: which quarters a cell draws is read
+        // off its neighbours at mesh time, so no rule can name it.
+        Mode::Quarters => vec![Rule {
+            terrain,
+            pattern: vec![
+                Demand::Any,
+                Demand::Any,
+                Demand::Any,
+                Demand::Any,
+                Demand::Same,
+                Demand::Any,
+                Demand::Any,
+                Demand::Any,
+                Demand::Any,
+            ],
+            size: 3,
+            tiles: vec![(first, 1)],
+            transforms: 0,
+            chance: 1.0,
+            outside: Outside::Empty,
+        }],
     }
 }
 
@@ -574,6 +683,40 @@ mod tests {
         let (corner, _) = resolve(&rules, &painted(rows), &inside(rows), 1, 0, 7)
             .expect("the top cell is painted too");
         assert_eq!(corner, 4, "only its south side is the terrain");
+    }
+
+    #[test]
+    fn a_quartered_terrain_resolves_every_cell_to_one_tile() {
+        let rules = template(Mode::Quarters, 1, 10);
+        assert_eq!(
+            rules.len(),
+            1,
+            "the neighbourhood decides the picture, not a rule"
+        );
+        let rows: &[&[i32]] = &[&[1, -1], &[1, 1]];
+        for (x, y) in [(0, 0), (0, 1), (1, 1)] {
+            let (tile, flags) = resolve(&rules, &painted(rows), &inside(rows), x, y, 5)
+                .expect("every painted cell resolves");
+            assert_eq!(tile, 10, "to the tile the terrain starts at");
+            assert_eq!(flags, 0, "and never turned");
+        }
+        assert!(
+            resolve(&rules, &painted(rows), &inside(rows), 1, 0, 5).is_none(),
+            "an unpainted cell stays empty"
+        );
+    }
+
+    #[test]
+    fn a_corner_reads_its_two_sides_before_its_diagonal() {
+        assert_eq!(Quarter::of(true, true, true), Quarter::Fill);
+        assert_eq!(Quarter::of(true, true, false), Quarter::Inner);
+        assert_eq!(Quarter::of(false, false, true), Quarter::Outer);
+        assert_eq!(
+            Quarter::of(true, false, true),
+            Quarter::Horizontal,
+            "the terrain carries on across, so the edge does too"
+        );
+        assert_eq!(Quarter::of(false, true, true), Quarter::Vertical);
     }
 
     #[test]

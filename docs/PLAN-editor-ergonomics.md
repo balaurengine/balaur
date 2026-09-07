@@ -1,11 +1,8 @@
-> **Status:** not started. Written down on 2026-09-05, from what a Spline
-> user does in the first ten minutes that the editor does not let them:
-> select two things, line them up, hide one, drop an image in, pick a
-> material from a list. The order is selection first, because group, align
-> and every multi-node command stand on it; then the gestures around the
-> viewport; then the panels that author what `docs/PLAN-3d-rendering.md`,
-> the objects work and `docs/PLAN-interactivity.md` add; then the
-> library, which is content more than code.
+> **Status:** built 2026-09-07, every step. The prerequisites in
+> `docs/PLAN-3d-rendering.md` (lights, environment, the material contract)
+> and `docs/PLAN-interactivity.md` (hooks, states, bindings) were built
+> alongside, because four of the eight steps here stood on them. What is
+> not built is named in §6.
 
 # Plan: editor ergonomics
 
@@ -23,13 +20,13 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| One selection: `S.sel` indexes `S.doc` | `editor/scripts/model.rn` |
+| A selection set: `S.sels` ordered, `S.sel` its head | `editor/scripts/selection.rn` |
 | Move, rotate and scale gizmos in 3D and 2D, snapping, the tool rail | `gizmo.rn`, `gizmo2d.rn`, `viewport.rn`, `defs::tools` |
 | Undo with labels, dirty tracking | `history.rn` |
 | The palette, and every command as a script | `palette.rn` |
 | Duplicate, reparent keeping the world pose, open the prefab | `model::duplicate_selected`, `node.reparent` |
 | Node `visible`, `z_index`, `tags` | `balaur_core` |
-| One search rule for every list | `search.rn` |
+| One search rule for every list, and the tree filtering by it | `search.rn`, `left.rn` |
 | Files dropped on the window | `input.dropped_files` |
 | A `.glb` brought in as models, a scene and clips | `balaur import` |
 | A colour editor, sliders, dropdowns and folds in the inspector | `ui`, `inspector.rn` |
@@ -41,22 +38,23 @@ Built, and not built for this:
 | Timings per system, and a profiler dock | `engine.timings` |
 | The editor's own self-test with named states | `selftest.rn`, `--state` |
 
-Missing:
+Built since, in the order below: the selection set, group, align, distribute,
+hide, lock and isolate; the outliner's facet chips; drag-in through
+`dropin.rn` and a new `import.*` script module; light and camera gizmos, a
+view-mode chip and four camera bookmarks; the Pen; the material panel over
+`render.material_params`; the Events view; the Cost dock over `render.stats`;
+and `editor/library`.
 
-- **More than one selected node.** Every command reads `S.sel`.
-- **Group, align, distribute, isolate, lock.** None; `visible` exists but no
-  shortcut toggles it.
-- **An outliner filter.** `search.rn` exists and the tree does not use it;
-  no filter by component.
-- **Drag-in.** A dropped file is an event a game may read; the editor does
-  nothing with it.
-- **Gizmos for what is not a shape.** A `camera` and, once it exists, a
-  `light3d` draw nothing in the viewport.
-- **View modes.** The viewport draws the game's look and nothing else.
-- **Panels for the new content.** A material is a TOML file edited by hand;
-  a path has no pen; the Events view lists hooks and authors nothing.
-- **A library.** No stock materials, skies, models or templates to start
-  from.
+Still missing, and why:
+
+- **Image-based lighting, SSAO and the shadow reads in the shader.**
+  `package::pbr` is GGX over the frame's lights; the fork's IBL and SSAO
+  buffers are not bound. `docs/PLAN-3d-rendering.md` steps 2 and 3.
+- **Layer stacks.** `shaders/layers.wesl` is that plan's step 8.
+- **Overdraw as a view mode.** It wants a counter per pixel, not
+  `render.stats`.
+- **A `path3d` pen.** The Pen edits `path2d`; a curve in space wants a
+  plane to draw on, which is a design question rather than a missing call.
 
 ## 1. Design
 
@@ -120,9 +118,10 @@ triangles, texture bytes per node — beside `engine.timings` and the pack's
 size per asset from `balaur export`, as a tab of the Profiler dock.
 
 **The library is files.** `editor/library/` holds `material` assets over the
-stock shaders, a handful of CC0 skies from Poly Haven at a modest resolution
-with their licence in `THIRD-PARTY-NOTICES.md`, a few `.glb` models, and
-project templates for `balaur new --template`. A library dock lists them with
+stock shaders, three gradient skies written by `scripts/make_skies.py`, three
+models built from primitives, lighting setups, and project templates for
+`balaur new --template`. Nothing in it is photographed or scanned, so it is
+kilobytes and carries no third-party licence. A library dock lists them with
 thumbnails rendered offscreen at build time; dragging one copies the file
 into the project and drops it as above. Nothing at runtime references the
 library. A Gamend-hosted catalogue with the same manifest is
@@ -152,15 +151,28 @@ library. A Gamend-hosted catalogue with the same manifest is
 
 ## 3. Steps
 
-1. **Selection.** The set, box select, group, align, hide, lock, isolate.
-   Ends with: `selftest.rn` states for a two-node align and an undo of it.
-2. **Finding and dropping.** The filter, the chips, drag-in.
-3. **Seeing.** Gizmos, view modes, bookmarks.
-4. **Pen.**
-5. **Materials.**
-6. **Events.**
-7. **Cost.**
-8. **Library.**
+All eight built, 2026-09-07, in this order, with the engine work each stood on
+built beside it.
+
+1. **Selection.** *Built.* `selection.rn`, `arrange.rn`, box select in both
+   viewports, a gizmo drag over the set. The `seldemo` state asserts a two-node
+   align and its undo.
+2. **Finding and dropping.** *Built.* Facet chips in `left.rn`, `dropin.rn`,
+   and `import_api.rs` for the seam `balaur import` never had. `dropdemo`.
+3. **Seeing.** *Built.* `overlays::lights3d`, the view-mode chip and four
+   camera bookmarks in `center.rn`, over `light3d` and `environment`.
+4. **Pen.** *Built.* `pen.rn`, over `path2d`. Two engine defects came out of
+   it: an empty path did not parse, and an inline asset table was registered
+   as the type its schema named rather than the one it declared, so a polyline
+   naming an inlined `path2d` was read as a mesh.
+5. **Materials.** *Built.* `Param::Texture` and `package::pbr`; the panel is
+   the inspector's material rows, which resolve an inline material too, with a
+   shader picker and the `@if` flags as toggles. No preview sphere.
+6. **Events.** *Built.* `bindings.rs`, `states.rs`, `variables.rs` and the
+   hook dispatch in `balaur::interact`; `events.rn` authors them. `eventsdemo`.
+7. **Cost.** *Built.* `render.stats` and the Cost dock.
+8. **Library.** *Built.* `editor/library`, the dock, and
+   `balaur new --template`. `librarydemo`.
 
 ## 4. What CI can prove, and what it cannot
 
@@ -174,10 +186,26 @@ library. A Gamend-hosted catalogue with the same manifest is
 
 ## 5. Open questions
 
-1. **The inspector over a mixed selection.** The intersection of components,
-   or the active node's rows with a banner. The banner is cheaper and is what
-   the design above says; a mixed edit may never be asked for.
-2. **How much library ships in the download.** Skies are megabytes each; the
-   desktop editor can carry a few, the browser editor should fetch them.
-3. **Whether isolate and lock persist.** Editor state in a sidecar, or
-   nowhere. Nowhere first.
+1. **The inspector over a mixed selection.** *Settled:* the banner, and a
+   property edit reaching every selected node that carries the component.
+2. **How much library ships in the download.** *Settled:* only what is
+   written rather than captured. Four materials, three gradient skies, three
+   primitive models, two lighting setups and three templates, together under
+   twenty kilobytes. A photographic catalogue is fetched, not shipped.
+3. **Whether isolate and lock persist.** *Settled:* nowhere.
+
+## 6. What is not built
+
+- Image-based lighting, SSAO, `shaders/layers.wesl`, and overdraw as a view
+  mode. Each is named in §0 with the plan it belongs to.
+- Photographic skies and scanned models. The library's three skies are
+  gradients and its three models are primitives, so the whole library is
+  kilobytes and carries no third-party licence. A CC0 catalogue is fetched,
+  not shipped: `docs/PLAN-collaboration.md`.
+- The material panel's preview sphere. It wants a frame drawn offscreen into a
+  texture the interface can show, which nothing else in the editor does yet.
+- A `path3d` pen. The Pen edits `path2d`.
+- `when` is a comparison over the scene's variables, not a Rune expression:
+  a condition is data in a scene file, so the editor reads it, shows it and
+  diffs it, and anything a comparison cannot say is a script.
+- Pointer hooks need a window. `docs/PLAN-interactivity.md` §4 says why.

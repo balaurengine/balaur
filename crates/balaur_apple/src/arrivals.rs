@@ -8,8 +8,9 @@
 //! waiting for a device to find it.
 //!
 //! A URL the game was *launched* with does not come this way: it reaches the
-//! delegate before the engine has booted. Only URLs opened while the game is
-//! running arrive here.
+//! delegate before the engine has booted, so the window layer holds it and
+//! hands it over once the engine is up. [`deliver_launch_url`] is that hand
+//! over, and a game reads it as the arrival it is.
 
 use std::fmt::Write;
 
@@ -19,6 +20,16 @@ use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_clas
 use objc2_foundation::{NSArray, NSData, NSError, NSURL};
 
 use crate::AppleEvent;
+
+/// Deliver the URL the game was launched with, once the engine is up.
+///
+/// It arrives as an ordinary [`AppleEvent::Url`], because to a game there is
+/// no difference between being opened with a link and being handed one while
+/// it runs. The window layer holds it until here: the delegate is given it
+/// before this crate exists.
+pub(crate) fn deliver_launch_url(url: String) {
+    crate::queue::push_apple(AppleEvent::Url { url });
+}
 
 /// Ask the OS for a push token. The token itself arrives at the delegate,
 /// which is why this installs one.

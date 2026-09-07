@@ -1,0 +1,8 @@
+type = "material"
+shader = "shaders/pbr_surface.wesl"
+
+[params]
+metallic = 0.0
+roughness = 0.25
+reflectance = 0.5
+emissive = 0.0

@@ -21,11 +21,12 @@ every pull request — and calls four reusable workflows, so a red X names itsel
 ## Before you push
 
 ```bash
-scripts/lint.sh
+scripts/precommit.sh
 ```
 
-Format, three clippy sweeps, the three lint scripts and the notices check, in
-CI's order. Install as a pre-push hook: `git config core.hooksPath .githooks`.
+Everything below that one machine can run, in three streams, each feature shape
+in its own target directory. `AGENTS.md` holds the tiers and what each covers.
+Install the lints as a pre-push hook: `git config core.hooksPath .githooks`.
 
 ## The compiler, per platform and per feature
 
@@ -38,6 +39,9 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - Once per default-off feature, since code behind one is not compiled at all:
   `window` (kiss3d, wgpu, egui, the macOS dock icon), `extensions` (dlopen and
   the cdylib), `apple` (Game Center, StoreKit, objc2; macOS only).
+- Once for `wasm32-unknown-unknown` with the web template's own flags: nothing
+  else compiles `#[cfg(target_family = "wasm")]`, so a browser-only mistake
+  used to reach CI as a failed download.
 - `examples/extension_greeter`, deliberately outside the workspace: the only
   thing proving an extension builds without the engine's build tree.
 
@@ -76,9 +80,6 @@ Generated files skip themselves by their banner.
   leading block gets eight; `house_lints.py` keeps a looser cap of twelve.
 - **restates-code** — a comment whose words add nothing to the line below.
 - Banners and dividers; the structure is the divider.
-
-A comment is one or two lines stating a constraint. A reason needing a paragraph
-is architecture, and goes in `ARCHITECTURE.md`.
 
 ## Names
 
@@ -129,7 +130,7 @@ A change that alters a recorded digest has to say why.
 
 ## Tests
 
-~1,200 `#[test]` functions across 22 crates, 114 integration files, on all three
+1,509 `#[test]` functions across 22 crates, 135 integration files, on all three
 desktop platforms. Beyond `cargo test --workspace`:
 
 - `cargo test -p balaur_plugin --features dylib` and `-p balaur --features
@@ -139,9 +140,6 @@ desktop platforms. Beyond `cargo test --workspace`:
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
   on `BALAUR_E2E` so a local `cargo test` stays fast.
-
-A test's name is a sentence about behaviour. A test asserting from inside a
-script carries one control proving the script ran.
 
 ## End to end, over every example
 

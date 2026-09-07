@@ -1,0 +1,6 @@
+# nextest runs a process per test across every core, which a wall-clock budget
+# cannot survive: `balaur_bench` asserts frame times, so it takes the machine
+# to itself and measures what the numbers were recorded against.
+[[profile.default.overrides]]
+filter = 'package(balaur_bench)'
+threads-required = 'num-cpus'

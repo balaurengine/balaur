@@ -1,0 +1,393 @@
+// The Events view, which authors rather than lists: one row per
+// `[[nodes.bindings]]` entry, and the Rune each row is equivalent to.
+
+use crate::history;
+use crate::icons;
+use crate::model;
+use crate::style;
+use crate::util;
+
+pub fn state() {
+    // The row waiting for a node to be clicked in the tree, `None` when
+    // nothing is picking.
+    #{ picking: None }
+}
+
+/// The rows on the selected node. A hand-written file spells them
+/// `[[nodes.bindings]]`, and one the editor has saved spells them under
+/// `rows`; both are the same list.
+pub fn rows(S) {
+    let node = match S.doc.get(S.sel) {
+        Some(node) => node,
+        None => return [],
+    };
+    let held = node.get("bindings").unwrap_or([]);
+    if held is Object {
+        return util::vec(util::obj(held).get("rows").unwrap_or([]));
+    }
+    util::vec(held)
+}
+
+fn write(S, rows, label) {
+    history::record(S, label, None);
+    let node = S.doc[S.sel];
+    if rows.len() == 0 {
+        node.remove("bindings");
+    } else {
+        node.bindings = #{ rows: rows };
+    }
+    model::record_override(S, node, "bindings");
+    model::apply_component(S, "bindings");
+    history::commit(S);
+}
+
+/// A copy of the rows, so a mutation lands after the history step rather than
+/// before it: `rows` hands back the document's own list.
+fn editable(S) {
+    util::deep(rows(S))
+}
+
+pub fn add_row(S) {
+    let rows = editable(S);
+    rows.push(#{ event: "pointer_click", action: "state", target: "", value: "" });
+    write(S, rows, "add binding");
+}
+
+pub fn remove_row(S, at) {
+    let rows = editable(S);
+    if at >= rows.len() {
+        return;
+    }
+    rows.remove(at);
+    write(S, rows, "remove binding");
+}
+
+fn set_field(S, at, key, value) {
+    let rows = editable(S);
+    if at >= rows.len() {
+        return;
+    }
+    if value == "" && key != "value" {
+        rows[at].remove(key);
+    } else {
+        rows[at][key] = value;
+    }
+    write(S, rows, "edit binding");
+}
+
+/// The node paths a target picker offers: every node in the scene, spelled
+/// from the bound node, plus the empty path that means the node itself.
+fn target_paths(S) {
+    let out = ["(this node)"];
+    for node in S.doc {
+        let path = model::node_path(S.doc, node);
+        if path != "" {
+            out.push(path);
+        }
+    }
+    out
+}
+
+/// The variables a `set_variable` row targets.
+fn variable_names(S) {
+    let out = [];
+    for entry in util::vec(scene::variables()) {
+        out.push(entry.name);
+    }
+    out
+}
+
+const ROW_H = 26.0;
+
+fn field(S, k, at, key, current, choices, width) {
+    let (picked, changed) = ui::dropdown(
+        format!("bind:{}:{}:{}", S.sel, at, key),
+        current,
+        choices,
+        #{ width: width, size: 11, height: 24, color: k.text },
+    );
+    if changed {
+        set_field(S, at, key, picked);
+    }
+}
+
+fn text_field(S, k, at, key, current, placeholder, width) {
+    let (text, _, submitted) = ui::text_field(
+        format!("bindtext:{}:{}:{}", S.sel, at, key),
+        placeholder,
+        util::merge(style::field(k, width), #{ value: current, size: 11, height: 24 }),
+    );
+    if submitted && text != current {
+        set_field(S, at, key, text);
+    }
+}
+
+/// Whether an action's `target` names a variable rather than a node.
+fn targets_a_variable(action) {
+    action == "set_variable" || action == "add_variable"
+}
+
+fn draw_row(S, k, at, row) {
+    let event = row.get("event").unwrap_or("pointer_click");
+    let action = row.get("action").unwrap_or("state");
+    let target = row.get("target").unwrap_or("");
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::spacing(6, 0);
+        ui::label(format!("{}", at + 1), style::mono_sm(k.faint));
+        field(S, k, at, "event", event, util::vec(scene::bindable_events()), 150.0);
+        text_field(S, k, at, "when", row.get("when").unwrap_or(""), "always", 130.0);
+        ui::label("→", style::mono_sm(k.accent));
+        field(S, k, at, "action", action, util::vec(scene::binding_actions()), 130.0);
+        if targets_a_variable(action) {
+            field(S, k, at, "target", if target == "" { "—" } else { target },
+                variable_names(S), 120.0);
+        } else {
+            let shown = if target == "" { "(this node)" } else { target };
+            let (picked, changed) = ui::dropdown(
+                format!("bind:{}:{}:target", S.sel, at),
+                shown, target_paths(S),
+                #{ width: 140, size: 11, height: 24, color: k.text },
+            );
+            if changed {
+                set_field(S, at, "target", if picked == "(this node)" { "" } else { picked });
+            }
+        }
+        text_field(S, k, at, "value", as_text(row.get("value")), "value", 110.0);
+        if ui::pill("✕", #{ height: 20, size: 11, min_width: 22, color: k.accent }) {
+            remove_row(S, at);
+        }
+    });
+}
+
+fn as_text(value) {
+    match value {
+        Some(value) => if value is String { value } else { format!("{}", value) },
+        None => "",
+    }
+}
+
+/// The Rune a row is equivalent to, which is what "Convert to script" writes.
+///
+/// One arm per action, spelling the call the interpreter makes, so a scene
+/// that outgrows the table graduates without a rewrite.
+pub fn as_script(S) {
+    let byhook = #{};
+    for row in rows(S) {
+        let hook = "on_" + row.get("event").unwrap_or("pointer_click");
+        if !byhook.contains_key(hook) {
+            byhook[hook] = [];
+        }
+        byhook[hook].push(row);
+    }
+    let out = "// Written from this node's event bindings.\n";
+    for hook in util::keys_sorted(byhook) {
+        out += format!("\npub fn {}(this{}) {{\n", hook, hook_args(hook));
+        for row in byhook[hook] {
+            out += "    " + guarded(row) + "\n";
+        }
+        out += "}\n";
+    }
+    out
+}
+
+/// The arguments each hook is handed, so the written function's signature is
+/// the one the engine calls.
+fn hook_args(hook) {
+    match hook {
+        "on_pointer_down" => ", button",
+        "on_pointer_up" => ", button",
+        "on_pointer_click" => ", button",
+        "on_pointer_drag" => ", dx, dy",
+        "on_pointer_drop" => ", dropped",
+        "on_key_down" => ", key",
+        "on_key_up" => ", key",
+        "on_action" => ", action",
+        "on_scroll" => ", dx, dy",
+        "on_resize" => ", width, height",
+        "on_variable_changed" => ", name, value",
+        "on_state_changed" => ", from, to",
+        "on_collision_start" => ", other",
+        "on_collision_stop" => ", other",
+        _ => "",
+    }
+}
+
+fn guarded(row) {
+    let call = as_call(row);
+    let when = row.get("when").unwrap_or("");
+    if when == "" {
+        return call;
+    }
+    format!("if {} {{ {} }}", rune_condition(when), call)
+}
+
+/// A condition rewritten as Rune: every bare name becomes the read that fetches
+/// it, and the operators are the same in both.
+fn rune_condition(when) {
+    let out = "";
+    for (i, clause) in when.split("&&").enumerate() {
+        if i > 0 {
+            out += " && ";
+        }
+        out += rune_clause(clause);
+    }
+    out
+}
+
+fn rune_clause(clause) {
+    let text = clause.trim();
+    for op in [">=", "<=", "==", "!=", ">", "<"] {
+        if let Some(at) = util::index_of(text, op) {
+            let name = text[..at].trim();
+            let rest = text[at + op.len()..].trim();
+            return format!("scene::variable(\"{}\") {} {}", name, op, rest);
+        }
+    }
+    format!("scene::variable(\"{}\") == true", text)
+}
+
+fn as_call(row) {
+    let action = row.get("action").unwrap_or("state");
+    let target = row.get("target").unwrap_or("");
+    let value = as_text(row.get("value"));
+    let node = if target == "" { "this" } else { format!("this.get_node(\"{}\")", target) };
+    match action {
+        "state" => format!("{}.go(\"{}\");", node, value),
+        "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),
+        "add_variable" => format!(
+            "scene::set_variable(\"{}\", scene::variable(\"{}\") + {});",
+            target, target, literal(value)),
+        "play" => format!("animation::play({}, \"{}\");", node, value),
+        "sound" => format!("audio::play_on({});", node),
+        "spawn" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
+        "free" => format!("{}.queue_free();", node),
+        "switch" => format!("scene::switch(\"{}\", #{{}});", value),
+        "open_url" => format!("engine::open_url(\"{}\");", value),
+        "emit" => format!("{}.emit(\"{}\", ());", node, value),
+        "call" => format!("{}.call(\"{}\", []);", node, value),
+        "visible" => format!("{}.set_visible({});", node, literal(value)),
+        _ => format!("// no call for `{}`", action),
+    }
+}
+
+/// A written value as Rune source: a number and a bool stay as they are, and
+/// everything else is a string.
+fn literal(value) {
+    if value == "true" || value == "false" {
+        return value;
+    }
+    let digits = "0123456789.-";
+    let numeric = value != "";
+    for c in value.chars() {
+        if !digits.contains(format!("{}", c)) {
+            numeric = false;
+        }
+    }
+    if numeric { value } else { format!("\"{}\"", value) }
+}
+
+/// Write the script this node's bindings are equivalent to, attach it, and
+/// open it. The rows stay: deleting them is the author's call, once they have
+/// read what was written.
+pub fn convert_to_script(S) {
+    if rows(S).len() == 0 {
+        log::info("this node has no bindings to convert");
+        return;
+    }
+    let node = S.doc[S.sel];
+    let rel = format!("scripts/{}_events.rn", node.name.to_lowercase());
+    fs::write(S.game_root + "/" + rel, as_script(S));
+    model::forget(S, None);
+    history::record(S, "convert bindings to a script", None);
+    node.script = rel;
+    model::record_override(S, node, "script");
+    history::commit(S);
+    S.shader_rel = "";
+    crate::shell::open_doc(S, "script");
+    log::info("wrote " + rel);
+}
+
+/// The document tab: the selected node's rows, and the variables they read.
+pub fn view(S, k) {
+    let r = S.layout.doc;
+    if !style::placed(r) {
+        return;
+    }
+    ui::overlay("events", #{
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        fill: k.bg, stroke: k.line, radius: 11,
+        padding_x: 20, padding_y: 14,
+    }, || {
+        let node = S.doc[S.sel];
+        ui::horizontal(#{ height: 24 }, || {
+            style::section_label(k, format!("event bindings · {}", node.name));
+            ui::right(|| {
+                if ui::pill("‹›  Convert to script", #{
+                    height: 24, size: 11, fill: k.sage_soft, color: k.sage,
+                }) {
+                    convert_to_script(S);
+                }
+                ui::add_space(6);
+                if ui::pill(icons::ui("add") + "  Add row", #{
+                    height: 24, size: 11, fill: k.accent_soft, color: k.accent,
+                }) {
+                    add_row(S);
+                }
+            });
+        });
+        ui::add_space(6);
+        let held = rows(S);
+        ui::scroll("events-rows", #{ max_height: r.h - 150.0 }, || {
+            ui::spacing(4, 3);
+            if held.len() == 0 {
+                style::empty(k, "no bindings on this node yet");
+            }
+            for (at, row) in held.iter().enumerate() {
+                draw_row(S, k, at, util::obj(row));
+            }
+        });
+        ui::add_space(10);
+        variables_section(S, k);
+        ui::add_space(10);
+        hooks_section(S, k);
+    });
+}
+
+/// What the scene declares, so a `when` has something to name. Read-only: a
+/// variable is declared in the scene file's `[variables]`.
+fn variables_section(S, k) {
+    style::section_label(k, "scene variables");
+    let declared = util::vec(scene::variables());
+    if declared.len() == 0 {
+        style::empty(k, "none; declare them under [variables] in the scene file");
+        return;
+    }
+    for entry in declared {
+        ui::horizontal(#{ height: 24 }, || {
+            ui::add_space(6);
+            ui::label(entry.name, style::mono_sm(k.text));
+            ui::add_space(8);
+            ui::label(entry["type"], style::mono_sm(k.faint));
+            ui::right(|| {
+                ui::label(format!("{}", entry.value), style::mono_sm(k.sage));
+            });
+        });
+    }
+}
+
+/// The hooks the node's own script declares, which is what this view used to
+/// be and is still worth showing beside the rows.
+fn hooks_section(S, k) {
+    let node = S.doc[S.sel];
+    let script_some = model::script_rel(node);
+    let script = match script_some {
+        Some(script) => script,
+        None => return,
+    };
+    style::section_label(k, "script hooks");
+    for hook in model::hooks(S, script) {
+        style::hook_pill(k, hook.name,
+            format!("{}.{}()", node.name, hook.name),
+            format!("{}:{}", script, hook.line));
+    }
+}

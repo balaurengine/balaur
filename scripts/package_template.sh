@@ -58,29 +58,57 @@ PLIST
   ;;
 
 android)
-  target=aarch64-linux-android
-  step "build ($target)"
-  rustup target add "$target"
-  # The template is a NativeActivity library, not an executable — Android
-  # dlopens libmain.so and calls android_main. See crates/balaur_android.
-  cargo build --release -p balaur_android --target "$target"
-  lib="target/$target/release/libmain.so"
-  [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
+  # Every ABI Play installs, each with the Rust target that builds it. The
+  # template carries all four; `[android] abis` picks what an export keeps.
+  abis="arm64-v8a:aarch64-linux-android armeabi-v7a:armv7-linux-androideabi \
+x86:i686-linux-android x86_64:x86_64-linux-android"
 
-  step "stage (apk layout)"
   # Laid out the way an APK expects, so the remaining step is assembling and
   # signing one — which needs aapt2 and a keystore that belongs to whoever
   # ships the game, not to CI.
   skeleton="$dist/balaur-template-android"
   rm -rf "$skeleton"
-  mkdir -p "$skeleton/lib/arm64-v8a" "$skeleton/assets"
-  cp "$lib" "$skeleton/lib/arm64-v8a/libmain.so"
+  mkdir -p "$skeleton/assets"
+
+  for pair in $abis; do
+    abi=${pair%%:*}
+    target=${pair#*:}
+    step "build ($abi, $target)"
+    rustup target add "$target"
+    # The template is a NativeActivity library, not an executable — Android
+    # dlopens libmain.so and calls android_main. See crates/balaur_android.
+    cargo build --release -p balaur_android --target "$target"
+    lib="target/$target/release/libmain.so"
+    [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
+
+    # Android 15 maps a 64-bit library on 16 KB pages and Play rejects one
+    # linked for less. .cargo/config.toml sets it; this reads it back.
+    case "$abi" in
+    arm64-v8a | x86_64)
+      loads=$(readelf -lW "$lib" | awk '$1 == "LOAD" { print $NF }')
+      [ -n "$loads" ] || { printf '::error::no LOAD segments in %s\n' "$lib"; exit 1; }
+      for align in $loads; do
+        [ "$((align))" -ge 16384 ] || {
+          printf '::error::%s libmain.so is aligned to %s, under 16 KB\n' "$abi" "$align"
+          exit 1
+        }
+      done
+      ;;
+    esac
+
+    mkdir -p "$skeleton/lib/$abi"
+    cp "$lib" "$skeleton/lib/$abi/libmain.so"
+  done
+
+  step "stage (apk layout)"
   # `android.app.lib_name` is how NativeActivity finds the library, so it has
   # to stay in step with [lib] name in crates/balaur_android/Cargo.toml.
   cat >"$skeleton/AndroidManifest.xml" <<'MANIFEST'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.balaur.template">
+    package="org.balaur.template"
+    android:versionCode="1"
+    android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
   <application android:label="Balaur" android:hasCode="false">
     <activity
@@ -105,7 +133,12 @@ MANIFEST
 
 web)
   target=wasm32-unknown-unknown
-  step "build ($target, windowed)"
+  # WEB_THREADS builds the shared-memory variant: threading is a property of
+  # the module, not a runtime switch, and a browser refuses a shared one off a
+  # page that is not cross-origin isolated. So it is a second template.
+  threads=${WEB_THREADS:-}
+  name=balaur-template-web${threads:+-threads}
+  step "build ($target, windowed${threads:+, threads})"
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
   # what each feature costs, and gen_docs.py reads the default off this line.
@@ -113,8 +146,20 @@ web)
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   # webtransport is left out until it grows the wasm stub http and websocket have.
-  cargo build --profile web --target "$target" -p balaur_cli \
-    --no-default-features --features "$features"
+  if [ -n "$threads" ]; then
+    # std itself has to be rebuilt with atomics, and `-Z build-std` is nightly
+    # only. The pinned stable in rust-toolchain.toml stays the default; this
+    # names its own toolchain so the two never fight.
+    toolchain=${WEB_THREADS_TOOLCHAIN:-nightly}
+    rustup component add rust-src --toolchain "$toolchain"
+    RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+atomics,+bulk-memory,+mutable-globals" \
+      cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
+      --no-default-features --features "$features" \
+      -Z build-std=std,panic_abort
+  else
+    cargo build --profile web --target "$target" -p balaur_cli \
+      --no-default-features --features "$features"
+  fi
 
   wasm="target/$target/web/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
@@ -136,6 +181,7 @@ web)
   step "wasm-opt"
   wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
     --enable-sign-ext --enable-mutable-globals --enable-reference-types \
+    ${threads:+--enable-threads} \
     -o "$dist/balaur_bg.wasm" "$dist/balaur_bg.wasm"
 
   # The number that decides whether a browser can be asked to load this.
@@ -157,7 +203,7 @@ web)
   [ "$br" -gt 0 ] && printf 'wasm brotli %8.2f MB\n' "$(echo "$br/1048576" | bc -l)"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
-      printf '### Web template size\n\n'
+      printf '### Web template size (%s)\n\n' "$name"
       printf '| | MB |\n| --- | --- |\n'
       printf '| raw | %.2f |\n' "$(echo "$raw/1048576" | bc -l)"
       printf '| gzip | %.2f |\n' "$(echo "$gz/1048576" | bc -l)"
@@ -168,11 +214,11 @@ web)
   # The directory `balaur export --target web` copies: the glue and the wasm.
   # The exporter adds the page and the pack beside them.
   step "template dir"
-  skeleton="$dist/balaur-template-web"
+  skeleton="$dist/$name"
   rm -rf "$skeleton"
   mkdir -p "$skeleton"
   cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
-  (cd "$dist" && tar -czf balaur-template-web.tar.gz balaur-template-web)
+  (cd "$dist" && tar -czf "$name.tar.gz" "$name")
   # Staged, not shipped: dist is uploaded whole, and a directory is not an
   # asset a release can carry.
   rm -rf "$skeleton"

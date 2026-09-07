@@ -9,7 +9,9 @@ authors.workspace = true
 [dependencies]
 balaur_core.workspace = true
 balaur_script.workspace = true
-rune = "0.14"
+# `fmt` is the formatter behind `balaur fmt`; it costs no dependency
+# beyond alloc, unlike `languageserver`, which pulls tokio and syntect.
+rune = { version = "0.14", features = ["fmt"] }
 # The pack ships compiled units; this is the format rune's own `.rnc`
 # bytecode cache uses.
 bincode.workspace = true

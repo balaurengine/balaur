@@ -37,3 +37,19 @@ pub(crate) fn sampled_layout(ctxt: &Context, label: &str) -> wgpu::BindGroupLayo
         entries: &sampled_entries(0),
     })
 }
+
+/// The layout for a group holding `count` textures, each with its sampler, at
+/// consecutive pairs of bindings.
+pub(crate) fn sampled_slots_layout(
+    ctxt: &Context,
+    label: &str,
+    count: u32,
+) -> wgpu::BindGroupLayout {
+    let entries: Vec<wgpu::BindGroupLayoutEntry> = (0..count)
+        .flat_map(|slot| sampled_entries(slot * 2))
+        .collect();
+    ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some(label),
+        entries: &entries,
+    })
+}

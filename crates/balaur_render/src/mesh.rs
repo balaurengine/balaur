@@ -87,6 +87,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }"#),
                     (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -110,6 +112,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 }
                 crate::set_mesh(eng, entity, source.clone(), text(k::SKELETON), text(k::TEXTURE))?;
                 set_morph_weights(eng, entity, &source, params);
+                crate::lighting_from_params(eng, entity, params);
                 crate::material::set_material_3d(eng, entity, &text("material"))
             }),
             remove: Box::new(|eng, entity| {
@@ -134,6 +137,11 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 map.insert(
                     "material".into(),
                     toml::Value::String(renderable.material.clone()),
+                );
+                map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                map.insert(
+                    k::LAYERS.into(),
+                    toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                 );
                 // One key per shape the mesh can blend towards, so a clip
                 // track spells `mesh/morph.smile` and a patch keeps the rest.

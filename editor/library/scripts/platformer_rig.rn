@@ -1,0 +1,26 @@
+// Left, right and jump over the 2D character controller. Raw keys rather than
+// actions, so the rig works in a project that has declared none: swap them for
+// `input::action_*` to rebind.
+
+pub fn exports() {
+    #{ speed: 6.0, jump: 9.0, gravity: 24.0 }
+}
+
+pub fn init(this) {
+    this.vy = 0.0;
+}
+
+pub fn fixed_update(this, dt) {
+    let right = if input::is_down(input::KEY_D) { 1.0 } else { 0.0 };
+    let left = if input::is_down(input::KEY_A) { 1.0 } else { 0.0 };
+    let sideways = right - left;
+    // The controller reports whether the last move ended on the ground, which
+    // is what decides between falling and being able to jump.
+    if physics2d::is_grounded(this.node) {
+        let pressed = input::just_pressed(input::KEY_SPACE);
+        this.vy = if pressed { this.jump } else { 0.0 };
+    } else {
+        this.vy -= this.gravity * dt;
+    }
+    physics2d::move_character(this.node, sideways * this.speed * dt, this.vy * dt);
+}

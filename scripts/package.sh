@@ -6,7 +6,7 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: package.sh <target>     e.g. linux-x64, macos-universal, windows-x64
+# Usage: package.sh <target>     e.g. linux-x64, macos-universal, windows-arm64
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -94,13 +94,24 @@ if grep -q 'ERROR' <<<"$out"; then
   printf '::error::the exported game logged errors\n'
   exit 1
 fi
-rm -rf "$smoke"
 printf 'exported game ran clean\n'
+
+# The signing paths, with a certificate the check makes and throws away. Only
+# where the engine's own workflow asks: a game building a custom engine wants
+# its build, not this repository's proof that signing still works.
+if [ -n "${BALAUR_SIGNING_CHECK:-}" ]; then
+  step "signing"
+  ./scripts/signing_check.sh "$bundle/balaur$exe" "$target"
+fi
+rm -rf "$smoke"
 
 # The editor only, and before the zip: a runtime template exists to have a
 # pack appended to it, and `balaur export` signs that result itself. Signing a
 # template would hand every unsigned export a broken signature instead of none.
-if [[ $target == windows-* ]]; then
+
+# A push only: Trusted Signing bills per signature, and signing_check.sh
+# proves the path on a branch with a certificate it throws away.
+if [[ $target == windows-* ]] && [ "${GITHUB_EVENT_NAME:-}" = push ]; then
   step "sign"
   ./scripts/windows_sign.sh "$bundle/balaur$exe"
 fi

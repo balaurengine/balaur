@@ -38,6 +38,11 @@ pub fn feeding(S) {
     S.showcase is Object && input::is_mouse_down(input::MOUSE_LEFT)
 }
 
+/// Whether a sequence is running, so the code pane leaves the popup to it.
+pub fn driving(S) {
+    S.showcase is Object
+}
+
 pub fn start(S, name) {
     let q = #{
         name: name, at: 0, kept: #{}, ptr: (0.0, 0.0),
@@ -47,6 +52,7 @@ pub fn start(S, name) {
     match name {
         "scenes" => scenes(S, q),
         "scripting" => scripting(S, q),
+        "completion" => completion(S, q),
         "animation" => animation(S, q),
         "physics" => physics(S, q),
         "input" => input_clip(S, q),
@@ -438,19 +444,60 @@ fn scripting(S, q) {
     act(q, 860, || restore_source(S, rel, q));
 }
 
+// Completion, `examples/hello`: the caret lands after a module path and the
+// popup opens under it. The caret is placed rather than typed, the way
+// `edit_source` writes the buffer rather than typing into it.
+fn completion(S, q) {
+    let rel = "scripts/spinner.rn";
+    act(q, 1, || {
+        q.kept[rel] = model::source(S, rel).unwrap_or("");
+    });
+    // Re-opened every frame: `center::code_pane` runs after this and would
+    // otherwise close it from the widget's own caret, which offscreen is none.
+    over_ui(q, 20, 400, |_| {
+        let line = line_of(S, rel, "this.angle += dt");
+        open_at(S, rel, line, "    physics2d::a");
+    });
+    act(q, 420, || restore_source(S, rel, q));
+}
+
+// Put `text` on its own line after `line`, and open the popup with the caret
+// at its end. The caret's screen position is the gutter's own geometry, which
+// is what the code pane hands the popup when a person puts it there.
+fn open_at(S, rel, line, text) {
+    let source = model::source(S, rel).unwrap_or("");
+    let lines = source.split('\n').collect::<Vec>();
+    let out = [];
+    let index = 0;
+    for (i, one) in lines.iter().enumerate() {
+        out.push(one);
+        if i + 1 == line {
+            out.push(text);
+        }
+    }
+    let joined = util::join(out, "\n");
+    let head = util::join(out.iter().take(line).collect::<Vec>(), "\n");
+    let at = head.chars().count() + 1 + text.chars().count();
+    S.script_buffers[S.game_root + "/" + rel] = joined;
+    let (x, y) = gutter_spot(S, line + 1);
+    crate::complete::update(S, rel, joined, #{
+        x: x + 34.0 + (text.chars().count() as f64) * 6.6, y: y + LINE_H, index: at,
+    });
+}
+
 // The rig scene carries a `camera` node, which outvotes the editor's own
 // zoom every frame, so the clip's framing is that node's.
 fn fit_figure(S) {
     let held = S.sel;
     match index_of(S, "Camera") {
         Some(i) => {
-            S.sel = i;
+            crate::selection::only(S, i);
             model::set_transform(S, i, #{ position: [0.6, 0.1, 0.0] });
             model::set_component_prop(S, "camera", "zoom", 150.0);
         }
         None => (),
     }
-    S.sel = held;
+    crate::selection::only(S, held);
 }
 
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.

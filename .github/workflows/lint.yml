@@ -26,8 +26,8 @@ jobs:
         run: cargo fmt --all --check
 
   # Clippy is Rust's linter: what rustc allows but the project treats as an
-  # error. Per OS because `#[cfg(windows)]` code is compiled nowhere else, and
-  # once per feature flag because a feature that is off is not compiled either.
+  # error. Per OS, per feature flag and once for wasm, because code that is
+  # not compiled is not linted.
   clippy:
     name: clippy · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -48,6 +48,8 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Default features
         run: cargo clippy --workspace --all-targets -- -D warnings
       # The windowed backend — kiss3d, wgpu, egui, and the macOS objc2
@@ -63,6 +65,16 @@ jobs:
       - name: Feature `apple`
         if: runner.os == 'macOS'
         run: cargo clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings
+      # Nothing above compiles `#[cfg(target_family = "wasm")]` code, so a
+      # browser-only mistake used to reach CI as a failed download. Flags are
+      # the web template's, from scripts/package_template.sh.
+      - name: Target `wasm32`
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
+            --no-default-features --features audio,http,websocket,gamend,web,window \
+            -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
       # without the engine's build tree.
@@ -88,9 +100,9 @@ jobs:
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
-      # The changelog's lines are the website's changelog page: a sentence
-      # under 35 words, no filler, no em dash in prose. The roadmap's rows
-      # are reported, not failed.
+      # Every hand-written document: no filler, no em dash in prose, none of
+      # the vocabulary a model reaches for. The roadmap's rows are reported
+      # rather than failed, because a row's shape needs its dash.
       - name: scripts/prose_lints.py
         run: python3 scripts/prose_lints.py --fail-on-error
       # The script API's own names, against the tables in docs/NAMING.md.

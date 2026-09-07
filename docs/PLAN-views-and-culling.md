@@ -79,7 +79,7 @@ mesh.
 | Level of detail | Step 6: `lods` on the mesh asset, `lod_bias` on `mesh`, `range` and `range_fade` on renderables, `balaur import --lods` through `meshopt` (C bindings, the constraint) |
 | Many sprites in one call | Step 7: 2D batching by texture and material in the sync |
 | Scripted mass instancing | Step 8: `multimesh`, the scripted twin of the `cloner` component: a count and `set_instance(i, pose, color)` where the cloner has a mode and a seed |
-| Occlusion culling | **Not planned** until a scene asks; frustum and distance first, and a software depth rasteriser is its own plan |
+| Occlusion culling | Roadmap 0.9: frustum and distance first, then a software depth rasteriser. A scene big enough to ask for it is what that milestone is |
 | Render scale and sharpening | Step 4: `viewport.scale`, `sharpen` through the fork's CAS pass |
 | Stereo views for XR | The roadmap's XR item; step 4's hook is the half it reuses |
 

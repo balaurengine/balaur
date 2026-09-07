@@ -112,7 +112,9 @@ impl<P: Anchor> Path<P> {
     /// If the control points do not divide into whole cubic segments.
     pub fn sample(&self, tolerance: f32) -> Result<Vec<P>> {
         let count = self.points.len();
-        if count == 2 && !self.closed {
+        // Two points on their own are a straight line, and fewer than two are
+        // themselves: `out.push(self.points[0])` below has nothing to push.
+        if count < 3 && !self.closed {
             return Ok(self.points.clone());
         }
         let segments = self.segment_count()?;
@@ -134,6 +136,11 @@ impl<P: Anchor> Path<P> {
     /// If there are too few, or the count leaves a segment unfinished.
     pub fn segment_count(&self) -> Result<usize> {
         let count = self.points.len();
+        // Nothing yet: a path being drawn passes through no points and one,
+        // and neither is a shape to stroke or an error to report.
+        if count < 2 {
+            return Ok(0);
+        }
         if self.closed {
             if count < 3 || !count.is_multiple_of(3) {
                 bail!(
@@ -225,4 +232,56 @@ fn parse_3d(value: &toml::Value) -> Result<Path3d> {
         closed: closed_flag(value),
     };
     path.segment_count().map(|_| path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A path being drawn passes through no points and one, and the renderer
+    /// asks it for a polyline on every frame in between.
+    #[test]
+    fn a_path_with_fewer_than_two_points_samples_to_itself() {
+        let empty = Path2d {
+            points: Vec::new(),
+            closed: false,
+        };
+        assert_eq!(empty.segment_count().unwrap(), 0);
+        assert!(empty.sample(TOLERANCE).unwrap().is_empty());
+
+        let one = Path2d {
+            points: vec![Vec2::new(1.0, 2.0)],
+            closed: false,
+        };
+        assert_eq!(one.sample(TOLERANCE).unwrap(), one.points);
+    }
+
+    /// Two are a straight line, which is the one shape nobody spells in cubics.
+    #[test]
+    fn two_points_are_the_line_between_them() {
+        let line = Path2d {
+            points: vec![Vec2::ZERO, Vec2::new(1.0, 0.0)],
+            closed: false,
+        };
+        assert_eq!(line.sample(TOLERANCE).unwrap(), line.points);
+    }
+
+    /// A count that does not divide into whole cubics still says so.
+    #[test]
+    fn a_partial_segment_is_refused() {
+        let broken = Path2d {
+            points: vec![Vec2::ZERO; 5],
+            closed: false,
+        };
+        let err = broken.segment_count().unwrap_err().to_string();
+        assert!(err.contains("four control points"), "{err}");
+    }
+
+    /// An empty `points` list parses, so an asset a pen has just made loads.
+    #[test]
+    fn an_empty_path_asset_parses() {
+        let value: toml::Value = toml::from_str("points = []").unwrap();
+        let path = parse_2d(&value).unwrap();
+        assert!(path.points.is_empty());
+    }
 }

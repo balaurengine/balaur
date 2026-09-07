@@ -38,6 +38,9 @@ pub struct ExportConfig {
     /// A project-relative keystore, or empty for Android's debug identity.
     pub android_keystore: String,
     pub android_key: String,
+    /// Where `bundletool.jar` is. Empty looks at BALAUR_BUNDLETOOL and then
+    /// beside the SDK; Google ships it on its own, not in the SDK.
+    pub bundletool: String,
     /// A project-relative `.pfx`, or an Azure Trusted Signing metadata file
     /// when the key lives in a cloud HSM rather than in a file.
     pub windows_certificate: String,
@@ -85,6 +88,7 @@ impl Default for ExportConfig {
             ios_profile: String::new(),
             android_keystore: String::new(),
             android_key: String::new(),
+            bundletool: String::new(),
             windows_certificate: String::new(),
             // DigiCert's, which is what signtool's own documentation uses.
             windows_timestamp_url: "http://timestamp.digicert.com".into(),

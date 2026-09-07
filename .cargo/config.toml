@@ -26,6 +26,14 @@ rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
 [target.aarch64-apple-ios-sim]
 rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
 
+# Android 15 runs its 64-bit devices on 16 KB pages, and Play rejects a native
+# library linked for 4 KB. The 32-bit ABIs are 4 KB and take no flag.
+[target.aarch64-linux-android]
+rustflags = ["-Clink-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-Clink-arg=-Wl,-z,max-page-size=16384"]
+
 # HarfBuzz's subsetter is one translation unit, and a debug build of it holds
 # more sections than a COFF object takes without /bigobj. cc reads this per
 # target, so no other host sees the flag.

@@ -105,9 +105,11 @@ exported onto.
 ### Exporting
 
 ```
-balaur export my-game --target linux-x64   # or macos-universal, windows-x64
+balaur export my-game --target linux-x64   # or macos-universal, windows-x64,
+                                           # windows-arm64, linux-arm64
 balaur export my-game --target ios         # -> my-game.app
 balaur export my-game --target android     # -> my-game-android/, an APK layout
+balaur export my-game --target android --apk --aab   # -> the APK and the bundle
 balaur export my-game --target web         # -> a directory a static host serves
 ```
 

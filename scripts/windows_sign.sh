@@ -11,10 +11,11 @@ set -euo pipefail
 
 [ $# -gt 0 ] || { printf '::error::usage: windows_sign.sh <file>...\n'; exit 1; }
 
-# All three, so a half-configured account skips signing rather than failing
-# the build: the profile only exists once identity validation has cleared.
+# All of them, so a half-configured account skips signing rather than failing
+# the build: the profile exists only once identity validation has cleared, and
+# a fork's pull request is handed the variables but never the secret.
 if [ -n "${TRUSTED_SIGNING_ENDPOINT:-}" ] && [ -n "${TRUSTED_SIGNING_ACCOUNT:-}" ] &&
-  [ -n "${TRUSTED_SIGNING_PROFILE:-}" ]; then
+  [ -n "${TRUSTED_SIGNING_PROFILE:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ]; then
   source=azure
 elif [ -n "${WINDOWS_CERTIFICATE_BASE64:-}" ]; then
   source=pfx

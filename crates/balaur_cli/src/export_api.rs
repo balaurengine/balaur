@@ -215,8 +215,8 @@ const fn is_bundle(target: &str) -> bool {
 fn note(target: &str) -> &'static str {
     match target {
         "macos-universal" | "ios" if !cfg!(target_os = "macos") => "signing needs macOS",
-        "android" => "an installable APK needs the Android SDK",
-        "windows-x64" if !cfg!(windows) => "signing needs osslsigncode",
+        "android" => "an installable APK needs the Android SDK, an AAB bundletool too",
+        "windows-x64" | "windows-arm64" if !cfg!(windows) => "signing needs osslsigncode",
         _ => "",
     }
 }

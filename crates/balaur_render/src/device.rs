@@ -148,12 +148,11 @@ mod web {
         }
         if !on {
             LOCK.with(|lock| {
-                if let Some(sentinel) = lock.borrow_mut().take() {
-                    if let Ok(release) = js_sys::Reflect::get(&sentinel, &"release".into()) {
-                        if let Some(release) = release.dyn_ref::<js_sys::Function>() {
-                            let _ = release.call0(&sentinel);
-                        }
-                    }
+                if let Some(sentinel) = lock.borrow_mut().take()
+                    && let Ok(release) = js_sys::Reflect::get(&sentinel, &"release".into())
+                    && let Some(release) = release.dyn_ref::<js_sys::Function>()
+                {
+                    let _ = release.call0(&sentinel);
                 }
             });
             return;

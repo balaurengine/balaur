@@ -1,7 +1,7 @@
 > **Status:** phase 0 is done — clippy, rustfmt and the house, comment and
 > API lints are green across the workspace, the macOS Swift abort and the
-> Linux build-script failure are fixed, `scripts/lint.sh` and CI run the same
-> list, and a `pre-push` hook runs it. Phases 1-3 and 5 landed with the work
+> Linux build-script failure are fixed, `scripts/precommit.sh` runs what CI
+> runs (`lint.sh` calls it), and a `pre-push` hook runs the lints. Phases 1-3 and 5 landed with the work
 > the audit asked for; phase 4 and phase 6 are what is left. Written 2026-09-04
 > from an audit of every crate,
 > the editor's scripts, the CI and the documents, done by reading rather than
@@ -63,8 +63,8 @@ switch enables both scalar widths. Each is in its phase below with the line.
 4. **Content is data.** A scene, an asset, a recording, a save, a packet or a
    HID report that is wrong produces an error line naming it, never a panic
    and never an allocation it chose the size of.
-5. **`scripts/lint.sh` is CI**, byte for byte the same steps, or AGENTS.md's
-   "the two have drifted, which is a bug in the scripts" applies.
+5. **`scripts/precommit.sh` is CI**, the same steps, or AGENTS.md's "green
+   locally and red on push is a bug in the script" applies.
 
 ## 2. Phases
 
@@ -221,8 +221,7 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
   paragraph and the `app()` escape hatch die with the registry migration;
   "five personas, fixed five-region layout" and "one node" predate Stage and
   the shell tree; CI builds `wasm32-unknown-unknown` with `window`, not
-  emscripten headless; "shipped in 0.1.0" rows against a changelog that says
-  nothing has shipped; `camera.post` and the settings subsystem have no
+  emscripten headless; `camera.post` and the settings subsystem have no
   section at all.
 - DETERMINISM.md: a snapshot does respawn and free nodes; hot reload is
   handled in the editor only; the two examples use `app.` where plugins now
@@ -230,8 +229,6 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
 - PLAN-networking.md §0: `browser.rs` exists, wasm-bindgen only, and is gated
   on `target_family = "wasm"`, which the emscripten web target matches but
   cannot run — so it is unreachable, which is what "not built" meant.
-- CHANGELOG.md: a line each for path-addressed settings, the search fields
-  and the shell tree; `:137` names `shell.toml` and `arrange.rn`.
 - `docs/generated`: regenerate — `settings` still lists `editor_toml`,
   `pages`, `project_toml`; `ui.widget_rect` and `set_widget_surface` are
   missing. Then teach `gen_docs.py` the things it does not know: settings

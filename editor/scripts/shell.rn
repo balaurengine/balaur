@@ -17,7 +17,25 @@ pub fn choose(S, i) {
     if i != S.sel {
         history::commit(S);
     }
-    S.sel = i;
+    crate::selection::only(S, i);
+}
+
+/// A click that may extend the set: ⌘ toggles one row, ⇧ takes the run
+/// between the active row and this one, and a plain click replaces the set.
+pub fn choose_click(S, i) {
+    let additive = input::is_down("LWin") || input::is_down("RWin")
+        || input::is_down("LControl") || input::is_down("RControl");
+    let ranged = input::is_down("LShift") || input::is_down("RShift");
+    if !additive && !ranged {
+        choose(S, i);
+        return;
+    }
+    history::commit(S);
+    if ranged {
+        crate::selection::extend_to(S, i);
+    } else {
+        crate::selection::toggle(S, i);
+    }
 }
 
 // History owns the document; the mirror is rebuilt from it here, because
@@ -378,6 +396,87 @@ pub fn toggle_shader_preview(S, rel, line) {
 
 // cmd+S saves the visible script buffer when the code editor is open, the
 // scene document otherwise.
+/// Jump to where the name at the caret is defined. A definition in the
+/// project opens that file at its line; engine API has no file, so the Docs
+/// dock shows its module instead.
+pub fn goto_definition(S) {
+    let node = S.doc[S.sel];
+    if !node.contains_key("script") {
+        return;
+    }
+    let rel = model::script_rel(node).unwrap_or("");
+    if rel == "" {
+        return;
+    }
+    let abs = S.game_root + "/" + rel;
+    let source = match S.script_buffers.get(abs) {
+        Some(buffer) => buffer,
+        None => model::source(S, rel).unwrap_or(""),
+    };
+    let index = S.complete.at_index;
+    if index < 0 {
+        return;
+    }
+    let (line, col) = crate::complete::line_col(source, index);
+    let found = script::definition(rel, source, line, col);
+    if !(found is Object) {
+        return;
+    }
+    if found.file == "" {
+        // The URL names the module page; the dock renders it from the live
+        // engine, so no browser is opened for something the editor holds.
+        let module = found.url.split('/').collect::<Vec>();
+        crate::docs::show(S, module[module.len() - 1], "");
+        return;
+    }
+    open_script_at(S, found.file, found.line);
+}
+
+/// Show `rel` in the code pane, scrolled to `line`.
+pub fn open_script_at(S, rel, line) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if model::script_rel(node) == Some(rel) {
+            crate::selection::only(S, i);
+            set_persona(S, "script");
+            S.doctab = "script";
+            S.preview_line = line;
+            return;
+        }
+    }
+    log::info(rel + " is attached to no node in this scene");
+}
+
+/// Lay the visible script buffer out with Rune's own formatter. A shader is
+/// not Rune, so it is left alone.
+pub fn format_active(S) {
+    if S.shader_rel != "" && S.doctab == "script" {
+        return;
+    }
+    let node = S.doc[S.sel];
+    if !node.contains_key("script") {
+        return;
+    }
+    let rel = model::script_rel(node).unwrap_or("");
+    if rel == "" {
+        return;
+    }
+    let abs = S.game_root + "/" + rel;
+    let source = match S.script_buffers.get(abs) {
+        Some(buffer) => buffer,
+        None => model::source(S, rel).unwrap_or(""),
+    };
+    let formatted = script::format(rel, source);
+    if formatted == source {
+        return;
+    }
+    S.script_buffers[abs] = formatted;
+    S.script_dirty[abs] = true;
+    // The widget keeps its own copy per id, so the pane would redraw the old
+    // text until the next keystroke without this.
+    ui::set_text(("edit:" + abs), formatted);
+    log::info("formatted " + rel);
+}
+
 pub fn save_active(S) {
     // A shader is not a script: it is written and the watcher relinks the
     // materials naming it, with no unit to rebuild.
@@ -463,7 +562,7 @@ pub fn reload_scripts(S) {
 fn select_named(S, name) {
     for (i, node) in S.doc.iter().enumerate() {
         if node.name == name {
-            S.sel = i;
+            crate::selection::only(S, i);
         }
     }
 }
@@ -497,9 +596,15 @@ fn states() {
         "timingsdemo": crate::selftest::timings,
         "placedemo": crate::selftest::placing,
         "lintdemo": crate::selftest::linting,
+        "tooldemo": crate::selftest::tooling,
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
+        "seldemo": crate::selftest::selecting,
+        "dropdemo": crate::selftest::dropping,
+        "eventsdemo": crate::selftest::eventviews,
+        "librarydemo": crate::selftest::librarydemo,
+        "pendemo": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
         "counterdemo": crate::selftest::plugin_docks,
@@ -699,7 +804,7 @@ fn state_animdemo(S) {
     match pick {
         None => log::warn("animdemo: the mirror resolved no node to animate"),
         Some(i) => {
-            S.sel = i;
+            crate::selection::only(S, i);
             anim::ensure_clip(S);
             anim::add_key(S, 0.0);
             let (_, found) = model::selected(S);
@@ -724,7 +829,7 @@ fn state_persona(S, name) {
     if name == "script" {
         for (i, node) in S.doc.iter().enumerate() {
             if node.contains_key("script") {
-                S.sel = i;
+                crate::selection::only(S, i);
                 break;
             }
         }
@@ -737,9 +842,8 @@ pub fn break_demo(S) {
     for (i, node) in S.doc.iter().enumerate() {
         let script_some = node.get("script");
         if let Some(script) = script_some {
-            S.sel = i;
-            let text = model::source(S, script).unwrap_or("");
-            let (_, hooks) = crate::highlight::analyze(text);
+            crate::selection::only(S, i);
+            let hooks = model::hooks(S, script);
             for hook in hooks {
                 if hook.name == "update" {
                     toggle_breakpoint(S, script, hook.line + 1);

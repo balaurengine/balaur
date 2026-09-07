@@ -1,0 +1,181 @@
+// Rename a name across the scripts a file's `mod` declarations reach, and
+// find and replace across the same set. Textual, because Rune keeps no
+// cross-file index, so both show the list before anything is written.
+
+use crate::model;
+use crate::search;
+use crate::style;
+use crate::util;
+
+pub fn state() {
+    #{ open: false, mode: "rename", from: "", to: "", hits: [], written: [] }
+}
+
+/// Open over the word the caret is on, so a rename starts already filled in.
+pub fn open(S, mode) {
+    let rel = active_rel(S);
+    if rel == "" {
+        return;
+    }
+    S.refactor.open = true;
+    S.refactor.mode = mode;
+    S.refactor.from = if mode == "rename" { word_at_caret(S, rel) } else { "" };
+    S.refactor.to = "";
+    S.refactor.hits = [];
+    S.refactor.written = [];
+    preview(S);
+}
+
+pub fn close(S) {
+    S.refactor.open = false;
+    S.refactor.hits = [];
+    S.refactor.written = [];
+}
+
+// The script the code pane is showing, "" when it is showing none.
+fn active_rel(S) {
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        return "";
+    }
+    let node = S.doc[S.sel];
+    if !node.contains_key("script") {
+        return "";
+    }
+    model::script_rel(node).unwrap_or("")
+}
+
+fn source_of(S, rel) {
+    let abs = S.game_root + "/" + rel;
+    match S.script_buffers.get(abs) {
+        Some(buffer) => buffer,
+        None => model::source(S, rel).unwrap_or(""),
+    }
+}
+
+// The identifier under the caret, which is what a rename means by default.
+fn word_at_caret(S, rel) {
+    let source = source_of(S, rel);
+    let index = S.complete.at_index;
+    if index < 0 {
+        return "";
+    }
+    let out = "";
+    let seen = 0;
+    for c in source.chars() {
+        if seen >= index {
+            break;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            out.push(c);
+        } else {
+            out = "";
+        }
+        seen += 1;
+    }
+    out
+}
+
+/// Every place the name appears, and what a rename would write.
+pub fn preview(S) {
+    let rel = active_rel(S);
+    if rel == "" || S.refactor.from == "" {
+        S.refactor.hits = [];
+        S.refactor.written = [];
+        return;
+    }
+    let source = source_of(S, rel);
+    let renaming = S.refactor.mode == "rename";
+    let hits = if renaming {
+        script::references(rel, source, S.refactor.from)
+    } else {
+        script::find(rel, source, S.refactor.from)
+    };
+    S.refactor.hits = if hits is Vec { hits } else { [] };
+    if S.refactor.to == "" {
+        S.refactor.written = [];
+        return;
+    }
+    let written = if renaming {
+        script::rename(rel, source, S.refactor.from, S.refactor.to)
+    } else {
+        script::replace(rel, source, S.refactor.from, S.refactor.to)
+    };
+    S.refactor.written = if written is Vec { written } else { [] };
+}
+
+/// Write every file the preview listed, into the buffers rather than to disk:
+/// a rename is undone with the same ⌘S that saves it.
+pub fn apply(S) {
+    if S.refactor.written.len() == 0 {
+        return;
+    }
+    for one in S.refactor.written {
+        let abs = S.game_root + "/" + one.file;
+        S.script_buffers[abs] = one.source;
+        S.script_dirty[abs] = true;
+        ui::set_text(("edit:" + abs), one.source);
+    }
+    log::info(format!("{} {} to {} in {} files",
+        if S.refactor.mode == "rename" { "renamed" } else { "replaced" },
+        S.refactor.from, S.refactor.to, S.refactor.written.len()));
+    close(S);
+}
+
+/// The sheet: the two fields, then the list of what would change.
+pub fn draw(S, k) {
+    if !S.refactor.open {
+        return;
+    }
+    let r = S.layout.doc;
+    if !style::placed(r) {
+        return;
+    }
+    let w = util::min(r.w - 40.0, 420.0);
+    let box_r = #{ x: r.x + r.w - w - 20.0, y: r.y + 16.0, w: w, h: 260.0 };
+    style::sheet(k, "refactor", box_r, 14.0, 12.0, || {
+        style::section_label(k, if S.refactor.mode == "rename" { "rename" } else { "replace" });
+        let (from, from_changed, _) = ui::text_field("refactor-from",
+            if S.refactor.mode == "rename" { "name" } else { "text to find" },
+            util::merge(style::field(k, w - 40.0), #{ value: S.refactor.from }));
+        if from_changed {
+            S.refactor.from = from;
+            preview(S);
+        }
+        ui::add_space(4);
+        let (to, to_changed, _) = ui::text_field("refactor-to",
+            if S.refactor.mode == "rename" { "new name" } else { "replace with" },
+            util::merge(style::field(k, w - 40.0), #{ value: S.refactor.to }));
+        if to_changed {
+            S.refactor.to = to;
+            preview(S);
+        }
+        ui::add_space(8);
+        let count = S.refactor.hits.len();
+        ui::label(format!("{} matches in {} files", count, S.refactor.written.len()),
+            style::mono_sm(k.faint));
+        ui::add_space(6);
+        ui::scroll("refactor-hits", #{ max_height: 120 }, || {
+            for hit in S.refactor.hits {
+                ui::horizontal(#{ height: 20 }, || {
+                    ui::add_space(4);
+                    ui::label(format!("{}:{}", hit.file, hit.line), style::mono_sm(k.dim));
+                });
+            }
+        });
+        ui::add_space(8);
+        ui::horizontal(#{ height: 24 }, || {
+            let ready = S.refactor.to != "" && S.refactor.written.len() > 0;
+            if ui::pill("Apply", #{
+                role: "button", min_width: 70,
+                fill: if ready { k.accent_fill } else { k.sunken },
+                color: if ready { k.on_accent } else { k.faint },
+            }) && ready {
+                apply(S);
+            }
+            ui::add_space(6);
+            if ui::pill("Cancel", #{ role: "button", min_width: 70 }) {
+                close(S);
+            }
+        });
+    });
+}

@@ -38,6 +38,7 @@
 pub mod bindings;
 pub mod clip;
 pub mod ease;
+mod gizmo;
 pub mod modifier;
 pub mod player;
 pub mod retarget;
@@ -62,8 +63,10 @@ pub(crate) mod keys {
     pub(crate) const GRAVITY: &str = "gravity";
     pub(crate) const ITERATIONS: &str = "iterations";
     pub(crate) const KIND: &str = "kind";
+    pub(crate) const LAG: &str = "lag";
     pub(crate) const LIBRARY: &str = "library";
     pub(crate) const MASS: &str = "mass";
+    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ROOT: &str = "root";
     pub(crate) const SPEED: &str = "speed";
     pub(crate) const STIFFNESS: &str = "stiffness";

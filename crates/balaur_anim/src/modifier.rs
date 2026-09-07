@@ -50,6 +50,7 @@ const TWO_BONE_IK: &str = "two_bone_ik";
 const FABRIK: &str = "fabrik";
 const CCDIK: &str = "ccdik";
 const JIGGLE: &str = "jiggle";
+const FOLLOW: &str = "follow";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
@@ -58,6 +59,7 @@ enum Kind {
     Fabrik,
     Ccdik,
     Jiggle,
+    Follow,
 }
 
 impl Kind {
@@ -68,6 +70,7 @@ impl Kind {
             Some(FABRIK) => Ok(Self::Fabrik),
             Some(CCDIK) => Ok(Self::Ccdik),
             Some(JIGGLE) => Ok(Self::Jiggle),
+            Some(FOLLOW) => Ok(Self::Follow),
             Some(other) => Err(anyhow!("unknown modifier kind '{other}'")),
         }
     }
@@ -79,6 +82,7 @@ impl Kind {
             Self::Fabrik => FABRIK,
             Self::Ccdik => CCDIK,
             Self::Jiggle => JIGGLE,
+            Self::Follow => FOLLOW,
         }
     }
 
@@ -86,6 +90,12 @@ impl Kind {
     /// does not: it follows the pose it was given.
     const fn wants_target(self) -> bool {
         !matches!(self, Self::Jiggle)
+    }
+
+    /// Whether where the kind lands depends on where it was, which is what
+    /// makes it owe fixed ticks rather than reading the frame's own `dt`.
+    const fn has_memory(self) -> bool {
+        matches!(self, Self::Jiggle | Self::Follow)
     }
 }
 
@@ -95,12 +105,12 @@ impl Kind {
 pub struct Params {
     kind: Kind,
     /// Node path to the point to aim at, relative to the node.
-    target: String,
+    pub(crate) target: String,
     /// Node path to the driven bone, relative to the node; empty is the node.
-    bone: String,
+    pub(crate) bone: String,
     /// How many bones the chain holds, counting the driven one. Zero walks
     /// to the deepest tip.
-    chain: usize,
+    pub(crate) chain: usize,
     /// Solver passes for `fabrik` and `ccdik`.
     iterations: u32,
     /// How close to the target ends a `fabrik` or `ccdik` solve early.
@@ -115,6 +125,10 @@ pub struct Params {
     mass: f32,
     gravity: Vec3,
     use_gravity: bool,
+    /// Seconds a `follow` node takes to close most of the gap. Zero snaps.
+    lag: f32,
+    /// Where a `follow` node sits relative to its target, in world units.
+    offset: Vec3,
     flip: bool,
     enabled: bool,
 }
@@ -125,11 +139,11 @@ pub struct Params {
 /// frame, and the paths in them are strings nobody should be copying sixty
 /// times a second.
 #[derive(Clone, Debug)]
-pub struct Modifier2d(std::sync::Arc<Params>);
+pub struct Modifier2d(pub(crate) std::sync::Arc<Params>);
 
 /// A 3D rig modifier, over `bone3d`.
 #[derive(Clone, Debug)]
-pub struct Modifier3d(std::sync::Arc<Params>);
+pub struct Modifier3d(pub(crate) std::sync::Arc<Params>);
 
 /// A jiggle chain's dynamic points and their speeds, one per solved bone,
 /// and the two rotations that keep the spring from chasing itself.
@@ -152,7 +166,7 @@ pub struct Jiggle {
 }
 
 fn schema() -> String {
-    let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE]);
+    let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE, FOLLOW]);
     // Down, at about two thirds of earth's: a chain that hangs rather than
     // drops. A 2D rig reads the third number as nothing, so both dimensions
     // take the same one.
@@ -161,7 +175,7 @@ fn schema() -> String {
         (
             k::KIND,
             &format!(
-                r#"{{ type = "enum", default = "{LOOK_AT}", options = [{kinds}], description = "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length ({FABRIK} or {CCDIK}), or let a chain lag behind the pose ({JIGGLE})" }}"#
+                r#"{{ type = "enum", default = "{LOOK_AT}", options = [{kinds}], description = "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length ({FABRIK} or {CCDIK}), let a chain lag behind the pose ({JIGGLE}), or trail the target at an offset ({FOLLOW})" }}"#
             ),
         ),
         (
@@ -211,6 +225,14 @@ fn schema() -> String {
             r#"{ type = "bool", default = false, description = "Whether a jiggle chain is pulled by `gravity`" }"#,
         ),
         (
+            k::LAG,
+            r#"{ type = "float", default = 0.0, description = "Seconds a follow node takes to close most of the gap to its target; 0 pins it there" }"#,
+        ),
+        (
+            k::OFFSET,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where a follow node sits relative to its target, in world units" }"#,
+        ),
+        (
             k::FLIP,
             r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way" }"#,
         ),
@@ -224,10 +246,13 @@ fn schema() -> String {
 const DOC_2D: &str = "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone \
                       toward a target node, `two_bone_ik` bends a root, middle and tip chain so \
                       the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, \
-                      and `jiggle` lets a chain trail the pose on a spring.";
+                      `jiggle` lets a chain trail the pose on a spring, and `follow` moves the \
+                      node itself to its target plus `offset`, `lag` seconds behind.";
 
 const DOC_3D: &str = "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, \
-                      `fabrik`, `ccdik` and `jiggle`, posing bones after the clip has run. A \
+                      `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has \
+                      run -- `follow` moves the node rather than a bone, so a camera trails what \
+                      it watches without a script. A \
                       chain solver turns each bone by the shortest arc onto the solved point, so \
                       a bone's twist about its own aim is left as the clip wrote it.";
 
@@ -344,6 +369,9 @@ fn params_of(params: &toml::Value) -> Result<Params> {
         mass: number(k::MASS, 0.75),
         gravity: vector(params, k::GRAVITY, Vec3::new(0.0, -6.0, 0.0)),
         use_gravity: flag(k::USE_GRAVITY, false),
+        // A lag below zero would grow the gap instead of closing it.
+        lag: number(k::LAG, 0.0).max(0.0),
+        offset: vector(params, k::OFFSET, Vec3::ZERO),
         flip: flag(k::FLIP, false),
         enabled: flag(k::ENABLED, true),
     })
@@ -385,6 +413,16 @@ fn table_of(m: &Params) -> toml::Value {
         ),
     );
     put(k::USE_GRAVITY, toml::Value::Boolean(m.use_gravity));
+    put(k::LAG, toml::Value::Float(f64::from(m.lag)));
+    put(
+        k::OFFSET,
+        toml::Value::Array(
+            [m.offset.x, m.offset.y, m.offset.z]
+                .into_iter()
+                .map(|v| toml::Value::Float(f64::from(v)))
+                .collect(),
+        ),
+    );
     put(k::FLIP, toml::Value::Boolean(m.flip));
     put(k::ENABLED, toml::Value::Boolean(m.enabled));
     toml::Value::Table(out)
@@ -392,7 +430,7 @@ fn table_of(m: &Params) -> toml::Value {
 
 /// A node's 2D world pose composed from local transforms, so a bone this
 /// frame has already moved sees the move.
-fn pose_2d(world: &World, entity: Entity) -> Mat3 {
+pub(crate) fn pose_2d(world: &World, entity: Entity) -> Mat3 {
     let mut matrix = Mat3::IDENTITY;
     for e in ancestry(world, entity) {
         if let Ok(t) = world.get::<&Transform>(e) {
@@ -403,7 +441,7 @@ fn pose_2d(world: &World, entity: Entity) -> Mat3 {
 }
 
 /// The 3D twin of [`pose_2d`].
-fn pose_3d(world: &World, entity: Entity) -> Mat4 {
+pub(crate) fn pose_3d(world: &World, entity: Entity) -> Mat4 {
     let mut matrix = Mat4::IDENTITY;
     for e in ancestry(world, entity) {
         if let Ok(t) = world.get::<&Transform>(e) {
@@ -460,11 +498,11 @@ fn angle_of(m: &Mat3) -> f32 {
     libm::atan2f(m.x_axis.y, m.x_axis.x)
 }
 
-fn origin_2d(m: &Mat3) -> Vec2 {
+pub(crate) fn origin_2d(m: &Mat3) -> Vec2 {
     Vec2::new(m.z_axis.x, m.z_axis.y)
 }
 
-fn origin_3d(m: &Mat4) -> Vec3 {
+pub(crate) fn origin_3d(m: &Mat4) -> Vec3 {
     m.w_axis.truncate()
 }
 
@@ -479,7 +517,7 @@ fn first_child_bone(world: &World, entity: Entity) -> Option<Entity> {
 
 /// The bones a chain solver works on: `root` and its first-child bones, at
 /// most `len` of them, or as far as the rig goes when `len` is zero.
-fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
+pub(crate) fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
     let cap = if len == 0 {
         MAX_CHAIN
     } else {
@@ -987,19 +1025,19 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
             .map(|(_, e, m, dim3)| (e, m, dim3))
             .collect()
     };
-    let steps = jiggle_steps(eng, dt, &work);
+    let steps = fixed_steps(eng, dt, &work);
     for (entity, m, dim3) in work.drain(..) {
         run_one(eng, entity, &m, dim3, steps);
     }
 }
 
-/// How many fixed ticks the jiggle springs owe this frame, advanced once for
-/// the whole system rather than once per modifier.
+/// How many fixed ticks the modifiers that remember owe this frame, advanced
+/// once for the whole system rather than once per modifier.
 ///
-/// The accumulator only moves when something is actually jiggling, so a scene
-/// with no springs in it does not carry a residual into the frame one appears.
-fn jiggle_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
-    if !work.iter().any(|(_, m, _)| m.kind == Kind::Jiggle) {
+/// The accumulator only moves when one of them is in the scene, so a scene
+/// with none carries no residual into the frame the first one appears.
+fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
+    if !work.iter().any(|(_, m, _)| m.kind.has_memory()) {
         return 0;
     }
     let Some(state) = eng.try_resource::<AnimationState>() else {
@@ -1079,48 +1117,54 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
             let chain = chain_of(&world, bone, m.chain);
             ccdik(&world, &chain, point, m, dim3);
         }
+        (Kind::Follow, _) => follow_point(&world, bone, point + m.offset, m.lag, dim3, steps),
         (Kind::Jiggle, _) => unreachable!("handled above"),
     }
 }
 
-/// Where the modifier's target is, for a tool that draws the reach.
-#[must_use]
-pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
-    let world = eng.world();
-    let (target, dim3) = match world.get::<&Modifier2d>(entity) {
-        Ok(m) => (m.0.target.clone(), false),
-        Err(_) => (
-            world.get::<&Modifier3d>(entity).ok()?.0.target.clone(),
-            true,
-        ),
-    };
-    let target = scene::find_node(&world, entity, &target)?;
-    Some(if dim3 {
-        origin_3d(&pose_3d(&world, target)).truncate()
+/// Move a node toward a point, closing the same share of the gap per fixed
+/// tick so the path it takes does not change with the frame rate.
+///
+/// The node's own transform is the memory, so nothing is kept beside the
+/// scene and a rollback puts a follower back where the snapshot had it.
+fn follow_point(world: &World, node: Entity, goal: Vec3, lag: f32, dim3: bool, steps: u32) {
+    let here = if dim3 {
+        origin_3d(&pose_3d(world, node))
     } else {
-        origin_2d(&pose_2d(&world, target))
-    })
+        origin_2d(&pose_2d(world, node)).extend(0.0)
+    };
+    if !goal.is_finite() || !here.is_finite() {
+        return;
+    }
+    // Exponential, so `steps` ticks at once land where that many one at a
+    // time would: a frame that hitched does not overshoot.
+    let share = if lag <= 0.0 {
+        1.0
+    } else {
+        1.0 - libm::expf(-(steps as f32) * FIXED_DT / lag)
+    };
+    let want = here + (goal - here) * share;
+    // A world point is written as a local one, because a follower may hang
+    // under a parent that is itself moving.
+    let local = match world.get::<&Parent>(node).map(|p| p.0) {
+        Ok(parent) if dim3 => pose_3d(world, parent).inverse().transform_point3(want),
+        Ok(parent) => {
+            let placed = pose_2d(world, parent).inverse() * want.truncate().extend(1.0);
+            Vec3::new(placed.x, placed.y, want.z)
+        }
+        Err(_) => want,
+    };
+    let Ok(mut transform) = world.get::<&mut Transform>(node) else {
+        return;
+    };
+    transform.position.x = local.x;
+    transform.position.y = local.y;
+    // A 2D follower keeps whatever depth it was given: z is the draw order.
+    if dim3 {
+        transform.position.z = local.z;
+    }
 }
 
-/// The bones a modifier drives, for a tool that draws the chain it solves.
-///
-/// The editor's gizmo needs the same walk the solver makes — a `chain` of two
-/// on a rig five deep draws two bones, not five — and this is that walk.
-#[must_use]
-pub fn chain_of_node(eng: &Engine, entity: Entity) -> Vec<Entity> {
-    let world = eng.world();
-    let (bone_path, chain) = match world.get::<&Modifier2d>(entity) {
-        Ok(m) => (m.0.bone.clone(), m.0.chain),
-        Err(_) => match world.get::<&Modifier3d>(entity) {
-            Ok(m) => (m.0.bone.clone(), m.0.chain),
-            Err(_) => return Vec::new(),
-        },
-    };
-    let bone = if bone_path.is_empty() {
-        Some(entity)
-    } else {
-        scene::find_node(&world, entity, &bone_path)
-    };
-    bone.map(|bone| chain_of(&world, bone, chain))
-        .unwrap_or_default()
-}
+// The editor's gizmo asks these two; they read the same walk the solver
+// makes, so they keep the module's public path.
+pub use crate::gizmo::{chain_of_node, target_of};

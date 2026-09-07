@@ -13,7 +13,9 @@ use crate::viewport;
 /// The gizmo's own state, hung on `S.gizmo`.
 pub fn state() {
     // `key` is what the hover test last answered to; see `hover_key`.
-    #{ hover: None, drag: None, in_viewport: false, key: [] }
+    // `marquee` is the box-select drag: the design-px point it started at,
+    // and where the pointer is now.
+    #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None }
 }
 
 // What the hover answers to: the pointer, the camera and the gizmo's own box.
@@ -50,44 +52,6 @@ fn same_key(a, b) {
         i += 1;
     }
     true
-}
-
-// Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
-// R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
-// the node's local axes (the matrix columns).
-fn basis_from_euler(r) {
-    let cr = math::cos(r[0]);
-    let sr = math::sin(r[0]);
-    let cp = math::cos(r[1]);
-    let sp = math::sin(r[1]);
-    let cy = math::cos(r[2]);
-    let sy = math::sin(r[2]);
-    [
-        [cy * cp, sy * cp, -sp],
-        [cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr],
-        [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr],
-    ]
-}
-
-fn euler_from_basis(b) {
-    let pitch = math::asin(util::clamp(-b[0][2], -1.0, 1.0));
-    let yaw = math::atan(b[0][1], b[0][0]);
-    let roll = math::atan(b[1][2], b[2][2]);
-    [roll, pitch, yaw]
-}
-
-fn rotate_basis_local(b, axis, angle) {
-    let c = math::cos(angle);
-    let s = math::sin(angle);
-    let i = (axis + 1) % 3;
-    let j = (axis + 2) % 3;
-    // Columns i and j rotate into each other around column `axis`.
-    let bi = b[i];
-    let bj = b[j];
-    let out = [b[0], b[1], b[2]];
-    out[i] = [bi[0] * c + bj[0] * s, bi[1] * c + bj[1] * s, bi[2] * c + bj[2] * s];
-    out[j] = [bj[0] * c - bi[0] * s, bj[1] * c - bi[1] * s, bj[2] * c - bi[2] * s];
-    out
 }
 
 // center + basis-space offset -> world point.
@@ -167,8 +131,89 @@ pub fn project(cam, p) {
 
 // Selection geometry: center, padded half-extents, handle size, ring radius.
 fn geometry(S) {
-    let (node, found) = model::selected(S);
-    let found = match found {
+    if crate::selection::count(S) > 1 {
+        return set_geometry(S);
+    }
+    geometry_at(S, S.sel)
+}
+
+// The world half-extents of one row before the handle padding, which both the
+// gizmo and box select need.
+pub fn extents_at(S, i) {
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return None,
+    };
+    let node = S.doc[i];
+    let hx = 0.6;
+    let hy = 0.6;
+    let hz = 0.6;
+    let shape = match node.get("shape3d") {
+        Some(shape) => Some(shape),
+        None => node.get("collider3d"),
+    };
+    let shape_some = shape;
+    if let Some(shape) = shape_some {
+        if shape is Object {
+            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_BALL) {
+                let r = util::f(shape.radius);
+                hx = r;
+                hy = r;
+                hz = r;
+            } else if let Some(he) = shape.get("half_extents") {
+                let he = util::vec3(he, [0.5, 0.5, 0.5]);
+                hx = he[0];
+                hy = he[1];
+                hz = he[2];
+            }
+        }
+    }
+    let s = found.global_scale();
+    Some((util::xyz(found.global_position()), [hx * s.x, hy * s.y, hz * s.z]))
+}
+
+// An axis-aligned box around the whole set, so the gizmo over many nodes sits
+// where a designer would draw one frame.
+fn set_geometry(S) {
+    let lo = [math::INF, math::INF, math::INF];
+    let hi = [-math::INF, -math::INF, -math::INF];
+    let any = false;
+    for i in crate::selection::all(S) {
+        let found = extents_at(S, i);
+        let found_some = found;
+        if let Some((c, he)) = found_some {
+            any = true;
+            for axis in 0..3 {
+                lo[axis] = util::min(lo[axis], c[axis] - he[axis]);
+                hi[axis] = util::max(hi[axis], c[axis] + he[axis]);
+            }
+        }
+    }
+    if !any {
+        return None;
+    }
+    let center = util::vscale(util::vadd(lo, hi), 0.5);
+    let he = util::vscale(util::vsub(hi, lo), 0.5);
+    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
+    let dist = util::dist(center, [ex, ey, ez]);
+    let marker = 0.6 * dist * 0.0144;
+    let min_he = util::min(he[0] + 0.06, util::min(he[1] + 0.06, he[2] + 0.06));
+    Some(#{
+        center: center,
+        // Axis-aligned: a set has no one rotation to align the frame to.
+        basis: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        he: [he[0] + 0.06, he[1] + 0.06, he[2] + 0.06],
+        ring: util::clamp(min_he * 0.75, marker * 2.5, dist * 0.14),
+        marker: marker,
+    })
+}
+
+fn geometry_at(S, i) {
+    let node = match S.doc.get(i) {
+        Some(node) => node,
+        None => return None,
+    };
+    let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
@@ -211,7 +256,7 @@ fn geometry(S) {
     let r = found.global_rotation_euler();
     Some(#{
         center: util::xyz(p),
-        basis: basis_from_euler(util::xyz(r)),
+        basis: util::basis_from_euler(util::xyz(r)),
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
         // fraction of the camera distance (or shrinks below pickability).
@@ -511,6 +556,69 @@ fn screen_dir(cam, center, dir) {
     }
 }
 
+// Rows whose projected box overlaps the marquee. The box, not the origin: a
+// node whose origin sits off screen is still on screen.
+fn rows_in_box(S, cam, x0, y0, x1, y1) {
+    let lo_x = util::min(x0, x1);
+    let hi_x = util::max(x0, x1);
+    let lo_y = util::min(y0, y1);
+    let hi_y = util::max(y0, y1);
+    let out = [];
+    for i in 0..S.doc.len() {
+        if crate::selection::is_locked(S, i) || S.doc[i].get("visible") == Some(false) {
+            continue;
+        }
+        let found = extents_at(S, i);
+        let found_some = found;
+        if let Some((c, he)) = found_some {
+            let bx0 = math::INF;
+            let by0 = math::INF;
+            let bx1 = -math::INF;
+            let by1 = -math::INF;
+            let seen = false;
+            for sx in [-1.0, 1.0] {
+                for sy in [-1.0, 1.0] {
+                    for sz in [-1.0, 1.0] {
+                        let corner = [c[0] + sx * he[0], c[1] + sy * he[1], c[2] + sz * he[2]];
+                        let at = project(cam, corner);
+                        let at_some = at;
+                        if let Some((px, py)) = at_some {
+                            seen = true;
+                            bx0 = util::min(bx0, px);
+                            by0 = util::min(by0, py);
+                            bx1 = util::max(bx1, px);
+                            by1 = util::max(by1, py);
+                        }
+                    }
+                }
+            }
+            if seen && bx0 <= hi_x && bx1 >= lo_x && by0 <= hi_y && by1 >= lo_y {
+                out.push(i);
+            }
+        }
+    }
+    out
+}
+
+/// Draw the marquee, if one is being dragged. Called from the overlay pass so
+/// it lands over the scene rather than under it.
+pub fn draw_marquee(S, k) {
+    let m = match S.gizmo.marquee {
+        Some(m) => m,
+        None => return,
+    };
+    let x = util::min(m.x0, m.x1);
+    let y = util::min(m.y0, m.y1);
+    let w = util::abs(m.x1 - m.x0);
+    let h = util::abs(m.y1 - m.y0);
+    if w < 2.0 && h < 2.0 {
+        return;
+    }
+    ui::overlay("vp-marquee", #{ x: x, y: y, w: w, h: h }, || {
+        ui::rect_stroke(0.0, 0.0, w, h, #{ color: k.accent, width: 1.0, dashed: true });
+    });
+}
+
 fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     history::record(S, format!("{} handle", part.kind), None);
     let (node, found) = model::selected(S);
@@ -522,6 +630,10 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     let axis = part.get("axis").unwrap_or(0);
     let drag = #{
         part: part,
+        // Every selected root's pose at the start, so each frame applies one
+        // delta to where the drag began rather than to where it got to.
+        set: crate::selection::snapshot(S),
+        pivot: geo.center,
         pos: util::xyz(p),
         scale: util::xyz(s),
         rot: [rot[0], rot[1], rot[2]],
@@ -546,20 +658,15 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
 
 fn apply_gizmo_drag(S, cam, mx, my) {
     let d = S.gizmo.drag.unwrap();
-    let (_, found) = model::selected(S);
-    let found = match found {
-        Some(found) => found,
-        None => return,
-    };
+    if d.set.len() == 0 {
+        return;
+    }
     if d.part.kind == "handle" {
         // Uniform scale by radial distance from the projected center.
         let d0 = util::max(8.0, math::sqrt((d.mouse[0] - d.center[0]) * (d.mouse[0] - d.center[0]) + (d.mouse[1] - d.center[1]) * (d.mouse[1] - d.center[1])));
         let d1 = math::sqrt((mx - d.center[0]) * (mx - d.center[0]) + (my - d.center[1]) * (my - d.center[1]));
         let f = util::clamp(d1 / d0, 0.05, 20.0);
-        let sx = d.scale[0] * f;
-        let sy = d.scale[1] * f;
-        let sz = d.scale[2] * f;
-        model::set_transform(S, S.sel, #{ scale: [sx, sy, sz] });
+        crate::selection::scale_by(S, d.set, [f, f, f], d.pivot);
     } else if d.part.kind == "ring" {
         // Screen-angle delta around the projected center, applied about the
         // node's LOCAL axis (the rings rotate with the object), signed by
@@ -569,8 +676,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let axis_dir = d.basis[d.part.axis];
         let toward = util::vdot(axis_dir, util::vsub(cam.eye, d.world_center));
         let delta = (a1 - a0) * (if toward >= 0.0 { -1.0 } else { 1.0 });
-        let rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta));
-        model::set_transform(S, S.sel, #{ rotation_euler: rot });
+        crate::selection::rotate_by(S, d.set, d.part.axis, delta, d.pivot);
     } else if d.part.kind == "facerect" {
         // Scale along the face's (rotated) normal: mouse movement projected
         // onto its screen direction, converted to world units.
@@ -581,9 +687,9 @@ fn apply_gizmo_drag(S, cam, mx, my) {
                 let moved = ((mx - d.mouse[0]) * dir[0] + (my - d.mouse[1]) * dir[1]) / len2;
                 let ext0 = util::max(d.extent, 1e-3);
                 let f = util::clamp((ext0 + moved * d.part.sign) / ext0, 0.05, 20.0);
-                let sc = [d.scale[0], d.scale[1], d.scale[2]];
-                sc[axis] = sc[axis] * f;
-                model::set_transform(S, S.sel, #{ scale: sc });
+                let factors = [1.0, 1.0, 1.0];
+                factors[axis] = f;
+                crate::selection::scale_by(S, d.set, factors, d.pivot);
             }
         }
     } else if d.part.kind == "face" {
@@ -592,14 +698,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let anchor_some = d.anchor;
         if let Some(anchor) = anchor_some {
             if let Some(hit) = ray_plane(cam, d.plane_p, d.plane_n) {
-                let delta = util::vsub(hit, anchor);
-                let pos = util::vadd([d.pos[0], d.pos[1], d.pos[2]], delta);
-                if viewport::snapping(S) {
-                    for axis in 0..3 {
-                        pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
-                    }
-                }
-                model::set_transform(S, S.sel, #{ position: pos });
+                crate::selection::move_by(S, d.set, util::vsub(hit, anchor), viewport::snapping(S));
             }
         }
     }
@@ -681,17 +780,44 @@ pub fn update(S) {
                         cam.ray_o[0], cam.ray_o[1], cam.ray_o[2],
                         cam.ray_d[0], cam.ray_d[1], cam.ray_d[2],
                     );
+                    let landed = None;
                     if hit is balaur::Node {
-                        let picked = model::index_of_live(S, hit);
-                        let picked_some = picked;
-                        if let Some(i) = picked_some {
-                            shell::choose(S, i);
+                        landed = model::index_of_live(S, hit);
+                    }
+                    let landed_some = landed;
+                    match landed_some {
+                        Some(i) => {
+                            if !crate::selection::is_locked(S, i) {
+                                shell::choose_click(S, i);
+                            }
                         }
+                        // Nothing under the pointer starts a marquee; the
+                        // selection only changes when the drag is released.
+                        None => S.gizmo.marquee = Some(#{ x0: mx, y0: my, x1: mx, y1: my }),
                     }
                 }
             }
         }
     }
+    let marquee_some = S.gizmo.marquee;
+    if let Some(m) = marquee_some {
+        m.x1 = mx;
+        m.y1 = my;
+        render::set_camera_input(false);
+        if !input::is_mouse_down(input::MOUSE_LEFT) {
+            S.gizmo.marquee = None;
+            S.gizmo.in_viewport = false;
+            if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
+                let rows = rows_in_box(S, cam, m.x0, m.y0, m.x1, m.y1);
+                if rows.len() > 0 {
+                    history::commit(S);
+                    crate::selection::set(S, rows);
+                }
+            }
+        }
+        return;
+    }
+
     if !input::is_mouse_down(input::MOUSE_LEFT) {
         S.gizmo.drag = None;
         S.gizmo.in_viewport = false;
@@ -711,34 +837,22 @@ pub fn update(S) {
         None => return,
     };
     if S.tool == "move" {
-        let p = found.position();
-        let x = p.x;
-        let y = p.y;
-        let z = p.z;
+        let delta = [0.0, 0.0, 0.0];
         if input::is_down("LShift") || input::is_down("RShift") {
-            y -= dy * cam.wpp;
+            delta[1] = -dy * cam.wpp;
         } else {
             let (flat, _) = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);
             let d = util::vadd(util::vscale(cam.right, dx * cam.wpp), util::vscale(flat, -dy * cam.wpp));
-            x += d[0];
-            z += d[2];
+            delta[0] = d[0];
+            delta[2] = d[2];
         }
-        if viewport::snapping(S) {
-            x = math::round(x * 2.0) / 2.0;
-            y = math::round(y * 2.0) / 2.0;
-            z = math::round(z * 2.0) / 2.0;
-        }
-        model::set_transform(S, S.sel, #{ position: [x, y, z] });
+        crate::selection::nudge(S, delta, viewport::snapping(S));
     } else if S.tool == "rotate" {
         // The live node, like every other writer here; the document copy
         // drifted when a rotation reached the node any other way.
-        let r = util::xyz(found.rotation_euler());
-        r[1] = r[1] + dx * 0.01;
-        model::set_transform(S, S.sel, #{ rotation_euler: r });
+        crate::selection::spin(S, 1, dx * 0.01);
     } else if S.tool == "scale" {
-        let s = found.scale();
-        let f = util::clamp(1.0 - dy * 0.01, 0.2, 5.0);
-        model::set_transform(S, S.sel, #{ scale: [s.x * f, s.y * f, s.z * f] });
+        crate::selection::grow(S, util::clamp(1.0 - dy * 0.01, 0.2, 5.0), false);
     } else if S.tool == "zoom" {
         shell::set_zoom(S, S.zoom - dy * 0.5);
     }

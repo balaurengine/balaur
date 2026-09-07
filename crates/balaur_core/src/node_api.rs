@@ -120,6 +120,14 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: patch_component,
     },
     NodeOp {
+        name: "go",
+        call: go_to_state,
+    },
+    NodeOp {
+        name: "state",
+        call: current_state,
+    },
+    NodeOp {
         name: "remove_component",
         call: remove_component,
     },
@@ -244,6 +252,8 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("children", &[], "()", "The node's direct children, an empty list when it has none."),
         ("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent."),
         ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
+        ("go", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
+        ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
         ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
         ("get_component", &[], "(component: string)", "The named component's properties as a table, nil when the node does not carry it."),
@@ -638,6 +648,24 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     )?;
     crate::components::patch(eng, e, text(args, 1)?, &params)?;
     Ok(Value::Nil)
+}
+
+/// `node.go(state)` — put the node in one of its `states`.
+fn go_to_state(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::states::go(eng, node(args)?, text(args, 1)?)?;
+    Ok(Value::Nil)
+}
+
+/// `node.state()` — the state it is in, `""` for the pose the scene gave it.
+fn current_state(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let entity = node(args)?;
+    let world = eng.world();
+    Ok(Value::Str(
+        world
+            .get::<&crate::states::States>(entity)
+            .map(|states| states.current.clone())
+            .unwrap_or_default(),
+    ))
 }
 
 fn remove_component(eng: &Engine, args: &[Value]) -> Result<Value> {

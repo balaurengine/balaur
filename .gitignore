@@ -6,3 +6,6 @@
 __pycache__/
 *.pyc
 .claude/
+node_modules/
+*.vsix
+*.profraw

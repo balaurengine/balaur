@@ -240,6 +240,29 @@ fn register_facts(app: &mut App) {
     );
 }
 
+/// The assets and components core owns, and the resources behind them.
+///
+/// Geometry is core content, not a rendering concern: physics reads the same
+/// asset for its trimesh colliders. A bone is scene-tree data the same way.
+/// Interactivity is core because a binding's actions are calls core already
+/// has, and because the digest carries what they change.
+fn register_core_content(app: &mut App) {
+    crate::mesh::register_mesh_asset(app);
+    crate::path::register_path_assets(app);
+    crate::heightfield::register_heightfield_asset(app);
+    crate::voxels::register_voxels_asset(app);
+    crate::skeleton::register_bone2d_component(app);
+    crate::skeleton::register_bone3d_component(app);
+    crate::states::register_states_component(app);
+    crate::bindings::register_bindings_component(app);
+    app.engine
+        .insert_resource(crate::variables::Variables::default());
+    app.engine
+        .insert_resource(crate::bindings::Runners::default());
+    app.engine
+        .insert_resource(crate::scene_switch::Pending::default());
+}
+
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
@@ -267,17 +290,7 @@ impl App {
             fixed_dt: None,
             accumulator: 0.0,
         };
-        // Geometry is core content, not a rendering concern: physics reads
-        // the same asset for its trimesh and convex-hull colliders, and it
-        // does not depend on the render crate.
-        crate::mesh::register_mesh_asset(&mut app);
-        crate::path::register_path_assets(&mut app);
-        crate::heightfield::register_heightfield_asset(&mut app);
-        crate::voxels::register_voxels_asset(&mut app);
-        // A bone is scene-tree data the same way: rendering skins with it,
-        // and nothing about a rest pose belongs to the renderer.
-        crate::skeleton::register_bone2d_component(&mut app);
-        crate::skeleton::register_bone3d_component(&mut app);
+        register_core_content(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
         register_facts(&mut app);

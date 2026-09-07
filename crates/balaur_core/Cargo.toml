@@ -24,7 +24,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
 # Platform-standard user-data locations for `engine.user_data_dir`.
-dirs = "6"
+dirs = "7"
 sha2.workspace = true
 # Bone rest poses go through sin/cos once per bone; the platform libm differs
 # across operating systems and this one does not.
@@ -37,7 +37,7 @@ i_overlay = "8"
 # The one triangulator: `balaur_core::triangulate` is where it is named, and
 # `balaur_ui`'s glyph filler goes through that. `i_overlay`'s sibling.
 i_triangle = "0.48"
-base64 = "0.22"
+base64 = "0.23"
 
 [dev-dependencies]
 tempfile = "3"
@@ -48,5 +48,6 @@ workspace = true
 # The browser has no `std::time::Instant`; `web_time` reads `performance.now()`.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1"
-# The console, for the log lines a browser has no stderr for.
-web-sys = { version = "0.3", features = ["console"] }
+# The console, for the log lines a browser has no stderr for, and the window,
+# which is what opens a URL in a tab.
+web-sys = { version = "0.3", features = ["console", "Window"] }

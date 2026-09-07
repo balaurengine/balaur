@@ -204,6 +204,32 @@ for ex in examples/*/; do
   printf '  theme ...  '
   edit_step "$name: theme" "$ex" themedemo
   printf 'ok\n'
+
+  # The selection set: extending it, aligning two nodes, undoing that,
+  # grouping, and the lock and hide that skip the gizmo.
+  printf '  select ... '
+  edit_step "$name: selection" "$ex" seldemo
+  printf 'ok\n'
+
+  # Drag-in, one case per extension, and the file a drop copies in.
+  printf '  drop ...   '
+  edit_step "$name: drag-in" "$ex" dropdemo
+  printf 'ok\n'
+
+  # The Events view: a row added and undone, and the Rune it writes.
+  printf '  events ... '
+  edit_step "$name: events" "$ex" eventsdemo
+  printf 'ok\n'
+
+  # The library: a material copied in and pointed at the selection.
+  printf '  library ...'
+  edit_step "$name: library" "$ex" librarydemo
+  printf 'ok\n'
+
+  # The Pen: anchors, a handle, the loop closed, and the asset it writes.
+  printf '  pen ...    '
+  edit_step "$name: pen" "$ex" pendemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

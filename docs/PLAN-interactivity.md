@@ -1,5 +1,7 @@
-> **Status:** not started. Written down on 2026-09-05 from the Spline
-> comparison: its whole authoring model is states, events and actions, and
+> **Status:** every step built 2026-09-07, alongside
+> `docs/PLAN-editor-ergonomics.md`, whose Events view stood on them. What is
+> left is the open questions in §5. Written down on 2026-09-05 from the
+> Spline comparison: its whole authoring model is states, events and actions, and
 > Balaur's answer to all three is a script. The order is what unblocks the
 > most: pointer hooks first, because a designer's first interaction is a
 > hover and nothing fires one on a drawn node today; then states, because a
@@ -105,6 +107,9 @@ at the top of a scene file, spelled like `exports()` specs, with
 page sets through `docs/PLAN-embed.md` and what a binding's condition reads.
 
 **A binding is one row: an event, a condition, an action, a target.**
+`when` is a comparison over the variables rather than a Rune expression: a
+condition is data in a scene file, so the editor reads it, shows it and diffs
+it, and anything a comparison cannot say is a script.
 `[[nodes.bindings]]` on any node:
 
 ```toml
@@ -180,19 +185,24 @@ Spline's event and action lists, and where each lands.
 
 ## 3. Steps
 
-1. **Hooks.** The pick system, the pointer hooks, keys, actions, scroll,
-   resize, the "any declared" gate. Ends with: a cube in `examples/hello`
-   that lights on hover with a five-line script, and a replayed session that
-   hovers it.
-2. **States.** The asset, the component, `go`, the digest entry,
-   `on_state_changed`.
-3. **Variables and bindings.** The table, the calls, the interpreter,
-   `when`, `scene.switch`. Ends with: the door above opening with no script
-   in the project.
-4. **The Events view authors rows** — `docs/PLAN-editor-ergonomics.md` step
-   6, listed here because this plan is not done until a binding can be made
-   without a text editor.
-5. **Rigs and modifiers.** Five presets, `follow`.
+1. **Hooks.** *Built.* `balaur::interact` dispatches pointer, key, action,
+   scroll and resize on the tick, over `render::pick_under_pointer`, with
+   `has_method` as the "any declared" gate.
+2. **States.** *Built.* The `states` component, `node.go`, `node.state`,
+   `on_state_changed`. A state is a table of component properties, patched.
+3. **Variables and bindings.** *Built.* `[variables]`, `scene.variable` and
+   `set_variable`, `on_variable_changed`, `[[nodes.bindings]]` with twelve
+   actions and a runner registry per plugin, and `scene.switch`.
+   `examples/hello` opens a door on the third click with no script in it.
+4. **The Events view authors rows.** *Built.* `editor/scripts/events.rn`.
+5. **Rigs and modifiers.** *Built.* `follow` is a `modifier2d` and
+   `modifier3d` kind with `lag` and `offset`, closing the same share of the
+   gap per fixed tick so the path is the same at any frame rate; the node's
+   own transform is the memory, so a rollback needs nothing extra. The five
+   rigs are library scenes under a Rigs shelf rather than presets:
+   `apply_preset` adds components and a rig is a script beside them, which
+   only a scene can carry. `third_person` needs no script at all -- a pivot
+   with `follow` and a camera hanging off it.
 
 ## 4. What CI can prove, and what it cannot
 

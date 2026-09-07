@@ -1,0 +1,11 @@
+// Turns whatever is parented to it.
+
+pub fn exports() {
+    #{ turns_per_minute: 6.0 }
+}
+
+pub fn update(this, dt) {
+    let radians = this.turns_per_minute / 60.0 * 6.2831853 * dt;
+    let r = this.node.rotation_euler();
+    this.node.set_rotation_euler(r.x, r.y + radians, r.z);
+}

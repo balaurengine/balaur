@@ -64,7 +64,7 @@ fn bar(S, k, title, actions) {
     ui::horizontal(#{ height: 30 }, || {
         ui::label(title, style::mono_lg(k.text));
         ui::right(|| {
-            if ui::pill("Close", #{ height: 26, size: 12, radius: 8, fill: k.sunken, color: k.dim }) {
+            if ui::pill("Close", #{ height: 24, size: 11.5, radius: 8, fill: k.sunken, color: k.dim }) {
                 hide(S);
             }
             ui::add_space(8);

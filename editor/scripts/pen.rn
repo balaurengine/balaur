@@ -1,0 +1,445 @@
+// The Pen tool: a `path2d` asset edited in the viewport. Its points are cubic
+// control points, so anchor `k` is at `3k` and its handles at `3k ± 1`.
+
+use crate::history;
+use crate::model;
+use crate::util;
+use crate::viewport;
+
+pub fn state() {
+    // `drag` is the handle being pulled: the anchor it belongs to, and whether
+    // the pair is broken. `hover` is the point under the pointer.
+    #{ hover: None, drag: None, path: (), reference: "", dirty: false }
+}
+
+const PICK_PX = 9.0;
+const MARK_PX = 4.5;
+const W = 1.6;
+
+/// The `path2d` reference the selected node strokes, or "" when it strokes
+/// none. A polyline names it where a mesh-backed one names a mesh.
+pub fn reference(S) {
+    let node = S.doc.get(S.sel);
+    let node = match node {
+        Some(node) => node,
+        None => return "",
+    };
+    let shape = node.get("shape2d");
+    let shape_some = shape;
+    if let Some(shape) = shape_some {
+        if shape is Object && shape.get("kind") == Some(render::SHAPE_POLYLINE) {
+            return shape.get("mesh").unwrap_or("");
+        }
+    }
+    ""
+}
+
+/// Whether the Pen has something to edit.
+pub fn editable(S) {
+    let found = reference(S);
+    found != "" && is_path(S, found)
+}
+
+/// Where the asset actually is. A node names it game-relative, and the
+/// editor's own asset resolver reads against the editor's project, so every
+/// read and write here goes through the game's root.
+fn asset_path(S, found) {
+    if found.starts_with("#") || found.starts_with("/") {
+        found
+    } else {
+        S.game_root + "/" + found
+    }
+}
+
+fn is_path(S, found) {
+    let (ok, definition) = script::attempt(|| assets::load(asset_path(S, found)));
+    ok && definition is Object && definition.get("type") == Some("path2d")
+}
+
+/// The path the selection strokes, as `#{ points, closed }`, cached on `S`
+/// for the frames between edits: reading it asks the asset cache every time.
+pub fn current(S) {
+    let found = reference(S);
+    if found == "" {
+        S.pen.path = ();
+        S.pen.reference = "";
+        return None;
+    }
+    if S.pen.reference == found && S.pen.path is Object {
+        return Some(S.pen.path);
+    }
+    let (ok, definition) = script::attempt(|| assets::load(asset_path(S, found)));
+    if !ok || !(definition is Object) {
+        return None;
+    }
+    let loaded = #{
+        points: util::vec(definition.get("points").unwrap_or([])),
+        closed: definition.get("closed").unwrap_or(false) == true,
+    };
+    S.pen.reference = found;
+    S.pen.path = loaded;
+    Some(loaded)
+}
+
+/// Write the edited path back to its asset. An inline one lands in the scene's
+/// `[[assets]]`; a file one is rewritten where it lies.
+fn save(S) {
+    let found = S.pen.reference;
+    let path = S.pen.path;
+    if found == "" || !(path is Object) {
+        return;
+    }
+    let definition = #{ type: "path2d", points: path.points, closed: path.closed };
+    let (ok, err) = script::attempt(|| assets::save(asset_path(S, found), definition));
+    if !ok {
+        log::warn(format!("cannot write {}: {:?}", found, err));
+        return;
+    }
+    model::forget(S, None);
+    // The stroke is drawn from the asset, so the node has to be told the file
+    // under it moved; re-applying the component is what re-reads it.
+    if let Some(key) = component_key(S) {
+        model::apply_component(S, key);
+    }
+}
+
+fn component_key(S) {
+    let node = S.doc.get(S.sel);
+    match node {
+        Some(node) => if node.contains_key("shape2d") { Some("shape2d") } else { None },
+        None => None,
+    }
+}
+
+fn point_at(path, at) {
+    let p = util::vec2(path.points.get(at).unwrap_or(()), [0.0, 0.0]);
+    p
+}
+
+/// Where the pen's points live in the world. A path is authored in the node's
+/// own space, so the node's pose places it, the way a polygon's is.
+fn frame(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return None,
+    };
+    let p = found.global_position();
+    let angle = found.global_rotation_euler().z;
+    let s = found.global_scale();
+    Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
+}
+
+fn to_world(f, lx, ly) {
+    let px = lx * f.sx;
+    let py = ly * f.sy;
+    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
+}
+
+fn to_local(f, wx, wy) {
+    let dx = wx - f.x;
+    let dy = wy - f.y;
+    let px = f.c * dx + f.s * dy;
+    let py = -f.s * dx + f.c * dy;
+    let sx = if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 };
+    let sy = if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
+    (px / sx, py / sy)
+}
+
+/// Append an anchor at the end, with handles level with the segment it makes,
+/// so a click-click-click draws a smooth chain rather than a set of corners.
+pub fn add_anchor(S, lx, ly) {
+    let path = match current(S) {
+        Some(path) => path,
+        None => return,
+    };
+    if path.closed {
+        log::info("this path is closed; open it to add a point");
+        return;
+    }
+    history::record(S, "add path point", None);
+    let points = path.points;
+    if points.len() == 0 {
+        points.push([lx, ly]);
+    } else if points.len() == 1 {
+        // Two points on their own are a straight line, which the asset reads
+        // without control points.
+        points.push([lx, ly]);
+    } else {
+        // Promote the straight pair to cubics, then append the segment.
+        if points.len() == 2 {
+            let a = point_at(path, 0);
+            let b = point_at(path, 1);
+            points = [a, lerp(a, b, 1.0 / 3.0), lerp(a, b, 2.0 / 3.0), b];
+            path.points = points;
+        }
+        let last = point_at(#{ points: points, closed: false }, points.len() - 1);
+        let next = [lx, ly];
+        points.push(lerp(last, next, 1.0 / 3.0));
+        points.push(lerp(last, next, 2.0 / 3.0));
+        points.push(next);
+    }
+    S.pen.dirty = true;
+    save(S);
+}
+
+fn lerp(a, b, t) {
+    [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+}
+
+/// Move one control point. An anchor takes its handles with it; a handle
+/// mirrors its partner unless the drag broke the pair.
+pub fn move_point(S, at, lx, ly, broken) {
+    let path = match current(S) {
+        Some(path) => path,
+        None => return,
+    };
+    let points = path.points;
+    if at >= points.len() {
+        return;
+    }
+    history::record(S, "move path point", Some(format!("pen:{}", at)));
+    let was = point_at(path, at);
+    let delta = [lx - was[0], ly - was[1]];
+    points[at] = [lx, ly];
+    let count = points.len();
+    if points.len() > 2 && at % 3 == 0 {
+        // An anchor: both handles follow, so the curve does not kink.
+        for side in [at - 1, at + 1] {
+            if side < count {
+                let h = util::vec2(points[side], [0.0, 0.0]);
+                points[side] = [h[0] + delta[0], h[1] + delta[1]];
+            }
+        }
+    } else if points.len() > 2 && !broken {
+        // A handle: its partner across the anchor mirrors it.
+        let anchor = if at % 3 == 1 { at - 1 } else { at + 1 };
+        let partner = if at % 3 == 1 { at - 2 } else { at + 2 };
+        if anchor < count && partner < count {
+            let a = util::vec2(points[anchor], [0.0, 0.0]);
+            points[partner] = [a[0] - (lx - a[0]), a[1] - (ly - a[1])];
+        }
+    }
+    S.pen.dirty = true;
+    save(S);
+}
+
+/// Take one anchor out, with the handles that belonged to it.
+pub fn remove_anchor(S, at) {
+    let path = match current(S) {
+        Some(path) => path,
+        None => return,
+    };
+    let points = path.points;
+    if at % 3 != 0 || points.len() <= 2 {
+        return;
+    }
+    history::record(S, "remove path point", None);
+    // The anchor and the handle on each side of it, clamped at the ends.
+    let from = if at == 0 { 0 } else { at - 1 };
+    let take = if at == 0 || at == points.len() - 1 { 2 } else { 3 };
+    let kept = [];
+    for (i, p) in points.iter().enumerate() {
+        if i < from || i >= from + take {
+            kept.push(p);
+        }
+    }
+    path.points = kept;
+    S.pen.dirty = true;
+    save(S);
+}
+
+/// Join the last anchor back to the first, or open a closed path.
+pub fn toggle_closed(S) {
+    let path = match current(S) {
+        Some(path) => path,
+        None => return,
+    };
+    if !path.closed && path.points.len() < 4 {
+        log::info("a path needs three points before it can close");
+        return;
+    }
+    history::record(S, if path.closed { "open path" } else { "close path" }, None);
+    if path.closed {
+        path.closed = false;
+        // The closing segment's two handles have no anchor to end on.
+        let kept = [];
+        for (i, p) in path.points.iter().enumerate() {
+            if i + 2 < path.points.len() || path.points.len() % 3 != 0 {
+                kept.push(p);
+            }
+        }
+        path.points = kept;
+    } else {
+        let last = point_at(path, path.points.len() - 1);
+        let first = point_at(path, 0);
+        path.points.push(lerp(last, first, 1.0 / 3.0));
+        path.points.push(lerp(last, first, 2.0 / 3.0));
+        path.closed = true;
+    }
+    S.pen.dirty = true;
+    save(S);
+}
+
+/// Make a node that strokes a fresh, empty `path2d`, so the Pen has something
+/// to draw into from a scene that has none.
+pub fn new_path(S) {
+    let name = model::unique_name(S.doc, "Path");
+    let rel = format!("paths/{}.toml", name.to_lowercase());
+    let (ok, err) = script::attempt(|| assets::save(
+        S.game_root + "/" + rel,
+        #{ type: "path2d", points: [], closed: false },
+    ));
+    if !ok {
+        log::warn(format!("cannot write {}: {:?}", rel, err));
+        return;
+    }
+    history::record(S, "add path", None);
+    S.doc.push(#{
+        id: model::fresh_id(S.doc, name),
+        name: name,
+        parent: "",
+        position: [0.0, 0.0, 0.0],
+        shape2d: #{ kind: render::SHAPE_POLYLINE, mesh: rel, width: 0.06 },
+    });
+    model::forget(S, None);
+    model::build_mirror(S);
+    crate::selection::only(S, S.doc.len() - 1);
+    S.tool = "pen";
+    log::info("added " + rel);
+}
+
+/// The control point under the pointer, as `[index, is_anchor]`.
+fn pick(S, path, f, mx, my) {
+    let reach = PICK_PX * viewport::world_per_px(S);
+    let best = None;
+    let best_d = reach;
+    for i in 0..path.points.len() {
+        let p = point_at(path, i);
+        let (wx, wy) = to_world(f, p[0], p[1]);
+        let d = math::sqrt((wx - mx) * (wx - mx) + (wy - my) * (wy - my));
+        // Anchors win ties: a handle sits on top of one when it is not pulled.
+        // Indexing the Option reaches the pair inside it, so it is unwrapped.
+        let holds_handle = match best {
+            Some(held) => held[0] % 3 != 0,
+            None => false,
+        };
+        if d < best_d || (d <= reach && i % 3 == 0 && holds_handle) {
+            best = Some([i, i % 3 == 0]);
+            best_d = d;
+        }
+    }
+    best
+}
+
+/// Runs every frame while the Pen is the active tool, from the 2D gizmo's
+/// dispatch. `mx`/`my` are the pointer in world units.
+pub fn update(S, over_viewport, mx, my) {
+    let path = match current(S) {
+        Some(path) => path,
+        None => {
+            S.pen.hover = None;
+            return;
+        }
+    };
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    S.pen.hover = if over_viewport { pick(S, path, f, mx, my) } else { None };
+    let broken = input::is_down("LAlt") || input::is_down("RAlt");
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+        let hit_some = S.pen.hover;
+        match hit_some {
+            Some(hit) => {
+                // Clicking the first anchor with a chain behind it closes the
+                // path, the way every pen tool closes one.
+                if hit[1] && hit[0] == 0 && path.points.len() >= 4 && !path.closed {
+                    toggle_closed(S);
+                } else {
+                    S.pen.drag = Some(#{ at: hit[0], broken: broken });
+                }
+            }
+            None => {
+                let (lx, ly) = to_local(f, mx, my);
+                add_anchor(S, lx, ly);
+                // The new anchor is the one a drag now pulls a handle from.
+                let made = S.pen.path.points.len() - 1;
+                S.pen.drag = Some(#{ at: made, broken: broken });
+            }
+        }
+    }
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_RIGHT) {
+        let hit_some = S.pen.hover;
+        if let Some(hit) = hit_some {
+            if hit[1] {
+                remove_anchor(S, hit[0]);
+            }
+        }
+    }
+    if !input::is_mouse_down(input::MOUSE_LEFT) {
+        if S.pen.drag.is_some() {
+            history::commit(S);
+        }
+        S.pen.drag = None;
+        return;
+    }
+    let pulling = S.pen.drag;
+    if let Some(pull) = pulling {
+        let (lx, ly) = to_local(f, mx, my);
+        move_point(S, pull.at, lx, ly, pull.broken);
+    }
+}
+
+pub fn cancel(S) {
+    S.pen.drag = None;
+    S.pen.hover = None;
+}
+
+/// Anchors as squares, handles as dots on their tethers, and the sampled
+/// curve as a line. Drawn over the stroke the renderer already draws.
+pub fn draw(S) {
+    if S.tool != "pen" {
+        return;
+    }
+    let path = match current(S) {
+        Some(path) => path,
+        None => return,
+    };
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    let k = S.theme;
+    let accent = util::rgb(k.accent);
+    let dim = util::rgb(k.dim);
+    let mark = MARK_PX * viewport::world_per_px(S);
+    let hover = S.pen.hover;
+    for i in 0..path.points.len() {
+        let p = point_at(path, i);
+        let (wx, wy) = to_world(f, p[0], p[1]);
+        let is_anchor = path.points.len() < 3 || i % 3 == 0;
+        let hot = match hover {
+            Some(hit) => hit[0] == i,
+            None => false,
+        };
+        let c = if hot { accent } else if is_anchor { accent } else { dim };
+        if is_anchor {
+            let r = mark;
+            render::draw_line_2d(wx - r, wy - r, wx + r, wy - r, c[0], c[1], c[2], W);
+            render::draw_line_2d(wx + r, wy - r, wx + r, wy + r, c[0], c[1], c[2], W);
+            render::draw_line_2d(wx + r, wy + r, wx - r, wy + r, c[0], c[1], c[2], W);
+            render::draw_line_2d(wx - r, wy + r, wx - r, wy - r, c[0], c[1], c[2], W);
+        } else {
+            // The tether to the anchor this handle belongs to.
+            let anchor = if i % 3 == 1 { i - 1 } else { i + 1 };
+            if anchor < path.points.len() {
+                let a = point_at(path, anchor);
+                let (ax, ay) = to_world(f, a[0], a[1]);
+                render::draw_line_2d(ax, ay, wx, wy, dim[0], dim[1], dim[2], 1.0);
+            }
+            let r = mark * 0.7;
+            render::draw_line_2d(wx - r, wy, wx + r, wy, c[0], c[1], c[2], W);
+            render::draw_line_2d(wx, wy - r, wx, wy + r, c[0], c[1], c[2], W);
+        }
+    }
+}

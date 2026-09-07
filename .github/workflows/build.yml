@@ -39,24 +39,32 @@ jobs:
             target: macos-universal
           - os: windows-latest
             target: windows-x64
-    # What the Mac and Windows downloads are signed with. Only a push carries
-    # the three that switch signing on: a pull request's artifacts are thrown
-    # away, and signing them spends quota and sits in Apple's notary queue.
+          # Built on an ARM runner rather than cross-compiled, so the smoke
+          # export in package.sh runs the game it just made.
+          - os: windows-11-arm
+            target: windows-arm64
+    # What the Mac and Windows downloads are signed with. A fork's pull
+    # request is handed no secret, so the scripts skip and build unsigned;
+    # Windows signs on a push, because Trusted Signing bills per signature.
     env:
       MACOS_SIGN_IDENTITY: ${{ vars.MACOS_SIGN_IDENTITY }}
-      MACOS_CERTIFICATE_BASE64: ${{ github.event_name == 'push' && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
+      MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      TRUSTED_SIGNING_ENDPOINT: ${{ github.event_name == 'push' && vars.TRUSTED_SIGNING_ENDPOINT || '' }}
+      TRUSTED_SIGNING_ENDPOINT: ${{ vars.TRUSTED_SIGNING_ENDPOINT }}
       TRUSTED_SIGNING_ACCOUNT: ${{ vars.TRUSTED_SIGNING_ACCOUNT }}
       TRUSTED_SIGNING_PROFILE: ${{ vars.TRUSTED_SIGNING_PROFILE }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      WINDOWS_CERTIFICATE_BASE64: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
+      WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      # Sign an exported game with a certificate the runner makes, and read
+      # the result back (scripts/signing_check.sh). No secret, so a fork's
+      # pull request proves the same paths a push does.
+      BALAUR_SIGNING_CHECK: "1"
     steps:
       - uses: actions/checkout@v7
       # The same action a game's own repository calls to build a custom
@@ -74,7 +82,7 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    name: build ${{ matrix.platform }}
+    name: build ${{ matrix.platform }}${{ matrix.label && format(' · {0}', matrix.label) }}
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -86,8 +94,20 @@ jobs:
             host: macos-latest
           - platform: android
             host: ubuntu-latest
+          # The template a release ships. Its feature list is the default in
+          # scripts/package_template.sh, named there and nowhere else so the
+          # two cannot drift.
           - platform: web
             host: ubuntu-latest
+            label: every feature
+          # The shared-memory module, for a host that sends COOP and COEP. A
+          # browser loads it nowhere else and cannot thread the plain one, so
+          # the two ship side by side and a game picks by where it is served.
+          - platform: web
+            host: ubuntu-latest
+            variant: threads
+            label: threads
+            threads: "true"
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -95,6 +115,9 @@ jobs:
       - uses: ./.github/actions/build-engine
         with:
           platform: ${{ matrix.platform }}
+          variant: ${{ matrix.variant }}
+          web-features: ${{ matrix.web-features }}
+          threads: ${{ matrix.threads }}
           attest: ${{ github.event_name == 'push' }}
 
   # Exports a game with each template and checks the result is what the OS
@@ -131,6 +154,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: export-${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Export a game with the template
         shell: bash
         run: ./scripts/export_check.sh ${{ matrix.platform }}

@@ -82,6 +82,13 @@ inputs:
     description: The key alias inside the keystore.
     required: false
     default: ""
+  bundletool:
+    description: >-
+      Path to `bundletool.jar`, which builds the AAB Play takes. Google ships
+      it apart from the SDK, so a runner has to fetch it; without it an
+      Android export writes the APK alone.
+    required: false
+    default: ""
   windows-certificate:
     description: >-
       Base64 of the Authenticode `.pfx`, or of an Azure Trusted Signing
@@ -161,6 +168,7 @@ runs:
         BALAUR_KEYSTORE_PASSWORD: ${{ inputs.android-keystore-password }}
         BALAUR_KEY_PASSWORD: ${{ inputs.android-key-password }}
         BALAUR_SIGN_PASSWORD: ${{ inputs.windows-certificate-password }}
+        BALAUR_BUNDLETOOL: ${{ inputs.bundletool }}
       run: |
         set -euo pipefail
         export BALAUR_NOTARY_KEY="$SECRETS/notary.p8"
@@ -182,8 +190,11 @@ runs:
               ;;
             android)
               flags+=(--apk)
+              # Play takes the bundle, every other store takes the APK, so a
+              # run that has bundletool builds both.
+              [ -n "$BALAUR_BUNDLETOOL" ] && flags+=(--aab)
               ;;
-            windows-x64)
+            windows-x64 | windows-arm64)
               [ -f "$SECRETS/certificate.pfx" ] && flags+=(--sign "$SECRETS/certificate.pfx")
               ;;
           esac

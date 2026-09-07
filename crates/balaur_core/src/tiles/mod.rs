@@ -12,7 +12,7 @@ use glamx::Vec2;
 
 pub mod rules;
 
-pub use rules::{Mode, Outside, Rule, Terrain, resolve, template};
+pub use rules::{Mode, Outside, Quarter, Rule, Terrain, resolve, template};
 
 use crate::components::as_f64;
 
@@ -149,6 +149,30 @@ impl TileSet {
     #[must_use]
     pub fn group(&self, id: u32) -> Option<Group> {
         self.tile(id).and_then(Tile::group)
+    }
+
+    /// The terrain a cell drawn in quarters belongs to, found by the one tile
+    /// its rules place. `None` for every tile drawn as one quad.
+    #[must_use]
+    pub fn quarters_terrain(&self, id: u32) -> Option<&Terrain> {
+        self.terrains
+            .iter()
+            .find(|terrain| terrain.mode == Mode::Quarters && terrain.first_tile == id)
+    }
+
+    /// The pixel rect of one quarter of a tile: `[x, y, w, h]`, the corner
+    /// counted clockwise from the top left.
+    #[must_use]
+    pub fn quarter_rect(&self, id: u32, corner: usize) -> [f32; 4] {
+        let [x, y, w, h] = self.tile_rect(id);
+        let (half_w, half_h) = (w / 2.0, h / 2.0);
+        let (dx, dy) = match corner {
+            0 => (0.0, 0.0),
+            1 => (half_w, 0.0),
+            2 => (half_w, half_h),
+            _ => (0.0, half_h),
+        };
+        [x + dx, y + dy, half_w, half_h]
     }
 
     /// The pixel rect of a tile on the sheet: `[x, y, w, h]`.
@@ -378,6 +402,10 @@ fn odd_row(row: f32) -> bool {
     (row.rem_euclid(2.0) - 1.0).abs() < 0.5
 }
 
+/// The four corners of a cell, clockwise from the top left: the order a
+/// quarter's tile, its rect and its quad are all counted in.
+const CORNERS: [(i32, i32); 4] = [(-1, -1), (1, -1), (1, 1), (-1, 1)];
+
 /// A cell drawn mirrored left to right.
 pub const FLIP_X: u8 = 1;
 /// A cell drawn mirrored top to bottom.
@@ -550,6 +578,22 @@ impl TileGrid {
         out
     }
 
+    /// The tile each corner of a cell takes its picture from, clockwise from
+    /// the top left, for a cell whose terrain is drawn in quarters.
+    ///
+    /// `None` is a cell drawn as one quad, which is every cell of every other
+    /// terrain. The answer is the neighbourhood's alone, so a hand-placed
+    /// tile autotiles the same way a painted one does.
+    #[must_use]
+    pub fn quarters(&self, set: &TileSet, column: i32, row: i32) -> Option<[u32; 4]> {
+        let terrain = set.quarters_terrain(self.cell(column, row)?)?;
+        let same = |dx: i32, dy: i32| self.cell(column + dx, row + dy) == Some(terrain.first_tile);
+        Some(CORNERS.map(|(dx, dy)| {
+            let quarter = Quarter::of(same(dx, 0), same(0, dy), same(dx, dy));
+            terrain.quarters[quarter.index()]
+        }))
+    }
+
     /// What the tile at a cell carries, for a game that reads it.
     #[must_use]
     pub fn data_at<'a>(&self, set: &'a TileSet, column: i32, row: i32) -> Option<&'a toml::Value> {
@@ -671,6 +715,98 @@ mod tests {
             tile_world: [1.0, 1.0],
             ..TileGrid::default()
         }
+    }
+
+    /// A sheet whose one terrain is drawn in quarters: fill 0, horizontal 1,
+    /// vertical 2, outer 3, inner 4.
+    fn quartered() -> TileSet {
+        set(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nfirst_tile = 0",
+        )
+    }
+
+    #[test]
+    fn a_cell_with_nothing_beside_it_is_four_outer_corners() {
+        let (set, grid) = (quartered(), grid(&[&[0]]));
+        assert_eq!(grid.quarters(&set, 0, 0), Some([3, 3, 3, 3]));
+    }
+
+    #[test]
+    fn a_cell_walled_in_by_its_own_terrain_is_four_fills() {
+        let (set, grid) = (quartered(), grid(&[&[0, 0, 0], &[0, 0, 0], &[0, 0, 0]]));
+        assert_eq!(grid.quarters(&set, 1, 1), Some([0, 0, 0, 0]));
+    }
+
+    #[test]
+    fn an_edge_runs_the_way_the_terrain_carries_on() {
+        let set = quartered();
+        let across = grid(&[&[0, 0, 0]]);
+        assert_eq!(
+            across.quarters(&set, 1, 0),
+            Some([1, 1, 1, 1]),
+            "a strip with nothing above or below draws four horizontal edges"
+        );
+        let down = grid(&[&[0], &[0], &[0]]);
+        assert_eq!(
+            down.quarters(&set, 0, 1),
+            Some([2, 2, 2, 2]),
+            "and a strip with nothing either side draws four vertical ones"
+        );
+    }
+
+    #[test]
+    fn a_corner_the_terrain_wraps_around_is_an_inner_one() {
+        let (set, grid) = (quartered(), grid(&[&[-1, 0, 0], &[0, 0, 0], &[0, 0, 0]]));
+        let quarters = grid.quarters(&set, 1, 1).expect("the cell is quartered");
+        assert_eq!(
+            quarters[0], 4,
+            "its west and north are the terrain and its north-west is not"
+        );
+        assert_eq!(
+            quarters[2], 0,
+            "while the corner away from the hole is filled"
+        );
+    }
+
+    #[test]
+    fn a_tile_no_quartered_terrain_claims_is_drawn_as_one_quad() {
+        let (set, grid) = (quartered(), grid(&[&[7]]));
+        assert_eq!(grid.quarters(&set, 0, 0), None);
+        assert_eq!(grid.quarters(&set, 9, 9), None, "and so is an empty cell");
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "whole pixels, halved exactly")]
+    fn a_quarter_is_the_corner_of_its_own_tile() {
+        let set = quartered();
+        assert_eq!(set.quarter_rect(0, 0), [0.0, 0.0, 4.0, 4.0]);
+        assert_eq!(set.quarter_rect(0, 2), [4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(
+            set.quarter_rect(1, 3),
+            [8.0, 4.0, 4.0, 4.0],
+            "tile 1 is the next along"
+        );
+    }
+
+    #[test]
+    fn a_terrain_whose_block_is_not_five_in_a_row_names_its_tiles() {
+        let named = set(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1, 2, 3, 6]",
+        );
+        let grid = grid(&[&[-1, 0], &[0, 0]]);
+        let quarters = grid.quarters(&named, 1, 1).expect("the cell is quartered");
+        assert_eq!(
+            quarters[0], 6,
+            "the inner corner is where the sheet keeps it"
+        );
+        let wrong = toml::from_str::<toml::Value>(
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1]",
+        )
+        .unwrap();
+        assert!(
+            parse_tileset(&wrong).is_err(),
+            "a short list is a typo, not a default"
+        );
     }
 
     #[test]

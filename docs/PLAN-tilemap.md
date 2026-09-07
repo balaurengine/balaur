@@ -1,11 +1,13 @@
-> **Status:** everything but step 7 shipped 2026-09-06. What a tile is,
+> **Status:** every step shipped; steps 1-6, 8 and 9 on 2026-09-06 and step
+> 7 on 2026-09-07. What a tile is,
 > collision from the solid cells as one parry voxel shape, a map anchored on
 > its node with an origin and per-cell flags, the rule table with its
 > templates, animated and light-blocking tiles, per-tile data, the Tiles
 > tool's fill, line, pick, stamp and terrain brushes, a Set panel that writes
 > the tile set, isometric and hexagonal layouts, cells a level may keep in its
-> own file, and `balaur import` for Tiled and LDtk. Left: **quarter-tile
-> sheets** (step 7), which need the mesh to draw four sub-quads per cell. The
+> own file, `balaur import` for Tiled and LDtk, and quarter-tile sheets, which
+> draw four sub-quads per cell from the five tiles an RPG-Maker-A2 sheet
+> ships. What is left is the open questions in §8. The
 > tileset editor is a panel in the Tiles dock rather than a document tab, and
 > D24 is fixed: the mirror inlines an asset file's definition, so a tileset
 > kept in a file draws in the editor.
@@ -184,11 +186,23 @@ repair loop is the feature, not the guess.
 
 ### Quarters
 
-`mode = "quarters"`: a cell is four quarter quads, each chosen by its own
-2 × 2 corner neighbourhood, from sixteen quarter rects the tileset names.
+`mode = "quarters"`: a cell is four quarter quads, each chosen by the two
+cells beside that corner and the one across it. Five cases cover every
+neighbourhood — fill, horizontal edge, vertical edge, outer corner, inner
+corner — so the terrain draws from five tiles and takes the quarter that sits
+where the corner does. Twenty quarter rects from five tiles, not sixteen
+named ones: the corner a quarter is cut from is the corner it lands in, which
+is what makes one tile serve all four sides.
+
 This is the RPG-Maker-A2 family — a large share of free sheets ship as five
 tiles and produce all 47 combinations this way, and without it those sheets
-cannot be used at all.
+cannot be used at all. A sheet whose five are not consecutive names them:
+`quarters = [fill, horizontal, vertical, outer, inner]`.
+
+A cell is quartered when its tile is the terrain's `first_tile`, so a
+hand-placed tile autotiles the same way a painted one does, and the four
+tiles a cell resolves to ride in the chunk digest — a cell drawn from its
+neighbours has to rebuild when one of them is in another chunk.
 
 ### Reading another layer
 
@@ -348,7 +362,7 @@ Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 5. The Tiles dock's remaining brushes and the terrain brush, each asserted by
    `tilesdemo`.
 6. The tileset document tab, behind D24.
-7. Quarter-tile sheets.
+7. Quarter-tile sheets. *Built 2026-09-07.*
 8. Isometric and hexagonal layouts, and the hex rule widget.
 9. Tiled and LDtk import.
 

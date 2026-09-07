@@ -99,6 +99,11 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 [profile.dev]
 debug = "line-tables-only"
 
+# A dependency's line tables are copied into each of the 130 test binaries and
+# read only when a backtrace passes through one. The workspace keeps its own.
+[profile.dev.package."*"]
+debug = false
+
 # What ships: whole-program LTO and one codegen unit, a slower link for a
 # smaller, faster binary. `panic` stays unwind for the extension seam.
 [profile.release]

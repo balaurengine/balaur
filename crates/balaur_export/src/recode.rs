@@ -385,11 +385,19 @@ fn wav_floats(
 }
 
 #[cfg(target_family = "wasm")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the signature of the encoder this stands in for"
+)]
 fn shrink_png(_bytes: &[u8], _format: ImageFormat) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
 
 #[cfg(target_family = "wasm")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the signature of the encoder this stands in for"
+)]
 fn to_vorbis(_bytes: &[u8], _quality: f32) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
@@ -417,6 +425,10 @@ fn subset_face(bytes: &[u8], keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
 }
 
 #[cfg(not(all(feature = "recode-fonts", not(target_family = "wasm"))))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the signature of the encoder this stands in for"
+)]
 fn subset_face(_bytes: &[u8], _keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }

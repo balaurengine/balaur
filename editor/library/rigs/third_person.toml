@@ -1,0 +1,23 @@
+# A pivot that trails what it watches, with the camera hanging behind it.
+# Rename the target to the node this should follow; `lag` is how many seconds
+# the pivot takes to catch up, and the camera's own place is the framing.
+
+[[nodes]]
+id = "rig_third_person"
+name = "Third person rig"
+
+[nodes.modifier3d]
+kind = "follow"
+target = "../Player"
+lag = 0.2
+
+[[nodes]]
+id = "rig_third_person_camera"
+name = "Camera"
+parent = "rig_third_person"
+position = [0, 3.5, 8]
+rotation_euler = [-18, 0, 0]
+
+[nodes.camera]
+kind = "3d"
+current = true

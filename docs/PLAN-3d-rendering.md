@@ -1,5 +1,8 @@
-> **Status:** not started. Written down on 2026-09-05, after comparing the
-> engine against Spline, the 3D design tool. The order is what is visible
+> **Status:** steps 1 and 3 built 2026-09-07, and step 2's `environment`
+> component with it, alongside `docs/PLAN-editor-ergonomics.md`, which stood
+> on them. Image-based lighting, SSAO, transparency, the finishing passes,
+> mirrors, the path tracer and layer stacks are not built. Written down on
+> 2026-09-05, after comparing the engine against Spline, the 3D design tool. The order is what is visible
 > first: lights, because a scene lights itself with one hard-coded sun today
 > and nothing a designer places changes that; then the material contract,
 > because every map and knob below sits on it; then the sky, which is what
@@ -26,7 +29,11 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| One directional light, added by the backend and never authored | `kiss3d_backend.rs::Frontend::new`, `add_light(Light::directional(...))` |
+| `light3d`: point, directional and spot, with shadows and light layers, resolved headless. The backend's own sun retires when a scene places one | `light3d.rs`, `LightSlots` |
+| `environment`: sky, ambient, fog, exposure, tonemap, grading, the shadow budget | `light3d.rs::Environment`, `sync_environment` |
+| A physically based surface over the frame's lights: GGX, Smith, Schlick, with a normal map from screen-space derivatives | `shaders/pbr.wesl`, mounted as `package::pbr` |
+| Six texture slots on group 2, each with the fork's one-pixel neutral | `material::TEXTURE_SLOTS`, `Param::Texture` |
+| `shadows` and `layers` on `mesh` and `shape3d` | `Renderable`, `lighting_from_params` |
 | A 3D material contract with sixteen lights of three kinds, ambient and fog in its frame uniforms | `shaders/mesh.wesl`, `shader_material_3d.rs` (`MAX_LIGHTS`) |
 | `camera.post` flags applied to the fork's passes: bloom, SSAO, SSR, depth of field | `kiss3d_backend.rs:365-369`, `window.set_bloom_enabled` and friends |
 | A `material` asset: a WESL shader, `features`, `params` read off the shader's `Params` struct | `material.rs`, `render.material_params` |
@@ -165,20 +172,22 @@ the module.
 | Morph targets and vertex colours | Built: `MeshData` carries both, and a material asks for the colours with `features = { vertex_color = true }` |
 | Instancing (*fork* `set_instances`) | Built: `balaur_render::instancing`, which the `cloner` draws through |
 | Baked lightmaps | Not planned; nothing in the fork bakes, and IBL plus shadows is what a design tool ships |
+| Decals: a texture projected onto what is under it | Step 9. Not in the fork: a screen-space pass over the depth buffer, with a `decal` component carrying a projector box |
+| Volumetric fog and light shafts | Step 9. Not in the fork either: a froxel march the shadow atlas already has the data for |
 
 ## 3. Steps
 
-1. **Lights.** `light3d`, the default-sun rule, `resolve_lights_system`
-   headless, the frame group bound with shadows and the clustered buffers,
-   `shadows` on the renderables, `environment.shadows`. Ends with: a spot
-   light in `examples/hello` casting a shadow, and a test that reads the
-   resolved list with no GPU.
-2. **Environment.** The component, sky and IBL, fog, exposure, tonemap,
-   grading. Ends with: `examples/rig3d` under a studio sky.
-3. **The contract.** `Param::Texture`, `shaders/pbr.wesl` as the built-in,
-   `mesh.wesl` gaining the BRDF, shadow, IBL and SSAO reads, `glb.rs` keeping
-   factors and maps as a material definition per primitive. Ends with: a
-   glTF sample looking like its reference render.
+1. **Lights.** *Built 2026-09-07.* `light3d`, the default-sun rule,
+   `light3d::lights` headless, `shadows` and `layers` on the renderables,
+   `environment.shadows`. A spot light lights `examples/hello`.
+2. **Environment.** *Built in part.* The component, fog, exposure, tonemap and
+   grading are pushed to the window; the sky loads and orients. Image-based
+   lighting is not bound, so a sky lights nothing yet.
+3. **The contract.** *Built in part.* `Param::Texture` and its six slots, and
+   `package::pbr` as the surface a material imports. Not built: `pbr.wesl` as
+   the *built-in* a node with no material draws (that changes every existing
+   scene's look), the shadow, IBL and SSAO reads, and `glb.rs` keeping factors
+   and maps.
 4. **Transparency and glass.** Alpha modes, OIT when blending, transmission.
 5. **Finishing.** Post-process materials on `camera.post`
    (`docs/PLAN-shaders.md` phase 9) with the four passes; FXAA and CAS as
@@ -189,6 +198,9 @@ the module.
 8. **Layers.** `shaders/layers.wesl` and its inspector folds, last because it
    is the designer's face over everything above and should not be designed
    before the parts exist.
+9. **Decals and volumetrics.** A `decal` component projecting onto the depth
+   buffer, and a froxel march for fog a light shafts through. Both are new
+   passes rather than fork features, and both want step 1's shadow atlas.
 
 ## 4. What CI can prove, and what it cannot
 

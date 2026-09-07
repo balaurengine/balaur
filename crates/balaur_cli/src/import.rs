@@ -5,8 +5,29 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
+/// What an import wrote: the project-relative paths, and the scene the editor
+/// would instantiate for a model.
+#[derive(Debug, Default)]
+pub(crate) struct Imported {
+    pub files: Vec<String>,
+    pub scene: Option<String>,
+    pub note: String,
+}
+
+/// `balaur import <file>`, printing each path it wrote.
+pub(crate) fn import_and_report(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+    let imported = import_file(file, project, layers)?;
+    for rel in &imported.files {
+        println!("wrote {}", project.join(rel).display());
+    }
+    if !imported.note.is_empty() {
+        println!("{}", imported.note);
+    }
+    Ok(())
+}
+
 /// `balaur import <file>`: by extension, a model or a sprite.
-pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<Imported> {
     let extension = file
         .extension()
         .and_then(|e| e.to_str())
@@ -24,7 +45,7 @@ pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Res
 
 /// `balaur import level.tmx --project game`: the atlas, a `tileset` per
 /// sheet, and a scene of `tilemap` nodes, one per tile layer.
-fn import_level(file: &Path, project: &Path) -> Result<()> {
+fn import_level(file: &Path, project: &Path) -> Result<Imported> {
     let stem = import_stem(file)?;
     let ldtk = file
         .extension()
@@ -35,21 +56,25 @@ fn import_level(file: &Path, project: &Path) -> Result<()> {
         crate::import_tiled::import(file, &stem)
     }
     .with_context(|| format!("importing {}", file.display()))?;
+    let mut out = Imported::default();
     for (rel, data) in &imported.files {
         let path = project.join(rel);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&path, data)?;
-        println!("wrote {}", path.display());
+        out.files.push(rel.clone());
+        if rel.starts_with("scenes/") {
+            out.scene = Some(rel.clone());
+        }
     }
-    println!(
+    out.note = format!(
         "imported {} as {} layer{}",
         file.display(),
         imported.layers,
         if imported.layers == 1 { "" } else { "s" }
     );
-    Ok(())
+    Ok(out)
 }
 
 /// The name an imported file's outputs share: its stem, lowercased, with
@@ -67,7 +92,7 @@ fn import_stem(file: &Path) -> Result<String> {
 /// `balaur import walk.aseprite --project game`: `art/walk.png`,
 /// `sheets/walk.toml` and, with tags or more than one frame,
 /// `animations/walk.toml`.
-fn import_sprite(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+fn import_sprite(file: &Path, project: &Path, layers: &[String]) -> Result<Imported> {
     let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
     let stem = import_stem(file)?;
     let texture = format!("art/{stem}.png");
@@ -80,25 +105,26 @@ fn import_sprite(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
     if let Some(clips) = imported.clips {
         written.push((format!("animations/{stem}.toml"), clips.into_bytes()));
     }
+    let mut out = Imported::default();
     for (rel, data) in written {
         let path = project.join(&rel);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&path, data)?;
-        println!("wrote {}", path.display());
+        out.files.push(rel);
     }
-    println!(
+    out.note = format!(
         "{} frames on a {}x{} page",
         imported.frames, imported.width, imported.height
     );
-    Ok(())
+    Ok(out)
 }
 
 /// `balaur import model.glb --project game`: `models/model.glb` (and the
 /// files a `.gltf` names beside itself), `scenes/model.toml` and, with
 /// animations, `animations/model.toml`.
-fn import_model(file: &Path, project: &Path) -> Result<()> {
+fn import_model(file: &Path, project: &Path) -> Result<Imported> {
     let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
     let stem = import_stem(file)?;
     let extension = file
@@ -116,27 +142,28 @@ fn import_model(file: &Path, project: &Path) -> Result<()> {
     let models = project.join("models");
     std::fs::create_dir_all(&models)?;
     std::fs::create_dir_all(project.join("scenes"))?;
-    let model = models.join(&model_file);
-    std::fs::write(&model, &bytes)?;
-    println!("wrote {}", model.display());
+    let mut out = Imported::default();
+    std::fs::write(models.join(&model_file), &bytes)?;
+    out.files.push(format!("models/{model_file}"));
     for (name, data) in &imported.files {
         let path = models.join(name);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&path, data)?;
-        println!("wrote {}", path.display());
+        out.files.push(format!("models/{name}"));
     }
-    let scene = project.join("scenes").join(format!("{stem}.toml"));
-    std::fs::write(&scene, imported.scene_toml()?)?;
-    println!("wrote {}", scene.display());
+    let scene_rel = format!("scenes/{stem}.toml");
+    std::fs::write(project.join(&scene_rel), imported.scene_toml()?)?;
+    out.files.push(scene_rel.clone());
+    out.scene = Some(scene_rel);
     if let Some(clips) = imported.clips_toml()? {
         std::fs::create_dir_all(project.join("animations"))?;
-        let library = project.join("animations").join(format!("{stem}.toml"));
-        std::fs::write(&library, clips)?;
-        println!("wrote {}", library.display());
+        let library = format!("animations/{stem}.toml");
+        std::fs::write(project.join(&library), clips)?;
+        out.files.push(library);
     }
-    Ok(())
+    Ok(out)
 }
 
 #[cfg(test)]

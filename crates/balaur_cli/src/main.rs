@@ -1,5 +1,9 @@
 //! The `balaur` command line tool: create, run, export, and play projects.
 
+// A browser has no command line: `main` is empty there and everything argv
+// drives is compiled but never called.
+#![cfg_attr(target_family = "wasm", allow(dead_code))]
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -10,7 +14,10 @@ use clap::{Parser, Subcommand};
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod export_api;
+mod fmt;
+mod import_api;
 mod lsp;
+mod new_project;
 mod templates;
 mod update;
 mod version;
@@ -25,7 +32,13 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Create a new project directory with a starter scene and script.
-    New { path: PathBuf },
+    New {
+        path: PathBuf,
+        /// A starting point from the editor's library, rather than the one
+        /// node an empty project has. `--template list` names them.
+        #[arg(long)]
+        template: Option<String>,
+    },
     /// Run a project in dev mode: scripts hot reload automatically on save.
     Run {
         #[arg(default_value = ".")]
@@ -84,7 +97,7 @@ enum Command {
         output: Option<PathBuf>,
         /// Platform to build a standalone game for, naming a template in the
         /// templates directory (e.g. `linux-x64`, `macos-universal`,
-        /// `windows-x64`).
+        /// `windows-x64`, `windows-arm64`).
         #[arg(long)]
         target: Option<String>,
         /// Runtime template to append to, bypassing template lookup.
@@ -125,6 +138,10 @@ enum Command {
         /// Android's debug identity when the project names none.
         #[arg(long)]
         apk: bool,
+        /// Also build the AAB Play takes for a new app. Needs the SDK, a JDK
+        /// and `bundletool.jar`, which Google ships apart from the SDK.
+        #[arg(long)]
+        aab: bool,
         /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
         #[arg(long)]
         pkg: bool,
@@ -161,6 +178,16 @@ enum Command {
         /// Report warnings too, and fail on them.
         #[arg(long)]
         strict: bool,
+    },
+    /// Format every script in a project, or the files given, with Rune's own
+    /// formatter.
+    Fmt {
+        /// The project, or the `.rn` files to format.
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
+        /// Report which files would change, and write nothing.
+        #[arg(long)]
+        check: bool,
     },
     /// Update this install — the binary, the bundled editor and its runtime
     /// template — to the latest published build.
@@ -284,27 +311,39 @@ fn main() -> Result<()> {
     // so boot it and never look at argv. A plain build finds nothing here and
     // carries on as the CLI.
     if let Some(pack) = balaur::standalone::own_pack()? {
-        // A shipped game has no command line to ask for a frame budget, and a
-        // smoke test that never exits is not a smoke test. This is the seam CI
-        // uses to prove an exported game actually boots and runs.
-        if let Some(frames) = frame_budget() {
-            let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(&pack)?))?;
-            app.load_project()?;
-            for _ in 0..frames {
-                app.tick(balaur::FIXED_DT);
-            }
-            return Ok(());
-        }
-        return balaur::boot_pack(&pack);
+        return boot_own_pack(&pack);
     }
-    match Cli::parse_from(argv()).command {
+    dispatch(Cli::parse_from(argv()).command)
+}
+
+/// The pack appended to this executable, booted as the game it is.
+#[cfg(not(target_arch = "wasm32"))]
+fn boot_own_pack(pack: &[u8]) -> Result<()> {
+    // A shipped game has no command line to ask for a frame budget, and a
+    // smoke test that never exits is not a smoke test. This is the seam CI
+    // uses to prove an exported game actually boots and runs.
+    let Some(frames) = frame_budget() else {
+        return balaur::boot_pack(pack);
+    };
+    let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(pack)?))?;
+    app.load_project()?;
+    for _ in 0..frames {
+        app.tick(balaur::FIXED_DT);
+    }
+    Ok(())
+}
+
+/// Each subcommand, to the one function that runs it.
+#[cfg(not(target_arch = "wasm32"))]
+fn dispatch(command: Command) -> Result<()> {
+    match command {
         Command::Api => dump_api(),
         Command::Import {
             file,
             project,
             layers,
-        } => import::import_file(&file, &project, &layers),
-        Command::New { path } => new_project(&path),
+        } => import::import_and_report(&file, &project, &layers),
+        Command::New { path, template } => new_project::create(&path, template.as_deref()),
         Command::Run {
             path,
             headless,
@@ -355,6 +394,7 @@ fn main() -> Result<()> {
             profile,
             ipa,
             apk,
+            aab,
             pkg,
             report,
         } => export_game(&ExportArgs {
@@ -371,6 +411,7 @@ fn main() -> Result<()> {
             profile,
             ipa,
             apk,
+            aab,
             pkg,
             report,
         }),
@@ -381,6 +422,7 @@ fn main() -> Result<()> {
             filter,
         } => test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
+        Command::Fmt { paths, check } => fmt::run(&paths, check),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
         Command::Play { pack, frames } => play_pack(&pack, frames),
     }
@@ -719,6 +761,8 @@ fn edit_project(
     // library, and the editor is the only app with a button for it.
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(game.clone()))?;
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(game.clone()))?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
@@ -849,6 +893,7 @@ struct ExportArgs {
     profile: Option<PathBuf>,
     ipa: bool,
     apk: bool,
+    aab: bool,
     pkg: bool,
     report: bool,
 }
@@ -877,6 +922,7 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         profile: args.profile.clone(),
         ipa: args.ipa,
         apk: args.apk,
+        aab: args.aab,
         pkg: args.pkg,
         report_only: args.report,
         template_roots: balaur_export::default_roots(templates::cache_dir()),
@@ -885,18 +931,28 @@ fn export_game(args: &ExportArgs) -> Result<()> {
     })
 }
 
-/// What this binary adds to a project it compiles: the editor's `export`,
-/// which the editor's own scripts call and the engine does not carry.
+/// What this binary adds to a project it compiles: the editor's `export` and
+/// `import`, which the editor's own scripts call and the engine does not
+/// carry. A project that compiles without them is a project the editor cannot
+/// open.
 #[cfg(not(target_family = "wasm"))]
 fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plugin>> {
-    move || vec![Box::new(export_api::ExportPlugin::new(project.clone()))]
+    move || {
+        vec![
+            Box::new(export_api::ExportPlugin::new(project.clone())),
+            Box::new(import_api::ImportPlugin::new(project.clone())),
+        ]
+    }
 }
 
 fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     let found = balaur::check_project_using(
         path,
-        &mut [Box::new(export_api::ExportPlugin::new(path.to_path_buf()))],
+        &mut [
+            Box::new(export_api::ExportPlugin::new(path.to_path_buf())),
+            Box::new(import_api::ImportPlugin::new(path.to_path_buf())),
+        ],
     )?;
     #[cfg(target_family = "wasm")]
     let found = balaur::check_project(path)?;
@@ -945,10 +1001,13 @@ fn dump_api() -> Result<()> {
     )?;
 
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
-    // `export` is the editor's, registered by this binary rather than by the
-    // engine, so the probe has to load it or the reference would not list it.
+    // `export` and `import` are the editor's, registered by this binary rather
+    // than by the engine, so the probe loads both or the reference would list
+    // neither.
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(dir.clone()))?;
     app.load_project()?;
     let host = balaur::rune::rune_of(&app.engine);
     let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
@@ -1038,43 +1097,9 @@ fn bundle_project() -> Option<PathBuf> {
     }
     let project = PathBuf::from(std::env::var_os("HOME")?).join("Balaur");
     if !project.join("project.toml").is_file() {
-        new_project(&project).ok()?;
+        new_project::create(&project, None).ok()?;
     }
     Some(project)
-}
-
-fn new_project(path: &Path) -> Result<()> {
-    let name = path
-        .file_name()
-        .map_or_else(|| "game".to_string(), |n| n.to_string_lossy().into_owned());
-    std::fs::create_dir_all(path.join("scenes"))?;
-    std::fs::create_dir_all(path.join("scripts"))?;
-    std::fs::write(
-        path.join("project.toml"),
-        format!("[application]\nname = \"{name}\"\nmain_scene = \"scenes/main.toml\"\n"),
-    )?;
-    std::fs::write(
-        path.join("scenes/main.toml"),
-        r#"[[nodes]]
-name = "Hello"
-script = "scripts/hello.rn"
-"#,
-    )?;
-    std::fs::write(
-        path.join("scripts/hello.rn"),
-        r#"pub fn init(this) {
-    println!("hello from {}", this.node.name());
-    this.elapsed = 0.0;
-}
-
-pub fn update(this, dt) {
-    this.elapsed += dt;
-}
-"#,
-    )?;
-    tracing::info!("created project '{name}' at {}", path.display());
-    tracing::info!("run it with: balaur run {}", path.display());
-    Ok(())
 }
 
 #[cfg(test)]

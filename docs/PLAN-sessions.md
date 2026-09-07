@@ -236,6 +236,20 @@ is the bar for every step, as it was for the lockstep tests.
 6. **Host migration.** Ends with: the host killed, the game continues.
 7. **The editor.** The Network dock and "Play as two".
 
+## 3b. What a digest covers, and why a session in the editor once could not
+
+`digest::entries` narrows its node walk to `eng.debug_scope()`, so inside an
+editor the game is the subtree checked and the editor's own nodes are not.
+The sources a plugin registers did not know that, and animation and physics
+reported every node in the world.
+
+So `sessiondemo` never verified: the game reproduced exactly, every shared
+label matching, and the replay carried one extra entry, a tween on the
+editor's own bottom dock, which animates when play opens the Output dock.
+`digest::scope_of` hands a source the same scope. Fixed 2026-09-07.
+
+A source added later has to ask for the scope too; nothing makes it.
+
 ## 4. What CI can prove
 
 Loopback with injected loss, delay and jitter, which is where the twelve-tick

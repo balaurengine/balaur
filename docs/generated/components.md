@@ -308,9 +308,9 @@ A 2D light: the node's position places it, its rotation aims a directional one, 
 
 ### `modifier2d`
 
-`2d` · `animation` · 14 properties
+`2d` · `animation` · 16 properties
 
-Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, and `jiggle` lets a chain trail the pose on a spring.
+Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -323,8 +323,10 @@ Poses 2D bones after the clip has run, every frame: `look_at` turns one bone tow
 <tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
+<tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
@@ -713,7 +715,7 @@ The view the scene is drawn from, following the node's global pose: `look_at` ai
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
-<tr><td><code>post</code></td><td>flags</td><td><code>[]</code></td><td>Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only One of <code>bloom</code>, <code>ssao</code>, <code>ssr</code>, <code>dof</code>.</td></tr>
+<tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, tonemap name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
 <tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>
@@ -826,6 +828,39 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 </tbody>
 </table>
 
+### `environment`
+
+`3d` · `render` · 21 properties
+
+The scene's atmosphere: the sky it sits under and is lit by, the ambient light, fog, exposure, tonemap, colour grading and the shadow budget. The last `current` one in tree order wins, so a level can carry two and switch between them. Per-view effects stay on `camera.post`.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>ambient</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do</td></tr>
+<tr><td><code>contrast</code></td><td>float</td><td><code>1.0</code></td><td>Contrast around mid grey At least 0.0.</td></tr>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this is the environment the scene draws under; the last current one in tree order wins</td></tr>
+<tr><td><code>exposure</code></td><td>float</td><td><code>1.0</code></td><td>Linear multiplier before the tonemap At least 0.0.</td></tr>
+<tr><td><code>fog</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
+<tr><td><code>fog_color</code></td><td>color</td><td><code>[0.624, 0.706, 0.784, 1.0]</code></td><td>What distance fades toward</td></tr>
+<tr><td><code>fog_density</code></td><td>float</td><td><code>0.02</code></td><td>Thickness, for exponential fog At least 0.0.</td></tr>
+<tr><td><code>fog_end</code></td><td>float</td><td><code>80.0</code></td><td>Where linear fog is total, in world units At least 0.0.</td></tr>
+<tr><td><code>fog_height_falloff</code></td><td>float</td><td><code>0.0</code></td><td>How fast fog thins with height; zero fills the scene evenly At least 0.0.</td></tr>
+<tr><td><code>fog_start</code></td><td>float</td><td><code>10.0</code></td><td>Where linear fog begins, in world units At least 0.0.</td></tr>
+<tr><td><code>gamma</code></td><td>float</td><td><code>1.0</code></td><td>Gamma applied in linear space At least 0.01.</td></tr>
+<tr><td><code>saturation</code></td><td>float</td><td><code>1.0</code></td><td>Colour multiplier around luminance; zero is grey At least 0.0.</td></tr>
+<tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far from the camera shadows are drawn At least 0.0.</td></tr>
+<tr><td><code>shadow_resolution</code></td><td>int</td><td><code>2048</code></td><td>Side of the shadow map, in texels At least 256.</td></tr>
+<tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
+<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
+<tr><td><code>show_sky</code></td><td>bool</td><td><code>true</code></td><td>False lights the scene from the sky without drawing it, leaving the background colour</td></tr>
+<tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
+<tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
+<tr><td><code>sky_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
+<tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>.</td></tr>
+</tbody>
+</table>
+
 ### `joint3d`
 
 `3d` · `physics` · 18 properties · 7 methods
@@ -871,16 +906,38 @@ On a node carrying `joint3d`, as `node.joint3d.<method>`:
 </tbody>
 </table>
 
+### `light3d`
+
+`3d` · `render` · 8 properties
+
+A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Light colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>inner</code></td><td>float</td><td><code>20.0</code></td><td>Half-angle of a spot light&#x27;s full-brightness cone, in degrees Range 0.0–179.0.</td></tr>
+<tr><td><code>intensity</code></td><td>float</td><td><code>3.0</code></td><td>Brightness multiplier; over 1 blows past white At least 0.0.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>directional</code></td><td>A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims One of <code>directional</code>, <code>point</code>, <code>spot</code>.</td></tr>
+<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a node is lit when its own `layers` share a bit with these. -1 is every layer</td></tr>
+<tr><td><code>outer</code></td><td>float</td><td><code>35.0</code></td><td>Half-angle a spot light fades to nothing at, in degrees Range 0.0–179.0.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>30.0</code></td><td>How far a point or spot light reaches, in world units At least 0.0.</td></tr>
+<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this light casts shadows from the nodes that say they cast</td></tr>
+</tbody>
+</table>
+
 ### `mesh`
 
-`3d` · `render` · 4 properties
+`3d` · `render` · 6 properties
 
 Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 <tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the colour alone</td></tr>
@@ -889,9 +946,9 @@ Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the 
 
 ### `modifier3d`
 
-`3d` · `animation` · 14 properties
+`3d` · `animation` · 16 properties
 
-The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`, posing bones after the clip has run. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.
+The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -904,8 +961,10 @@ The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, 
 <tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
+<tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
@@ -915,7 +974,7 @@ The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, 
 
 ### `shape3d`
 
-`3d` · `render` · 12 properties · 5 methods
+`3d` · `render` · 14 properties · 5 methods
 
 An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.
 
@@ -928,10 +987,12 @@ An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder,
 <tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
+<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid, plane and pyramid At least 0.01.</td></tr>
 <tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
+<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
 <tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
 </tbody>
@@ -1287,6 +1348,45 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
+</tbody>
+</table>
+
+## Other
+
+### `bindings`
+
+`interaction` · 1 property
+
+What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>rows</code></td><td>strings</td><td><code>[]</code></td><td>The binding rows, each `{ event, when, action, target, value }` Scene shorthand: <code>rows</code>'s value can be given as the component's whole value.</td></tr>
+</tbody>
+</table>
+
+### `states`
+
+`interaction` · 2 properties · 2 methods
+
+Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = "#ff8800"`. `node.go("hover")` patches them over what the node already has, so a state says only what differs.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>current</code></td><td>string</td><td>—</td><td>The state this node is in; empty is the pose the scene gave it</td></tr>
+<tr><td><code>duration</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a transition takes; zero snaps At least 0.0.</td></tr>
+</tbody>
+</table>
+
+On a node carrying `states`, as `node.states.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>go(state: string)</code></td><td>—</td><td>Put the node in one of its `states`: the state&#x27;s table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.</td><td><code>node</code></td></tr>
+<tr><td><code>state()</code></td><td>—</td><td>The state the node is in, or &quot;&quot; for the pose the scene gave it.</td><td><code>node</code></td></tr>
 </tbody>
 </table>
 

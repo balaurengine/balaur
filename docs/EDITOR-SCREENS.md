@@ -83,6 +83,11 @@ document tab and dock at that persona's defaults. Selection is persona-independe
 
 ## 3. Left column — `left::draw`
 
+The tree's header carries the search field and a facet chip row (3D, 2D,
+Physics, Draws, Interface, Script); a chosen chip flattens the tree to the
+nodes carrying a component with that tag. A row shows a lock or a hidden mark
+where it has one, and a selected row that is not the active one reads bold.
+
 ```
 ┌──────────────────────────────┐ 262
 │ NODE TREE                 ＋ │ 36  heading 10 px caps + 21 px add
@@ -148,10 +153,13 @@ colliders, guides and the motion path are 3D lines from `gizmo`, `gizmo2d`,
 One pane for `.rn` and `.wesl`; a shader swaps the hooks list for a `SHADER`
 label and turns gutter clicks into value previews.
 
-### 4c. Events — `center::events_view` (`16`)
+### 4c. Events — `events::view` (`16`, `33`)
 
-One flat row per hook across the whole document: `● Node.hook()` left,
-`scripts/file.rn:12` right. No grouping, no click target.
+One row per `[[nodes.bindings]]` entry on the selected node: an event
+dropdown, a `when` field, an action, a target picked from the scene's nodes or
+its variables, a value, and a delete. *Add row* and *Convert to script* sit in
+the header; the scene's variables and the node's own script hooks are listed
+below the rows.
 
 ### 4d. Split — `center::split_code` + `viewport` (`17`)
 
@@ -162,8 +170,8 @@ region in the shell.
 
 ## 5. Bottom dock — `dock::draw`
 
-Seven built-in tabs plus one per registered plugin. 150 px; 212 px for timeline,
-debugger, session and profiler.
+Eleven built-in tabs plus one per registered plugin. 150 px; 212 px for
+timeline, debugger, session, profiler and cost.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -183,6 +191,10 @@ debugger, session and profiler.
 | Debugger | continue/over/into/out, the pause reason, frames and locals | 212 | `12` |
 | Session | recordings with tick counts; play, keep, export, delete, verify | 212 | `13` |
 | Profiler | `FRAME 1.17 ms of 16.7`, then per-script cost rows | 212 | `14` |
+| Cost | `FRAME 17 draws · 3758 triangles`, then a bar per node | 212 | `31` |
+| Library | material, lighting and template cards behind three chips | 150 | `32` |
+| Docs | the script reference, module by module, from the running engine | 150 | — |
+| Tiles | the tile set's palette, and the layers it paints into | 150 | — |
 | *plugin* | whatever `register()` returned | 150 | `19` |
 
 ---

@@ -663,14 +663,27 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "code_editor",
         &[],
-        "", "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
+        "", "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, any line clicked, and the caret as `#{ x, y, index }`.",
     )]);
     {
         m.function(
             "code_editor",
             |eng: &Engine, (id, source, opts): (String, String, Option<Value>)| {
                 let opts = Opts::with_roles(opts);
-                code_editor(eng, &id, &source, &opts)
+                let (text, changed, clicked, caret) = code_editor(eng, &id, &source, &opts)?;
+                // Design pixels, like every other rect a script is handed.
+                let scale = scale();
+                let caret = caret.map_or(Value::Nil, |c| {
+                    Value::Map(vec![
+                        (k::X.into(), Value::Num(f64::from(c.x / scale))),
+                        (k::Y.into(), Value::Num(f64::from(c.y / scale))),
+                        (
+                            k::INDEX.into(),
+                            Value::Int(i64::try_from(c.index).unwrap_or(i64::MAX)),
+                        ),
+                    ])
+                });
+                Ok((text, changed, clicked, caret))
             },
         );
     }

@@ -6,8 +6,8 @@ pub const HUD_H = 28.0;
 // The centre: the tool rail, then the viewport's chrome, the code pane or
 // the event bindings over the stage. The document tabs are the top bar's.
 
+use crate::complete;
 use crate::defs;
-use crate::highlight;
 use crate::icons;
 use crate::lint;
 use crate::model;
@@ -53,7 +53,7 @@ fn rail(S, k) {
                 ui::horizontal((), || {
                     ui::add_space(6);
                     if ui::circle_button(icons::ui("restore"), #{
-                        role: "tool", d: 28, size: 13, tooltip: "Show the tools",
+                        role: "tool", d: 28, size: 11.5, tooltip: "Show the tools",
                     }) {
                         S.rail_shut = false;
                     }
@@ -114,6 +114,66 @@ fn chip(S, k, key, label, default_on, near) {
     }
 }
 
+// What the viewport draws instead of the picture: the shaded scene, or one
+// channel of it. The channels come from the engine, so a plugin's is here too.
+fn view_modes() {
+    let out = [["", "Shaded"]];
+    for name in render::channels() {
+        out.push([name, crate::util::match_case("A", name)]);
+    }
+    out
+}
+
+/// The view-mode chip: shaded, or one channel drawn instead. Never a game
+/// feature; `render.set_channel` is the same call the palette makes.
+fn view_chip(S, k) {
+    let current = render::channel();
+    let label = "Shaded";
+    for mode in view_modes() {
+        if mode[0] == current {
+            label = mode[1];
+        }
+    }
+    ui::pill(icons::ui("viewmode") + "  " + label, #{
+        role: if current == "" { "chip" } else { "chip_on" },
+        menu: || {
+            for mode in view_modes() {
+                let name = mode[0];
+                if ui::menu_item(mode[1], #{ color: if name == current { k.accent } else { k.text } }) {
+                    render::set_channel(name);
+                }
+            }
+        },
+    });
+}
+
+/// Four camera slots on the chip row: click to go, hold ⇧ to store where the
+/// camera is now. Editor state, kept nowhere: a view is not the scene.
+fn bookmark_chips(S, k) {
+    ui::add_space(6);
+    for slot in 1..5 {
+        let key = format!("{}", slot);
+        let held = S.bookmarks.get(key);
+        if ui::pill(key, #{
+            height: 20, size: 10.5, min_width: 20, radius: 4,
+            fill: if held.is_some() { k.accent_soft } else { k.sunken },
+            color: if held.is_some() { k.accent } else { k.faint },
+            tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
+        }) {
+            if input::is_down("LShift") || input::is_down("RShift") {
+                let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+                S.bookmarks[key] = [ex, ey, ez, tx, ty, tz];
+                log::info("stored view " + key);
+            } else {
+                let held_some = held;
+                if let Some(pose) = held_some {
+                    render::set_camera(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
+                }
+            }
+        }
+    }
+}
+
 // The pointer inside the stage's top band, where the chips live.
 fn chips_wanted(S, vp) {
     let (px, py) = crate::inputview::pointer(S);
@@ -165,6 +225,11 @@ fn viewport(S, k) {
                 ui::add_space(8);
                 polygon::mode_chips(S, k);
             }
+            if S.persona == "scene" {
+                ui::add_space(8);
+                view_chip(S, k);
+                bookmark_chips(S, k);
+            }
         });
     });
     ui::overlay("vp-hud", #{ x: vp.x, y: vp.y + vp.h - HUD_H, w: vp.w, h: HUD_H }, || {
@@ -184,11 +249,11 @@ fn viewport(S, k) {
                     // and `ui::right` then pushes it off the stage's edge.
                     ui::horizontal(#{ height: 20, width: 94 }, || {
                         ui::spacing(2, 0);
-                        if ui::pill("−", #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill("−", #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
                         ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
-                        if ui::pill(icons::ui("add"), #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill(icons::ui("add"), #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });
@@ -224,7 +289,7 @@ fn hooks_sheet(S, k) {
         }
         if S.script_dirty.contains_key(S.game_root + "/" + rel) {
             ui::add_space(8);
-            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
+            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10.5 }));
         }
     });
 }
@@ -268,7 +333,15 @@ fn code_pane(S, k) {
     let current = S.script_buffers.get(path).unwrap_or(src);
     if !shading && S.hooks_src != current {
         S.hooks_src = current;
-        let (_, parsed) = highlight::analyze(current);
+        let found = script::symbols(rel, current);
+        let parsed = [];
+        if found is Vec {
+            for one in found {
+                if one.kind == "function" {
+                    parsed.push(#{ name: one.name, line: one.line, detail: one.detail });
+                }
+            }
+        }
         S.hooks_live = parsed;
     }
         // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
@@ -276,8 +349,8 @@ fn code_pane(S, k) {
     ui::scroll("code", (), || {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
-        let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
-            size: 12.5, gutter_width: 34, gutter_color: k.faint,
+        let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
+            size: 11.5, gutter_width: 34, gutter_color: k.faint,
             k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
             k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
             k_punc: k.k_punc,
@@ -297,6 +370,13 @@ fn code_pane(S, k) {
         if changed {
             S.script_dirty[path] = true;
         }
+        // A shader has no script tooling behind it; a Rune buffer does, and a
+        // showcase sequence places its own caret.
+        if shading {
+            complete::reset(S);
+        } else if !crate::showcase::driving(S) {
+            complete::update(S, rel, text, caret);
+        }
         if hit is i64 {
             // A shader's gutter has no breakpoints, so the same click
             // asks for the line's value instead.
@@ -308,31 +388,8 @@ fn code_pane(S, k) {
         }
         ui::add_space(12);
     });
-}
-
-// The `events` document tab: every script's engine-facing hooks, per node.
-fn events_view(S, k) {
-    let r = S.layout.doc;
-    if !style::placed(r) {
-        return;
-    }
-    ui::overlay("events", #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.bg, stroke: k.line, radius: 11,
-        padding_x: 20, padding_y: 14,
-    }, || {
-        style::section_label(k, "event bindings");
-        for node in S.doc {
-            let script_some = model::script_rel(node);
-            if let Some(script) = script_some {
-                for hook in model::hooks(S, script) {
-                    style::hook_pill(k, hook.name,
-                        format!("{}.{}()", node.name, hook.name),
-                        format!("{}:{}", script, hook.line));
-                }
-            }
-        }
-    });
+    complete::draw(S, S.theme);
+    crate::refactor::draw(S, S.theme);
 }
 
 pub fn draw(S) {
@@ -348,7 +405,7 @@ pub fn draw(S) {
     }
     if S.doc_open {
         if S.doctab == "events" {
-            events_view(S, k);
+            crate::events::view(S, k);
         } else if S.viewport_live {
             split_code(S, k);
         } else {

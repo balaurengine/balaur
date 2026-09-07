@@ -231,6 +231,10 @@ struct SceneDoc {
     /// Godot's `[sub_resource]`. See `crate::assets`.
     #[serde(default)]
     assets: Vec<SceneAsset>,
+    /// Typed values the scene owns: what a binding's `when` reads and what a
+    /// page embedding the game sets. See `crate::variables`.
+    #[serde(default)]
+    variables: toml::Table,
     #[serde(default)]
     nodes: Vec<SceneNode>,
 }
@@ -660,6 +664,7 @@ fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> R
     // A scene's `[[assets]]` are in scope only while it is being built, so
     // `#id` never resolves against a sibling scene; a prefab's own blocks nest
     // inside that rather than accumulating.
+    crate::variables::declare_from_toml(eng, &doc.variables)?;
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
     let outcome = instantiate_nodes(eng, &doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
@@ -673,15 +678,26 @@ pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
     if let Some(source) = eng.script_host().and_then(|host| host.scene_source(path)) {
         return Ok(source);
     }
-    let root = eng
-        .try_resource::<ProjectRoot>()
-        .map(|r| r.borrow().0.clone())
-        .unwrap_or_default();
-    let full = root.join(path);
-    let bytes = crate::files::backend(eng)
-        .read(&full)
-        .with_context(|| format!("reading scene file '{path}'"))?;
-    String::from_utf8(bytes).with_context(|| format!("scene file '{path}' is not UTF-8"))
+    // The project's own root, then any a host added. `balaur edit <game>`
+    // runs with the editor as the project root, so a scene the game names
+    // relative to itself is only found under the game's.
+    let backend = crate::files::backend(eng);
+    let mut roots = crate::file_api::project_roots(eng);
+    if roots.is_empty() {
+        roots.push(std::path::PathBuf::new());
+    }
+    let mut last = None;
+    for root in &roots {
+        match backend.read(&root.join(path)) {
+            Ok(bytes) => {
+                return String::from_utf8(bytes)
+                    .with_context(|| format!("scene file '{path}' is not UTF-8"));
+            }
+            Err(why) => last = Some(why),
+        }
+    }
+    Err(last.unwrap_or_else(|| anyhow!("no project root to read it from")))
+        .with_context(|| format!("reading scene file '{path}'"))
 }
 
 fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {

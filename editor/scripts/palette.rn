@@ -74,8 +74,34 @@ fn commands(S) {
         }),
         // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
+        command("Open the cost dock", icons::panel("cost"), "", || crate::docks::show(S, "cost")),
+        command("Open the library", icons::ui("library"), "", || crate::docks::show(S, "library")),
         command("Show event bindings", icons::ui("events"), "", || shell::open_doc(S, "events")),
+        command("Add an event binding", icons::ui("events"), "", || crate::events::add_row(S)),
+        command("Convert bindings to a script", "‹›", "", || crate::events::convert_to_script(S)),
         command("Split code and scene", icons::ui("split"), "⌘\\", || shell::toggle_split(S)),
+        command("Select all nodes", icons::ui("select-all"), "⌘A", || crate::selection::select_all(S)),
+        command("Group selection", icons::ui("group"), "⌘G", || crate::arrange::group(S)),
+        command("Ungroup", icons::ui("ungroup"), "⇧⌘G", || crate::arrange::ungroup(S)),
+        command("Align left (−x)", icons::ui("align-left"), "", || crate::arrange::align(S, 0, "min")),
+        command("Align centre (x)", icons::ui("align-center-h"), "", || crate::arrange::align(S, 0, "mid")),
+        command("Align right (+x)", icons::ui("align-right"), "", || crate::arrange::align(S, 0, "max")),
+        command("Align bottom (−y)", icons::ui("align-bottom"), "", || crate::arrange::align(S, 1, "min")),
+        command("Align middle (y)", icons::ui("align-center-v"), "", || crate::arrange::align(S, 1, "mid")),
+        command("Align top (+y)", icons::ui("align-top"), "", || crate::arrange::align(S, 1, "max")),
+        command("Align back (−z)", icons::ui("align-left"), "", || crate::arrange::align(S, 2, "min")),
+        command("Align depth (z)", icons::ui("align-center-h"), "", || crate::arrange::align(S, 2, "mid")),
+        command("Align front (+z)", icons::ui("align-right"), "", || crate::arrange::align(S, 2, "max")),
+        command("Distribute along x", icons::ui("distribute-h"), "", || crate::arrange::distribute(S, 0)),
+        command("Distribute along y", icons::ui("distribute-v"), "", || crate::arrange::distribute(S, 1)),
+        command("Distribute along z", icons::ui("distribute-h"), "", || crate::arrange::distribute(S, 2)),
+        command("Hide or show selection", icons::ui("hidden"), "H", || crate::arrange::toggle_hidden(S)),
+        command("Show every node", icons::ui("visible"), "⇧H", || crate::arrange::show_all(S)),
+        command("Lock or unlock selection", icons::ui("lock"), "⌘L", || crate::arrange::toggle_locked(S)),
+        command("Unlock every node", icons::ui("unlock"), "⇧⌘L", || crate::arrange::unlock_all(S)),
+        command("Isolate the selection", icons::ui("isolate"), "/", || crate::arrange::toggle_isolate(S)),
+        command("New path to draw with the Pen", icons::ui("pen"), "", || crate::pen::new_path(S)),
+        command("Close or open the selected path", icons::ui("path"), "", || crate::pen::toggle_closed(S)),
         command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
         command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
@@ -158,7 +184,7 @@ pub fn draw(S) {
                 ui::label(icons::ui("search"), #{ size: 16, color: k.accent });
                 ui::add_space(4);
                 let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
-                    size: 15, width: 440, autofocus: true, color: k.text,
+                    size: 16, width: 440, autofocus: true, color: k.text,
                 });
                 S.palette_query = text;
                 ui::right(|| {
@@ -184,10 +210,10 @@ pub fn draw(S) {
                     matched += 1;
                     let hit = #{ run: false };
                     let highlighted = first;
-                    ui::horizontal(#{ height: 40 }, || {
+                    ui::horizontal(#{ height: 30 }, || {
                         ui::add_space(8);
                         if ui::pill(cmd.label, #{
-                            height: 40, size: 13.5, align: ui::ALIGN_LEFT,
+                            height: 30, size: 13.5, align: ui::ALIGN_LEFT,
                             min_width: 430,
                             icon: cmd.icon, icon_size: 14, icon_color: k.accent,
                             fill: if highlighted { k.sunken } else { "#00000000" },

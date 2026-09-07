@@ -50,23 +50,27 @@ pub const PARAMS_GROUP: u32 = 3;
 const UNIFORM_ALIGN: usize = 16;
 
 /// One value a material sets, in the shape its `[params]` table wrote it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     Float(f32),
     Vec2([f32; 2]),
     Vec3([f32; 3]),
     Vec4([f32; 4]),
+    /// An image bound to one of [`TEXTURE_SLOTS`], rather than a number in
+    /// the uniform block. A param named for a slot and given a file path.
+    Texture(String),
 }
 
 impl Param {
     /// How the value would be spelled in WGSL, for an error that has to name
     /// both sides of a mismatch.
-    fn type_name(self) -> &'static str {
+    fn type_name(&self) -> &'static str {
         match self {
             Param::Float(_) => "f32",
             Param::Vec2(_) => "vec2<f32>",
             Param::Vec3(_) => "vec3<f32>",
             Param::Vec4(_) => "vec4<f32>",
+            Param::Texture(_) => "texture_2d<f32>",
         }
     }
 
@@ -76,8 +80,40 @@ impl Param {
             Param::Vec2(v) => v,
             Param::Vec3(v) => v,
             Param::Vec4(v) => v,
+            // Not a number in the block: a texture is bound, not uploaded.
+            Param::Texture(_) => &[],
         }
     }
+}
+
+/// The texture slots the 3D contract declares, in binding order. A `[params]`
+/// key named for one and given a file path binds that slot; every slot a
+/// material leaves out gets a one-pixel fallback, so a shader never branches
+/// on absence.
+pub const TEXTURE_SLOTS: &[&str] = &[
+    "albedo",
+    "normal",
+    "metallic_roughness",
+    "occlusion",
+    "emissive",
+    "height",
+];
+
+/// Whether `name` is one of [`TEXTURE_SLOTS`].
+#[must_use]
+pub fn is_texture_slot(name: &str) -> bool {
+    TEXTURE_SLOTS.contains(&name)
+}
+
+/// Image extensions a `[params]` string is read as a texture path for. A
+/// colour is `#rrggbb`, and a slot name with anything else is an error.
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "tga", "hdr", "exr"];
+
+fn names_an_image(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    IMAGE_EXTENSIONS
+        .iter()
+        .any(|extension| lower.ends_with(&format!(".{extension}")))
 }
 
 /// A parsed `material` asset.
@@ -95,6 +131,21 @@ pub struct Material {
 pub const VERTEX_COLOR: &str = "vertex_color";
 
 impl Material {
+    /// The image each texture slot is bound to, in [`TEXTURE_SLOTS`] order;
+    /// `None` for a slot this material left out.
+    #[must_use]
+    pub fn textures(&self) -> Vec<Option<&str>> {
+        TEXTURE_SLOTS
+            .iter()
+            .map(|slot| {
+                self.params.iter().find_map(|(name, param)| match param {
+                    Param::Texture(path) if name == slot => Some(path.as_str()),
+                    _ => None,
+                })
+            })
+            .collect()
+    }
+
     /// Whether `features` asks for the last frame as `screen_texture`.
     #[must_use]
     pub fn reads_screen(&self) -> bool {
@@ -146,6 +197,15 @@ fn hex_rgba(text: &str) -> Option<[f32; 4]> {
 
 fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
     if let Some(text) = value.as_str() {
+        if names_an_image(text) {
+            if !is_texture_slot(name) {
+                bail!(
+                    "param `{name}`: an image binds a texture slot, and the slots are {}",
+                    TEXTURE_SLOTS.join(", ")
+                );
+            }
+            return Ok(Param::Texture(text.to_string()));
+        }
         return hex_rgba(text)
             .map(Param::Vec4)
             .ok_or_else(|| anyhow!("param `{name}`: `{text}` is not #rrggbb or #rrggbbaa"));
@@ -325,14 +385,20 @@ fn row_value(ty: FieldType, param: Option<Param>) -> balaur_script::Value {
     }
 }
 
+/// The material behind any reference the engine can resolve: a file, an
+/// `id://`, or the `#id` of a scene's own `[[assets]]` block. Read through
+/// `assets::definition` rather than as a file, so an inline material reaches
+/// the same panel a file one does.
+fn material_at(eng: &balaur_core::Engine, reference: &str) -> Result<Material> {
+    parse(&balaur_core::assets::definition(eng, reference)?)
+}
+
 fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_script::Value>> {
     use balaur_script::Value;
-    let files = eng.resource::<balaur_core::project::ProjectFiles>();
-    let text = String::from_utf8(files.borrow().read(path)?)?;
-    let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
+    let material = material_at(eng, path)?;
     let source = shader_text(eng, path, &material.shader)?;
     let compiled = compile_with(&material, &source, &crate::shaders::plugin_modules(eng))?;
-    Ok(compiled
+    let mut rows: Vec<Value> = compiled
         .fields
         .iter()
         .map(|field| {
@@ -340,7 +406,7 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
                 .params
                 .iter()
                 .find(|(name, _)| name == &field.name)
-                .map(|(_, param)| *param);
+                .map(|(_, param)| param.clone());
             Value::Map(vec![
                 ("name".to_string(), Value::Str(field.name.clone())),
                 (
@@ -350,14 +416,25 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
                 ("value".to_string(), row_value(field.ty, set)),
             ])
         })
-        .collect())
+        .collect();
+    // The texture slots, which are bindings rather than fields of `Params`
+    // and so are not in what the shader compiled to.
+    for (slot, bound) in TEXTURE_SLOTS.iter().zip(material.textures()) {
+        rows.push(Value::Map(vec![
+            ("name".to_string(), Value::Str((*slot).to_string())),
+            ("type".to_string(), Value::Str("texture".to_string())),
+            (
+                "value".to_string(),
+                Value::Str(bound.unwrap_or_default().to_string()),
+            ),
+        ]));
+    }
+    Ok(rows)
 }
 
 /// Parse the material at `path`, read the shader it names, and link them.
 fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
-    let files = eng.resource::<balaur_core::project::ProjectFiles>();
-    let text = String::from_utf8(files.borrow().read(path)?)?;
-    let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
+    let material = material_at(eng, path)?;
     let source = shader_text(eng, path, &material.shader)?;
     let modules = crate::shaders::plugin_modules(eng);
     compile_with(&material, &source, &modules).map(|_| ())
@@ -630,7 +707,7 @@ mod tests {
             "##,
         ))
         .unwrap();
-        let by_name = |n: &str| m.params.iter().find(|(k, _)| k == n).unwrap().1;
+        let by_name = |n: &str| m.params.iter().find(|(k, _)| k == n).unwrap().1.clone();
         assert_eq!(by_name("speed"), Param::Float(0.5));
         assert_eq!(by_name("offset"), Param::Vec2([1.0, 2.0]));
         assert_eq!(by_name("tint"), Param::Vec4([1.0, 128.0 / 255.0, 0.0, 1.0]));
@@ -923,6 +1000,60 @@ struct Params { pulse: f32 }
         // The lighting loop came in with `shade`.
         assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
         assert_eq!(compiled.params.len(), 16);
+    }
+
+    /// The physically based module links against the mesh contract, with the
+    /// texture slots and the BRDF it adds. A shader that imports it and calls
+    /// `shade` is a whole material.
+    #[test]
+    fn the_pbr_module_links_over_the_mesh_contract() {
+        let shader = r"
+import package::mesh::{VertexInput, VertexOutput, vertex};
+import package::pbr::{shade, default_surface, shade_pbr};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput { return vertex(in); }
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    var s = default_surface(in);
+    s.metallic = 1.0;
+    s.roughness = 0.25;
+    return shade_pbr(in, s);
+}
+";
+        let material = Material {
+            shader: "shaders/metal.wesl".into(),
+            ..Default::default()
+        };
+        compile(&material, shader).expect("package::pbr links");
+    }
+
+    /// A `[params]` string that names an image binds a texture slot; one that
+    /// names a slot with anything else is refused rather than read as a colour.
+    #[test]
+    fn an_image_param_binds_the_slot_it_is_named_for() {
+        let value: toml::Value = toml::from_str(
+            r##"
+shader = "shaders/x.wesl"
+[params]
+albedo = "art/hero.png"
+normal = "art/hero_n.png"
+tint = "#ff8800"
+"##,
+        )
+        .unwrap();
+        let material = parse(&value).unwrap();
+        assert_eq!(
+            material.textures()[0],
+            Some("art/hero.png"),
+            "albedo is slot zero"
+        );
+        assert_eq!(material.textures()[1], Some("art/hero_n.png"));
+        assert_eq!(material.textures()[2], None, "an unset slot stays unset");
+
+        let bad: toml::Value =
+            toml::from_str("shader = \"x.wesl\"\n[params]\nspeed = \"art/hero.png\"").unwrap();
+        let err = parse(&bad).unwrap_err().to_string();
+        assert!(err.contains("texture slot"), "{err}");
     }
 
     #[test]

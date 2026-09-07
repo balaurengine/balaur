@@ -10,6 +10,7 @@ pub mod app;
 pub mod asset_index;
 pub mod assets;
 mod batteries_api;
+pub mod bindings;
 pub mod cloner;
 pub mod collections;
 pub mod components;
@@ -18,13 +19,14 @@ pub mod csg;
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
-// Opening a URL or a folder is the OS's job, and a browser tab has neither.
-#[cfg(not(target_family = "wasm"))]
+// Opening a URL is a shell's job and a tab is one; revealing a folder is a
+// desktop's alone, so only that half is gated, inside.
 pub mod desktop;
 pub mod desktop_api;
 pub mod digest;
 pub mod engine;
 pub mod engine_api;
+mod engine_docs;
 pub mod events;
 pub mod facts;
 pub mod file_api;
@@ -33,6 +35,7 @@ pub mod geometry2d;
 pub mod glb;
 pub mod handler;
 pub mod heightfield;
+pub mod hooks;
 pub mod ids;
 pub mod import;
 pub mod logbuf;
@@ -54,11 +57,14 @@ pub mod rollback;
 pub mod rollback_api;
 pub mod save;
 pub mod scene;
+pub mod scene_api;
+pub mod scene_switch;
 pub mod settings;
 pub mod settings_api;
 pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
+pub mod states;
 pub mod strings;
 pub mod tiles;
 pub mod time;
@@ -66,6 +72,7 @@ pub mod timers;
 pub mod timings;
 pub mod transport;
 pub mod triangulate;
+pub mod variables;
 pub mod voxels;
 
 pub use app::{

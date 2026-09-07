@@ -69,7 +69,7 @@ pub fn hot_part(S) {
 /// the two tools that exist only there.
 pub fn manipulates(tool, mode2d) {
     let core = tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom";
-    core || (mode2d && (tool == "bone" || tool == "polygon"))
+    core || (mode2d && (tool == "bone" || tool == "polygon" || tool == "pen"))
 }
 
 /// Whether the pointer belongs to the scene. Under Stage the scene is the

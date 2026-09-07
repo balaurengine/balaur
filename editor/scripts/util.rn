@@ -252,3 +252,59 @@ pub fn rgb(hex) {
     let (r, g, b) = hex_to_rgb(hex);
     [r, g, b]
 }
+
+// Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
+// R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
+// the node's local axes (the matrix columns).
+pub fn basis_from_euler(r) {
+    let cr = math::cos(r[0]);
+    let sr = math::sin(r[0]);
+    let cp = math::cos(r[1]);
+    let sp = math::sin(r[1]);
+    let cy = math::cos(r[2]);
+    let sy = math::sin(r[2]);
+    [
+        [cy * cp, sy * cp, -sp],
+        [cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr],
+        [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr],
+    ]
+}
+
+pub fn euler_from_basis(b) {
+    let pitch = math::asin(clamp(-b[0][2], -1.0, 1.0));
+    let yaw = math::atan(b[0][1], b[0][0]);
+    let roll = math::atan(b[1][2], b[2][2]);
+    [roll, pitch, yaw]
+}
+
+pub fn rotate_basis_local(b, axis, angle) {
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let i = (axis + 1) % 3;
+    let j = (axis + 2) % 3;
+    // Columns i and j rotate into each other around column `axis`.
+    let bi = b[i];
+    let bj = b[j];
+    let out = [b[0], b[1], b[2]];
+    out[i] = [bi[0] * c + bj[0] * s, bi[1] * c + bj[1] * s, bi[2] * c + bj[2] * s];
+    out[j] = [bj[0] * c - bi[0] * s, bj[1] * c - bi[1] * s, bj[2] * c - bi[2] * s];
+    out
+}
+
+/// Rotate a ZYX euler about one of its own axes.
+pub fn rotate_euler(r, axis, angle) {
+    euler_from_basis(rotate_basis_local(basis_from_euler(r), axis, angle))
+}
+
+/// Rotate a world point about `center` by `angle` around world axis `axis`.
+pub fn rotate_about(p, center, axis, angle) {
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let d = vsub(p, center);
+    let i = (axis + 1) % 3;
+    let j = (axis + 2) % 3;
+    let out = [d[0], d[1], d[2]];
+    out[i] = d[i] * c - d[j] * s;
+    out[j] = d[i] * s + d[j] * c;
+    vadd(center, out)
+}

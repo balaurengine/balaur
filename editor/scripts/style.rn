@@ -60,7 +60,7 @@ pub fn bar(k, id, r, pad_x, cb) {
 /// A section label: the shell's one way of naming a group of rows.
 pub fn section_label(k, title) {
     ui::add_space(11);
-    ui::horizontal(#{ height: 15 }, || {
+    ui::horizontal(#{ height: 20 }, || {
         ui::add_space(2);
         ui::label(title.to_uppercase(), #{ role: "heading" });
     });

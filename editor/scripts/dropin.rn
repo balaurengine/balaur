@@ -1,0 +1,264 @@
+// A file dropped on the window becomes a node: copy it into the project, make
+// the node that names it, record one history step. One function per extension.
+
+use crate::history;
+use crate::model;
+use crate::selection;
+use crate::util;
+
+/// Where a dropped file of each kind is copied to inside the project.
+const HOMES = #{
+    image: "art",
+    shader: "shaders",
+    font: "fonts",
+    sky: "skies",
+};
+
+/// The kind of a dropped file, by extension, or "" for one nothing claims.
+pub fn kind_of(path) {
+    let lower = path.to_lowercase();
+    for extension in ["png", "jpg", "jpeg", "webp", "bmp", "tga"] {
+        if lower.ends_with("." + extension) {
+            return "image";
+        }
+    }
+    for extension in ["glb", "gltf", "aseprite", "ase", "tmx", "ldtk"] {
+        if lower.ends_with("." + extension) {
+            return "import";
+        }
+    }
+    if lower.ends_with(".wesl") {
+        return "shader";
+    }
+    if lower.ends_with(".hdr") || lower.ends_with(".exr") {
+        return "sky";
+    }
+    if lower.ends_with(".toml") {
+        return "scene";
+    }
+    for extension in ["ttf", "otf"] {
+        if lower.ends_with("." + extension) {
+            return "font";
+        }
+    }
+    ""
+}
+
+/// The file's name with no directory.
+fn file_name(path) {
+    let parts = path.replace("\\", "/").split('/').collect::<Vec>();
+    parts[parts.len() - 1]
+}
+
+/// The name with no extension, lowercased with separators as underscores, the
+/// way `balaur import` names what it writes.
+pub fn stem_of(path) {
+    let name = file_name(path);
+    let stem = match name.split_once('.') {
+        Some((stem, _)) => stem,
+        None => name,
+    };
+    stem.to_lowercase().replace(" ", "_").replace("-", "_")
+}
+
+/// Copy a dropped file under `dir` inside the project, answering the
+/// project-relative path. A name already taken gets a numbered suffix, so a
+/// second drop of the same file never overwrites the first.
+pub fn copy_in(S, path, dir) {
+    let name = file_name(path);
+    let target = dir + "/" + name;
+    if fs::exists(S.game_root + "/" + target) {
+        let stem = match name.split_once('.') {
+            Some((stem, _)) => stem,
+            None => name,
+        };
+        let extension = if name.len() > stem.len() { name[stem.len()..] } else { "" };
+        let n = 2;
+        while fs::exists(S.game_root + "/" + dir + "/" + format!("{}_{}{}", stem, n, extension)) {
+            n += 1;
+        }
+        target = dir + "/" + format!("{}_{}{}", stem, n, extension);
+    }
+    if !fs::exists(path) {
+        log::warn("could not read " + path);
+        return None;
+    }
+    fs::copy(path, S.game_root + "/" + target);
+    model::forget(S, None);
+    Some(target)
+}
+
+/// Where a drop lands in the world: the pointer in 2D, and the point the
+/// camera looks at in 3D, so a dropped thing is where the view already is.
+fn drop_point(S) {
+    if model::is_2d(S) {
+        let (x, y) = render::mouse_world_2d();
+        return [x, y, 0.0];
+    }
+    let (_, _, _, tx, ty, tz, _, _) = render::camera_pose();
+    [tx, ty, tz]
+}
+
+/// Add one node carrying `parts`, parented to the scene's root, at the drop
+/// point. History and the mirror rebuild are the caller's.
+fn place(S, name, parts) {
+    let unique = model::unique_name(S.doc, name);
+    let entry = #{
+        id: model::fresh_id(S.doc, unique),
+        name: unique,
+        parent: "",
+        position: drop_point(S),
+    };
+    for (key, value) in parts.iter() {
+        entry[key] = value;
+    }
+    S.doc.push(entry);
+    entry
+}
+
+/// An image becomes a `sprite` in 2D and a textured `shape3d` plane in 3D.
+fn drop_image(S, path) {
+    let rel = match copy_in(S, path, HOMES.image) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    history::record(S, "drop " + rel, None);
+    let name = stem_of(path);
+    if model::is_2d(S) {
+        place(S, name, #{ sprite: #{ texture: rel } });
+    } else {
+        place(S, name, #{
+            shape3d: #{ kind: render::SHAPE_CUBOID, half_extents: [0.5, 0.001, 0.5] },
+            mesh: #{ texture: rel },
+        });
+    }
+    true
+}
+
+/// A `.wesl` file becomes a shader and the `material` asset that names it.
+fn drop_shader(S, path) {
+    let rel = match copy_in(S, path, HOMES.shader) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    let name = stem_of(path);
+    let material = format!("materials/{}.toml", name);
+    fs::mkdir(S.game_root + "/materials");
+    fs::write(S.game_root + "/" + material, toml::encode(#{
+        type: "material",
+        shader: rel,
+    }));
+    model::forget(S, None);
+    log::info("wrote " + material);
+    false
+}
+
+/// An `.hdr` or `.exr` becomes the scene's sky.
+fn drop_sky(S, path) {
+    let rel = match copy_in(S, path, HOMES.sky) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    name_sky(S, rel, "drop sky")
+}
+
+/// Point the scene at a sky image already inside the project, which is what
+/// a drop and a library placement both end in.
+pub fn name_sky(S, rel, label) {
+    history::record(S, label, None);
+    // The last `environment` in tree order wins, so an existing one is
+    // retargeted rather than joined by a second.
+    for node in S.doc {
+        if node.contains_key("environment") {
+            node.environment.sky = rel;
+            log::info("sky is now " + rel);
+            return true;
+        }
+    }
+    place(S, "Environment", #{ environment: #{ sky: rel } });
+    true
+}
+
+/// A font is copied and nothing is placed: a font is named by a `text`
+/// component, not by a node of its own.
+fn drop_font(S, path) {
+    if let Some(rel) = copy_in(S, path, HOMES.font) {
+        log::info("added " + rel);
+    }
+    false
+}
+
+/// A scene file is instanced as a prefab. A file already inside the project is
+/// instanced where it lies rather than copied beside itself.
+fn drop_scene(S, path) {
+    let prefix = S.game_root + "/";
+    let rel = if path.starts_with(prefix) {
+        path[prefix.len()..]
+    } else {
+        match copy_in(S, path, "scenes") {
+            Some(rel) => rel,
+            None => return false,
+        }
+    };
+    model::instance_scene(S, rel);
+    false
+}
+
+/// A model, sprite sheet or level goes through `balaur import`, and the scene
+/// it wrote is instanced.
+fn drop_import(S, path) {
+    let result = util::obj(import::file(path));
+    if let Some(message) = result.get("error") {
+        log::error(format!("import failed: {}", message));
+        return false;
+    }
+    for rel in util::vec(result.get("files").unwrap_or([])) {
+        log::info("wrote " + rel);
+    }
+    model::forget(S, None);
+    let scene = result.get("scene");
+    let scene_some = scene;
+    if let Some(rel) = scene_some {
+        if rel is String {
+            model::instance_scene(S, rel);
+        }
+    }
+    false
+}
+
+/// Take every file dropped this frame. Called once per frame from the root's
+/// update; a frame with no drop costs one empty list.
+pub fn update(S) {
+    let dropped = util::vec(input::dropped_files());
+    if dropped.len() == 0 {
+        return;
+    }
+    for path in dropped {
+        take(S, path);
+    }
+}
+
+/// Handle one dropped file. Public so a test can drive it with no window.
+pub fn take(S, path) {
+    let kind = kind_of(path);
+    if kind == "" {
+        log::warn("nothing to do with " + file_name(path));
+        return;
+    }
+    let placed = match kind {
+        "image" => drop_image(S, path),
+        "shader" => drop_shader(S, path),
+        "sky" => drop_sky(S, path),
+        "font" => drop_font(S, path),
+        "scene" => drop_scene(S, path),
+        "import" => drop_import(S, path),
+        _ => false,
+    };
+    // Only a `place` needs the rebuild; the verbs that instance a scene did
+    // their own, and the ones that only copied a file changed no node.
+    if placed {
+        model::build_mirror(S);
+        selection::only(S, S.doc.len() - 1);
+        history::commit(S);
+    }
+}

@@ -28,6 +28,8 @@ pub use balaur_ui as ui;
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
+mod interact;
+
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail};
@@ -250,10 +252,25 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.engine.insert_resource(configs_from(&asked));
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
+    interact::install(&mut app);
     #[cfg(feature = "extensions")]
     load_project_extensions(&mut app, &asked)?;
     refuse_absent(&app, &asked)?;
+    deliver_launch_url();
     Ok(app)
+}
+
+/// Hand the engine the URL the app was launched with, if there was one.
+///
+/// The two halves live in different crates on purpose: the window layer is
+/// the only thing awake early enough to catch it, and the Apple plugin owns
+/// the queue a game reads it from. This is where they meet, once, after the
+/// plugins are loaded and before anything runs.
+fn deliver_launch_url() {
+    #[cfg(all(feature = "apple", feature = "window"))]
+    if let Some(url) = balaur_render::take_launch_url() {
+        balaur_apple::deliver_launch_url(url);
+    }
 }
 
 /// What a project asked of `[plugins]`: a name, and what it said about it.

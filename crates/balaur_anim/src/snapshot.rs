@@ -474,8 +474,12 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
     };
     let state = state.borrow();
     let world = eng.world();
+    // Only what the run being digested contains: inside an editor the game is
+    // a subtree, and the editor's own nodes animate on their own schedule.
+    let scope = balaur_core::digest::scope_of(eng);
+    let covered = |e| world.contains(e) && scope.as_ref().is_none_or(|s| s.contains(&e));
     for (&entity, playback) in &state.players {
-        if !world.contains(entity) {
+        if !covered(entity) {
             continue;
         }
         let mut h = Hasher::new();
@@ -493,7 +497,7 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         });
     }
     for (&entity, chain) in &state.jiggle {
-        if !world.contains(entity) {
+        if !covered(entity) {
             continue;
         }
         let mut h = Hasher::new();
@@ -508,7 +512,7 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         });
     }
     for (&handle, tween) in &state.tweens {
-        if !world.contains(tween.node) {
+        if !covered(tween.node) {
             continue;
         }
         let mut h = Hasher::new();

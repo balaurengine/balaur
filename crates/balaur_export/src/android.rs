@@ -14,6 +14,263 @@ use anyhow::{Context, Result, bail};
 use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 
+/// An ABI the template carries, in the spelling a project and an APK write.
+///
+/// The set is closed: an ABI this exporter does not know is one the template
+/// has no library for, and a misspelling would silently ship fewer devices.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum Abi {
+    #[serde(rename = "arm64-v8a")]
+    Arm64V8a,
+    #[serde(rename = "armeabi-v7a")]
+    ArmeabiV7a,
+    X86,
+    #[serde(rename = "x86_64")]
+    X86_64,
+}
+
+impl Abi {
+    /// The directory name under `lib/`, which is the same string a project
+    /// writes and the name `package_template.sh` stages.
+    pub(crate) const fn dir(self) -> &'static str {
+        match self {
+            Self::Arm64V8a => "arm64-v8a",
+            Self::ArmeabiV7a => "armeabi-v7a",
+            Self::X86 => "x86",
+            Self::X86_64 => "x86_64",
+        }
+    }
+}
+
+/// The `[android]` table of a project.
+///
+/// ```toml
+/// [android]
+/// abis = ["arm64-v8a", "x86_64"]
+/// ```
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct AndroidConfig {
+    /// The identifier Play resolves an OAuth client, a licence and an update
+    /// against. Empty keeps the invented `org.balaur.<name>`.
+    pub application_id: String,
+    /// The name under the icon. Empty means the project's own.
+    pub label: String,
+    /// `versionName`: what a player is shown.
+    pub version: String,
+    /// `versionCode`: what Play orders updates by, and the only one it reads.
+    pub version_code: u32,
+    /// The floor may not go under the template's, which is the API its
+    /// libraries were built against.
+    pub min_sdk: u32,
+    pub target_sdk: u32,
+    /// Which of the template's ABIs the export keeps. Empty means every one
+    /// the template carries, so a game that says nothing ships everywhere.
+    pub abis: Vec<Abi>,
+}
+
+impl Default for AndroidConfig {
+    fn default() -> Self {
+        Self {
+            application_id: String::new(),
+            label: String::new(),
+            version: "1.0".into(),
+            version_code: 1,
+            // 0 defers to the template's own, read at export.
+            min_sdk: 0,
+            target_sdk: 35,
+            abis: Vec::new(),
+        }
+    }
+}
+
+impl AndroidConfig {
+    /// The `[android]` table of a project, or the defaults when there is none.
+    pub(crate) fn load(project: &Path) -> Result<Self> {
+        #[derive(serde::Deserialize)]
+        struct Manifest {
+            #[serde(default)]
+            android: AndroidConfig,
+        }
+        let path = project.join("project.toml");
+        let Ok(source) = std::fs::read_to_string(&path) else {
+            return Ok(Self::default());
+        };
+        let manifest: Manifest = toml::from_str(&source)
+            .with_context(|| format!("parsing [android] in {}", path.display()))?;
+        Ok(manifest.android)
+    }
+
+    /// Drop the ABIs this game does not ship from an exported layout, after
+    /// the template has been copied into it.
+    ///
+    /// # Errors
+    /// When the project names an ABI the template has no library for: a
+    /// silently missing ABI is an install the player never gets offered.
+    pub(crate) fn prune(&self, layout: &Path) -> Result<()> {
+        if self.abis.is_empty() {
+            return Ok(());
+        }
+        let lib = layout.join("lib");
+        for abi in &self.abis {
+            let dir = lib.join(abi.dir());
+            if !dir.is_dir() {
+                bail!(
+                    "[android] abis names {}, which this template does not carry. \
+                     It has: {}",
+                    abi.dir(),
+                    carried(&lib).join(", ")
+                );
+            }
+        }
+        for name in carried(&lib) {
+            if !self.abis.iter().any(|a| a.dir() == name) {
+                std::fs::remove_dir_all(lib.join(&name))
+                    .with_context(|| format!("dropping the {name} library"))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The identifier this APK ships with: the project's, or the invented one
+    /// for a game that declares none.
+    pub(crate) fn identifier(&self, name: &str) -> String {
+        if self.application_id.is_empty() {
+            let id: String = name
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            format!("org.balaur.{id}")
+        } else {
+            self.application_id.clone()
+        }
+    }
+
+    /// The template's manifest, rewritten to name this game.
+    ///
+    /// # Errors
+    /// When the identifier is not one Play accepts, when `min_sdk` goes under
+    /// the API the template's libraries were built for, or when the template
+    /// has lost an attribute this rewrites — each would otherwise be found by
+    /// the store, or by a player whose device cannot load the library.
+    pub(crate) fn manifest(&self, template: &str, name: &str) -> Result<String> {
+        let id = self.identifier(name);
+        if let Err(bad) = check_identifier(&id) {
+            // A game named "2048" invents an id Play refuses, and the fix is
+            // to declare one rather than to have us invent a second guess.
+            if self.application_id.is_empty() {
+                bail!("{bad} It came from the project name; declare one.");
+            }
+            return Err(bad);
+        }
+        let floor: u32 = attr(template, "android:minSdkVersion")?.parse().context(
+            "the template's android:minSdkVersion is not a number; \
+             scripts/package_template.sh writes it",
+        )?;
+        let min_sdk = if self.min_sdk == 0 {
+            floor
+        } else {
+            self.min_sdk
+        };
+        if min_sdk < floor {
+            bail!(
+                "[android] min_sdk = {min_sdk} is under {floor}, the API this \
+                 template's libraries were built against. A device below it \
+                 installs the game and cannot load it."
+            );
+        }
+        if self.target_sdk < min_sdk {
+            bail!(
+                "[android] target_sdk = {} is under min_sdk = {min_sdk}",
+                self.target_sdk
+            );
+        }
+        let label = if self.label.is_empty() {
+            name
+        } else {
+            self.label.as_str()
+        };
+        let mut xml = set_attr(template, "package", &id)?;
+        xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
+        xml = set_attr(&xml, "android:versionName", &self.version)?;
+        xml = set_attr(&xml, "android:minSdkVersion", &min_sdk.to_string())?;
+        xml = set_attr(
+            &xml,
+            "android:targetSdkVersion",
+            &self.target_sdk.to_string(),
+        )?;
+        set_attr(&xml, "android:label", &escape(label))
+    }
+}
+
+/// An application id Play takes: two or more segments, each a Java identifier.
+fn check_identifier(id: &str) -> Result<()> {
+    let segments: Vec<&str> = id.split('.').collect();
+    let shaped = segments.len() > 1
+        && segments.iter().all(|s| {
+            s.starts_with(|c: char| c.is_ascii_alphabetic())
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
+    if !shaped {
+        bail!(
+            "[android] application_id = \"{id}\" is not one Play accepts: two or \
+             more dot-separated segments, each starting with a letter and \
+             holding only letters, digits and underscores."
+        );
+    }
+    Ok(())
+}
+
+/// The value of one `name="value"` attribute.
+fn attr<'a>(xml: &'a str, name: &str) -> Result<&'a str> {
+    let open = format!("{name}=\"");
+    let start = xml
+        .find(&open)
+        .with_context(|| format!("the template manifest has no {name}"))?
+        + open.len();
+    let len = xml[start..]
+        .find('"')
+        .with_context(|| format!("{name} in the template manifest is unterminated"))?;
+    Ok(&xml[start..start + len])
+}
+
+/// One `name="value"` attribute, rewritten. The template and this pair are
+/// written together, so a missing attribute is a break rather than a default.
+fn set_attr(xml: &str, name: &str, value: &str) -> Result<String> {
+    let found = attr(xml, name)?;
+    let open = format!("{name}=\"");
+    let start = xml.find(&open).expect("attr found it") + open.len();
+    Ok(format!(
+        "{}{value}{}",
+        &xml[..start],
+        &xml[start + found.len()..]
+    ))
+}
+
+/// The five characters an XML attribute may not hold as itself.
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// The ABI directories a layout holds, sorted so a message reads the same twice.
+fn carried(lib: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(lib) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
 /// The Android SDK, and the newest build-tools and platform in it.
 pub(crate) struct Sdk {
     build_tools: PathBuf,
@@ -156,6 +413,131 @@ pub(crate) fn assemble(
     Ok(apk)
 }
 
+/// What to install when the JDK is missing. `apksigner` is a JVM program too,
+/// so an Android export has always wanted one.
+const JDK: &str = "install a JDK — Android Studio carries one";
+
+/// Where `bundletool.jar` is: what the project names, then the variable, then
+/// beside the SDK. Google ships it on its own, so the SDK never holds it.
+fn bundletool(project: &Path, config: &ExportConfig) -> Result<PathBuf> {
+    let named = ExportConfig::beside(project, &config.bundletool)
+        .or_else(|| std::env::var_os("BALAUR_BUNDLETOOL").map(PathBuf::from));
+    if let Some(path) = named {
+        if path.is_file() {
+            return Ok(path);
+        }
+        bail!("no bundletool.jar at {}", path.display());
+    }
+    let beside = std::env::var_os("ANDROID_HOME")
+        .or_else(|| std::env::var_os("ANDROID_SDK_ROOT"))
+        .map(|root| PathBuf::from(root).join("bundletool.jar"));
+    match beside {
+        Some(path) if path.is_file() => Ok(path),
+        _ => bail!(
+            "no bundletool.jar: it is not part of the SDK. Download it from \
+             https://github.com/google/bundletool/releases, then set \
+             BALAUR_BUNDLETOOL or [export] bundletool to where it is."
+        ),
+    }
+}
+
+/// Assemble a layout directory into a signed AAB, the shape Play takes for a
+/// new app and the only one Play Asset Delivery is reachable through.
+///
+/// aapt2 writes the protobuf manifest a bundle wants, this packs the module
+/// around it, `bundletool` makes the bundle, and `jarsigner` signs it — an
+/// AAB takes a JAR signature, which `apksigner` does not write.
+pub(crate) fn bundle(
+    layout: &Path,
+    output: &Path,
+    project: &Path,
+    config: &ExportConfig,
+) -> Result<PathBuf> {
+    let sdk = Sdk::find()?;
+    let jar = bundletool(project, config)?;
+    let aab = output.with_extension("aab");
+    let work = aab.with_extension("staging");
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work)?;
+
+    // --proto-format is the whole reason this needs no protobuf of its own:
+    // aapt2 encodes the manifest and the resource table the way a bundle reads.
+    let linked = work.join("proto.apk");
+    run(
+        Command::new(sdk.program("aapt2")?)
+            .arg("link")
+            .arg("--proto-format")
+            .arg("-o")
+            .arg(&linked)
+            .arg("--manifest")
+            .arg(layout.join("AndroidManifest.xml"))
+            .arg("-I")
+            .arg(&sdk.platform_jar),
+        "aapt2 link --proto-format",
+    )?;
+
+    let module = work.join("base.zip");
+    write_module(&module, &linked, layout)?;
+    let _ = std::fs::remove_file(&aab);
+    run(
+        Command::new(tool("java", JDK)?)
+            .arg("-jar")
+            .arg(&jar)
+            .arg("build-bundle")
+            .arg(format!("--modules={}", module.display()))
+            .arg(format!("--output={}", aab.display())),
+        "bundletool build-bundle",
+    )?;
+
+    let keystore = keystore_for(project, config)?;
+    run(
+        Command::new(tool("jarsigner", JDK)?)
+            .arg("-keystore")
+            .arg(&keystore.path)
+            .args(["-storepass", &keystore.store_password])
+            .args(["-keypass", &keystore.key_password])
+            // A JDK's defaults still reach for SHA-1, which Play refuses.
+            .args(["-sigalg", "SHA256withRSA", "-digestalg", "SHA-256"])
+            .arg(&aab)
+            .arg(&keystore.alias),
+        "jarsigner",
+    )?;
+    std::fs::remove_dir_all(&work)?;
+    tracing::info!("bundled {} ({})", aab.display(), keystore.what);
+    Ok(aab)
+}
+
+/// The base module a bundle is made of: aapt2's protobuf manifest and resource
+/// table at the names bundletool reads, and the payload under its own roots.
+fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(module)?);
+    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .last_modified_time(zip::DateTime::default());
+
+    let mut linked = zip::ZipArchive::new(std::fs::File::open(linked)?)
+        .context("reopening what aapt2 linked")?;
+    for (from, to) in [
+        ("AndroidManifest.xml", "manifest/AndroidManifest.xml"),
+        ("resources.pb", "resources.pb"),
+    ] {
+        let mut entry = linked
+            .by_name(from)
+            .with_context(|| format!("aapt2 wrote no {from}"))?;
+        let mut body = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut body)?;
+        zip.start_file(to, options)?;
+        zip.write_all(&body)?;
+    }
+    for (name, path) in payload_files(layout) {
+        zip.start_file(&name, options)
+            .with_context(|| format!("adding {name}"))?;
+        zip.write_all(&std::fs::read(&path)?)?;
+    }
+    zip.finish()?;
+    Ok(())
+}
+
 /// The native library and the pack, added to what aapt2 linked.
 ///
 /// A `.so` goes in uncompressed: the loader maps it out of the APK, and a
@@ -292,7 +674,169 @@ fn debug_keystore() -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{payload_files, version_key};
+    use super::{Abi, AndroidConfig, payload_files, version_key};
+
+    /// A layout carrying every ABI the template ships.
+    fn layout(dir: &std::path::Path) -> &std::path::Path {
+        for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
+            std::fs::create_dir_all(dir.join("lib").join(abi)).unwrap();
+            std::fs::write(dir.join("lib").join(abi).join("libmain.so"), b"so").unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn a_project_that_names_no_abi_keeps_every_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = layout(dir.path());
+        AndroidConfig::default().prune(layout).unwrap();
+        assert_eq!(super::carried(&layout.join("lib")).len(), 4);
+    }
+
+    #[test]
+    fn the_abis_a_project_names_are_the_ones_that_survive() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = layout(dir.path());
+        let config = AndroidConfig {
+            abis: vec![Abi::Arm64V8a, Abi::X86_64],
+            ..Default::default()
+        };
+        config.prune(layout).unwrap();
+        assert_eq!(super::carried(&layout.join("lib")), ["arm64-v8a", "x86_64"]);
+    }
+
+    #[test]
+    fn an_abi_the_template_does_not_carry_names_the_ones_it_does() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("lib/arm64-v8a")).unwrap();
+        let config = AndroidConfig {
+            abis: vec![Abi::X86],
+            ..Default::default()
+        };
+        let err = config
+            .prune(dir.path())
+            .expect_err("an ABI with no library")
+            .to_string();
+        assert!(err.contains("x86"), "{err}");
+        assert!(err.contains("arm64-v8a"), "{err}");
+    }
+
+    /// The manifest scripts/package_template.sh stages.
+    const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.balaur.template"
+    android:versionCode="1"
+    android:versionName="1.0">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <application android:label="Balaur" android:hasCode="false">
+  </application>
+</manifest>
+"#;
+
+    #[test]
+    fn a_game_that_declares_nothing_still_stops_being_the_template() {
+        let xml = AndroidConfig::default().manifest(TEMPLATE, "Tide").unwrap();
+        assert!(xml.contains(r#"package="org.balaur.Tide""#), "{xml}");
+        assert!(xml.contains(r#"android:label="Tide""#), "{xml}");
+        assert!(!xml.contains("org.balaur.template"), "{xml}");
+        // The template's own floor, kept because the project named none.
+        assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
+    }
+
+    #[test]
+    fn the_project_names_the_id_the_version_and_the_label() {
+        let config = AndroidConfig {
+            application_id: "com.studio.tide".into(),
+            label: "Tide & Sand".into(),
+            version: "2.3".into(),
+            version_code: 17,
+            target_sdk: 34,
+            ..AndroidConfig::default()
+        };
+        let xml = config.manifest(TEMPLATE, "Tide").unwrap();
+        assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
+        assert!(xml.contains(r#"android:versionCode="17""#), "{xml}");
+        assert!(xml.contains(r#"android:versionName="2.3""#), "{xml}");
+        assert!(xml.contains(r#"android:targetSdkVersion="34""#), "{xml}");
+        // An ampersand in a label is not an entity waiting to happen.
+        assert!(xml.contains(r#"android:label="Tide &amp; Sand""#), "{xml}");
+    }
+
+    #[test]
+    fn an_id_play_would_refuse_is_refused_here() {
+        for id in ["tide", "com.2studio.tide", "com..tide"] {
+            let config = AndroidConfig {
+                application_id: id.into(),
+                ..AndroidConfig::default()
+            };
+            let err = config
+                .manifest(TEMPLATE, "Tide")
+                .expect_err("an id Play would refuse")
+                .to_string();
+            assert!(err.contains(id), "{err}");
+        }
+    }
+
+    #[test]
+    fn a_project_name_that_makes_no_id_says_to_declare_one() {
+        let err = AndroidConfig::default()
+            .manifest(TEMPLATE, "2048")
+            .expect_err("an id starting with a digit")
+            .to_string();
+        assert!(err.contains("declare one"), "{err}");
+    }
+
+    #[test]
+    fn a_min_sdk_under_the_library_it_would_load_is_refused() {
+        let config = AndroidConfig {
+            min_sdk: 21,
+            ..AndroidConfig::default()
+        };
+        let err = config
+            .manifest(TEMPLATE, "Tide")
+            .expect_err("a floor under the template's")
+            .to_string();
+        assert!(err.contains("21") && err.contains("26"), "{err}");
+    }
+
+    #[test]
+    fn the_base_module_puts_aapt2s_output_where_bundletool_reads_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let linked = dir.path().join("proto.apk");
+        {
+            let mut zip = zip::ZipWriter::new(std::fs::File::create(&linked).unwrap());
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            for (name, body) in [
+                ("AndroidManifest.xml", &b"proto"[..]),
+                ("resources.pb", &b"table"[..]),
+            ] {
+                zip.start_file(name, options).unwrap();
+                std::io::Write::write_all(&mut zip, body).unwrap();
+            }
+            zip.finish().unwrap();
+        }
+        let layout = dir.path().join("layout");
+        std::fs::create_dir_all(layout.join("lib/arm64-v8a")).unwrap();
+        std::fs::create_dir_all(layout.join("assets")).unwrap();
+        std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
+        std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
+
+        let module = dir.path().join("base.zip");
+        super::write_module(&module, &linked, &layout).unwrap();
+
+        let zip = zip::ZipArchive::new(std::fs::File::open(&module).unwrap()).unwrap();
+        let mut names: Vec<&str> = zip.file_names().collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            [
+                "assets/game.bpak",
+                "lib/arm64-v8a/libmain.so",
+                "manifest/AndroidManifest.xml",
+                "resources.pb",
+            ]
+        );
+    }
 
     #[test]
     fn build_tools_sort_by_version_and_not_by_string() {

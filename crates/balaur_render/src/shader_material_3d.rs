@@ -172,6 +172,9 @@ pub(crate) struct ShaderMaterial3d {
     started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
+    /// One entry per texture slot the material bound, in slot order; a slot
+    /// it left out is `None` and gets a one-pixel stand-in.
+    slots: Vec<Option<Arc<Texture>>>,
     /// Whether the pipeline carries the per-vertex colour attribute, and so
     /// whether a draw has to bind one.
     vertex_color: bool,
@@ -261,6 +264,10 @@ fn vertex_layouts(vertex_color: bool) -> Vec<Option<wgpu::VertexBufferLayout<'st
 /// The frame, object and texture layouts, in the order the pipeline binds
 /// them. `shaders/mesh.wesl` declares the matching groups, so `skinned_3d`
 /// binds the same three and adds its palette after them.
+/// How many texture slots group 2 binds, matching `TEXTURE_SLOTS` in
+/// `material.rs` and the bindings `mesh.wesl` declares.
+pub(crate) const TEXTURE_SLOTS: u32 = 6;
+
 pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     let uniform = |label| {
@@ -272,7 +279,7 @@ pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     [
         uniform("material3d_frame_layout"),
         uniform("material3d_object_layout"),
-        crate::bind_layout::sampled_layout(&ctxt, "material3d_texture_layout"),
+        crate::bind_layout::sampled_slots_layout(&ctxt, "material3d_texture_layout", TEXTURE_SLOTS),
     ]
 }
 
@@ -346,6 +353,16 @@ fn build_pipeline(
 
 impl ShaderMaterial3d {
     pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
+        Self::with_textures(compiled, probe, Vec::new())
+    }
+
+    /// `slots` is one entry per [`crate::material::TEXTURE_SLOTS`] name, in
+    /// order, `None` for a slot the material left out.
+    pub(crate) fn with_textures(
+        compiled: &Compiled,
+        probe: Option<&Probe>,
+        slots: Vec<Option<Arc<Texture>>>,
+    ) -> Self {
         let ctxt = Context::get();
         let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
         let params = material_group(&compiled.params, probe);
@@ -409,23 +426,45 @@ impl ShaderMaterial3d {
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
             vertex_color: compiled.vertex_color,
+            slots,
         }
     }
 
+    /// Group 2, one texture and sampler per slot. Slot 0 is the node's own
+    /// image unless the material named an `albedo` of its own; the rest come
+    /// from the material, or from the fallback for the slot.
     fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
+        // Made here rather than held: a `Texture` reaches the window's own
+        // manager when it is dropped, and one kept on a material outlives it.
+        let fallbacks = slot_fallbacks();
+        let bound: Vec<&Texture> = (0..TEXTURE_SLOTS as usize)
+            .map(|slot| match self.slots.get(slot).and_then(Option::as_ref) {
+                Some(own) => own.as_ref(),
+                None if slot == 0 => texture,
+                None => fallbacks[slot].as_ref(),
+            })
+            .collect();
+        let entries: Vec<wgpu::BindGroupEntry<'_>> = bound
+            .iter()
+            .enumerate()
+            .flat_map(|(slot, texture)| {
+                let first = slot as u32 * 2;
+                [
+                    wgpu::BindGroupEntry {
+                        binding: first,
+                        resource: wgpu::BindingResource::TextureView(&texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: first + 1,
+                        resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    },
+                ]
+            })
+            .collect();
         Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("material3d_texture_bind_group"),
             layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
+            entries: &entries,
         })
     }
 }
@@ -627,6 +666,20 @@ crate::material_cache::define!(
 );
 
 /// The channel view's own material, which takes no params and writes no probe.
+/// The one-pixel stand-in for each slot, in slot order: white albedo, a flat
+/// normal, non-metallic mid-roughness, no occlusion, black emissive, mid
+/// height. The fork owns the pixel values.
+fn slot_fallbacks() -> Vec<Arc<Texture>> {
+    vec![
+        Texture::new_default(),
+        Texture::new_default_normal_map(),
+        Texture::new_default_metallic_roughness_map(),
+        Texture::new_default_ao_map(),
+        Texture::new_default_emissive_map(),
+        Texture::new_default_height_map(),
+    ]
+}
+
 fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial3d {
     ShaderMaterial3d::new(compiled, None)
 }
@@ -643,6 +696,11 @@ fn build(
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
-    let material = ShaderMaterial3d::new(&compiled, probe.as_deref());
+    let slots = asset
+        .textures()
+        .into_iter()
+        .map(|path| path.and_then(|path| crate::texture::upload(&app.engine, path)))
+        .collect();
+    let material = ShaderMaterial3d::with_textures(&compiled, probe.as_deref(), slots);
     Ok((material, probe))
 }

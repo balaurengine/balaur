@@ -29,23 +29,23 @@ pub fn rune_of(eng: &Engine) -> RuneHost {
 }
 
 #[derive(Default)]
-struct Module {
-    functions: BTreeSet<String>,
-    constants: BTreeMap<String, String>,
+pub(crate) struct Module {
+    pub(crate) functions: BTreeSet<String>,
+    pub(crate) constants: BTreeMap<String, String>,
     /// `args -> returns` per function that came through the typed seam.
-    signatures: BTreeMap<String, String>,
+    pub(crate) signatures: BTreeMap<String, String>,
     /// Components each function declared it acts on.
-    acts_on: BTreeMap<String, BTreeSet<String>>,
+    pub(crate) acts_on: BTreeMap<String, BTreeSet<String>>,
     /// One line per function, saying what it does.
-    docs: BTreeMap<String, String>,
+    pub(crate) docs: BTreeMap<String, String>,
     /// What the module as a whole is for.
-    doc: String,
+    pub(crate) doc: String,
 }
 
 /// Everything declared, folded into one entry per module: the typed seam's
 /// own registrations, the docs a module spelled out, and the handful the host
 /// installs on Rune modules of its own.
-fn collect_modules() -> BTreeMap<String, Module> {
+pub(crate) fn collect_modules() -> BTreeMap<String, Module> {
     let mut modules: BTreeMap<String, Module> = BTreeMap::new();
     for entry in api_entries() {
         let module = modules.entry(entry.module).or_default();
@@ -91,6 +91,26 @@ fn collect_modules() -> BTreeMap<String, Module> {
 /// Takes the `Module` map it is filling rather than a `Bindings`, because
 /// there is no plugin here whose declarations something could record.
 fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
+    script_entries(modules);
+    script_tooling_entries(modules);
+    task_entries(modules);
+    for (module, doc) in [
+        (
+            "script",
+            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+        ),
+        (
+            "task",
+            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+        ),
+    ] {
+        modules.entry(module.to_string()).or_default().doc = doc.to_string();
+    }
+}
+
+/// The `script` module's own entries. It is the module a tool talks to, so it
+/// carries the most of them.
+fn script_entries(modules: &mut BTreeMap<String, Module>) {
     for (module, name, args, doc) in [
         (
             "script",
@@ -124,10 +144,93 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "complete",
+            "(path: string, source: string, line: int, column: int)",
+            "Every completion valid at that caret, as `[#{ label, kind, detail, doc, insert }]`; an editor passes the buffer it is showing.",
+        ),
+        (
+            "script",
+            "hover",
+            "(path: string, source: string, line: int, column: int)",
+            "What is under that caret, as `#{ title, detail, doc }`, or `()` when it is nothing the engine knows.",
+        ),
+        (
+            "script",
+            "signature",
+            "(path: string, source: string, line: int, column: int)",
+            "The call the caret is inside, as `#{ title, detail, doc, active }`, where `active` is the argument being typed.",
+        ),
+    ] {
+        record(modules, module, name, args, doc);
+    }
+}
+
+/// The `script` module's tooling entries: what an editor asks about a
+/// caret, and the searches and rewrites that walk a file's `mod` graph.
+fn script_tooling_entries(modules: &mut BTreeMap<String, Module>) {
+    for (module, name, args, doc) in [
+        (
+            "script",
+            "api",
+            "()",
+            "Every module scripts can reach, as the JSON string `balaur api` prints; a tool reads the live engine rather than a file that may be stale.",
+        ),
+        (
+            "script",
+            "definition",
+            "(path: string, source: string, line: int, column: int)",
+            "Where the name at that caret is defined, as `#{ file, line, column, url }`; engine API carries its reference page rather than a file.",
+        ),
+        (
+            "script",
+            "symbols",
+            "(path: string, source: string)",
+            "What that file declares, as `[#{ name, kind, detail, line, column }]`: its public functions and its `exports()` properties.",
+        ),
+        (
+            "script",
+            "references",
+            "(path: string, source: string, name: string)",
+            "Every place that name appears as a whole word across the files this one's `mod` declarations reach, as `[#{ file, line, column, url }]`.",
+        ),
+        (
+            "script",
+            "find",
+            "(path: string, source: string, needle: string)",
+            "Every place that text appears across the files this one's `mod` declarations reach, matched as text rather than as an identifier.",
+        ),
+        (
+            "script",
+            "replace",
+            "(path: string, source: string, from: string, to: string)",
+            "Every file a find and replace would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",
+        ),
+        (
+            "script",
+            "rename",
+            "(path: string, source: string, from: string, to: string)",
+            "Every file a rename would rewrite, as `[#{ file, source }]`; nothing is written, so a caller can show the list first.",
+        ),
+        (
+            "script",
+            "format",
+            "(path: string, source: string)",
+            "That source laid out by Rune's own formatter; the source unchanged when it will not parse.",
+        ),
+        (
+            "script",
             "shared",
             "(f: fn, arity: int)",
             "Wrap a script function so it can be called from several places with a fixed argument count.",
         ),
+    ] {
+        record(modules, module, name, args, doc);
+    }
+}
+
+/// The `task` module's own entries.
+fn task_entries(modules: &mut BTreeMap<String, Module>) {
+    for (module, name, args, doc) in [
         (
             "task",
             "wait",
@@ -147,23 +250,16 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
             "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it.",
         ),
     ] {
-        let entry = modules.entry(module.to_string()).or_default();
-        entry.functions.insert(name.to_string());
-        entry.docs.insert(name.to_string(), doc.to_string());
-        entry.signatures.insert(name.to_string(), args.to_string());
+        record(modules, module, name, args, doc);
     }
-    for (module, doc) in [
-        (
-            "script",
-            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
-        ),
-        (
-            "task",
-            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
-        ),
-    ] {
-        modules.entry(module.to_string()).or_default().doc = doc.to_string();
-    }
+}
+
+/// One host-installed entry, folded into the module it belongs to.
+fn record(modules: &mut BTreeMap<String, Module>, module: &str, name: &str, args: &str, doc: &str) {
+    let entry = modules.entry(module.to_string()).or_default();
+    entry.functions.insert(name.to_string());
+    entry.docs.insert(name.to_string(), doc.to_string());
+    entry.signatures.insert(name.to_string(), args.to_string());
 }
 
 /// Every module scripts can reach, with its functions and its constants:

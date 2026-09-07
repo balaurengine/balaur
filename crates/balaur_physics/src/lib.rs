@@ -238,7 +238,13 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
                 digest: h.finish(),
             });
         }
+        // Only bodies the run being digested contains: inside an editor the
+        // game is a subtree and the editor's own nodes are not the run.
+        let scope = balaur_core::digest::scope_of(eng);
         for (&entity, &handle) in &state.bodies {
+            if scope.as_ref().is_some_and(|s| !s.contains(&entity)) {
+                continue;
+            }
             let body = &state.world.bodies[handle];
             let (v, w) = (body.linvel(), body.angvel());
             let mut h = Hasher::new();

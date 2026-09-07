@@ -99,7 +99,7 @@ pub fn transport_spot(S, n) {
 pub fn top_bar(S) {
     let k = S.theme;
     {
-        ui::horizontal(#{ height: 36 }, || {
+        ui::horizontal(#{ height: 30 }, || {
             ui::add_space(2);
             let mark = brand(S);
             ui::image(mark.logo, #{ height: MARK_W, radius: 13, bg: "#ffffff", padding: 3 });
@@ -122,19 +122,19 @@ pub fn top_bar(S) {
             doc_tabs(S, k);
             ui::right(|| {
                 if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
-                    height: 30, min_width: THEME_W, size: 15, radius: 8,
+                    height: 30, min_width: THEME_W, size: 16, radius: 8,
                     fill: k.sunken, color: k.dim, tooltip: "Toggle theme",
                 }) {
                     theme::set_dark(S, !k.dark);
                 }
                 if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                    height: 30, size: 12, radius: 8, icon: icons::ui("search"),
+                    height: 30, size: 11.5, radius: 8, icon: icons::ui("search"),
                     fill: k.sunken, color: k.faint, tooltip: "⌘K",
                 }) {
                     shell::open_palette(S, "");
                 }
                 ui::add_space(6);
-                ui::horizontal(#{ height: 36, width: BLOCK_W }, || {
+                ui::horizontal(#{ height: 30, width: BLOCK_W }, || {
                     ui::right(|| transport(S, k));
                 });
             });
@@ -175,7 +175,7 @@ fn doc_tabs(S, k) {
 fn tab(S, k, id, icon, label, closable) {
     let active = S.doctab == id;
     ui::frame(#{ fill: if active { k.accent_soft } else { k.panel }, radius: 5 }, || {
-        ui::horizontal(#{ height: 26, tight: true }, || {
+        ui::horizontal(#{ height: 24, tight: true }, || {
             ui::spacing(0, 0);
             if ui::pill(label, #{
                 role: if active { "navtab_on" } else { "navtab" }, icon: icon, fill: "none",
@@ -184,7 +184,7 @@ fn tab(S, k, id, icon, label, closable) {
             }
             if closable {
                 if ui::pill(icons::ui("close"), #{
-                    height: 26, min_width: 20, size: 9, fill: "none",
+                    height: 24, min_width: 20, size: 10.5, fill: "none",
                     color: if active { k.accent } else { k.faint }, tooltip: "Close",
                 }) {
                     shell::close_doc(S, id);
@@ -248,7 +248,7 @@ fn transport(S, k) {
 /// whatever the dock wants at the far right, which minimised is the handle
 /// that reopens it.
 pub fn status_strip(S, k, room, trailing) {
-    ui::horizontal(#{ height: 22 }, || {
+    ui::horizontal(#{ height: 24 }, || {
         ui::spacing(14, 0);
         ui::add_space(4);
         let stopped = S.debug.paused is Object;

@@ -76,15 +76,14 @@ At [balaurengine.org](https://balaurengine.org):
 [manual](https://balaurengine.org/docs/manual/scenes) ·
 [reference](https://balaurengine.org/docs/reference) ·
 [architecture](https://balaurengine.org/docs/architecture) ·
-[roadmap](https://balaurengine.org/docs/roadmap) ·
-[changelog](https://balaurengine.org/docs/changelog)
+[roadmap](https://balaurengine.org/docs/roadmap)
 
 In this repository:
 
 | File | What it holds |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | every decision |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | what the engine does not do yet, by milestone |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds, and what it does not do yet |
 | [docs/DETERMINISM.md](docs/DETERMINISM.md) | writing a game that reproduces; record and replay |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
 | [docs/NAMING.md](docs/NAMING.md) | the naming rules; governs the other docs |

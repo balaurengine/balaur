@@ -120,6 +120,10 @@ fn read_headers(headers: &Headers) -> Vec<(String, String)> {
 }
 
 /// A thrown JS value is not always an `Error`; say something either way.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the argument of `map_err`, which hands the error over"
+)]
 fn describe(error: JsValue) -> String {
     error
         .dyn_ref::<js_sys::Error>()

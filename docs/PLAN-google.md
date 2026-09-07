@@ -1,7 +1,16 @@
-> **Status:** not started. Written down on 2026-09-03 so the order was decided
-> before the first line: an APK that can hold Java first, because every Google
-> service on Android is a Java library and the template declares
-> `android:hasCode="false"`; the application id and the app bundle with it,
+> **Status:** not started, bar the part of step 1 that is not Google's. On
+> 2026-09-07 the template gained all four ABIs, `[android] abis` picks the
+> subset an export keeps, `.cargo/config.toml` links the 64-bit targets with
+> `max-page-size=16384`, and the `[android]` table now carries the application
+> id, label, version and SDK floors that the exporter writes into the staged
+> manifest. CI reads each back — the alignment off the ELF in
+> `package_template.sh`, the ABIs and the rewritten package out of the export
+> in `export_check.sh`. The AAB is what is left of step 1.
+>
+> Written down on 2026-09-03 so the order was decided before the first line:
+> an APK that can hold Java first, because every Google service on Android is
+> a Java library and the template declares `android:hasCode="false"`; the
+> application id and the app bundle with it,
 > because Play resolves an OAuth client against the package name and the
 > signing certificate, and accepts an AAB rather than an APK; Play Games
 > Services next, because sign-in, achievements, leaderboards and saved games
@@ -24,6 +33,9 @@ Built, and not built for this:
 | An APK out of `balaur export --target android --apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
 | The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
+| An application id, label, version and SDK floors the game owns | `[android]` in `project.toml`, `AndroidConfig::manifest` |
+| All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_template.sh`, `android::{Abi, AndroidConfig}` |
+| 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_template.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
 | A server with login, REST and hooks to verify a token against | `balaur_gamend` |
 | A save file, atomic, versioned, in the user data directory | `balaur_core::save` |
@@ -36,26 +48,15 @@ Missing, and each one blocks everything below it:
   `zipalign` and `apksigner` over a hand-written manifest. Play services ship
   as AARs on Google's Maven repository, with transitive dependencies,
   manifest fragments to merge and resources to compile.
-- **An application id the developer owns.** The template is
-  `package="org.balaur.template"` and the exporter never rewrites it — an
-  Android game exported today is literally the template's package. Play
-  Games, Billing and Integrity all resolve against the package name plus the
-  signing certificate.
 - **An app bundle.** Play takes an AAB for a new app; the export produces an
   APK layout. `bundletool` is the missing step, and Play Asset Delivery is
   only reachable through an AAB.
-- **16 KB page alignment.** Android 15 requires it of native libraries, and
-  nothing in `.cargo/config.toml` sets `max-page-size` for
-  `aarch64-linux-android`. This is not a Google-services problem — it is a
-  today problem for the existing template, and it belongs in step 1.
 - **Java of our own, and a way to find it.** `jni` and `ndk-context` are
   already in the graph through `android-activity` — at two major versions,
   0.21 and 0.22, so a new crate has to pick the one it shares objects with.
   What is missing is any class of ours to call, and anything caching the
   activity's class loader, without which `FindClass` from an engine thread
   sees only the platform's classes.
-- **One ABI.** The template builds `arm64-v8a` alone. Play wants `x86_64`
-  too for Chromebooks, emulators and Play Games on PC.
 
 ## 1. Design
 
@@ -100,6 +101,27 @@ AAB (uploadable). `--apk` stays for the no-Google path: a
 game that declares no Play capabilities exports through the existing
 aapt2 route and carries no dex at all.
 
+**The AAB is Google's tools, not ours.** Writing the bundle in Rust was
+weighed and dropped. It is buildable — `aapt2 link --proto-format` emits the
+protobuf manifest a bundle wants, so nothing here would encode protobuf by
+hand — but it buys nothing, because the signature cannot be written that way.
+An AAB takes a JAR signature, a PKCS#7 block this tree has no crate for, and
+`jarsigner` is what writes one. That means a JDK. And a JDK was never
+avoidable: `apksigner` is `exec java -jar`, so every Android export has
+needed one since the first APK.
+
+Once a JVM is a given, `bundletool` costs nothing beyond the jar. So `--aab`
+runs aapt2, packs the base module with the `zip` crate that already packs the
+APK, and hands it to `bundletool build-bundle` and `jarsigner`. The only code
+of ours that knows the format is which two files aapt2's output maps onto.
+
+**No toolchain of our own.** The SDK is found, never shipped: `Sdk::find`
+reads `ANDROID_HOME` the way Google's own tools do, and the license does not
+let this repo redistribute the SDK anyway. `bundletool.jar` is the one thing
+the SDK does not carry, so `[export] bundletool` or `BALAUR_BUNDLETOOL` names
+it and the error says where to get it. Vendoring a JDK and an SDK would add
+hundreds of megabytes and a license flow to a download that is one binary.
+
 **Capabilities are declared in `project.toml` and written at export.**
 
 ```toml
@@ -107,6 +129,9 @@ aapt2 route and carries no dex at all.
 application_id = "com.studio.game"
 min_sdk = 26
 target_sdk = 35
+# Defaults to every ABI the template carries; a game that knows it ships to
+# phones alone drops the rest rather than paying for them in every install.
+abis = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 capabilities = ["play-games", "play-billing", "play-integrity"]
 # Play Games and Sign in with Google resolve against this; it comes from the
 # Play Console, and Play App Signing may rewrite the certificate behind it.
@@ -117,6 +142,19 @@ The exporter rewrites the manifest's package, label and the `meta-data` each
 capability needs, and refuses a capability whose configuration is missing —
 a Play Games build with no project id fails at export rather than at the
 player's first launch.
+
+**`min_sdk` has a floor the project cannot see.** The template's `libmain.so`
+is compiled against the NDK's `aarch64-linux-android26`, so 26 is the
+binary's own minimum however low the manifest claims to go. An export that
+took `min_sdk = 21` at its word would ship a manifest promising what the
+library cannot do, and the failure would land on a player's device rather
+than in the build. So the exporter clamps: below the template's floor is an
+error that names the floor, and a game that wants lower rebuilds the template
+against a lower NDK level.
+
+The same trap is already live on Apple, where `[apple] min_os` is free text
+and the template is built at `IPHONEOS_DEPLOYMENT_TARGET=15.0`. One check
+serves both, and `docs/PLAN-apple.md` should grow the matching line.
 
 **Determinism.** A platform result is external input: recorded per tick,
 re-fed on replay. Two rules, both easy to get wrong:
@@ -159,9 +197,12 @@ Every Google service an Android game reaches for, and where each stands here.
 | Firebase Crashlytics with the NDK reporter | Step 9, and worth more here than in most engines: a Rust panic in a NativeActivity is otherwise a line in `logcat` nobody sees. It overlaps the roadmap's self-reproducing crash report, which is the better answer where a recording exists |
 | Firebase Analytics, Remote Config, Cloud Messaging, Auth, Firestore | Not planned as engine code. Each is a Java library with no engine seam to sit on, and a game that wants one wants its own; Gamend is where this engine's server-side answers live. Revisit if `google.call(class, method, args)` in step 9 proves too thin |
 | AdMob and every other ads SDK | Not planned. Ads decide a game's data policy, its store listing and its privacy manifest; that is a game's decision to declare, not an engine's to link |
-| Google Play Games on PC | Have, once step 3 lands: the same APIs, an `x86_64` ABI from step 1, and a keyboard-and-mouse input map the engine already has |
-| Android App Bundle, `bundletool`, Play App Signing | Step 1 |
-| 16 KB page alignment, `x86_64` ABI, target SDK upkeep | Step 1. None of it is Google-services work; all of it is why an exported game would be rejected today |
+| Google Play Games on PC | Have, once step 3 lands: the same APIs, the `x86_64` ABI the template already carries, and a keyboard-and-mouse input map the engine already has |
+| Android App Bundle, Play App Signing | Step 1, written here rather than shelled out; see §1 |
+| `bundletool` | CI only, to prove the AAB. Never on a developer's export path |
+| All four ABIs: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64` | Have. The template carries every one and `[android] abis` drops what a game does not ship, so the choice is the developer's |
+| 16 KB page alignment | Have, and checked off the ELF rather than assumed |
+| Target SDK upkeep | Step 1. Not Google-services work; it is why an exported game would be rejected today |
 | GameActivity in place of NativeActivity | Not planned yet. It buys text input and motion-event handling, and it costs a kiss3d and `android-activity` change — a window decision, not a services one |
 | Google Play Games Services v1 | Not planned. v2 is what a new integration gets, and v1's explicit sign-in flow is the thing v2 removed |
 
@@ -170,11 +211,10 @@ Every Google service an Android game reaches for, and where each stands here.
 Ordered so the APK is shippable before it is clever, and each step leaves
 something that works.
 
-1. **An APK a developer can publish.** The `[android]` table; the exporter
-   rewriting package, label and version; `max-page-size=16384` in
-   `.cargo/config.toml`; an `x86_64` ABI in the template; and `bundletool`
-   producing an AAB beside the APK. No Google code yet, and every existing
-   game gets better.
+1. **An AAB beside the APK.** All that is left of the publishable APK: the
+   bundle Play takes for a new app. Written as §1's "the AAB is a zip we can
+   write" says, with `jarsigner` for the signature and `bundletool build-apks`
+   in CI to prove it. No Google code yet.
 2. **A dex, and one call across it.** The Gradle template, one Java class,
    `jni` and `ndk-context` in `crates/balaur_google`, the class loader cached
    at `android_main`, and one round trip — Java to Rust to a script handler —
@@ -209,8 +249,8 @@ move it. What a runner can check:
   an emulator far enough to log a line
 - an exported game carries the project's application id, its capabilities'
   manifest entries, and the pack in `assets/`
-- `bundletool build-apks` accepts the AAB, and every native library in it is
-  16 KB aligned
+- `bundletool build-apks` accepts the AAB and carries every ABI the export
+  asked for, which `export_check.sh` already checks of the APK
 - the plugin's replay test passes: a recorded session of canned platform
   events replays to a bit-identical digest with no Play services present
 

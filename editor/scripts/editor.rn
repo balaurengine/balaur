@@ -2,29 +2,36 @@
 // shell and edit the game given to `balaur edit`; `S` is its one state object.
 
 mod anim;
+mod arrange;
 mod bonemap;
 mod center;
 mod chrome;
+mod complete;
 mod defs;
 mod dock;
 mod docks;
+mod docs;
+mod dropin;
+mod events;
 mod exporter;
 mod gizmo;
 mod gizmo2d;
-mod highlight;
 mod history;
 mod icons;
 mod importer;
 mod inputview;
 mod inspector;
 mod layout;
+mod library;
 mod left;
 mod lint;
 mod model;
 mod overlays;
 mod palette;
+mod pen;
 mod plugins;
 mod polygon;
+mod refactor;
 mod rig;
 mod selftest;
 mod search;
@@ -37,6 +44,7 @@ mod style;
 mod theme;
 mod textedit;
 mod tiles;
+mod selection;
 mod util;
 mod weights;
 mod viewport;
@@ -75,6 +83,15 @@ pub fn init(this) {
         schemas: #{},
         script_dirty: #{},
         collapsed: #{},
+        // The selection set; `S.sel` is its head. Locks are editor state
+        // keyed by node id, and isolate hides everything outside the set.
+        sels: [0],
+        locks: #{},
+        // The outliner's component facet: "" is every node.
+        tree_facet: "",
+        // Four camera slots on the viewport chip row, kept for the session.
+        bookmarks: #{},
+        isolated: false,
         fps: 0.0,
         // -1 when the layout self-test is not running.
         layout_demo: -1,
@@ -119,14 +136,19 @@ pub fn init(this) {
         mirror: (),
         theme: theme::dark(),
         gizmo: gizmo::state(),
+        complete: complete::state(),
+        docs: docs::state(),
+        refactor: refactor::state(),
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
         tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        events: events::state(),
         exporter: exporter::state(),
         session: session::state(),
         settings: settings::state(),
@@ -134,6 +156,7 @@ pub fn init(this) {
         search: #{},
         showcase: showcase::state(),
         inputview: inputview::state(),
+        library: library::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
         plugins: #{},
@@ -216,6 +239,7 @@ pub fn update(this, dt) {
     // A sweep is a compile per script, so it waits for typing to stop; the
     // mirror has to be resolved first, since the scene half reads live nodes.
     lint::idle(S);
+    dropin::update(S);
     let is2d = model::is_2d(S);
     if is2d != S.mode2d {
         S.mode2d = is2d;
@@ -260,12 +284,14 @@ pub fn update(this, dt) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
+    gizmo::draw_marquee(S, S.theme);
     plugins::draw_overlays(S);
     rig::draw(S);
     if !session::scrubbing(S) {
         polygon::idle(S);
     }
     polygon::draw(S);
+    pen::draw(S);
     tiles::draw(S);
     let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
@@ -276,6 +302,9 @@ pub fn update(this, dt) {
     }
     if S.persona == "anim" && chips.get("path").unwrap_or(true) {
         overlays::motion_path(S);
+    }
+    if !S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+        overlays::lights3d(S);
     }
     if S.persona == "phys" && chips.get("colliders").unwrap_or(true) {
         if S.mode2d {
@@ -311,6 +340,9 @@ pub fn draw_ui(this) {
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
 
+    // The popup owns the arrows, Tab, Enter and Escape while it is open, so
+    // the shell's own keys do not fire under it.
+    let completing = complete::key(S);
     if ui::shortcut("cmd", "K") {
         if S.palette {
             shell::close_palette(S);
@@ -320,6 +352,18 @@ pub fn draw_ui(this) {
     }
     if ui::shortcut("cmd", "S") {
         shell::save_active(S);
+    }
+    if ui::shortcut("alt+shift", "F") {
+        shell::format_active(S);
+    }
+    if ui::shortcut("cmd", "B") {
+        shell::goto_definition(S);
+    }
+    if ui::shortcut("cmd+shift", "R") {
+        refactor::open(S, "rename");
+    }
+    if ui::shortcut("cmd+shift", "F") {
+        refactor::open(S, "replace");
     }
     if ui::shortcut("cmd", "Backslash") {
         shell::toggle_split(S);
@@ -385,11 +429,34 @@ pub fn draw_ui(this) {
         if ui::shortcut("alt", "L") {
             theme::set_dark(S, !S.theme.dark);
         }
+        if ui::shortcut("cmd", "A") {
+            selection::select_all(S);
+        }
+        // Shifted first, so the plain chord does not eat the shifted one.
+        if ui::shortcut("shift+cmd", "G") {
+            arrange::ungroup(S);
+        } else if ui::shortcut("cmd", "G") {
+            arrange::group(S);
+        }
+        if ui::shortcut("shift+cmd", "L") {
+            arrange::unlock_all(S);
+        } else if ui::shortcut("cmd", "L") {
+            arrange::toggle_locked(S);
+        }
+        if ui::shortcut("shift", "H") {
+            arrange::show_all(S);
+        } else if ui::shortcut("none", "H") {
+            arrange::toggle_hidden(S);
+        }
+        if ui::shortcut("none", "Slash") {
+            arrange::toggle_isolate(S);
+        }
         if S.persona == "anim" && ui::shortcut("none", "K") {
             anim::add_key(S, S.anim.time);
         }
-        if ui::shortcut("none", "Escape") {
+        if !completing && ui::shortcut("none", "Escape") {
             polygon::cancel(S);
+            pen::cancel(S);
             tiles::cancel(S);
         }
     }

@@ -2,8 +2,13 @@
 // is the failure channel: `scripts/e2e.sh` fails any run that logs one.
 
 use crate::anim;
+use crate::arrange;
 use crate::dock;
+use crate::dropin;
+use crate::events;
+use crate::pen;
 use crate::importer;
+use crate::library;
 use crate::history;
 use crate::lint;
 use crate::model;
@@ -12,6 +17,7 @@ use crate::polygon;
 use crate::rig;
 use crate::weights;
 use crate::tiles;
+use crate::selection;
 use crate::shell;
 use crate::style;
 use crate::theme;
@@ -857,6 +863,70 @@ pub fn linting(S) {
     log::info("selftest lint: done");
 }
 
+/// `--state tooldemo`: what the caret is offered, what is under it, and what a
+/// rename would rewrite. The buffer, not the file: a tool answers about what
+/// is on screen, and the test must not write over a script.
+pub fn tooling(S) {
+    let script = first_script(S);
+    if !check(script.is_some(), "the scene attaches a script to ask about") {
+        return;
+    }
+    let rel = script.unwrap();
+    let source = model::source(S, rel).unwrap_or("");
+    let probe = source + "\n// physics2d::a\n";
+    let line = probe.split('\n').collect::<Vec>().len() - 1;
+
+    // Completion: a module path offers that module and nothing else.
+    let found = script::complete(rel, probe, line, 17);
+    if check(found is Vec && found.len() > 0, "a module path completes") {
+        let names = [];
+        for one in found {
+            names.push(one.label);
+        }
+        check(util::contains(names, "add_body"),
+            format!("physics2d::a offers add_body (got {})", util::join(names, ", ")));
+        check(found[0].doc != "", "the first completion carries its doc line");
+    }
+
+    // The popup opens on that caret and closes when it moves off.
+    crate::complete::update(S, rel, probe, #{ x: 100.0, y: 100.0, index: probe.chars().count() - 1 });
+    check(S.complete.open, "the popup opens where a caret sits after a module path");
+    crate::complete::reset(S);
+    check(!S.complete.open, "and closes when it is reset");
+
+    // Hover: a declared function answers with what the host knows about it.
+    let at = line_of_text(source, "pub fn");
+    if at > 0 {
+        check(script::hover(rel, source, at, 8) is Object,
+            "hovering a declared function answers");
+    }
+
+    // Symbols: what the file declares, from the host rather than a parser.
+    check(script::symbols(rel, source) is Vec, "the file reports its symbols");
+
+    // Find and replace reaches the same files a rename does.
+    let hits = script::find(rel, source, "fn ");
+    check(hits is Vec && hits.len() > 0, "find reaches the text in the file");
+
+    // Formatting is idempotent, and neither verb writes anything.
+    let once = script::format(rel, source);
+    check(script::format(rel, once) == once, "formatting twice is formatting once");
+    check(script::rename(rel, source, "this", "that") is Vec,
+        "a rename answers with the files it would rewrite");
+    check(model::source(S, rel).unwrap_or("") == source, "and writes none of them");
+    log::info("selftest tooling: done");
+}
+
+// The 1-based line a needle first appears on, 0 when it does not.
+fn line_of_text(source, needle) {
+    for (i, line) in source.split('\n').collect::<Vec>().iter().enumerate() {
+        if line.contains(needle) {
+            return i + 1;
+        }
+    }
+    0
+}
+
 // Prefabs in the editor: an instance's nodes are in the tree, an edit inside
 // one becomes an override and an edit back to the prefab's value stops being
 // one. Which component it edits is discovered — headless registers no `color`.
@@ -924,7 +994,7 @@ pub fn script_paths(S) {
             return;
         }
     };
-    S.sel = i;
+    crate::selection::only(S, i);
     let root = S.game_root + "/";
     // A project with no scripts/ would be left with an empty one.
     if !fs::exists(root + "scripts") {
@@ -1075,19 +1145,19 @@ pub fn font_sheet(S) {
                 ui::horizontal(#{ height: 24, width: 92 }, || {
                     ui::label(name, style::mono_sm(k.faint));
                 });
-                ui::label(sample, #{ size: 15, color: k.text });
+                ui::label(sample, #{ size: 16, color: k.text });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: 15, font: ui::FONT_HEADING, color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: 16, font: ui::FONT_HEADING, color: k.text });
         ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
         ui::add_space(6);
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
                 ui::label(crate::icons::tool(id), #{ size: 16, color: k.text });
@@ -1096,7 +1166,7 @@ pub fn font_sheet(S) {
                 ui::label(crate::icons::persona(id), #{ size: 16, color: k.accent });
             }
         });
-        ui::horizontal(#{ height: 26 }, || {
+        ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
                 ui::label(crate::icons::panel(id), #{ size: 16, color: k.text });
@@ -1364,4 +1434,407 @@ pub fn theme_switch(S) {
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
     log::info("selftest theme: done");
+}
+
+
+/// The selection set: extending it, aligning two nodes, undoing that, and
+/// grouping. Every check is on document state, so it runs with no window.
+pub fn selecting(S) {
+    if S.doc.len() < 2 {
+        log::info("selftest selecting: this scene has one node, skipping");
+        return;
+    }
+    // Two siblings: a parent and its child are one root between them, and
+    // group would then adopt one node rather than two.
+    let a = 0;
+    let b = 1;
+    let found = false;
+    for i in 0..S.doc.len() {
+        for j in i + 1..S.doc.len() {
+            let same = S.doc[i].get("parent").unwrap_or("") == S.doc[j].get("parent").unwrap_or("");
+            if same && !found {
+                a = i;
+                b = j;
+                found = true;
+            }
+        }
+    }
+    if !found {
+        log::info("selftest selecting: this scene has no two siblings, skipping");
+        return;
+    }
+    selection::only(S, a);
+    check(selection::count(S) == 1, "a plain choose selects one node");
+    selection::toggle(S, b);
+    check(selection::count(S) == 2, "toggling a second node extends the set");
+    check(S.sel == b, "and the node just added is the active one");
+    selection::toggle(S, b);
+    check(selection::count(S) == 1 && S.sel == a, "toggling it again drops it");
+
+    selection::set(S, [a, b]);
+    let before_a = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
+    arrange::align(S, 0, "min");
+    let ax = util::f(model::live(S, a).unwrap().global_position().x);
+    let bx = util::f(model::live(S, b).unwrap().global_position().x);
+    check(util::abs(ax - bx) < 1e-4, "align on x puts two nodes on one plane");
+
+    shell::undo(S);
+    let back = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
+    check(util::f(back[0]) == util::f(before_a[0]), "undo puts the align back");
+    check(selection::count(S) == 2, "and restores the set that made it");
+
+    let was = S.doc.len();
+    selection::set(S, [a, b]);
+    arrange::group(S);
+    check(S.doc.len() == was + 1, "group adds one node");
+    check(S.doc[S.sel].name.starts_with("Group"), "and selects it");
+    let group_id = S.doc[S.sel].get("id").unwrap_or("");
+    let adopted = 0;
+    for node in S.doc {
+        if node.get("parent").unwrap_or("") == group_id {
+            adopted += 1;
+        }
+    }
+    check(adopted == 2, "with both nodes under it");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the group away");
+
+    selection::only(S, a);
+    check(!selection::is_locked(S, a), "a node starts unlocked");
+    arrange::toggle_locked(S);
+    check(selection::is_locked(S, a), "lock marks it");
+    arrange::toggle_locked(S);
+    check(!selection::is_locked(S, a), "and the same command unmarks it");
+
+    let visible = S.doc[a].get("visible").unwrap_or(true) != false;
+    check(visible, "a node starts visible");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible") == Some(false), "hide writes visible = false");
+    arrange::toggle_hidden(S);
+    check(S.doc[a].get("visible") == Some(true), "and showing writes it back");
+    check(mirror_resolves(S), "the mirror still resolves after all of it");
+    log::info("selftest selecting: done");
+}
+
+/// Every file a previous drop test left under `art/`.
+fn clear_drops(S) {
+    for f in util::vec(fs::list(S.game_root + "/art")) {
+        if f.name.starts_with("selftest-drop") {
+            fs::remove(S.game_root + "/art/" + f.name);
+        }
+    }
+}
+
+/// Drag-in: one case per extension, with no window. The image and font cases
+/// copy a real file; the import case is only asked whether it claims the name,
+/// because running `balaur import` needs a model to import.
+pub fn dropping(S) {
+    check(dropin::kind_of("art/hero.png") == "image", "a .png drops as an image");
+    check(dropin::kind_of("MODELS/Robot.GLB") == "import", "a .glb goes through the importer, whatever its case");
+    check(dropin::kind_of("shaders/water.wesl") == "shader", "a .wesl drops as a shader");
+    check(dropin::kind_of("skies/studio.hdr") == "sky", "an .hdr drops as a sky");
+    check(dropin::kind_of("scenes/enemy.toml") == "scene", "a scene drops as a prefab");
+    check(dropin::kind_of("fonts/Inter.ttf") == "font", "a font drops as a font");
+    check(dropin::kind_of("notes.txt") == "", "and nothing claims a text file");
+    check(dropin::stem_of("/tmp/My Model-01.glb") == "my_model_01", "the stem is the importer's own naming rule");
+
+    let root = S.game_root + "/";
+    let source = root + "selftest-drop.png";
+    // Anything a previous run left: `copy_in` numbers a name it finds taken,
+    // so a leftover would make this run write `_3` and assert on `_2`.
+    clear_drops(S);
+    // A real image: a 2D drop makes a `sprite`, which sizes itself from the
+    // picture and cannot do that with a file of prose.
+    fs::copy("assets/balaur-logo.png", source);
+    let was = S.doc.len();
+    dropin::take(S, source);
+    check(S.doc.len() == was + 1, "dropping an image adds one node");
+    check(fs::exists(root + "art/selftest-drop.png"), "and copies the file under art/");
+    let made = S.doc[S.doc.len() - 1];
+    let named = made.contains_key("sprite") || made.contains_key("mesh");
+    check(named, "the node it makes draws the picture");
+
+    dropin::take(S, source);
+    check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
+
+    shell::undo(S);
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes both back");
+
+    // A sky: it retargets the scene's `environment` when there is one, and
+    // places one when there is not.
+    let sky = root + "selftest-drop.hdr";
+    fs::copy("assets/balaur-logo.png", sky);
+    let had_env = false;
+    for node in S.doc {
+        if node.contains_key("environment") {
+            had_env = true;
+        }
+    }
+    dropin::take(S, sky);
+    let named = false;
+    for node in S.doc {
+        if let Some(found) = node.get("environment") {
+            if util::obj(found).get("sky").unwrap_or("") != "" {
+                named = true;
+            }
+        }
+    }
+    check(named, "dropping a sky names it on an environment");
+    check(S.doc.len() == was + if had_env { 0 } else { 1 },
+        "on the one that was there, or a new one");
+    shell::undo(S);
+    fs::remove(sky);
+    for f in util::vec(fs::list(root + "skies")) {
+        fs::remove(root + "skies/" + f.name);
+    }
+
+    fs::remove(source);
+    clear_drops(S);
+    log::info("selftest dropping: done");
+}
+
+
+/// The Events view authors rows and writes the script they are equivalent to.
+pub fn eventviews(S) {
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("bindings") {
+            target = Some(i);
+        }
+    }
+    let at = match target {
+        Some(at) => at,
+        None => {
+            log::info("selftest eventviews: this scene has no bindings, skipping");
+            return;
+        }
+    };
+    selection::only(S, at);
+    let was = events::rows(S).len();
+    check(was > 0, "the selected node carries binding rows");
+
+    events::add_row(S);
+    check(events::rows(S).len() == was + 1, "adding a row adds one");
+    shell::undo(S);
+    check(events::rows(S).len() == was, "and undo takes it back");
+
+    let written = events::as_script(S);
+    check(written.contains("pub fn on_pointer_click(this, button)"),
+        "the script it writes declares the hook the rows answer");
+    check(written.contains(".go(\"open\")"),
+        "a state row becomes the call that goes to it");
+    check(written.contains("scene::variable(\"score\")"),
+        "a `when` becomes the read that fetches the variable");
+
+    let known = util::vec(scene::bindable_events());
+    check(util::contains(known, "pointer_click"), "the engine names the events");
+    let verbs = util::vec(scene::binding_actions());
+    check(util::contains(verbs, "state") && util::contains(verbs, "set_variable"),
+        "and the actions");
+    check(mirror_resolves(S), "the mirror still resolves");
+    log::info("selftest eventviews: done");
+}
+
+
+/// The project-relative files directly under one directory.
+fn named_under(S, dir) {
+    let out = [];
+    for f in util::vec(fs::list(S.game_root + "/" + dir)) {
+        if !f.is_dir {
+            out.push(dir + "/" + f.name);
+        }
+    }
+    out
+}
+
+/// The library: what the manifest lists, what placing an entry copies, and
+/// that a material lands on the selected node.
+pub fn librarydemo(S) {
+    let root = S.game_root + "/";
+    let metal = #{
+        id: "pbr_metal", kind: "material", name: "Brushed metal",
+        file: "materials/metal.toml", needs: ["shaders/pbr_surface.wesl"],
+    };
+    // A node with a 3D shape, so the material has somewhere to land.
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("shape3d") && target.is_none() {
+            target = Some(i);
+        }
+    }
+    let at = match target {
+        Some(at) => at,
+        None => {
+            log::info("selftest librarydemo: no 3D node here, skipping");
+            return;
+        }
+    };
+    // Which files the project already had, so the check below is that the
+    // library added one rather than wrote over one.
+    let before = named_under(S, "materials");
+    selection::only(S, at);
+    library::apply_material(S, metal);
+    let after = named_under(S, "materials");
+    check(after.len() == before.len() + 1, "placing a material adds a file");
+    let placed = util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("");
+    check(fs::exists(root + placed), "the node points at a file that is there");
+    check(placed.starts_with("materials/"), "under materials/: " + placed);
+    for rel in before {
+        check(rel != placed, "and never over a file the project already had");
+    }
+    check(mirror_resolves(S), "the mirror still resolves");
+
+    // A lighting setup is a scene, so placing one instances it.
+    let scenes_before = named_under(S, "scenes");
+    let was = S.doc.len();
+    library::place(S, #{
+        id: "studio_light", kind: "scene", name: "Studio lights",
+        file: "scenes/studio.toml",
+    });
+    check(named_under(S, "scenes").len() == scenes_before.len() + 1,
+        "placing a setup adds a scene");
+    // One row for the instance and one per node inside it: expanding a
+    // prefab puts its own rows in the document too.
+    check(S.doc.len() > was + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == was, "undo takes the instance back");
+
+    // The material assignment goes too: leaving the node pointing at a file
+    // this then removes is a shader the renderer relinks and cannot find.
+    shell::undo(S);
+    check(util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("") != placed,
+        "undo takes the material off the node");
+
+    // The manifest and the dock agree: every entry is of a kind that has a
+    // chip, and names files that are there.
+    let chips = [];
+    for pair in library::kinds() {
+        chips.push(pair[0]);
+    }
+    let unknown = 0;
+    let absent = 0;
+    let manifest = toml::parse(fs::read("library/manifest.toml"));
+    let listed = util::vec(util::obj(manifest).get("entries").unwrap_or([]));
+    for entry in listed {
+        let e = util::obj(entry);
+        if !util::contains(chips, e.get("kind").unwrap_or("")) {
+            unknown += 1;
+        }
+        for rel in util::vec(e.get("needs").unwrap_or([])) {
+            if !fs::exists("library/" + rel) {
+                absent += 1;
+            }
+        }
+        if !fs::exists("library/" + e.get("file").unwrap_or("")) {
+            absent += 1;
+        }
+    }
+    check(listed.len() > 0, "the manifest lists entries");
+    check(unknown == 0, "every entry is of a kind the dock has a chip for");
+    check(absent == 0, "and every file it names is in the library");
+
+    // A sky is copied under skies/ and then only named, since the drop that
+    // would have copied it already happened.
+    let skies_before = named_under(S, "skies");
+    library::place(S, #{
+        id: "sky_dusk", kind: "sky", name: "Dusk", file: "skies/dusk.png",
+    });
+    check(named_under(S, "skies").len() == skies_before.len() + 1,
+        "placing a sky adds an image");
+    let on_env = false;
+    for node in S.doc {
+        if let Some(found) = node.get("environment") {
+            if util::obj(found).get("sky").unwrap_or("").starts_with("skies/") {
+                on_env = true;
+            }
+        }
+    }
+    check(on_env, "and names it on an environment");
+    shell::undo(S);
+
+    // A model is a prefab of primitives, so placing one instances it.
+    let models_before = named_under(S, "models");
+    let had = S.doc.len();
+    library::place(S, #{
+        id: "model_tree", kind: "model", name: "Tree", file: "models/tree.toml",
+    });
+    check(named_under(S, "models").len() == models_before.len() + 1,
+        "placing a model adds a scene file");
+    check(S.doc.len() > had + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == had, "undo takes the model back");
+
+    for dir in ["skies", "models"] {
+        let keep = if dir == "skies" { skies_before } else { models_before };
+        for rel in named_under(S, dir) {
+            if !util::contains(keep, rel) {
+                fs::remove(root + rel);
+            }
+        }
+    }
+
+    // Only what this run placed: `install` numbers a name it finds taken, so
+    // nothing here can be a file the example owns.
+    for rel in named_under(S, "materials") {
+        if !util::contains(before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    for rel in named_under(S, "scenes") {
+        if !util::contains(scenes_before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    fs::remove(root + "shaders/pbr_surface.wesl");
+    log::info("selftest librarydemo: done");
+}
+
+
+/// The Pen over a `path2d`: anchors appended, a handle pulled, the loop
+/// closed, an anchor removed, and every step written back to the asset.
+pub fn pendemo(S) {
+    let was = S.doc.len();
+    pen::new_path(S);
+    check(S.doc.len() == was + 1, "a new path adds one node");
+    check(pen::editable(S), "and the Pen has something to edit");
+    let rel = pen::reference(S);
+    check(rel.ends_with(".toml"), "which is a path2d asset: " + rel);
+
+    let count = || util::vec(util::obj(pen::current(S).unwrap_or(#{})).get("points").unwrap_or([])).len();
+    check(count() == 0, "a fresh path has no points");
+    pen::add_anchor(S, 0.0, 0.0);
+    pen::add_anchor(S, 1.0, 0.0);
+    check(count() == 2, "two points on their own are a straight line");
+    pen::add_anchor(S, 1.0, 1.0);
+    // The pair is promoted to cubics and the segment appended: four control
+    // points for the first curve, three more for the second.
+    check(count() == 7, "a third anchor makes it cubic: " + format!("{}", count()));
+
+    let path = pen::current(S).unwrap();
+    let anchor = util::vec2(path.points[3], [0.0, 0.0]);
+    pen::move_point(S, 3, anchor[0] + 0.5, anchor[1], false);
+    let moved = util::vec2(pen::current(S).unwrap().points[3], [0.0, 0.0]);
+    check(util::abs(moved[0] - (anchor[0] + 0.5)) < 1e-4, "an anchor moves where it is put");
+
+    check(!pen::current(S).unwrap().closed, "a path starts open");
+    pen::toggle_closed(S);
+    check(pen::current(S).unwrap().closed, "and closes");
+    check(count() == 9, "the closing segment brings two handles");
+    pen::toggle_closed(S);
+    check(!pen::current(S).unwrap().closed, "and opens again");
+
+    let before = count();
+    pen::remove_anchor(S, 3);
+    check(count() < before, "removing an anchor takes its handles with it");
+    check(mirror_resolves(S), "the mirror still resolves");
+
+    // Read as a file rather than through `assets`, which here is this
+    // module's own demo: the point is what landed on disk.
+    let saved = util::obj(toml::parse(fs::read(S.game_root + "/" + rel)));
+    check(util::vec(saved.get("points").unwrap_or([])).len() == count(),
+        "and the asset on disk holds the same points");
+
+    fs::remove(S.game_root + "/" + rel);
+    log::info("selftest pendemo: done");
 }

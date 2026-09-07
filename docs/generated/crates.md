@@ -45,7 +45,7 @@ Apple platform services as a Balaur plugin: Game Center and iCloud behind the po
 
 - **workspace deps:** `balaur_core`, `balaur_platform`, `balaur_plugin`, `balaur_script`
 - **external deps:** 10 (anyhow, block2, objc2, objc2-authentication-services, objc2-foundation, objc2-game-kit, objc2-user-notifications, serde, …)
-- **public surface:** 3 struct, 3 enum, 1 const
+- **public surface:** 1 fn, 3 struct, 3 enum, 1 const
 - **structs:** `ApplePlugin`, `AppleSnapshot`, `AppleState`
 - **enums:** `AppleCall`, `AppleEvent`, `StoreCall`
 
@@ -89,11 +89,11 @@ Balaur engine core: ECS world, scene tree, frame scheduler, plugin API
 Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 22 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, i_triangle, …)
-- **public surface:** 222 fn, 130 struct, 21 enum, 3 trait, 43 const, 22 type
+- **external deps:** 23 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, i_triangle, …)
+- **public surface:** 236 fn, 137 struct, 26 enum, 3 trait, 60 const, 23 type
 - **traits:** `Anchor`, `FileBackend`, `Transport`
-- **structs:** `Animation`, `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Attached`, `Bone`, `Build`, `Children`, `Clock`, `Clone3d`, `Cloner`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Deform`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `EntryReport`, `Event`, `EventLog`, `EventState`, `ExtensionReport`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `MorphTarget`, `Name`, `NameIndex`, `NameSlot`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `PackReport`, `Parent`, `Path`, `PathShape`, `Pcg32`, `PeerTraffic`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProfilePoint`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resolved`, `Resources`, `RngState`, `Rule`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `SectionReport`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `Tags`, `Terrain`, `TextGeometry`, `TextShape`, `TickInputs`, `Tile`, `TileGrid`, `TileSet`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UiSettings`, `UserActivation`, `VoxelsData`, `WallClock`, `WindowSettings`
-- **enums:** `AssetRef`, `AssetSource`, `Collision`, `Command`, `Delivery`, `Demand`, `Facets`, `Flat`, `Group`, `Layout`, `LinkState`, `Mode`, `Op`, `Outside`, `PlayState`, `PluginChoice`, `ReplayMode`, `Scope`, `Solid`, `Stage`, `Step`
+- **structs:** `Animation`, `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Attached`, `Binding`, `Bindings`, `Bone`, `Build`, `Children`, `Clock`, `Clone3d`, `Cloner`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Deform`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `EntryReport`, `Event`, `EventLog`, `EventState`, `ExtensionReport`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `MorphTarget`, `Name`, `NameIndex`, `NameSlot`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `PackReport`, `Parent`, `Path`, `PathShape`, `Pcg32`, `PeerTraffic`, `Pending`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProfilePoint`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resolved`, `Resources`, `RngState`, `Rule`, `Runners`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `SectionReport`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `States`, `Strings`, `Tags`, `Terrain`, `TextGeometry`, `TextShape`, `TickInputs`, `Tile`, `TileGrid`, `TileSet`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UiSettings`, `UserActivation`, `Variable`, `Variables`, `VoxelsData`, `WallClock`, `WindowSettings`
+- **enums:** `Action`, `AssetRef`, `AssetSource`, `Collision`, `Command`, `Compare`, `Condition`, `Delivery`, `Demand`, `Facets`, `Flat`, `Group`, `Layout`, `LinkState`, `Mode`, `Op`, `Outside`, `PlayState`, `PluginChoice`, `Quarter`, `ReplayMode`, `Scope`, `Solid`, `Stage`, `Step`, `VarType`
 
 ## `balaur_export`
 
@@ -102,7 +102,7 @@ Exporting a project: packs, fused executables, and the platform bundles
 `balaur export` as a library: a project directory in, a `.bpak` or a game the player can run out.
 
 - **workspace deps:** `balaur`, `balaur_plugin`
-- **external deps:** 14 (anyhow, flacenc, hb-subset, hound, image, image-webp, imagequant, imagequant, …)
+- **external deps:** 14 (anyhow, flacenc, hound, image, image-webp, imagequant, imagequant, mkwebfont_hb-subset, …)
 - **public surface:** 11 fn, 4 struct, 3 enum, 4 const, 2 type
 - **structs:** `ExportConfig`, `Options`, `Saving`, `Summary`
 - **enums:** `AudioMode`, `FontMode`, `ImageMode`
@@ -138,7 +138,7 @@ Input as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 8 (anyhow, gilrs, hidapi, serde, serde_json, toml, tracing, web-sys)
-- **public surface:** 1 fn, 7 struct, 1 enum, 4 const
+- **public surface:** 2 fn, 7 struct, 1 enum, 4 const
 - **structs:** `GamepadState`, `InputActions`, `InputPlugin`, `InputSnapshot`, `Motion`, `Pad`, `PadTouch`
 - **enums:** `TouchPhase`
 
@@ -187,9 +187,9 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_plugin`, `balaur_script`, `balaur_ui`
 - **external deps:** 20 (anyhow, aseprite-loader, bytemuck, glamx, image, js-sys, kiss3d, libm, …)
-- **public surface:** 21 fn, 50 struct, 8 enum, 6 const
-- **structs:** `AppIconConfig`, `AsepriteImport`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Clones`, `Compiled`, `Decoration`, `DrawBuffer2d`, `Field`, `GridConfig`, `Light2d`, `LineStyle`, `LitLight2d`, `Material`, `MorphWeights`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SheetFrame`, `SheetSlice`, `SheetTag`, `SpaceOptions`, `SpriteSheet`, `SpriteSheet2d`, `SpriteTexture`, `TextDraw`, `TextDrawBuffer`, `TextRenderable`, `TextStyle`, `Tilemap`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `Align`, `CameraKind`, `Draw2d`, `FieldType`, `LightKind2d`, `Param`, `Shape`, `Shape2d`
+- **public surface:** 27 fn, 55 struct, 12 enum, 7 const
+- **structs:** `AppIconConfig`, `AsepriteImport`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Clones`, `Compiled`, `Decoration`, `DrawBuffer2d`, `Environment`, `Field`, `GridConfig`, `Light2d`, `Light3d`, `LineStyle`, `LitLight2d`, `LitLight3d`, `Material`, `MorphWeights`, `NodeCost`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SheetFrame`, `SheetSlice`, `SheetTag`, `SpaceOptions`, `SpriteSheet`, `SpriteSheet2d`, `SpriteTexture`, `Stats`, `TextDraw`, `TextDrawBuffer`, `TextRenderable`, `TextStyle`, `Tilemap`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **enums:** `Align`, `CameraKind`, `Draw2d`, `FieldType`, `FogKind`, `LightKind2d`, `LightKind3d`, `Param`, `PostPass`, `Shape`, `Shape2d`, `Tonemap`
 
 ## `balaur_script`
 
@@ -212,8 +212,9 @@ The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 9 (anyhow, bincode, hecs, indexmap, notify, rune, serde, smallvec, …)
-- **public surface:** 3 fn, 10 struct
-- **structs:** `ApiEntry`, `Color`, `Component`, `Finding`, `Node`, `RuneHost`, `RuneModule`, `ScriptCost`, `Vec2`, `Vec3`
+- **public surface:** 4 fn, 14 struct, 1 enum
+- **structs:** `ApiEntry`, `Color`, `Completion`, `Component`, `Finding`, `Hover`, `Location`, `Node`, `RuneHost`, `RuneModule`, `ScriptCost`, `Symbol`, `Vec2`, `Vec3`
+- **enums:** `Kind`
 
 ## `balaur_ui`
 

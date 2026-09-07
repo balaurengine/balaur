@@ -531,7 +531,7 @@ dependencies = [
  "balaur_script",
  "clap",
  "console_error_panic_hook",
- "dirs",
+ "dirs 6.0.0",
  "flate2",
  "js-sys",
  "serde",
@@ -557,8 +557,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur_script",
- "base64 0.22.1",
- "dirs",
+ "base64 0.23.1",
+ "dirs 7.0.0",
  "glamx",
  "gltf",
  "hecs",
@@ -1227,7 +1227,7 @@ checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.2.2",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -1642,6 +1642,15 @@ name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
+name = "dirs"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d57d423b3c82e89b9a24ca3091fee61f456a26edbd28d26c65906f4bc1dcd8f"
 dependencies = [
  "dirs-sys",
 ]
@@ -3032,7 +3041,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#2fac4f359457038482a32f14a92c047b9b2c4841"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#4cbe7284c8532a6f7aaf9e5bfb0722eca14e0f3a"
 dependencies = [
  "android-activity",
  "bitflags 2.13.1",
@@ -3067,7 +3076,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#2fac4f359457038482a32f14a92c047b9b2c4841"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#4cbe7284c8532a6f7aaf9e5bfb0722eca14e0f3a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5459,7 +5468,7 @@ checksum = "fae8ee26b0371a29a77d2b2d6b3ae13aa81def6f9bf1b1b92a32d279a5e709b7"
 [[package]]
 name = "rune"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "anyhow",
  "codespan-reporting 0.11.1",
@@ -5485,7 +5494,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "pin-project",
  "rune-alloc-macros",
@@ -5496,7 +5505,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5506,7 +5515,7 @@ dependencies = [
 [[package]]
 name = "rune-core"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "musli",
  "rune-alloc",
@@ -5517,7 +5526,7 @@ dependencies = [
 [[package]]
 name = "rune-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5528,7 +5537,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "rune-tracing-macros",
 ]
@@ -5536,7 +5545,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#520fb3acf2d7788b62060e23ff8baab02038e766"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6155,7 +6164,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
 dependencies = [
- "skrifa 0.44.0",
+ "skrifa 0.40.0",
  "yazi",
  "zeno",
 ]

@@ -1,0 +1,53 @@
+# A lit turntable: drop a model on it and it is a viewer.
+
+[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_world"
+position = [4, 3, 6]
+rotation_euler = [-18, 34, 0]
+
+[nodes.camera]
+current = true
+fov = 45
+
+[[nodes]]
+id = "n_env"
+name = "Environment"
+parent = "n_world"
+
+[nodes.environment]
+ambient = "#1c2026"
+tonemap = "neutral"
+
+[[nodes]]
+id = "n_key"
+name = "Key"
+parent = "n_world"
+position = [4, 6, 4]
+rotation_euler = [-45, 40, 0]
+
+[nodes.light3d]
+kind = "spot"
+color = "#fff4e6"
+intensity = 8
+radius = 40
+inner = 25
+outer = 50
+
+[[nodes]]
+id = "n_stand"
+name = "Stand"
+parent = "n_world"
+position = [0, 0, 0]
+script = "scripts/turntable.rn"
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 2
+height = 0.1
+color = "#2a2e35"

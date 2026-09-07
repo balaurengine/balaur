@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+use crate::android::AndroidConfig;
 use crate::apple::{AppleConfig, Platform};
 use crate::roots_for_message;
 
@@ -88,6 +89,10 @@ fn replace_export(dir: &Path, pack_inside: &Path) -> Result<()> {
 }
 
 /// Copy a bundle template and put the pack where that platform looks for it.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what to write, and what each platform adds; a struct here would exist to satisfy a count"
+)]
 pub(crate) fn export_bundle(
     kind: Bundle,
     template: &Path,
@@ -95,6 +100,7 @@ pub(crate) fn export_bundle(
     name: &str,
     output: Option<PathBuf>,
     apple: &AppleConfig,
+    android: &AndroidConfig,
     shell: &str,
 ) -> Result<PathBuf> {
     if kind == Bundle::Ios {
@@ -114,6 +120,17 @@ pub(crate) fn export_bundle(
     }
     replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
+    // After the copy, because both read the layout the template just became:
+    // a game keeps the ABIs it names, and the manifest stops being the
+    // template's own.
+    if kind == Bundle::Android {
+        android.prune(&output)?;
+        let path = output.join("AndroidManifest.xml");
+        let staged = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        std::fs::write(&path, android.manifest(&staged, name)?)
+            .with_context(|| format!("writing {}", path.display()))?;
+    }
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => {
@@ -312,6 +329,7 @@ mod tests {
             "Tide",
             Some(out.clone()),
             &AppleConfig::default(),
+            &AndroidConfig::default(),
             WEB_SHELL,
         )
         .unwrap();

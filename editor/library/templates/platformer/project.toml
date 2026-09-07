@@ -1,0 +1,7 @@
+[application]
+name = "{{name}}"
+main_scene = "scenes/main.toml"
+
+[input.actions]
+move = ["keys:A,D", "axis:LeftStickX"]
+jump = ["Space", "gamepad:South"]

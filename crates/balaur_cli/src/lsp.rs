@@ -110,6 +110,17 @@ impl Server {
                             // hundred lines and a check recompiles it whole
                             // anyway, so incremental sync would buy nothing.
                             "textDocumentSync": { "openClose": true, "change": 1, "save": true },
+                            // `:` and `.` are the two characters that change
+                            // what may follow; the rest arrive on a keystroke.
+                            "completionProvider": { "triggerCharacters": [".", ":"] },
+                            "hoverProvider": true,
+                            "signatureHelpProvider": { "triggerCharacters": ["(", ","] },
+                            "documentFormattingProvider": true,
+                            "definitionProvider": true,
+                            "documentSymbolProvider": true,
+                            "workspaceSymbolProvider": true,
+                            "referencesProvider": true,
+                            "renameProvider": true,
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -151,17 +162,291 @@ impl Server {
                     self.publish(writer)?;
                 }
             }
-            // A request we do not serve still needs an answer, or a client
-            // that waits for one hangs.
+            // Every other request answers with one value, or `null`: a
+            // client that waits for an answer hangs without one.
             _ if id.is_some() => {
+                let result = self.answer(method, &message["params"]);
                 write_message(
                     writer,
-                    &json!({ "jsonrpc": "2.0", "id": id, "result": null }),
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": result }),
                 )?;
             }
             _ => {}
         }
         Ok(false)
+    }
+
+    /// The answer to one request, or `Json::Null` for a method we do not
+    /// serve. Split from `handle`, which is then about the document's
+    /// lifecycle and the frames around it.
+    fn answer(&self, method: &str, params: &Json) -> Json {
+        match method {
+            "textDocument/completion" => self.at(params, |host, key, source, line, column| {
+                Ok(host
+                    .complete(key, source, line, column)?
+                    .iter()
+                    .map(completion)
+                    .collect())
+            }),
+            "textDocument/hover" => self.one(params, |host, key, source, line, column| {
+                Ok(host
+                    .hover(key, source, line, column)?
+                    .map(|h| json!({ "contents": { "kind": "markdown", "value": markdown(&h) } })))
+            }),
+            "textDocument/signatureHelp" => self.one(params, |host, key, source, line, column| {
+                Ok(host
+                    .signature_help(key, source, line, column)?
+                    .map(|(h, active)| {
+                        json!({
+                            "signatures": [{
+                                "label": format!("{}{}", h.title, h.detail),
+                                "documentation": h.doc,
+                            }],
+                            "activeSignature": 0,
+                            "activeParameter": active,
+                        })
+                    }))
+            }),
+            "textDocument/formatting" => self.formatting(params),
+            "textDocument/definition" => {
+                self.one(params, |host, key, source, line, column| {
+                    // A definition with no file is engine API; the URL is
+                    // what a client should open, so it goes back as one.
+                    Ok(host.definition(key, source, line, column)?.map(|d| {
+                        if d.file.is_empty() {
+                            json!({ "uri": d.url, "range": span(1, 1) })
+                        } else {
+                            json!({ "uri": self.uri_of(&d.file), "range": span(d.line, d.column) })
+                        }
+                    }))
+                })
+            }
+            "workspace/symbol" => self.workspace_symbols(params),
+            "textDocument/documentSymbol" => self.whole(params, |host, key, source| {
+                Ok(host
+                    .symbols(key, source)?
+                    .iter()
+                    .map(|one| {
+                        json!({
+                            "name": one.name,
+                            "kind": symbol_kind(one.kind),
+                            "detail": one.detail,
+                            "range": span(one.line.max(1), one.column),
+                            "selectionRange": span(one.line.max(1), one.column),
+                        })
+                    })
+                    .collect())
+            }),
+            "textDocument/references" => self.at(params, |host, key, source, line, column| {
+                let offset = balaur::rune::offset_of(source, line, column);
+                let name = word_at(source, offset);
+                if name.is_empty() {
+                    return Ok(Vec::new());
+                }
+                Ok(host
+                    .references(key, source, &name)
+                    .iter()
+                    .map(|one| {
+                        json!({
+                            "uri": self.uri_of(&one.file),
+                            "range": span(one.line, one.column),
+                        })
+                    })
+                    .collect())
+            }),
+            "textDocument/rename" => self.rename(params),
+            _ => Json::Null,
+        }
+    }
+
+    /// Run `f` for the file and position a request names, answering `null`
+    /// when the file is not one we have. LSP counts from zero and the host
+    /// counts from one.
+    fn at<T>(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Vec<T>>,
+    ) -> Json
+    where
+        T: Into<Json>,
+    {
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source, line, column) {
+            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// `at` for a request answering one value rather than a list.
+    fn one(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Option<Json>>,
+    ) -> Json {
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source, line, column) {
+            Ok(Some(found)) => found,
+            Ok(None) => Json::Null,
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// A rename as a `WorkspaceEdit`: every file it touches, each replaced
+    /// whole. The provider works textually, so one edit per file is both
+    /// simpler and safer than a list of ranges the client applies in order.
+    fn rename(&self, params: &Json) -> Json {
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        let Some(to) = params["newName"].as_str() else {
+            return Json::Null;
+        };
+        let from = word_at(&source, balaur::rune::offset_of(&source, line, column));
+        if from.is_empty() {
+            return Json::Null;
+        }
+        let written = match self.host.rename(&rel, &source, &from, to) {
+            Ok(written) => written,
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                return Json::Null;
+            }
+        };
+        let mut changes = serde_json::Map::new();
+        for (file, text) in written {
+            changes.insert(
+                self.uri_of(&file),
+                json!([{
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": u32::MAX, "character": 0 },
+                    },
+                    "newText": text,
+                }]),
+            );
+        }
+        json!({ "changes": changes })
+    }
+
+    /// Every symbol in the project whose name contains the query, as the flat
+    /// `SymbolInformation` list `workspace/symbol` wants. The per-file answer
+    /// over every script a scene attaches: there is no project-wide index, and
+    /// a project is a few dozen files.
+    fn workspace_symbols(&self, params: &Json) -> Json {
+        let query = params["query"].as_str().unwrap_or("").to_lowercase();
+        let mut out = Vec::new();
+        for rel in balaur::scene_scripts(&self.root) {
+            let Some(source) = self.source_of(&rel) else {
+                continue;
+            };
+            let found = match self.host.symbols(&rel, &source) {
+                Ok(found) => found,
+                Err(err) => {
+                    tracing::error!("{rel}: {err:#}");
+                    continue;
+                }
+            };
+            for one in found {
+                if !query.is_empty() && !one.name.to_lowercase().contains(&query) {
+                    continue;
+                }
+                out.push(json!({
+                    "name": one.name,
+                    "kind": symbol_kind(one.kind),
+                    "containerName": rel,
+                    "location": {
+                        "uri": self.uri_of(&rel),
+                        "range": span(one.line.max(1), one.column),
+                    },
+                }));
+            }
+        }
+        Json::Array(out)
+    }
+
+    /// `at` for a request about a whole file rather than a position.
+    fn whole<T>(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str) -> Result<Vec<T>>,
+    ) -> Json
+    where
+        T: Into<Json>,
+    {
+        let Some(uri) = params["textDocument"]["uri"].as_str() else {
+            return Json::Null;
+        };
+        let Some(rel) = self.rel_of(uri) else {
+            return Json::Null;
+        };
+        let Some(source) = self.source_of(&rel) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source) {
+            Ok(found) => Json::Array(found.into_iter().map(Into::into).collect()),
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// The whole file formatted, as the one edit LSP wants: a range covering
+    /// everything, replaced. `null` when the source will not parse, which is
+    /// what a client should see rather than a mangled buffer.
+    fn formatting(&self, params: &Json) -> Json {
+        let Some(uri) = params["textDocument"]["uri"].as_str() else {
+            return Json::Null;
+        };
+        let Some(rel) = self.rel_of(uri) else {
+            return Json::Null;
+        };
+        let Some(source) = self.source_of(&rel) else {
+            return Json::Null;
+        };
+        let Ok(formatted) = self.host.format(&rel, &source) else {
+            return Json::Null;
+        };
+        if formatted == source {
+            return json!([]);
+        }
+        // The end is past any real position, which is how LSP says "to the
+        // end of the document" without counting its lines.
+        json!([{
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": u32::MAX, "character": 0 },
+            },
+            "newText": formatted,
+        }])
+    }
+
+    /// The file, its text, and the 1-based position a request names.
+    fn locate(&self, params: &Json) -> Option<(String, String, usize, usize)> {
+        let uri = params["textDocument"]["uri"].as_str()?;
+        let line = params["position"]["line"].as_u64().unwrap_or(0) as usize + 1;
+        let column = params["position"]["character"].as_u64().unwrap_or(0) as usize + 1;
+        let rel = self.rel_of(uri)?;
+        let source = self.source_of(&rel)?;
+        Some((rel, source, line, column))
+    }
+
+    /// The project-relative path a `file://` URI names, when it is under the
+    /// project at all.
+    fn rel_of(&self, uri: &str) -> Option<String> {
+        let path = Path::new(uri.strip_prefix("file://")?);
+        let rel = path.strip_prefix(&self.root).unwrap_or(path);
+        Some(rel.to_string_lossy().replace('\\', "/"))
     }
 
     fn set_open(&mut self, uri: &str, text: &str) {
@@ -221,6 +506,63 @@ impl Server {
         };
         format!("file://{}", path.to_string_lossy())
     }
+}
+
+/// A [`Completion`](balaur::rune::Completion) as an LSP completion item. The
+/// doc line is the reference's, so a popup says what the manual says.
+fn completion(one: &balaur::rune::Completion) -> Json {
+    json!({
+        "label": one.label,
+        "kind": one.kind.lsp(),
+        "detail": one.detail,
+        "documentation": one.doc,
+        "insertText": one.insert,
+    })
+}
+
+/// A hover as the markdown a client renders: the name in code, then the
+/// signature, then the reference's own doc line.
+fn markdown(one: &balaur::rune::Hover) -> String {
+    let mut out = format!("```rune\n{}{}\n```", one.title, one.detail);
+    if !one.doc.is_empty() {
+        out.push_str("\n\n");
+        out.push_str(&one.doc);
+    }
+    out
+}
+
+/// The LSP `SymbolKind` for what a script declares: a function, or a property
+/// its `exports()` returned.
+fn symbol_kind(kind: balaur::rune::Kind) -> u8 {
+    if kind == balaur::rune::Kind::Function {
+        12
+    } else {
+        7
+    }
+}
+
+/// A one-character range at a 1-based line and column, which is what a
+/// definition and a symbol both want: the point, not the extent.
+fn span(line: usize, column: usize) -> Json {
+    let start = position(line, column);
+    json!({ "start": start, "end": start })
+}
+
+/// The whole identifier a byte offset touches, for a request that names a
+/// position and means the word there.
+fn word_at(source: &str, offset: usize) -> String {
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let end = source[offset.min(source.len())..]
+        .char_indices()
+        .find(|(_, c)| !is_word(*c))
+        .map_or(source.len(), |(i, _)| offset + i);
+    let head = &source[..end];
+    let start = head
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !is_word(*c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    head[start..].to_string()
 }
 
 fn notification(uri: &str, diagnostics: &[Json]) -> Json {
