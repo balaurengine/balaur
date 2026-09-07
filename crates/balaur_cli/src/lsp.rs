@@ -244,7 +244,7 @@ impl Server {
                     return Ok(Vec::new());
                 }
                 Ok(host
-                    .references(key, source, &name)?
+                    .references(key, source, &name)
                     .iter()
                     .map(|one| {
                         json!({

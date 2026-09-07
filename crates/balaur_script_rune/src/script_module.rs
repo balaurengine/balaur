@@ -68,6 +68,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
         .build()?;
     inspection_verbs(&mut script, slot)?;
     tooling_verbs(&mut script, slot)?;
+    search_verbs(&mut script, slot)?;
     Ok(script)
 }
 
@@ -192,8 +193,8 @@ fn inspection_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     Ok(())
 }
 
-/// The verbs an editor asks about a caret: what completes, what is under
-/// it, where it is defined, what a file declares, and the two that write.
+/// The verbs an editor asks about one file: the API it can reach, where a
+/// name is defined, what the file declares, and how it lays out.
 /// Split from `script_module` so each stays about one thing.
 fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     // `script::api()` — every module scripts can reach, as the JSON string
@@ -250,16 +251,34 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
             }
         })
         .build()?;
+    // `script::format(path, source)` — that source laid out by Rune's own
+    // formatter, or the source unchanged when it will not parse.
+    script
+        .function("format", move |path: &str, source: &str| {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match host.format(&RuneHost::normalize_key(path), source) {
+                Ok(text) => rune::to_value(text).expect("a string always converts"),
+                Err(err) => {
+                    tracing::error!("script::format({path}): {err}");
+                    rune::to_value(source.to_string()).expect("a string always converts")
+                }
+            }
+        })
+        .build()?;
+    Ok(())
+}
+
+/// The two searches across a file's `mod` graph, and the two rewrites
+/// that answer with files rather than writing them.
+fn search_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     // `script::references(path, source, name)` — every place that name
     // appears as a whole word across the `mod` graph. Textual, so a caller
     // shows the list before writing anything.
     script
         .function("references", move |path: &str, source: &str, name: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-            match host
-                .references(&RuneHost::normalize_key(path), source, name)
-                .and_then(|found| location_rows(&found))
-            {
+            let found = host.references(&RuneHost::normalize_key(path), source, name);
+            match location_rows(&found) {
                 Ok(value) => value,
                 Err(err) => {
                     tracing::error!("script::references({path}): {err}");
@@ -273,10 +292,8 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
     script
         .function("find", move |path: &str, source: &str, needle: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-            match host
-                .find(&RuneHost::normalize_key(path), source, needle)
-                .and_then(|found| location_rows(&found))
-            {
+            let found = host.find(&RuneHost::normalize_key(path), source, needle);
+            match location_rows(&found) {
                 Ok(value) => value,
                 Err(err) => {
                     tracing::error!("script::find({path}): {err}");
@@ -325,20 +342,6 @@ fn tooling_verbs(script: &mut rune::Module, slot: usize) -> Result<()> {
                 }
             },
         )
-        .build()?;
-    // `script::format(path, source)` — that source laid out by Rune's own
-    // formatter, or the source unchanged when it will not parse.
-    script
-        .function("format", move |path: &str, source: &str| {
-            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-            match host.format(&RuneHost::normalize_key(path), source) {
-                Ok(text) => rune::to_value(text).expect("a string always converts"),
-                Err(err) => {
-                    tracing::error!("script::format({path}): {err}");
-                    rune::to_value(source.to_string()).expect("a string always converts")
-                }
-            }
-        })
         .build()?;
     Ok(())
 }

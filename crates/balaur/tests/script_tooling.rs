@@ -214,7 +214,7 @@ fn symbols_are_the_files_public_functions_and_its_exports() {
 #[test]
 fn references_reach_the_files_a_mod_declaration_names() {
     let (_dir, app) = host();
-    let found = rune(&app).references("main.rn", SCRIPT, "assist").unwrap();
+    let found = rune(&app).references("main.rn", SCRIPT, "assist");
     let files: Vec<&str> = found.iter().map(|l| l.file.as_str()).collect();
     assert!(files.contains(&"main.rn"), "{files:?}");
     assert!(files.contains(&"helper.rn"), "{files:?}");

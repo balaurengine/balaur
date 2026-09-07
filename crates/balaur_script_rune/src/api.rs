@@ -92,6 +92,7 @@ pub(crate) fn collect_modules() -> BTreeMap<String, Module> {
 /// there is no plugin here whose declarations something could record.
 fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
     script_entries(modules);
+    script_tooling_entries(modules);
     task_entries(modules);
     for (module, doc) in [
         (
@@ -159,6 +160,15 @@ fn script_entries(modules: &mut BTreeMap<String, Module>) {
             "(path: string, source: string, line: int, column: int)",
             "The call the caret is inside, as `#{ title, detail, doc, active }`, where `active` is the argument being typed.",
         ),
+    ] {
+        record(modules, module, name, args, doc);
+    }
+}
+
+/// The `script` module's tooling entries: what an editor asks about a
+/// caret, and the searches and rewrites that walk a file's `mod` graph.
+fn script_tooling_entries(modules: &mut BTreeMap<String, Module>) {
+    for (module, name, args, doc) in [
         (
             "script",
             "api",

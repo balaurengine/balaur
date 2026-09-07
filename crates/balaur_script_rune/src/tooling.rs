@@ -704,27 +704,26 @@ impl RuneHost {
     ///
     /// Textual. Rune keeps no cross-file semantic index, so a match is a
     /// token match and the caller shows the list before writing anything.
-    ///
-    /// # Errors
-    /// If the context cannot be built.
-    pub fn references(&self, key: &str, source: &str, name: &str) -> Result<Vec<Location>> {
+    #[must_use]
+    pub fn references(&self, key: &str, source: &str, name: &str) -> Vec<Location> {
         self.search(key, source, name, true)
     }
 
     /// Every place `needle` appears across the same files, matched as text
     /// rather than as an identifier: the find half of find and replace.
-    ///
-    /// # Errors
-    /// If the context cannot be built.
-    pub fn find(&self, key: &str, source: &str, needle: &str) -> Result<Vec<Location>> {
+    #[must_use]
+    pub fn find(&self, key: &str, source: &str, needle: &str) -> Vec<Location> {
         self.search(key, source, needle, false)
     }
 
     /// `references` and `find` in one: `whole` decides whether a match has to
     /// stand alone as an identifier.
-    fn search(&self, key: &str, source: &str, name: &str, whole: bool) -> Result<Vec<Location>> {
+    ///
+    /// A file the graph names but cannot be read is skipped, so a search over
+    /// a half-written project answers rather than failing.
+    fn search(&self, key: &str, source: &str, name: &str, whole: bool) -> Vec<Location> {
         if name.is_empty() {
-            return Ok(Vec::new());
+            return Vec::new();
         }
         let mut out = Vec::new();
         let mut files = vec![(key.to_string(), source.to_string())];
@@ -758,7 +757,7 @@ impl RuneHost {
                 }
             }
         }
-        Ok(out)
+        out
     }
 
     /// Every file a rename would rewrite, as `(file, new source)`.
