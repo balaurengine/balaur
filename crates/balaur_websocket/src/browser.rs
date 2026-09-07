@@ -40,6 +40,12 @@ thread_local! {
     static LIVE: RefCell<Vec<LiveSocket>> = const { RefCell::new(Vec::new()) };
 }
 
+/// One signature across the three backends, so the caller does not know which
+/// it is talking to; this one reads the string and drops it.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the shape the other backends share"
+)]
 pub(crate) fn spawn_socket(
     socket: u64,
     url: String,
@@ -99,7 +105,7 @@ pub(crate) fn spawn_socket(
         Closure::wrap(Box::new(move |event: JsValue| {
             let reason = event
                 .dyn_ref::<CloseEvent>()
-                .map(|e| e.reason())
+                .map(CloseEvent::reason)
                 .filter(|r| !r.is_empty())
                 .unwrap_or_else(|| String::from("closed"));
             finished.set(true);
@@ -116,7 +122,7 @@ pub(crate) fn spawn_socket(
             // is as specific as it can honestly be.
             let reason = event
                 .dyn_ref::<ErrorEvent>()
-                .map(|e| e.message())
+                .map(ErrorEvent::message)
                 .filter(|m| !m.is_empty())
                 .unwrap_or_else(|| String::from("the connection failed"));
             finished.set(true);

@@ -244,7 +244,7 @@ pub(crate) fn spawn_socket(
         Closure::wrap(Box::new(move |event: JsValue| {
             let reason = event
                 .dyn_ref::<CloseEvent>()
-                .map(|e| e.reason())
+                .map(CloseEvent::reason)
                 .filter(|r| !r.is_empty())
                 .unwrap_or_else(|| String::from("closed"));
             arrivals.borrow_mut().push_back(Arrival::Closed(reason));
@@ -258,7 +258,7 @@ pub(crate) fn spawn_socket(
             // The browser deliberately withholds why a socket failed.
             let reason = event
                 .dyn_ref::<ErrorEvent>()
-                .map(|e| e.message())
+                .map(ErrorEvent::message)
                 .filter(|m| !m.is_empty())
                 .unwrap_or_else(|| String::from("the connection failed"));
             arrivals.borrow_mut().push_back(Arrival::Failed(reason));
@@ -471,6 +471,10 @@ impl LiveSocket {
 }
 
 /// A thrown JS value is not always an `Error`; say something either way.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the argument of `map_err`, which hands the error over"
+)]
 fn describe(error: JsValue) -> String {
     error
         .dyn_ref::<js_sys::Error>()
