@@ -145,7 +145,7 @@ web)
   features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
-  # webtransport is left out until it grows the wasm stub http and websocket have.
+  # webtransport is out: a browser backend exists, but no plugin registers it.
   if [ -n "$threads" ]; then
     # std itself has to be rebuilt with atomics, and `-Z build-std` is nightly
     # only. The pinned stable in rust-toolchain.toml stays the default; this

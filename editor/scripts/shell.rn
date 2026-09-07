@@ -580,6 +580,7 @@ fn states() {
         "animdemo": state_animdemo,
         "layoutdemo": crate::selftest::layout,
         "fontdemo": state_fontdemo,
+        "menudemo": state_menudemo,
         "undodemo": crate::selftest::undo,
         "breakdemo": break_demo,
         "rigdemo": crate::selftest::rigging,
@@ -602,6 +603,7 @@ fn states() {
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
+        "paneldemo": crate::selftest::menu_panels,
         "seldemo": crate::selftest::selecting,
         "dropdemo": crate::selftest::dropping,
         "eventsdemo": crate::selftest::eventviews,
@@ -722,6 +724,10 @@ fn state_tab(S, tab) {
 
 fn state_fontdemo(S) {
     S.fontdemo = true;
+}
+
+fn state_menudemo(S) {
+    S.menu_open = true;
 }
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the

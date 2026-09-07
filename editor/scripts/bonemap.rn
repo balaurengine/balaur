@@ -192,7 +192,7 @@ fn verbs(S, k, paths) {
             style::mono_sm(k.faint));
         ui::add_space(8);
         if ui::pill("guess by name", #{
-            height: 24, size: 11, strong: true,
+            height: 24, size: style::SM, strong: true,
             tooltip: "Fill every row whose canonical name matches a bone, ignoring case and separators",
             fill: k.sage_soft, color: k.sage,
         }) {
@@ -200,14 +200,14 @@ fn verbs(S, k, paths) {
         }
         ui::add_space(4);
         if ui::pill("clear", #{
-            height: 24, size: 11, strong: true, tooltip: "Empty every row",
+            height: 24, size: style::SM, strong: true, tooltip: "Empty every row",
             fill: k.sunken, color: k.dim,
         }) {
             clear(S);
         }
         ui::add_space(4);
         if ui::pill("save", #{
-            height: 24, size: 11, strong: true,
+            height: 24, size: style::SM, strong: true,
             tooltip: "Write the map as a `bone_map` asset, for animation.play's `retarget`",
             fill: k.accent_soft, color: k.accent,
         }) {
@@ -225,18 +225,18 @@ fn row(S, k, paths, name) {
             ui::label(name, style::mono(if picked == "" { k.faint } else { k.text }));
         });
         if ui::pill(if picked == "" { "—" } else { picked }, #{
-            height: 24, size: 11, align: ui::ALIGN_LEFT, min_width: PICK_W,
+            height: 24, size: style::SM, align: ui::ALIGN_LEFT, min_width: PICK_W,
             tooltip: "Pick the bone this canonical name means on this rig",
             fill: if picked == "" { k.panel } else { k.sunken },
             color: if picked == "" { k.faint } else { k.text },
-            stroke: k.line_soft,
+            stroke: k.line,
         }) {
             S.bonemap.picking = if open { None } else { Some(name) };
         }
         if picked != "" {
             ui::add_space(4);
             if ui::pill("×", #{
-                height: 24, size: 11, tooltip: "Leave this row empty",
+                height: 24, size: style::SM, tooltip: "Leave this row empty",
                 fill: k.panel, color: k.faint,
             }) {
                 S.bonemap.bones[name] = "";
@@ -253,7 +253,7 @@ fn row(S, k, paths, name) {
         ui::horizontal(#{ height: 20 }, || {
             ui::add_space(6 + NAME_W);
             if ui::pill(path, #{
-                height: 20, size: 10.5, align: ui::ALIGN_LEFT, min_width: PICK_W,
+                height: 20, size: style::SM, align: ui::ALIGN_LEFT, min_width: PICK_W,
                 fill: if path == picked { k.accent_soft } else { k.panel },
                 color: if path == picked { k.accent } else { k.dim },
             }) {

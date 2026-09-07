@@ -79,7 +79,7 @@ fn folder_button(S, k) {
         return;
     }
     if ui::pill("Open folder", #{
-        height: 24, size: 11.5, radius: 8, tooltip: "Show the last export in the file manager",
+        height: 24, size: style::MD, radius: 8, tooltip: "Show the last export in the file manager",
         fill: k.sunken, color: k.dim,
     }) {
         engine::reveal(S.exporter.landed);
@@ -145,7 +145,7 @@ fn export_button(S, k, name, installed, fetchable, status) {
     }
     let label = if installed { "export" } else { "download & export" };
     if ui::pill(label, #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: "Export the project for this target",
         fill: k.sunken, color: k.dim,
     }) {

@@ -154,7 +154,7 @@ fn card(S, k, title, note, on_click) {
             ui::spacing(2, 2);
             ui::horizontal(#{ height: 20, width: CARD_W }, || {
                 if ui::pill(title, #{
-                    height: 20, size: 11.5, strong: true, align: ui::ALIGN_LEFT,
+                    height: 20, size: style::MD, strong: true, align: ui::ALIGN_LEFT,
                     min_width: CARD_W, color: k.text,
                 }) {
                     on_click();
@@ -178,7 +178,7 @@ pub fn panel(S, k) {
             let id = chip[0];
             let on = S.library.kind == id;
             if ui::pill(chip[1], #{
-                height: 20, size: 10.5, radius: 4,
+                height: 20, size: style::SM, radius: 4,
                 fill: if on { k.accent_soft } else { k.sunken },
                 color: if on { k.accent } else { k.faint },
             }) {
@@ -238,7 +238,7 @@ fn templates(S, k, known) {
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill(icons::ui("copy") + "  copy command", #{
-                        height: 20, size: 10.5, fill: k.sunken, color: k.sage,
+                        height: 20, size: style::SM, fill: k.sunken, color: k.sage,
                     }) {
                         let command = format!("balaur new my-game --template {}", entry.id);
                         ui::set_clipboard(command);

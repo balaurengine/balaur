@@ -56,14 +56,25 @@ grow = 1
 gap = 12
 handle = 12
 
+# The column a side dock owns, and the sheet inside it. Two boxes rather than
+# one: folded, the sheet is a square at the top and the rest of the column is
+# the scene's, which a painted panel of the full height could not be.
 [[nodes]]
 id = "left"
 name = "Left"
 parent = "body"
 [nodes.widget]
+kind = "column"
+width = 236
+
+[[nodes]]
+id = "left_sheet"
+name = "LeftSheet"
+parent = "left"
+[nodes.widget]
 kind = "panel"
 text = ""
-width = 236
+grow = 1
 # What a sheet keeps inside its edge. Stated rather than left to the widget
 # theme because a folded dock writes a smaller one and needs this back.
 padding = 8
@@ -71,18 +82,20 @@ padding = 8
 [[nodes]]
 id = "left_body"
 name = "LeftBody"
-parent = "left"
+parent = "left_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_left"
 grow = 1
 
+# The tool rail down one side, and everything else beside it. The rail is a
+# column of the whole height so the dock below starts clear of it too.
 [[nodes]]
 id = "centre"
 name = "Centre"
 parent = "body"
 [nodes.widget]
-kind = "column"
+kind = "row"
 grow = 1
 gap = 12
 
@@ -91,26 +104,60 @@ id = "right"
 name = "Right"
 parent = "body"
 [nodes.widget]
+kind = "column"
+width = 288
+
+[[nodes]]
+id = "right_sheet"
+name = "RightSheet"
+parent = "right"
+[nodes.widget]
 kind = "panel"
 text = ""
-width = 288
+grow = 1
 padding = 8
 
 [[nodes]]
 id = "right_body"
 name = "RightBody"
-parent = "right"
+parent = "right_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_right"
 grow = 1
 
-# Everything above the bottom dock. The tool rail sits in its own column so
-# the scene starts clear of it, while the dock below does not.
+[[nodes]]
+id = "railslot"
+name = "RailSlot"
+parent = "centre"
+[nodes.widget]
+kind = "column"
+width = 44
+
+# The rail is only as tall as its tools, so it takes the top of the slot
+# rather than the whole of it; `layout.rn` states the height.
+[[nodes]]
+id = "rail"
+name = "Rail"
+parent = "railslot"
+[nodes.widget]
+kind = "row"
+height = 42
+
+# The scene and the dock, stacked beside the rail.
+[[nodes]]
+id = "stack"
+name = "Stack"
+parent = "centre"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 12
+
 [[nodes]]
 id = "upper"
 name = "Upper"
-parent = "centre"
+parent = "stack"
 [nodes.widget]
 kind = "row"
 grow = 1
@@ -119,7 +166,7 @@ gap = 12
 [[nodes]]
 id = "bottom"
 name = "Bottom"
-parent = "centre"
+parent = "stack"
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -145,24 +192,6 @@ parent = "bottom"
 kind = "draw"
 draw = "draw_status"
 height = 24
-
-[[nodes]]
-id = "railslot"
-name = "RailSlot"
-parent = "upper"
-[nodes.widget]
-kind = "column"
-width = 44
-
-# The rail is only as tall as its tools, so it takes the top of the slot
-# rather than the whole of it; `layout.rn` states the height.
-[[nodes]]
-id = "rail"
-name = "Rail"
-parent = "railslot"
-[nodes.widget]
-kind = "row"
-height = 42
 
 [[nodes]]
 id = "work"

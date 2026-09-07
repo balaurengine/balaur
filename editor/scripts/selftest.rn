@@ -1145,14 +1145,14 @@ pub fn font_sheet(S) {
                 ui::horizontal(#{ height: 24, width: 92 }, || {
                     ui::label(name, style::mono_sm(k.faint));
                 });
-                ui::label(sample, #{ size: 16, color: k.text });
+                ui::label(sample, #{ size: style::XL, color: k.text });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: 16, font: ui::FONT_HEADING, color: k.text });
-        ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: style::XL, font: ui::FONT_HEADING, color: k.text });
+        ui::label("ui  Source Sans 3 Regular", #{ size: style::LG, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
@@ -1160,19 +1160,19 @@ pub fn font_sheet(S) {
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-                ui::label(crate::icons::tool(id), #{ size: 16, color: k.text });
+                ui::label(crate::icons::tool(id), #{ size: style::XL, color: k.text });
             }
             for id in ["scene", "script", "anim", "phys", "ui"] {
-                ui::label(crate::icons::persona(id), #{ size: 16, color: k.accent });
+                ui::label(crate::icons::persona(id), #{ size: style::XL, color: k.accent });
             }
         });
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
-                ui::label(crate::icons::panel(id), #{ size: 16, color: k.text });
+                ui::label(crate::icons::panel(id), #{ size: style::XL, color: k.text });
             }
             for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-                ui::label(crate::icons::ui(id), #{ size: 16, color: k.sage });
+                ui::label(crate::icons::ui(id), #{ size: style::XL, color: k.sage });
             }
         });
     });
@@ -1304,6 +1304,16 @@ pub fn timings(S) {
     // something else.
     check(util::f(t.frame) >= total - 1e-9,
         format!("the frame ({}) covers its stages ({})", util::f(t.frame), total));
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render land outside them, and `wall` is what the loop took.
+    if !check(t.contains_key("wall"), "the loop's own frame period is there") {
+        return;
+    }
+    let wall = util::f(t.wall);
+    if wall > 0.0 {
+        check(wall >= util::f(t.frame) - 1e-9,
+            format!("the loop's frame ({}) covers its stages ({})", wall, util::f(t.frame)));
+    }
     log::info("selftest timings: done");
 }
 
@@ -1367,6 +1377,26 @@ pub fn plugin_docks(S) {
         check(crate::docks::showing(S, entry.id), format!("showing {} brings it up", entry.id));
     }
     log::info("selftest plugin docks: done");
+}
+
+/// `--state paneldemo`: every row of the mark's menu opens the panel it names
+/// and closes it again. A panel something else reopens on the same frame, or
+/// one no dock will take, reads as a row that does nothing.
+pub fn menu_panels(S) {
+    let ids = crate::docks::known(S);
+    check(ids.len() > 10, format!("the menu lists every panel ({})", ids.len()));
+    for id in ids {
+        let was = crate::docks::side_of(S, id).is_some();
+        crate::docks::toggle(S, id);
+        let now = crate::docks::side_of(S, id).is_some();
+        if !check(now != was, format!("{} toggles ({} to {})", id, was, now)) {
+            continue;
+        }
+        crate::docks::toggle(S, id);
+        check(crate::docks::side_of(S, id).is_some() == was,
+            format!("and {} toggles back", id));
+    }
+    log::info("selftest menu panels: done");
 }
 
 /// `--state settingsdemo`: the settings screen's search field and the query it

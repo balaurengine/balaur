@@ -406,14 +406,90 @@ fn a_pill_menu_opens_on_a_left_click() {
     let drawn = field(&app, "rows").unwrap_or(0.0);
     assert!(drawn > 0.0, "a click on the pill opened no menu");
     // Away from the pill and the menu: the popup closes and stops drawing.
+    // `rows` counts one pass, since the body zeroes it on every one.
     let away = egui::pos2(500.0, 400.0);
     feed(&app, &ctx, tap(away, true));
     feed(&app, &ctx, tap(away, false));
-    let after = field(&app, "rows").unwrap_or(0.0);
     feed(&app, &ctx, vec![]);
     assert_eq!(
         field(&app, "rows"),
-        Some(after),
+        Some(0.0),
         "the menu kept drawing after it was dismissed"
     );
+}
+
+/// A pointer button held outside every widget belongs to whatever the scene
+/// is doing with it — orbiting a camera — and the shell cannot change until
+/// it comes up, so the frames between are the scene's alone.
+#[test]
+fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
+    let (app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
+    let away = egui::pos2(500.0, 400.0);
+    feed(&app, &ctx, tap(away, true));
+    assert!(
+        balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
+        "the press took no widget, so the drag is the scene's"
+    );
+    assert!(
+        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, false),
+        "a camera with no drag buttons is dragging nothing"
+    );
+    feed(&app, &ctx, tap(away, false));
+    assert!(
+        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
+        "the button came up, so the pointer answers the shell again"
+    );
+}
+
+/// A press egui took a candidate from is the UI's drag: a button held, a
+/// scroll dragged, a field selecting text all move the picture as the
+/// pointer does.
+#[test]
+fn a_drag_that_began_on_a_widget_still_wants_its_passes() {
+    let (app, ctx, errors) = draw_with(r#"ui::central_panel(#{}, || { ui::pill("Go", #{}); });"#);
+    assert!(errors.is_empty(), "{errors:#?}");
+    feed(&app, &ctx, tap(egui::pos2(24.0, 20.0), true));
+    assert!(!balaur_ui::pointer_is_dragging_elsewhere(&ctx, true));
+}
+
+/// Laying a file out costs its length, and the editor draws the same file on
+/// every frame of a session. Nothing about the picture changes until the text
+/// or its colours do, and the galley must be the same one until then.
+#[test]
+fn the_code_editor_lays_its_text_out_once_until_its_look_changes() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        this.n = this.get("n").unwrap_or(0) + 1;
+        let comment = if this.n > 2 { "#ff0000" } else { "#808080" };
+        ui::central_panel(#{}, || {
+            ui::code_editor("ed", "// a\nlet x = 1;", #{ k_com: comment });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let first = laid_out(&app);
+    feed(&app, &ctx, Vec::new());
+    let again = laid_out(&app);
+    assert!(
+        std::sync::Arc::ptr_eq(&first, &again),
+        "a pass that changed nothing laid the file out a second time"
+    );
+    feed(&app, &ctx, Vec::new());
+    let recoloured = laid_out(&app);
+    assert!(
+        !std::sync::Arc::ptr_eq(&again, &recoloured),
+        "the comment colour changed and the editor kept the old picture"
+    );
+}
+
+/// The galley the code editor last laid out, whatever its id.
+fn laid_out(app: &App) -> std::sync::Arc<egui::Galley> {
+    let state = app.engine.resource::<balaur_ui::UiState>();
+    let state = state.borrow();
+    let (_, galley) = state
+        .code_galleys
+        .values()
+        .next()
+        .expect("the code editor laid nothing out");
+    std::sync::Arc::clone(galley)
 }

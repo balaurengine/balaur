@@ -45,10 +45,10 @@ rustflags = ["-Clink-arg=-Wl,-z,max-page-size=16384"]
 
 # Windows carries no Visual C++ runtime until someone installs the
 # redistributable, so a binary linking it dynamically fails on a clean machine.
-# Both the editor and the runtime template every exported game is fused onto
-# import VCRUNTIME140.dll, so the CRT goes inside them. Safe because nothing
-# the CRT owns crosses the extension boundary: balaur_plugin's C API allocates
-# and frees on one side of it.
+# The editor and the template every exported game is fused onto both import it.
+
+# Safe because nothing the CRT owns crosses the extension boundary:
+# balaur_plugin's C API allocates and frees on one side of it.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-Ctarget-feature=+crt-static"]
 

@@ -2,6 +2,7 @@
 // polygons over interior points, place its UVs over the texture, and paint
 // bone weights. Every edit lands in the node's inline `mesh` table.
 
+use crate::style;
 use crate::history;
 use crate::model;
 use crate::util;
@@ -1139,9 +1140,9 @@ pub fn mode_chips(S, k) {
     for id in modes(S) {
         let on = mode == id;
         if ui::pill(mode_name(id), #{
-            height: 24, size: 11, strong: true,
+            height: 24, size: style::SM, strong: true,
             fill: if on { k.accent_soft } else { k.panel },
-            stroke: k.line_soft,
+            stroke: k.line,
             color: if on { k.accent } else { k.dim },
         }) {
             set_mode(S, id);

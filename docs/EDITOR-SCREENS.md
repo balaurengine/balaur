@@ -240,7 +240,8 @@ The mark at the head of the bar is the shell's one menu, opened with a left
 click: the command palette, Settings and Export, then every panel there is with
 a tick beside the open ones, two to a line, then the row that puts the current
 persona's panels back. A folded side dock is a rail of the same marks: the one
-that opens it, then one per panel it holds.
+that opens it, then one per panel it holds. Shot `36-menu`, whose `menudemo`
+state draws the rows as a sheet: no offscreen run can click a popup open.
 
 ---
 
@@ -276,7 +277,12 @@ dropped as they are fixed; git holds them.
 
 ### Where the measurements live
 
-The token set is the website's ink-and-blue palette, in `editor/scripts/theme.rn`.
+The token set is the website's ink-and-blue palette, in `editor/themes/*.toml`:
+four surfaces, one seam, three levels of text, one accent and one second
+colour. Type is four sizes — `style::SM` 11, `MD` 12, `LG` 14, `XL` 17 — and a
+call site names one of those or takes the size its `role` carries. Nothing in
+the shell spells a size or a colour of its own.
+
 The measurements — dock heights, the 84 px label column, the 999 px radii, the
 1 px seams — live in the code that draws them. This file is the state of the
 world; the plan is where it is going.

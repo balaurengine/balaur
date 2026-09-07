@@ -48,10 +48,9 @@ if [ "$dry" = true ]; then
   exit 0
 fi
 
-# A sibling is pinned by version as well as by path, for publishing, and
-# cargo refuses the tree when the two disagree. extension_greeter is outside
-# the workspace and pins them too. The VS Code extension speaks to this
-# engine's language server, so it moves in lockstep.
+# A sibling is pinned by version as well as by path, for publishing, and cargo
+# refuses the tree when the two disagree. extension_greeter and the VS Code
+# extension sit outside the workspace and pin this engine's version too.
 python3 - "$current" "$next" <<'PY'
 import re
 import sys

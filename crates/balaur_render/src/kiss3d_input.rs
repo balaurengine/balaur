@@ -6,18 +6,32 @@ use balaur_input::InputSnapshot;
 use kiss3d::event::{Action, ImeEvent, TouchAction, WindowEvent};
 use kiss3d::window::Window;
 
+/// What arrived this frame, as the UI's pacing reads it: a pointer that only
+/// moved is the one kind of event that may leave the shell as it was.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Seen {
+    pub(crate) any: bool,
+    /// Anything but cursor movement: a key, a button, a wheel, a touch, a drop.
+    pub(crate) beyond_motion: bool,
+}
+
 /// Feed this frame's OS events into the input resource (if the input plugin
-/// is installed). Answers whether any event arrived; without the plugin
-/// nothing counts them, so it answers yes.
-pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
+/// is installed). Answers what arrived; without the plugin nothing counts
+/// them, so it answers as though everything did.
+pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
-        return true;
+        return Seen {
+            any: true,
+            beyond_motion: true,
+        };
     };
     let mut input = input.borrow_mut();
     input.begin_frame();
-    let mut seen = false;
+    let mut seen = Seen::default();
+    let mut closing = false;
     for event in window.events().iter() {
-        seen = true;
+        seen.any = true;
+        seen.beyond_motion |= !matches!(event.value, WindowEvent::CursorPos(_, _, _));
         if matches!(
             event.value,
             WindowEvent::Key(_, Action::Press, _)
@@ -63,14 +77,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
                 input.touch_event(id, x as f32, y as f32, phase);
             }
             WindowEvent::Focus(focused) => crate::device::set_focused(app, focused),
-            // A chance to save, not a veto: every script hears it, then the
-            // app goes.
-            WindowEvent::Close => {
-                if let Some(host) = app.engine.script_host() {
-                    host.call_all("on_quit_requested");
-                }
-                app.engine.request_quit();
-            }
+            WindowEvent::Close => closing = true,
             _ => {}
         }
     }
@@ -92,8 +99,19 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     // kiss3d has no such event on mobile.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     for path in window.dropped_files() {
-        seen = true;
+        seen.any = true;
+        seen.beyond_motion = true;
         input.file_drop_event(path.to_string_lossy().into_owned());
+    }
+    // A chance to save, not a veto: every script hears it, then the app goes.
+    // Outside the borrow above, since a handler reading input would re-enter
+    // that same `RefCell`.
+    drop(input);
+    if closing {
+        if let Some(host) = app.engine.script_host() {
+            host.call_all("on_quit_requested");
+        }
+        app.engine.request_quit();
     }
     seen
 }

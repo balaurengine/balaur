@@ -9,8 +9,9 @@ use crate::left;
 use crate::style;
 use crate::util;
 
-// What a folded side dock's rail has room for inside its sheet.
-const RAIL_W = 22.0;
+// The square a folded side dock keeps: SHUT_W in `layout.rn` less the
+// padding either side of it.
+const RAIL_W = 24.0;
 
 pub fn sides() {
     ["left", "bottom", "right"]
@@ -31,6 +32,11 @@ pub fn apply_persona(S, id) {
         want[side].shut = S.docks[side].shut;
     }
     S.docks = want;
+    // A plugin's dock is in no persona's set: it was adopted when the plugin
+    // loaded, and a persona must not unregister it.
+    for entry in S.registry.docks {
+        adopt(S, entry.id);
+    }
 }
 
 /// Every panel the menu can open, in the order it lists them.
@@ -243,7 +249,7 @@ fn tab_row(S, k, side, d) {
         ui::right(|| {
             ui::add_space(2);
             if ui::pill(icons::ui(shut_icon(side)), #{
-                role: "icon_button", height: tab_h(S), size: 10.5, padding_x: 5,
+                role: "icon_button", height: tab_h(S), size: style::SM, padding_x: 5,
                 tooltip: "Minimise",
             }) {
                 S.docks[side].shut = true;
@@ -251,7 +257,7 @@ fn tab_row(S, k, side, d) {
             tools(S, k, d.active, S.layout[side].w);
         });
     });
-    ui::separator(k.line_soft);
+    ui::separator(k.line);
 }
 
 // One tab: its name, the count Problems carries, and the mark that closes it,
@@ -278,7 +284,7 @@ fn tab(S, k, side, d, id) {
                 S.docks[side].active = id;
             }
             if ui::pill(icons::ui("close"), #{
-                height: h, min_width: 13, size: 8, fill: "none", padding_x: 2,
+                height: h, min_width: 18, size: style::MD, fill: "none", padding_x: 2,
                 color: if active { k.accent } else { k.faint },
                 tooltip: format!("Close {}", p.name),
             }) {
@@ -385,7 +391,7 @@ pub fn draw_status(S, k) {
     let d = S.docks.bottom;
     chrome::status_strip(S, k, S.layout.bottom.w, || {
         if d.shut && ui::pill(icons::ui(open_icon("bottom")), #{
-            role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
+            role: "icon_button", height: 24, size: style::MD, tooltip: "Open the dock",
         }) {
             S.docks.bottom.shut = false;
         }
@@ -413,20 +419,19 @@ pub fn draw_body(S, k, side) {
     ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
         body(S, k, d.active);
     });
-    ui::separator(k.line_soft);
+    ui::separator(k.line);
     chrome::status_strip(S, k, S.layout[side].w, || {});
 }
 
-// Minimised, without the sheet: the control that opens the dock back, and
-// under it one mark per panel it holds, so a folded dock still says what is
-// in it and opens straight onto the one that is wanted.
+// Minimised: one control, filling the square the sheet folded to. The tabs
+// are not drawn — a folded dock is a thing to reopen, and the marks for what
+// is in it were a second row of chrome in a column 32 px wide.
 fn handle_body(S, k, side) {
-    let d = S.docks[side];
     if side == "bottom" {
         ui::add_space(2);
         chrome::status_strip(S, k, S.layout[side].w, || {
             if ui::pill(icons::ui(open_icon(side)), #{
-                role: "icon_button", height: 22, size: 10.5, padding_x: 5,
+                role: "icon_button", height: 22, size: style::LG, padding_x: 5,
                 tooltip: "Open the dock",
             }) {
                 S.docks[side].shut = false;
@@ -434,25 +439,11 @@ fn handle_body(S, k, side) {
         });
         return;
     }
-    ui::vertical(|| {
-        ui::spacing(0, 3);
-        if ui::pill(icons::ui(open_icon(side)), #{
-            height: 22, min_width: RAIL_W, size: 10.5, padding_x: 0, radius: 5,
-            fill: k.sunken, color: k.dim, tooltip: "Open the dock",
-        }) {
-            S.docks[side].shut = false;
-        }
-        for id in d.tabs {
-            let p = panel(S, id);
-            if ui::pill(p.icon, #{
-                height: 22, min_width: RAIL_W, size: 12, padding_x: 0, radius: 5,
-                fill: if d.active == id { k.accent_soft } else { "none" },
-                color: if d.active == id { k.accent } else { k.faint },
-                tooltip: p.name,
-            }) {
-                S.docks[side].active = id;
-                S.docks[side].shut = false;
-            }
-        }
-    });
+    let p = panel(S, S.docks[side].active);
+    if ui::pill(icons::ui(open_icon(side)), #{
+        height: RAIL_W, min_width: RAIL_W, size: style::LG, padding_x: 0, radius: 5,
+        color: k.dim, tooltip: format!("Open the {}", p.name.to_lowercase()),
+    }) {
+        S.docks[side].shut = false;
+    }
 }

@@ -19,8 +19,9 @@ pub struct ThemeTokens {
     pub colors: HashMap<String, Color32>,
     /// Named looks — `field`, `tab`, `heading` — as the option map a widget
     /// would otherwise have been given at the call site. Colour entries are
-    /// already resolved from token name to `#rrggbb`.
-    pub roles: HashMap<String, Vec<(String, balaur_script::Value)>>,
+    /// already resolved from token name to `#rrggbb`. Shared rather than
+    /// owned: every widget naming a role would otherwise copy the table.
+    pub roles: HashMap<String, std::rc::Rc<Vec<(String, balaur_script::Value)>>>,
 }
 
 impl Default for ThemeTokens {
@@ -40,7 +41,7 @@ impl ThemeTokens {
 
     /// The option map a role stands for, empty when nothing declares it.
     pub fn role(&self, name: &str) -> &[(String, balaur_script::Value)] {
-        self.roles.get(name).map_or(&[], Vec::as_slice)
+        self.roles.get(name).map_or(&[], |role| role.as_slice())
     }
 }
 
@@ -66,12 +67,10 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     let sunken = c("sunken", Color32::from_rgb(0x10, 0x12, 0x15));
     let raised = c("raised", Color32::from_rgb(0x2b, 0x30, 0x37));
     let line = c("line", Color32::from_rgb(0x34, 0x3a, 0x42));
-    let line_soft = c("line_soft", Color32::from_rgb(0x2b, 0x30, 0x37));
     let text = c("text", Color32::from_rgb(0xee, 0xf1, 0xf4));
     let dim = c("dim", Color32::from_rgb(0xb0, 0xb8, 0xc0));
     let accent = c("accent", Color32::from_rgb(0xf0, 0xa2, 0x73));
     let accent_soft = c("accent_soft", Color32::from_rgb(0x3d, 0x24, 0x15));
-    let code_bg = c("code_bg", Color32::from_rgb(0x13, 0x15, 0x18));
 
     let mut visuals = if tokens.dark {
         egui::Visuals::dark()
@@ -85,7 +84,7 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     visuals.popup_shadow = Shadow::NONE;
     visuals.extreme_bg_color = sunken;
     visuals.faint_bg_color = raised;
-    visuals.code_bg_color = code_bg;
+    visuals.code_bg_color = sunken;
     visuals.override_text_color = Some(text);
     visuals.selection.bg_fill = accent_soft;
     visuals.selection.stroke = Stroke::new(1.0, accent);
@@ -98,7 +97,7 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text);
     visuals.widgets.inactive.bg_fill = sunken;
     visuals.widgets.inactive.weak_bg_fill = sunken;
-    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, line_soft);
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, line);
     visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, dim);
     visuals.widgets.hovered.bg_fill = raised;
     visuals.widgets.hovered.weak_bg_fill = raised;

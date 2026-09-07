@@ -51,7 +51,7 @@ fn tree_row(S, k, row) {
             let id = node.get("id").unwrap_or("");
             let open = !S.collapsed.contains_key(id);
             if ui::pill(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, #{
-                height: 20, size: 10.5, radius: 3, min_width: 13,
+                height: 20, size: style::SM, radius: 3, min_width: 13,
                 color: k.faint, tooltip: "Collapse",
             }) {
                 if open {
@@ -69,7 +69,7 @@ fn tree_row(S, k, row) {
             role: if selected { "row_on" } else { "row" },
             strong: depth == 0 || (selected && !active),
             min_width: ui::available_width(),
-            icon: icon, icon_size: 12,
+            icon: icon, icon_size: style::MD,
             icon_color: if selected { k.on_accent } else { icon_color },
             // A row from a prefab reads as one level quieter: it is real, and
             // it is not this file's to restructure.
@@ -283,21 +283,34 @@ fn tagged(S, i, tag) {
     false
 }
 
+// Six chips need about 300 px and the column is 236 at its widest, so this is
+// one picker at every size: the row of them was clipped in the resting layout,
+// not only in a small window.
 fn facet_row(S, k) {
+    let chips = facets();
+    chips.push(["script", "Script"]);
+    facet_picker(S, k, chips);
+}
+
+fn facet_picker(S, k, chips) {
+    let names = ["All nodes"];
+    let current = names[0];
+    for chip in chips {
+        names.push(chip[1]);
+        if chip[0] == S.tree_facet {
+            current = chip[1];
+        }
+    }
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(2);
-        ui::spacing(3, 0);
-        let chips = facets();
-        chips.push(["script", "Script"]);
-        for chip in chips {
-            let tag = chip[0];
-            let on = S.tree_facet == tag;
-            if ui::pill(chip[1], #{
-                height: 20, size: 10.5, radius: 4,
-                fill: if on { k.accent_soft } else { k.sunken },
-                color: if on { k.accent } else { k.faint },
-            }) {
-                S.tree_facet = if on { "" } else { tag };
+        let (pick, changed) = ui::dropdown("tree-facet", current, names,
+            #{ width: S.layout.left.w - 40.0, size: style::SM, color: k.dim });
+        if changed {
+            S.tree_facet = "";
+            for chip in chips {
+                if chip[1] == pick {
+                    S.tree_facet = chip[0];
+                }
             }
         }
     });
@@ -360,7 +373,7 @@ pub fn outline_body(S, k) {
             ui::horizontal(#{ height: 27 }, || {
                 ui::add_space(2);
                 if ui::pill(row.name, util::merge(style::list_row(k, 27), #{
-                    icon: row.icon, icon_size: 12, icon_color: k.dim,
+                    icon: row.icon, icon_size: style::MD, icon_color: k.dim,
                     trailing: row.meta, trailing_color: k.faint,
                 })) {
                     (row.run)();

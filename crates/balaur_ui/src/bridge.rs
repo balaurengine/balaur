@@ -10,34 +10,42 @@ use balaur_core::Engine;
 use balaur_script::{CallbackHost, CallbackId, NodeId, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
-thread_local! {
-    static CTX: RefCell<Option<egui::Context>> = const { RefCell::new(None) };
-    static ROOT: RefCell<Option<Box<egui::Ui>>> = const { RefCell::new(None) };
-    static UI_STACK: RefCell<Vec<*mut egui::Ui>> = const { RefCell::new(Vec::new()) };
-    static SCALE: std::cell::Cell<f32> = const { std::cell::Cell::new(1.0) };
-    static ROLES: RefCell<HashMap<String, Vec<(String, Value)>>> =
-        RefCell::new(HashMap::new());
+/// Everything a `ui.*` call needs to find, in one thread-local rather than
+/// five: a widget reads the stack, the scale and its role, and each separate
+/// `thread_local!` was its own guarded lookup on a path a pass runs thousands
+/// of times.
+#[derive(Default)]
+struct Pass {
+    ctx: Option<egui::Context>,
+    /// Kept alive for the duration of the pass; `stack[0]` points into it.
+    root: Option<Box<egui::Ui>>,
+    stack: Vec<*mut egui::Ui>,
+    scale: f32,
+    roles: HashMap<String, Rc<Vec<(String, Value)>>>,
 }
 
-/// A role's option map, as `Opts` merges it under the caller's.
-pub(crate) fn role(name: &str) -> Vec<(String, Value)> {
-    ROLES.with(|r| r.borrow().get(name).cloned().unwrap_or_default())
+thread_local! {
+    static PASS: RefCell<Pass> = RefCell::new(Pass { scale: 1.0, ..Pass::default() });
+}
+
+/// A role's option map, as `Opts` reads it under the caller's. Shared: a
+/// pass draws hundreds of widgets naming a handful of roles.
+pub(crate) fn role(name: &str) -> Option<Rc<Vec<(String, Value)>>> {
+    PASS.with(|p| p.borrow().roles.get(name).cloned())
 }
 
 /// The pass's UI scale: every widget dimension is multiplied by this.
 pub(crate) fn scale() -> f32 {
-    SCALE.with(std::cell::Cell::get)
+    PASS.with(|p| p.borrow().scale)
 }
 
 pub(crate) fn enter_pass(
     ctx: &egui::Context,
     ui_scale: f32,
-    roles: HashMap<String, Vec<(String, Value)>>,
+    roles: HashMap<String, Rc<Vec<(String, Value)>>>,
 ) {
-    SCALE.with(|s| s.set(ui_scale));
-    ROLES.with(|r| *r.borrow_mut() = roles);
-    CTX.with(|c| *c.borrow_mut() = Some(ctx.clone()));
     // The root Ui spanning the viewport; panels carve regions out of it
     // (this mirrors what `Context::run_ui` builds internally).
     let mut root = Box::new(egui::Ui::new(
@@ -48,27 +56,51 @@ pub(crate) fn enter_pass(
             .max_rect(ctx.viewport_rect()),
     ));
     let ptr: *mut egui::Ui = &raw mut *root;
-    ROOT.with(|r| *r.borrow_mut() = Some(root));
-    UI_STACK.with(|s| s.borrow_mut().push(ptr));
+    PASS.with(|p| {
+        let mut pass = p.borrow_mut();
+        pass.scale = ui_scale;
+        pass.roles = roles;
+        pass.ctx = Some(ctx.clone());
+        pass.root = Some(root);
+        pass.stack.clear();
+        pass.stack.push(ptr);
+    });
 }
 
 pub(crate) fn leave_pass() {
-    UI_STACK.with(|s| s.borrow_mut().clear());
-    ROOT.with(|r| *r.borrow_mut() = None);
-    CTX.with(|c| *c.borrow_mut() = None);
+    PASS.with(|p| {
+        let mut pass = p.borrow_mut();
+        pass.stack.clear();
+        pass.root = None;
+        pass.ctx = None;
+    });
 }
 
 pub(crate) fn with_ctx<R>(
     f: impl FnOnce(&egui::Context) -> anyhow::Result<R>,
 ) -> anyhow::Result<R> {
-    CTX.with(|c| match c.borrow().as_ref() {
-        Some(ctx) => f(ctx),
+    // Cloned out of the borrow: `f` may itself make `ui.*` calls, and the cell
+    // cannot be borrowed twice.
+    let ctx = PASS.with(|p| p.borrow().ctx.clone());
+    match ctx {
+        Some(ctx) => f(&ctx),
         None => Err(anyhow::anyhow!("ui.* can only be called from draw_ui")),
-    })
+    }
+}
+
+/// Make `ui` the target every later `ui.*` call acts on, until [`pop`].
+fn push(ui: &mut egui::Ui) {
+    PASS.with(|p| p.borrow_mut().stack.push(std::ptr::from_mut::<egui::Ui>(ui)));
+}
+
+fn pop() {
+    PASS.with(|p| {
+        p.borrow_mut().stack.pop();
+    });
 }
 
 pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> anyhow::Result<R> {
-    let top = UI_STACK.with(|s| s.borrow().last().copied());
+    let top = PASS.with(|p| p.borrow().stack.last().copied());
     match top {
         Some(ptr) => f(unsafe { &mut *ptr }),
         None => Err(anyhow::anyhow!(
@@ -84,11 +116,9 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> 
 /// The stack is popped even when the callback fails, so one bad handler does
 /// not leave every later widget drawing into a dead `Ui`.
 pub(crate) fn scoped(eng: &Engine, ui: &mut egui::Ui, callback: CallbackId) -> anyhow::Result<()> {
-    UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
+    push(ui);
     let result = eng.invoke(callback, &[]).map(|_| ());
-    UI_STACK.with(|s| {
-        s.borrow_mut().pop();
-    });
+    pop();
     result
 }
 
@@ -102,7 +132,7 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
     let Some(host) = eng.script_host() else {
         return;
     };
-    UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
+    push(ui);
     let result = if let Some((path, function)) = target.split_once(':') {
         host.call_in(path, function, &[]).map(|_| ())
     } else {
@@ -113,9 +143,7 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
         }
         Ok(())
     };
-    UI_STACK.with(|s| {
-        s.borrow_mut().pop();
-    });
+    pop();
     if let Err(err) = result {
         tracing::warn!("widget draw '{target}': {err:#}");
     }

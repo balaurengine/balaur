@@ -55,7 +55,7 @@ fn controls(S, k, list) {
             names.push(m.name);
         }
         let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
-            width: 150, size: 11, height: 24, color: k.text,
+            width: 150, size: style::SM, height: 24, color: k.text,
         });
         if changed {
             S.docs.pick = picked;

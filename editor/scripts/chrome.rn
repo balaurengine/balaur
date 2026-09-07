@@ -109,16 +109,21 @@ pub fn top_bar(S) {
             ui::spacing(4, 0);
             ui::add_space(2);
             let mark = brand(S);
-            // The mark is the shell's one menu: everything the editor has
-            // that is not a persona, a document or the transport hangs here.
-            ui::image_button(mark.logo, #{
-                height: h - 6.0, radius: 12, fill: "#ffffff", padding: 2,
-                tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
+            // The mark is the shell's one menu, and wears the tile and caret a
+            // menu button wears: a bare picture says nothing about clicking.
+            ui::frame(#{ fill: k.sunken, radius: 6, padding_x: 3 }, || {
+                ui::horizontal(#{ height: h - 4.0, tight: true }, || {
+                    ui::spacing(3, 0);
+                    ui::image_button(mark.logo, #{
+                        height: h - 12.0, radius: 9, fill: "#ffffff", padding: 2,
+                        tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
+                    });
+                    if !S.compact {
+                        ui::label(mark.name, #{ role: "title", color: k.text });
+                    }
+                    ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });
+                });
             });
-            if !S.compact {
-                ui::add_space(3);
-                ui::label(mark.name, #{ size: 15, font: ui::FONT_HEADING, color: k.text });
-            }
             ui::add_space(8);
             for p in defs::personas() {
                 let active = S.persona == p.id;
@@ -135,13 +140,13 @@ pub fn top_bar(S) {
             doc_tabs(S, k);
             ui::right(|| {
                 if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
-                    height: h, min_width: THEME_W, size: 14, radius: 8, padding_x: 0,
+                    height: h, min_width: THEME_W, size: style::LG, radius: 8, padding_x: 0,
                     fill: k.sunken, color: k.dim, tooltip: "Toggle theme",
                 }) {
                     theme::set_dark(S, !k.dark);
                 }
                 if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                    height: h, min_width: CMD_W_COMPACT, size: 11.5, radius: 8,
+                    height: h, min_width: CMD_W_COMPACT, size: style::MD, radius: 8,
                     padding_x: if S.compact { 0 } else { 9 }, icon: icons::ui("search"),
                     fill: k.sunken, color: k.faint, tooltip: "⌘K",
                 }) {
@@ -201,7 +206,7 @@ fn tab(S, k, id, icon, label, closable) {
             }
             if closable {
                 if ui::pill(icons::ui("close"), #{
-                    height: h, min_width: 15, size: 9, fill: "none", padding_x: 2,
+                    height: h, min_width: 18, size: style::MD, fill: "none", padding_x: 2,
                     color: if active { k.accent } else { k.faint }, tooltip: "Close",
                 }) {
                     shell::close_doc(S, id);

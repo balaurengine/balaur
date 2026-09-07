@@ -212,11 +212,11 @@ pub fn draw(S, k) {
             let one = S.complete.items[i];
             let on = i == S.complete.pick;
             let opts = util::merge(style::list_row(k, ROW), #{
-                icon: glyph(one.kind), icon_size: 10,
+                icon: glyph(one.kind), icon_size: style::SM,
                 icon_color: if on { k.accent } else { k.faint },
                 color: if on { k.text } else { k.dim },
                 trailing: one.detail, trailing_color: k.faint,
-                size: 11,
+                size: style::SM,
             });
             if on {
                 opts["fill"] = k.accent_soft;

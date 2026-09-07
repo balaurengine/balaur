@@ -113,6 +113,7 @@ pub(crate) mod keys {
     pub(crate) const K_PUNC: &str = "k_punc";
     pub(crate) const K_STR: &str = "k_str";
     pub(crate) const K_TYPE: &str = "k_type";
+    pub(crate) const KEEP_OPEN: &str = "keep_open";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KNOB: &str = "knob";
     pub(crate) const LANGUAGE: &str = "language";

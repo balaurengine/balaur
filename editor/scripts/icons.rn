@@ -60,9 +60,11 @@ pub fn panel(id) {
 /// The shell's own controls.
 pub fn ui(name) {
     match name {
-        "add" => "\u{e3d4}",
+        // Fill draws a stroke-only glyph as a solid tile, which is too heavy
+        // for a mark this small: these two are letters, not icons.
+        "add" => "+",
+        "close" => "\u{00d7}",
         "check" => "\u{e182}",
-        "close" => "\u{e4f6}",
         "reset" => "\u{e038}",
         "settings" => "\u{e270}",
         "export" => "\u{eaf0}",

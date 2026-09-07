@@ -220,6 +220,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: timings,
     },
     EngineOp {
+        module: "engine",
+        name: "profile_scripts",
+        call: profile_scripts,
+    },
+    EngineOp {
+        module: "engine",
+        name: "script_costs",
+        call: script_costs,
+    },
+    EngineOp {
         module: "save",
         name: "write",
         call: save_write,
@@ -947,6 +957,39 @@ fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// branch the simulation on wall time, which no two machines agree about.
 fn timings(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::timings::table(eng))
+}
+
+/// `engine.profile_scripts(on)`: start or stop counting what each script
+/// costs. Turning it on clears the tally.
+fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let on = matches!(args.first(), Some(Value::Bool(true)));
+    if let Some(host) = eng.script_host() {
+        host.set_profiling(on);
+    }
+    Ok(Value::Nil)
+}
+
+/// `engine.script_costs()`: what each script has cost since profiling
+/// started, dearest first.
+///
+/// Counted in instructions, not seconds: the same run executes the same
+/// instructions on every machine, so a number that moved is a real change.
+fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
+    let rows = eng.script_host().map(|h| h.script_costs()).unwrap_or_default();
+    Ok(Value::List(
+        rows.into_iter()
+            .map(|(path, calls, instructions)| {
+                Value::Map(vec![
+                    ("path".to_string(), Value::Str(path)),
+                    ("calls".to_string(), Value::Int(calls as i64)),
+                    (
+                        "instructions".to_string(),
+                        Value::Int(instructions as i64),
+                    ),
+                ])
+            })
+            .collect(),
+    ))
 }
 
 /// The whole property table a scene key's value stands for.

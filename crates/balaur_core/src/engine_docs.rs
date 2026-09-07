@@ -12,6 +12,8 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
         ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
+        ("profile_scripts", &[], "(on)", "Start or stop counting what each script costs. Turning it on clears the tally."),
+        ("script_costs", &[], "()", "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "()", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
         ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),

@@ -29,11 +29,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Built inside the oldest glibc worth supporting rather than on the
-          # runner's own: a binary cannot load against a glibc older than the
-          # one it linked, and ubuntu-latest sets that floor at 2.39, which
-          # locks out Debian 12 and Ubuntu 22.04. The 22.04 runner is not the
-          # answer, since it is deprecated from 2026-09-17.
+          # Built inside the oldest glibc worth supporting: a binary cannot
+          # load against one older than it linked, and ubuntu-latest's 2.39
+          # floor locks out Debian 12 and Ubuntu 22.04.
+
+          # Not the 22.04 runner instead: deprecated from 2026-09-17.
           - os: ubuntu-latest
             target: linux-x64
             container: ubuntu:22.04

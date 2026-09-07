@@ -172,7 +172,17 @@ impl Frontend {
         // After `apply_post`, which is what reads the camera's list.
         self.post
             .sync(app, window.canvas().surface_format(), self.asset_generation);
-        let input_seen = crate::kiss3d_input::pump_input(app, window);
+        let seen = crate::kiss3d_input::pump_input(app, window);
+        // A pointer the camera is dragging with cannot change the shell, and
+        // on the web rebuilding it is most of the frame — so an orbit that
+        // crosses the toolbar costs the scene's redraw and nothing else.
+        let camera_enabled = app
+            .engine
+            .try_resource::<crate::CameraInputConfig>()
+            .is_none_or(|c| c.borrow().enabled);
+        let idle_motion = !seen.beyond_motion
+            && balaur_ui::pointer_is_dragging_elsewhere(window.egui_context(), camera_enabled);
+        let input_seen = seen.any && !idle_motion;
         self.device.publish(app, window, dt);
         app.advance(dt);
         // What the window last spent, filed before this frame's own spans so

@@ -107,6 +107,7 @@ pub fn init(this) {
         rail_visible: false,
         rail_shut: false,
         fontdemo: false,
+        menu_open: false,
         // A document is over the scene; the hooks list is beside it.
         doc_open: false,
         hooks_open: false,
@@ -479,6 +480,9 @@ pub fn draw_ui(this) {
     }
     if S.fontdemo {
         selftest::font_sheet(S);
+    }
+    if S.menu_open {
+        menu::preview(S);
     }
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.

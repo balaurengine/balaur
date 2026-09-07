@@ -2,6 +2,18 @@
 // is then one edit, and `util::merge` covers the per-call overrides Rune has
 // no spread syntax for.
 
+/// The type scale, in design pixels. Four steps and no others: a call site
+/// that wants a size names one of these, and everything else takes the size
+/// its `role` carries.
+///
+/// `SM` is a caption or a dense secondary line, `MD` is body text and every
+/// control's label, `LG` is a glyph standing on its own, and `XL` is the one
+/// title a panel gets.
+pub const SM = 11.0;
+pub const MD = 12.0;
+pub const LG = 14.0;
+pub const XL = 17.0;
+
 /// A mono label, in `color`. Size and family come from the theme.
 pub fn mono(color) {
     #{ role: "mono", color: color }

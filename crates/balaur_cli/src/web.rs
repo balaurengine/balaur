@@ -12,6 +12,18 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
+/// The panic hook and the log capture, installed once when the page
+/// instantiates the module.
+///
+/// Not per entry point: the page reaches `import_project_files` and
+/// `delete_project` before it boots an engine, and a panic with no hook in
+/// place surfaces as `RuntimeError: unreachable` carrying no message at all.
+#[wasm_bindgen(start)]
+fn on_load() {
+    console_error_panic_hook::set_once();
+    balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
+}
+
 /// Fetch `pack_url` and run it on the canvas with id `canvas_id`. Resolves
 /// when the game quits; rejects with the error's message when it cannot
 /// start — a bad URL, a pack the engine cannot decode, no GPU adapter.
@@ -21,10 +33,6 @@ use wasm_bindgen_futures::JsFuture;
     reason = "exported to the page by wasm-bindgen, not to another crate"
 )]
 pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
-    // A panic would otherwise surface as `RuntimeError: unreachable` with no
-    // message; the hook prints the panic's own text on the console first.
-    console_error_panic_hook::set_once();
-    balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
     let bytes = fetch_bytes(&pack_url).await?;
     // The pack's URL names the game on this origin: the user directory an
     // earlier visit kept under it comes back before the first scene loads.
@@ -89,8 +97,6 @@ pub async fn open_project(
     project_id: String,
     seed_pack_url: Option<String>,
 ) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
-    balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
     let editor = fetch_bytes(&editor_pack_url).await?;
     let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
     let fs = crate::web_store::ProjectFs::open(&project_id, Path::new(PROJECT_ROOT)).await?;

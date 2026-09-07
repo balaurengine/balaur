@@ -177,7 +177,7 @@ fn save_button(S, k) {
     if !S.settings.dirty {
         return;
     }
-    if ui::pill("Save", #{ height: 24, size: 11.5, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
+    if ui::pill("Save", #{ height: 24, size: style::MD, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
         commit(S);
     }
 }
@@ -202,7 +202,7 @@ fn sidebar(S, k) {
             }
             let on = S.settings.query == "" && category == current(S);
             if ui::pill(category, #{
-                height: 24, size: 11.5, radius: 8, min_width: 190,
+                height: 24, size: style::MD, radius: 8, min_width: 190,
                 fill: if on { k.sunken } else { k.panel },
                 color: if on { k.text } else { k.dim },
             }) {
@@ -296,7 +296,7 @@ fn edit(S, k, def) {
             "set:" + def.path,
             if value is String { value } else { "" },
             util::vec(spec.get("options").unwrap_or([])),
-            #{ width: 220, size: 11.5, height: 24, color: k.text },
+            #{ width: 220, size: style::MD, height: 24, color: k.text },
         );
         if changed {
             write(S, def.path, v);

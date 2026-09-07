@@ -22,7 +22,7 @@ Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 | `web` | on | on | `web.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_web` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec. | `balaur_websocket` |
 | `webtransport` | on | off | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `naga`, `wgpu`, … (68 crates) |
+| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `naga`, `wgpu`, … (73 crates) |
 
 ## What the web template resolves
 
@@ -36,7 +36,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `avif`, `bmp`, `dds`, `default-formats`, `exr`, `ff`, `gif`, `hdr`, `ico`, `jpeg`, `png`, `pnm`, `qoi`, `tga`, `tiff`, `webp` |
 | `rodio` | 0.22.2 | `cpal`, `flac`, `mp3`, `mp4`, `playback`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
-| `rapier3d` | 0.35.3 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `parallel`, `serde-serialize`, `std` |
-| `parry3d` | 0.30.2 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `parallel`, `rayon`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
+| `rapier3d` | 0.35.3 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `serde-serialize`, `std` |
+| `parry3d` | 0.30.2 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `shape-run-cache`, `std`, `swash`, `sys-locale` |
 | `wesl` | 0.4.4 | `eval` |

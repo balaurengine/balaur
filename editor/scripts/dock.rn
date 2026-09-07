@@ -49,7 +49,7 @@ pub fn output_tools(S, k, room) {
     }
     ui::add_space(6);
     if ui::pill("clear", #{
-        height: 24, size: 11, strong: true, tooltip: "Empty the log buffer",
+        height: 24, size: style::SM, strong: true, tooltip: "Empty the log buffer",
         fill: k.sunken, color: k.dim,
     }) {
         log::clear();
@@ -60,7 +60,7 @@ pub fn output_tools(S, k, room) {
     for level in ["error", "warn", "all"] {
         let active = S.log_level == level;
         if ui::pill(level, #{
-            height: 24, size: 11, strong: true,
+            height: 24, size: style::SM, strong: true,
             tooltip: format!("Show {} and above", level),
             fill: if active { k.accent_soft } else { k.sunken },
             color: if active { k.accent } else { k.dim },
@@ -73,8 +73,8 @@ pub fn output_tools(S, k, room) {
         S.log_query = "";
     } else {
         let (query, _, _) = ui::text_field("log-search", "filter…", #{
-            size: 11, font: ui::FONT_MONO, width: 130, height: 24,
-            fill: k.sunken, stroke: k.line_soft, color: k.text,
+            size: style::SM, font: ui::FONT_MONO, width: 130, height: 24,
+            fill: k.sunken, stroke: k.line, color: k.text,
         });
         S.log_query = query;
     }
@@ -240,14 +240,14 @@ pub fn assets_state() {
 fn asset_verbs(S, k) {
     let chosen = S.assets.sel != "";
     if ui::pill(icons::ui("add") + " folder", #{
-        height: 20, size: 10.5, strong: true, tooltip: "Make a folder here",
+        height: 20, size: style::SM, strong: true, tooltip: "Make a folder here",
         fill: k.sunken, color: k.dim,
     }) {
         new_folder(S);
     }
     ui::add_space(6);
     if ui::pill("rename", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
         fill: k.sunken, color: if chosen { k.dim } else { k.line },
     }) {
@@ -257,7 +257,7 @@ fn asset_verbs(S, k) {
     }
     ui::add_space(6);
     if ui::pill("delete", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
         fill: k.sunken, color: if chosen { k.accent } else { k.line },
     }) {
@@ -330,7 +330,7 @@ pub fn assets(S, k) {
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(12);
         if dir != "" {
-            if ui::pill("↑", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
+            if ui::pill("↑", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
                 S.assets.dir = parent_dir(dir);
             }
             ui::add_space(6);
@@ -374,7 +374,7 @@ pub fn assets(S, k) {
                     ui::vertical(|| {
                         ui::spacing(0, 0);
                         if ui::pill(icon, #{
-                            height: CARD_H, min_width: CARD_W, size: 20, radius: 6,
+                            height: CARD_H, min_width: CARD_W, size: style::XL, radius: 6,
                             fill: if chosen { k.accent_soft } else { k.sunken },
                             color: if chosen { k.accent } else { k[ink] },
                             tooltip: rel,
@@ -396,7 +396,7 @@ pub fn assets(S, k) {
                         // The name belongs to the card, not to the gap under it.
                         let short = if f.name.len() > 13 { f.name[..12] + "…" } else { f.name };
                         ui::pill(short, #{
-                            height: 20, min_width: CARD_W, size: 10.5, radius: 6, align: ui::ALIGN_CENTER,
+                            height: 20, min_width: CARD_W, size: style::SM, radius: 6, align: ui::ALIGN_CENTER,
                             font: ui::FONT_MONO,
                             fill: if chosen { k.accent_soft } else { k.sunken },
                             color: if chosen { k.accent } else { k.dim },
@@ -431,7 +431,7 @@ pub fn timeline(S, k) {
                 ui::label(missing, style::mono_lg(k.faint));
                 ui::add_space(12);
                 if ui::pill(icons::ui("add") + " Create clip", #{
-                    height: 24, size: 11.5, strong: true,
+                    height: 24, size: style::MD, strong: true,
                     fill: k.accent_fill, color: k.on_accent,
                 }) {
                     anim::ensure_clip(S);
@@ -572,7 +572,7 @@ fn value_text(v) {
 fn break_on_error_pill(k) {
     let on = debugger::break_on_error();
     if ui::pill("break on error", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: "Stop at the line a script throws on, instead of logging it",
         fill: if on { k.accent_fill } else { k.sunken },
         color: if on { k.on_accent } else { k.faint },
@@ -588,7 +588,7 @@ pub fn debugger_view(S, k) {
             ui::add_space(8);
             // Nothing stops on the click: the next line a script runs is where.
             if S.playing && ui::pill("⏸ Pause", #{
-                height: 24, size: 11.5, strong: true, tooltip: "F6",
+                height: 24, size: style::MD, strong: true, tooltip: "F6",
                 fill: k.accent_soft, color: k.accent,
             }) {
                 debugger::request_break();
@@ -617,7 +617,7 @@ pub fn debugger_view(S, k) {
         ];
         for step in steps {
             if ui::pill(step[0], #{
-                height: 24, size: 11.5, strong: true, tooltip: step[2],
+                height: 24, size: style::MD, strong: true, tooltip: step[2],
                 fill: k.accent_soft, color: k.accent,
             }) {
                 shell::resume(S, step[1]);
@@ -642,7 +642,7 @@ pub fn debugger_view(S, k) {
             ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(6);
                 if ui::pill(frame["function"], #{
-                    height: 20, size: 11, strong: true,
+                    height: 20, size: style::SM, strong: true,
                     fill: if chosen { k.accent_fill } else { k.sunken },
                     color: if chosen { k.on_accent } else { k.dim },
                 }) {
@@ -699,7 +699,7 @@ pub fn problems(S, k) {
                 ui::add_space(6);
                 let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
                 if ui::pill(at, #{
-                    height: 20, size: 11, font: ui::FONT_MONO,
+                    height: 20, size: style::SM, font: ui::FONT_MONO,
                     fill: k.sunken, color: k.dim,
                     tooltip: "Open the file at this line",
                 }) {
@@ -747,19 +747,19 @@ pub fn session_view(S, k) {
         ui::horizontal(#{ height: 24, width: name_w - 12.0 }, || {
             let playing = replay::state() == replay::STATE_PLAYING;
             if ui::pill(if playing { "⏸ Pause" } else { "▶ Play" }, #{
-                height: 24, size: 11, strong: true,
+                height: 24, size: style::SM, strong: true,
                 fill: k.accent_soft, color: k.accent,
             }) {
                 session::toggle_pause(S);
             }
             if ui::pill("⇥", #{
-                height: 24, size: 11, strong: true, tooltip: "One recorded tick forward",
+                height: 24, size: style::SM, strong: true, tooltip: "One recorded tick forward",
                 fill: k.sunken, color: k.dim,
             }) {
                 session::step(S);
             }
             if ui::pill("■", #{
-                height: 24, size: 11, strong: true, tooltip: "Back to the edited scene",
+                height: 24, size: style::SM, strong: true, tooltip: "Back to the edited scene",
                 fill: k.sunken, color: k.dim,
             }) {
                 session::close(S);
@@ -826,7 +826,7 @@ fn lane_marks(S, k, lane, first, span, lane_w) {
                 if ui::pill("", #{
                     height: 8, min_width: util::max(4.0, w - 2.0),
                     tooltip: format!("{}: {}", hit.tick, hit.label),
-                    fill: if behind { k.accent } else { k.line_soft }, color: k.dim,
+                    fill: if behind { k.accent } else { k.line }, color: k.dim,
                 }) {
                     session::seek(S, hit.tick);
                 }
@@ -865,7 +865,7 @@ fn session_list(S, k) {
             ui::add_space(8);
             let on = S.session.verify;
             if ui::pill("verify", #{
-                height: 20, size: 10.5, strong: true,
+                height: 20, size: style::SM, strong: true,
                 tooltip: "Hash the world every tick, so a replay can name where it parted",
                 fill: if on { k.accent_fill } else { k.sunken },
                 color: if on { k.on_accent } else { k.faint },
@@ -885,7 +885,7 @@ fn session_list(S, k) {
             ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(8);
                 if ui::pill("▶", #{
-                    height: 20, size: 11, strong: true, tooltip: "Replay this session",
+                    height: 20, size: style::SM, strong: true, tooltip: "Replay this session",
                     fill: k.accent_soft, color: k.accent,
                 }) {
                     session::open(S, r.name);
@@ -904,20 +904,20 @@ fn session_list(S, k) {
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill("delete", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         fill: k.sunken, color: k.faint,
                     }) {
                         session::remove(S, r.name);
                     }
                     if ui::pill("export", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         tooltip: "Copy into the project, for a bug report or `balaur replay`",
                         fill: k.sunken, color: k.dim,
                     }) {
                         session::export(S, r.name);
                     }
                     if !r.name.starts_with("kept-") && ui::pill("keep", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         tooltip: "Never prune this one",
                         fill: k.sunken, color: k.dim,
                     }) {
@@ -973,6 +973,20 @@ pub fn profiler(S, k) {
         }
     });
     ui::add_space(6);
+    ui::horizontal((), || {
+        ui::add_space(12);
+        let on = S.get("script_profiling").unwrap_or(false);
+        if ui::pill("scripts", #{
+            height: 24, size: style::SM, strong: true,
+            tooltip: "Count what each script costs, in VM instructions",
+            fill: if on { k.accent } else { k.sunken },
+            color: if on { k.sunken } else { k.dim },
+        }) {
+            S.script_profiling = !on;
+            engine::profile_scripts(!on);
+        }
+    });
+    ui::add_space(6);
     ui::scroll("profiler", (), || {
         rows(k, util::obj(timings.stages), "stage");
         let spans = util::obj(timings.spans);
@@ -980,7 +994,48 @@ pub fn profiler(S, k) {
             style::section_label(k, "named");
             rows(k, spans, "span");
         }
+        if S.get("script_profiling").unwrap_or(false) {
+            style::section_label(k, "scripts");
+            script_rows(k);
+        }
     });
+}
+
+/// What each script cost the last frame, dearest first.
+///
+/// Instructions rather than milliseconds: the same frame runs the same
+/// instructions on every machine, so a number that moved is a change in what
+/// a script does. Re-armed after reading, so a row is one frame's work.
+fn script_rows(k) {
+    let costs = engine::script_costs();
+    if costs.is_empty() {
+        ui::add_space(4);
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(12);
+            ui::label("nothing ran this frame", style::mono_sm(k.dim));
+        });
+        engine::profile_scripts(true);
+        return;
+    }
+    let worst = util::f(costs[0].instructions);
+    for row in costs {
+        let count = util::f(row.instructions);
+        let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(12);
+            ui::horizontal(#{ height: 20, width: 132 }, || {
+                ui::label(row.path, style::mono_sm(k.sage));
+            });
+            ui::horizontal(#{ height: 20, width: 68 }, || {
+                ui::label(format!("{}", row.instructions), style::mono_sm(k.dim));
+            });
+            let width = util::max(1.0, share * 180.0);
+            ui::frame(#{ fill: k.sage, radius: 3, padding_x: 0 }, || {
+                ui::horizontal(#{ height: 8, width: width }, || {});
+            });
+        });
+    }
+    engine::profile_scripts(true);
 }
 
 // Worst first. A hand-written pass rather than a comparator: a float

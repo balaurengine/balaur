@@ -67,7 +67,10 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
                             (k.clone(), v)
                         })
                         .collect();
-                    config.theme.roles.insert(name.clone(), resolved);
+                    config
+                        .theme
+                        .roles
+                        .insert(name.clone(), std::rc::Rc::new(resolved));
                 }
             }
             config.changed = true;
@@ -223,11 +226,11 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let fam = opts.string(k::FONT).unwrap_or_else(|| w::UI.into());
+                let fam = opts.str(k::FONT).unwrap_or(w::UI);
                 let rt = text(
                     &s,
                     opts.px(k::SIZE, 12.0),
-                    &fam,
+                    fam,
                     opts.opt_color(k::COLOR),
                     opts.boolean(k::STRONG, false),
                 );
@@ -918,7 +921,7 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     // A colour as `[r, g, b, a]` in unit floats, which is how a schema's
     // `color` property is stored. Four drag values were the alternative.
     m.function("color", |_eng: &Engine, value: Option<Value>| {
-        let opts = Opts(value);
+        let opts = Opts::plain(value);
         let start = opts.unit_rgba(k::VALUE);
         with_ui(|ui| {
             let mut rgba =
@@ -1095,17 +1098,21 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                     ),
                     StrokeKind::Inside,
                 );
-                let mut x = rect.min.x + sc(7.0);
+                // Tight: three of these are one row of a vector, and the gap
+                // the label used to keep pushed the value out of its own cell.
+                let size = opts.px(k::SIZE, 12.0);
+                let mut x = rect.min.x + sc(5.0);
                 if let Some(prefix) = opts.string(k::PREFIX) {
                     let color = opts.color(k::PREFIX_COLOR, Color32::from_rgb(0xf0, 0xa2, 0x73));
                     let galley = ui.painter().layout_no_wrap(
                         prefix,
-                        FontId::new(sc(10.0), theme::family(w::HEADING)),
+                        FontId::new(size, theme::family(w::HEADING)),
                         color,
                     );
                     let y = rect.center().y - galley.size().y / 2.0;
+                    let advance = galley.size().x + sc(4.0);
                     ui.painter().galley(pos2(x, y), galley, color);
-                    x += sc(14.0);
+                    x += advance;
                 }
                 let decimals = opts.f32(k::DECIMALS, 1.0) as usize;
                 let display = opts.string(k::SUFFIX).map_or_else(
@@ -1115,7 +1122,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 let color = opts.color(k::COLOR, Color32::from_rgb(0xee, 0xf1, 0xf4));
                 let galley = ui.painter().layout_no_wrap(
                     display,
-                    FontId::new(sc(11.5), theme::family(w::MONO)),
+                    FontId::new(size, theme::family(w::MONO)),
                     color,
                 );
                 let y = rect.center().y - galley.size().y / 2.0;

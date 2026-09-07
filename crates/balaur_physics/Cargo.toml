@@ -23,12 +23,18 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
-# Sizes the pool rapier's solver runs on.
-rayon = "1"
 # A ragdoll aims a tip bone along its gizmo angle, and that angle has to
 # resolve the same way on every platform.
 libm.workspace = true
 
+
+# The solver threads on rayon, which spawns through `std::thread` — unsupported
+# on wasm32-unknown-unknown, the `+atomics` threads template included, where
+# only `sleep` gains an implementation. So both stop here.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rapier3d = { workspace = true, features = ["parallel"] }
+rapier2d = { workspace = true, features = ["parallel"] }
+rayon = "1"
 
 [dev-dependencies]
 balaur.workspace = true

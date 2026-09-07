@@ -1096,6 +1096,17 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         RuneHost::instance_count(self)
     }
 
+    fn set_profiling(&self, on: bool) {
+        RuneHost::set_profiling(self, on);
+    }
+
+    fn script_costs(&self) -> Vec<(String, u64, u64)> {
+        RuneHost::script_costs(self)
+            .into_iter()
+            .map(|(key, cost)| (key, cost.calls, cost.instructions))
+            .collect()
+    }
+
     fn invoke(
         &self,
         callback: balaur_script::CallbackId,

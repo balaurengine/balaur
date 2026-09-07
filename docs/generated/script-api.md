@@ -14,7 +14,7 @@ cannot drift from what scripts actually see.
 | [`audio`](#audio) | 20 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 18 | 0 | the engine |
+| [`engine`](#engine) | 20 | 0 | the engine |
 | [`events`](#events) | 5 | 0 | the engine |
 | [`export`](#export) | 5 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
@@ -84,7 +84,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `platform`, `plugin_version`, `plugins`, `quit`, `reload_script`, `reveal`, `tick`, `time`, `timings`, `unix_time`, `user_data_dir`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `tick`, `time`, `timings`, `unix_time`, `user_data_dir`
 
 ## `events`
 

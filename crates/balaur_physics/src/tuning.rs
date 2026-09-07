@@ -294,14 +294,27 @@ pub(crate) fn warn_about_quarantine(eng: &Engine) {
 ///
 /// Rayon's pool is global and sized once per process, so setting it twice is
 /// not an error but does nothing the second time.
+#[cfg(not(target_family = "wasm"))]
 fn set_threads(count: usize) {
     let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(count.max(1))
         .build_global();
 }
 
+/// A browser has no pool to size: the solver is built without `parallel`
+/// there, so nothing reaches rayon.
+#[cfg(target_family = "wasm")]
+fn set_threads(_count: usize) {}
+
+#[cfg(not(target_family = "wasm"))]
 fn threads() -> usize {
     rayon::current_num_threads()
+}
+
+/// The one thread a browser runs the solver on.
+#[cfg(target_family = "wasm")]
+fn threads() -> usize {
+    1
 }
 
 /// What the solver takes when a game says nothing.
