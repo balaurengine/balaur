@@ -1,7 +1,7 @@
 > **Status:** phase 0 is done — clippy, rustfmt and the house, comment and
 > API lints are green across the workspace, the macOS Swift abort and the
-> Linux build-script failure are fixed, `scripts/lint.sh` and CI run the same
-> list, and a `pre-push` hook runs it. Phases 1-3 and 5 landed with the work
+> Linux build-script failure are fixed, `scripts/precommit.sh` runs what CI
+> runs (`lint.sh` calls it), and a `pre-push` hook runs the lints. Phases 1-3 and 5 landed with the work
 > the audit asked for; phase 4 and phase 6 are what is left. Written 2026-09-04
 > from an audit of every crate,
 > the editor's scripts, the CI and the documents, done by reading rather than
@@ -63,8 +63,8 @@ switch enables both scalar widths. Each is in its phase below with the line.
 4. **Content is data.** A scene, an asset, a recording, a save, a packet or a
    HID report that is wrong produces an error line naming it, never a panic
    and never an allocation it chose the size of.
-5. **`scripts/lint.sh` is CI**, byte for byte the same steps, or AGENTS.md's
-   "the two have drifted, which is a bug in the scripts" applies.
+5. **`scripts/precommit.sh` is CI**, the same steps, or AGENTS.md's "green
+   locally and red on push is a bug in the script" applies.
 
 ## 2. Phases
 
