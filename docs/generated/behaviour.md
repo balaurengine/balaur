@@ -47,6 +47,7 @@ flow nothing checks.
 - a breakpoint pauses update on its line with the arguments as locals
 - a broken rune script fails the export
 - a build from another engine version is refused by name
+- a bundle signs what it contains before itself
 - a bundled binary also looks in resources
 - a burst and a ramp round trip
 - a bus nobody declared is unity rather than silence
@@ -66,6 +67,8 @@ flow nothing checks.
 - a capsule keeps the height it was given
 - a cell and the point in it answer each other
 - a cell stays where it is when the map grows
+- a cell walled in by its own terrain is four fills
+- a cell with nothing beside it is four outer corners
 - a chain of two solves two bones and leaves the third
 - a change of focus or dark mode reaches every script once
 - a changed setting changes the stamp
@@ -121,6 +124,8 @@ flow nothing checks.
 - a containers own padding is measured as well as drawn
 - a copy moved sideways lands where it was moved
 - a copy turned about the cloner lands turned
+- a corner reads its two sides before its diagonal
+- a corner the terrain wraps around is an inner one
 - a corrupted asset is caught by its hash
 - a count of none still draws the template once
 - a counter stays a hole
@@ -193,6 +198,8 @@ flow nothing checks.
 - a flow wraps when the row is full
 - a fnt descriptor is an extension a pack ships
 - a fold hides its children until its header is clicked
+- a follower takes the same path at any frame rate
+- a follower with no lag lands on its target and its offset
 - a font is never unreferenced though nothing names it
 - a font range is read as hex code points
 - a foreign format is refused rather than read
@@ -208,6 +215,7 @@ flow nothing checks.
 - a fresh app has loaded nothing
 - a full turn by on euler lands where it started
 - a gain is the product of the chain
+- a game that declares nothing still stops being the template
 - a glb becomes a mesh with its skin
 - a glb keeps the colours it carries
 - a glb keeps the shapes it can blend towards
@@ -253,6 +261,7 @@ flow nothing checks.
 - a key the locale lacks falls back
 - a kind the theme does not mention is unchanged
 - a label is drawn as shaped glyphs not egui text
+- a lagging follower closes the gap without passing it
 - a late input rolls back a scripts own fields
 - a late input rolls back to the digest of the run that had it on time
 - a late input that matches the prediction does not roll back
@@ -310,6 +319,7 @@ flow nothing checks.
 - a method key fires once per loop
 - a method key is passed once per loop and never by a seek
 - a migration with no script says so
+- a min sdk under the library it would load is refused
 - a miss with save to writes nothing and hands the body back
 - a missing app icon does not take the frame down
 - a missing argument is an error not a default
@@ -425,10 +435,12 @@ flow nothing checks.
 - a probe names the members the shader gave its position
 - a profile with no bones is the humanoid
 - a project declaring no actions is not an error
+- a project name that makes no id says to declare one
 - a project preset is parsed from toml
 - a project preset without components is an error
 - a project shader links against the mesh contract
 - a project shader links against the sprite contract
+- a project that names no abi keeps every one
 - a project that names no plugins gets every module
 - a project with no apple table keeps the invented identifier
 - a project with no events file is empty
@@ -445,6 +457,8 @@ flow nothing checks.
 - a quad is triangulated as a fan
 - a quantised image is smaller than the lossless one
 - a quantised image keeps its dimensions and its alpha
+- a quarter is the corner of its own tile
+- a quartered terrain resolves every cell to one tile
 - a queued clip starts when the one before it ends
 - a quic link carries both deliveries and keeps their labels
 - a radial cloner closes its ring
@@ -687,6 +701,7 @@ flow nothing checks.
 - a target that is not a finite point leaves the pose alone
 - a teleporting emitter cannot screech
 - a template is found on any root
+- a terrain whose block is not five in a row names its tiles
 - a test script that asserts false fails and one that passes passes
 - a text key follows the locale
 - a texture a scene names is not reported as unreferenced
@@ -698,6 +713,7 @@ flow nothing checks.
 - a throw is logged and passed over unless break on error is on
 - a throw is reported at the line that threw
 - a tick publishes the frame it just ran
+- a tile no quartered terrain claims is drawn as one quad
 - a tile polygon lands around the cell it is in
 - a tile says what it collides as
 - a tile set from a script reads back and the map grows to fit
@@ -781,6 +797,7 @@ flow nothing checks.
 - affine 2d is translate rotate scale in that order
 - align and font style constants match the registered schema
 - alignment is a block property not a span
+- an abi the template does not carry names the ones it does
 - an absent pad reads neutral and cannot be written
 - an access point corner is one of four
 - an angle limit holds every ccdik bone near its rest
@@ -801,6 +818,7 @@ flow nothing checks.
 - an eased step is not where a straight one would be
 - an easing curve can carry a value past the key it is heading for
 - an edge fires for one frame the way a key does
+- an edge runs the way the terrain carries on
 - an edge through the light casts no infinity
 - an edited image is uploaded under a new name
 - an editor setting stays out of the manifest
@@ -827,6 +845,7 @@ flow nothing checks.
 - an export that asks for nothing changes nothing
 - an extruded outline is a closed solid
 - an http error status is a response not an error
+- an id play would refuse is refused here
 - an id reference loads the file the index names
 - an id reference resolves through the asset index
 - an image is a span of its own with a box
@@ -1297,8 +1316,10 @@ flow nothing checks.
 - the 2d body carries the same properties
 - the 2d camera reports its centre and zoom
 - the 2d world has the same shape of api
+- the abis a project names are the ones that survive
 - the asset key belongs only to an asset property
 - the backend decides what a script compiles to
+- the base module puts aapt2s output where bundletool reads it
 - the blob template is forty seven tiles
 - the bluetooth layout reads the same values
 - the buffer is bounded and keeps the newest
@@ -1369,6 +1390,7 @@ flow nothing checks.
 - the plugin registers the lighting components
 - the plugin takes over the portable verbs
 - the post list round trips
+- the project names the id the version and the label
 - the range covers every height
 - the reliable channel keeps message boundaries
 - the remaining widgets are callable

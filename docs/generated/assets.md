@@ -278,6 +278,15 @@ solid cell, or a list of polygons in tile pixels with y down from the tile's
 top-left corner; `one_way` makes a platform a body passes through from below.
 A tile with no table of its own is the plain quad it always was.
 
+A `[[terrains]]` entry paints by value and lets the sheet pick the tiles.
+`mode` is `"rules"`, `"sides"`, `"corners"`, `"corners_and_sides"` or
+`"quarters"`, and `first_tile` is where the block starts. `"quarters"` draws a
+cell as four quarter quads, each chosen by the two cells beside that corner
+and the one across it, from five tiles -- fill, horizontal edge, vertical
+edge, outer corner, inner corner. That is how a five-tile sheet covers all 47
+neighbourhoods; a sheet that keeps the five somewhere else names them with
+`quarters = [...]`.
+
 ```toml
 [[assets]]
 id = "dungeon"

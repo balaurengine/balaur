@@ -410,3 +410,78 @@ fn an_override_retunes_a_prefabs_script() {
         Some(2.0)
     );
 }
+
+/// `#[export]` on a constant is the other way to declare a property: the
+/// compiler checks the name, so a typo is a build error rather than a row
+/// that never appears.
+#[test]
+fn an_exported_constant_is_a_property() {
+    let dir = project(&[(
+        "scripts/ship.rn",
+        "#[export] pub const SPEED = 2.0;\n\
+         #[export(node)] pub const TARGET = \"\";\n\
+         pub const PRIVATE = 7;\n\
+         pub fn init(this) {}\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let declared = host.exports("scripts/ship.rn").unwrap();
+
+    let named: Vec<(&str, &str)> = declared
+        .iter()
+        .map(|(name, spec)| {
+            let balaur_script::Value::Map(fields) = spec else {
+                panic!("a spec is a map");
+            };
+            let kind = fields
+                .iter()
+                .find(|(k, _)| k == "type")
+                .map(|(_, v)| match v {
+                    balaur_script::Value::Str(text) => text.as_ref(),
+                    _ => panic!("a type is a string"),
+                })
+                .expect("a spec names a type");
+            (name.as_str(), kind)
+        })
+        .collect();
+
+    let mut named = named;
+    named.sort();
+    assert_eq!(
+        named,
+        [("SPEED", "float"), ("TARGET", "node")],
+        "the kind names what a default cannot say; a plain constant is typed by its value, \
+         and a constant without the attribute is not a property"
+    );
+}
+
+/// The two ways of declaring a property are not meant to be combined on one
+/// name: whichever the reader trusted, the other would be silently ignored.
+#[test]
+fn declaring_a_property_both_ways_is_refused() {
+    let dir = project(&[(
+        "scripts/clash.rn",
+        "#[export] pub const SPEED = 2.0;\n\
+         pub fn exports() { #{ SPEED: 1.0 } }\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let err = host.exports("scripts/clash.rn").unwrap_err().to_string();
+    assert!(err.contains("declared twice"), "{err}");
+}
+
+/// An asset property names the asset type it takes, and the attribute has
+/// nowhere to put that, so it says so rather than building a spec the schema
+/// would refuse further down.
+#[test]
+fn an_exported_asset_says_where_to_declare_it() {
+    let dir = project(&[(
+        "scripts/icon.rn",
+        "#[export(asset)] pub const ICON = \"\";\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let err = host.exports("scripts/icon.rn").unwrap_err().to_string();
+    assert!(err.contains("asset type it takes"), "{err}");
+    assert!(err.contains("exports()"), "it points at the form that works: {err}");
+}

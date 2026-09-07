@@ -408,10 +408,75 @@ impl RuneHost {
             let spec = spec_of(key, &name, &value)?;
             declared.push((name, spec));
         }
+        for (name, spec) in self.attributed_exports(key)? {
+            if declared.iter().any(|(seen, _)| *seen == name) {
+                return Err(anyhow!(
+                    "[{key}] property '{name}' is declared twice: once by `#[export]` and \
+                     once in `exports()`. Keep one."
+                ));
+            }
+            declared.push((name, spec));
+        }
         // `to_plain` sorted by name, which is the tie-break; `order` is what a
         // script says when the rows belong in an order of its own.
         declared.sort_by(|a, b| order_of(&a.1).total_cmp(&order_of(&b.1)));
         Ok(declared)
+    }
+
+    /// The properties `#[export]` declares, as specs.
+    ///
+    /// The compiler wrote the names and kinds into the unit, so a typo is a
+    /// build error rather than a property that silently never appears. Only
+    /// the kind a default cannot carry is named: `node` and `asset` both look
+    /// like a string until something says otherwise.
+    fn attributed_exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+        let unit = {
+            let state = self.state.borrow();
+            let Some(script) = state.scripts.get(key) else {
+                return Ok(Vec::new());
+            };
+            script.unit.clone()
+        };
+        let mut out = Vec::new();
+        for (name, kind, value) in unit
+            .exported_constants()
+            .map_err(|err| anyhow!("[{key}] reading `#[export]` constants: {err}"))?
+        {
+            let Some(default) = value::to_plain(&value) else {
+                return Err(anyhow!(
+                    "[{key}] `#[export]` on '{name}': a property's default has to be a plain value"
+                ));
+            };
+            // An asset property has to say which asset type it takes, and the
+            // attribute has nowhere to put that, so it stays with the form
+            // that does rather than building a spec the schema will refuse.
+            if kind == "asset" {
+                return Err(anyhow!(
+                    "[{key}] `#[export(asset)]` on '{name}': an asset property has to name the \
+                     asset type it takes, which the attribute cannot carry. Declare it in \
+                     `exports()` as `#{{ type: \"asset\", asset: \"texture\", default: \"\" }}`."
+                ));
+            }
+            // `value` leaves the default's own type to speak, which is what
+            // `spec_of` does for a bare entry anyway.
+            let spec = if kind == "value" {
+                spec_of(key, name, &default)?
+            } else {
+                spec_of(
+                    key,
+                    name,
+                    &balaur_script::Value::Map(vec![
+                        (
+                            "type".to_string(),
+                            balaur_script::Value::Str(kind.to_string().into()),
+                        ),
+                        ("default".to_string(), default),
+                    ]),
+                )?
+            };
+            out.push((name.to_string(), spec));
+        }
+        Ok(out)
     }
 
     /// `script::functions`: what a script declares, as `[#{ name, arity,

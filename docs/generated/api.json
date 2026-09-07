@@ -38,7 +38,7 @@
     },
     "tileset": {
       "directory": "tilesets",
-      "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is one tile in pixels \u2014 a number, or `[w, h]` for a\nsheet whose tiles are not square \u2014 and `columns` is how many tiles one row of\nthe image holds. `spacing` is the gutter between tiles and `margin` the border\naround the sheet, both zero by default. Tile indices count row by row from the\ntop left.\n\nA `[tiles.<id>]` table says what one tile is. `collision` is `\"full\"` for a\nsolid cell, or a list of polygons in tile pixels with y down from the tile's\ntop-left corner; `one_way` makes a platform a body passes through from below.\nA tile with no table of its own is the plain quad it always was.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n\n[tiles.3]\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]\n```"
+      "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is one tile in pixels \u2014 a number, or `[w, h]` for a\nsheet whose tiles are not square \u2014 and `columns` is how many tiles one row of\nthe image holds. `spacing` is the gutter between tiles and `margin` the border\naround the sheet, both zero by default. Tile indices count row by row from the\ntop left.\n\nA `[tiles.<id>]` table says what one tile is. `collision` is `\"full\"` for a\nsolid cell, or a list of polygons in tile pixels with y down from the tile's\ntop-left corner; `one_way` makes a platform a body passes through from below.\nA tile with no table of its own is the plain quad it always was.\n\nA `[[terrains]]` entry paints by value and lets the sheet pick the tiles.\n`mode` is `\"rules\"`, `\"sides\"`, `\"corners\"`, `\"corners_and_sides\"` or\n`\"quarters\"`, and `first_tile` is where the block starts. `\"quarters\"` draws a\ncell as four quarter quads, each chosen by the two cells beside that corner\nand the one across it, from five tiles -- fill, horizontal edge, vertical\nedge, outer corner, inner corner. That is how a five-tile sheet covers all 47\nneighbourhoods; a sheet that keeps the five somewhere else names them with\n`quarters = [...]`.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n\n[tiles.3]\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]\n```"
     },
     "voxels": {
       "directory": "terrain",
@@ -71,8 +71,8 @@
     "light3d": "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
-    "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, and `jiggle` lets a chain trail the pose on a spring.",
-    "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`, posing bones after the clip has run. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
+    "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.",
+    "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
     "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
     "particles": "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
@@ -2329,20 +2329,35 @@
       },
       "kind": {
         "default": "look_at",
-        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle)",
+        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)",
         "options": [
           "look_at",
           "two_bone_ik",
           "fabrik",
           "ccdik",
-          "jiggle"
+          "jiggle",
+          "follow"
         ],
         "type": "enum"
+      },
+      "lag": {
+        "default": 0.0,
+        "description": "Seconds a follow node takes to close most of the gap to its target; 0 pins it there",
+        "type": "float"
       },
       "mass": {
         "default": 0.75,
         "description": "What gravity weighs against stiffness on a jiggle bone",
         "type": "float"
+      },
+      "offset": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where a follow node sits relative to its target, in world units",
+        "type": "vec3"
       },
       "stiffness": {
         "default": 3.0,
@@ -2412,20 +2427,35 @@
       },
       "kind": {
         "default": "look_at",
-        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle)",
+        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)",
         "options": [
           "look_at",
           "two_bone_ik",
           "fabrik",
           "ccdik",
-          "jiggle"
+          "jiggle",
+          "follow"
         ],
         "type": "enum"
+      },
+      "lag": {
+        "default": 0.0,
+        "description": "Seconds a follow node takes to close most of the gap to its target; 0 pins it there",
+        "type": "float"
       },
       "mass": {
         "default": 0.75,
         "description": "What gravity weighs against stiffness on a jiggle bone",
         "type": "float"
+      },
+      "offset": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where a follow node sits relative to its target, in world units",
+        "type": "vec3"
       },
       "stiffness": {
         "default": 3.0,

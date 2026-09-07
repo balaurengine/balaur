@@ -308,9 +308,9 @@ A 2D light: the node's position places it, its rotation aims a directional one, 
 
 ### `modifier2d`
 
-`2d` · `animation` · 14 properties
+`2d` · `animation` · 16 properties
 
-Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, and `jiggle` lets a chain trail the pose on a spring.
+Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -323,8 +323,10 @@ Poses 2D bones after the clip has run, every frame: `look_at` turns one bone tow
 <tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
+<tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
@@ -944,9 +946,9 @@ Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the 
 
 ### `modifier3d`
 
-`3d` · `animation` · 14 properties
+`3d` · `animation` · 16 properties
 
-The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`, posing bones after the clip has run. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.
+The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -959,8 +961,10 @@ The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, 
 <tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
+<tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>

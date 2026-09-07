@@ -27,7 +27,7 @@ use crate::AppleEvent;
 /// no difference between being opened with a link and being handed one while
 /// it runs. The window layer holds it until here: the delegate is given it
 /// before this crate exists.
-pub fn deliver_launch_url(url: String) {
+pub(crate) fn deliver_launch_url(url: String) {
     crate::queue::push_apple(AppleEvent::Url { url });
 }
 
