@@ -24,14 +24,22 @@ jobs:
       attestations: write
     name: build editor · ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Built inside the oldest glibc worth supporting rather than on the
+          # runner's own: a binary cannot load against a glibc older than the
+          # one it linked, and ubuntu-latest sets that floor at 2.39, which
+          # locks out Debian 12 and Ubuntu 22.04. The 22.04 runner is not the
+          # answer, since it is deprecated from 2026-09-17.
           - os: ubuntu-latest
             target: linux-x64
+            container: ubuntu:22.04
           - os: ubuntu-24.04-arm
             target: linux-arm64
+            container: ubuntu:22.04
           # One universal binary rather than two downloads: package.sh builds
           # both slices and lipos them, so Apple Silicon and Intel get the
           # same file.
@@ -66,12 +74,32 @@ jobs:
       # pull request proves the same paths a push does.
       BALAUR_SIGNING_CHECK: "1"
     steps:
+      # A container carries none of what a runner image preinstalls. This runs
+      # before the checkout because without git that step writes no `.git`,
+      # and package.sh reads the build id off HEAD.
+      - if: matrix.container
+        shell: bash
+        run: |
+          set -euxo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential pkg-config \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
+          # No default toolchain, so rust-toolchain.toml still chooses.
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+            sh -s -- -y --default-toolchain none --profile minimal
+          echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
       - uses: actions/checkout@v7
       # The same action a game's own repository calls to build a custom
       # engine, so one that stopped working would fail this build first.
       - uses: ./.github/actions/build-engine
         with:
           target: ${{ matrix.target }}
+          # The step above installed them, and the action's own step reaches
+          # for sudo, which a container has no need of and does not carry.
+          build-deps: ${{ matrix.container && 'false' || 'true' }}
           attest: ${{ github.event_name == 'push' }}
 
   # Runtime templates for the non-desktop platforms, packaged as the shape
