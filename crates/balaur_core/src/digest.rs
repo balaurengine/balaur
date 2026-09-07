@@ -102,6 +102,19 @@ pub type DigestFn = Box<dyn Fn(&Engine, &mut Vec<Entry>)>;
 #[derive(Default)]
 pub struct DigestRegistry(pub Vec<(String, DigestFn)>);
 
+/// The entities a digest covers, or `None` when it covers every node.
+///
+/// The node walk below reads `debug_scope` itself; this is for the sources a
+/// plugin registers, which walk their own state and would otherwise report
+/// nodes the run does not contain. Inside an editor that means the editor's
+/// own interface, whose docks animate on their own schedule.
+#[must_use]
+pub fn scope_of(eng: &Engine) -> Option<std::collections::HashSet<Entity>> {
+    let scope = eng.debug_scope()?;
+    let world = eng.world();
+    Some(collect_subtree(&world, scope).into_iter().collect())
+}
+
 /// Hash the simulation in labelled slices, in scene-tree order.
 ///
 /// Tree order rather than sorted-by-id: two peers that agree have the same
