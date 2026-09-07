@@ -146,7 +146,9 @@ else
     -o "$game" --sign "$(cygpath -w "$work/identity.pfx")" --no-download
 
   step "what signtool says"
-  "$signtool" verify /pa /v "$(cygpath -w "$game")"
+  # Git Bash rewrites a leading-slash argument into a path, and these are
+  # switches: without `/pa` signtool checks against the driver policy instead.
+  MSYS2_ARG_CONV_EXCL='*' "$signtool" verify /pa /v "$(cygpath -w "$game")"
 
   step "the pack reads from behind the certificate table"
   ran "$game"
