@@ -483,5 +483,8 @@ fn an_exported_asset_says_where_to_declare_it() {
     let host = app.engine.script_host().unwrap();
     let err = host.exports("scripts/icon.rn").unwrap_err().to_string();
     assert!(err.contains("asset type it takes"), "{err}");
-    assert!(err.contains("exports()"), "it points at the form that works: {err}");
+    assert!(
+        err.contains("exports()"),
+        "it points at the form that works: {err}"
+    );
 }
