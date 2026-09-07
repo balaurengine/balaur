@@ -145,9 +145,8 @@ jobs:
           path: dist
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-        with:
           key: export-${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Export a game with the template
         shell: bash
         run: ./scripts/export_check.sh ${{ matrix.platform }}
