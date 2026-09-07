@@ -75,62 +75,14 @@ fi
 
 notes=$(
   cat <<'EOF'
-Desktop builds of the Balaur editor and the runtime templates games are
-exported onto.
-
-### Assets
-
-- **`balaur-editor-macos-universal.dmg`** — the Mac download: `Balaur.app`,
-  signed with a Developer ID and notarized, so it opens without a warning.
-  Drag it to Applications; the `balaur` command line is inside it at
-  `Balaur.app/Contents/MacOS/balaur`.
-- **`balaur-editor-<platform>`** — the editor as a plain archive, for Linux,
-  Windows, and any Mac install a script does. Unpack it and run `balaur edit
-  <project>`. `editor/`, `templates/` and `include/balaur_extension.h` (the
-  header C extensions build against) ship inside.
-- **`balaur-runtime-<platform>`** — a desktop runtime template on its own, for
-  offline installs. `balaur export --target` offers to download a missing one,
-  verified against `SHA256SUMS`.
-- **`balaur-template-ios` / `-android` / `-web.tar.gz`** — mobile and web
-  templates. Unpack into `templates/` first.
-- **`balaur-example-debug.apk`** — a game exported with the Android template,
-  signed with Android's debug identity and `adb install`-able. For trying the
-  runtime on a device; ship your own, signed with your own keystore.
-- **`balaur_bg.wasm` / `balaur.js`** — the web runtime loose, for a page of
-  your own.
-- **`balaur-play.tar.gz`** — the web runtime with the editor's project and
-  the example games packed for it: what balaurengine.org/editor and /examples
-  run (scripts/package_play.sh).
-
-### Exporting
-
-```
-balaur export my-game --target linux-x64   # or macos-universal, windows-x64,
-                                           # windows-arm64, linux-arm64
-balaur export my-game --target ios         # -> my-game.app
-balaur export my-game --target android     # -> my-game-android/, an APK layout
-balaur export my-game --target android --apk --aab   # -> the APK and the bundle
-balaur export my-game --target web         # -> a directory a static host serves
-```
-
-Desktop targets write one executable: no engine install, no separate `.bpak`.
-The macOS build is universal, and so is a game exported onto it. Templates for
-other platforms go in `templates/` next to the binary, or where
-`BALAUR_TEMPLATES` points.
-
-Every signature is applied by `balaur export` itself, with an identity that is
-yours: `--sign <identity>` on Apple and Windows targets, `--notarize` to send a
-macOS build to Apple's notary service, `--profile` and `--ipa` for iOS, `--apk`
-to assemble and sign an Android build. On macOS `--sign` implies `--app`,
-because a flat fused binary is exactly what a signature cannot cover. Name the
-identities once in the project's `[export]` table and every export uses them;
-the passwords behind them are read from the environment.
-
-Without an identity a build still exports, unsigned. Every asset here carries
-build provenance: `gh attestation verify <file> -R ${GITHUB_REPOSITORY:-balaurengine/balaur}` says
-which workflow run produced it.
-
-`balaur update` brings an installed editor to the latest release.
+- `balaur-editor-macos-universal.dmg` — `Balaur.app`, signed and notarized
+- `balaur-editor-<platform>` — the editor, as an archive
+- `balaur-runtime-<platform>` — one desktop runtime template
+- `balaur-template-ios` / `-android` / `-web.tar.gz` — mobile and web templates
+- `balaur-example-debug.apk` — an example game, debug-signed
+- `balaur_bg.wasm` / `balaur.js` — the web runtime, loose
+- `balaur-play.tar.gz` — the web runtime with the editor and the examples
+- `SHA256SUMS` / `VERSION`
 EOF
 )
 
