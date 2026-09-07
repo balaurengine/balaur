@@ -4666,6 +4666,25 @@
     {
       "acts_on": {},
       "components": [],
+      "constants": [],
+      "doc": "Bringing a file into the project being edited: a `.glb` or `.gltf` model, an `.aseprite` sprite, a `.tmx` or `.ldtk` level. The same importers `balaur import` runs.",
+      "docs": {
+        "file": "Import one file into the edited project. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed.",
+        "handles": "Whether an importer claims this file, by extension."
+      },
+      "functions": [
+        "file",
+        "handles"
+      ],
+      "name": "import",
+      "signatures": {
+        "file": "String -> Value",
+        "handles": "String -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
       "constants": [
         {
           "name": "AXIS_DPAD_X",

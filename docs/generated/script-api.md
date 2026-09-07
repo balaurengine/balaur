@@ -23,6 +23,7 @@ cannot drift from what scripts actually see.
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
+| [`import`](#import) | 2 | 0 | the engine |
 | [`input`](#input) | 41 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
@@ -116,6 +117,10 @@ cannot drift from what scripts actually see.
 ## `http`
 
 **Functions:** `request`
+
+## `import`
+
+**Functions:** `file`, `handles`
 
 ## `input`
 
