@@ -143,13 +143,8 @@ SHAPES = {
 }
 
 # Judgement calls: real tells, but each has an honest use this cannot tell
-# apart, so they print and never fail.
-#
-# Not here: the bolded label closed with a period (`- **Intros.** text`). It is
-# a real tell when the bold is a noun phrase and correct when it is a claim,
-# and this cannot see the difference — AGENTS.md asks for the claim form, so
-# the rule fired on 119 lines that were already right. The skill's own pass
-# judges it.
+# apart, so they print and never fail. A bolded label closed with a period is
+# not here: it reads the same as the claim form AGENTS.md asks for.
 SOFT = {
     "intensifier": (r"\b(?:real|actual|genuine|true) (?:utility|value|accuracy|"
                     r"sustainability|adoption|impact)\b",
