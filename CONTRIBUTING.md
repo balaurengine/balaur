@@ -18,9 +18,9 @@ Maintained by Dragos Daian and Sébastien Crozet. How the project is run:
 ## Before a pull request
 
 ```bash
-scripts/lint.sh                 # what CI runs: fmt, clippy, house lints, notices
-cargo test --workspace
-python3 scripts/gen_docs.py     # regenerate docs/generated; CI fails on drift
+scripts/precommit.sh            # everything CI checks: lints, tests, docs
+scripts/precommit.sh --lints    # the lint job alone, when that is all that changed
+python3 scripts/gen_docs.py     # regenerate docs/generated after an API change
 ```
 
 Run the first on every push: `git config core.hooksPath .githooks`.
