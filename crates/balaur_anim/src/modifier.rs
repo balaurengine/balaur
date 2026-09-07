@@ -105,12 +105,12 @@ impl Kind {
 pub struct Params {
     kind: Kind,
     /// Node path to the point to aim at, relative to the node.
-    target: String,
+    pub(crate) target: String,
     /// Node path to the driven bone, relative to the node; empty is the node.
-    bone: String,
+    pub(crate) bone: String,
     /// How many bones the chain holds, counting the driven one. Zero walks
     /// to the deepest tip.
-    chain: usize,
+    pub(crate) chain: usize,
     /// Solver passes for `fabrik` and `ccdik`.
     iterations: u32,
     /// How close to the target ends a `fabrik` or `ccdik` solve early.
