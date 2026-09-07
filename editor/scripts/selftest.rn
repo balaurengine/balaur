@@ -1642,6 +1642,34 @@ pub fn librarydemo(S) {
     check(util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("") != placed,
         "undo takes the material off the node");
 
+    // The manifest and the dock agree: every entry is of a kind that has a
+    // chip, and names files that are there.
+    let chips = [];
+    for pair in library::kinds() {
+        chips.push(pair[0]);
+    }
+    let unknown = 0;
+    let absent = 0;
+    let manifest = toml::parse(fs::read("library/manifest.toml"));
+    let listed = util::vec(util::obj(manifest).get("entries").unwrap_or([]));
+    for entry in listed {
+        let e = util::obj(entry);
+        if !util::contains(chips, e.get("kind").unwrap_or("")) {
+            unknown += 1;
+        }
+        for rel in util::vec(e.get("needs").unwrap_or([])) {
+            if !fs::exists("library/" + rel) {
+                absent += 1;
+            }
+        }
+        if !fs::exists("library/" + e.get("file").unwrap_or("")) {
+            absent += 1;
+        }
+    }
+    check(listed.len() > 0, "the manifest lists entries");
+    check(unknown == 0, "every entry is of a kind the dock has a chip for");
+    check(absent == 0, "and every file it names is in the library");
+
     // A sky is copied under skies/ and then only named, since the drop that
     // would have copied it already happened.
     let skies_before = named_under(S, "skies");

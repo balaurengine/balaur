@@ -13,7 +13,7 @@ pub fn state() {
 }
 
 /// The kinds the dock filters by, in the order the chips offer them.
-fn kinds() {
+pub fn kinds() {
     [
         ["material", "Materials"], ["sky", "Skies"], ["model", "Models"],
         ["scene", "Lighting"], ["template", "Templates"],
