@@ -51,8 +51,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@nextest
+      # A process per test, run in parallel, rather than one binary at a time.
+      # nextest has no doctest runner, so those stay with cargo.
       - name: Unit and integration tests
-        run: cargo test --workspace
+        shell: bash
+        run: |
+          cargo nextest run --workspace
+          cargo test --workspace --doc
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests

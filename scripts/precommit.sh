@@ -48,7 +48,14 @@ host_stream() {
   python3 scripts/third_party_notices.py --check || bad=1
   cargo clippy --workspace --all-targets -- -D warnings || bad=1
   if [ "$mode" != "--lints" ]; then
-    cargo test --workspace || bad=1
+    # nextest gives each test its own process and runs them in parallel. It
+    # has no doctest runner, so those stay with cargo.
+    if command -v cargo-nextest >/dev/null 2>&1; then
+      cargo nextest run --workspace || bad=1
+      cargo test --workspace --doc || bad=1
+    else
+      cargo test --workspace || bad=1
+    fi
     cargo doc --workspace --no-deps --lib || bad=1
     python3 scripts/gen_docs.py --check || bad=1
   fi
