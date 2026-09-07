@@ -11,18 +11,24 @@ command -v cargo-tarpaulin >/dev/null || {
   exit 1
 }
 
-out=(--out Stdout)
+# Lcov always: it is what scripts/coverage_report.py reads to break the number
+# down per crate, which is the grain a single workspace percentage hides.
+mkdir -p target/coverage
+out=(--out Stdout --out Lcov)
 if [ "${1:-}" = "--html" ]; then
   shift
-  mkdir -p target/coverage
-  out=(--out Html --output-dir target/coverage)
+  out=(--out Html --out Lcov)
 fi
 
-# balaur_export packs a game per test and balaur_bench is a benchmark, so both
-# cost minutes for coverage they do not add. The window and extension paths
-# need a display and a cdylib, which a coverage run has neither of.
-exec cargo tarpaulin \
+# balaur_bench is a benchmark: minutes for coverage it does not add. The window
+# and extension paths need a display and a cdylib, which a coverage run has
+# neither of, so those features stay off and their lines read as uncovered.
+cargo tarpaulin \
   --workspace \
-  --exclude balaur_export --exclude balaur_bench \
+  --exclude balaur_bench \
   --skip-clean --timeout 600 \
+  --output-dir target/coverage \
   "${out[@]}" "$@"
+
+echo
+python3 scripts/coverage_report.py target/coverage/lcov.info

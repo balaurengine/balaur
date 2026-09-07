@@ -162,9 +162,15 @@ jobs:
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin --locked
       - name: Measure
-        run: ./scripts/coverage.sh | tee coverage.txt
+        run: ./scripts/coverage.sh
+      # Per crate, in the run summary, because one workspace percentage is
+      # mostly a weighted average of balaur_core and balaur_render.
       - name: Summarise
         run: |
-          printf '## Line coverage\n\n```\n%s\n```\n' \
-            "$(grep -E '^[0-9.]+% coverage' coverage.txt || tail -3 coverage.txt)" \
+          python3 scripts/coverage_report.py --markdown target/coverage/lcov.info \
             >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload lcov
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: target/coverage/lcov.info

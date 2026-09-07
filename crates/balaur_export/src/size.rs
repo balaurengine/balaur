@@ -301,8 +301,10 @@ mod tests {
     #[test]
     fn a_files_own_recode_setting_beats_the_export_mode() {
         use crate::recode::ImageMode;
+        // WebP, not Smallest: the sidecar is what is under test, and the
+        // oxipng modes would run zopfli over both files to prove it.
         let config = ExportConfig {
-            images: ImageMode::Smallest,
+            images: ImageMode::Webp,
             ..ExportConfig::default()
         };
         let source = sample_png();

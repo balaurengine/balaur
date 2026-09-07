@@ -1,12 +1,13 @@
-//! The size pass over a pack of the engine's own assets: what an author
-//! turning the `[export]` keys on actually gets, proved on real files rather
-//! than on generated ones.
+//! The size pass over a pack of the engine's own assets, proved on real files
+//! rather than on generated ones.
+//!
+//! Only the no-op case: every mode that re-encodes runs oxipng's zopfli, which
+//! took twenty-three minutes of a CI run. `recode`'s own tests cover the rest.
 
 use std::path::PathBuf;
 
 use balaur::Pack;
 use balaur_export::ExportConfig;
-use balaur_export::recode::{AudioMode, FontMode, ImageMode};
 use balaur_export::size;
 
 /// A file from the repository, read at test time.
@@ -38,59 +39,6 @@ fn editor_pack() -> Pack {
         repo_file("editor/fonts/ui-SourceSans3-Regular.ttf"),
     );
     pack
-}
-
-fn every_key_on() -> ExportConfig {
-    ExportConfig {
-        images: ImageMode::Smallest,
-        fonts: FontMode::Subset,
-        audio: AudioMode::Flac,
-        ..ExportConfig::default()
-    }
-}
-
-#[test]
-fn the_engines_own_assets_come_out_smaller_and_still_decode() {
-    let mut pack = editor_pack();
-    let before = pack.encode().len();
-    // `Png` rather than `Smallest` here: this crate decodes PNG only, and the
-    // WebP path proves the same invariant in `recode`'s own tests.
-    let config = ExportConfig {
-        images: ImageMode::Png,
-        ..every_key_on()
-    };
-    let summary = size::prepare(&mut pack, &config).expect("the size pass");
-
-    let image = &pack.assets["assets/balaur-logo.png"];
-    let decoded = image::load_from_memory(image).expect("the re-encoded image still decodes");
-    assert_eq!(
-        (decoded.width(), decoded.height()),
-        (512, 512),
-        "a re-encode must not move a sprite's extent"
-    );
-
-    let face = &pack.assets["fonts/ui-SourceSans3-Regular.ttf"];
-    assert!(
-        face.len() < 200 * 1024,
-        "the subset face is still {} KB",
-        face.len() / 1024
-    );
-    assert!(
-        pack.encode().len() < before,
-        "the pack did not get smaller: {before} -> {}",
-        pack.encode().len()
-    );
-    assert_eq!(summary.savings.len(), 2, "both assets should have shrunk");
-}
-
-/// The pack keys never change, whatever bytes they end up holding: a scene
-/// naming `hero.png` keeps naming it after the file becomes a WebP.
-#[test]
-fn a_recoded_asset_keeps_the_name_its_scene_uses() {
-    let mut pack = editor_pack();
-    size::prepare(&mut pack, &every_key_on()).expect("the size pass");
-    assert!(pack.assets.contains_key("assets/balaur-logo.png"));
-    assert!(pack.assets.contains_key("fonts/ui-SourceSans3-Regular.ttf"));
 }
 
 /// Nothing is touched until a key asks for it, so an export that states no
