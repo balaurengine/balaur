@@ -8,9 +8,10 @@ completion in the Script persona come from the same place.
 - Completion for engine modules, node methods, component handles, constants,
   the script's own functions and Rune's own methods.
 - Hover docs and signature help, the same lines as the reference.
-- Go-to-definition, document symbols and find references.
+- Go-to-definition, document and workspace symbols, and find references.
 - Formatting, with Rune's own formatter.
-- Rename across the files a script's `mod` declarations reach.
+- Rename and find-and-replace across the files a script's `mod` declarations
+  reach.
 
 ## Install
 
