@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+use crate::android::AndroidConfig;
 use crate::apple::{AppleConfig, Platform};
 use crate::roots_for_message;
 
@@ -95,6 +96,7 @@ pub(crate) fn export_bundle(
     name: &str,
     output: Option<PathBuf>,
     apple: &AppleConfig,
+    android: &AndroidConfig,
     shell: &str,
 ) -> Result<PathBuf> {
     if kind == Bundle::Ios {
@@ -114,6 +116,11 @@ pub(crate) fn export_bundle(
     }
     replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
+    // After the copy, because pruning reads the layout the template just
+    // became: a game that names its ABIs keeps those and drops the rest.
+    if kind == Bundle::Android {
+        android.prune(&output)?;
+    }
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => {
@@ -312,6 +319,7 @@ mod tests {
             "Tide",
             Some(out.clone()),
             &AppleConfig::default(),
+            &AndroidConfig::default(),
             WEB_SHELL,
         )
         .unwrap();
