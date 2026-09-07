@@ -12,6 +12,29 @@ fn app_with_a_font() -> (tempfile::TempDir, App) {
     app_with_a_scene("")
 }
 
+/// The editor's own `fonts/`: four faces, and `icons-` sorts before `ui-`.
+/// A word that names no font must still land on the text face.
+fn app_with_every_editor_font() -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n[ui]\nsystem_fonts = false\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    std::fs::create_dir(dir.path().join("fonts")).unwrap();
+    let from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/fonts");
+    for face in std::fs::read_dir(&from).unwrap() {
+        let face = face.unwrap().path();
+        std::fs::copy(&face, dir.path().join("fonts").join(face.file_name().unwrap())).unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.tick(1.0 / 60.0);
+    (dir, app)
+}
+
 fn app_with_a_scene(scene: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -182,4 +205,19 @@ mesh = { source = "#title" }
     assert!(!mesh.indices.is_empty(), "a named word has triangles");
     let (min, max) = mesh.bounds().expect("bounds");
     assert!(max[0] - min[0] > 0.4, "two letters are wider than that");
+}
+
+/// The editor loads an icon face beside its text faces, and `icons-` sorts
+/// first. Naming no font asked the database for its default family, which
+/// answered with the icon face: every word filled to nothing.
+#[test]
+fn a_word_naming_no_font_avoids_the_icon_face() {
+    let (_dir, app) = app_with_every_editor_font();
+    let mesh = word(&app, "balaur", 0.9);
+    assert!(
+        mesh.indices.len() > 20,
+        "a word beside an icon face came to {} triangles",
+        mesh.indices.len()
+    );
+    assert!(area(&mesh) > 0.0, "it filled to nothing");
 }
