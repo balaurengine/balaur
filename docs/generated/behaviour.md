@@ -232,6 +232,7 @@ flow nothing checks.
 - a hidden layer is left out unless named
 - a hidden widget draws nothing and takes no clicks
 - a hole is a loop of its own
+- a hole is taken out of what holds it
 - a host clock stamps in its own seconds and a move keeps the stamp
 - a jiggle bone lags the pose and then settles on it
 - a jiggle chain solves to the same bits twice
@@ -373,12 +374,14 @@ flow nothing checks.
 - a parent id wins over a sibling name that matches it
 - a parent path may not leave its scene
 - a parent path of names builds the same tree as ids
+- a partial segment is refused
 - a particles component round trips and stays out of the simulation
 - a pass with no widgets is quiet
 - a patch leaves the properties it does not name
 - a path finds a descendant and missing ones are none
 - a path in a script literal counts as a reference
 - a path with a broken segment count is refused
+- a path with fewer than two points samples to itself
 - a pause holds the scope and nothing outside it
 - a paused player digests differently from a playing one
 - a paused replay holds the world still
@@ -603,6 +606,7 @@ flow nothing checks.
 - a shape fill returns the vertex a crossing needed
 - a shape query finds what it overlaps
 - a shape round trips through its properties
+- a shape under one unit across still fills
 - a shapecast stops at the first thing in the way
 - a shaped glyph lands in the atlas and moves its revision
 - a share is measured against one sixty hertz frame
@@ -651,12 +655,14 @@ flow nothing checks.
 - a sprite with no texture is a placeholder
 - a square becomes two triangles
 - a square cornered cuboid is twelve triangles
+- a square fills to its own area
 - a square tile size is the same as a pair
 - a staircase simplifies toward its diagonal
 - a stale input does not mask a correction that can still be made
 - a standalone binary gives the pack back
 - a standalone file is read back from disk
 - a star keeps its notches
+- a state leaves what it does not name alone
 - a step can tween another node from the same call
 - a step over the whole clip passes every key exactly once
 - a step targeting a node that is not there says which one
@@ -734,6 +740,7 @@ flow nothing checks.
 - a value inside a helper is previewable
 - a value is coerced to the type that was declared
 - a value tween is read not written
+- a variable change reaches the nodes that declare the hook
 - a vec2 fills red and green
 - a vec3 pads the field after it to sixteen
 - a vec4 is drawn as it is
@@ -756,6 +763,7 @@ flow nothing checks.
 - a word becomes triangles in the plane
 - a word is a mesh asset a scene can name
 - a word is sized in world units
+- a word naming no font avoids the icon face
 - a word nothing can draw says so
 - a word sits on its baseline
 - a write is read back and moves the clock
@@ -804,6 +812,7 @@ flow nothing checks.
 - an empty mask traces to nothing
 - an empty or inverted range does not panic
 - an empty pack still round trips
+- an empty path asset parses
 - an empty touch slot is not a finger
 - an engine has a root node from the start
 - an entity becomes a node with the fields it carried
@@ -831,6 +840,7 @@ flow nothing checks.
 - an impulse starts a body moving
 - an in out curve meets in the middle
 - an injected divergence is caught and named
+- an inline asset is the type its table declares
 - an inline definition survives being duplicated and reloaded
 - an inline library autoplays the entry it names
 - an inline mesh can carry its own colours
@@ -1001,11 +1011,14 @@ flow nothing checks.
 - every declared body kind is accepted
 - every declared shape builds
 - every declared shape is accepted
+- every deferred action has a runner
+- every documented function hovers to its doc line
 - every drawn node under a cloner is multiplied
 - every enum option a schema offers round trips
 - every flat shape fills
 - every kind reads back the way it was written
 - every mode has a word and answers to it
+- every module completes from a bare prefix
 - every named curve is reachable by name
 - every named key can actually be pressed
 - every operation has a word and answers to it
@@ -1039,6 +1052,7 @@ flow nothing checks.
 - focus walks the menu in scene order and wraps
 - focusable false is skipped and a plain label stays out
 - formatting is idempotent
+- formatting the editors own scripts is idempotent
 - frames held between begin and play do not move the replayed tick
 - freeing a listener node leaves the ears where they were
 - freeing a node drops its sound on the next sweep
@@ -1060,6 +1074,7 @@ flow nothing checks.
 - fs refuses an absolute path outside every root
 - game center below the version its identity signature needs is refused
 - global visible reports a hidden ancestor
+- going to a state a node does not have says which it does
 - gravity and clear are callable
 - gravity scale zero hangs in the air
 - grow divides what the fixed children leave
@@ -1391,6 +1406,7 @@ flow nothing checks.
 - the stream is pinned for a given seed
 - the string form of the script key still attaches
 - the table is read and paths resolve against the project
+- the third click opens the door
 - the thread count does not change the simulation
 - the top row is the top of the map
 - the update stage still sees the measured frame time
@@ -1417,6 +1433,7 @@ flow nothing checks.
 - turning off a plugin this build has not got is not an error
 - turning the cloner turns the arrangement
 - tween to is the same tween spelled shorter
+- two apart squares both fill
 - two bone ik puts the tip on a reachable target
 - two engines agree tick for tick over quic
 - two engines on loopback agree tick for tick
@@ -1427,6 +1444,7 @@ flow nothing checks.
 - two nodes on one script get their own values
 - two overlapping squares union into one shape of the right area
 - two peers agree across a link that delays drops and reorders
+- two points are the line between them
 - two runs agree on every tick not just the last
 - two runs of the same clip produce the same palette bit for bit
 - two runs solve to the same bits

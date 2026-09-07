@@ -852,7 +852,7 @@ The scene's atmosphere: the sky it sits under and is lit by, the ambient light, 
 <tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
 <tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
 <tr><td><code>show_sky</code></td><td>bool</td><td><code>true</code></td><td>False lights the scene from the sky without drawing it, leaving the background colour</td></tr>
-<tr><td><code>sky</code></td><td>asset · <code>texture</code></td><td>—</td><td>Equirectangular .hdr or .exr; it draws behind the scene and lights it. Empty is no sky</td></tr>
+<tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
 <tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
 <tr><td><code>sky_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
 <tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>.</td></tr>

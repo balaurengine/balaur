@@ -38,7 +38,7 @@ cannot drift from what scripts actually see.
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 5 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
-| [`script`](#script) | 15 | 0 | the engine |
+| [`script`](#script) | 17 | 0 | the engine |
 | [`settings`](#settings) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
@@ -320,7 +320,7 @@ cannot drift from what scripts actually see.
 
 ## `script`
 
-**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `format`, `functions`, `hover`, `references`, `rename`, `require`, `shared`, `signature`, `symbols`
+**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `symbols`
 
 ## `settings`
 
