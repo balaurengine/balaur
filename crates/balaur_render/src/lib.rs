@@ -65,7 +65,7 @@ mod texture;
 mod tile_quad;
 mod tilemap;
 pub mod world_text;
-pub use camera::{Camera, CameraKind};
+pub use camera::{Camera, CameraKind, Post, PostPass};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
@@ -112,6 +112,8 @@ mod light_map;
 mod material_cache;
 #[cfg(feature = "kiss3d")]
 mod pipeline;
+#[cfg(feature = "kiss3d")]
+mod post_material;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
@@ -206,6 +208,12 @@ pub struct PostConfig {
     /// Brightness a pixel blooms past, and how much of it is added back.
     pub bloom_threshold: f32,
     pub bloom_intensity: f32,
+    /// `material` assets drawn over the whole frame before the tonemap, in the
+    /// order the camera listed them: these work in linear light, so what they
+    /// write is what blooms.
+    pub film: Vec<String>,
+    /// The same, after the tonemap, over the finished picture.
+    pub screen: Vec<String>,
     pub changed: bool,
 }
 
@@ -218,6 +226,8 @@ impl Default for PostConfig {
             dof: false,
             bloom_threshold: 1.0,
             bloom_intensity: 0.6,
+            film: Vec::new(),
+            screen: Vec::new(),
             changed: false,
         }
     }

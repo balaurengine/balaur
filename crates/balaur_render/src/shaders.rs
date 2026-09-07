@@ -38,6 +38,10 @@ pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
 pub(crate) static PBR: &str = include_str!("shaders/pbr.wesl");
 
 /// What a channel view draws: one entry point per channel, chosen by feature.
+/// What a `camera.post` material imports: the frame, and the triangle that
+/// covers the screen with it.
+pub static POST: &str = include_str!("shaders/post.wesl");
+
 pub static CHANNEL: &str = include_str!("shaders/channel.wesl");
 
 /// The 2D counterpart of [`CHANNEL`].
@@ -92,6 +96,7 @@ pub fn link(
         ("package::sprite", SPRITE),
         ("package::mesh", MESH),
         ("package::pbr", PBR),
+        ("package::post", POST),
     ];
     for (path, source) in mounted.iter().chain(modules) {
         let parsed = path

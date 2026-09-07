@@ -341,6 +341,7 @@ flow nothing checks.
 - a module path offers that modules functions and constants
 - a module the project asks for still loads
 - a module the project turns off does not load
+- a name the engine does not know is a material
 - a name the two worlds share has one meaning
 - a negative index counts back from the newest vertex
 - a nested path reads and writes where it says
@@ -1329,6 +1330,7 @@ flow nothing checks.
 - the built in humanoid is what a map naming no profile uses
 - the cache is keyed by the build id
 - the camera can be aimed and its pose read
+- the camera hands its two chains to the backend
 - the cameras ambient reaches the 2d config
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
@@ -1433,6 +1435,7 @@ flow nothing checks.
 - the table is read and paths resolve against the project
 - the third click opens the door
 - the thread count does not change the simulation
+- the tonemap is which side of it a material falls
 - the top row is the top of the map
 - the update stage still sees the measured frame time
 - the value at the line replaces the colour

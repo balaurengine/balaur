@@ -98,6 +98,8 @@ struct Frontend {
     /// model or tileset moves it, and every node built from a file is built
     /// again — the material caches watch the same counter for their shaders.
     asset_generation: u64,
+    /// The `camera.post` materials, each side of the tonemap.
+    post: crate::post_material::PostChain,
 }
 
 impl Frontend {
@@ -127,6 +129,7 @@ impl Frontend {
             emitter_slots: HashMap::new(),
             materials: crate::shader_material::MaterialCache::default(),
             materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
+            post: crate::post_material::PostChain::default(),
             light_map: crate::light_map::LightMap::new(),
             lights,
             environment: None,
@@ -166,6 +169,9 @@ impl Frontend {
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         apply_post(app, window);
+        // After `apply_post`, which is what reads the camera's list.
+        self.post
+            .sync(app, window.canvas().surface_format(), self.asset_generation);
         let input_seen = crate::kiss3d_input::pump_input(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
@@ -319,13 +325,14 @@ pub async fn run_windowed_async(
             continue;
         }
         let open = window
-            .render(
+            .render_chains(
                 Some(&mut f.scene),
                 Some(&mut f.scene_2d),
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
-                None,
+                &mut chain_of(&mut f.post.film),
+                &mut chain_of(&mut f.post.screen),
             )
             .await;
         if !open {
@@ -371,13 +378,14 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         // vsync to block on, so the loop runs until the app asks to stop --
         // which `--frames` arranges by inserting a quit-after-N system.
         while window
-            .render(
+            .render_chains(
                 Some(&mut f.scene),
                 Some(&mut f.scene_2d),
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
-                None,
+                &mut chain_of(&mut f.post.film),
+                &mut chain_of(&mut f.post.screen),
             )
             .await
         {
@@ -403,6 +411,16 @@ fn apply_clear_color(app: &App, window: &mut Window) {
         window.set_background_color(Color::new(r, g, b, 1.0));
         clear.changed = false;
     }
+}
+
+/// The built passes as the fork's chain wants them: a slice of trait objects.
+fn chain_of(
+    built: &mut [crate::post_material::PostMaterial],
+) -> Vec<&mut dyn kiss3d::post_processing::PostProcessingEffect> {
+    built
+        .iter_mut()
+        .map(|pass| pass as &mut dyn kiss3d::post_processing::PostProcessingEffect)
+        .collect()
 }
 
 /// Apply the screen-space effects the current `camera` asked for.

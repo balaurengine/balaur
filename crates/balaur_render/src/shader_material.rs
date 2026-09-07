@@ -199,6 +199,12 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
     ]
 }
 
+/// The same group for a `camera.post` material, which has params but never a
+/// probe: a full-screen pass has no caret to preview a value at.
+pub(crate) fn post_params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
+    material_group(values, None)
+}
+
 /// The material's own bind group: its `Params` at binding 0, and a preview's
 /// probe at 1 and 2 when the shader carries one.
 ///

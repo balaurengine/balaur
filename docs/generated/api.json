@@ -640,14 +640,8 @@
       },
       "post": {
         "default": [],
-        "description": "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only",
-        "options": [
-          "bloom",
-          "ssao",
-          "ssr",
-          "dof"
-        ],
-        "type": "flags"
+        "description": "The frame's passes, in order. bloom, ssao, ssr, dof, tonemap name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
+        "type": "strings"
       },
       "zoom": {
         "default": 60.0,

@@ -5,9 +5,10 @@
 > and validation, and `shaders::register_shader_module` for a plugin's own
 > module. ARCHITECTURE.md's shader sections and the manual's Shaders page are
 > the record; all of it is verified on a GPU through `balaur run --offscreen`.
-> Phase 9 is what is left, and its design was settled on 2026-09-07: the
-> camera lists its passes in order. What blocks the build is named below and
-> is not in this repository.
+> Phase 9's post-process materials were built on 2026-09-07: the camera lists
+> its passes in order, and a name the engine does not know is a `material`
+> drawn over the whole frame. What is left is the crates.io package, which is
+> a release action.
 
 # Plan: shaders — what is left
 
@@ -38,21 +39,35 @@ for the limit it makes permanent: no fog before SSAO, no grade before bloom.
 The cost of the decision is that the four built-ins gain a real order Balaur
 hands the renderer, rather than one the renderer fixes.
 
-**What blocks it is in the fork, not here.** `camera.post` reaches kiss3d as
-four independent booleans — `set_bloom_enabled`, `set_ssao_enabled`,
-`set_ssr_enabled`, `set_dof_enabled` (`kiss3d_backend.rs`, `apply_post`) —
-and their order lives inside the HDR pipeline. `Window` takes no chain and no
-user pass: `PostProcessingEffect` exists in the fork but is not wired to
-`Window`, and its own documentation says one effect at a time. So the fork
-needs an ordered chain that runs built-in passes and user WGSL passes over
-the HDR film before anything here can honour the list above. Landing the
-schema first would promise an order the renderer ignores, which is why it
-has not been.
+**`tonemap` is the boundary, and it is in the list.** Where the engine's own
+passes physically run is fixed by the pipeline — `ssao` and `ssr` feed
+shading, `bloom` rides the tonemap — so naming one in the list switches it on
+and nothing more. What the order decides is the materials, and `tonemap` says
+which side of it each falls on: before it a pass reads the HDR film in linear
+light and what it writes is what blooms, after it a pass reads the tonemapped
+picture. A list that never names `tonemap` has it at the head, so a plain
+list of materials is a chain over the finished frame — the common case, and
+the one that needs no explaining.
 
-The Balaur half, once the fork can take a chain: `post` parses to an ordered
-`Vec` of built-in-or-material, `PostConfig` carries it, and a material in the
-list builds the pipeline `shader_material.rs` already builds for a screen
-reader, over the whole film rather than around one object.
+**The fork gained the film stage.** It already ran an ordered chain after the
+tonemap; there was nowhere to stand before one. `render_chains` takes a
+second slice that runs over the HDR film, and `resolve_from` points bloom and
+the tonemap at what that chain left rather than at the film itself. A render
+target is now remade when its *format* changes and not only its size, which
+is what lets the ping-pong pair be reused at `Rgba16Float`.
+
+`crates/balaur_render/src/post_material.rs` builds one pipeline per material
+per stage — the two stages write different formats — and
+`shaders/post.wesl` is what a pass imports: `fullscreen`, `frame(uv)` and
+`texel()`, with the pass's own `Params` at `@group(1)`.
+
+**Measured.** A red block, one shader, three runs: with no pass the centre
+pixel is `(241, 38, 38)`; with the material after `tonemap` it is
+`(14, 217, 217)`, the exact per-channel complement; with the same material
+before `tonemap` it is `(38, 241, 241)`, which is not, because inverting in
+linear light and then tonemapping is not tonemapping and then inverting. That
+difference is the stage split, and it is the only proof that the boundary is
+real rather than declared.
 
 ## Shader packages
 

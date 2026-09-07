@@ -61,31 +61,109 @@ pub struct Camera {
     pub post: Post,
 }
 
-/// The `post` half of a `camera`: which screen-space effects run, and the two
-/// numbers bloom is unusable without.
-#[derive(Clone, Copy, PartialEq)]
-// Mirrors `PostConfig`, whose fields are four independent switches.
-#[allow(clippy::struct_excessive_bools)]
+/// One pass on a camera's chain.
+///
+/// A name the engine knows switches its own effect on; anything else is a
+/// `material` asset drawn over the whole frame. Where the engine's own passes
+/// physically run is fixed by the pipeline -- `ssao` and `ssr` feed shading,
+/// `bloom` rides the tonemap -- so what the order decides is the materials.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PostPass {
+    Bloom,
+    Ssao,
+    Ssr,
+    Dof,
+    /// Where the film becomes a picture. A material before it works in linear
+    /// light and is what blooms; one after it works on the finished frame.
+    /// Implicit at the head of a list that does not name it.
+    Tonemap,
+    /// A `material` asset, by id.
+    Material(String),
+}
+
+impl PostPass {
+    fn parse(name: &str) -> Self {
+        match name {
+            words::BLOOM => Self::Bloom,
+            words::SSAO => Self::Ssao,
+            words::SSR => Self::Ssr,
+            words::DOF => Self::Dof,
+            words::TONEMAP => Self::Tonemap,
+            other => Self::Material(other.to_string()),
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Self::Bloom => words::BLOOM,
+            Self::Ssao => words::SSAO,
+            Self::Ssr => words::SSR,
+            Self::Dof => words::DOF,
+            Self::Tonemap => words::TONEMAP,
+            Self::Material(id) => id,
+        }
+    }
+}
+
+/// The `post` half of a `camera`: the chain in the order it was written, and
+/// the two numbers bloom is unusable without.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Post {
-    pub bloom: bool,
-    pub ssao: bool,
-    pub ssr: bool,
-    pub dof: bool,
+    pub passes: Vec<PostPass>,
     pub bloom_threshold: f32,
     pub bloom_intensity: f32,
 }
 
-/// The effects a `post` list may name, in the order the schema lists them.
-const POST_EFFECTS: [&str; 4] = ["bloom", "ssao", "ssr", "dof"];
-
 impl Post {
-    fn holds(&self, effect: &str) -> bool {
-        match effect {
-            "bloom" => self.bloom,
-            "ssao" => self.ssao,
-            "ssr" => self.ssr,
-            "dof" => self.dof,
-            _ => false,
+    fn holds(&self, pass: &PostPass) -> bool {
+        self.passes.contains(pass)
+    }
+
+    #[must_use]
+    pub fn bloom(&self) -> bool {
+        self.holds(&PostPass::Bloom)
+    }
+
+    #[must_use]
+    pub fn ssao(&self) -> bool {
+        self.holds(&PostPass::Ssao)
+    }
+
+    #[must_use]
+    pub fn ssr(&self) -> bool {
+        self.holds(&PostPass::Ssr)
+    }
+
+    #[must_use]
+    pub fn dof(&self) -> bool {
+        self.holds(&PostPass::Dof)
+    }
+
+    /// The materials each side of the tonemap, in the order they were listed.
+    /// A list that never names `tonemap` has it at the head, so a plain list
+    /// of materials is a chain over the finished frame.
+    #[must_use]
+    pub fn materials(&self) -> (Vec<String>, Vec<String>) {
+        let (mut film, mut screen) = (Vec::new(), Vec::new());
+        let mut tonemapped = !self.holds(&PostPass::Tonemap);
+        for pass in &self.passes {
+            match pass {
+                PostPass::Tonemap => tonemapped = true,
+                PostPass::Material(id) if tonemapped => screen.push(id.clone()),
+                PostPass::Material(id) => film.push(id.clone()),
+                _ => {}
+            }
+        }
+        (film, screen)
+    }
+}
+
+impl Default for Post {
+    fn default() -> Self {
+        Self {
+            passes: Vec::new(),
+            bloom_threshold: 1.0,
+            bloom_intensity: 0.6,
         }
     }
 }
@@ -110,7 +188,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
             };
-            post = Some(cam.post);
+            post = Some(cam.post.clone());
             match cam.kind {
                 CameraKind::Perspective => spatial = Some((global.position, cam.look_at)),
                 CameraKind::Orthographic => {
@@ -125,7 +203,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         (spatial, flat, post)
     };
     if let Some(post) = post {
-        drive_post(eng, post);
+        drive_post(eng, &post);
     }
     if let Some((eye, target)) = spatial {
         let config = eng.resource::<CameraConfig>();
@@ -159,22 +237,27 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
 /// `changed` only when one actually differs: a backend rebuilds its
 /// post chain when it sees that flag, and doing so every frame would
 /// rebuild it every frame.
-fn drive_post(eng: &Engine, post: Post) {
+fn drive_post(eng: &Engine, post: &Post) {
     let config = eng.resource::<PostConfig>();
     let mut config = config.borrow_mut();
-    let same = config.bloom == post.bloom
-        && config.ssao == post.ssao
-        && config.ssr == post.ssr
-        && config.dof == post.dof
+    let (film, screen) = post.materials();
+    let same = config.bloom == post.bloom()
+        && config.ssao == post.ssao()
+        && config.ssr == post.ssr()
+        && config.dof == post.dof()
+        && config.film == film
+        && config.screen == screen
         && config.bloom_threshold.to_bits() == post.bloom_threshold.to_bits()
         && config.bloom_intensity.to_bits() == post.bloom_intensity.to_bits();
     if same {
         return;
     }
-    config.bloom = post.bloom;
-    config.ssao = post.ssao;
-    config.ssr = post.ssr;
-    config.dof = post.dof;
+    config.bloom = post.bloom();
+    config.ssao = post.ssao();
+    config.ssr = post.ssr();
+    config.dof = post.dof();
+    config.film = film;
+    config.screen = screen;
     config.bloom_threshold = post.bloom_threshold;
     config.bloom_intensity = post.bloom_intensity;
     config.changed = true;
@@ -205,15 +288,21 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.0) as f32
     };
-    let flag = |name| balaur_core::components::has_flag(params.get(k::POST), name);
+    let passes = params
+        .get(k::POST)
+        .and_then(toml::Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(toml::Value::as_str)
+                .map(PostPass::parse)
+                .collect()
+        })
+        .unwrap_or_default();
     Ok(Camera {
         kind,
         ambient: color_from_params_named(params, "ambient"),
         post: Post {
-            bloom: flag("bloom"),
-            ssao: flag("ssao"),
-            ssr: flag("ssr"),
-            dof: flag("dof"),
+            passes,
             bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
             bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
         },
@@ -241,7 +330,7 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                     (k::LOOK_AT, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }"#),
                     (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "2D zoom in logical pixels per world unit" }"#),
                     (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }"#),
-                    (k::POST, r#"{ type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }"#),
+                    (k::POST, &format!(r#"{{ type = "strings", default = [], description = "The frame's passes, in order. {} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}"#, words::POST_EFFECTS.join(", "))),
                     (k::BLOOM_THRESHOLD, r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#),
                     (k::BLOOM_INTENSITY, r#"{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#),
                 ]),
@@ -288,10 +377,11 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                 map.insert(
                     k::POST.into(),
                     toml::Value::Array(
-                        POST_EFFECTS
+                        camera
+                            .post
+                            .passes
                             .iter()
-                            .filter(|effect| camera.post.holds(effect))
-                            .map(|effect| toml::Value::String((*effect).into()))
+                            .map(|pass| toml::Value::String(pass.name().into()))
                             .collect(),
                     ),
                 );

@@ -715,7 +715,7 @@ The view the scene is drawn from, following the node's global pose: `look_at` ai
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
-<tr><td><code>post</code></td><td>flags</td><td><code>[]</code></td><td>Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only One of <code>bloom</code>, <code>ssao</code>, <code>ssr</code>, <code>dof</code>.</td></tr>
+<tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, tonemap name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
 <tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>

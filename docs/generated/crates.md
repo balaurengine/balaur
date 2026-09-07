@@ -187,9 +187,9 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_plugin`, `balaur_script`, `balaur_ui`
 - **external deps:** 20 (anyhow, aseprite-loader, bytemuck, glamx, image, js-sys, kiss3d, libm, …)
-- **public surface:** 27 fn, 55 struct, 11 enum, 7 const
+- **public surface:** 27 fn, 55 struct, 12 enum, 7 const
 - **structs:** `AppIconConfig`, `AsepriteImport`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Clones`, `Compiled`, `Decoration`, `DrawBuffer2d`, `Environment`, `Field`, `GridConfig`, `Light2d`, `Light3d`, `LineStyle`, `LitLight2d`, `LitLight3d`, `Material`, `MorphWeights`, `NodeCost`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SheetFrame`, `SheetSlice`, `SheetTag`, `SpaceOptions`, `SpriteSheet`, `SpriteSheet2d`, `SpriteTexture`, `Stats`, `TextDraw`, `TextDrawBuffer`, `TextRenderable`, `TextStyle`, `Tilemap`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `Align`, `CameraKind`, `Draw2d`, `FieldType`, `FogKind`, `LightKind2d`, `LightKind3d`, `Param`, `Shape`, `Shape2d`, `Tonemap`
+- **enums:** `Align`, `CameraKind`, `Draw2d`, `FieldType`, `FogKind`, `LightKind2d`, `LightKind3d`, `Param`, `PostPass`, `Shape`, `Shape2d`, `Tonemap`
 
 ## `balaur_script`
 

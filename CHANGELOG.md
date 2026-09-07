@@ -59,6 +59,7 @@ notes are that version's section.
 - Quarter-tile terrains: `mode = "quarters"` draws a cell as four quarters chosen by the cells touching each corner, so a five-tile RPG-Maker-A2 sheet covers all 47 neighbourhoods.
 - The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
+- Post-process materials: `camera.post` is an ordered list, and a name the engine does not know is a `material` drawn over the whole frame. `tonemap` in the list says which side of it a pass falls on -- before it in linear light, after it on the finished picture.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
 - 2D lights and shadows.
 - GPU skinning for 3D meshes.

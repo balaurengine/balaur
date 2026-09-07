@@ -233,7 +233,82 @@ fn the_post_list_round_trips() {
         .iter()
         .map(|v| v.as_str().unwrap())
         .collect();
-    // Schema order, not the order the scene happened to write them in.
-    assert_eq!(post, ["bloom", "ssr"]);
+    // The order the scene wrote, because the order is what the list means.
+    assert_eq!(post, ["ssr", "bloom"]);
     assert!((table["bloom_intensity"].as_float().unwrap() - 0.25).abs() < 1e-6);
+}
+
+#[test]
+fn a_name_the_engine_does_not_know_is_a_material() {
+    let app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(
+        &app,
+        cam,
+        "post = [\"ssao\", \"materials/fog.toml\", \"tonemap\", \"materials/grade.toml\"]",
+    );
+    let saved = components::get(&app.engine, cam, "camera").unwrap();
+    let post: Vec<&str> = saved.as_table().unwrap()["post"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        post,
+        [
+            "ssao",
+            "materials/fog.toml",
+            "tonemap",
+            "materials/grade.toml"
+        ],
+        "a material rides in the list beside the engine's own names"
+    );
+}
+
+#[test]
+fn the_tonemap_is_which_side_of_it_a_material_falls() {
+    let split = |list: &str| {
+        let post = balaur_render::Post {
+            passes: list
+                .split_whitespace()
+                .map(|name| match name {
+                    "bloom" => balaur_render::PostPass::Bloom,
+                    "tonemap" => balaur_render::PostPass::Tonemap,
+                    other => balaur_render::PostPass::Material(other.to_string()),
+                })
+                .collect(),
+            ..balaur_render::Post::default()
+        };
+        post.materials()
+    };
+    let (film, screen) = split("fog tonemap grade");
+    assert_eq!(film, ["fog"], "before it, a pass works in linear light");
+    assert_eq!(screen, ["grade"], "after it, on the finished picture");
+    let (film, screen) = split("grade vignette");
+    assert!(
+        film.is_empty(),
+        "a list that never names the tonemap has it at the head"
+    );
+    assert_eq!(screen, ["grade", "vignette"], "in the order it was written");
+    let (film, screen) = split("tonemap bloom grade");
+    assert!(film.is_empty());
+    assert_eq!(screen, ["grade"], "and an engine pass is not a material");
+}
+
+#[test]
+fn the_camera_hands_its_two_chains_to_the_backend() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(
+        &app,
+        cam,
+        "post = [\"materials/fog.toml\", \"tonemap\", \"bloom\", \"materials/grade.toml\"]",
+    );
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    let config = config.borrow();
+    assert_eq!(config.film, ["materials/fog.toml"]);
+    assert_eq!(config.screen, ["materials/grade.toml"]);
+    assert!(config.bloom, "and the engine's own is still switched on");
 }

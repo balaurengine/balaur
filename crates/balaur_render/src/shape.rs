@@ -96,6 +96,15 @@ pub(crate) mod words {
     /// Which camera a `camera` node drives.
     pub(crate) const CAMERA_KINDS: &[&str] = &[PERSPECTIVE, ORTHOGRAPHIC];
 
+    pub(crate) const BLOOM: &str = "bloom";
+    pub(crate) const SSAO: &str = "ssao";
+    pub(crate) const SSR: &str = "ssr";
+    pub(crate) const DOF: &str = "dof";
+    pub(crate) const TONEMAP: &str = "tonemap";
+    /// The passes a `camera`'s `post` list may name; any other name in it is a
+    /// `material` asset.
+    pub(crate) const POST_EFFECTS: &[&str] = &[BLOOM, SSAO, SSR, DOF, TONEMAP];
+
     pub(crate) const POINT: &str = "point";
     pub(crate) const DIRECTIONAL: &str = "directional";
     pub(crate) const SPOT: &str = "spot";
