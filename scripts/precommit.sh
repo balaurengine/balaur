@@ -36,38 +36,46 @@ shape() { # shape <dir> <cargo args...>
 }
 
 # The default shape, in `target/`: the file lints first because they cost
-# seconds and fail most often, then everything that compiles it.
+# seconds and fail most often, then everything that compiles it. Nothing here
+# stops at the first failure, so one run names them all.
 host_stream() {
-  cargo fmt --all --check || return 1
-  python3 scripts/house_lints.py --fail-on-error || return 1
-  python3 scripts/comment_lints.py --fail-on-error || return 1
-  python3 scripts/prose_lints.py --fail-on-error || return 1
-  python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error || return 1
-  python3 scripts/third_party_notices.py --check || return 1
-  cargo clippy --workspace --all-targets -- -D warnings || return 1
-  [ "$mode" = "--lints" ] && return 0
-  cargo test --workspace || return 1
-  cargo doc --workspace --no-deps --lib || return 1
-  python3 scripts/gen_docs.py --check
+  local bad=0
+  cargo fmt --all --check || bad=1
+  python3 scripts/house_lints.py --fail-on-error || bad=1
+  python3 scripts/comment_lints.py --fail-on-error || bad=1
+  python3 scripts/prose_lints.py --fail-on-error || bad=1
+  python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error || bad=1
+  python3 scripts/third_party_notices.py --check || bad=1
+  cargo clippy --workspace --all-targets -- -D warnings || bad=1
+  if [ "$mode" != "--lints" ]; then
+    cargo test --workspace || bad=1
+    cargo doc --workspace --no-deps --lib || bad=1
+    python3 scripts/gen_docs.py --check || bad=1
+  fi
+  return $bad
 }
 
 # The feature flags no default build compiles. `apple` needs a Mac; the
 # greeter is out of the workspace, so nothing else reaches it.
 features_stream() {
-  shape window clippy -p balaur_cli --features window --all-targets -- -D warnings || return 1
-  shape ext clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings || return 1
+  local bad=0
+  shape window clippy -p balaur_cli --features window --all-targets -- -D warnings || bad=1
+  shape ext clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings || bad=1
   if [ "$(uname)" = "Darwin" ]; then
-    shape apple clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings || return 1
+    shape apple clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings || bad=1
   fi
   cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
-    --target-dir target/shape/greeter --all-targets -- -D warnings
+    --target-dir target/shape/greeter --all-targets -- -D warnings || bad=1
+  return $bad
 }
 
 # The suites that boot an app over real sockets, and the example pipeline:
 # minutes, so they are their own tier rather than part of every commit.
 e2e_stream() {
-  ./scripts/e2e_tests.sh || return 1
-  ./scripts/e2e.sh
+  local bad=0
+  ./scripts/e2e_tests.sh || bad=1
+  ./scripts/e2e.sh || bad=1
+  return $bad
 }
 
 # The web template's own target and flags, from scripts/package_template.sh.
