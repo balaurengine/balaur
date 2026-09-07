@@ -20,7 +20,9 @@ grow.
 | **0.5** | planned | A game built without writing a script |
 | **0.6** | planned | A game gets out |
 | **0.7** | planned | What a bigger game asks for |
-| **0.8** | planned | Consoles and headsets |
+| **0.8** | planned | Every other screen |
+| **0.9** | planned | A world, not a scene |
+| **1.0** | planned | The editor makes the content |
 
 **This file is the source for the website's
 [roadmap page](https://balaurengine.org/docs/roadmap)**, which is the long form
@@ -50,6 +52,9 @@ shipped tab keeps its history.
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. Built: the canvas, `fs` behind a backend, the editor as a page, reload driven by the write, IndexedDB projects, a folder opened from a machine, and the pack and web-bundle exports. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the 2026-09-04 audit's holes: widget clicks outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root. Phase 0 is CI. The animation player is in both since 2026-09-06. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
 | **Node conversions** — reparent, move to the top level, make scene root, save a branch as a scene, make an instance local, fit a collider or an occluder to what is drawn, sprite and shape to polygon, bake a boolean. Phase 0 is that plan's registry defect: `sprite`, `polygon`, `shape2d` and `boolean2d` all claim `Renderable2d` and every `remove` hook drops it unconditionally (N16). | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
+| **More than one window** — a second OS window: a dock torn off the editor, a game on a second display. kiss3d owns the only window there is, which is the same thing standing in XR's way. | 1.0 | no plan |
+| **A shader graph** — the canvas the Rune graph brings, emitting WESL instead of Rune, with `[params]` still read off the linked shader. This reverses `PLAN-shaders.md`'s not-planned line, which held while there was no canvas to draw on. | 1.0 | [PLAN-shaders.md](PLAN-shaders.md) |
+| **Modelling in the viewport** — push and pull a face, bevel an edge, subdivide, and unwrap with `xatlas`, editing the `mesh` asset every shape already is. Primitives, paths and booleans are built and headless, so the tool edits data the engine draws. Unreal calls it Modeling Mode and Unity ships ProBuilder; nothing here moves a vertex. | 1.0 | no plan |
 | **A graph that writes Rune** — a `graphs/*.toml` asset whose save emits the `.rn` beside it, a node palette generated from `api.json`, and a canvas over `egui-snarl` 0.12 as a `graph` widget kind. The binding rows grow an order, an `else`, a `wait` and an expression first. A graph runtime is **not planned**: the emitted script is what the digest, the debugger and hot reload see. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 
 ## Scripts and assets
@@ -63,6 +68,8 @@ shipped tab keeps its history.
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, an asset dropped when nothing names it. A pack is held whole in memory today; `ExternalIo`, the `assets` cache and pack hashing are the pieces. | 0.6 | no plan |
 | **Scripts you can take** — the library grows a `script` kind: fifteen small scripts with `exports()`, dropped onto a node and edited in place. Movement in both dimensions, orbit, first-person, third-person and click-to-move cameras, follow, patrol, spawner, timer, health, pickup, parallax. The rigs `PLAN-interactivity.md` step 5 wants are these files plus the component each needs. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
+| **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, and a scene streamed in chunks around the camera. A `f64` world stays **not planned**. Rebasing is in the digest, so it is a tick's decision rather than the renderer's. | 0.9 | no plan |
+| **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. An extension becomes sandboxed, and a web build can carry one at all, which `dlopen` never allows. | 1.0 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 
 ## Physics and animation
@@ -90,7 +97,10 @@ shipped tab keeps its history.
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk and voice activity, echo cancellation, positional voice on a bus, a browser path. Voice never enters the simulation, the digest or a recording. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, pads on iOS and Android. Rumble and DualSense and DualShock 4 sensors are built. | 0.5 | [PLAN-input.md](PLAN-input.md) |
 | **More widget kinds** — as games ask for them, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw. | (0.5) | no plan |
-| **A controller-only shell** — what a console and a television ask of an interface. Directional focus between widgets, not `focus_next` alone. An on-screen keyboard for a text field. Safe-area insets applied to layout, not only reported by `render.safe_area`. Button glyphs that follow the pad. | 0.8 | no plan |
+| **Touch controls a phone needs** — `touch_button` and `touch_stick` widget kinds, pinch, swipe and long-press recognisers over `input::touches()`, and `render.keyboard_height()` so a field is never under the keyboard. Touches are recorded already; nothing draws a control. | 0.8 | [PLAN-input.md](PLAN-input.md) |
+| **Sound that fills a room** — effects on a bus: reverb, EQ, a compressor and a limiter. `audio.duck` for music under speech, HRTF for a head rather than a stereo pan, and long music streamed rather than decoded whole. `bus.rs` is a gain tree today, and this reverses its not-planned line. | 0.9 | no plan |
+| **Translations as a pipeline** — `strings/<locale>.toml`, `strings.tr`, plurals and `system_locale` are built. The workflow around them is not: import from `.csv` and gettext `.po`, an asset remapped per locale, a dock naming every missing key, and pseudolocalisation to catch a string nobody wrapped. | 1.0 | no plan |
+| **A controller-only shell** — what a console and a television ask of an interface. Directional focus between widgets, not `focus_next` alone. An on-screen keyboard for a text field. Safe-area insets applied to layout, not only reported by `render.safe_area`. Button glyphs that follow the pad. The screens that ask for it are a console, a tvOS box and an Android TV. | 0.8 | no plan |
 
 ## Rendering
 
@@ -105,6 +115,9 @@ shipped tab keeps its history.
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus. Nothing decodes a container; render-side only, and a video never feeds simulation state. | 0.3 | no plan |
 | **Post-process materials** — a user pass on `camera.post`, and Balaur's shader helpers published as a package. | 0.3 | [PLAN-shaders.md#post-process-materials](PLAN-shaders.md#post-process-materials) |
+| **Terrain sculpting and foliage** — brushes over the `heightfield` asset, splat maps for the textures between them, and grass and trees scattered by painting rather than placed by hand. The asset and its mesher are `PLAN-voxels.md`'s; no tool touches either. | 0.9 | [PLAN-voxels.md](PLAN-voxels.md) |
+| **Occlusion culling** — what stands behind a wall skipped, over a software depth rasteriser. Frustum, distance and `render.in_view` are 0.3; this is the pass `PLAN-views-and-culling.md` held back until a scene asked for it. | 0.9 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **Global illumination** — light that bounces, in real time: a screen-space pass or an SDF probe field, since nothing in the kiss3d fork does it. Godot has SDFGI and Unreal has Lumen. Baked lightmaps stay **not planned**, and 2D's answer is still the light map. | 0.9 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Decals and volumetric fog** — a texture projected onto whatever is under it, and fog a light shafts through. `environment` carries flat fog; neither of these is in the fork's list, so both are passes of our own. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 
 ## Networking
@@ -143,7 +156,8 @@ side each step belongs to.
 | **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table if a team asks. | 0.7 | [PLAN-collaboration.md](PLAN-collaboration.md) |
 | **Accessibility** — a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults. The retained tree carries text, `focusable` and a focus order, and egui can emit an AccessKit tree. | 0.6 | no plan |
 | **A crash report that reproduces itself** — the recording, the log and the build id in one file. `replay` and `logbuf` are the halves. | 0.5 | no plan |
-| **Steam** — sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase. | 0.6 | [PLAN-steam.md](PLAN-steam.md) |
+| **A library others publish to** — the Gamend-hosted catalogue `PLAN-collaboration.md` describes, over the manifest `editor/library/` already uses, with a hash per entry and a name saying who published it. The dock reads one list today, the one shipped with the editor. | 1.0 | [PLAN-collaboration.md](PLAN-collaboration.md) |
+| **Steam** — sign-in, achievements, leaderboards, cloud saves, rich presence and in-app purchase behind `platform`, with the overlay, Workshop items, lobbies and Steam Input in a `steam` module beside it. | 0.6 | [PLAN-steam.md](PLAN-steam.md) |
 | **Google Play** — the same set, on Play Games Services. | 0.6 | [PLAN-google.md](PLAN-google.md) |
 
 Apple is built, and with it what both remaining stores plug into: the
@@ -158,12 +172,14 @@ waits for its tick to settle.
 | **The shell a phone has** — `engine.open_url` and the `open_url` binding work on every desktop and in a browser tab, and on neither phone: iOS wants `UIApplication.openURL:` and Android an `ACTION_VIEW` intent, so both report that they have no opener. `engine.reveal` is desktop-only and stays there. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
+| **A web module that loads in parts** — the engine module is most of a web game's download, and nothing in it loads lazily. Split the wasm so a game fetches the physics, audio or networking it uses, and let a pack arrive in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
+| **A game on a small machine** — `linux-arm64` is an export target already, and nothing has ever run one. A Raspberry Pi wants wgpu's GL backend over its V3D driver, a build with no compositor, and a frame budget measured rather than assumed. | 0.8 | [PLAN-release.md](PLAN-release.md) |
 | **Per-platform project settings** — `[application.android]` and its siblings over `project.toml`: window mode, tick rate, feature set and asset variant per target, resolved at export rather than branched in a script. | 0.7 | no plan |
 | **Suspend and resume** — a phone call, a locked screen, a console's suspend. Hooks a script answers, audio released and taken back, a save on the way out, and a tick that pauses rather than catching up. Nothing answers a `Suspended` event today. | 0.6 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, a pack sealed with ChaCha20-Poly1305 under a project key, names out of a unit. Never a DRM wrapper, a packer, anti-cheat or anti-debugging. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
-| **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | 0.8 | no plan |
+| **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser, and ARKit and ARCore behind the same seam: stereo views, tracked poses, controller and hand input, and a camera a phone composites onto. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | 0.8 | no plan |
 | **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |
 | **Signing, checked on every push** — `balaur export` signs on every target, and the reusable workflows and the editor's Export sheet are built. `scripts/signing_check.sh` signs a game with a certificate the runner makes and reads the signature back. Built 2026-09-07. What still needs a real identity: notarization, a provisioning profile, a keystore. | (0.2) | [PLAN-actions.md](PLAN-actions.md) |
 | **Parallel system execution** — once profiling demands it. The gameplay tick is serial by design. | (0.7) | no plan |
