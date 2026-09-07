@@ -1,6 +1,6 @@
-> **Status:** steps 1 to 4 built 2026-09-07, alongside
-> `docs/PLAN-editor-ergonomics.md`, whose Events view stood on them. Step 5,
-> the rigs and modifiers, is not built. Written down on 2026-09-05 from the
+> **Status:** every step built 2026-09-07, alongside
+> `docs/PLAN-editor-ergonomics.md`, whose Events view stood on them. What is
+> left is the open questions in §5. Written down on 2026-09-05 from the
 > Spline comparison: its whole authoring model is states, events and actions, and
 > Balaur's answer to all three is a script. The order is what unblocks the
 > most: pointer hooks first, because a designer's first interaction is a
@@ -195,7 +195,14 @@ Spline's event and action lists, and where each lands.
    actions and a runner registry per plugin, and `scene.switch`.
    `examples/hello` opens a door on the third click with no script in it.
 4. **The Events view authors rows.** *Built.* `editor/scripts/events.rn`.
-5. **Rigs and modifiers.** Not built. Five presets, `follow`.
+5. **Rigs and modifiers.** *Built.* `follow` is a `modifier2d` and
+   `modifier3d` kind with `lag` and `offset`, closing the same share of the
+   gap per fixed tick so the path is the same at any frame rate; the node's
+   own transform is the memory, so a rollback needs nothing extra. The five
+   rigs are library scenes under a Rigs shelf rather than presets:
+   `apply_preset` adds components and a rig is a script beside them, which
+   only a scene can carry. `third_person` needs no script at all -- a pivot
+   with `follow` and a camera hanging off it.
 
 ## 4. What CI can prove, and what it cannot
 

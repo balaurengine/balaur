@@ -502,6 +502,36 @@ scenes and manifest into a `.bpak`. Packed runs build no compiler and no watcher
   boots the app the game would boot and compiles through its host. A bare
   `rune::Context` rejects every script that touches the engine.
 
+### Tooling: one provider, two fronts
+
+A `Tooling` service in `balaur_script_rune` answers *at this file, line and
+column: what completes, what is under the cursor, where it is defined, what
+this file's symbols are*. `balaur lsp` maps LSP methods onto it and the
+editor's `script` module calls the same verbs, so a script means one thing to
+both.
+
+- Completions and hover text for `engine::`, `input::`, `node.`, a component
+  handle and a constant come off the same `ApiEntry` list `balaur api` prints.
+  The api lint that fails on an undocumented function is what keeps the popup
+  complete.
+- Rune's own language server is not reusable: `State` and its completion
+  helpers are `pub(super)`, and the only public item owns the stdin/stdout
+  loop and its own workspace. One piece is taken, `fmt`, which costs no new
+  dependency.
+- Rune's stdlib reaches completion through a fork patch that makes
+  `Context::iter_functions` and `ContextMeta` public and widens their feature
+  gate. Without it `"".len()` does not complete.
+- Rune offers no incremental parse, so what completes is decided from the text
+  around the caret: a table of cases, one test per row.
+- Rename and references are textual across the `mod` graph, because Rune 0.14
+  keeps no cross-file semantic index. A rename shows its list before writing.
+- Listing a file's functions by compiling a unit cost 50 ms per keystroke on a
+  1429-line script and answered with nothing mid-edit, so `declared_functions`
+  walks the `mod` graph as text. A completion is 1 ms after `::` and 3 ms on a
+  bare prefix.
+- A definition outside the project has no file to land in, so go-to opens the
+  reference page instead.
+
 ## Game UI: widgets are nodes
 
 A `widget` is a component on a node, so a menu is a subtree the editor edits

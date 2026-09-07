@@ -20,6 +20,8 @@ notes are that version's section.
 
 - `[[nodes.bindings]]` makes a scene interactive with no script: an event, a `when` over the scene's variables, an action, a target and a value.
 - `states` names a look, and `node.go` patches it over what the node already has.
+- `modifier2d` and `modifier3d` gained a `follow` kind: a node trails another at an `offset`, `lag` seconds behind, closing the same share of the gap per fixed tick at any frame rate.
+- A Rigs shelf in the library dock: orbit, first-person, third-person, click-to-move and platformer, each a scene with the script it needs beside it.
 - `[variables]` declares typed scene values; `on_variable_changed` reaches every node that declares it.
 - `scene.switch` replaces the scene at the end of the tick.
 - `balaur new --template <name>` starts a project from one of the editor's templates.
