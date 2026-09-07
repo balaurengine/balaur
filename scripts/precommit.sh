@@ -5,7 +5,7 @@
 # own, sccache hands the dependencies between them, and the default shape
 # stays in `target/` so a plain `cargo test` is never cold.
 #
-# Usage: precommit.sh [--lints|--full]
+# Usage: precommit.sh [--lints|--full|--e2e]
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,7 +45,7 @@ host_stream() {
   python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error || return 1
   python3 scripts/third_party_notices.py --check || return 1
   cargo clippy --workspace --all-targets -- -D warnings || return 1
-  [ "$mode" = "--full" ] || return 0
+  [ "$mode" = "--lints" ] && return 0
   cargo test --workspace || return 1
   cargo doc --workspace --no-deps --lib || return 1
   python3 scripts/gen_docs.py --check
@@ -63,6 +63,13 @@ features_stream() {
     --target-dir target/shape/greeter --all-targets -- -D warnings
 }
 
+# The suites that boot an app over real sockets, and the example pipeline:
+# minutes, so they are their own tier rather than part of every commit.
+e2e_stream() {
+  ./scripts/e2e_tests.sh || return 1
+  ./scripts/e2e.sh
+}
+
 # The web template's own target and flags, from scripts/package_template.sh.
 wasm_stream() {
   shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
@@ -73,6 +80,9 @@ wasm_stream() {
 start host host_stream
 start features features_stream
 start wasm wasm_stream
+if [ "$mode" = "--e2e" ]; then
+  start e2e e2e_stream
+fi
 
 failed=()
 for i in "${!pids[@]}"; do
