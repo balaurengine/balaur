@@ -26,7 +26,11 @@ fn app_with_every_editor_font() -> (tempfile::TempDir, App) {
     let from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/fonts");
     for face in std::fs::read_dir(&from).unwrap() {
         let face = face.unwrap().path();
-        std::fs::copy(&face, dir.path().join("fonts").join(face.file_name().unwrap())).unwrap();
+        std::fs::copy(
+            &face,
+            dir.path().join("fonts").join(face.file_name().unwrap()),
+        )
+        .unwrap();
     }
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;

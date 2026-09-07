@@ -65,10 +65,9 @@ impl GlyphMesher {
     /// A mesher over the project's faces, in chain order.
     pub(crate) fn new(faces: &[crate::theme::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
-        // The family each role loaded under. A request that names no font asks
-        // for the default family, and an empty database answers with whatever
-        // it has: in a project whose faces sort `icons-` before `ui-`, that is
-        // the icon face, which draws no letters and fills to nothing.
+        // The family each role loaded under. A request that names no font takes
+        // the default family, and an empty database answers with whatever it
+        // has: the icon face, which draws no letters, sorts before `ui-`.
         let mut role: std::collections::HashMap<&str, String> = HashMap::new();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);

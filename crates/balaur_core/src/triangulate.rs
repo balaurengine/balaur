@@ -182,12 +182,7 @@ mod shape_tests {
     }
 
     fn square(x: f32, y: f32, side: f32) -> Vec<[f32; 2]> {
-        vec![
-            [x, y],
-            [x + side, y],
-            [x + side, y + side],
-            [x, y + side],
-        ]
+        vec![[x, y], [x + side, y], [x + side, y + side], [x, y + side]]
     }
 
     #[test]
