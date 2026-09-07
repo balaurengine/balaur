@@ -132,16 +132,20 @@ else
   # throwaway one is trusted for as long as the runner lives.
   certutil -addstore -f Root "$(cygpath -w "$work/cert.pem")" >/dev/null
 
+  # The SDK ships one per version; the newest knows the current policies.
+  signtool=$(find "/c/Program Files (x86)/Windows Kits/10/bin" \
+    -name signtool.exe -path '*/x64/*' 2>/dev/null | sort -V | tail -1)
+  [ -n "$signtool" ] || { printf '::error::no signtool.exe; install the Windows SDK\n'; exit 1; }
+  # `balaur export --sign` looks it up on PATH, which is where a developer
+  # command prompt would have put it and a bare runner does not.
+  export PATH="$(dirname "$signtool"):$PATH"
+
   step "export, signed"
   game=$work/game.exe
   BALAUR_SIGN_PASSWORD=$password "$balaur" export "$project" --target "$target" \
     -o "$game" --sign "$(cygpath -w "$work/identity.pfx")" --no-download
 
   step "what signtool says"
-  # The SDK ships one per version; the newest knows the current policies.
-  signtool=$(find "/c/Program Files (x86)/Windows Kits/10/bin" \
-    -name signtool.exe -path '*/x64/*' 2>/dev/null | sort -V | tail -1)
-  [ -n "$signtool" ] || { printf '::error::no signtool.exe; install the Windows SDK\n'; exit 1; }
   "$signtool" verify /pa /v "$(cygpath -w "$game")"
 
   step "the pack reads from behind the certificate table"
