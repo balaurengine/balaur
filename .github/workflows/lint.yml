@@ -48,6 +48,8 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Default features
         run: cargo clippy --workspace --all-targets -- -D warnings
       # The windowed backend — kiss3d, wgpu, egui, and the macOS objc2

@@ -96,6 +96,7 @@ runs:
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ steps.what.outputs.artifact }}-${{ inputs.features }}${{ inputs.web-features }}
+        save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - if: inputs.platform == 'android'
       shell: bash

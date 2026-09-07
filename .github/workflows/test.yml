@@ -49,6 +49,8 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Unit and integration tests
         run: cargo test --workspace
       # Extensions are off by default, so `--workspace` above never builds the
@@ -131,6 +133,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build twice, compare
         run: ./scripts/reproducible_build.sh
 
@@ -147,6 +151,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin --locked
       - name: Measure
