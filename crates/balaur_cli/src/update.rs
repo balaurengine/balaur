@@ -26,6 +26,8 @@ mod imp {
             Ok("macos-universal")
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
             Ok("windows-x64")
+        } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+            Ok("windows-arm64")
         } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             Ok("linux-x64")
         } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {

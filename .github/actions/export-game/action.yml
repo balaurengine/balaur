@@ -183,7 +183,7 @@ runs:
             android)
               flags+=(--apk)
               ;;
-            windows-x64)
+            windows-x64 | windows-arm64)
               [ -f "$SECRETS/certificate.pfx" ] && flags+=(--sign "$SECRETS/certificate.pfx")
               ;;
           esac

@@ -39,6 +39,10 @@ jobs:
             target: macos-universal
           - os: windows-latest
             target: windows-x64
+          # Built on an ARM runner rather than cross-compiled, so the smoke
+          # export in package.sh runs the game it just made.
+          - os: windows-11-arm
+            target: windows-arm64
     # What the Mac and Windows downloads are signed with. Only a push carries
     # the three that switch signing on: a pull request's artifacts are thrown
     # away, and signing them spends quota and sits in Apple's notary queue.

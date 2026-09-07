@@ -97,7 +97,7 @@ enum Command {
         output: Option<PathBuf>,
         /// Platform to build a standalone game for, naming a template in the
         /// templates directory (e.g. `linux-x64`, `macos-universal`,
-        /// `windows-x64`).
+        /// `windows-x64`, `windows-arm64`).
         #[arg(long)]
         target: Option<String>,
         /// Runtime template to append to, bypassing template lookup.
