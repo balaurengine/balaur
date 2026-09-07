@@ -843,6 +843,8 @@ flow nothing checks.
 - an expectation warns while unmet and clears when met
 - an export compiles roots and lets them carry their modules
 - an export that asks for nothing changes nothing
+- an exported asset says where to declare it
+- an exported constant is a property
 - an extruded outline is a closed solid
 - an http error status is a response not an error
 - an id play would refuse is refused here
@@ -985,6 +987,7 @@ flow nothing checks.
 - debug lines can be drawn in both dimensions
 - declarations are uniquely named
 - declarations are uniquely named within a module
+- declaring a property both ways is refused
 - deep nesting propagates without overflowing
 - defaults fill in what was not given
 - degrees and radians are two readings of one rotation
