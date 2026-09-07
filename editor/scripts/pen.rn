@@ -318,7 +318,12 @@ fn pick(S, path, f, mx, my) {
         let (wx, wy) = to_world(f, p[0], p[1]);
         let d = math::sqrt((wx - mx) * (wx - mx) + (wy - my) * (wy - my));
         // Anchors win ties: a handle sits on top of one when it is not pulled.
-        if d < best_d || (d <= reach && i % 3 == 0 && best.is_some() && best[0] % 3 != 0) {
+        // Indexing the Option reaches the pair inside it, so it is unwrapped.
+        let holds_handle = match best {
+            Some(held) => held[0] % 3 != 0,
+            None => false,
+        };
+        if d < best_d || (d <= reach && i % 3 == 0 && holds_handle) {
             best = Some([i, i % 3 == 0]);
             best_d = d;
         }

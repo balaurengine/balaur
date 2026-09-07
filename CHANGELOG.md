@@ -195,6 +195,7 @@ notes are that version's section.
   project templates. The skies are gradients and the models are primitives,
   so the whole library is kilobytes and carries no third-party licence.
 - The Tiles tool paints in every direction, fills, draws lines, stamps blocks, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
+- Fixed: a map grows left and up again. Its origin is two numbers and was read with `vec3`, which wants three, so every moved origin read as 0, 0 and the cell was dropped.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.
@@ -205,6 +206,8 @@ notes are that version's section.
 - Go-to-definition with cmd+B, document symbols, find references, and a Docs dock rendering the reference from the live engine.
 - `balaur fmt` formats a project's scripts; alt+shift+F formats the visible buffer.
 - Rename across the files a script's `mod` declarations reach, with the matches listed first; cmd+shift+R.
+- Find and replace across the same files, matched as text rather than as an identifier; cmd+shift+F.
+- Workspace symbols: `balaur lsp` answers `workspace/symbol` over every script a scene attaches.
 - A VS Code extension in `editors/code` over the same server, with Neovim and Zed recipes.
 - Profiler dock; `--timings`.
 - Showcase and UI audit scripts.

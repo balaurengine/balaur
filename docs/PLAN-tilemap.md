@@ -352,23 +352,6 @@ Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 8. Isometric and hexagonal layouts, and the hex rule widget.
 9. Tiled and LDtk import.
 
-## 6b. Open defect: the map does not grow left or up
-
-`tilesdemo` fails two checks on every example that carries a map:
-
-    selftest FAILED: the cell outside the old grid holds its tile
-    selftest FAILED: the origin moved to reach it ((0, 0))
-
-`tiles::write_cells` sets `comp.origin` to the new low corner and calls
-`model::apply_component`, and the origin comes back `[0, 0]`, so painting
-above or left of the map drops the cell. Step 2 is what this belongs to.
-Painting right and down still grows correctly.
-
-Found 2026-09-07 by `scripts/e2e.sh`, which stops at the first example.
-It is not the editor's: the same two checks fail with every file under
-`editor/scripts/` reverted to 519c8db against the engine at HEAD, and no
-tilemap file changed on that branch.
-
 ## 7. What CI can prove, and what it cannot
 
 Headless proves that a ray hits a wall cell, that a body slid along a floor

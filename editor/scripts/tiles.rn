@@ -492,7 +492,9 @@ pub fn origin(S) {
         Some(comp) => comp,
         None => return (0, 0),
     };
-    let at = util::vec3(comp.get("origin").unwrap_or(()), [0.0, 0.0, 0.0]);
+    // Two numbers, so `vec2`: `vec3` wants three and quietly falls back to
+    // the default, which read every moved origin as 0, 0.
+    let at = util::vec2(comp.get("origin").unwrap_or(()), [0.0, 0.0]);
     (util::i(util::f(at[0])), util::i(util::f(at[1])))
 }
 
