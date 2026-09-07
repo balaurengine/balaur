@@ -132,7 +132,6 @@ impl AndroidConfig {
         }
         Ok(())
     }
-}
 
     /// The identifier this APK ships with: the project's, or the invented one
     /// for a game that declares none.
@@ -169,7 +168,11 @@ impl AndroidConfig {
             "the template's android:minSdkVersion is not a number; \
              scripts/package_template.sh writes it",
         )?;
-        let min_sdk = if self.min_sdk == 0 { floor } else { self.min_sdk };
+        let min_sdk = if self.min_sdk == 0 {
+            floor
+        } else {
+            self.min_sdk
+        };
         if min_sdk < floor {
             bail!(
                 "[android] min_sdk = {min_sdk} is under {floor}, the API this \
@@ -178,7 +181,10 @@ impl AndroidConfig {
             );
         }
         if self.target_sdk < min_sdk {
-            bail!("[android] target_sdk = {} is under min_sdk = {min_sdk}", self.target_sdk);
+            bail!(
+                "[android] target_sdk = {} is under min_sdk = {min_sdk}",
+                self.target_sdk
+            );
         }
         let label = if self.label.is_empty() {
             name
@@ -189,7 +195,11 @@ impl AndroidConfig {
         xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
         xml = set_attr(&xml, "android:versionName", &self.version)?;
         xml = set_attr(&xml, "android:minSdkVersion", &min_sdk.to_string())?;
-        xml = set_attr(&xml, "android:targetSdkVersion", &self.target_sdk.to_string())?;
+        xml = set_attr(
+            &xml,
+            "android:targetSdkVersion",
+            &self.target_sdk.to_string(),
+        )?;
         set_attr(&xml, "android:label", &escape(label))
     }
 }
@@ -691,10 +701,7 @@ mod tests {
             abis: vec![Abi::Arm64V8a, Abi::X86_64],
         };
         config.prune(layout).unwrap();
-        assert_eq!(
-            super::carried(&layout.join("lib")),
-            ["arm64-v8a", "x86_64"]
-        );
+        assert_eq!(super::carried(&layout.join("lib")), ["arm64-v8a", "x86_64"]);
     }
 
     #[test]
@@ -797,8 +804,10 @@ mod tests {
         {
             let mut zip = zip::ZipWriter::new(std::fs::File::create(&linked).unwrap());
             let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
-            for (name, body) in [("AndroidManifest.xml", &b"proto"[..]), ("resources.pb", b"table")]
-            {
+            for (name, body) in [
+                ("AndroidManifest.xml", &b"proto"[..]),
+                ("resources.pb", b"table"),
+            ] {
                 zip.start_file(name, options).unwrap();
                 std::io::Write::write_all(&mut zip, body).unwrap();
             }
