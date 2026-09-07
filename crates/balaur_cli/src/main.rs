@@ -1,5 +1,9 @@
 //! The `balaur` command line tool: create, run, export, and play projects.
 
+// A browser has no command line: `main` is empty there and everything argv
+// drives is compiled but never called.
+#![cfg_attr(target_family = "wasm", allow(dead_code))]
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

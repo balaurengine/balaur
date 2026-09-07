@@ -275,6 +275,10 @@ fn manifest_name(manifest: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the argument of `map_err`, which hands the error over"
+)]
 fn err(e: anyhow::Error) -> JsValue {
     JsValue::from_str(&format!("{e:#}"))
 }

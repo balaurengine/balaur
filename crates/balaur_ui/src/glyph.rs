@@ -65,10 +65,39 @@ impl GlyphMesher {
     /// A mesher over the project's faces, in chain order.
     pub(crate) fn new(faces: &[crate::theme::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
+        // The family each role loaded under. A request that names no font asks
+        // for the default family, and an empty database answers with whatever
+        // it has: in a project whose faces sort `icons-` before `ui-`, that is
+        // the icon face, which draws no letters and fills to nothing.
+        let mut role: std::collections::HashMap<&str, String> = HashMap::new();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
-            db.load_font_source(fontdb::Source::Binary(data));
+            let loaded = db.load_font_source(fontdb::Source::Binary(data));
+            if face.chain == "icons" {
+                continue;
+            }
+            let family = loaded
+                .first()
+                .and_then(|id| db.face(*id))
+                .and_then(|info| info.families.first())
+                .map(|(name, _)| name.clone());
+            if let Some(family) = family {
+                role.entry(face.chain).or_insert(family);
+            }
+        }
+        let text = ["ui", "heading", "system", "mono"]
+            .into_iter()
+            .find_map(|chain| role.get(chain))
+            .cloned();
+        if let Some(text) = text {
+            db.set_sans_serif_family(text.clone());
+            db.set_serif_family(text.clone());
+            db.set_cursive_family(text.clone());
+            db.set_fantasy_family(text);
+        }
+        if let Some(mono) = role.get("mono") {
+            db.set_monospace_family(mono.clone());
         }
         Self {
             fonts: FontSystem::new_with_locale_and_db(locale.to_string(), db),
