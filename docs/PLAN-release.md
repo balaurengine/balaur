@@ -60,23 +60,7 @@ opens without a warning and updates itself.
 
 ## Cutting a release
 
-Versioning began at **0.1.0** (2026-09-03). The engine is pre-1.0, so a minor
-bump carries breaking changes, and the roadmap row that moved is what says
-which.
-
-1. `[workspace.package] version` in the root `Cargo.toml`, and `cargo check`
-   once so `Cargo.lock` follows.
-2. `docs/ROADMAP.md`: rewrite the rows the release finished as what landed,
-   and say the new version in its opening. Those rows are the notes: there is
-   no changelog, and the reasoning lives in `ARCHITECTURE.md` and the plans.
-3. The plan for anything finished loses the part that is now built, and is
-   retired outright when nothing is left in it.
-4. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
-5. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
-   draft, and publishing stays a decision.
-
-A patch release moves no roadmap row. What it fixed is written on the draft
-itself, in the release's own notes, and nowhere else.
+`docs/RELEASING.md` holds the steps.
 
 ## Phases
 

@@ -86,6 +86,7 @@ In this repository:
 | [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds, and what it does not do yet |
 | [docs/DETERMINISM.md](docs/DETERMINISM.md) | writing a game that reproduces; record and replay |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
+| [docs/RELEASING.md](docs/RELEASING.md) | how a nightly and a version are cut, and by what |
 | [docs/NAMING.md](docs/NAMING.md) | the naming rules; governs the other docs |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics and node timings against Godot |
 | [docs/generated/](docs/generated/) | script API, components, assets, crates; written by `scripts/gen_docs.py` |
