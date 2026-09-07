@@ -139,11 +139,11 @@ pub struct Params {
 /// frame, and the paths in them are strings nobody should be copying sixty
 /// times a second.
 #[derive(Clone, Debug)]
-pub struct Modifier2d(std::sync::Arc<Params>);
+pub struct Modifier2d(pub(crate) std::sync::Arc<Params>);
 
 /// A 3D rig modifier, over `bone3d`.
 #[derive(Clone, Debug)]
-pub struct Modifier3d(std::sync::Arc<Params>);
+pub struct Modifier3d(pub(crate) std::sync::Arc<Params>);
 
 /// A jiggle chain's dynamic points and their speeds, one per solved bone,
 /// and the two rotations that keep the spring from chasing itself.
