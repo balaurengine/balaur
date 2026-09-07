@@ -11,6 +11,25 @@ install this", and `export_check.sh` proves the bundle shape, the pack's
 place inside it, and that the iOS executable was built for iOS. That a frame
 renders on a phone is unproven, and needs hardware.
 
+## The shell a phone has
+
+`engine.open_url` and the `open_url` binding action work on every desktop and,
+since 2026-09-07, in a browser tab through `window.open`. On iOS and Android
+they do not: `balaur_core::desktop` spawns an opener process, and a phone has
+none, so the call reports that it has no opener rather than pretending.
+
+What each wants, when someone wires it up:
+
+- **iOS.** `UIApplication.sharedApplication.openURL:`, reachable the way
+  `balaur_apple` already reaches `UIApplication`, by runtime class lookup
+  through `objc2` rather than a UIKit crate.
+- **Android.** An `ACTION_VIEW` intent, which needs JNI and the activity from
+  `ndk_context`. Nothing in the tree links JNI today; `balaur_android` is only
+  the NativeActivity entry point.
+
+`engine.reveal` is not coming to either: showing a file in a file manager
+needs a file manager, and neither a phone nor a tab has one.
+
 ## Web
 
 **Built.** `balaur export --target web` writes a `.wasm`, its glue and a
