@@ -11,6 +11,13 @@ use balaur_core::App;
 use crate::LOG;
 
 fn run(body: &str) -> (App, Vec<String>) {
+    let (app, errors, _) = run_logged(body);
+    (app, errors)
+}
+
+/// [`run`], and every line it logged. A caller that reads the buffer after
+/// `run` returns has already dropped the lock, and races the next test for it.
+fn run_logged(body: &str) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -37,12 +44,14 @@ fn run(body: &str) -> (App, Vec<String>) {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors = balaur_core::logbuf::recent(50)
-        .into_iter()
+    let lines = balaur_core::logbuf::recent(50);
+    let errors = lines
+        .iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
-        .map(|e| e.message)
+        .map(|e| e.message.clone())
         .collect();
-    (app, errors)
+    let all = lines.into_iter().map(|e| e.message).collect();
+    (app, errors, all)
 }
 
 fn run_clean(body: &str) {
@@ -185,14 +194,12 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 
 #[test]
 fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
-    let (app, errors) = run(r#"this.node.set_component("tilemap", #{ cells: ".." });
+    let (app, errors, lines) = run_logged(
+        r#"this.node.set_component("tilemap", #{ cells: ".." });
 render::set_cell(this.node, 3, 1, 7);
-log::info(`cell ${render::cell(this.node, 3, 1)} ${render::cell(this.node, 0, 0)} ${render::cell(this.node, 9, 9)}`);"#);
+log::info(`cell ${render::cell(this.node, 3, 1)} ${render::cell(this.node, 0, 0)} ${render::cell(this.node, 9, 9)}`);"#,
+    );
     assert!(errors.is_empty(), "{errors:#?}");
-    let lines: Vec<String> = balaur_core::logbuf::recent(50)
-        .into_iter()
-        .map(|e| e.message)
-        .collect();
     assert!(
         lines.iter().any(|l| l.contains("cell 7 -1 -1")),
         "expected the cell readback, got {lines:#?}"
