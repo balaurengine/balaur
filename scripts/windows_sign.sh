@@ -57,12 +57,12 @@ if [ "$source" = azure ]; then
   "CertificateProfileName": "$TRUSTED_SIGNING_PROFILE"
 }
 JSON
-  args+=(/dlib "$dlib" /dmdf "$metadata")
+  args+=(/dlib "$(cygpath -w "$dlib")" /dmdf "$(cygpath -w "$metadata")")
 else
   certificate=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/windows-certificate.pfx
   printf '%s' "$WINDOWS_CERTIFICATE_BASE64" | base64 --decode >"$certificate"
   trap 'rm -f "$certificate"' EXIT
-  args+=(/f "$certificate")
+  args+=(/f "$(cygpath -w "$certificate")")
   [ -z "${WINDOWS_CERTIFICATE_PASSWORD:-}" ] || args+=(/p "$WINDOWS_CERTIFICATE_PASSWORD")
 fi
 
@@ -70,7 +70,10 @@ for file in "$@"; do
   [ -f "$file" ] || { printf '::error::nothing to sign at %s\n' "$file"; exit 1; }
   # A fused game is this executable with a pack appended, so signing has to
   # come after fusing: the certificate table cannot cover bytes added later.
-  "$signtool" "${args[@]}" "$file"
-  "$signtool" verify /pa /v "$file"
+
+  # Git Bash rewrites a leading-slash argument into a path; these are switches,
+  # so every path signtool is handed is made a Windows one here instead.
+  MSYS2_ARG_CONV_EXCL='*' "$signtool" "${args[@]}" "$(cygpath -w "$file")"
+  MSYS2_ARG_CONV_EXCL='*' "$signtool" verify /pa /v "$(cygpath -w "$file")"
   printf 'signed %s\n' "$file"
 done
