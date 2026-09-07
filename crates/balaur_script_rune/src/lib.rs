@@ -399,7 +399,9 @@ impl RuneHost {
         if let Some(pack) = &state.pack {
             return pack.scenes.get(&key).cloned();
         }
-        std::fs::read_to_string(state.project_root.join(&key)).ok()
+        let path = state.project_root.join(&key);
+        let bytes = balaur_core::files::backend(&self.engine).read(&path).ok()?;
+        String::from_utf8(bytes).ok()
     }
 
     fn source_of(&self, key: &str) -> Result<String> {
@@ -411,8 +413,11 @@ impl RuneHost {
                 .ok_or_else(|| anyhow!("{key} is not in the pack"))?;
             return Ok(String::from_utf8(bytes.clone())?);
         }
-        std::fs::read_to_string(state.project_root.join(key))
-            .with_context(|| format!("reading {key}"))
+        let path = state.project_root.join(key);
+        let bytes = balaur_core::files::backend(&self.engine)
+            .read(&path)
+            .with_context(|| format!("reading {key}"))?;
+        Ok(String::from_utf8(bytes)?)
     }
 
     /// The source carries its on-disk path so `mod name;` finds `name.rn`
