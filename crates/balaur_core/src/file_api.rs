@@ -35,6 +35,20 @@ pub fn add_root(eng: &Engine, root: impl AsRef<Path>) {
     }
 }
 
+/// The project's own root and any a host added, for a reader resolving a
+/// project-relative path. `fs.*` also reaches the user-data directory; a
+/// scene file does not live there.
+pub fn project_roots(eng: &Engine) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Some(root) = eng.try_resource::<crate::project::ProjectRoot>() {
+        out.push(root.borrow().0.clone());
+    }
+    if let Some(extra) = eng.try_resource::<FileRoots>() {
+        out.extend(extra.borrow().0.iter().cloned());
+    }
+    out
+}
+
 /// Every directory `fs.*` may reach, in the order they are checked.
 fn roots(eng: &Engine) -> Vec<PathBuf> {
     let mut out = Vec::new();

@@ -770,9 +770,14 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// file inside the pack in a packed run.
 fn source(eng: &Engine, args: &[Value]) -> Result<Value> {
     let rel = text(args, 0)?;
+    // The host's own copy first, which is what a packed game carries, then the
+    // file, the way `project::scene_text` reads one. Without the fallback a
+    // scene the host never registered came back nil, and the editor's session
+    // replay registers none of the game's.
     Ok(eng
         .script_host()
         .and_then(|host| host.scene_source(rel))
+        .or_else(|| crate::project::scene_text(eng, rel).ok())
         .map_or(Value::Nil, Value::Str))
 }
 
