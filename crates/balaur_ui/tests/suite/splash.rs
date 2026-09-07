@@ -1,9 +1,8 @@
 //! The `[application] splash`: over everything for its seconds, then gone.
 
-
-use balaur::{AppConfig, standard_app};
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use crate::support::*;
+use balaur::{AppConfig, standard_app};
 
 #[test]
 fn the_splash_covers_the_screen_for_its_seconds_and_no_longer() {

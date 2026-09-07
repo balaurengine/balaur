@@ -1,11 +1,10 @@
 //! The controls and containers past the first nine kinds: what they write
 //! back, where they put their children, and what a dialog keeps out.
 
-
-use balaur_core::hecs::Entity;
-use egui::pos2;
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use crate::support::*;
+use balaur_core::hecs::Entity;
+use egui::pos2;
 
 fn property(app: &balaur_core::App, entity: Entity, key: &str) -> toml::Value {
     balaur::components::get(&app.engine, entity, "widget")

@@ -7,11 +7,10 @@
 //! `balaur_core::components::patch`. A third-party plugin's components animate
 //! the day they are registered, for the same reason and with no code.
 
-
+use crate::common::Calls;
 use balaur_anim::{AnimationPlugin, Playback};
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, components, scene};
-use crate::common::Calls;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
