@@ -1292,7 +1292,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 49 properties
+`ui` · 50 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1304,6 +1304,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>fill</code>.</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked; every click flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
 <tr><td><code>columns</code></td><td>int</td><td><code>2</code></td><td>How many children a `grid` puts on each row At least 1.</td></tr>
 <tr><td><code>deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
@@ -1316,7 +1317,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>dropdown</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>color</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
 <tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
@@ -1330,7 +1331,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text on Enter, or when focus leaves it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
-<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>What a `dropdown` offers; `text` is the one chosen, and `on_change` hears the new one</td></tr>
+<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>
 <tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>

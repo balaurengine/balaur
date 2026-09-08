@@ -72,7 +72,10 @@ fn a_measured_span_is_filed_under_its_name() {
 fn a_recorded_span_is_filed_with_the_next_frame() {
     let mut app = app();
     balaur_core::timings::record(&app.engine, "test/awaited", Duration::from_millis(7));
-    assert!(spans(&app).is_empty(), "the frame it belongs to has not ended");
+    assert!(
+        spans(&app).is_empty(),
+        "the frame it belongs to has not ended"
+    );
     app.tick(FIXED_DT);
     let spans = spans(&app);
     let (_, seconds) = spans

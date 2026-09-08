@@ -129,6 +129,98 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
 }
 
 #[test]
+fn a_list_draws_only_the_rows_that_fit() {
+    let (_dir, app) = app();
+    let many: Vec<String> = (0..2000).map(|i| format!("Row{i}")).collect();
+    let params =
+        toml::toml! { kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 120.0 options = (many) };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = texts(&pass(&app, &ctx, vec![]));
+    let rows = drawn.iter().filter(|(t, _)| t.starts_with("Row")).count();
+    assert!(
+        rows > 0 && rows < 60,
+        "2000 items, only a screenful built: {rows}"
+    );
+    assert!(
+        drawn.iter().any(|(t, _)| t == "Row0"),
+        "and it starts at the top: {drawn:?}"
+    );
+}
+
+#[test]
+fn a_tree_indents_a_row_by_its_leading_tabs() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 120.0
+        options = ["Root", "\tChild", "\t\tLeaf"]
+    };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = texts(&pass(&app, &ctx, vec![]));
+    let at = |name: &str| drawn.iter().find(|(t, _)| t == name).map(|(_, p)| p.x);
+    let (root, child, leaf) = (
+        at("Root").expect("root drawn"),
+        at("Child").expect("child drawn"),
+        at("Leaf").expect("leaf drawn"),
+    );
+    assert!(
+        child > root && leaf > child,
+        "each level steps right: {root} {child} {leaf}"
+    );
+}
+
+#[test]
+fn a_menu_reports_the_item_that_was_picked() {
+    let (_dir, mut app) = app();
+    let params =
+        toml::toml! { kind = "menu" text = "File" options = ["Open", "Save"] x = 0.0 y = 0.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let head = pos2(20.0, 10.0);
+    pass(&app, &ctx, press(head, true));
+    pass(&app, &ctx, press(head, false));
+    let open = pass(&app, &ctx, vec![]);
+    let (_, at) = texts(&open)
+        .into_iter()
+        .find(|(t, _)| t == "Save")
+        .expect("the list is open and holds its items");
+    let item = pos2(at.x + 4.0, at.y + 4.0);
+    pass(&app, &ctx, press(item, true));
+    pass(&app, &ctx, press(item, false));
+    consume_input(&mut app);
+    assert_eq!(
+        property(&app, entity, "text"),
+        toml::Value::String("Save".into()),
+        "the pick lands on the widget"
+    );
+}
+
+#[test]
+fn a_color_swatch_keeps_what_the_scene_gave_it() {
+    let (_dir, mut app) = app();
+    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [1.0, 0.0, 0.0, 1.0] };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    consume_input(&mut app);
+    let held = property(&app, entity, "color");
+    let red = held
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(balaur_core::components::as_f64)
+        .unwrap();
+    assert!(
+        (red - 1.0).abs() < f64::EPSILON,
+        "the swatch holds its own colour, not the ink: {held:?}"
+    );
+}
+
+#[test]
 fn a_dropdown_takes_the_option_that_was_clicked() {
     let (_dir, mut app) = app();
     let params = toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two", "Three"] x = 0.0 y = 0.0 };

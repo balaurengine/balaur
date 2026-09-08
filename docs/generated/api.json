@@ -3726,6 +3726,16 @@
         "readonly": true,
         "type": "bool"
       },
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "What a `color` swatch holds; `on_change` hears the new one",
+        "type": "color"
+      },
       "columns": {
         "default": 2,
         "description": "How many children a `grid` puts on each row",
@@ -3820,7 +3830,11 @@
           "field",
           "text_area",
           "check",
+          "color",
           "dropdown",
+          "menu",
+          "list",
+          "tree",
           "slider",
           "drag_value",
           "progress",
@@ -3902,7 +3916,7 @@
       },
       "options": {
         "default": [],
-        "description": "What a `dropdown` offers; `text` is the one chosen, and `on_change` hears the new one",
+        "description": "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level. `on_change` hears every pick",
         "type": "strings"
       },
       "padding": {
@@ -5811,8 +5825,10 @@
         "set_rotation_degrees": "Set the node's local rotation from euler angles in degrees.",
         "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
         "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
+        "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
         "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
+        "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not.",
         "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
@@ -5861,8 +5877,10 @@
         "set_rotation_degrees",
         "set_rotation_euler",
         "set_scale",
+        "set_sibling_index",
         "set_visible",
         "set_z_index",
+        "sibling_index",
         "stable_id",
         "state",
         "tags",
@@ -5912,8 +5930,10 @@
         "set_rotation_degrees": "(x: float, y: float, z: float)",
         "set_rotation_euler": "(x: float, y: float, z: float)",
         "set_scale": "(x: float, y: float, z: float)",
+        "set_sibling_index": "(index: int)",
         "set_visible": "(node, on: bool)",
         "set_z_index": "(node, z: int, relative: bool)",
+        "sibling_index": "()",
         "stable_id": "()",
         "state": "()",
         "tags": "(node)",
@@ -8299,6 +8319,10 @@
           "value": "check"
         },
         {
+          "name": "WIDGET_COLOR",
+          "value": "color"
+        },
+        {
           "name": "WIDGET_COLUMN",
           "value": "column"
         },
@@ -8343,6 +8367,14 @@
           "value": "label"
         },
         {
+          "name": "WIDGET_LIST",
+          "value": "list"
+        },
+        {
+          "name": "WIDGET_MENU",
+          "value": "menu"
+        },
+        {
           "name": "WIDGET_PANEL",
           "value": "panel"
         },
@@ -8373,6 +8405,10 @@
         {
           "name": "WIDGET_TEXT_AREA",
           "value": "text_area"
+        },
+        {
+          "name": "WIDGET_TREE",
+          "value": "tree"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",

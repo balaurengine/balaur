@@ -121,6 +121,9 @@ pub struct Widget {
     /// Method on this node's script, called with the text on Enter or when
     /// focus leaves the field.
     pub on_submit: String,
+    /// What a `color` swatch holds, as `[r, g, b, a]` in 0..=1. Separate from
+    /// `text_color`, which is the ink a widget draws its caption in.
+    pub color: [f32; 4],
     /// Whether a `check` is ticked.
     pub checked: bool,
     /// Where a `slider` or `progress` stands, between `min` and `max`.
@@ -597,6 +600,8 @@ pub(crate) enum Edit {
     Open(bool),
     /// A dropdown's pick.
     Choice(String),
+    /// A swatch's colour.
+    Color([f32; 4]),
 }
 
 /// The theme in force for a widget: its own, or the nearest ancestor's.
@@ -676,7 +681,11 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
+        w::COLOR => crate::widget_kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),
+        w::MENU => crate::widget_kinds::menu(ui, at, index, &caption, &font, color),
+        w::LIST => crate::widget_kinds::list(ui, at, index, &font, color),
+        w::TREE => crate::widget_kinds::tree(ui, at, index, &font, color),
         w::SLIDER => crate::widget_kinds::slider(ui, at, index),
         w::DRAG_VALUE => crate::widget_kinds::drag_value(ui, at, index, &font, color),
         w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),

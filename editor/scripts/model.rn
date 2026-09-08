@@ -1034,6 +1034,50 @@ pub fn open_prefab(S) {
     }
 }
 
+// Move the selection among its siblings by `delta`: a scene edit, since order
+// is what a `row` or a `column` lays out in.
+pub fn move_sibling(S, delta) {
+    if refuse_structure(S, "reorder nodes") {
+        return;
+    }
+    let i = S.sel;
+    if i >= S.doc.len() {
+        return;
+    }
+    let parent = S.doc[i].get("parent").unwrap_or("");
+    let sibs = [];
+    for (j, node) in S.doc.iter().enumerate() {
+        if node.get("parent").unwrap_or("") == parent {
+            sibs.push(j);
+        }
+    }
+    let at = 0;
+    for (n, j) in sibs.iter().enumerate() {
+        if j == i {
+            at = n;
+        }
+    }
+    let to = at + delta;
+    if to < 0 || to >= sibs.len() {
+        return;
+    }
+    history::record(S, "move node", None);
+    let j = sibs[to];
+    // The two arrays are parallel, so a swap has to move both.
+    let entry = S.doc[i];
+    S.doc[i] = S.doc[j];
+    S.doc[j] = entry;
+    let held = S.refs[i];
+    S.refs[i] = S.refs[j];
+    S.refs[j] = held;
+    // And the live tree, so the viewport draws the order the file will hold.
+    if let Some(found) = live(S, j) {
+        found.set_sibling_index(to);
+    }
+    S.doc_rev += 1;
+    selection::only(S, j);
+}
+
 // Add a node under the selected one, in both document and mirror, optionally
 // applying a preset. A preset is a recipe: the components land on the node and
 // nothing records which one put them there.

@@ -394,3 +394,40 @@ fn a_z_index_survives_a_write_and_read() {
         Value::Int(7)
     );
 }
+
+#[test]
+fn a_sibling_moves_to_the_index_it_is_given() {
+    let app = app();
+    let (a, b, c) = (spawn(&app, "A"), spawn(&app, "B"), spawn(&app, "C"));
+    let order = |app: &App| {
+        let root = app.engine.root();
+        let world = app.engine.world();
+        world
+            .get::<&balaur_core::scene::Children>(root)
+            .map(|kids| {
+                kids.0
+                    .iter()
+                    .filter_map(|&e| world.get::<&balaur_core::scene::Name>(e).ok())
+                    .map(|n| n.0.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    assert_eq!(order(&app), ["A", "B", "C"], "spawn order to start");
+    assert_eq!(
+        call(&app.engine, "sibling_index", std::slice::from_ref(&c)).unwrap(),
+        Value::Int(2),
+        "the last one knows where it is"
+    );
+    call(&app.engine, "set_sibling_index", &[c, Value::Int(0)]).unwrap();
+    assert_eq!(order(&app), ["C", "A", "B"], "moved to the front");
+    // Past the end clamps rather than failing: a drag to the bottom of a list
+    // should land at the bottom.
+    call(&app.engine, "set_sibling_index", &[a, Value::Int(99)]).unwrap();
+    assert_eq!(order(&app), ["C", "B", "A"], "clamped to the end");
+    assert_eq!(
+        call(&app.engine, "sibling_index", &[b]).unwrap(),
+        Value::Int(1),
+        "and the one between reads its new place"
+    );
+}

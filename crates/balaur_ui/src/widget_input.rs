@@ -190,6 +190,12 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
                     signals.push((entity, widget.on_change.clone(), Value::Str(choice.clone())));
                 }
             }
+            Edit::Color(rgba) => {
+                widget.color = *rgba;
+                if !widget.on_change.is_empty() {
+                    signals.push((entity, widget.on_change.clone(), Value::Color(*rgba)));
+                }
+            }
         }
     }
     signals

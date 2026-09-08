@@ -99,6 +99,14 @@ fn tree_row(S, k, row) {
                     shell::choose(S, i);
                     model::add_child(S, None);
                 }
+                if ui::menu_item(icons::ui("caret-open") + "  Move up", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::move_sibling(S, -1);
+                }
+                if ui::menu_item(icons::ui("caret-shut") + "  Move down", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::move_sibling(S, 1);
+                }
                 if ui::menu_item("‹›  Attach script", #{ color: k.text }) {
                     shell::choose(S, i);
                     shell::attach_script(S);

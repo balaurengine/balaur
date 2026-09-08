@@ -93,6 +93,144 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
 }
 
+/// A scrolling list of `options`, one row each: Godot's `ItemList`. `text` is
+/// the row picked, and `row_height` is the pitch.
+///
+/// Only the rows on screen are built, so a list of the whole document costs
+/// its viewport rather than its length. A `tree` is this with a depth read off
+/// each row, so both go through here.
+fn rows(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+    indent: bool,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let want = box_of(widget, at.assigned, at.scale);
+    let row_h = if widget.height > 0.0 && !indent {
+        widget.height * at.scale
+    } else {
+        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
+    };
+    let items = widget.options.clone();
+    let chosen = widget.text.clone();
+    let mut picked = None;
+    let mut area = egui::ScrollArea::vertical()
+        .id_salt(("balaur-list", entity))
+        .auto_shrink([false, false]);
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area.show_rows(ui, row_h, items.len(), |ui, range| {
+        for i in range {
+            let Some(item) = items.get(i) else {
+                continue;
+            };
+            // A tab a row starts with is one level in, which is how an outline
+            // is written down and what keeps a tree in a list of strings.
+            let (depth, label) = if indent {
+                let trimmed = item.trim_start_matches('\t');
+                (item.len() - trimmed.len(), trimmed)
+            } else {
+                (0, item.as_str())
+            };
+            ui.horizontal(|ui| {
+                if depth > 0 {
+                    ui.add_space(row_h * depth as f32);
+                }
+                let text = egui::RichText::new(label).font(font.clone()).color(color);
+                if ui.selectable_label(*item == chosen, text).clicked() {
+                    picked = Some(item.clone());
+                }
+            });
+        }
+    });
+    if let Some(item) = picked {
+        at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
+/// Godot's `ItemList`.
+pub(crate) fn list(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    rows(ui, at, index, font, color, false);
+}
+
+/// Godot's `Tree`, as an outline: a row's leading tabs are its depth.
+pub(crate) fn tree(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    rows(ui, at, index, font, color, true);
+}
+
+/// A button that drops a list of items: Godot's `MenuButton`, and the same
+/// list a `PopupMenu` shows. `options` are the entries and `text` is the
+/// button; picking one reports it the way a dropdown reports a choice, so a
+/// script hears it through `on_change`.
+pub(crate) fn menu(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let mut picked = None;
+    let label = egui::RichText::new(caption).font(font.clone()).color(color);
+    ui.menu_button(label, |ui| {
+        for option in &widget.options {
+            let item = egui::RichText::new(option).font(font.clone()).color(color);
+            if ui.button(item).clicked() {
+                picked = Some(option.clone());
+                ui.close();
+            }
+        }
+    });
+    if let Some(choice) = picked {
+        at.edits.push((entity, Edit::Choice(choice)));
+    }
+}
+
+/// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is
+/// the widget's own `color`, not the ink its caption is drawn in.
+pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let [r, g, b, a] = widget.color;
+    let mut rgba = egui::Rgba::from_rgba_unmultiplied(r, g, b, a);
+    let want = box_of(widget, at.assigned, at.scale);
+    if want.x > 0.0 {
+        ui.spacing_mut().interact_size.x = want.x;
+    }
+    if egui::color_picker::color_edit_button_rgba(
+        ui,
+        &mut rgba,
+        egui::color_picker::Alpha::OnlyBlend,
+    )
+    .changed()
+    {
+        let [r, g, b, a] = rgba.to_rgba_unmultiplied();
+        at.edits.push((entity, Edit::Color([r, g, b, a])));
+    }
+}
+
 /// A number dragged sideways, or typed into after a click. `SpinBox` in a
 /// Godot scene; the control an inspector row is mostly made of.
 ///

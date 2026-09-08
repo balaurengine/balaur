@@ -80,7 +80,10 @@ impl Timings {
 /// wrap — an awaited render, or a cost the window reports after the fact.
 pub fn record(eng: &Engine, name: &str, elapsed: Duration) {
     if let Some(timings) = eng.try_resource::<Timings>() {
-        timings.borrow_mut().pending.push((name.to_string(), elapsed));
+        timings
+            .borrow_mut()
+            .pending
+            .push((name.to_string(), elapsed));
     }
 }
 
