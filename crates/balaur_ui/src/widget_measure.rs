@@ -175,7 +175,11 @@ impl<'a> Measure<'a> {
             // A panel's caption sits above its children, so it adds a row.
             vec2(across.max(caption.x), along + caption.y)
         };
-        let pad = padding_of(widget, &crate::widget_layer::styled(theme, &widget), self.scale);
+        let pad = padding_of(
+            widget,
+            &crate::widget_layer::styled(theme, &widget),
+            self.scale,
+        );
         inner + egui::Vec2::splat(pad * 2.0)
     }
 
@@ -205,7 +209,11 @@ impl<'a> Measure<'a> {
             across as f32 * cell.x + gap * (across as f32 - 1.0),
             rows as f32 * cell.y + gap * (rows as f32 - 1.0),
         );
-        let pad = padding_of(&widget, &crate::widget_layer::styled(theme, &widget), self.scale);
+        let pad = padding_of(
+            &widget,
+            &crate::widget_layer::styled(theme, &widget),
+            self.scale,
+        );
         inner + egui::Vec2::splat(pad * 2.0)
     }
 
@@ -215,7 +223,11 @@ impl<'a> Measure<'a> {
         let widget = placed.widget.clone();
         let children = placed.children.clone();
         let gap = widget.gap * self.scale;
-        let pad = padding_of(&widget, &crate::widget_layer::styled(theme, &widget), self.scale);
+        let pad = padding_of(
+            &widget,
+            &crate::widget_layer::styled(theme, &widget),
+            self.scale,
+        );
         let limit = if widget.width > 0.0 {
             widget.width * self.scale - 2.0 * pad
         } else {
@@ -292,8 +304,7 @@ impl<'a> Measure<'a> {
         let style = crate::widget_layer::styled(theme, widget);
         let (_, font) = crate::widget_layer::face(&style, widget, self.scale);
         if let Some(state) = crate::text::state(self.eng) {
-            let request =
-                crate::widget_text::text_request(widget, text, None, &font, &style);
+            let request = crate::widget_text::text_request(widget, text, None, &font, &style);
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)

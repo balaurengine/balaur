@@ -947,9 +947,13 @@ fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::Corn
     if style.round == Some(true) {
         return egui::CornerRadius::same((height / 2.0).min(120.0) as u8);
     }
-    let stated = style
-        .radius
-        .unwrap_or_else(|| if widget.font_size > 0.0 { widget.font_size } else { 16.0 });
+    let stated = style.radius.unwrap_or_else(|| {
+        if widget.font_size > 0.0 {
+            widget.font_size
+        } else {
+            16.0
+        }
+    });
     egui::CornerRadius::same((stated * scale).min(120.0) as u8)
 }
 
@@ -973,7 +977,9 @@ fn button(
     let base = at.style_of(&widget);
     let (scale, focused) = (at.scale, at.focused);
     let face = face_of(ui, at, index, caption, font);
-    let pad_x = base.padding_x.map_or(ui.spacing().button_padding.x, |p| p * scale);
+    let pad_x = base
+        .padding_x
+        .map_or(ui.spacing().button_padding.x, |p| p * scale);
     let floor = vec2(
         base.width.unwrap_or(0.0) * scale,
         base.height.unwrap_or(0.0) * scale,

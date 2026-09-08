@@ -184,11 +184,7 @@ fn parse_color(text: &str) -> Option<Color32> {
 
 /// A colour that does not parse is reported and dropped rather than being
 /// silently black: a theme is authored by hand, and a typo should say so.
-fn color(
-    value: &toml::Value,
-    what: &str,
-    colors: &BTreeMap<String, Color32>,
-) -> Option<Color32> {
+fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) -> Option<Color32> {
     let text = value.as_str()?;
     let parsed = parse_color(text).or_else(|| colors.get(text).copied());
     if parsed.is_none() {
@@ -218,7 +214,8 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
     };
     // A role spells its type the way a call site did: `size`, `color` and
     // `strong` rather than the component's longer property names.
-    let weight = number(k::FONT_WEIGHT).or_else(|| flag(k::STRONG).map(|on| if on { 700.0 } else { 400.0 }));
+    let weight =
+        number(k::FONT_WEIGHT).or_else(|| flag(k::STRONG).map(|on| if on { 700.0 } else { 400.0 }));
     // `d` is a control that is as wide as it is tall, which is how the
     // editor's tool and transport buttons are written down.
     let square = number(k::D);
@@ -248,7 +245,9 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
         // `hover_fill` is the one-line spelling the editor's roles already
         // use; a whole `[x.hover]` table wins over it.
         hover: nested("hover").or_else(|| {
-            let fill = body.get(k::HOVER_FILL).and_then(|v| color(v, what, colors))?;
+            let fill = body
+                .get(k::HOVER_FILL)
+                .and_then(|v| color(v, what, colors))?;
             Some(Rc::new(Style {
                 fill: Some(fill),
                 ..Style::default()

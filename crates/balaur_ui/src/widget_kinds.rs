@@ -7,7 +7,9 @@ use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
-use crate::widget_arrange::{Axis, box_of, hold_to, lay_out, padding_of, record_measure, record_rect};
+use crate::widget_arrange::{
+    Axis, box_of, hold_to, lay_out, padding_of, record_measure, record_rect,
+};
 use crate::widget_layer::{Edit, Painting, draw_one, rgba_color};
 use crate::widget_measure::Measure;
 
@@ -227,8 +229,16 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
-            if want.x > 0.0 { want.x } else { ui.available_width() },
-            if want.y > 0.0 { want.y } else { ui.available_height() },
+            if want.x > 0.0 {
+                want.x
+            } else {
+                ui.available_width()
+            },
+            if want.y > 0.0 {
+                want.y
+            } else {
+                ui.available_height()
+            },
         ),
     )));
     crate::bridge::push(&mut inner);
@@ -322,9 +332,7 @@ fn card(
         // The project's icon face, at the card's own size rather than the
         // label's: an icon mode that drew the glyph at line height is a list.
         let mark = egui::FontId::new(size.x.min(size.y) * 0.42, crate::theme::family("icon"));
-        let galley = ui
-            .painter()
-            .layout_no_wrap(icon.to_owned(), mark, color);
+        let galley = ui.painter().layout_no_wrap(icon.to_owned(), mark, color);
         ui.painter().galley(
             pos2(rect.center().x - galley.size().x / 2.0, head),
             galley.clone(),
@@ -356,12 +364,20 @@ fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
         return None;
     }
     let mut parts = field.split(',').map(|n| n.trim().parse::<f32>());
-    let (x, y, w, h) = (parts.next()?.ok()?, parts.next()?.ok()?, parts.next()?.ok()?, parts.next()?.ok()?);
+    let (x, y, w, h) = (
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+    );
     if w <= 0.0 || h <= 0.0 || parts.next().is_some() {
         return None;
     }
     Some(Rect::from_min_max(
-        pos2((x / native.x).clamp(0.0, 1.0), (y / native.y).clamp(0.0, 1.0)),
+        pos2(
+            (x / native.x).clamp(0.0, 1.0),
+            (y / native.y).clamp(0.0, 1.0),
+        ),
         pos2(
             ((x + w) / native.x).clamp(0.0, 1.0),
             ((y + h) / native.y).clamp(0.0, 1.0),
@@ -384,7 +400,11 @@ fn cards(
     let items = widget.options.clone();
     let chosen = widget.text.clone();
     let gap = 6.0 * at.scale;
-    let room = if want.x > 0.0 { want.x } else { ui.available_width() };
+    let room = if want.x > 0.0 {
+        want.x
+    } else {
+        ui.available_width()
+    };
     let side = ((room - gap * (columns as f32 - 1.0)) / columns as f32).max(24.0);
     // A card is a little taller than it is wide: the icon takes the square
     // and the label sits under it.
