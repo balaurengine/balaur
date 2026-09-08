@@ -62,37 +62,25 @@ engine owns it reads that directly, and otherwise the script fills it on
 change. Games get the second, the editor mostly gets the first, and neither
 needs a script that runs per frame.
 
-## 0.2 One repeater, not six bespoke views
+## 0.2 A list is a kind, not a repeater
 
-A bespoke `inspector` kind would put the editor's look inside Rust, where
-nobody can rearrange it. The generic answer is a **repeater**: a `list` node
-whose `item` names a row scene, instantiated once per row.
+An earlier draft here proposed a repeater: a `list` whose `item` named a row
+scene, instantiated and recycled per row. Godot does not do that, and neither
+should this. `ItemList` and `Tree` are single native controls that own their
+rows; the scene-per-row pattern is something a Godot script does by hand with
+`add_child`, not something the engine offers.
 
-```toml
-[nodes.widget]
-kind = "list"
-source = "selection.properties"
-item = "scenes/rows/property.toml"
-```
+So `list` and `tree` are kinds like any other. Rows come from `options`, the
+pick lands on `text`, and `on_change` hears it. A `tree` reads a row's leading
+tabs as its depth, which is how an outline is written down anyway.
 
-Then a property row is a scene like any other: a `label`, a `drag_value`, a
-reset `button`, arranged by a `row`. The inspector stops being code in either
-language.
+That drops the two costs the repeater carried: no per-item binding language,
+and no recycling pool. Only the rows on screen are built, which is where the
+saving actually was, and `ScrollArea::show_rows` does it.
 
-It costs two things, and they are the price of the whole idea.
-
-**A per-item binding.** The row scene has to say *this item's name*, not a
-literal, so a value needs a form like `text = "{item.name}"`. That is a
-template language, kept to one substitution and no control flow.
-
-**Recycling.** Instantiating a node per row is worse than drawing one unless
-the list builds only the rows on screen and reuses them as it scrolls, which
-is what `ScrollArea::show_rows` already tells us the range for. Unity's
-`ListView` and Qt's model views are the same shape.
-
-With those two, every view in the table above is a `list` over a row scene,
-and the only bespoke kinds left are the controls a row is made of:
-`drag_value`, `color`, `code`, `menu`.
+A row made of several controls is still possible where it is wanted: that is a
+`row` of `label`, `drag_value` and `button` nodes, authored once. It is not
+what a list of two thousand document nodes should be.
 
 ## 0.3 Parity with Godot's Control tree
 
@@ -116,17 +104,17 @@ layout behaviour; this tree puts them on `row` and `column` instead.
 `SplitContainer` is `handle`, `BoxContainer`'s size flags are `grow`, and
 `GridContainer`'s column count is `columns`. Fewer kinds, the same layouts.
 
-**Missing.** Five of the eight that matter are core egui already, so they cost
-a kind and no dependency at all.
+**Missing.** Six of the eight are built as of 2026-09-08, every one over a
+widget egui already had, so none of them added a dependency.
 
 | Godot | kind to add | what draws it |
 | --- | --- | --- |
-| `Tree` | `tree` | `ScrollArea::show_rows`, which `ui.list` already uses |
-| `ItemList` | `list` | the repeater in §0.2 |
-| `SpinBox` | `drag_value` | egui `DragValue` |
-| `ColorPicker`, `ColorPickerButton` | `color` | egui `color_edit_button_srgba` |
-| `TextEdit` | `text_area` | egui `TextEdit::multiline` |
-| `MenuBar`, `PopupMenu` | `menu` | egui `menu_button` and `context_menu` |
+| `Tree` | `tree` | built |
+| `ItemList` | `list` | built |
+| `SpinBox` | `drag_value` | built |
+| `ColorPicker`, `ColorPickerButton` | `color` | built |
+| `TextEdit` | `text_area` | built |
+| `MenuBar`, `PopupMenu` | `menu` | built |
 | `CodeEdit` | `code` | egui multiline, plus a highlighter |
 | `GraphEdit`, `GraphNode` | `graph` | `egui-snarl`, already 0.5's |
 
@@ -210,23 +198,24 @@ then the editor onto them a dock at a time. Each step lands with a pass test
 and a screenshot, and each migration is measured against the numbers in
 `docs/PLAN-editor-performance.md` §0 so a regression shows up as one.
 
-0. **A sibling reorder.** Order is layout order in a `row` or a `column`, so
+0. **A sibling reorder.** Built. Order is layout order in a `row` or a `column`, so
    authoring UI as a scene means moving a child up and down. `scene.rs` has
    `move_child_to` for the replay path and nothing reaches it: no script call,
    no editor command, no drag in the outliner. The roadmap carries it as
    in-tree work at `(0.3)`, and this plan makes it a prerequisite rather than
    a nicety. It needs the verb, the undo entry, and the drag.
-1. **`drag_value`.** egui's own, over the `value`, `min`, `max` and `step` the
+1. **`drag_value`.** Built. egui's own, over the `value`, `min`, `max` and `step` the
    `slider` kind already declares. It is the control the inspector is mostly
    made of, so it deletes the most script for the least new surface.
-2. **`text_area`**, egui's multiline field, and **`color`**, its colour button.
+2. Built: **`text_area`**, egui's multiline field, and **`color`**, its colour button.
    Both are a kind and a draw arm each.
-3. **`menu`**, over egui's `menu_button` and `context_menu`. The logo menu and
+3. **`menu`**, built over egui's `menu_button`. The logo menu and
    every row's context menu are waiting on it.
-4. **`list`.** The repeater of §0.2: an `item` scene, a `source`, and only the
-   rows on screen built and recycled. This is the one with engineering in it,
-   and 2000 rows is the test it has to pass.
-5. **`tree`**, which is `list` with a depth per row and a caret that folds.
+4. **`list`.** Built as a kind over `options`, not the repeater an earlier
+   draft proposed; §0.2 says why. A test draws 2000 items and asserts fewer
+   than sixty rows are built.
+5. **`tree`**, built: `list` reading a row's leading tabs as its depth. A
+   caret that folds is still to come.
 6. **The editor onto them**, in the order the docks cost: the outliner, the
    inspector, then the rest.
 
