@@ -72,7 +72,7 @@ pub fn output_tools(S, k, room) {
         // No field on screen, so no invisible filter hiding rows.
         S.log_query = "";
     } else {
-        let (query, _, _) = ui::text_field("log-search", "filter…", #{
+        let (query, _, _) = ui::text_field("log-search", "Search", #{
             size: style::SM, font: ui::FONT_MONO, width: 130, height: 24,
             fill: k.sunken, stroke: k.line, color: k.text,
         });
@@ -135,7 +135,7 @@ fn filtered(S) {
 
 // The bottom dock's `list` node, which the log-shaped panels fill instead of
 // drawing a row at a time.
-const LOG_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomLog";
+const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
 
 // Put `items` on the node and show it. A row is icon, label, note and colour,
 // separated by U+001F, which is what a `list` row splits on.
@@ -157,7 +157,7 @@ pub fn hide_log() {
 // The bottom dock's card grid, which Assets, Library and Tiles take turns
 // filling. Six across is the widest the dock ever wants; a view that wants
 // fewer writes its own `columns`.
-pub const CARDS_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomCards";
+pub const CARDS_NODE = "Editor/Shell/Body/Centre/Bottom/BottomCards";
 
 pub fn hide_cards() {
     util::hide(CARDS_NODE);
@@ -165,7 +165,7 @@ pub fn hide_cards() {
 
 // The bottom dock's `tree` node: the Debugger's call stack, and the locals
 // each frame opens onto.
-pub const TREE_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomTree";
+pub const TREE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTree";
 
 pub fn hide_tree() {
     util::hide(TREE_NODE);
@@ -410,7 +410,7 @@ pub fn assets(S, k) {
             ui::add_space(12);
             asset_verbs(S, k);
             ui::add_space(8);
-            crate::search::field(S, k, "assets", "filter…", 140.0);
+            crate::search::field(S, k, "assets", "Search", 140.0);
         });
     });
     show_cards(S, k, dir, files);

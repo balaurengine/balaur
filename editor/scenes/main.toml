@@ -158,6 +158,17 @@ id = "centre"
 name = "Centre"
 parent = "body"
 [nodes.widget]
+kind = "column"
+grow = 1
+gap = 12
+
+# The rail and the scene share this row; the dock below is the centre's own
+# child, so it runs the full width rather than starting clear of the rail.
+[[nodes]]
+id = "upper_row"
+name = "UpperRow"
+parent = "centre"
+[nodes.widget]
 kind = "row"
 grow = 1
 gap = 12
@@ -211,7 +222,7 @@ kind = "draw"
 draw = "draw_dock_right"
 # Stated, not measured: a `draw` node with neither a size nor a `grow` takes
 # whatever is left, which is the whole sheet. `layout.rn` writes the real one.
-height = 118
+height = 96
 
 [[nodes]]
 id = "right_scroll"
@@ -246,7 +257,7 @@ gap = 2
 [[nodes]]
 id = "railslot"
 name = "RailSlot"
-parent = "centre"
+parent = "upper_row"
 [nodes.widget]
 kind = "column"
 width = 44
@@ -265,7 +276,7 @@ height = 42
 [[nodes]]
 id = "stack"
 name = "Stack"
-parent = "centre"
+parent = "upper_row"
 [nodes.widget]
 kind = "column"
 grow = 1
@@ -283,7 +294,7 @@ gap = 12
 [[nodes]]
 id = "bottom"
 name = "Bottom"
-parent = "stack"
+parent = "centre"
 [nodes.widget]
 kind = "panel"
 text = ""

@@ -66,6 +66,24 @@ shot() { # shot <name> <project> <state>
   echo ok
 }
 
+# A running project's own window, for an example whose subject is its screen
+# rather than the editor around it.
+screen() { # screen <name> <project>
+  wanted "$1" || return 0
+  printf '%-22s image  ' "$1"
+  rm -f "$work/$1.png"
+  local scene=$2/scenes/main.toml
+  local held
+  held=$(cat "$scene")
+  # The scene's own `shot` prop is where the picture goes; put it back after.
+  printf '%s' "${held//shot = \"\"/shot = \"$PWD/$work/$1.png\"}" >"$scene"
+  balaur run "$2" --offscreen --frames 60 >"$work/$1.log" 2>&1 || true
+  printf '%s' "$held" >"$scene"
+  [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
+  cp "$work/$1.png" "$img/$1.png"
+  echo ok
+}
+
 clip() { # clip <name> <project> <frames> <state>
   wanted "$1" || return 0
   printf '%-22s clip   ' "$1"
@@ -86,6 +104,9 @@ clip() { # clip <name> <project> <frames> <state>
 
 backup_examples
 shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:45"
+# A screen made only of widget nodes: the card grid, the controls and the
+# theme's roles. Run rather than edited, so the picture is the screen itself.
+screen ui_kinds        examples/interface
 shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:tiles,zoom:60"
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"

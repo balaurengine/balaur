@@ -24,13 +24,16 @@ const FOOT_H = 58.0;
 fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
-    wide_row(S, 30, || {
-        ui::add_space(8);
+    let mark = icons::component(title.to_lowercase());
+    wide_row(S, 26, || {
         ui::horizontal(#{ height: 20 }, || {
             ui::add_space(2);
+            ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+                #{ size: style::SM, color: k.faint });
+            ui::add_space(4);
             if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
                 height: 20, radius: 4, align: ui::ALIGN_LEFT,
-                icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: style::SM, icon_color: k.faint,
+                icon: mark, icon_size: style::MD, icon_color: k.dim,
             })) {
                 if open {
                     S.collapsed[key] = true;
@@ -1352,12 +1355,16 @@ fn component_sections(S, k, filter) {
         let key = format!("inspector/{}", comp);
         let open = !S.collapsed.contains_key(key);
         let held = comp;
-        wide_row(S, 30, || {
-            ui::add_space(6);
+        let mark = icons::component(held);
+        wide_row(S, 26, || {
             ui::horizontal(#{ height: 20 }, || {
                 ui::add_space(2);
+                ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+                    #{ size: style::SM, color: k.faint });
+                ui::add_space(4);
                 if ui::pill(held.to_uppercase(), util::merge(style::heading(k), #{
-                    icon: if open { "▾" } else { "▸" }, height: 20,
+                    icon: mark, icon_size: style::MD, icon_color: k.dim, height: 20,
+                    align: ui::ALIGN_LEFT, radius: 4,
                 })) {
                     if open {
                         S.collapsed[key] = true;
@@ -1424,24 +1431,22 @@ fn events_section(S, k) {
 pub fn body(S, k) {
     let node = model::selected_node(S);
     ui::add_space(8);
-    ui::horizontal(#{ height: 30 }, || {
+    ui::horizontal(#{ height: 26 }, || {
         let (icon, token) = model::node_icon(node);
-        ui::label(icon, #{ size: style::XL, color: k.get(token).unwrap_or(k.accent) });
-        ui::add_space(9);
-        ui::vertical(|| {
-            ui::spacing(4, 1);
-            // Ellipsised: the header is the panel's width, and a node is
-            // named whatever the scene named it.
-            ui::label(node.name, #{
-                size: style::XL, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
-            });
-            ui::label(model::node_type(node),
-                util::merge(style::mono_sm(k.faint), #{ truncate: true }));
+        ui::label(icon, #{ size: style::LG, color: k.get(token).unwrap_or(k.accent) });
+        ui::add_space(7);
+        // One line: the name, then its type beside it. The panel is narrow
+        // and a second row was a whole line of height for four words.
+        ui::label(node.name, #{
+            size: style::LG, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
         });
+        ui::add_space(6);
+        ui::label(model::node_type(node),
+            util::merge(style::mono_sm(k.faint), #{ truncate: true }));
     });
     multi_note(S, k);
-    ui::add_space(6);
-    crate::search::field(S, k, "inspector", "Find a property…", panel_w(S) - 16.0);
+    ui::add_space(4);
+    crate::search::field(S, k, "inspector", "Search", panel_w(S) - 16.0);
     // Every row is a node now: the sections describe them, and the pool makes
     // and reuses them under the sheet's scroll.
     open_form(S);

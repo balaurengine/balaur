@@ -186,7 +186,7 @@ fn sidebar(S, k) {
     ui::vertical(|| {
         // The field owns the text while it is being typed; `set_query` owns it
         // whenever anything else changes it.
-        S.settings.query = crate::search::field(S, k, FIELD, "Search settings…", 190.0);
+        S.settings.query = crate::search::field(S, k, FIELD, "Search", 190.0);
         ui::add_space(10);
         let scope = "";
         for category in categories() {

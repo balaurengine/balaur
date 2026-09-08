@@ -67,6 +67,13 @@ strong = true
 [roles.primary.hover]
 fill = "warm"
 
+# A group heading: the one role a whole section wears.
+[roles.group]
+font = "heading"
+size = 11
+strong = true
+color = "faint"
+
 [roles.chip]
 fill = "sunken"
 color = "dim"

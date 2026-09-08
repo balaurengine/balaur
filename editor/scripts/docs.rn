@@ -62,7 +62,7 @@ fn controls(S, k, list) {
             S.docs.fn_pick = "";
         }
         ui::add_space(6);
-        search::field(S, k, "docs", "filter functions", 150.0);
+        search::field(S, k, "docs", "Search", 150.0);
     });
 }
 

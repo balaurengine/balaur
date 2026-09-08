@@ -10,7 +10,7 @@ use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 use crate::widget_arrange::{
     Axis, box_of, hold_to, lay_out, padding_of, record_measure, record_rect,
 };
-use crate::widget_layer::{Edit, Painting, draw_one, rgba_color};
+use crate::widget_layer::{Edit, Painting, draw_one};
 use crate::widget_measure::Measure;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
@@ -331,7 +331,10 @@ fn card(
     } else if !icon.is_empty() {
         // The project's icon face, at the card's own size rather than the
         // label's: an icon mode that drew the glyph at line height is a list.
-        let mark = egui::FontId::new((size.y * 0.44).min(size.x * 0.42), crate::theme::family("icon"));
+        let mark = egui::FontId::new(
+            (size.y * 0.44).min(size.x * 0.42),
+            crate::theme::family("icon"),
+        );
         let galley = ui.painter().layout_no_wrap(icon.to_owned(), mark, color);
         ui.painter().galley(
             pos2(rect.center().x - galley.size().x / 2.0, head),
@@ -961,10 +964,4 @@ pub(crate) fn deadzone_drag(
         return None;
     }
     Some((base - travelled).max(egui::Vec2::ZERO))
-}
-
-/// The colour a kind's text is drawn in, for a control egui paints itself.
-#[allow(dead_code, reason = "kept beside the kinds that will take a tint")]
-pub(crate) fn tint_of(widget: &crate::widget_layer::Widget) -> Color32 {
-    rgba_color(widget.text_color)
 }

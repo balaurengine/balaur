@@ -306,15 +306,17 @@ fn viewport(S, k) {
                 });
             });
             ui::right(|| {
+                let text = format!("{} %", S.zoom as i64);
                 ui::frame(#{ fill: k.panel, radius: 8, padding_x: 6, padding_y: 3 }, || {
                     // A width, not `tight`: a hugging row measures zero here
-                    // and `ui::right` then pushes it off the stage's edge.
-                    ui::horizontal(#{ height: 20, width: 94 }, || {
+                    // and `ui::right` then pushes it off the stage's edge. It
+                    // is the reading's own width, so no gap trails the plus.
+                    ui::horizontal(#{ height: 20, width: 50.0 + 6.6 * util::f(text.len()) }, || {
                         ui::spacing(2, 0);
                         if ui::pill("−", #{ height: 20, size: style::MD, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
-                        ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
+                        ui::label(text, style::mono_sm(k.text));
                         if ui::pill(icons::ui("add"), #{ height: 20, size: style::MD, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }

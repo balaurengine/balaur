@@ -115,9 +115,7 @@ pub fn top_bar(S) {
                 height: h - 12.0, radius: 9, fill: "#ffffff", padding: 2,
                 tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
             });
-            if !S.compact {
-                ui::label(mark.name, #{ role: "title", color: k.text });
-            }
+            ui::label(mark.name, #{ role: "title", color: k.text });
             ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });
         });
     });
@@ -151,6 +149,9 @@ fn bar_controls(S, k) {
     });
     // The spring: what is after it sits against the bar's right edge.
     out.push(#{ kind: "row", grow: 1 });
+    for entry in transport_controls(S) {
+        out.push(entry);
+    }
     out.push(#{
         kind: "button", height: row_h(S), width: THEME_W, radius: 8, fill: "sunken",
         text: "", icon: if k.dark { icons::ui("dark") } else { icons::ui("light") },
@@ -163,9 +164,6 @@ fn bar_controls(S, k) {
         tooltip: "⌘K",
         on: |_| { shell::open_palette(S, ""); },
     });
-    for entry in transport_controls(S) {
-        out.push(entry);
-    }
     out
 }
 
@@ -201,19 +199,28 @@ fn doc_controls(S, k, h) {
 // One tab: the label, and the close mark beside it when it closes.
 fn doc_tab(S, id, icon, label, closable, h) {
     let active = S.doctab == id;
-    let out = [#{
-        kind: "button", height: h, text: label, icon: icon,
-        role: if active { "navtab_on" } else { "navtab" },
+    let role = if active { "navtab_on" } else { "navtab" };
+    // Built by pushing: a `[` after an `if` block is read as indexing it.
+    let inner = [];
+    inner.push(#{
+        kind: "button", height: h, text: label, icon: icon, role: role,
+        radius: 0, fill: "none",
         on: |_| { shell::open_doc(S, id); },
-    }];
+    });
     if closable {
-        out.push(#{
-            kind: "button", height: h, width: 18, text: "", icon: icons::ui("close"),
-            role: if active { "navtab_on" } else { "navtab" },
-            tooltip: "Close",
+        inner.push(#{
+            kind: "button", height: h, width: 16, text: "", icon: icons::ui("close"),
+            role: role, radius: 0, fill: "none", tooltip: "Close",
             on: |_| { shell::close_doc(S, id); },
         });
     }
+    // One tile: the row carries the fill and the corners, and the halves
+    // inside it paint nothing.
+    let out = [];
+    out.push(#{
+        height: h, radius: 5, controls: inner,
+        fill: if active { "accent_soft" } else { "none" },
+    });
     out
 }
 

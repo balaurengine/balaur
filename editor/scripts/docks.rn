@@ -252,7 +252,7 @@ fn canvas_views() {
     }
 }
 
-const BOTTOM = "Editor/Shell/Body/Centre/Stack/Bottom/";
+const BOTTOM = "Editor/Shell/Body/Centre/Bottom/";
 
 fn sync_canvas(S, d) {
     let painting = false;
@@ -331,7 +331,7 @@ fn tab_h(S) {
 // Where each dock's tab strip and its tools hatch live.
 fn head_of(side) {
     let sheet = if side == "bottom" {
-        "Editor/Shell/Body/Centre/Stack/Bottom"
+        "Editor/Shell/Body/Centre/Bottom"
     } else if side == "left" {
         "Editor/Shell/Body/Left/LeftSheet"
     } else {
@@ -361,16 +361,24 @@ fn tab_controls(S, k, side, d) {
                 label += format!(" {}", errors + warnings);
             }
         }
-        out.push(#{
-            kind: "button", height: h, text: label, padding_x: 7,
+        // One tile: the row carries the fill and the corners, and the two
+        // halves inside it paint nothing, so the pair reads as one control.
+        let inner = [];
+        inner.push(#{
+            kind: "button", height: h, text: label, padding_x: 7, radius: 0, fill: "none",
             role: if active { "tab_on" } else { "tab" },
             on: |_| { S.docks[side].active = held; },
         });
-        out.push(#{
-            kind: "button", height: h, width: 18, text: "", icon: icons::ui("close"),
+        inner.push(#{
+            kind: "button", height: h, width: 16, text: "", radius: 0, fill: "none",
+            icon: icons::ui("close"),
             role: if active { "tab_on" } else { "tab" },
             tooltip: format!("Close {}", p.name),
             on: |_| { close(S, held); },
+        });
+        out.push(#{
+            height: h, radius: 5, controls: inner,
+            fill: if active { "accent_soft" } else { "none" },
         });
     }
     // The panel's own controls sit between the names and the fold, which is

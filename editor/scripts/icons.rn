@@ -32,6 +32,48 @@ pub fn persona(id) {
 }
 
 /// A dock panel, by its tab id.
+/// The mark an inspector section wears, by component. A component with none
+/// of its own takes the plain node mark, so every heading is marked.
+pub fn component(name) {
+    if name == "transform" {
+        return tool("move");
+    }
+    if name == "widget" {
+        return persona("ui");
+    }
+    if name == "script" {
+        return ui("scriptfile");
+    }
+    if name == "bone2d" || name == "bone3d" || name == "skeleton" {
+        return tool("bone");
+    }
+    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" {
+        return tool("polygon");
+    }
+    if name == "shape3d" || name == "mesh" || name == "text3d" {
+        return persona("scene");
+    }
+    if name == "body" || name == "body2d" || name == "collider" || name == "collider2d" {
+        return persona("phys");
+    }
+    if name == "camera" || name == "camera2d" || name == "light" || name == "environment" {
+        return ui("viewmode");
+    }
+    if name == "animation" || name == "animation_player" {
+        return panel("timeline");
+    }
+    if name == "tilemap" || name == "tileset" {
+        return panel("tiles");
+    }
+    if name == "audio" || name == "audio_player" {
+        return panel("session");
+    }
+    if name == "bindings" || name == "events" {
+        return ui("events");
+    }
+    node("world")
+}
+
 pub fn panel(id) {
     match id {
         "scene" => "\u{e67c}",

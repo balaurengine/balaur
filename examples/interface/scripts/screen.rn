@@ -11,19 +11,22 @@ pub fn exports() {
 }
 
 // What a card, an outline row and a table row are made of. One table, three
-// shapes, so the same data reaches all three views.
+// shapes, so the same data reaches all three views. The marks are glyphs from
+// the Phosphor face the theme names as its icon family.
 fn entries() {
     [
-        #{ icon: "\u{e3d0}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
-        #{ icon: "\u{e3d0}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
-        #{ icon: "\u{e3d0}", name: "Torus", kind: "mesh", size: "3.8 kB", tint: "#6fa4d8" },
-        #{ icon: "\u{e3d0}", name: "Brass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
-        #{ icon: "\u{e3d0}", name: "Glass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
-        #{ icon: "\u{e3d0}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
-        #{ icon: "\u{e3d0}", name: "Walk", kind: "clip", size: "6.0 kB", tint: "#a98fd0" },
-        #{ icon: "\u{e3d0}", name: "Idle", kind: "clip", size: "2.2 kB", tint: "#a98fd0" },
-        #{ icon: "\u{e3d0}", name: "Hero", kind: "prefab", size: "9.7 kB", tint: "#e6e9ee" },
-        #{ icon: "\u{e3d0}", name: "Crate", kind: "prefab", size: "1.1 kB", tint: "#e6e9ee" },
+        #{ icon: "\u{e67c}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e67c}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e67c}", name: "Torus", kind: "mesh", size: "3.8 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e6c8}", name: "Brass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        #{ icon: "\u{e6c8}", name: "Glass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        #{ icon: "\u{e468}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
+        #{ icon: "\u{e792}", name: "Walk", kind: "clip", size: "6.0 kB", tint: "#a98fd0" },
+        #{ icon: "\u{e792}", name: "Idle", kind: "clip", size: "2.2 kB", tint: "#a98fd0" },
+        #{ icon: "\u{e2c6}", name: "Hero", kind: "prefab", size: "9.7 kB", tint: "#e6e9ee" },
+        #{ icon: "\u{e2c6}", name: "Crate", kind: "prefab", size: "1.1 kB", tint: "#e6e9ee" },
+        #{ icon: "\u{e464}", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
+        #{ icon: "\u{e2e2}", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
     ]
 }
 
@@ -126,9 +129,9 @@ pub fn shuffle(this) {
 }
 
 pub fn update(this, dt) {
-    fill(this, "Sheet/Pages/Cards", cards(this));
-    fill(this, "Sheet/Pages/Outline", outline());
-    fill(this, "Sheet/Pages/Table", table());
+    fill(this, "Sheet/Body/Right/Pages/Cards", cards(this));
+    fill(this, "Sheet/Body/Right/Pages/Outline", outline());
+    fill(this, "Sheet/Body/Right/Pages/Table", table());
     // One picture per run, for the showcase: taken late enough that the
     // layout has settled and the rows are in.
     this.frame += 1;

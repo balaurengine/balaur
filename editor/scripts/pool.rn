@@ -58,7 +58,7 @@ fn make_row(host, index) {
     let label = row.add_child("L");
     label.set_component("widget", #{ kind: "label", role: "label" });
     let slot = row.add_child("C");
-    slot.set_component("widget", #{ kind: "row", gap: 4, grow: 1 });
+    slot.set_component("widget", #{ kind: "row", gap: 1, grow: 1 });
     let hatch = row.add_child("D");
     hatch.set_component("widget", #{ kind: "draw", visible: false, grow: 1 });
     row
@@ -149,7 +149,34 @@ pub fn strip(S, host_path, controls) {
             node.patch_component("widget", #{ visible: false });
             continue;
         }
-        apply_control(S, host_path, format!("{}", i), node, controls[i]);
+        // A control that carries its own controls is a group: one box with no
+        // air in it, which is how a tab and the mark that closes it read as a
+        // single tile rather than two.
+        let held = controls[i];
+        let inner = held.get("controls");
+        match inner {
+            Some(inner) => group(S, host_path, i, node, held, inner),
+            None => apply_control(S, host_path, format!("{}", i), node, held),
+        }
+    }
+}
+
+fn group(S, host, i, node, want, inner) {
+    let set = util::merge(want, #{ kind: "row", visible: true, gap: 0 });
+    set.remove("controls");
+    node.patch_component("widget", set);
+    let made = node.children().len();
+    while made < inner.len() {
+        let kid = node.add_child(format!("C{}", made));
+        kid.set_component("widget", #{ kind: "label" });
+        made += 1;
+    }
+    for (n, kid) in node.children().iter().enumerate() {
+        if n >= inner.len() {
+            kid.patch_component("widget", #{ visible: false });
+            continue;
+        }
+        apply_control(S, host, format!("{}:{}", i, n), kid, inner[n]);
     }
 }
 

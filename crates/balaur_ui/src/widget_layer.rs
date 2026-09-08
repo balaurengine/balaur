@@ -19,8 +19,8 @@ use crate::theme::family;
 use crate::vocabulary::words as w;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs,
+    Axis, box_of, contain, hold_to, lay_out, padding_of, record_measure, record_rect,
+    roll_measurements, scroller, settle_rects, tabs,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::{Style, WidgetTheme};
@@ -907,9 +907,10 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 balaur_core::node_id_of(entity),
                 &target,
             );
-            // What it takes is its box, or what the script drew where it has
-            // none: a `draw` node with no size still has to measure.
+            // What the script painted, not the box it was handed: a hatch
+            // given the whole sheet would ask for it ever after.
             let used = inner.min_rect().size();
+            record_measure(entity, used);
             ui.advance_cursor_after_rect(egui::Rect::from_min_size(
                 rect.min,
                 vec2(

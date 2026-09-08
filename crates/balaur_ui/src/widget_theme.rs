@@ -162,6 +162,9 @@ impl WidgetTheme {
     /// names one rather than spelling a hex.
     #[must_use]
     pub fn token(&self, name: &str) -> Option<Color32> {
+        if name == "none" {
+            return Some(Color32::TRANSPARENT);
+        }
         parse_color(name).or_else(|| self.colors.get(name).copied())
     }
 }

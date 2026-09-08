@@ -1,7 +1,5 @@
-# A whole screen as scene nodes: no `draw_ui`, no immediate mode, nothing
-# spelled in a script but the rows a list holds. Every box below is laid out
-# by the widget tree — `grow` divides what is left, `gap` and `padding` are
-# the air, and `justify` puts the header's buttons against the right edge.
+# Every widget kind on one screen, grouped by what it is for. Nothing here is
+# positioned: `grow` divides what is left and `gap` is the air between.
 
 [[nodes]]
 id = "n_screen"
@@ -11,7 +9,7 @@ name = "Screen"
 source = "scripts/screen.rn"
 [nodes.script.props]
 # Set when the manual's picture is being taken; empty for a normal run.
-shot = "/tmp/interface.png"
+shot = ""
 
 [[nodes]]
 id = "sheet"
@@ -21,21 +19,24 @@ parent = "n_screen"
 theme = "themes/panel.toml"
 kind = "panel"
 text = ""
-anchor = "fill"
-inset = [24.0, 24.0, 24.0, 24.0]
-padding = 16
-gap = 14
+# Centred and hugging: the sheet is as tall as what is in it, which is what
+# a gallery wants and what a root with no `fill` anchor does.
+anchor = "center"
+x = 0
+y = 0
+width = 940
+padding = 14
+gap = 10
 
-# The header: a title, then two buttons against the far edge. Nothing is
-# positioned here — `grow` on the title is what pushes the pair right.
+# The header: a title, a caption, then two buttons against the far edge.
 [[nodes]]
 id = "head"
 name = "Head"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
-height = 34
-gap = 8
+height = 30
+gap = 10
 align = "center"
 
 [[nodes]]
@@ -44,8 +45,17 @@ name = "Title"
 parent = "head"
 [nodes.widget]
 kind = "label"
-text = "Interface"
+text = "Widget kinds"
 role = "title"
+
+[[nodes]]
+id = "subtitle"
+name = "Subtitle"
+parent = "head"
+[nodes.widget]
+kind = "label"
+text = "one component, twenty kinds"
+role = "caption"
 grow = 1
 
 [[nodes]]
@@ -56,7 +66,7 @@ parent = "head"
 kind = "button"
 text = "Shuffle"
 # A glyph from the theme's icon family, drawn before the caption.
-icon = "\ue3d0"
+icon = "\ue3ee"
 tooltip = "Re-order the cards"
 on_click = "shuffle"
 
@@ -68,66 +78,215 @@ parent = "head"
 kind = "button"
 text = "Apply"
 role = "primary"
-tooltip = "Nothing to apply; the role is the point"
+tooltip = "The role is the point; nothing is applied"
 
-# Three pages on one strip. Only the page showing takes part in the layout,
-# so a tall table does not stretch the sheet while the cards are up.
 [[nodes]]
-id = "pages"
-name = "Pages"
+id = "rule"
+name = "Rule"
 parent = "sheet"
 [nodes.widget]
-kind = "tab"
-grow = 1
-gap = 10
+kind = "separator"
 
+# Two columns of groups, sharing the width.
 [[nodes]]
-id = "cards"
-name = "Cards"
-parent = "pages"
-[nodes.widget]
-kind = "list"
-# Above one, the rows flow into a grid of cards: `ItemList` in its icon mode.
-columns = 5
-grow = 1
-# A card's own height; the width is the room divided by `columns`.
-row_height = 84
-
-[[nodes]]
-id = "outline"
-name = "Outline"
-parent = "pages"
-[nodes.widget]
-kind = "tree"
-grow = 1
-font = "mono"
-
-[[nodes]]
-id = "table"
-name = "Table"
-parent = "pages"
-[nodes.widget]
-kind = "table"
-grow = 1
-font = "mono"
-# The column names, split on the same separator the rows are.
-placeholder = "name\u001Fkind\u001Fsize"
-
-# One row of every control kind, sharing the width equally.
-[[nodes]]
-id = "controls"
-name = "Controls"
+id = "body"
+name = "Body"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
-height = 32
+# No `grow`: the sheet hugs, so there is no leftover to divide and the row
+# takes what its two columns measure.
+gap = 14
+align = "start"
+
+[[nodes]]
+id = "left"
+name = "Left"
+parent = "body"
+[nodes.widget]
+kind = "column"
+width = 440
+gap = 8
+
+[[nodes]]
+id = "right"
+name = "Right"
+parent = "body"
+[nodes.widget]
+kind = "column"
+width = 440
+gap = 8
+
+[[nodes]]
+id = "h_text"
+name = "HText"
+parent = "left"
+[nodes.widget]
+kind = "label"
+text = "TEXT"
+role = "group"
+
+[[nodes]]
+id = "type_row"
+name = "TypeRow"
+parent = "left"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 12
+align = "center"
+
+[[nodes]]
+id = "t_title"
+name = "TTitle"
+parent = "type_row"
+[nodes.widget]
+kind = "label"
+text = "Title"
+role = "title"
+
+[[nodes]]
+id = "t_body"
+name = "TBody"
+parent = "type_row"
+[nodes.widget]
+kind = "label"
+text = "body"
+
+[[nodes]]
+id = "t_mono"
+name = "TMono"
+parent = "type_row"
+[nodes.widget]
+kind = "label"
+text = "mono"
+font = "mono"
+
+[[nodes]]
+id = "t_caption"
+name = "TCaption"
+parent = "type_row"
+[nodes.widget]
+kind = "label"
+text = "caption"
+role = "caption"
+grow = 1
+
+[[nodes]]
+id = "t_markup"
+name = "TMarkup"
+parent = "left"
+[nodes.widget]
+kind = "label"
+markup = true
+text = "markup: [b]bold[/b], [i]italic[/i], [color=#6fa4d8]a colour[/color]"
+
+[[nodes]]
+id = "f_field"
+name = "FField"
+parent = "left"
+[nodes.widget]
+kind = "field"
+text = "a line the reader types into"
+placeholder = "field"
+height = 26
+
+[[nodes]]
+id = "f_area"
+name = "FArea"
+parent = "left"
+[nodes.widget]
+kind = "text_area"
+text = "a text_area keeps its newlines,\nso a note stays a note."
+height = 44
+
+[[nodes]]
+id = "h_controls"
+name = "HControls"
+parent = "left"
+[nodes.widget]
+kind = "label"
+text = "CONTROLS"
+role = "group"
+
+[[nodes]]
+id = "b_row"
+name = "BRow"
+parent = "left"
+[nodes.widget]
+kind = "row"
+height = 26
+gap = 6
+align = "center"
+
+[[nodes]]
+id = "b_plain"
+name = "BPlain"
+parent = "b_row"
+[nodes.widget]
+kind = "button"
+text = "button"
+
+[[nodes]]
+id = "b_primary"
+name = "BPrimary"
+parent = "b_row"
+[nodes.widget]
+kind = "button"
+text = "primary"
+role = "primary"
+
+[[nodes]]
+id = "b_icon"
+name = "BIcon"
+parent = "b_row"
+[nodes.widget]
+kind = "button"
+text = "icon"
+icon = "\ue24a"
+
+[[nodes]]
+id = "b_off"
+name = "BOff"
+parent = "b_row"
+[nodes.widget]
+kind = "button"
+text = "disabled"
+disabled = true
+tooltip = "A disabled control keeps its tooltip, which is where it says why"
+
+[[nodes]]
+id = "c_row"
+name = "CRow"
+parent = "left"
+[nodes.widget]
+kind = "row"
+height = 26
 gap = 8
 align = "center"
 
 [[nodes]]
-id = "amount"
-name = "Amount"
-parent = "controls"
+id = "c_check"
+name = "CCheck"
+parent = "c_row"
+[nodes.widget]
+kind = "check"
+text = "check"
+checked = true
+
+[[nodes]]
+id = "c_drop"
+name = "CDrop"
+parent = "c_row"
+[nodes.widget]
+kind = "dropdown"
+text = "high"
+options = ["low", "medium", "high"]
+
+[[nodes]]
+id = "c_drag"
+name = "CDrag"
+parent = "c_row"
 [nodes.widget]
 kind = "drag_value"
 value = 1.5
@@ -136,37 +295,28 @@ placeholder = "x"
 grow = 1
 
 [[nodes]]
-id = "shadows"
-name = "Shadows"
-parent = "controls"
-[nodes.widget]
-kind = "check"
-text = "shadows"
-checked = true
-
-[[nodes]]
-id = "quality"
-name = "Quality"
-parent = "controls"
-[nodes.widget]
-kind = "dropdown"
-text = "high"
-options = ["low", "medium", "high"]
-grow = 1
-
-[[nodes]]
-id = "tint"
-name = "Tint"
-parent = "controls"
+id = "c_color"
+name = "CColor"
+parent = "c_row"
 [nodes.widget]
 kind = "color"
 color = [0.44, 0.64, 0.85, 1.0]
-width = 40
+width = 38
 
 [[nodes]]
-id = "loudness"
-name = "Loudness"
-parent = "controls"
+id = "s_row"
+name = "SRow"
+parent = "left"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 10
+align = "center"
+
+[[nodes]]
+id = "s_slider"
+name = "SSlider"
+parent = "s_row"
 [nodes.widget]
 kind = "slider"
 value = 0.6
@@ -174,24 +324,145 @@ min = 0.0
 max = 1.0
 grow = 1
 
-# Chips that wrap when the row runs out, and a caption under them.
+[[nodes]]
+id = "s_progress"
+name = "SProgress"
+parent = "s_row"
+[nodes.widget]
+kind = "progress"
+value = 0.42
+text = "42%"
+grow = 1
+
+[[nodes]]
+id = "h_data"
+name = "HData"
+parent = "right"
+[nodes.widget]
+kind = "label"
+text = "DATA"
+role = "group"
+
+[[nodes]]
+id = "pages"
+name = "Pages"
+parent = "right"
+[nodes.widget]
+kind = "tab"
+active = "Cards"
+height = 232
+gap = 8
+
+[[nodes]]
+id = "cards"
+name = "Cards"
+parent = "pages"
+[nodes.widget]
+text = "Cards"
+kind = "list"
+# Above one, the rows flow into a grid of cards: `ItemList` in its icon mode.
+columns = 4
+# A card's own height; the width is the room divided by `columns`.
+row_height = 60
+height = 196
+
+[[nodes]]
+id = "outline"
+name = "Outline"
+parent = "pages"
+[nodes.widget]
+text = "Outline"
+kind = "tree"
+height = 196
+font = "mono"
+
+[[nodes]]
+id = "table"
+name = "Table"
+parent = "pages"
+[nodes.widget]
+text = "Table"
+kind = "table"
+height = 196
+font = "mono"
+# The column names, split on the same separator the rows are.
+placeholder = "name\u001Fkind\u001Fsize"
+
+[[nodes]]
+id = "h_boxes"
+name = "HBoxes"
+parent = "left"
+[nodes.widget]
+kind = "label"
+text = "BOXES"
+role = "group"
+
+[[nodes]]
+id = "grid"
+name = "Grid"
+parent = "left"
+[nodes.widget]
+kind = "grid"
+columns = 3
+gap = 6
+height = 56
+
+[[nodes]]
+id = "g0"
+name = "G0"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "grid"
+
+[[nodes]]
+id = "g1"
+name = "G1"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "of"
+
+[[nodes]]
+id = "g2"
+name = "G2"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "three"
+
+[[nodes]]
+id = "g3"
+name = "G3"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "every"
+
+[[nodes]]
+id = "g4"
+name = "G4"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "cell"
+
+[[nodes]]
+id = "g5"
+name = "G5"
+parent = "grid"
+[nodes.widget]
+kind = "button"
+text = "alike"
+
 [[nodes]]
 id = "chips"
 name = "Chips"
-parent = "sheet"
+parent = "left"
 [nodes.widget]
 kind = "flow"
-gap = 6
-height = 30
-
-[[nodes]]
-id = "foot"
-name = "Foot"
-parent = "sheet"
-[nodes.widget]
-kind = "label"
-role = "caption"
-text = "every box on this screen is a node; taffy decided where it goes"
+gap = 5
+height = 52
 
 [[nodes]]
 id = "chip0"
@@ -262,3 +533,32 @@ kind = "button"
 text = "tilemaps"
 role = "chip"
 height = 22
+
+[[nodes]]
+id = "chip7"
+name = "Chip7"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "navigation"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip8"
+name = "Chip8"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "particles"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "foot"
+name = "Foot"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "caption"
+text = "a flow wraps when the row runs out; every box here is a scene node"

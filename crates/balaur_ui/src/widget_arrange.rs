@@ -4,9 +4,8 @@
 //! Split from `widget_layer` because that file is the component and the walk
 //! over the world, and this is the arithmetic between them.
 
-use crate::theme::family;
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Edit, Painting, Widget, draw_one, rgba_color};
+use crate::widget_layer::{Edit, Painting, Widget, draw_one};
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
 use std::cell::RefCell;
@@ -234,8 +233,9 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // strip takes the top and the page takes what is left.
     let rect = ui.max_rect();
     let style = at.style_of(&widget);
-    let font = egui::FontId::new(widget.font_size * scale, family("ui"));
-    let color = rgba_color(widget.text_color);
+    // The face the theme resolves, not the raw properties: a widget that
+    // states no size or colour is asking the theme for them.
+    let (color, font) = crate::widget_layer::face(&style, &widget, scale);
     let gap = widget.gap * scale;
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
@@ -338,8 +338,27 @@ pub(crate) fn stated_of(widget: &Widget, scale: f32) -> egui::Vec2 {
     vec2(widget.width, widget.height) * scale
 }
 
-/// A bare container: the children at the rects the layout pass decided.
+/// A bare container: its own frame where the theme gives it one, then the
+/// children at the rects the layout pass decided.
+///
+/// A `row` or a `column` paints nothing unless asked, which is what keeps a
+/// box that only lays out invisible; a `fill` or a `stroke` makes it a tile,
+/// and that is how a pair of buttons reads as one control.
 pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
+    let widget = at.arena[index].widget.clone();
+    let style = at.style_of(&widget);
+    if style.fill.is_some() || style.stroke.is_some() {
+        let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0) * at.scale) as u8);
+        ui.painter().rect(
+            ui.max_rect(),
+            radius,
+            style.fill.unwrap_or(Color32::TRANSPARENT),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+            egui::StrokeKind::Inside,
+        );
+    }
     lay_out(ui, at, index, axis);
 }
 
@@ -373,8 +392,18 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             continue;
         }
         let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+        // The box the solve gave this child, so a kind that sizes itself from
+        // what it was handed — a slider's track, a dropdown's width — reads
+        // the same number the layout decided.
+        let restore = at.assigned;
+        at.assigned = rect.size();
         draw_one(&mut child_ui, at, *child);
-        record_measure(entity, child_ui.min_rect().size());
+        at.assigned = restore;
+        // A `draw` node records what its script painted, from inside the
+        // draw; everything else is measured ahead and needs no record.
+        if at.arena[*child].widget.kind != w::DRAW {
+            record_measure(entity, child_ui.min_rect().size());
+        }
         ui.advance_cursor_after_rect(rect);
         if grab > 0.0 && slot + 1 < children.len() {
             // Centred on the seam between this child and the next, so a grab
