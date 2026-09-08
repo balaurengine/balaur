@@ -366,6 +366,12 @@ def gen_components(components, tags, docs=None, methods=None):
         "below are the functions that declared they act on it. Every handle also\n"
         "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
         "with no methods of its own is still reachable that way.\n\n"
+        "**Properties.** Every property in the tables below is also a field on\n"
+        "that handle, so `node.collider3d.density = 15.0` writes one property\n"
+        "and leaves the rest where they were, and `node.collider3d.density`\n"
+        "reads it back off the running component rather than off the scene.\n"
+        "A name the component does not declare is an error, not a silent\n"
+        "no-op: `node.body3d.density` fails both ways.\n\n"
         "Components are grouped by the first of their facet tags; one with\n"
         "several (`collider2d` is both `2d` and `physics`) lists them all under\n"
         "its heading.\n\n",
