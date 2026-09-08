@@ -28,6 +28,10 @@
 //!                           and the unit `min`, `max` and `step` are written
 //!                           in. Nothing stores it: the file and a script both
 //!                           read what the property declares)
+//!   group = "damping"      (optional; the fold an editor files the property
+//!                           under. A property with no group is one the
+//!                           inspector always shows, so grouping one is the
+//!                           decision to put it away by default)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
 //! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
@@ -372,6 +376,13 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
             "`description` is {}, not a string",
             description.type_str()
         ));
+    }
+    if let Some(group) = spec.get("group") {
+        match group.as_str() {
+            Some(name) if !name.trim().is_empty() => {}
+            Some(_) => return Err("`group` is empty; leave it out to show the property".into()),
+            None => return Err(format!("`group` is {}, not a name", group.type_str())),
+        }
     }
     if let Some(unit) = spec.get("unit") {
         match unit.as_str() {

@@ -87,7 +87,7 @@ pub fn fingerprint(bodies, dimensions) {
         if !body.is_valid() {
             continue;
         }
-        let p = body.position();
+        let p = body.transform.position;
         let parts = if dimensions == 2 { [p.x, p.y] } else { [p.x, p.y, p.z] };
         for c in parts {
             let q = if finite(c) { math::round(c / QUANTUM) as i64 } else { NON_FINITE };

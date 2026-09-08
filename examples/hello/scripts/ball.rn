@@ -8,7 +8,7 @@ pub fn init(this) {
 }
 
 pub fn update(this, dt) {
-    let y = this.node.position().y;
+    let y = this.node.transform.position.y;
     if y < 0.2 && !this.reported {
         this.reported = true;
         println!("ball touched down at t = {:.2}", engine::time());

@@ -805,6 +805,46 @@ fn editors() {
     }
 }
 
+/// One property, in whichever of the two rows its spec asks for.
+fn property_row(S, k, comp, prop, spec, data) {
+    if spec.get("readonly").unwrap_or(false) == true {
+        readonly_row(S, k, prop, spec, data);
+    } else {
+        prop_row(S, k, comp, prop, spec, data);
+    }
+}
+
+/// A fold inside a component section, for the properties a schema files under
+/// a `group`. Shut to begin with -- a property is grouped precisely because it
+/// is not one of the handful worth the room -- so the state kept is which ones
+/// were opened, not which were shut.
+fn subsection(S, k, comp, group, count) {
+    let key = format!("{}/{}", comp, group);
+    // A search reaches into the folds: a property nobody can see is one the
+    // box cannot find.
+    let open = S.opened.contains_key(key)
+        || crate::search::query(S, "inspector") != "";
+    wide_row(S, 22, || {
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(14);
+            ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+                #{ size: style::SM, color: k.faint });
+            ui::add_space(4);
+            if ui::pill(format!("{} · {}", util::prop_label(group), count), #{
+                height: 20, size: style::SM, radius: 4, align: ui::ALIGN_LEFT,
+                min_width: panel_w(S) - 40.0, fill: k.sunken, color: k.dim,
+            }) {
+                if open {
+                    S.opened.remove(key);
+                } else {
+                    S.opened[key] = true;
+                }
+            }
+        });
+    });
+    open
+}
+
 fn prop_row(S, k, comp, prop, spec, data) {
     let value = match data.get(prop) {
         Some(value) => value,
@@ -1391,12 +1431,28 @@ fn component_sections(S, k, filter) {
         }
         let schema = model::schema(S, comp);
         let data = util::obj(found.get_component(comp));
+        let grouped = #{};
+        let order = [];
         for prop in util::keys_sorted(schema) {
             let spec = schema[prop];
-            if spec.get("readonly").unwrap_or(false) == true {
-                readonly_row(S, k, prop, spec, data);
-            } else {
-                prop_row(S, k, comp, prop, spec, data);
+            let group = spec.get("group").unwrap_or("");
+            if group == "" {
+                property_row(S, k, comp, prop, spec, data);
+                continue;
+            }
+            if !grouped.contains_key(group) {
+                grouped[group] = [];
+                order.push(group);
+            }
+            grouped[group].push(prop);
+        }
+        order.sort();
+        for group in order {
+            if !subsection(S, k, comp, group, grouped[group].len()) {
+                continue;
+            }
+            for prop in grouped[group] {
+                property_row(S, k, comp, prop, schema[prop], data);
             }
         }
     }

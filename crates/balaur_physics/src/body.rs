@@ -28,11 +28,11 @@ pub(crate) fn shared_body_schema() -> String {
     v::schema(&[
         (
             k::LINEAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it", group = "damping" }"#,
         ),
         (
             k::ANGULAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping", group = "damping" }"#,
         ),
         (
             k::GRAVITY_SCALE,
@@ -40,35 +40,35 @@ pub(crate) fn shared_body_schema() -> String {
         ),
         (
             k::MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass", group = "mass" }"#,
         ),
         (
             k::DOMINANCE,
-            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }"#,
+            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all", group = "solver" }"#,
         ),
         (
             k::SOLVER_ITERATIONS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters", group = "solver" }"#,
         ),
         (
             k::CCD,
-            r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }"#,
+            r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall", group = "fast motion" }"#,
         ),
         (
             k::SOFT_CCD,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies", group = "fast motion" }"#,
         ),
         (
             k::FAST_ROTATION,
-            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }"#,
+            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it", group = "fast motion" }"#,
         ),
         (
             k::CAN_SLEEP,
-            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }"#,
+            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still", group = "sleep" }"#,
         ),
         (
             k::SLEEP_TIME,
-            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }"#,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps", group = "sleep" }"#,
         ),
         (
             k::ENABLED,
@@ -895,11 +895,11 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not move along" }}"#)),
-            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
-            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
-            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
-            (k::GYROSCOPIC, r#"{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
+            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not move along" }}"#)),
+            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
+            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
+            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
+            (k::GYROSCOPIC, r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
         ]),
         shared_body_schema(),
     ]

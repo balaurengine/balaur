@@ -41,7 +41,7 @@ pub fn init(this) {
 fn look(this, pose) {
     let camera = this.root.get_node("Camera");
     let e = pose.eye;
-    camera.set_position(e[0], e[1], e[2]);
+    camera.transform.position = [e[0], e[1], e[2]];
     camera.patch_component("camera", #{ look_at: pose.at });
     // The 2D shapes sit over every 3D view, so only the flat pose shows them.
     this.node.get_node("Flat").set_visible(pose.slug == "flat");

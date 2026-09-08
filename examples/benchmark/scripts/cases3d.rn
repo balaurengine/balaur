@@ -61,11 +61,11 @@ fn mixed_pile() {
         ("place", |w, i| {
             let at = world::lattice(i, [1.0, 1.0, 1.0], 28, 28, [-13.5, 0.6, -13.5], 0.05);
             let node = world::body(w, at, pile_shape(i % 4));
-            node.set_rotation_euler(
+            node.transform.rotation_euler = [
                 rng::range(-3.14159, 3.14159),
                 rng::range(-3.14159, 3.14159),
                 rng::range(-3.14159, 3.14159),
-            );
+            ];
         }),
     ])
 }
@@ -129,7 +129,7 @@ fn joint_grid() {
             // leave 5,000 bodies free-falling, which is fast and meaningless.
             let worst = 0.0;
             for (i, body) in w.bodies.iter().enumerate() {
-                let p = body.position();
+                let p = body.transform.position;
                 let moved = world::distance([p.x, p.y, p.z], lattice_at(i));
                 if moved > worst {
                     worst = moved;
@@ -198,7 +198,7 @@ fn spread(w) {
     let centre = [0.0, 0.0, 0.0];
     let counted = 0;
     for body in w.bodies {
-        let p = body.position();
+        let p = body.transform.position;
         if stats::finite(p.x) && stats::finite(p.y) && stats::finite(p.z) {
             centre = [centre[0] + p.x, centre[1] + p.y, centre[2] + p.z];
             counted = counted + 1;
@@ -210,7 +210,7 @@ fn spread(w) {
     let worst = 0.0;
     let non_finite = 0;
     for body in w.bodies {
-        let p = body.position();
+        let p = body.transform.position;
         if stats::finite(p.x) && stats::finite(p.y) && stats::finite(p.z) {
             let far = world::distance([p.x, p.y, p.z], centre);
             if far > worst {
@@ -241,11 +241,11 @@ fn query_storm() {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
                     box3(rng::range(0.4, 1.2), rng::range(0.4, 1.2), rng::range(0.4, 1.2)));
-                node.set_rotation_euler(
+                node.transform.rotation_euler = [
                     rng::range(-3.14159, 3.14159),
                     rng::range(-3.14159, 3.14159),
                     rng::range(-3.14159, 3.14159),
-                );
+                ];
             } else {
                 let node = world::body(w, scatter(), #{ kind: "ball", radius: rng::range(0.3, 0.8) });
                 node.patch_component("body3d", #{ gravity_scale: 0.0 });

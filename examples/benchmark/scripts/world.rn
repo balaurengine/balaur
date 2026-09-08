@@ -114,9 +114,9 @@ fn collider_key(w) {
 
 fn place(w, node, at) {
     if w.dimensions == 2 {
-        node.set_position(at[0], at[1], 0.0);
+        node.transform.position = [at[0], at[1], 0.0];
     } else {
-        node.set_position(at[0], at[1], at[2]);
+        node.transform.position = [at[0], at[1], at[2]];
     }
 }
 
