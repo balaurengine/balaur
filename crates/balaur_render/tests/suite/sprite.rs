@@ -284,7 +284,9 @@ fn patching_another_field_keeps_the_scale_the_sprite_was_built_at() {
     assert_close(before, 200.0 / 50.0 / 2.0);
     let read_back = components::get(&app.engine, entity, "sprite").unwrap();
     assert_eq!(
-        read_back.get("pixels_per_unit").and_then(toml::Value::as_float),
+        read_back
+            .get("pixels_per_unit")
+            .and_then(toml::Value::as_float),
         Some(50.0),
         "the scale has to round-trip: {read_back:?}"
     );

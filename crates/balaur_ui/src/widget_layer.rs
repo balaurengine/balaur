@@ -168,6 +168,8 @@ pub struct Widget {
     pub radius: f32,
     /// How a container spreads its children along its own direction.
     pub justify: String,
+    /// The air either side of a caption; below zero takes the theme's.
+    pub padding_x: f32,
 }
 
 /// Whether focus can land on this widget.
@@ -689,6 +691,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Style {
     }
     if widget.radius >= 0.0 {
         style.radius = Some(widget.radius);
+    }
+    if widget.padding_x >= 0.0 {
+        style.padding_x = Some(widget.padding_x);
     }
     style
 }

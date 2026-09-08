@@ -350,11 +350,16 @@ fn tab_row(S, k, side, d) {
 fn tab_controls(S, k, side, d) {
     let h = tab_h(S);
     let out = [];
+    // How many characters a name may keep. The fold and the panel's own
+    // controls are at the end of this strip, and nothing shrinks a button,
+    // so a row of long names would push them off the sheet.
+    let room = S.layout[side].w - 16.0 - 22.0 - 30.0;
+    let cap = name_cap(S, d, room);
     for id in d.tabs {
         let held = id;
         let p = panel(S, held);
         let active = d.active == held;
-        let label = p.name;
+        let label = clipped(p.name, cap);
         if held == "problems" {
             let (errors, warnings) = crate::lint::counts(S);
             if errors + warnings > 0 {
@@ -370,7 +375,7 @@ fn tab_controls(S, k, side, d) {
             on: |_| { S.docks[side].active = held; },
         });
         inner.push(#{
-            kind: "button", height: h, width: 14, text: "", radius: 0, fill: "none",
+            kind: "button", height: h, width: 13, padding_x: 0, text: "", radius: 0, fill: "none",
             icon: icons::ui("close"),
             role: if active { "tab_on" } else { "tab" },
             tooltip: format!("Close {}", p.name),
@@ -394,6 +399,24 @@ fn tab_controls(S, k, side, d) {
         on: |_| { S.docks[side].shut = true; },
     });
     out
+}
+
+// The longest name the strip can carry, from the room and how many tabs share
+// it. About 6.4 px a character at 11 px semibold, plus the tile's own air.
+fn name_cap(S, d, room) {
+    let n = util::f(d.tabs.len());
+    if n < 1.0 {
+        return 99;
+    }
+    let each = room / n - 34.0;
+    util::i(util::clamp(math::floor(each / 6.4), 3.0, 99.0))
+}
+
+fn clipped(name, cap) {
+    if name.len() <= cap {
+        return name;
+    }
+    name[..util::max(1, cap - 1)] + "…"
 }
 
 /// The panel's own controls, in the slot beside its dock's tabs.

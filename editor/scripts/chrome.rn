@@ -204,12 +204,13 @@ fn doc_tab(S, id, icon, label, closable, h) {
     let inner = [];
     inner.push(#{
         kind: "button", height: h, text: label, icon: icon, role: role,
-        radius: 0, fill: "none",
+        radius: 0, fill: "none", padding_x: 7,
         on: |_| { shell::open_doc(S, id); },
     });
     if closable {
         inner.push(#{
-            kind: "button", height: h, width: 14, text: "", icon: icons::ui("close"),
+            kind: "button", height: h, width: 13, padding_x: 0, text: "",
+            icon: icons::ui("close"),
             role: role, radius: 0, fill: "none", tooltip: "Close",
             on: |_| { shell::close_doc(S, id); },
         });

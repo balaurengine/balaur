@@ -83,6 +83,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own" }"#),
                     (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own" }"#),
                     (k::RADIUS, r#"{ type = "float", default = -1.0, description = "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall" }"#),
+                    (k::PADDING_X, r#"{ type = "float", default = -1.0, description = "The air either side of a caption, in design pixels; below zero takes the theme's own" }"#),
                     (k::JUSTIFY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a container spreads its children along its own direction once they have their sizes" }}"#, w::START, v::options(w::JUSTIFYS))),
                 ]),
             ),
@@ -204,6 +205,14 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ON_SUBMIT.into(),
         toml::Value::String(widget.on_submit.clone()),
     );
+    look_to_toml(widget, &mut map);
+    controls_to_toml(widget, &mut map);
+    toml::Value::Table(map)
+}
+
+/// The keys a widget's look carries: the role it names, the marks and hover
+/// text beside its caption, and the fill, outline and air it states itself.
+fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::ROLE.into(), toml::Value::String(widget.role.clone()));
     map.insert(
         k::TOOLTIP.into(),
@@ -221,8 +230,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::JUSTIFY.into(),
         toml::Value::String(widget.justify.clone()),
     );
-    controls_to_toml(widget, &mut map);
-    toml::Value::Table(map)
+    map.insert(
+        k::PADDING_X.into(),
+        toml::Value::Float(f64::from(widget.padding_x)),
+    );
 }
 
 /// The keys the control kinds added: what a check, slider, dropdown, grid,
@@ -448,6 +459,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         stroke: s(k::STROKE, ""),
         radius: f(k::RADIUS, -1.0),
         justify: s(k::JUSTIFY, w::START),
+        padding_x: f(k::PADDING_X, -1.0),
         checked: false,
         value: 0.0,
         min: 0.0,

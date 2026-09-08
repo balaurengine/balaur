@@ -292,29 +292,33 @@ fn branches(
         .collect()
 }
 
-/// The lines down an outline: one a level while the branch continues, and an
-/// elbow into the row itself. A tree without them cannot show depth.
+/// The lines down an outline: a vertical while a branch still has rows below
+/// it, and a dash into the row itself. The last child of a branch gets the
+/// dash alone, so a run of corners does not read as a ladder.
 fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool]) {
     let Some(own) = trail.len().checked_sub(1) else {
         return;
     };
-    let ink = ui.visuals().weak_text_color().gamma_multiply(0.6);
+    let ink = ui.visuals().weak_text_color().gamma_multiply(0.55);
     let stroke = Stroke::new(1.0, ink);
     let middle = head.y + step / 2.0;
     for (level, &continues) in trail.iter().take(own).enumerate() {
         let x = head.x + (level as f32 + 0.5) * step;
-        // The row's own column carries the elbow; the ones above it carry a
-        // line only while something is still below them.
-        if level + 1 == own {
-            let foot = if trail[own] { head.y + step } else { middle };
-            ui.painter()
-                .line_segment([pos2(x, head.y), pos2(x, foot)], stroke);
-            ui.painter()
-                .line_segment([pos2(x, middle), pos2(x + step * 0.5, middle)], stroke);
-        } else if continues {
+        if level + 1 < own {
+            if continues {
+                ui.painter()
+                    .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
+            }
+            continue;
+        }
+        // The row's own column: a tee where the branch carries on below, and
+        // nothing above the dash where this is the last of them.
+        if trail[own] {
             ui.painter()
                 .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
         }
+        ui.painter()
+            .line_segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
     }
 }
 
