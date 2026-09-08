@@ -27,7 +27,8 @@ use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture};
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
 
-use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms, uniform_entry};
+use crate::bind_layout::uniform_entry;
+use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms};
 use crate::shaders;
 
 /// The most bones one mesh may name. 128 `mat4` is 8 KB, which keeps the

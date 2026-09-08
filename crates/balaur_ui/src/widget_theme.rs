@@ -33,8 +33,11 @@
 //! it over its kind's, which is how one file dresses both the `ui::*` calls a
 //! script makes and the nodes a scene holds.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
+
+use smol_str::SmolStr;
 
 use crate::vocabulary::keys as k;
 use egui::Color32;
@@ -138,6 +141,10 @@ pub struct WidgetTheme {
     kinds: BTreeMap<String, Style>,
     roles: BTreeMap<String, Style>,
     colors: BTreeMap<String, Color32>,
+    /// `resolved` remembered: a kind and a role name the same style for as
+    /// long as the theme lives, and working it out walked two maps and cloned
+    /// a style for every widget on the screen, every frame.
+    settled: RefCell<rustc_hash::FxHashMap<(SmolStr, SmolStr), Rc<Style>>>,
 }
 
 impl WidgetTheme {
@@ -150,12 +157,18 @@ impl WidgetTheme {
     /// A kind's style with the named role over it. An unknown role is no
     /// role: a theme that has not been given one yet still draws.
     #[must_use]
-    pub fn resolved(&self, kind: &str, role: &str) -> Style {
+    pub fn resolved(&self, kind: &str, role: &str) -> Rc<Style> {
+        let key = (SmolStr::new(kind), SmolStr::new(role));
+        if let Some(held) = self.settled.borrow().get(&key) {
+            return Rc::clone(held);
+        }
         let base = self.style(kind);
-        match self.roles.get(role) {
+        let made = Rc::new(match self.roles.get(role) {
             Some(style) => style.over(&base),
             None => base,
-        }
+        });
+        self.settled.borrow_mut().insert(key, Rc::clone(&made));
+        made
     }
 
     /// A colour by the name `[colors]` filed it under, for a widget that

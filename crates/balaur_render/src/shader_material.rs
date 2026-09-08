@@ -21,6 +21,7 @@ use kiss3d::resource::{
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
+use crate::bind_layout::{material_group, uniform_entry};
 use crate::material::{Compiled, PARAMS_GROUP};
 use crate::probe::Probe;
 
@@ -113,19 +114,6 @@ pub(crate) struct ShaderMaterial {
     screen: Option<wgpu::Sampler>,
 }
 
-fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-        ty: wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    }
-}
-
 const fn float32x2(shader_location: u32, offset: u64) -> wgpu::VertexAttribute {
     wgpu::VertexAttribute {
         offset,
@@ -202,53 +190,7 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
 /// The same group for a `camera.post` material, which has params but never a
 /// probe: a full-screen pass has no caret to preview a value at.
 pub(crate) fn post_params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
-    material_group(values, None)
-}
-
-/// The material's own bind group: its `Params` at binding 0, and a preview's
-/// probe at 1 and 2 when the shader carries one.
-///
-/// `None` when it wants neither. A uniform buffer cannot be zero-sized, so a
-/// probing shader with no `Params` still gets a placeholder at binding 0.
-fn material_group(
-    values: &[u8],
-    probe: Option<&Probe>,
-) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
-    if values.is_empty() && probe.is_none() {
-        return None;
-    }
-    let ctxt = Context::get();
-    let mut layout_entries = vec![uniform_entry(0)];
-    if probe.is_some() {
-        layout_entries.extend(Probe::layout_entries());
-    }
-    let layout = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("material_params_layout"),
-        entries: &layout_entries,
-    });
-    let placeholder = [0u8; 16];
-    let buffer = ctxt.create_buffer_init(
-        Some("material_params_uniform"),
-        if values.is_empty() {
-            &placeholder
-        } else {
-            values
-        },
-        wgpu::BufferUsages::UNIFORM,
-    );
-    let mut entries = vec![wgpu::BindGroupEntry {
-        binding: 0,
-        resource: buffer.as_entire_binding(),
-    }];
-    if let Some(probe) = probe {
-        entries.extend(probe.entries());
-    }
-    let group = ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("material_params_bind_group"),
-        layout: &layout,
-        entries: &entries,
-    });
-    Some((layout, group))
+    material_group(values, None, "material")
 }
 
 fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
@@ -281,7 +223,7 @@ impl ShaderMaterial {
                 ..Default::default()
             })
         });
-        let params = material_group(&compiled.params, probe);
+        let params = material_group(&compiled.params, probe, "material");
         let mut groups = vec![
             Some(&frame_layout),
             Some(&object_layout),

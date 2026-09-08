@@ -32,9 +32,9 @@ fn face_of(
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(font.size, family(w::ICON));
         ui.painter()
-            .layout_no_wrap(widget.icon.clone(), mark, Color32::WHITE)
+            .layout_no_wrap(widget.icon.to_string(), mark, Color32::WHITE)
     });
-    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption, font);
+    let shaped = crate::widget_text::shaped_caption(ui, at, index, widget, caption, font);
     let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
         ui.painter()
             .layout_no_wrap(caption.to_owned(), font.clone(), Color32::WHITE)
@@ -113,7 +113,7 @@ pub(crate) fn button(
         let placed = &at.arena[index];
         (placed.entity, placed.widget.clone())
     };
-    let base = at.style_of(&widget);
+    let base = at.look(index).style.clone();
     let (scale, focused) = (at.scale, at.focused);
     let face = face_of(ui, at, index, caption, font);
     let pad_x = base

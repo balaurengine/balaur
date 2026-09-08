@@ -21,7 +21,7 @@ use glamx::Vec4;
 
 use crate::clip::{Clip, Property, Wrap};
 use crate::player::{AnimationState, FIXED_DT, MAX_SUBSTEPS, Playback};
-use crate::sampler::{self, TrackValue};
+use crate::sampler::{self, Pose, TrackValue};
 use crate::tween::{self, TweenId};
 
 /// The method a node's script is called with when its clip ends.
@@ -204,7 +204,7 @@ fn advance_playback(
         &playback.root,
         playback.retarget.as_ref(),
         &clip,
-        &pose,
+        pose,
         effects,
     );
     collect_calls(
@@ -245,7 +245,7 @@ pub(crate) fn pose_now(eng: &Engine, entity: Entity) {
             &playback.root,
             playback.retarget.as_ref(),
             clip,
-            &pose,
+            pose,
             &mut effects,
         );
     }
@@ -263,9 +263,11 @@ pub(crate) fn write_pose(
     root: &str,
     retarget: Option<&crate::retarget::Retarget>,
     clip: &Clip,
-    pose: &[TrackValue],
+    pose: Pose,
     effects: &mut Vec<Effect>,
 ) {
+    // Taken by value: a deform track's offsets are as long as the mesh, and
+    // moving them into the effect is one copy fewer every step.
     for (track, value) in clip.tracks.iter().zip(pose) {
         // The track's own name is the canonical one a bone map is keyed by;
         // what it drives on this rig is whatever the map says, and the track
@@ -281,11 +283,11 @@ pub(crate) fn write_pose(
         if let TrackValue::Deform(offsets) = value {
             effects.push(Effect::Deform {
                 entity: target,
-                offsets: offsets.clone(),
+                offsets,
             });
             continue;
         }
-        if let TrackValue::Property { value, channels } = *value {
+        if let TrackValue::Property { value, channels } = value {
             let Property::Component {
                 component,
                 property,
@@ -307,7 +309,7 @@ pub(crate) fn write_pose(
         // Rests are read once per track and only while retargeting: a clip
         // played on the rig it was authored for pays nothing for this.
         let rest = retarget.and(world.get::<&Bone>(target).ok());
-        match *value {
+        match value {
             TrackValue::Position(position) => {
                 transform.position = match retarget {
                     Some(r) => r.position(&track.target, rest.as_deref(), position),

@@ -55,18 +55,18 @@ pub(crate) fn dropdown(
     let want = box_of(widget, at.assigned, at.scale);
     let mut chosen = widget.text.clone();
     let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity))
-        .selected_text(egui::RichText::new(&chosen).font(font.clone()).color(color));
+        .selected_text(egui::RichText::new(chosen.as_str()).font(font.clone()).color(color));
     if want.x > 0.0 {
         combo = combo.width(want.x);
     }
     combo.show_ui(ui, |ui| {
         for option in &widget.options {
-            let label = egui::RichText::new(option).font(font.clone()).color(color);
+            let label = egui::RichText::new(option.as_str()).font(font.clone()).color(color);
             ui.selectable_value(&mut chosen, option.clone(), label);
         }
     });
     if chosen != widget.text {
-        at.edits.push((entity, Edit::Choice(chosen)));
+        at.edits.push((entity, Edit::Choice(chosen.to_string())));
     }
 }
 
@@ -118,8 +118,8 @@ fn rows(
     } else {
         ui.text_style_height(&egui::TextStyle::Body).max(1.0)
     };
-    let items = widget.options.clone();
-    let chosen = widget.text.clone();
+    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let chosen = widget.text.to_string();
     let id = egui::Id::new(("balaur-list", entity));
 
     // A tab a row starts with is one level in, which is how an outline is
@@ -460,8 +460,8 @@ fn cards(
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = box_of(&widget, at.assigned, at.scale);
     let columns = widget.columns.max(1) as usize;
-    let items = widget.options.clone();
-    let chosen = widget.text.clone();
+    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let chosen = widget.text.to_string();
     let gap = 6.0 * at.scale;
     let room = if want.x > 0.0 {
         want.x
@@ -542,8 +542,8 @@ pub(crate) fn table(
         .filter(|head| !head.is_empty())
         .collect();
     let columns = heads.len().max(1);
-    let items = widget.options.clone();
-    let chosen = widget.text.clone();
+    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let chosen = widget.text.to_string();
     let row_h = if widget.row_height > 0.0 {
         widget.row_height * at.scale
     } else {
@@ -609,9 +609,9 @@ pub(crate) fn menu(
     let label = egui::RichText::new(caption).font(font.clone()).color(color);
     ui.menu_button(label, |ui| {
         for option in &widget.options {
-            let item = egui::RichText::new(option).font(font.clone()).color(color);
+            let item = egui::RichText::new(option.as_str()).font(font.clone()).color(color);
             if ui.button(item).clicked() {
-                picked = Some(option.clone());
+                picked = Some(option.to_string());
                 ui.close();
             }
         }
@@ -771,8 +771,7 @@ pub(crate) fn fold(
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget_taffy::Room::scrolling(body);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, index, ui, at.scale, &at.theme, &space,
-    );
+        at.eng, at.arena, index, ui, at.scale, &at.theme, &space, at.fresh);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(body));
     let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);
@@ -807,7 +806,7 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let mut cell = egui::Vec2::ZERO;
     {
         let mut measure = Measure::new(at.eng, at.arena, ui, scale);
-        for child in &children {
+        for child in children.iter() {
             cell = cell.max(measure.of(*child, &at.theme));
         }
     }

@@ -11,6 +11,7 @@ use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 use balaur_core::hecs::Entity;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::time::{Duration, Instant};
 
 /// Rows a column, so the tree has the shape a real screen does rather than
 /// one container with ten thousand children.
@@ -66,18 +67,35 @@ fn screen(app: &App, count: usize, cell: &toml::Value) -> (Entity, Entity) {
     (column, leaf)
 }
 
-fn one_pass(app: &App, ctx: &egui::Context) {
-    let input = egui::RawInput {
+fn input() -> egui::RawInput {
+    egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::pos2(0.0, 0.0),
             egui::vec2(1280.0, 800.0),
         )),
         ..Default::default()
-    };
-    ctx.begin_pass(input);
+    }
+}
+
+fn one_pass(app: &App, ctx: &egui::Context) {
+    ctx.begin_pass(input());
     balaur_ui::run_pass(&app.engine, ctx);
     let mut out = ctx.end_pass();
     out.textures_delta.clear();
+}
+
+/// The three parts of a frame, timed apart: opening the pass, what this crate
+/// puts in it, and egui closing it — which is where tessellation happens.
+fn split(app: &App, ctx: &egui::Context) -> (Duration, Duration, Duration) {
+    let a = Instant::now();
+    ctx.begin_pass(input());
+    let b = Instant::now();
+    balaur_ui::run_pass(&app.engine, ctx);
+    let c = Instant::now();
+    let mut out = ctx.end_pass();
+    out.textures_delta.clear();
+    let d = Instant::now();
+    (b - a, c - b, d - c)
 }
 
 fn widgets(c: &mut Criterion) {
@@ -96,7 +114,34 @@ fn widgets(c: &mut Criterion) {
             for _ in 0..3 {
                 one_pass(&app, &ctx);
             }
-            group.throughput(Throughput::Elements(count as u64));
+            // One printed breakdown a size, so a run says where the frame went
+        // rather than only how long it was.
+        {
+            let (mut begin, mut run, mut end) = (Duration::ZERO, Duration::ZERO, Duration::ZERO);
+            let rounds = 30;
+            let _ = balaur_ui::pass_phases();
+            for _ in 0..rounds {
+                let (a, b, c) = split(&app, &ctx);
+                begin += a;
+                run += b;
+                end += c;
+            }
+            let ms = |d: Duration| d.as_secs_f64() * 1000.0 / f64::from(rounds);
+            let p = balaur_ui::pass_phases();
+            let each = f64::from(rounds);
+            println!(
+                "BREAKDOWN {shape} {count}: widgets {:.3} | arena {:.3} solve {:.3} (sync {:.3} taffy {:.3}) draw {:.3} input {:.3} | tessellate {:.3}",
+                ms(run),
+                p[0] / each,
+                p[1] / each,
+                p[4] / each,
+                p[5] / each,
+                p[2] / each,
+                p[3] / each,
+                ms(end)
+            );
+        }
+        group.throughput(Throughput::Elements(count as u64));
             group.bench_function(BenchmarkId::new(format!("idle_{shape}"), count), |b| {
                 b.iter(|| one_pass(&app, &ctx));
             });

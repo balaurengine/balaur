@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod export_api;
+mod export_shared;
 mod fmt;
 mod import_api;
 mod lsp;

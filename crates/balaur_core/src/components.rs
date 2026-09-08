@@ -56,6 +56,8 @@
 //! component currently reports, which is what anything driving one property
 //! over time means.
 
+use std::rc::Rc;
+
 use anyhow::{Context, Result, anyhow};
 use hecs::Entity;
 
@@ -142,8 +144,10 @@ pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
 pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 
 pub struct ComponentDef {
-    /// TOML table of property specs (see module docs).
-    pub schema: toml::Value,
+    /// TOML table of property specs (see module docs). Shared, because a
+    /// patch reads it every time a property is written and a copy per write
+    /// is the whole table.
+    pub schema: Rc<toml::Value>,
     /// What the component gives a node, in one or two sentences, for the
     /// generated reference. `scripts/api_lints.py` fails an empty one.
     pub doc: &'static str,
@@ -218,7 +222,7 @@ impl ComponentDef {
     /// are compile-time constants written by plugin authors, so a bad one is a
     /// bug in the plugin rather than bad user input, and failing at
     /// registration beats an inspector row that silently never appears.
-    pub fn parse_schema(component: &str, text: &str) -> toml::Value {
+    pub fn parse_schema(component: &str, text: &str) -> Rc<toml::Value> {
         let schema: toml::Value = toml::from_str(text)
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
         let table = schema.as_table().unwrap_or_else(|| {
@@ -229,7 +233,7 @@ impl ComponentDef {
                 panic!("component '{component}', property '{prop}': {why}");
             }
         }
-        schema
+        Rc::new(schema)
     }
 }
 
@@ -731,8 +735,8 @@ pub fn is_registered(eng: &Engine, name: &str) -> bool {
         .is_some_and(|registry| registry.borrow().def(name).is_some())
 }
 
-/// A registered component's schema, cloned so the registry borrow ends here.
-fn schema_of(eng: &Engine, name: &str) -> Result<toml::Value> {
+/// A registered component's schema, shared so the registry borrow ends here.
+fn schema_of(eng: &Engine, name: &str) -> Result<Rc<toml::Value>> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
@@ -849,7 +853,7 @@ pub fn names(eng: &Engine) -> Vec<String> {
 }
 
 /// Every registered component's name and schema, for tooling and docs.
-pub fn schemas(eng: &Engine) -> Vec<(String, toml::Value)> {
+pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
     eng.try_resource::<ComponentRegistry>()
         .map(|r| {
             r.borrow()

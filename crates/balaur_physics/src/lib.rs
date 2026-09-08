@@ -10,6 +10,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_plugin::Registry;
+use serde::Deserialize as _;
 
 use balaur_core::collections::DetHashMap;
 
@@ -362,7 +363,7 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_physics(eng: &Engine, value: &serde_json::Value) {
-    let frame: PhysicsFrame = match serde_json::from_value(value.clone()) {
+    let frame: PhysicsFrame = match PhysicsFrame::deserialize(value) {
         Ok(frame) => frame,
         Err(e) => {
             tracing::error!(error = %e, "restoring the physics world");

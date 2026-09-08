@@ -909,7 +909,7 @@ pub(crate) fn code_opts(widget: &crate::widget_layer::Widget, scale: f32) -> Opt
     };
     Opts::plain(Some(Value::Map(vec![
         (k::SIZE.into(), Value::Num(f64::from(size * scale))),
-        (k::LANGUAGE.into(), Value::Str(widget.source.clone())),
+        (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
     ])))
 }
 

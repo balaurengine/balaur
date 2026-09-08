@@ -9,7 +9,7 @@ use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
 /// The `sprite` component's property schema, lifted out so the
 /// registration below stays readable.
-fn sprite_schema() -> toml::Value {
+fn sprite_schema() -> std::rc::Rc<toml::Value> {
     ComponentDef::parse_schema(
         "sprite",
         &balaur_core::components::ComponentDef::schema(&[

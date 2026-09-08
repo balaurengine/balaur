@@ -189,7 +189,7 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
             let Some(host) = eng.script_host() else {
                 return;
             };
-            let Ok(frames) = serde_json::from_value::<Vec<ScriptFrame>>(value.clone()) else {
+            let Ok(frames) = Vec::<ScriptFrame>::deserialize(value) else {
                 return;
             };
             let world = eng.world();
@@ -242,7 +242,7 @@ fn save_transforms(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_transforms(eng: &Engine, value: &serde_json::Value) {
-    let frames: Vec<TransformFrame> = match serde_json::from_value(value.clone()) {
+    let frames: Vec<TransformFrame> = match Vec::<TransformFrame>::deserialize(value) {
         Ok(frames) => frames,
         Err(e) => {
             tracing::error!(error = %e, "restoring transforms");
@@ -294,7 +294,7 @@ fn save_appearance(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_appearance(eng: &Engine, value: &serde_json::Value) {
-    let frames: Vec<AppearanceFrame> = match serde_json::from_value(value.clone()) {
+    let frames: Vec<AppearanceFrame> = match Vec::<AppearanceFrame>::deserialize(value) {
         Ok(frames) => frames,
         Err(e) => {
             tracing::error!(error = %e, "restoring appearance");
@@ -340,7 +340,7 @@ fn save_tags(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_tags(eng: &Engine, value: &serde_json::Value) {
-    let Ok(frames) = serde_json::from_value::<Vec<TagsFrame>>(value.clone()) else {
+    let Ok(frames) = Vec::<TagsFrame>::deserialize(value) else {
         return;
     };
     let root = eng.root();
@@ -463,7 +463,7 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_nodes(eng: &Engine, value: &serde_json::Value) {
-    let frame: NodesFrame = match serde_json::from_value(value.clone()) {
+    let frame: NodesFrame = match NodesFrame::deserialize(value) {
         Ok(frame) => frame,
         Err(e) => {
             tracing::error!(error = %e, "restoring the node set");

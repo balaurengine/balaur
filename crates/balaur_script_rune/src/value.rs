@@ -157,13 +157,18 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
 /// plain data. Nodes stay: entity bits are stable within one process.
 pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
     use rune::runtime::Object;
-    if let Ok(b) = rune::from_value::<bool>(v.clone()) {
+    // Through the accessors that only read the representation, so a value
+    // that is not a number is not copied to find that out.
+    if let Ok(b) = v.as_bool() {
         return Some(Neutral::Bool(b));
     }
-    if let Ok(i) = rune::from_value::<i64>(v.clone()) {
+    if let Ok(i) = v.as_signed() {
         return Some(Neutral::Int(i));
     }
-    if let Ok(f) = rune::from_value::<f64>(v.clone()) {
+    if let Ok(u) = v.as_unsigned() {
+        return Some(Neutral::Int(i64::try_from(u).ok()?));
+    }
+    if let Ok(f) = v.as_float() {
         return Some(Neutral::Num(f));
     }
     if let Ok(s) = v.borrow_string_ref() {

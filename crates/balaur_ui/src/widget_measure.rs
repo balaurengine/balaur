@@ -12,7 +12,7 @@ use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
 use crate::widget_theme::WidgetTheme;
 use balaur_core::Engine;
 use egui::vec2;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 /// A measure over one tree, memoised within itself: a container asks each
@@ -27,7 +27,11 @@ pub(crate) struct Measure<'a> {
     painter: egui::Painter,
     padding: egui::Vec2,
     scale: f32,
-    seen: HashMap<usize, egui::Vec2>,
+    seen: FxHashMap<usize, egui::Vec2>,
+    /// What `leaf` answered, which is not what `of` answers: no stated size
+    /// and no floor applied. Asked twice a leaf a pass — once to see whether
+    /// the content moved, once by taffy solving the node.
+    leaves: FxHashMap<usize, egui::Vec2>,
 }
 
 impl<'a> Measure<'a> {
@@ -38,19 +42,25 @@ impl<'a> Measure<'a> {
             painter: ui.painter().clone(),
             padding: ui.spacing().button_padding * 2.0,
             scale,
-            seen: HashMap::new(),
+            seen: FxHashMap::default(),
+            leaves: FxHashMap::default(),
         }
     }
 
     /// What one leaf asks for, with no recursion into children: what the
     /// layout tree calls back for, since it owns every container itself.
     pub(crate) fn leaf(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        if let Some(size) = self.leaves.get(&index) {
+            return *size;
+        }
         let widget = &self.arena[index].widget;
         if !widget.visible {
             return egui::Vec2::ZERO;
         }
         let theme = theme_of(self.eng, &widget.theme, theme);
-        self.natural(index, &theme)
+        let size = self.natural(index, &theme);
+        self.leaves.insert(index, size);
+        size
     }
 
     /// The smallest box `index` can be drawn in, in device pixels.
@@ -83,8 +93,7 @@ impl<'a> Measure<'a> {
 
     fn natural(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let widget = &self.arena[index].widget;
-        let kind = widget.kind.clone();
-        match kind.as_str() {
+        match widget.kind.as_str() {
             // A scroll is meant to clip, so it answers with its stated size
             // or with nothing. A script's rect can only be remembered: what
             // it drew last frame is the one thing anything knows about it.
@@ -100,12 +109,12 @@ impl<'a> Measure<'a> {
                         )
                     })
             }
-            w::BUTTON => self.button(widget, theme),
-            w::LABEL => self.text(widget, theme),
+            w::BUTTON => self.button(index, widget, theme),
+            w::LABEL => self.text(index, widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
             w::FIELD => {
-                let line = self.galley("MMMMMMMMMMMM", widget, theme);
+                let line = self.galley(index, "MMMMMMMMMMMM", widget, theme);
                 line + self.padding
             }
             w::TAB => {
@@ -116,15 +125,15 @@ impl<'a> Measure<'a> {
             }
             // A box the height of the text, then the caption.
             w::CHECK => {
-                let text = self.text(widget, theme);
+                let text = self.text(index, widget, theme);
                 let line = widget.font_size * self.scale;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
             }
             // The widest option, and room for the arrow.
             w::DROPDOWN => {
-                let mut widest = self.text(widget, theme);
+                let mut widest = self.text(index, widget, theme);
                 for option in &widget.options {
-                    widest = widest.max(self.galley(option, widget, theme));
+                    widest = widest.max(self.galley(index, option, widget, theme));
                 }
                 widest + self.padding + vec2(20.0 * self.scale, 0.0)
             }
@@ -134,7 +143,7 @@ impl<'a> Measure<'a> {
             ),
             w::SEPARATOR => egui::Vec2::splat(6.0 * self.scale),
             w::FOLD => {
-                let head = self.text(widget, theme) + vec2(20.0 * self.scale, 0.0);
+                let head = self.text(index, widget, theme) + vec2(20.0 * self.scale, 0.0);
                 if !widget.open {
                     return head;
                 }
@@ -143,8 +152,8 @@ impl<'a> Measure<'a> {
             }
             w::GRID => self.grid(index, theme),
             w::FLOW => self.flow(index, theme),
-            _ if lays_out(&kind) => self.container(index, theme),
-            _ => self.text(widget, theme),
+            _ if lays_out(&widget.kind) => self.container(index, theme),
+            _ => self.text(index, widget, theme),
         }
     }
 
@@ -156,7 +165,7 @@ impl<'a> Measure<'a> {
         let row = widget.kind == w::ROW;
         let children = placed.children.clone();
         let caption = if widget.kind == w::PANEL {
-            self.text(widget, theme)
+            self.text(index, widget, theme)
         } else {
             egui::Vec2::ZERO
         };
@@ -164,7 +173,7 @@ impl<'a> Measure<'a> {
         let mut along = 0.0f32;
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
-        for child in &children {
+        for child in children.iter() {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -202,7 +211,7 @@ impl<'a> Measure<'a> {
         let gap = widget.gap * self.scale;
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
-        for child in &children {
+        for child in children.iter() {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -246,7 +255,7 @@ impl<'a> Measure<'a> {
         let mut cursor = egui::Vec2::ZERO;
         let mut line = 0.0f32;
         let mut extent = egui::Vec2::ZERO;
-        for child in &children {
+        for child in children.iter() {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -276,11 +285,11 @@ impl<'a> Measure<'a> {
         for (slot, child) in placed.children.iter().enumerate() {
             let page = &self.arena[*child];
             let label = if page.widget.text.is_empty() {
-                page.name.clone()
+                page.name.as_str()
             } else {
-                page.widget.text.clone()
+                page.widget.text.as_str()
             };
-            let size = self.galley(&label, &widget, theme) + padding;
+            let size = self.galley(*child, &label, &widget, theme) + padding;
             width += size.x + if slot > 0 { gap } else { 0.0 };
             height = height.max(size.y);
         }
@@ -291,8 +300,8 @@ impl<'a> Measure<'a> {
     fn widest_child(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let children = self.arena[index].children.clone();
         let mut size = egui::Vec2::ZERO;
-        for child in children {
-            size = size.max(self.of(child, theme));
+        for child in children.iter() {
+            size = size.max(self.of(*child, theme));
         }
         size
     }
@@ -300,16 +309,16 @@ impl<'a> Measure<'a> {
     /// A button's box: the icon, the caption, the air either side, and the
     /// floor its role carries. The same arithmetic the draw does, or a strip
     /// of buttons is handed less room than it paints into.
-    fn button(&self, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let style = crate::widget_layer::styled(theme, widget);
-        let (_, font) = crate::widget_layer::face(&style, widget, self.scale);
-        let text = self.text(widget, theme);
+    fn button(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let look = crate::widget_layer::look_of(self.arena, index, theme, self.scale);
+        let (style, font) = (&look.style, look.font.clone());
+        let text = self.text(index, widget, theme);
         let mark = if widget.icon.is_empty() {
             egui::Vec2::ZERO
         } else {
             let face = egui::FontId::new(font.size, family(w::ICON));
             self.painter
-                .layout_no_wrap(widget.icon.clone(), face, egui::Color32::WHITE)
+                .layout_no_wrap(widget.icon.to_string(), face, egui::Color32::WHITE)
                 .size()
         };
         let gap = if mark.x > 0.0 && text.x > 0.0 {
@@ -328,12 +337,12 @@ impl<'a> Measure<'a> {
         .max(floor)
     }
 
-    fn text(&self, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+    fn text(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let caption = caption(self.eng, widget);
         if caption.is_empty() {
             return egui::Vec2::ZERO;
         }
-        self.galley(&caption, widget, theme)
+        self.galley(index, &caption, widget, theme)
     }
 
     /// One line of text, unwrapped: what the widget needs to show it whole.
@@ -341,11 +350,17 @@ impl<'a> Measure<'a> {
     ///
     /// The face comes from the theme the same way the draw resolves it, or a
     /// row under a role would be measured at a size it never draws at.
-    fn galley(&self, text: &str, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let style = crate::widget_layer::styled(theme, widget);
-        let (_, font) = crate::widget_layer::face(&style, widget, self.scale);
+    fn galley(
+        &self,
+        index: usize,
+        text: &str,
+        widget: &Widget,
+        theme: &Rc<WidgetTheme>,
+    ) -> egui::Vec2 {
+        let look = crate::widget_layer::look_of(self.arena, index, theme, self.scale);
+        let (style, font) = (&look.style, look.font.clone());
         if let Some(state) = crate::text::state(self.eng) {
-            let request = crate::widget_text::text_request(widget, text, None, &font, &style);
+            let request = crate::widget_text::text_request(widget, text, None, &font, style);
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)

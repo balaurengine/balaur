@@ -6,21 +6,22 @@
 
 use crate::vocabulary::words as w;
 use crate::widget_layer::{Edit, Painting, Widget, draw_one};
+use smol_str::SmolStr;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —
     /// everything else the layer draws it can also measure, and a rect a
     /// script fills is the one thing it can only remember.
-    static MEASURED: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
-    static MEASURING: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
+    static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
+    static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
     /// Where each widget was drawn, for a script that has to place something
     /// against it — the editor's own chrome reads its shell back this way.
-    static PLACED: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
-    static PLACING: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
+    static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
+    static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.
@@ -50,14 +51,21 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
+    // A `draw` node's size comes from the script that filled it, not from any
+    // property, so this is the one layout input no component write announces.
+    if measured_of(entity) != size {
+        crate::widget_layer::content_changed();
+    }
 }
 
 /// Last frame's measurements become this frame's; a widget that stopped
 /// drawing drops out rather than accumulating.
 pub(crate) fn roll_measurements() {
+    // Swapped rather than copied: the map holds an entry a widget, and
+    // copying it was an O(n) walk on top of the one that filled it.
     MEASURING.with(|next| {
         MEASURED.with(|now| {
-            now.borrow_mut().clone_from(&next.borrow());
+            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
         });
         next.borrow_mut().clear();
     });
@@ -69,7 +77,7 @@ pub(crate) fn roll_measurements() {
 pub(crate) fn settle_rects() {
     PLACING.with(|next| {
         PLACED.with(|now| {
-            now.borrow_mut().clone_from(&next.borrow());
+            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
         });
         next.borrow_mut().clear();
     });
@@ -172,8 +180,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 vec2(inner.x, inner.y),
             ));
             let solved = crate::widget_taffy::solve_subtree(
-                at.eng, at.arena, index, ui, at.scale, &at.theme, &room,
-            );
+                at.eng, at.arena, index, ui, at.scale, &at.theme, &room, at.fresh);
             let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
@@ -200,7 +207,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let entity = placed.entity;
     // Each page as (index, the name `active` holds, the strip's label). Two
     // pages showing the same text are told apart by their node names.
-    let pages: Vec<(usize, String, String)> = children
+    let pages: Vec<(usize, SmolStr, SmolStr)> = children
         .iter()
         .map(|child| {
             let page = &at.arena[*child];
@@ -246,7 +253,11 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
                 let mut button =
-                    egui::Button::new(egui::RichText::new(label).font(font.clone()).color(color))
+                    egui::Button::new(
+                        egui::RichText::new(label.as_str())
+                            .font(font.clone())
+                            .color(color),
+                    )
                         .corner_radius(egui::CornerRadius::same(
                             (style.radius.unwrap_or(5.0) * scale) as u8,
                         ));
@@ -263,7 +274,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         })
         .inner;
     if let Some(name) = chosen {
-        at.edits.push((entity, Edit::Active(name)));
+        at.edits.push((entity, Edit::Active(name.to_string())));
     }
     let strip_h = strip.min_rect().height();
 
@@ -276,8 +287,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let showing = pages[showing].0;
     let room = crate::widget_taffy::Room::fixed(page);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, showing, ui, at.scale, &at.theme, &room,
-    );
+        at.eng, at.arena, showing, ui, at.scale, &at.theme, &room, at.fresh);
     let restore = at.assigned;
     at.assigned = page.size();
     let held = std::mem::replace(&mut at.rects, solved);
@@ -389,6 +399,14 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         };
         record_rect(entity, rect);
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            continue;
+        }
+        // Off the clip nothing is ever seen and nothing can be reached, so
+        // the whole subtree is skipped: its measurement carries over, since
+        // the layout it feeds must not move because a list scrolled.
+        if !ui.clip_rect().intersects(rect) {
+            record_measure(entity, measured_of(entity));
+            ui.advance_cursor_after_rect(rect);
             continue;
         }
         let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));

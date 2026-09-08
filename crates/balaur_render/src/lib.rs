@@ -551,6 +551,25 @@ pub struct Renderable2d {
     pub version: u64,
 }
 
+impl Renderable2d {
+    /// A renderable of `shape` for a node that had none: white, unsized, no
+    /// material. Each setter fills in the one field it owns over the top.
+    fn fresh(shape: Shape2d) -> Self {
+        Self {
+            shape,
+            color: [1.0, 1.0, 1.0, 1.0],
+            sprite: None,
+            polyline: None,
+            line: None,
+            polygon: None,
+            material: String::new(),
+            sized: false,
+            pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
+            version: 0,
+        }
+    }
+}
+
 /// Point `entity` at a polygon, rebuilding the backend's node only when the
 /// geometry, texture or rig changed — a tint alone never does.
 pub(crate) fn set_polygon(
@@ -572,16 +591,8 @@ pub(crate) fn set_polygon(
         .insert_one(
             entity,
             Renderable2d {
-                shape: Shape2d::Polygon,
-                color: [1.0, 1.0, 1.0, 1.0],
-                sprite: None,
-                polyline: None,
-                line: None,
                 polygon: Some(polygon),
-                material: String::new(),
-                sized: false,
-                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
-                version: 0,
+                ..Renderable2d::fresh(Shape2d::Polygon)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -741,16 +752,9 @@ pub(crate) fn set_polyline(
         .insert_one(
             entity,
             Renderable2d {
-                shape,
-                color: [1.0, 1.0, 1.0, 1.0],
-                sprite: None,
                 polyline: Some(source),
                 line: Some(style),
-                polygon: None,
-                material: String::new(),
-                sized: false,
-                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
-                version: 0,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -769,16 +773,8 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
         .insert_one(
             entity,
             Renderable2d {
-                shape,
                 color: [0.8, 0.8, 0.8, 1.0],
-                sprite: None,
-                polyline: None,
-                line: None,
-                polygon: None,
-                material: String::new(),
-                sized: false,
-                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
-                version: 0,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -862,16 +858,10 @@ pub(crate) fn set_sprite(
         .insert_one(
             entity,
             Renderable2d {
-                shape,
-                color: [1.0, 1.0, 1.0, 1.0],
                 sprite: Some(texture),
-                polyline: None,
-                line: None,
-                polygon: None,
-                material: String::new(),
                 sized,
                 pixels_per_unit: ppu,
-                version: 0,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -974,6 +964,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot::default());
         reg.insert_resource(stats::Stats::default());
+        reg.insert_resource(stats::Measured::default());
         reg.insert_resource(CameraInputConfig { enabled: true });
         let mut m = reg.script_module("render")?;
         m.module_doc(

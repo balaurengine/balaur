@@ -8,64 +8,26 @@
 //! to "may this one be fetched", which is a person's to give.
 //!
 //! An export takes seconds to minutes, so it runs on a thread and reports
-//! through [`ExternalIo`]: which means a recorded editor session replays
+//! through the replay layer: which means a recorded editor session replays
 //! without ever exporting anything.
 
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow};
-use balaur::replay::ExternalIo;
+use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_core::handler::{Handler, handler_of, opt};
+use balaur_core::handler::opt;
 use balaur_script::{Bindings, BindingsExt, Value};
-use serde::{Deserialize, Serialize};
 
-/// One step of an export, crossing from the worker thread back to a tick.
-#[derive(Clone, Serialize, Deserialize)]
-pub(crate) enum ExportEvent {
-    Started { target: String },
-    Done { target: String, path: String },
-    Failed { target: String, message: String },
-}
+use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, install_listen, pump};
 
-impl ExportEvent {
-    fn kind(&self) -> &'static str {
-        match self {
-            Self::Started { .. } => "started",
-            Self::Done { .. } => "done",
-            Self::Failed { .. } => "failed",
-        }
+/// The project being edited plus what only a desktop install has: the
+/// per-user template cache the roots are read from.
+pub(crate) struct ExportState(ExportCore);
+
+impl AsMut<ExportCore> for ExportState {
+    fn as_mut(&mut self) -> &mut ExportCore {
+        &mut self.0
     }
-
-    fn value(&self) -> Value {
-        let mut pairs = vec![
-            ("kind".into(), Value::Str(self.kind().into())),
-            ("target".into(), Value::Str(self.target().into())),
-        ];
-        match self {
-            Self::Started { .. } => {}
-            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(path.clone()))),
-            Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
-            }
-        }
-        Value::Map(pairs)
-    }
-
-    fn target(&self) -> &str {
-        match self {
-            Self::Started { target } | Self::Done { target, .. } | Self::Failed { target, .. } => {
-                target
-            }
-        }
-    }
-}
-
-/// The project being edited, the channel exports report on, and who listens.
-pub(crate) struct ExportState {
-    io: ExternalIo<ExportEvent>,
-    listeners: Vec<Handler>,
-    project: PathBuf,
 }
 
 impl ExportState {
@@ -97,36 +59,11 @@ impl balaur_plugin::Plugin for ExportPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        reg.insert_resource(ExportState {
-            io: ExternalIo::default(),
-            listeners: Vec::new(),
-            project: self.project.clone(),
-        });
-        reg.add_system(Stage::First, pump_export_system);
+        reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
+        reg.add_system(Stage::First, pump::<ExportState>);
         let mut m = reg.script_module("export")?;
         install_export_api(&mut *m);
         Ok(())
-    }
-}
-
-/// Deliver what the worker threads reported, to whoever asked to hear it.
-fn pump_export_system(eng: &Engine, _: f32) {
-    let mut dispatches = Vec::new();
-    {
-        let state = eng.resource::<ExportState>();
-        let mut state = state.borrow_mut();
-        let events = state.io.drain();
-        for event in events {
-            let value = event.value();
-            for handler in &state.listeners {
-                dispatches.push((handler.clone(), value.clone()));
-            }
-        }
-    }
-    if let Some(host) = eng.script_host() {
-        for (handler, value) in dispatches {
-            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-        }
     }
 }
 
@@ -138,25 +75,14 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
          recording plays.",
     );
     m.describe(&[
-        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would also need."),
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails."),
+        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
+        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running", &[], "()", "How many exports are in flight."),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
-    m.function(
-        "listen",
-        |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<Value>)| {
-            let handler = handler_of(&Value::Node(node.0), opts.as_ref(), "on_event", "on_export")?
-                .ok_or_else(|| anyhow!("export.listen needs a node"))?;
-            eng.resource::<ExportState>()
-                .borrow_mut()
-                .listeners
-                .push(handler);
-            Ok(())
-        },
-    );
+    install_listen::<ExportState>(m);
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -165,7 +91,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("output", |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
-        let project = state.borrow().project.clone();
+        let project = state.borrow().0.project.clone();
         let config = balaur_export::ExportConfig::load(&project).unwrap_or_default();
         Ok(Value::Str(
             config
@@ -227,7 +153,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
     let (project, download, sign, output) = {
         let state = state.borrow();
         (
-            state.project.clone(),
+            state.0.project.clone(),
             matches!(opt(opts, "download"), Some(Value::Bool(true))),
             match opt(opts, "sign") {
                 Some(Value::Str(identity)) => Some(identity.clone()),
@@ -240,7 +166,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
         )
     };
     let target = target.to_string();
-    state.borrow().io.start(eng, |report| {
+    state.borrow().0.io.start(eng, |report| {
         let report = report.clone();
         RUNNING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {

@@ -218,6 +218,31 @@ fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
 /// A map that carries a terrain grid has its cells derived from it, so an
 /// editor paints values and the engine picks the tiles — one resolver, and
 /// the same one a script reaches through `set_terrain`.
+/// A painted terrain grid read in the rules' own coordinates: cell `origin`
+/// is the grid's first, and the two questions a rule asks are answered here.
+struct Painted<'a> {
+    terrain: &'a [Vec<Option<u32>>],
+    origin: [i32; 2],
+}
+
+impl Painted<'_> {
+    fn value_at(&self, x: i32, y: i32) -> Option<u32> {
+        let x = usize::try_from(x - self.origin[0]).ok()?;
+        let y = usize::try_from(y - self.origin[1]).ok()?;
+        self.terrain.get(y)?.get(x).copied().flatten()
+    }
+
+    fn inside(&self, x: i32, y: i32) -> bool {
+        let (Ok(x), Ok(y)) = (
+            usize::try_from(x - self.origin[0]),
+            usize::try_from(y - self.origin[1]),
+        ) else {
+            return false;
+        };
+        self.terrain.get(y).is_some_and(|line| x < line.len())
+    }
+}
+
 fn resolve_all(eng: &Engine, map: &mut Tilemap) {
     if map.terrain.is_empty() {
         return;
@@ -228,24 +253,16 @@ fn resolve_all(eng: &Engine, map: &mut Tilemap) {
     if set.rules.is_empty() {
         return;
     }
-    let painted = map.terrain.clone();
+    let terrain = map.terrain.clone();
     let origin = map.origin;
-    let value_at = |x: i32, y: i32| -> Option<u32> {
-        let x = usize::try_from(x - origin[0]).ok()?;
-        let y = usize::try_from(y - origin[1]).ok()?;
-        painted.get(y)?.get(x).copied().flatten()
+    let painted = Painted {
+        terrain: &terrain,
+        origin,
     };
-    let inside = |x: i32, y: i32| {
-        let (Ok(x), Ok(y)) = (
-            usize::try_from(x - origin[0]),
-            usize::try_from(y - origin[1]),
-        ) else {
-            return false;
-        };
-        painted.get(y).is_some_and(|line| x < line.len())
-    };
-    for row in 0..span(painted.len()) {
-        for column in 0..span(painted.first().map_or(0, Vec::len)) {
+    let value_at = |x, y| painted.value_at(x, y);
+    let inside = |x, y| painted.inside(x, y);
+    for row in 0..span(terrain.len()) {
+        for column in 0..span(terrain.first().map_or(0, Vec::len)) {
             let (x, y) = (origin[0] + column, origin[1] + row);
             let (tile, flags) =
                 balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
@@ -278,22 +295,12 @@ fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
     // place rather than a copy of it taken for every cell of a stroke.
     let mut resolved = Vec::new();
     {
-        let painted = &map.terrain;
-        let origin = map.origin;
-        let value_at = |x: i32, y: i32| -> Option<u32> {
-            let x = usize::try_from(x - origin[0]).ok()?;
-            let y = usize::try_from(y - origin[1]).ok()?;
-            painted.get(y)?.get(x).copied().flatten()
+        let painted = Painted {
+            terrain: &map.terrain,
+            origin: map.origin,
         };
-        let inside = |x: i32, y: i32| {
-            let (Ok(x), Ok(y)) = (
-                usize::try_from(x - origin[0]),
-                usize::try_from(y - origin[1]),
-            ) else {
-                return false;
-            };
-            painted.get(y).is_some_and(|line| x < line.len())
-        };
+        let value_at = |x, y| painted.value_at(x, y);
+        let inside = |x, y| painted.inside(x, y);
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 let (x, y) = (column + dx, row + dy);
@@ -692,23 +699,25 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
             let map = world
                 .get::<&Tilemap>(entity)
                 .map_err(|_| anyhow!("the node carries no tilemap"))?;
-            let grid = balaur_core::tiles::TileGrid {
-                tileset: map.tileset.clone(),
-                rows: map.grid.clone(),
-                origin: map.origin,
-                ..Default::default()
+            let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
+                return Ok(balaur_script::Value::Nil);
             };
+            // Read out of the map's own rows: a `TileGrid` to ask one cell
+            // would copy every row of the map for every call.
+            let cell = balaur_core::tiles::cell_in(&map.grid, map.origin, x, y);
             let tileset = map.tileset.clone();
             drop(map);
             drop(world);
             let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset)?;
-            let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
-                return Ok(balaur_script::Value::Nil);
-            };
-            Ok(match grid.data_at(&set, x, y) {
-                Some(data) => balaur_core::node_api::from_toml(data)?,
-                None => balaur_script::Value::Nil,
-            })
+            Ok(
+                match cell
+                    .and_then(|id| set.tile(id))
+                    .and_then(|t| t.data.as_ref())
+                {
+                    Some(data) => balaur_core::node_api::from_toml(data)?,
+                    None => balaur_script::Value::Nil,
+                },
+            )
         },
     );
     m.function(

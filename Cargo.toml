@@ -60,6 +60,7 @@ balaur_platform = { path = "crates/balaur_platform", version = "0.1.0" }
 balaur_apple = { path = "crates/balaur_apple", version = "0.1.0" }
 balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
 balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
+balaur_testkit = { path = "crates/balaur_testkit", version = "0.1.0" }
 balaur_export = { path = "crates/balaur_export", version = "0.1.0" }
 
 hecs = "0.11"

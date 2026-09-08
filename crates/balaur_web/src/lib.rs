@@ -109,7 +109,7 @@ fn capture_web(eng: &Engine) -> Json {
 }
 
 fn restore_web(eng: &Engine, value: &Json) {
-    let Ok(captured) = serde_json::from_value::<Captured>(value.clone()) else {
+    let Ok(captured) = Captured::deserialize(value) else {
         return;
     };
     let state = eng.resource::<WebState>();

@@ -11,19 +11,25 @@ grow.
 
 ## Milestones
 
-| Milestone | State | What it is |
-| --- | --- | --- |
-| **0.1** | built | The engine as it stands |
-| **0.2** | building | Nothing blocks an ordinary game |
-| **0.3** | planned | Everything you see |
-| **0.4** | planned | Multiplayer, end to end |
-| **0.5** | planned | A game built without writing a script |
-| **0.6** | planned | A game gets out |
-| **0.7** | planned | What a bigger game asks for |
-| **0.8** | planned | The machine a game runs on |
-| **0.9** | planned | A world, not a scene |
-| **1.0** | planned | The editor makes the content |
-| **1.1** | planned | Other people's parts |
+| Milestone | State | Estimate | What it is |
+| --- | --- | :-: | --- |
+| **0.1** | built | September 2026 | The engine as it stands |
+| **0.2** | building | December 2026 | Nothing blocks an ordinary game |
+| **0.3** | planned | March 2027 | Everything you see |
+| **0.4** | planned | July 2027 | Multiplayer, end to end |
+| **0.5** | planned | November 2027 | A game built without writing a script |
+| **0.6** | planned | April 2028 | A game gets out |
+| **0.7** | planned | September 2028 | What a bigger game asks for |
+| **0.8** | planned | March 2029 | The machine a game runs on |
+| **0.9** | planned | September 2029 | A world, not a scene |
+| **1.0** | planned | March 2030 | The editor makes the content |
+| **1.1** | planned | July 2030 | Other people's parts |
+
+The estimate is the month a milestone is aimed at, and every row in it carries
+that date rather than one of its own. It moves when the rows do: an item added
+to a milestone pushes the month out rather than crowding it. The gaps widen
+with distance, three months to 0.3 and six across 0.8 and 0.9, which carry
+consoles, XR and light that bounces.
 
 **This file is the source for the website's
 [roadmap page](https://balaurengine.org/docs/roadmap)**: its
@@ -78,6 +84,7 @@ keeps its history and the tag's notes are the rows themselves.
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
+| **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 

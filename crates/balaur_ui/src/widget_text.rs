@@ -8,15 +8,18 @@ use crate::widget_arrange::box_of;
 use crate::widget_layer::{Edit, Painting, Widget, weight_of};
 
 /// What a widget's text asks the shaper for, at this scale.
-pub(crate) fn text_request(
-    widget: &Widget,
-    caption: &str,
+///
+/// Borrowed, not owned: this is built twice a widget a frame and the shaper
+/// keeps nothing from it unless the cache misses.
+pub(crate) fn text_request<'a>(
+    widget: &'a Widget,
+    caption: &'a str,
     width: Option<f32>,
     font: &egui::FontId,
     style: &crate::widget_theme::Style,
-) -> crate::text::Request {
-    crate::text::Request {
-        text: caption.to_string(),
+) -> crate::text::RequestRef<'a> {
+    crate::text::RequestRef {
+        text: caption,
         // The face the caller already resolved, so a role's `size` and
         // `strong` reach the shaper the way they reach egui's own text.
         size: font.size,
@@ -31,9 +34,9 @@ pub(crate) fn text_request(
         markup: widget.markup,
         // A widget names no bitmap font yet; the world's text is where a
         // pixel face is asked for.
-        font: String::new(),
+        font: "",
         // The scene's widget names no chain yet, so `ui` as before.
-        family: String::new(),
+        family: "",
         line_height: 0.0,
         letter_spacing: 0.0,
     }
@@ -44,14 +47,15 @@ pub(crate) fn text_request(
 pub(crate) fn shaped_caption(
     ui: &egui::Ui,
     at: &Painting<'_>,
+    index: usize,
     widget: &Widget,
     caption: &str,
     font: &egui::FontId,
 ) -> Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)> {
     let state = crate::text::state(at.eng)?;
-    let style = at.style_of(widget);
+    let look = at.look(index);
     let mut state = state.borrow_mut();
-    let request = text_request(widget, caption, None, font, &style);
+    let request = text_request(widget, caption, None, font, &look.style);
     let shaped = state.shape_for_egui(ui.ctx(), &request);
     Some((shaped, state.texture()))
 }
@@ -61,6 +65,7 @@ pub(crate) fn shaped_caption(
 pub(crate) fn shaped_label(
     ui: &mut egui::Ui,
     at: &Painting<'_>,
+    index: usize,
     widget: &Widget,
     caption: &str,
     color: egui::Color32,
@@ -69,7 +74,8 @@ pub(crate) fn shaped_label(
     let Some(state) = crate::text::state(at.eng) else {
         return false;
     };
-    let style = at.style_of(widget);
+    let look = at.look(index);
+    let style = &look.style;
     let room = ui.available_width();
     let width = widget.wrap.then_some(room.max(1.0));
     // A stated width is a column, so a long line is cut off at its edge
@@ -77,7 +83,7 @@ pub(crate) fn shaped_label(
     let column = (!widget.wrap && widget.width > 0.0).then(|| widget.width * at.scale);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
-        let request = text_request(widget, caption, width, font, &style);
+        let request = text_request(widget, caption, width, font, style);
         (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
     // An aligned line takes the width it is aligned in; a wrapped block
@@ -155,9 +161,9 @@ fn edit(
     let state = at.eng.resource::<crate::UiState>();
     let mut buffer = {
         let mut state = state.borrow_mut();
-        if state.text_seeds.get(&key) != Some(&widget.text) {
-            state.text_seeds.insert(key.clone(), widget.text.clone());
-            state.text_buffers.insert(key.clone(), widget.text.clone());
+        if state.text_seeds.get(&key).map(String::as_str) != Some(widget.text.as_str()) {
+            state.text_seeds.insert(key.clone(), widget.text.to_string());
+            state.text_buffers.insert(key.clone(), widget.text.to_string());
         }
         state.text_buffers.get(&key).cloned().unwrap_or_default()
     };
@@ -170,7 +176,7 @@ fn edit(
     .id(egui::Id::new(&key))
     .font(font.clone())
     .text_color(color)
-    .hint_text(widget.placeholder.clone())
+    .hint_text(widget.placeholder.to_string())
     .password(widget.secret)
     .desired_width(if want.x > 0.0 {
         want.x

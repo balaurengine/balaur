@@ -8,7 +8,7 @@
 //! thing asked of this crate is what a leaf measures, which is a font query.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
@@ -30,7 +30,15 @@ thread_local! {
 struct Held {
     tree: TaffyTree<usize>,
     /// One node per widget entity, so a widget keeps its node across frames.
-    nodes: HashMap<u64, NodeId>,
+    nodes: FxHashMap<u64, NodeId>,
+    /// What each leaf measured last frame. A leaf's size comes from its
+    /// content, which no style comparison can see, so this is what says
+    /// whether taffy has to solve it again.
+    measures: FxHashMap<u64, egui::Vec2>,
+    /// Everything the node's style was built from last frame, hashed. Taffy's
+    /// `Style` is a few hundred bytes with vectors in it, and building one a
+    /// node a frame only to find it equal was most of the sync walk.
+    styles: FxHashMap<u64, u64>,
 }
 
 impl Default for Held {
@@ -41,7 +49,9 @@ impl Default for Held {
         tree.disable_rounding();
         Self {
             tree,
-            nodes: HashMap::new(),
+            nodes: FxHashMap::default(),
+            measures: FxHashMap::default(),
+            styles: FxHashMap::default(),
         }
     }
 }
@@ -107,6 +117,45 @@ fn floor_or_none(px: f32, scale: f32) -> LengthPercentageAuto {
 /// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align` is
 /// `align_items`, `justify` is `justify_content`, `columns` is how many a
 /// `flow` puts on a line, and `visible = false` is `Display::None`.
+/// Everything [`style_of`] and the `fills` override read, hashed into one
+/// number. Must name every input either of them touches: a field left out is
+/// a change that never reaches taffy.
+fn style_key(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<egui::Vec2>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = rustc_hash::FxHasher::default();
+    widget.visible.hash(&mut hasher);
+    widget.kind.hash(&mut hasher);
+    widget.grow.to_bits().hash(&mut hasher);
+    widget.width.to_bits().hash(&mut hasher);
+    widget.height.to_bits().hash(&mut hasher);
+    widget.min_width.to_bits().hash(&mut hasher);
+    widget.min_height.to_bits().hash(&mut hasher);
+    widget.gap.to_bits().hash(&mut hasher);
+    widget.align.hash(&mut hasher);
+    widget.justify.hash(&mut hasher);
+    pad.to_bits().hash(&mut hasher);
+    scale.to_bits().hash(&mut hasher);
+    drawn.hash(&mut hasher);
+    fills.map(|f| (f.x.to_bits(), f.y.to_bits())).hash(&mut hasher);
+    hasher.finish()
+}
+
+/// The style a node takes, with the box it was handed already applied.
+fn styled(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<egui::Vec2>) -> Style {
+    let mut want = style_of(widget, pad, scale, drawn);
+    // The subtree's own node takes the box it was handed, where it was handed
+    // one: a container's child fills its rect, and only a root on a corner
+    // sizes itself from what is inside it.
+    if let Some(box_size) = fills {
+        want.size = Size {
+            width: length(box_size.x),
+            height: length(box_size.y),
+        };
+        want.flex_grow = 0.0;
+    }
+    want
+}
+
 fn style_of(widget: &Widget, pad: f32, scale: f32, drawn: bool) -> Style {
     if !widget.visible {
         return Style {
@@ -160,7 +209,7 @@ fn style_of(widget: &Widget, pad: f32, scale: f32, drawn: bool) -> Style {
 }
 
 /// The absolute rect of every widget in a solved subtree, by arena index.
-pub(crate) type Rects = HashMap<usize, egui::Rect>;
+pub(crate) type Rects = FxHashMap<usize, egui::Rect>;
 
 /// What a subtree is being solved inside.
 pub(crate) struct Room {
@@ -223,10 +272,16 @@ pub(crate) fn solve(
     scale: f32,
     theme: &Rc<WidgetTheme>,
     room: &Room,
+    fresh: bool,
 ) -> Rects {
     let mut measure = Measure::new(eng, arena, ui, scale);
     TREE.with(|held| {
         let mut held = held.borrow_mut();
+        let mark = std::time::Instant::now();
+        // Only the root when the arena is the one taffy was last given: the
+        // walk exists to notice changes, and nothing it could notice moved.
+        // The root still restyles, because the box it fills is the room's and
+        // a window resize changes that without touching a widget.
         let node = sync(
             &mut held,
             arena,
@@ -236,7 +291,11 @@ pub(crate) fn solve(
             &mut measure,
             room.fill,
             true,
+            fresh,
         );
+        crate::widget_layer::PHASES
+            .with(|p| p.borrow_mut()[4] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0);
+        let mark = std::time::Instant::now();
         let solved = held.tree.compute_layout_with_measure(
             node,
             room.space,
@@ -250,11 +309,13 @@ pub(crate) fn solve(
                 )
             },
         );
+        crate::widget_layer::PHASES
+            .with(|p| p.borrow_mut()[5] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0);
         if let Err(err) = solved {
             tracing::warn!("widget layout: {err:?}");
-            return Rects::new();
+            return Rects::default();
         }
-        let mut rects = Rects::new();
+        let mut rects = Rects::default();
         gather(&held, arena, root, node, room.origin, &mut rects);
         rects
     })
@@ -269,8 +330,9 @@ pub(crate) fn solve_subtree(
     scale: f32,
     theme: &Rc<WidgetTheme>,
     room: &Room,
+    fresh: bool,
 ) -> Rects {
-    solve(eng, arena, root, ui, scale, theme, room)
+    solve(eng, arena, root, ui, scale, theme, room, fresh)
 }
 
 /// What one leaf needs, asked of the fonts rather than of last frame's draw.
@@ -300,61 +362,84 @@ fn sync(
     measure: &mut Measure<'_>,
     fills: Option<egui::Vec2>,
     is_root: bool,
+    deep: bool,
 ) -> NodeId {
     let placed = &arena[index];
     let widget = &placed.widget;
     let theme = crate::widget_layer::theme_of_owned(&widget.theme, theme);
-    let style = crate::widget_layer::styled(&theme, widget);
-    let pad = crate::widget_arrange::padding_of(widget, &style, scale);
+    let look = crate::widget_layer::look_of(arena, index, &theme, scale);
+    let pad = crate::widget_arrange::padding_of(widget, &look.style, scale);
     let drawn = crate::widget_arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
-    let mut want = style_of(widget, pad, scale, drawn);
-    // The subtree's own node takes the box it was handed, where it was handed
-    // one: a container's child fills its rect, and only a root on a corner
-    // sizes itself from what is inside it.
-    if let Some(box_size) = fills {
-        want.size = Size {
-            width: length(box_size.x),
-            height: length(box_size.y),
-        };
-        want.flex_grow = 0.0;
-    }
     let key = placed.entity.to_bits().get();
+    let stamp = style_key(widget, pad, scale, drawn, fills);
     let node = match held.nodes.get(&key).copied() {
-        Some(node) if held.tree.style(node).is_ok() => node,
+        Some(node) if held.tree.style(node).is_ok() => {
+            // Only on a change: `set_style` marks the node dirty, and a shell
+            // that is not moving should re-solve nothing. The stamp is what
+            // says so without building a style to compare against.
+            if held.styles.get(&key).copied() != Some(stamp) {
+                let _ = held
+                    .tree
+                    .set_style(node, styled(widget, pad, scale, drawn, fills));
+                held.styles.insert(key, stamp);
+            }
+            node
+        }
         _ => {
             let made = held
                 .tree
-                .new_leaf_with_context(want.clone(), index)
+                .new_leaf_with_context(styled(widget, pad, scale, drawn, fills), index)
                 .expect("a taffy tree only fails to make a leaf when out of memory");
             held.nodes.insert(key, made);
+            held.styles.insert(key, stamp);
             made
         }
     };
-    // Only on a change: `set_style` marks the node dirty, and a shell that is
-    // not moving should re-solve nothing.
-    if held.tree.style(node).is_ok_and(|held| held != &want) {
-        let _ = held.tree.set_style(node, want);
+    // Only on a change, because setting a context marks the node dirty and
+    // an arena index holds still for as long as the scene does.
+    if held.tree.get_node_context(node).copied() != Some(index) {
+        let _ = held.tree.set_node_context(node, Some(index));
     }
-    let _ = held.tree.set_node_context(node, Some(index));
     // A container's children are taffy's, except the five that place their
     // own; each of those solves its subtree separately.
+    if !deep {
+        // The children taffy holds are the ones this arena put there, and the
+        // leaf sizes with them: nothing below this node can have moved.
+        return node;
+    }
     let kids: Vec<NodeId> = if is_root || owns_children(&widget.kind) {
         placed
             .children
             .iter()
-            .map(|child| sync(held, arena, *child, &theme, scale, measure, None, false))
+            .map(|child| sync(held, arena, *child, &theme, scale, measure, None, false, true))
             .collect()
     } else {
         Vec::new()
     };
-    let same = held
-        .tree
-        .children(node)
-        .is_ok_and(|had| had.as_slice() == kids.as_slice());
-    if !same {
+    if !same_children(&held.tree, node, &kids) {
         let _ = held.tree.set_children(node, &kids);
     }
+    // A leaf's size is its content's, and nothing about the style says the
+    // content changed. Measuring once here and comparing is what lets a
+    // still screen be solved not at all rather than solved again.
+    if kids.is_empty() {
+        let want = measure.leaf(index, &theme);
+        if held.measures.insert(key, want) != Some(want) {
+            let _ = held.tree.mark_dirty(node);
+        }
+    }
     node
+}
+
+/// Whether a node's children are already these, without asking taffy for a
+/// copy of them: `children` clones its vector, once a node a frame.
+fn same_children(tree: &TaffyTree<usize>, node: NodeId, kids: &[NodeId]) -> bool {
+    if tree.child_count(node) != kids.len() {
+        return false;
+    }
+    kids.iter()
+        .enumerate()
+        .all(|(slot, kid)| tree.child_at_index(node, slot).is_ok_and(|had| had == *kid))
 }
 
 /// Walk the solved tree, turning taffy's parent-relative boxes into the
@@ -373,14 +458,12 @@ fn gather(
     let at = origin + egui::vec2(layout.location.x, layout.location.y);
     let rect = egui::Rect::from_min_size(at, egui::vec2(layout.size.width, layout.size.height));
     out.insert(index, rect);
-    let Ok(kids) = held.tree.children(node) else {
-        return;
-    };
+    // A child at a time rather than `children`, which clones its vector.
     for (slot, child) in arena[index].children.iter().enumerate() {
-        let Some(kid) = kids.get(slot) else {
+        let Ok(kid) = held.tree.child_at_index(node, slot) else {
             continue;
         };
-        gather(held, arena, *child, *kid, at, out);
+        gather(held, arena, *child, kid, at, out);
     }
 }
 
@@ -399,9 +482,12 @@ pub(crate) fn sweep(eng: &Engine) {
             })
             .collect();
         for bits in gone {
+            held.measures.remove(&bits);
+            held.styles.remove(&bits);
             if let Some(node) = held.nodes.remove(&bits) {
                 let _ = held.tree.remove(node);
             }
         }
     });
 }
+

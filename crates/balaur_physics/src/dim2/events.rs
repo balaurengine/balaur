@@ -8,7 +8,7 @@
 
 use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
-    EventHandler, PhysicsHooks,
+    ContactPair, EventHandler, PhysicsHooks, RigidBodySet,
 };
 use crate::vocabulary::hook;
 use balaur_core::Engine;
@@ -16,174 +16,13 @@ use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;
 
-pub(crate) enum Event {
-    Started(Entity, Entity),
-    Stopped(Entity, Entity),
-    Force(Entity, Entity, f32, [f32; 2]),
-}
-
-impl Event {
-    /// The pair and the kind: a threaded step raises these in no order, and
-    /// one pair can carry both a `Started` and a `Force`.
-    fn key(&self) -> (u64, u64, u8) {
-        let (a, b, kind) = match self {
-            Self::Started(a, b) => (*a, *b, 0),
-            Self::Stopped(a, b) => (*a, *b, 1),
-            Self::Force(a, b, _, _) => (*a, *b, 2),
-        };
-        (
-            a.to_bits().get().min(b.to_bits().get()),
-            a.to_bits().get().max(b.to_bits().get()),
-            kind,
-        )
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct Collector {
-    events: Mutex<Vec<Event>>,
-}
-
-impl Collector {
-    pub(crate) fn take(self) -> Vec<Event> {
-        let mut events = self
-            .events
-            .into_inner()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        events.sort_unstable_by_key(Event::key);
-        events
-    }
-
-    fn push(&self, event: Event) {
-        self.events
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push(event);
-    }
-}
-
-fn entity_of(colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> {
-    Entity::from_bits(colliders.get(handle)?.user_data as u64)
-}
-
-impl EventHandler for Collector {
-    fn handle_collision_event(
-        &self,
-        _bodies: &crate::rapier2d::prelude::RigidBodySet,
-        colliders: &ColliderSet,
-        event: CollisionEvent,
-        _pair: Option<&crate::rapier2d::prelude::ContactPair>,
-    ) {
-        let (Some(a), Some(b)) = (
-            entity_of(colliders, event.collider1()),
-            entity_of(colliders, event.collider2()),
-        ) else {
-            return;
-        };
-        self.push(if event.started() {
-            Event::Started(a, b)
-        } else {
-            Event::Stopped(a, b)
-        });
-    }
-
-    fn handle_contact_force_event(
-        &self,
-        dt: crate::scalar::Real,
-        _bodies: &crate::rapier2d::prelude::RigidBodySet,
-        colliders: &ColliderSet,
-        pair: &crate::rapier2d::prelude::ContactPair,
-        total_force_magnitude: crate::scalar::Real,
-    ) {
-        let event = ContactForceEvent::from_contact_pair(dt, pair, total_force_magnitude);
-        let (Some(a), Some(b)) = (
-            entity_of(colliders, event.collider1),
-            entity_of(colliders, event.collider2),
-        ) else {
-            return;
-        };
-        let d = event.max_force_direction;
-        self.push(Event::Force(
-            a,
-            b,
-            crate::scalar::f32_of(event.total_force_magnitude),
-            crate::scalar::a2(d),
-        ));
-    }
-}
-
-pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
-    let Some(host) = eng.script_host() else {
-        return;
-    };
-    let node = |e: Entity| Value::Node(e.to_bits().get());
-    for event in events {
-        match *event {
-            Event::Started(a, b) => {
-                host.call_on(
-                    balaur_core::node_id_of(a),
-                    hook::ON_COLLISION_START,
-                    &[node(b)],
-                );
-                host.call_on(
-                    balaur_core::node_id_of(b),
-                    hook::ON_COLLISION_START,
-                    &[node(a)],
-                );
-            }
-            Event::Stopped(a, b) => {
-                host.call_on(
-                    balaur_core::node_id_of(a),
-                    hook::ON_COLLISION_STOP,
-                    &[node(b)],
-                );
-                host.call_on(
-                    balaur_core::node_id_of(b),
-                    hook::ON_COLLISION_STOP,
-                    &[node(a)],
-                );
-            }
-            Event::Force(a, b, magnitude, direction) => {
-                let force = Value::Num(f64::from(magnitude));
-                let towards = Value::Vec2(direction);
-                host.call_on(
-                    balaur_core::node_id_of(a),
-                    hook::ON_CONTACT_FORCE,
-                    &[node(b), force.clone(), towards.clone()],
-                );
-                host.call_on(
-                    balaur_core::node_id_of(b),
-                    hook::ON_CONTACT_FORCE,
-                    &[node(a), force, towards],
-                );
-            }
-        }
-    }
-}
-
-/// The 2D twin of [`crate::events::Hooks`]: collider data, never a script.
-pub(crate) struct Hooks;
-
-impl PhysicsHooks for Hooks {
-    fn modify_solver_contacts(&self, context: &mut ContactModificationContext<'_>) {
-        if let Some(axis) = one_way_axis(context) {
-            context.update_as_oneway_platform(axis, 0.1);
-        }
-    }
-}
-
-/// The 2D twin of `crate::events::one_way_axis`: the platform's direction,
-/// whichever of the pair it is, in the first collider's frame.
-fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<crate::rapier2d::math::Vector> {
-    let first = context.colliders.get(context.collider1)?;
-    if let Some(axis) = decode_one_way(first.user_data) {
-        return Some(axis);
-    }
-    let second = context.colliders.get(context.collider2)?;
-    let axis = decode_one_way(second.user_data)?;
-    let world = second.position().rotation * axis;
-    Some(-(first.position().rotation.inverse() * world))
-}
+crate::shared::events::functions!(
+    dimensions = 2,
+    towards = Vec2,
+    axis = a2,
+    normal = crate::rapier2d::math::Vector,
+    decode = decode_one_way
+);
 
 /// The 2D reading of the axis `crate::collider::encode_one_way` packed: the
 /// same three bits, two of the six directions unused.

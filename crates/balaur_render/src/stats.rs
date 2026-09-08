@@ -8,6 +8,8 @@
 
 use std::collections::BTreeMap;
 
+use balaur_core::collections::DetHashMap;
+use balaur_core::primitive::Solid;
 use balaur_script::{Bindings, BindingsExt as _, Value};
 
 use crate::Engine;
@@ -52,6 +54,27 @@ impl Stats {
     }
 }
 
+/// What counting a node cost last time, so a still frame counts nothing
+/// twice.
+///
+/// Every answer here is the whole asset: an image is read to be measured and a
+/// primitive is spun into triangles to be counted. Both are the same until an
+/// asset reloads, and this pass runs every frame over every node.
+#[derive(Default)]
+pub(crate) struct Measured {
+    /// The asset generation these answers were read at.
+    generation: u64,
+    /// Bytes an image occupies on the GPU, by project-relative path.
+    images: DetHashMap<String, u64>,
+    /// Triangles a `mesh` asset holds, by reference.
+    meshes: DetHashMap<String, u32>,
+    /// Triangles a primitive spins into. A list because a `Solid` holds
+    /// floats and so is compared rather than hashed; a scene has a handful.
+    solids: Vec<(Solid, u32)>,
+    /// The subtree walked this frame, kept so the walk allocates nothing.
+    subtree: Vec<balaur_core::hecs::Entity>,
+}
+
 /// Count what the scene would draw, once per frame.
 ///
 /// Walks the same components the backend syncs from, so the numbers are the
@@ -60,9 +83,20 @@ impl Stats {
 pub fn measure_system(eng: &Engine, _dt: f32) {
     let mut fresh = Stats::default();
     let mut seen: BTreeMap<String, u64> = BTreeMap::new();
+    let cache = eng.resource::<Measured>();
+    let mut cache = cache.borrow_mut();
+    let generation = balaur_core::assets::generation(eng);
+    if cache.generation != generation {
+        cache.generation = generation;
+        cache.images.clear();
+        cache.meshes.clear();
+    }
     {
         let world = eng.world();
-        for entity in balaur_core::scene::collect_subtree(&world, eng.root()) {
+        let mut subtree = std::mem::take(&mut cache.subtree);
+        subtree.clear();
+        balaur_core::scene::collect_subtree_into(&world, eng.root(), &mut subtree);
+        for &entity in &subtree {
             let visible = world
                 .get::<&balaur_core::GlobalAppearance>(entity)
                 .is_ok_and(|a| a.visible);
@@ -76,12 +110,11 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
                 copies,
                 ..NodeCost::default()
             };
-            let mut textures: Vec<String> = Vec::new();
             if let Ok(renderable) = world.get::<&crate::Renderable>(entity) {
                 cost.draws += 1;
-                cost.triangles += triangles_3d(eng, &renderable) * copies;
+                cost.triangles += triangles_3d(eng, &renderable, &mut cache) * copies;
                 if !renderable.texture.is_empty() {
-                    textures.push(renderable.texture.clone());
+                    count_image(eng, &mut cache, &mut seen, &mut cost, &renderable.texture);
                 }
             }
             if let Ok(renderable) = world.get::<&crate::Renderable2d>(entity) {
@@ -90,41 +123,76 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
                 // as once it is triangulated.
                 cost.triangles += 2 * copies;
                 if let Some(sprite) = &renderable.sprite {
-                    textures.push(sprite.path.clone());
+                    count_image(eng, &mut cache, &mut seen, &mut cost, &sprite.path);
                 }
             }
             if cost.draws == 0 {
                 continue;
             }
-            for path in textures {
-                let bytes = image_bytes(eng, &path);
-                cost.texture_bytes += bytes;
-                seen.insert(path, bytes);
-            }
             let name = balaur_core::scene::node_path(&world, entity);
             fresh.by_node.insert(name, cost);
         }
+        cache.subtree = subtree;
     }
     fresh.textures = u32::try_from(seen.len()).unwrap_or(u32::MAX);
     fresh.texture_bytes = seen.values().sum();
     *eng.resource::<Stats>().borrow_mut() = fresh;
 }
 
+/// Add one image to a node's cost and to the frame's distinct set.
+fn count_image(
+    eng: &Engine,
+    cache: &mut Measured,
+    seen: &mut BTreeMap<String, u64>,
+    cost: &mut NodeCost,
+    path: &str,
+) {
+    let bytes = if let Some(bytes) = cache.images.get(path) {
+        *bytes
+    } else {
+        // A zero is not remembered: it means the file did not read, and the
+        // next frame is when it may.
+        let bytes = image_bytes(eng, path);
+        if bytes > 0 {
+            cache.images.insert(path.to_string(), bytes);
+        }
+        bytes
+    };
+    cost.texture_bytes += bytes;
+    if !seen.contains_key(path) {
+        seen.insert(path.to_string(), bytes);
+    }
+}
+
 /// A 3D renderable's triangle count, from the geometry it names.
-fn triangles_3d(eng: &Engine, renderable: &crate::Renderable) -> u32 {
+fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measured) -> u32 {
     if let Some(built) = &renderable.built {
         return u32::try_from(built.indices.len() / 3).unwrap_or(u32::MAX);
     }
     if let Some(name) = &renderable.mesh
         && !name.is_empty()
-        && let Ok(definition) =
-            balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, name)
-        && let Ok(data) = balaur_core::mesh::load_from(eng, &definition)
     {
-        return u32::try_from(data.indices.len() / 3).unwrap_or(u32::MAX);
+        if let Some(count) = cache.meshes.get(name.as_str()) {
+            return *count;
+        }
+        if let Ok(definition) =
+            balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, name)
+            && let Ok(data) = balaur_core::mesh::load_from(eng, &definition)
+        {
+            let count = u32::try_from(data.indices.len() / 3).unwrap_or(u32::MAX);
+            cache.meshes.insert(name.clone(), count);
+            return count;
+        }
     }
     match renderable.shape.solid() {
-        Some(solid) => u32::try_from(solid.build().indices.len() / 3).unwrap_or(u32::MAX),
+        Some(solid) => {
+            if let Some((_, count)) = cache.solids.iter().find(|(s, _)| *s == solid) {
+                return *count;
+            }
+            let count = u32::try_from(solid.build().indices.len() / 3).unwrap_or(u32::MAX);
+            cache.solids.push((solid, count));
+            count
+        }
         None => 0,
     }
 }

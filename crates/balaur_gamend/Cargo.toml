@@ -41,6 +41,7 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
+balaur_testkit.workspace = true
 tempfile = "3"
 tungstenite.workspace = true
 balaur = { workspace = true, features = ["gamend"] }

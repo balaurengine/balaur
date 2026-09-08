@@ -12,6 +12,7 @@
 //! move_x = ["keys:A,D", "axis:LeftStickX"]
 //! ```
 
+use serde::Deserialize as _;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -281,7 +282,12 @@ pub(crate) fn tick(eng: &Engine) {
                 0.0_f32,
                 |best, v| if v.abs() > best.abs() { v } else { best },
             );
-        let slot = state.entry(name.clone()).or_default();
+        // Looked up before inserting: the entry is there after the first
+        // frame, and `entry` would clone the name on every one.
+        let slot = match state.get_mut(name) {
+            Some(slot) => slot,
+            None => state.entry(name.clone()).or_default(),
+        };
         slot.previous = slot.value;
         slot.value = value;
     }
@@ -324,7 +330,7 @@ fn capture_bindings(eng: &Engine) -> serde_json::Value {
 /// Put a recording's bindings in front of the session, and mark the table
 /// loaded so nothing overwrites them with this machine's.
 fn restore_bindings(eng: &Engine, value: &serde_json::Value) {
-    let Ok(table) = serde_json::from_value::<BTreeMap<String, Vec<String>>>(value.clone()) else {
+    let Ok(table) = BTreeMap::<String, Vec<String>>::deserialize(value) else {
         tracing::warn!("the recording's input bindings did not parse; using this project's");
         return;
     };

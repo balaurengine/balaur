@@ -4577,7 +4577,7 @@
         "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
         "running": "How many exports are in flight.",
         "start": "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays.",
-        "targets": "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would also need."
+        "targets": "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."
       },
       "functions": [
         "listen",

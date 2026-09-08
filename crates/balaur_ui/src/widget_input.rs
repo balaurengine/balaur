@@ -144,6 +144,11 @@ fn apply_system(eng: &Engine, _dt: f32) {
 /// it, and collect the field handlers to call with what was typed.
 fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, String, Value)> {
     let mut signals = Vec::new();
+    if !edits.is_empty() {
+        // Written straight onto the component, so the arena kept from last
+        // pass no longer describes it.
+        crate::widget_layer::content_changed();
+    }
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
             continue;
@@ -155,17 +160,17 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
         match edit {
             Edit::Width(w) => widget.width = *w,
             Edit::Height(h) => widget.height = *h,
-            Edit::Active(name) => widget.active.clone_from(name),
+            Edit::Active(name) => widget.active = name.as_str().into(),
             Edit::Text(text) => {
-                widget.text.clone_from(text);
+                widget.text = text.as_str().into();
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.clone(), Value::Str(text.clone())));
+                    signals.push((entity, widget.on_change.to_string(), Value::Str(text.clone())));
                 }
             }
             Edit::Submit(text) => {
-                widget.text.clone_from(text);
+                widget.text = text.as_str().into();
                 if !widget.on_submit.is_empty() {
-                    signals.push((entity, widget.on_submit.clone(), Value::Str(text.clone())));
+                    signals.push((entity, widget.on_submit.to_string(), Value::Str(text.clone())));
                 }
             }
             Edit::Value(value) => {
@@ -173,7 +178,7 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
                 if !widget.on_change.is_empty() {
                     signals.push((
                         entity,
-                        widget.on_change.clone(),
+                        widget.on_change.to_string(),
                         Value::Num(f64::from(*value)),
                     ));
                 }
@@ -181,19 +186,19 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             Edit::Open(open) => {
                 widget.open = *open;
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.clone(), Value::Bool(*open)));
+                    signals.push((entity, widget.on_change.to_string(), Value::Bool(*open)));
                 }
             }
             Edit::Choice(choice) => {
-                widget.text.clone_from(choice);
+                widget.text = choice.as_str().into();
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.clone(), Value::Str(choice.clone())));
+                    signals.push((entity, widget.on_change.to_string(), Value::Str(choice.clone())));
                 }
             }
             Edit::Color(rgba) => {
                 widget.color = *rgba;
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.clone(), Value::Color(*rgba)));
+                    signals.push((entity, widget.on_change.to_string(), Value::Color(*rgba)));
                 }
             }
         }
@@ -214,23 +219,30 @@ fn settle_clicks(
     let mut signals = Vec::new();
     let world = eng.world();
     for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
-        widget.clicked = hit.contains(&entity);
-        if !widget.clicked {
+        let struck = hit.contains(&entity);
+        // Only on the change: this runs over every widget every frame, and a
+        // write that put the same `false` back would rebuild the whole arena.
+        if widget.clicked != struck {
+            widget.clicked = struck;
+            crate::widget_layer::content_changed();
+        }
+        if !struck {
             continue;
         }
         // A click on a check is the tick itself, by mouse or by `accept`.
         if widget.kind == w::CHECK {
             widget.checked = !widget.checked;
+            crate::widget_layer::content_changed();
             if !widget.on_change.is_empty() {
                 changes.push((
                     entity,
-                    widget.on_change.clone(),
+                    widget.on_change.to_string(),
                     Value::Bool(widget.checked),
                 ));
             }
         }
         if !widget.on_click.is_empty() {
-            signals.push((entity, widget.on_click.clone()));
+            signals.push((entity, widget.on_click.to_string()));
         }
     }
     signals

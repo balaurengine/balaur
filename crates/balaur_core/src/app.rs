@@ -7,6 +7,7 @@ use std::time::Duration;
 use crate::time::Instant;
 
 use anyhow::{Context, Result};
+use serde::Deserialize as _;
 
 use crate::engine::{Command, Engine};
 use crate::pack::Pack;
@@ -206,7 +207,7 @@ fn register_facts(app: &mut App) {
         "device",
         |eng| serde_json::to_value(crate::facts::device(eng)).unwrap_or_default(),
         |eng, value| {
-            if let Ok(facts) = serde_json::from_value::<crate::facts::DeviceFacts>(value.clone()) {
+            if let Ok(facts) = crate::facts::DeviceFacts::deserialize(value) {
                 eng.resource::<crate::facts::Device>().borrow_mut().now = facts;
             }
         },
@@ -218,7 +219,7 @@ fn register_facts(app: &mut App) {
                 .unwrap_or_default()
         },
         |eng, value| {
-            if let Ok(clock) = serde_json::from_value::<crate::facts::WallClock>(value.clone()) {
+            if let Ok(clock) = crate::facts::WallClock::deserialize(value) {
                 *eng.resource::<crate::facts::WallClock>().borrow_mut() = clock;
             }
         },
@@ -227,8 +228,7 @@ fn register_facts(app: &mut App) {
         "platform",
         |eng| serde_json::to_value(crate::facts::platform(eng)).unwrap_or_default(),
         |eng, value| {
-            if let Ok(facts) = serde_json::from_value::<crate::facts::PlatformFacts>(value.clone())
-            {
+            if let Ok(facts) = crate::facts::PlatformFacts::deserialize(value) {
                 eng.resource::<crate::facts::Facts>().borrow_mut().0 = Some(facts);
             }
         },
@@ -481,7 +481,7 @@ impl App {
                 serde_json::to_value(&*eng.resource::<T>().borrow())
                     .unwrap_or(serde_json::Value::Null)
             },
-            |eng, value| match serde_json::from_value::<T>(value.clone()) {
+            |eng, value| match T::deserialize(value) {
                 Ok(restored) => *eng.resource::<T>().borrow_mut() = restored,
                 Err(e) => tracing::error!(error = %e, "replaying a resource"),
             },

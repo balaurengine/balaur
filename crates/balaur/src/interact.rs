@@ -48,8 +48,18 @@ fn broadcast(eng: &Engine, event: &str, args: &[Value]) {
         let world = eng.world();
         balaur_core::scene::collect_subtree(&world, eng.root())
     };
+    // The hook's name is spelled once for the whole scene, not once a node.
+    let hook = hooks::hook_of(event);
+    let host = eng.script_host();
     for entity in everyone {
-        dispatch(eng, entity, event, args);
+        bindings::fire(eng, entity, event, args);
+        let Some(host) = host.as_ref() else {
+            continue;
+        };
+        let node = node_id_of(entity);
+        if host.has_method(node, &hook) {
+            host.call_on(node, &hook, args);
+        }
     }
 }
 

@@ -90,11 +90,13 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
+                crate::widget_layer::content_changed();
                 eng.world_mut()
                     .insert_one(entity, widget_from(params))
                     .map_err(|_| anyhow::anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
+                crate::widget_layer::content_changed();
                 let _ = eng.world_mut().remove_one::<Widget>(entity);
                 Ok(())
             }),
@@ -110,10 +112,10 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
 /// A `Widget` back as the property table the inspector and a script read.
 fn widget_to_toml(widget: &Widget) -> toml::Value {
     let mut map = toml::map::Map::new();
-    map.insert(k::KIND.into(), toml::Value::String(widget.kind.clone()));
-    map.insert(k::TEXT.into(), toml::Value::String(widget.text.clone()));
+    map.insert(k::KIND.into(), toml::Value::String(widget.kind.to_string()));
+    map.insert(k::TEXT.into(), toml::Value::String(widget.text.to_string()));
     map.insert(k::VISIBLE.into(), toml::Value::Boolean(widget.visible));
-    map.insert(k::ANCHOR.into(), toml::Value::String(widget.anchor.clone()));
+    map.insert(k::ANCHOR.into(), toml::Value::String(widget.anchor.to_string()));
     map.insert(k::X.into(), toml::Value::Float(f64::from(widget.x)));
     map.insert(k::Y.into(), toml::Value::Float(f64::from(widget.y)));
     map.insert(k::WIDTH.into(), toml::Value::Float(f64::from(widget.width)));
@@ -138,23 +140,23 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(k::CLICKED.into(), toml::Value::Boolean(widget.clicked));
     map.insert(
         k::ON_CLICK.into(),
-        toml::Value::String(widget.on_click.clone()),
+        toml::Value::String(widget.on_click.to_string()),
     );
     map.insert(
         k::PADDING.into(),
         toml::Value::Float(f64::from(widget.padding)),
     );
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
-    map.insert(k::ALIGN.into(), toml::Value::String(widget.align.clone()));
+    map.insert(k::ALIGN.into(), toml::Value::String(widget.align.to_string()));
     map.insert(k::FOCUSABLE.into(), toml::Value::Boolean(widget.focusable));
     map.insert(
         k::ON_FOCUS.into(),
-        toml::Value::String(widget.on_focus.clone()),
+        toml::Value::String(widget.on_focus.to_string()),
     );
-    map.insert(k::THEME.into(), toml::Value::String(widget.theme.clone()));
+    map.insert(k::THEME.into(), toml::Value::String(widget.theme.to_string()));
     map.insert(
         k::TEXT_KEY.into(),
-        toml::Value::String(widget.text_key.clone()),
+        toml::Value::String(widget.text_key.to_string()),
     );
     map.insert(k::GROW.into(), toml::Value::Float(f64::from(widget.grow)));
     map.insert(
@@ -165,19 +167,19 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::MIN_HEIGHT.into(),
         toml::Value::Float(f64::from(widget.min_height)),
     );
-    map.insert(k::DRAW.into(), toml::Value::String(widget.draw.clone()));
+    map.insert(k::DRAW.into(), toml::Value::String(widget.draw.to_string()));
     map.insert(
         k::HANDLE.into(),
         toml::Value::Float(f64::from(widget.handle)),
     );
-    map.insert(k::ACTIVE.into(), toml::Value::String(widget.active.clone()));
-    map.insert(k::LAYER.into(), toml::Value::String(widget.layer.clone()));
+    map.insert(k::ACTIVE.into(), toml::Value::String(widget.active.to_string()));
+    map.insert(k::LAYER.into(), toml::Value::String(widget.layer.to_string()));
     map.insert(k::WRAP.into(), toml::Value::Boolean(widget.wrap));
     map.insert(
         k::TEXT_ALIGN.into(),
-        toml::Value::String(widget.text_align.clone()),
+        toml::Value::String(widget.text_align.to_string()),
     );
-    map.insert(k::SOURCE.into(), toml::Value::String(widget.source.clone()));
+    map.insert(k::SOURCE.into(), toml::Value::String(widget.source.to_string()));
     map.insert(k::MARKUP.into(), toml::Value::Boolean(widget.markup));
     map.insert(
         k::FONT_WEIGHT.into(),
@@ -185,11 +187,11 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     );
     map.insert(
         k::FONT_STYLE.into(),
-        toml::Value::String(widget.font_style.clone()),
+        toml::Value::String(widget.font_style.to_string()),
     );
     map.insert(
         k::PLACEHOLDER.into(),
-        toml::Value::String(widget.placeholder.clone()),
+        toml::Value::String(widget.placeholder.to_string()),
     );
     map.insert(
         k::MAX_LENGTH.into(),
@@ -199,11 +201,11 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(k::NUMERIC.into(), toml::Value::Boolean(widget.numeric));
     map.insert(
         k::ON_CHANGE.into(),
-        toml::Value::String(widget.on_change.clone()),
+        toml::Value::String(widget.on_change.to_string()),
     );
     map.insert(
         k::ON_SUBMIT.into(),
-        toml::Value::String(widget.on_submit.clone()),
+        toml::Value::String(widget.on_submit.to_string()),
     );
     look_to_toml(widget, &mut map);
     controls_to_toml(widget, &mut map);
@@ -213,22 +215,22 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
 /// The keys a widget's look carries: the role it names, the marks and hover
 /// text beside its caption, and the fill, outline and air it states itself.
 fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
-    map.insert(k::ROLE.into(), toml::Value::String(widget.role.clone()));
+    map.insert(k::ROLE.into(), toml::Value::String(widget.role.to_string()));
     map.insert(
         k::TOOLTIP.into(),
-        toml::Value::String(widget.tooltip.clone()),
+        toml::Value::String(widget.tooltip.to_string()),
     );
-    map.insert(k::ICON.into(), toml::Value::String(widget.icon.clone()));
+    map.insert(k::ICON.into(), toml::Value::String(widget.icon.to_string()));
     map.insert(k::DISABLED.into(), toml::Value::Boolean(widget.disabled));
-    map.insert(k::FILL.into(), toml::Value::String(widget.fill.clone()));
-    map.insert(k::STROKE.into(), toml::Value::String(widget.stroke.clone()));
+    map.insert(k::FILL.into(), toml::Value::String(widget.fill.to_string()));
+    map.insert(k::STROKE.into(), toml::Value::String(widget.stroke.to_string()));
     map.insert(
         k::RADIUS.into(),
         toml::Value::Float(f64::from(widget.radius)),
     );
     map.insert(
         k::JUSTIFY.into(),
-        toml::Value::String(widget.justify.clone()),
+        toml::Value::String(widget.justify.to_string()),
     );
     map.insert(
         k::PADDING_X.into(),
@@ -241,7 +243,7 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
 fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::CHECKED.into(), toml::Value::Boolean(widget.checked));
     map.insert(k::COLOR.into(), four(widget.color));
-    map.insert(k::FONT.into(), toml::Value::String(widget.font.clone()));
+    map.insert(k::FONT.into(), toml::Value::String(widget.font.to_string()));
     map.insert(
         k::ROW_HEIGHT.into(),
         toml::Value::Float(f64::from(widget.row_height)),
@@ -256,7 +258,7 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
             widget
                 .options
                 .iter()
-                .map(|o| toml::Value::String(o.clone()))
+                .map(|o| toml::Value::String(o.to_string()))
                 .collect(),
         ),
     );
@@ -348,12 +350,12 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
 struct Read<'a>(&'a toml::Value);
 
 impl Read<'_> {
-    fn str(&self, key: &str, default: &str) -> String {
+    fn str(&self, key: &str, default: &str) -> smol_str::SmolStr {
         self.0
             .get(key)
             .and_then(|v| v.as_str())
             .unwrap_or(default)
-            .to_string()
+            .into()
     }
 
     fn num(&self, key: &str, default: f64) -> f32 {
@@ -497,7 +499,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
             items
                 .iter()
                 .filter_map(toml::Value::as_str)
-                .map(str::to_string)
+                .map(smol_str::SmolStr::new)
                 .collect()
         })
         .unwrap_or_default();

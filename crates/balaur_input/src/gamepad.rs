@@ -21,6 +21,7 @@
 use balaur_core::Engine;
 use balaur_core::collections::DetHashSet;
 use balaur_script::{Bindings, BindingsExt, Value};
+use serde::Deserialize as _;
 
 /// Buttons scripts can ask about, in gilrs's naming. The list is the
 /// vocabulary (same contract as `KEY_NAMES`): queries validate against it,
@@ -124,7 +125,7 @@ pub(crate) fn capture(state: &GamepadState) -> serde_json::Value {
 /// Replace the pads with a recorded tick's. An axis the build no longer
 /// knows is dropped rather than guessed at.
 pub(crate) fn restore(state: &mut GamepadState, value: &serde_json::Value) {
-    let frames: Vec<PadFrame> = match serde_json::from_value(value.clone()) {
+    let frames: Vec<PadFrame> = match Vec::<PadFrame>::deserialize(value) {
         Ok(frames) => frames,
         Err(e) => {
             tracing::error!(error = %e, "replaying gamepad input");

@@ -17,6 +17,7 @@ use balaur_core::{Engine, Stage, Transform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{EulerRot, Quat};
+use serde::Deserialize as _;
 
 pub mod body;
 pub mod character;
@@ -343,7 +344,7 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
-    let frame: PhysicsFrame2d = match serde_json::from_value(value.clone()) {
+    let frame: PhysicsFrame2d = match PhysicsFrame2d::deserialize(value) {
         Ok(frame) => frame,
         Err(e) => {
             tracing::error!(error = %e, "restoring the 2D physics world");
