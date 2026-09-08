@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 57 | 43 | the engine |
+| [`ui`](#ui) | 57 | 45 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -187,7 +187,7 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `add_body`, `add_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_ccd`, `set_damping`, `set_dominance`, `set_enabled`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
+**Functions:** `add_body`, `add_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_ccd`, `set_damping`, `set_dominance`, `set_enabled`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `total_mass`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
 
 **Constants** (48):
 
@@ -222,7 +222,7 @@ cannot drift from what scripts actually see.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `damping`, `distance`, `dominance`, `effective_dominance`, `gravity`, `gravity_scale`, `handles`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `damping`, `distance`, `dominance`, `effective_dominance`, `gravity`, `gravity_scale`, `handles`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
 
 **Constants** (62):
 
@@ -351,7 +351,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
 
-**Constants** (43):
+**Constants** (45):
 
 | Name | Value |
 | --- | --- |
@@ -375,12 +375,12 @@ cannot drift from what scripts actually see.
 | `MOD_SHIFT` | `shift` |
 | `WIDGET_BUTTON` | `button` |
 | `WIDGET_CHECK` | `check` |
+| `WIDGET_CODE` | `code` |
 | `WIDGET_COLOR` | `color` |
 | `WIDGET_COLUMN` | `column` |
 | `WIDGET_DIALOG` | `dialog` |
-| `WIDGET_DRAG_VALUE` | `drag_value` |
 
-…and 19 more.
+…and 21 more.
 
 ## `web`
 

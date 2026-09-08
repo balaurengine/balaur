@@ -46,7 +46,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
+      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `size`, `color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
     }
   },
   "component_docs": {
@@ -3737,9 +3737,9 @@
         "type": "color"
       },
       "columns": {
-        "default": 2,
-        "description": "How many children a `grid` puts on each row",
-        "min": 1,
+        "default": 0,
+        "description": "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list",
+        "min": 0,
         "type": "int"
       },
       "deadzone": {
@@ -3748,9 +3748,19 @@
         "min": 0.0,
         "type": "float"
       },
+      "disabled": {
+        "default": false,
+        "description": "Grey the widget out and swallow its clicks",
+        "type": "bool"
+      },
       "draw": {
         "default": "",
         "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
+        "type": "string"
+      },
+      "fill": {
+        "default": "",
+        "description": "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
         "type": "string"
       },
       "focusable": {
@@ -3815,6 +3825,11 @@
         "min": 0.0,
         "type": "float"
       },
+      "icon": {
+        "default": "",
+        "description": "A glyph from the theme's icon family, drawn before `text`",
+        "type": "string"
+      },
       "inset": {
         "default": [
           0.0,
@@ -3824,6 +3839,19 @@
         ],
         "description": "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels",
         "type": "vec4"
+      },
+      "justify": {
+        "default": "start",
+        "description": "How a container spreads its children along its own direction once they have their sizes",
+        "options": [
+          "start",
+          "center",
+          "end",
+          "between",
+          "around",
+          "evenly"
+        ],
+        "type": "enum"
       },
       "kind": {
         "default": "label",
@@ -3846,6 +3874,7 @@
           "menu",
           "list",
           "tree",
+          "table",
           "slider",
           "drag_value",
           "progress",
@@ -3853,7 +3882,8 @@
           "flow",
           "fold",
           "dialog",
-          "separator"
+          "separator",
+          "code"
         ],
         "type": "enum"
       },
@@ -3927,7 +3957,7 @@
       },
       "options": {
         "default": [],
-        "description": "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, and a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row. `on_change` hears every pick",
+        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
         "type": "strings"
       },
       "padding": {
@@ -3936,9 +3966,24 @@
         "min": 0.0,
         "type": "float"
       },
+      "padding_x": {
+        "default": -1.0,
+        "description": "The air either side of a caption, in design pixels; below zero takes the theme's own",
+        "type": "float"
+      },
       "placeholder": {
         "default": "",
-        "description": "What a `field` shows while it is empty",
+        "description": "What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`'s column names split on U+001F",
+        "type": "string"
+      },
+      "radius": {
+        "default": -1.0,
+        "description": "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall",
+        "type": "float"
+      },
+      "role": {
+        "default": "",
+        "description": "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled",
         "type": "string"
       },
       "row_height": {
@@ -3964,7 +4009,7 @@
       },
       "source": {
         "default": "",
-        "description": "The project-relative image an `image` widget draws",
+        "description": "The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
         "type": "string"
       },
       "step": {
@@ -3972,6 +4017,11 @@
         "description": "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous",
         "min": 0.0,
         "type": "float"
+      },
+      "stroke": {
+        "default": "",
+        "description": "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
+        "type": "string"
       },
       "text": {
         "default": "label",
@@ -3990,12 +4040,12 @@
       },
       "text_color": {
         "default": [
-          0.933,
-          0.945,
-          0.957,
-          1.0
+          0.0,
+          0.0,
+          0.0,
+          0.0
         ],
-        "description": "Text color",
+        "description": "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white",
         "type": "color"
       },
       "text_key": {
@@ -4008,6 +4058,11 @@
         "default": "",
         "description": "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one",
         "type": "asset"
+      },
+      "tooltip": {
+        "default": "",
+        "description": "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why",
+        "type": "string"
       },
       "value": {
         "default": 0.0,
@@ -6088,9 +6143,6 @@
         "locked_axes": [
           "body2d"
         ],
-        "mass": [
-          "body2d"
-        ],
         "max_contact_impulse": [
           "body2d"
         ],
@@ -6161,6 +6213,9 @@
           "body2d"
         ],
         "teleport": [
+          "body2d"
+        ],
+        "total_mass": [
           "body2d"
         ],
         "user_force": [
@@ -6410,7 +6465,6 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "locked_axes": "Whether x, y and rotation are frozen.",
-        "mass": "The body's total mass, colliders included.",
         "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
         "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.",
         "nearest_point": "The closest point on any collider to a world point.",
@@ -6443,6 +6497,7 @@
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
         "sleep": "Put the body to sleep now.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
+        "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         "user_force": "The force the next step will integrate.",
         "user_torque": "The torque the next step will integrate.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
@@ -6478,7 +6533,6 @@
         "kinetic_energy",
         "linear_velocity",
         "locked_axes",
-        "mass",
         "max_contact_impulse",
         "move_character",
         "nearest_point",
@@ -6511,6 +6565,7 @@
         "shapecast",
         "sleep",
         "teleport",
+        "total_mass",
         "user_force",
         "user_torque",
         "velocity_at_point",
@@ -6547,7 +6602,6 @@
         "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32)",
         "locked_axes": "NodeId -> (bool, bool, bool)",
-        "mass": "NodeId -> f32",
         "max_contact_impulse": "NodeId -> f32",
         "move_character": "(NodeId, f32, f32) -> Value",
         "nearest_point": "Value -> Value",
@@ -6580,6 +6634,7 @@
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
         "teleport": "(NodeId, f32, f32) -> ()",
+        "total_mass": "NodeId -> f32",
         "user_force": "NodeId -> (f32, f32)",
         "user_torque": "NodeId -> f32",
         "velocity_at_point": "(NodeId, f32, f32) -> (f32, f32)",
@@ -6684,9 +6739,6 @@
         "locked_axes": [
           "body3d"
         ],
-        "mass": [
-          "body3d"
-        ],
         "max_contact_impulse": [
           "collider3d"
         ],
@@ -6781,6 +6833,9 @@
           "collider3d"
         ],
         "teleport": [
+          "body3d"
+        ],
+        "total_mass": [
           "body3d"
         ],
         "user_force": [
@@ -7106,7 +7161,6 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "locked_axes": "Which translation and rotation axes are frozen.",
-        "mass": "The body's total mass, colliders included.",
         "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
         "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.",
         "nearest_point": "The closest point on any collider to a world point.",
@@ -7148,6 +7202,7 @@
         "swept_aabb": "The box the collider covers over the next step, its motion included: what the broad phase actually tests.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do.",
+        "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         "user_force": "The force the next step will integrate.",
         "user_torque": "The torque the next step will integrate.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
@@ -7197,7 +7252,6 @@
         "kinetic_energy",
         "linear_velocity",
         "locked_axes",
-        "mass",
         "max_contact_impulse",
         "move_character",
         "nearest_point",
@@ -7239,6 +7293,7 @@
         "swept_aabb",
         "teleport",
         "time_of_impact",
+        "total_mass",
         "user_force",
         "user_torque",
         "vehicle_speed",
@@ -7289,7 +7344,6 @@
         "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32, f32)",
         "locked_axes": "NodeId -> (bool, bool, bool, bool, bool, bool)",
-        "mass": "NodeId -> f32",
         "max_contact_impulse": "NodeId -> f32",
         "move_character": "(NodeId, f32, f32, f32) -> Value",
         "nearest_point": "Value -> Value",
@@ -7331,6 +7385,7 @@
         "swept_aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "teleport": "(NodeId, f32, f32, f32) -> ()",
         "time_of_impact": "(NodeId, NodeId, Value) -> Value",
+        "total_mass": "NodeId -> f32",
         "user_force": "NodeId -> (f32, f32, f32)",
         "user_torque": "NodeId -> (f32, f32, f32)",
         "vehicle_speed": "NodeId -> f32",
@@ -8336,6 +8391,10 @@
           "value": "check"
         },
         {
+          "name": "WIDGET_CODE",
+          "value": "code"
+        },
+        {
           "name": "WIDGET_COLOR",
           "value": "color"
         },
@@ -8418,6 +8477,10 @@
         {
           "name": "WIDGET_TAB",
           "value": "tab"
+        },
+        {
+          "name": "WIDGET_TABLE",
+          "value": "table"
         },
         {
           "name": "WIDGET_TEXT_AREA",

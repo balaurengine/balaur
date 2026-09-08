@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 378 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 379 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 | Feature | Default | Web template | What it is | Adds to a web build |
