@@ -219,15 +219,15 @@ fn body(S, k, id) {
         "problems" => dock::problems(S, k),
         "assets" => dock::assets(S, k),
         "docs" => crate::docs::draw(S, k),
-        "timeline" => dock::timeline(S, k),
+
         "debugger" => dock::debugger_view(S, k),
-        "session" => dock::session_view(S, k),
+
         "profiler" => dock::profiler(S, k),
         "cost" => dock::cost(S, k),
         "library" => crate::library::panel(S, k),
         "tiles" => crate::tiles::palette(S, k),
-        "weights" => crate::weights::body(S, k),
-        "bonemap" => crate::bonemap::body(S, k),
+
+
         _ => match crate::plugins::dock(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
@@ -241,6 +241,33 @@ fn body(S, k, id) {
 // Which panels fill which node. A node keeps drawing until told not to, and
 // only the dock owning one may say so: every dock draws each frame, so a
 // global hide has one dock turning off another's node.
+/// The bottom dock's four painting views, a `draw` node each: whichever is
+/// the active panel is shown and the rest are hidden.
+fn canvas_views() {
+    #{
+        timeline: "BottomTimeline",
+        session: "BottomSession",
+        weights: "BottomWeights",
+        bonemap: "BottomBonemap",
+    }
+}
+
+const BOTTOM = "Editor/Shell/Body/Centre/Stack/Bottom/";
+
+fn sync_canvas(S, d) {
+    let painting = false;
+    for (id, name) in canvas_views() {
+        let on = !d.shut && d.active == id;
+        if on {
+            painting = true;
+        }
+        util::fill(BOTTOM + name, #{ visible: on });
+    }
+    // The shared hatch draws the tab row and whatever panel has no node of
+    // its own; it must not also claim half the sheet when one does.
+    util::fill(BOTTOM + "DockBody", #{ grow: if painting { 0.0 } else { 1.0 } });
+}
+
 fn node_owners() {
     #{
         bottom: [
@@ -275,6 +302,9 @@ fn hide_node(which) {
 }
 
 fn hide_unused(S, side, d) {
+    if side == "bottom" {
+        sync_canvas(S, d);
+    }
     for entry in node_owners()[side] {
         let wanted = false;
         for id in entry.panels {
@@ -454,7 +484,9 @@ pub fn folded(S, side) {
 
 pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
-    if folded(S, "bottom") {
+    hide_unused(S, "bottom", d);
+    if d.tabs.len() == 0 || d.shut {
+        hide_tabs("bottom");
         return;
     }
     tab_row(S, k, "bottom", d);

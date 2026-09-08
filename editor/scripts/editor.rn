@@ -523,6 +523,24 @@ pub fn draw_dock_right(this) {
     docks::draw_body(this.S, this.S.theme, "right");
 }
 
+// One hatch per painting view, so the scene names each rather than four of
+// them sharing the dock's body.
+pub fn draw_view_timeline(this) {
+    dock::timeline(this.S, this.S.theme);
+}
+
+pub fn draw_view_session(this) {
+    dock::session_view(this.S, this.S.theme);
+}
+
+pub fn draw_view_weights(this) {
+    weights::body(this.S, this.S.theme);
+}
+
+pub fn draw_view_bonemap(this) {
+    bonemap::body(this.S, this.S.theme);
+}
+
 pub fn draw_dock_tools_left(this) {
     docks::draw_tools(this.S, this.S.theme, "left");
 }

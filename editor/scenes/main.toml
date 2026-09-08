@@ -356,6 +356,49 @@ visible = false
 grow = 1
 columns = 6
 
+# The four views that genuinely paint: lanes with a transport, and two
+# painting tools where the pointer is the input. A node each, so the scene
+# names every view and a reader can see which of them draw.
+[[nodes]]
+id = "bottom_timeline"
+name = "BottomTimeline"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_timeline"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_session"
+name = "BottomSession"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_session"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_weights"
+name = "BottomWeights"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_weights"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_bonemap"
+name = "BottomBonemap"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_bonemap"
+visible = false
+grow = 1
+
 [[nodes]]
 id = "status"
 name = "Status"
