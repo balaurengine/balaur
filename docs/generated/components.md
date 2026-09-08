@@ -1316,12 +1316,12 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>check</code>, <code>dropdown</code>, <code>slider</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>dropdown</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
-<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`</td></tr>
+<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `field` takes; 0 is no limit At least 0.0.</td></tr>
-<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress`</td></tr>
+<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
 <tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `field` to digits, a sign and a point</td></tr>
@@ -1336,13 +1336,13 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws</td></tr>
-<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to; 0 is continuous At least 0.0.</td></tr>
+<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
 <tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.933, 0.945, 0.957, 1.0]</code></td><td>Text color</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
-<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider` or `progress` stands, between `min` and `max`; a slider writes it and calls `on_change` with it</td></tr>
+<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line</td></tr>

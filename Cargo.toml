@@ -67,9 +67,9 @@ hecs = "0.11"
 # crate built without physics in its graph gets the same math, not the platform's.
 glamx = { version = "0.3", features = ["libm", "scalar-math"] }
 notify = "8"
-# `parallel` is added per target in balaur_physics: a plain wasm build has no
-# pool to run it on. rapier compiles that pipeline only without
-# `unsync-callbacks`, so the hooks in balaur_physics hold no `Engine`.
+# `parallel` is added per target in balaur_physics: it threads the solver on
+# rayon, which no wasm build can block on. rapier compiles that pipeline only
+# without `unsync-callbacks`, so the hooks in balaur_physics hold no `Engine`.
 rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
 rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
 serde = { version = "1", features = ["derive"] }

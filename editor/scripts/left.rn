@@ -126,12 +126,28 @@ fn tree_row(S, k, row) {
     });
 }
 
+// Rebuilt only when the document or a fold changed; both loops below are
+// linear in the document, which the drawing no longer is.
+fn open_rows(S) {
+    let key = format!("{}:{}:{}", S.doc_rev, S.doc.len(), S.collapsed.len());
+    if S.tree_cache.get("key") == Some(key) {
+        return S.tree_cache["rows"];
+    }
+    let kids = #{};
+    for (i, node) in S.doc.iter().enumerate() {
+        let parent = node.get("parent").unwrap_or("");
+        if !kids.contains_key(parent) {
+            kids[parent] = [];
+        }
+        kids[parent].push(i);
+    }
+    let rows = flatten(S, kids, "", 0);
+    S.tree_cache = #{ key: key, rows: rows };
+    rows
+}
+
 // `kids` is bucketed by the parent's **id**, so the recursion carries an id
-// too. Descending by name path is what used to make every nested node
-// invisible: no bucket is ever keyed by a path.
-// The open tree as a flat array, deepest-first order preserved. Nothing here
-// draws: `ui::list` then asks for the rows on screen and no others, so the
-// document's size decides this loop and the viewport decides the drawing.
+// too: no bucket is ever keyed by a path.
 fn flatten(S, kids, parent_id, depth) {
     let out = [];
     let children = kids.get(parent_id).unwrap_or([]);
@@ -333,15 +349,7 @@ pub fn tree_body(S, k) {
         filtered_tree(S, k, query);
         return;
     }
-    let kids = #{};
-    for (i, node) in S.doc.iter().enumerate() {
-        let parent = node.get("parent").unwrap_or("");
-        if !kids.contains_key(parent) {
-            kids[parent] = [];
-        }
-        kids[parent].push(i);
-    }
-    let rows = flatten(S, kids, "", 0);
+    let rows = open_rows(S);
     ui::list("tree", #{ max_height: S.layout.left.h - 98.0, row_height: ROW_H + 1.0 },
         rows.len(), |i| {
         tree_row(S, k, rows[i]);

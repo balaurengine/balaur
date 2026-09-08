@@ -90,7 +90,11 @@ pub(crate) fn with_ctx<R>(
 
 /// Make `ui` the target every later `ui.*` call acts on, until [`pop`].
 fn push(ui: &mut egui::Ui) {
-    PASS.with(|p| p.borrow_mut().stack.push(std::ptr::from_mut::<egui::Ui>(ui)));
+    PASS.with(|p| {
+        p.borrow_mut()
+            .stack
+            .push(std::ptr::from_mut::<egui::Ui>(ui));
+    });
 }
 
 fn pop() {
@@ -109,9 +113,8 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> 
     }
 }
 
-/// Push `ui`, run the script callback, pop. All container widgets funnel
-/// through here.
-/// Run a script callback with `ui` as the current target.
+/// Run a script callback with `ui` as the current target. All container
+/// widgets funnel through here.
 ///
 /// The stack is popped even when the callback fails, so one bad handler does
 /// not leave every later widget drawing into a dead `Ui`.

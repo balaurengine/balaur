@@ -84,6 +84,10 @@ pub fn init(this) {
         schemas: #{},
         script_dirty: #{},
         collapsed: #{},
+        // Bumped whenever `S.doc` is replaced, so the outliner can keep a
+        // flattened tree across frames instead of rebuilding one each pass.
+        doc_rev: 0,
+        tree_cache: #{},
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
         sels: [0],

@@ -174,6 +174,9 @@ impl balaur_plugin::Plugin for UiPlugin {
 /// Called by a windowed backend once per frame with the frame's egui
 /// context. Does nothing when the `UiPlugin` is not installed.
 pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
+    // What a pass cost, for `pacing` to decide the next one by. Presentation,
+    // outside the simulation, so it reads a clock the digest never sees.
+    #[allow(clippy::disallowed_methods)]
     let started = balaur_core::time::Instant::now();
     pass(eng, ctx);
     pacing::note_pass(eng, started.elapsed());

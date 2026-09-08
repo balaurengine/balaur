@@ -671,12 +671,14 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
         w::FIELD => crate::widget_text::field(ui, at, index, &font, color),
+        w::TEXT_AREA => crate::widget_text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
         w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),
         w::SLIDER => crate::widget_kinds::slider(ui, at, index),
+        w::DRAG_VALUE => crate::widget_kinds::drag_value(ui, at, index, &font, color),
         w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget_kinds::separator(ui, at, index),
         w::GRID => crate::widget_kinds::grid(ui, at, index),

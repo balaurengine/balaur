@@ -1,6 +1,6 @@
-> **Status:** measured 2026-09-07, nothing built. The numbers in §0 are from
-> the release binary on two projects, and every one is reproducible from the
-> command beside it. No crate has been added and no widget kind written.
+> **Status:** §3 step 1 built 2026-09-07: the outliner draws its viewport
+> rather than the document, and §0 records what that was worth. The rest of
+> the plan is not built. No crate has been added and no widget kind written.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
@@ -32,6 +32,27 @@ balaur edit <project> --offscreen --frames 1000 --timings \
 | `examples/angrynerds`, 38 nodes | shut | 0.52 ms | 0.53 ms | 0.42 ms | 1.62 ms |
 | generated, 2000 nodes | open | **26.24 ms** | 7.43 ms | 3.13 ms | **39.54 ms** |
 | generated, 2000 nodes | shut | 1.06 ms | 6.16 ms | 3.15 ms | 12.84 ms |
+
+**Built 2026-09-07, the outliner on `ui.list`.** `egui::ScrollArea::show_rows`
+places uniform rows by arithmetic and hands back the range on screen, so no
+crate was added. `left.rn`'s recursive `walk` became `flatten`, which builds
+the open tree as an array and draws none of it.
+
+| 2000 nodes, `ui` pass | | wall |
+| --- | ---: | ---: |
+| before | 26.24 ms | 39.54 ms |
+| drawing only the visible rows | 6.16 ms | 19.48 ms |
+| the flattened tree cached | **2.8 to 3.9 ms** | **17.1 to 23.1 ms** |
+
+Seven to nine times quicker at 2000 nodes. The cache is keyed on a `doc_rev`
+bumped wherever `S.doc` is replaced, plus the two lengths, so a fold or an edit
+rebuilds and a still frame does not. The docks now sit 1.7 to 2.9 ms over the
+shut baseline of 1.06 ms, against 25.2 ms before.
+
+Read the spread, not the middle: two runs of the same command differ by up to
+70%, and the worst frame in a run reaches 500 ms. Something stalls
+intermittently, and until that is found only the ratios here are safe to
+quote.
 
 Three things fall out of it.
 

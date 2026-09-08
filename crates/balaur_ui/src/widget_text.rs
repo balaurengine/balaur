@@ -109,6 +109,29 @@ pub(crate) fn field(
     font: &egui::FontId,
     color: egui::Color32,
 ) {
+    edit(ui, at, index, font, color, false);
+}
+
+/// A `field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
+/// and everything a single line reads is read here too.
+pub(crate) fn text_area(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: egui::Color32,
+) {
+    edit(ui, at, index, font, color, true);
+}
+
+fn edit(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: egui::Color32,
+    multiline: bool,
+) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
@@ -123,17 +146,26 @@ pub(crate) fn field(
         state.text_buffers.get(&key).cloned().unwrap_or_default()
     };
     let want = box_of(widget, at.assigned, at.scale);
-    let mut edit = egui::TextEdit::singleline(&mut buffer)
-        .id(egui::Id::new(&key))
-        .font(font.clone())
-        .text_color(color)
-        .hint_text(widget.placeholder.clone())
-        .password(widget.secret)
-        .desired_width(if want.x > 0.0 {
-            want.x
-        } else {
-            ui.available_width()
-        });
+    let mut edit = if multiline {
+        egui::TextEdit::multiline(&mut buffer)
+    } else {
+        egui::TextEdit::singleline(&mut buffer)
+    }
+    .id(egui::Id::new(&key))
+    .font(font.clone())
+    .text_color(color)
+    .hint_text(widget.placeholder.clone())
+    .password(widget.secret)
+    .desired_width(if want.x > 0.0 {
+        want.x
+    } else {
+        ui.available_width()
+    });
+    if multiline && want.y > 0.0 {
+        edit = edit.desired_rows(
+            (want.y / ui.text_style_height(&egui::TextStyle::Body)).max(1.0) as usize,
+        );
+    }
     if widget.max_length > 0.0 {
         edit = edit.char_limit(widget.max_length as usize);
     }

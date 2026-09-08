@@ -33,7 +33,7 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 66 | 48 | the engine |
 | [`physics3d`](#physics3d) | 89 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`render`](#render) | 64 | 30 | the engine |
+| [`render`](#render) | 65 | 30 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 56 | 37 | the engine |
+| [`ui`](#ui) | 57 | 39 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -261,7 +261,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `set_terrain`, `set_text`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `stats`, `terrain`, `text`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polyline_2d`, `draw_rect_2d`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `set_terrain`, `set_text`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `stats`, `terrain`, `text`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (30):
 
@@ -349,9 +349,9 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
 
-**Constants** (37):
+**Constants** (39):
 
 | Name | Value |
 | --- | --- |
@@ -377,10 +377,10 @@ cannot drift from what scripts actually see.
 | `WIDGET_CHECK` | `check` |
 | `WIDGET_COLUMN` | `column` |
 | `WIDGET_DIALOG` | `dialog` |
+| `WIDGET_DRAG_VALUE` | `drag_value` |
 | `WIDGET_DRAW` | `draw` |
-| `WIDGET_DROPDOWN` | `dropdown` |
 
-…and 13 more.
+…and 15 more.
 
 ## `web`
 

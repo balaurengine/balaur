@@ -3818,9 +3818,11 @@
           "draw",
           "image",
           "field",
+          "text_area",
           "check",
           "dropdown",
           "slider",
+          "drag_value",
           "progress",
           "grid",
           "flow",
@@ -3842,7 +3844,7 @@
       },
       "max": {
         "default": 1.0,
-        "description": "The high end of a `slider` or `progress`",
+        "description": "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
         "type": "float"
       },
       "max_length": {
@@ -3853,7 +3855,7 @@
       },
       "min": {
         "default": 0.0,
-        "description": "The low end of a `slider` or `progress`",
+        "description": "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
         "type": "float"
       },
       "min_height": {
@@ -3936,7 +3938,7 @@
       },
       "step": {
         "default": 0.0,
-        "description": "The grid a `slider` snaps to; 0 is continuous",
+        "description": "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous",
         "min": 0.0,
         "type": "float"
       },
@@ -3978,7 +3980,7 @@
       },
       "value": {
         "default": 0.0,
-        "description": "Where a `slider` or `progress` stands, between `min` and `max`; a slider writes it and calls `on_change` with it",
+        "description": "Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it",
         "type": "float"
       },
       "visible": {
@@ -7581,6 +7583,7 @@
         "draw_circle_2d": "Fill a circle in world units for this frame, over everything the scene drew.",
         "draw_line": "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance.",
         "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels.",
+        "draw_lines": "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag.",
         "draw_polyline_2d": "Stroke a chain of world-space points for this frame; width is in pixels.",
         "draw_rect_2d": "Fill a rectangle centred at a point, in world units, for this frame.",
         "draw_text": "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size.",
@@ -7647,6 +7650,7 @@
         "draw_circle_2d",
         "draw_line",
         "draw_line_2d",
+        "draw_lines",
         "draw_polyline_2d",
         "draw_rect_2d",
         "draw_text",
@@ -7714,6 +7718,7 @@
         "draw_circle_2d": "(f32, f32, f32, Option<Value>) -> ()",
         "draw_line": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>) -> ()",
         "draw_line_2d": "(f32, f32, f32, f32, f32, f32, f32, Option<f32>) -> ()",
+        "draw_lines": "Value -> ()",
         "draw_polyline_2d": "(Value, Option<f32>, Option<Value>) -> ()",
         "draw_rect_2d": "(f32, f32, f32, f32, Option<Value>) -> ()",
         "draw_text": "(f32, f32, f32, String, Option<Value>) -> ()",
@@ -8302,6 +8307,10 @@
           "value": "dialog"
         },
         {
+          "name": "WIDGET_DRAG_VALUE",
+          "value": "drag_value"
+        },
+        {
           "name": "WIDGET_DRAW",
           "value": "draw"
         },
@@ -8360,6 +8369,10 @@
         {
           "name": "WIDGET_TAB",
           "value": "tab"
+        },
+        {
+          "name": "WIDGET_TEXT_AREA",
+          "value": "text_area"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",
@@ -8389,6 +8402,7 @@
         "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
         "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
+        "list": "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels.",
         "menu_item": "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu unless `keep_open` says otherwise.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
@@ -8447,6 +8461,7 @@
         "image_button",
         "label",
         "left_panel",
+        "list",
         "menu_item",
         "modal",
         "overlay",
@@ -8506,6 +8521,7 @@
         "image_button": "(String, Option<Value>) -> bool",
         "label": "(String, Option<Value>) -> ()",
         "left_panel": "(String, Option<Value>, CallbackId) -> f64",
+        "list": "(String, Option<Value>, i64, CallbackId) -> ()",
         "menu_item": "(String, Option<Value>) -> bool",
         "modal": "(String, Option<Value>, CallbackId) -> bool",
         "overlay": "(String, Option<Value>, CallbackId) -> ()",

@@ -28,10 +28,10 @@ toml.workspace = true
 libm.workspace = true
 
 
-# The solver threads on rayon. Native spawns its own workers; the shared-memory
-# template gets them as Web Workers from `initThreadPool`. A plain wasm build
-# has neither, so it takes neither the feature nor the crate that sizes it.
-[target.'cfg(any(not(target_family = "wasm"), target_feature = "atomics"))'.dependencies]
+# The solver threads on rayon, and rayon blocks on `Atomics.wait`, which a
+# browser refuses on the main thread. So no wasm build takes it until the frame
+# loop runs in a worker; `initThreadPool` already provides the pool.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 rapier3d = { workspace = true, features = ["parallel"] }
 rapier2d = { workspace = true, features = ["parallel"] }
 rayon = "1"

@@ -93,6 +93,44 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
 }
 
+/// A number dragged sideways, or typed into after a click. `SpinBox` in a
+/// Godot scene; the control an inspector row is mostly made of.
+///
+/// `min` and `max` are the slider's, and so default to 0 and 1. A position or
+/// a scale is neither, and most of what an inspector shows runs free, so that
+/// default pair reads here as no bounds at all: any other pair binds.
+pub(crate) fn drag_value(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let mut value = widget.value;
+    let mut drag = egui::DragValue::new(&mut value);
+    let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
+    if bounded {
+        drag = drag.range(widget.min..=widget.max);
+    }
+    if widget.step > 0.0 {
+        drag = drag.speed(widget.step);
+    }
+    let want = box_of(widget, at.assigned, at.scale);
+    if want.x > 0.0 {
+        ui.spacing_mut().interact_size.x = want.x;
+    }
+    let response = ui.scope(|ui| {
+        ui.style_mut().override_font_id = Some(font.clone());
+        ui.visuals_mut().override_text_color = Some(color);
+        ui.add(drag)
+    });
+    if response.inner.changed() {
+        at.edits.push((placed.entity, Edit::Value(value)));
+    }
+}
+
 /// A bar filled to `value`, with the caption over it.
 pub(crate) fn progress(
     ui: &mut egui::Ui,

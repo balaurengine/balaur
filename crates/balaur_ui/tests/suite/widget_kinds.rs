@@ -82,6 +82,53 @@ fn a_slider_click_writes_where_it_landed() {
 }
 
 #[test]
+fn a_drag_value_shows_its_number_and_takes_a_drag() {
+    let (_dir, mut app) = app();
+    let params =
+        toml::toml! { kind = "drag_value" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let shown = texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        shown.iter().any(|(t, _)| t.contains('2')),
+        "the number is drawn: {shown:?}"
+    );
+    let at = pos2(40.0, 10.0);
+    pass(&app, &ctx, press(at, true));
+    pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(at.x + 40.0, at.y))],
+    );
+    pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
+    consume_input(&mut app);
+    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    assert!(value > 2.0, "dragging right raises it: {value}");
+}
+
+#[test]
+fn a_text_area_keeps_the_newlines_a_field_would_drop() {
+    let (_dir, mut app) = app();
+    let params = toml::toml! { kind = "text_area" x = 0.0 y = 0.0 width = 200.0 height = 80.0 text = "one\ntwo" };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    consume_input(&mut app);
+    assert_eq!(
+        property(&app, entity, "text"),
+        toml::Value::String("one\ntwo".into()),
+        "the second line survives the pass"
+    );
+    let shown = texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        shown.iter().any(|(t, _)| t.contains("two")),
+        "both lines are drawn: {shown:?}"
+    );
+}
+
+#[test]
 fn a_dropdown_takes_the_option_that_was_clicked() {
     let (_dir, mut app) = app();
     let params = toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two", "Three"] x = 0.0 y = 0.0 };

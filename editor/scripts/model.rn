@@ -421,6 +421,7 @@ pub fn expand_instances(S) {
         }
     }
     S.doc = out;
+    S.doc_rev += 1;
 }
 
 fn expand_one(S, out, owner, rel, id_prefix, at_prefix, depth) {
@@ -645,6 +646,7 @@ pub fn load(S) {
     // mirror, or a `#id` reference resolves to nothing inside the editor.
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    S.doc_rev += 1;
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -1136,6 +1138,7 @@ pub fn open_scene(S, rel) {
     let doc = util::obj(toml::parse(fs::read(S.scene_path)));
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    S.doc_rev += 1;
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -1417,6 +1420,7 @@ pub fn delete_selected(S) {
         }
     }
     S.doc = kept;
+    S.doc_rev += 1;
     selection::only(S, util::clamp(S.sel, 0, S.doc.len() - 1));
     build_mirror(S);
     log::info(label);

@@ -191,6 +191,10 @@ impl Frontend {
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
         let reloaded = self.assets_reloaded(app);
+        // The `scene mirror` row in `--timings`: how long the backend spent
+        // copying the scene. Presentation, so it reads a clock the tick never
+        // sees.
+        #[allow(clippy::disallowed_methods)]
         let sync_started = Instant::now();
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();

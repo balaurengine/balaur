@@ -152,7 +152,19 @@ web)
     # names its own toolchain so the two never fight.
     toolchain=${WEB_THREADS_TOOLCHAIN:-nightly}
     rustup component add rust-src --toolchain "$toolchain"
-    RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+atomics,+bulk-memory,+mutable-globals" \
+    # Shared, imported memory is what a worker attaches to: `+atomics` alone
+    # links a private one, and posting it to a worker fails to clone. A shared
+    # memory must declare a maximum, so the flags name one.
+    flags="-C target-feature=+atomics,+bulk-memory,+mutable-globals"
+    flags="$flags -C link-arg=--shared-memory -C link-arg=--import-memory"
+    flags="$flags -C link-arg=--max-memory=4294967296"
+    # wasm-bindgen's threading pass rewrites TLS per worker and looks these up
+    # by name. wasm-ld keeps them internal unless asked, and the pass then
+    # fails with `failed to find __wasm_init_tls`.
+    for sym in __wasm_init_tls __tls_size __tls_align __tls_base; do
+      flags="$flags -C link-arg=--export=$sym"
+    done
+    RUSTFLAGS="${RUSTFLAGS:-} $flags" \
       cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
       --no-default-features --features "$features" \
       -Z build-std=std,panic_abort

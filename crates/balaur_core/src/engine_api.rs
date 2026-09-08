@@ -975,16 +975,19 @@ fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Counted in instructions, not seconds: the same run executes the same
 /// instructions on every machine, so a number that moved is a real change.
 fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let rows = eng.script_host().map(|h| h.script_costs()).unwrap_or_default();
+    let rows = eng
+        .script_host()
+        .map(|h| h.script_costs())
+        .unwrap_or_default();
     Ok(Value::List(
         rows.into_iter()
             .map(|(path, calls, instructions)| {
                 Value::Map(vec![
                     ("path".to_string(), Value::Str(path)),
-                    ("calls".to_string(), Value::Int(calls as i64)),
+                    ("calls".to_string(), Value::Int(calls.cast_signed())),
                     (
                         "instructions".to_string(),
-                        Value::Int(instructions as i64),
+                        Value::Int(instructions.cast_signed()),
                     ),
                 ])
             })

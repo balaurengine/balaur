@@ -307,13 +307,13 @@ fn set_threads(count: usize) {
 #[cfg(target_family = "wasm")]
 fn set_threads(_count: usize) {}
 
-#[cfg(any(not(target_family = "wasm"), target_feature = "atomics"))]
+#[cfg(not(target_family = "wasm"))]
 fn threads() -> usize {
     rayon::current_num_threads()
 }
 
-/// The one thread a plain wasm build runs the solver on.
-#[cfg(all(target_family = "wasm", not(target_feature = "atomics")))]
+/// The one thread a wasm build runs the solver on.
+#[cfg(target_family = "wasm")]
 fn threads() -> usize {
     1
 }
