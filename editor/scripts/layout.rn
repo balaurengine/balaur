@@ -73,6 +73,7 @@ fn node(S, id) {
         "bottom" => SHELL + "/Body/Centre/Stack/Bottom",
         "dockbody" => SHELL + "/Body/Centre/Stack/Bottom/DockBody",
         "status" => SHELL + "/Body/Centre/Stack/Bottom/Status",
+        "rightbody" => SHELL + "/Body/Right/RightSheet/RightBody",
         "railslot" => SHELL + "/Body/Centre/RailSlot",
         "rail" => SHELL + "/Body/Centre/RailSlot/Rail",
         "work" => SHELL + "/Body/Centre/Stack/Upper/Work",
@@ -277,6 +278,9 @@ pub fn compute(S) {
         size(S, side + "sheet", "padding", if shut { SHUT_PAD } else { m.pad });
     }
     size(S, "bottom", "height", dock_h);
+    // The right sheet's header, above the rows the pool makes: a `draw` node
+    // with no size takes whatever is left, which would be the whole sheet.
+    size(S, "rightbody", "height", right_head_h(S));
     size(S, "railslot", "width", rail_w);
     size(S, "rail", "height", crate::center::rail_span(grid, grid.rows));
     size(S, "hooks", "width", hooks_w);
@@ -331,6 +335,23 @@ pub fn compute(S) {
     if m.stage.w > 0.0 && m.stage.h > 0.0 {
         S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
     }
+}
+
+// What the right sheet draws above its form: the tab row every panel has, and
+// then whatever the panel puts before its rows.
+fn right_head_h(S) {
+    let d = S.docks.right;
+    if d.shut {
+        return 0.0;
+    }
+    let rows = crate::docks::row_h(S) + 8.0;
+    if d.active == "inspector" {
+        return rows + 82.0;
+    }
+    if d.active == "import" {
+        return rows + 52.0;
+    }
+    rows
 }
 
 // A side dock's width: nothing when it holds no panel, its rail when it is

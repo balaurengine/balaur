@@ -1,7 +1,8 @@
-// A pool of widget nodes under one host: a form whose fields change with the
-// selection cannot be authored, so a script makes the rows it needs and
-// reuses them. Spare rows are hidden rather than freed, so scrolling a long
-// component list does not churn the scene tree.
+//! A pool of widget nodes under one host: a form whose fields change with the
+//! selection cannot be authored, so a script makes the rows it needs.
+//!
+//! Spare rows are hidden rather than freed, so scrolling a long component
+//! list does not churn the scene tree.
 
 use crate::util;
 
@@ -75,10 +76,10 @@ fn control_at(slot, index) {
     made
 }
 
-// One control: what it reports, then what the row wants it to hold.
-//
-// Read before write, because a node reports the frame before: the value on it
-// now is either what this wrote last frame or the reader's edit over the top.
+/// One control: what it reports, then what the row wants it to hold.
+///
+/// Read before write, because a node reports the frame before: the value on
+/// it now is either what this wrote or the reader's edit over the top.
 fn apply_control(S, host, key, node, want) {
     let kind = want.get("kind").unwrap_or("label");
     let carries = carrier(kind);
@@ -107,10 +108,13 @@ fn apply_control(S, host, key, node, want) {
     set.remove("on");
     if fired {
         set.remove(carries);
-    } else if carries != "" {
-        remember(S, host, key, want.get(carries).unwrap_or(()));
     }
     node.patch_component("widget", set);
+    // Remembered as the node holds it, not as it was asked for: a float goes
+    // through the component as an f32, and 0.2 does not come back as 0.2.
+    if carries != "" && !fired {
+        remember(S, host, key, util::obj(node.get_component("widget"))[carries]);
+    }
 }
 
 /// Put `specs` on the host's children, making what is missing and hiding what

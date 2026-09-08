@@ -85,6 +85,9 @@ pub fn init(this) {
         schemas: #{},
         script_dirty: #{},
         collapsed: #{},
+        // The stage width the layout self-test last saw, so it asserts on a
+        // settled shell rather than on the frame it was still bootstrapping.
+        layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
         form: [], form_draws: [], form_cursor: 0, pool: #{},
         // Bumped whenever `S.doc` is replaced, so the outliner can keep a

@@ -41,10 +41,8 @@ REPORTS = ["docs/ROADMAP.md"]
 
 MAX_SENTENCE = 35
 
-# The website draws every roadmap row as a card, so a row is one sentence and
-# at most 25 words. Its generator (balaur-website scripts/gen-roadmap.mjs)
-# warns and builds the page anyway rather than losing a deploy to a sentence
-# written here, so this is the gate: the limit is checked where the file is.
+# The website draws every roadmap row as a card: one sentence, 25 words.
+# Checked here because the generator warns and builds the page anyway.
 ROADMAP = "docs/ROADMAP.md"
 ROW_SENTENCES = 1
 ROW_WORDS = 25

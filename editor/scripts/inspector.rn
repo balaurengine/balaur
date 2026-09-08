@@ -59,6 +59,21 @@ fn push(S, spec) {
     S.form.push(spec);
 }
 
+/// Start and finish a form, for a panel other than the inspector that fills
+/// the same pool: the right sheet has one, and one panel is up at a time.
+pub fn open_pool(S) {
+    open_form(S);
+}
+
+pub fn close_pool(S) {
+    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), control_w(S));
+}
+
+/// One labelled row of controls, for a panel describing its own form.
+pub fn form_row(S, label, controls) {
+    push(S, #{ label: label, controls: controls });
+}
+
 /// A row the caller draws: a label column and a `draw` node beside it, so the
 /// bespoke rows a control table cannot describe are nodes like the rest.
 fn row(S, k, label, body) {
@@ -878,13 +893,15 @@ fn prop_row(S, k, comp, prop, spec, data) {
 // typing, which is how a range is escaped when a scene wants one.
 fn clamped(spec, v) {
     let out = v;
-    let low = spec.get("min");
-    if let Some(low) = low {
-        out = util::max(util::f(low), out);
+    // Rune rejects `if let Some(x) = x`: the binding is in scope before the
+    // scrutinee is read, so the name has to differ.
+    let floor = spec.get("min");
+    if let Some(value) = floor {
+        out = util::max(util::f(value), out);
     }
-    let high = spec.get("max");
-    if let Some(high) = high {
-        out = util::min(util::f(high), out);
+    let ceiling = spec.get("max");
+    if let Some(value) = ceiling {
+        out = util::min(util::f(value), out);
     }
     out
 }

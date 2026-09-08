@@ -253,7 +253,7 @@ fn node_owners() {
             #{ hide: "outline", panels: ["outline"] },
         ],
         right: [
-            #{ hide: "form", panels: ["inspector"] },
+            #{ hide: "form", panels: ["inspector", "import"] },
         ],
     }
 }
