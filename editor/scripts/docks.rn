@@ -298,59 +298,78 @@ fn tab_h(S) {
     if S.compact { 20.0 } else { 22.0 }
 }
 
-fn tab_row(S, k, side, d) {
-    ui::horizontal(#{ height: row_h(S) }, || {
-        ui::spacing(3, 0);
-        ui::add_space(2);
-        for id in d.tabs {
-            tab(S, k, side, d, id);
-        }
-        ui::right(|| {
-            ui::add_space(2);
-            if ui::pill(icons::ui(shut_icon(side)), #{
-                role: "icon_button", height: tab_h(S), size: style::SM, padding_x: 5,
-                tooltip: "Minimise",
-            }) {
-                S.docks[side].shut = true;
-            }
-            tools(S, k, d.active, S.layout[side].w);
-        });
-    });
-    ui::separator(k.line);
+// Where each dock's tab strip and its tools hatch live.
+fn head_of(side) {
+    let sheet = if side == "bottom" {
+        "Editor/Shell/Body/Centre/Stack/Bottom"
+    } else if side == "left" {
+        "Editor/Shell/Body/Left/LeftSheet"
+    } else {
+        "Editor/Shell/Body/Right/RightSheet"
+    };
+    let name = if side == "bottom" { "Bottom" } else if side == "left" { "Left" } else { "Right" };
+    sheet + "/" + name + "Head/" + name + "Tabs"
 }
 
-// One tab: its name, the count Problems carries, and the mark that closes it,
-// in one tile so the two read as a single control.
-fn tab(S, k, side, d, id) {
-    let p = panel(S, id);
-    let active = d.active == id;
-    let label = p.name;
-    if id == "problems" {
-        let (errors, warnings) = crate::lint::counts(S);
-        if errors + warnings > 0 {
-            label += format!(" {}", errors + warnings);
-        }
-    }
+fn tab_row(S, k, side, d) {
+    crate::pool::strip(S, head_of(side), tab_controls(S, k, side, d));
+}
+
+// One control a tab, the mark that closes it, and the fold at the end. The
+// panel's own tools are the hatch beside this strip.
+fn tab_controls(S, k, side, d) {
     let h = tab_h(S);
-    ui::frame(#{ fill: if active { k.accent_soft } else { "none" }, radius: 5 }, || {
-        ui::horizontal(#{ height: h, tight: true }, || {
-            ui::spacing(0, 0);
-            if ui::pill(label, #{
-                role: if active { "tab_on" } else { "tab" },
-                height: h, fill: "none", padding_x: 7,
-                menu: || tab_menu(S, k, side, id, p.name),
-            }) {
-                S.docks[side].active = id;
+    let out = [];
+    for id in d.tabs {
+        let held = id;
+        let p = panel(S, held);
+        let active = d.active == held;
+        let label = p.name;
+        if held == "problems" {
+            let (errors, warnings) = crate::lint::counts(S);
+            if errors + warnings > 0 {
+                label += format!(" {}", errors + warnings);
             }
-            if ui::pill(icons::ui("close"), #{
-                height: h, min_width: 18, size: style::MD, fill: "none", padding_x: 2,
-                color: if active { k.accent } else { k.faint },
-                tooltip: format!("Close {}", p.name),
-            }) {
-                close(S, id);
-            }
+        }
+        out.push(#{
+            kind: "button", height: h, text: label, padding_x: 7,
+            role: if active { "tab_on" } else { "tab" },
+            on: |_| { S.docks[side].active = held; },
         });
+        out.push(#{
+            kind: "button", height: h, width: 18, text: "", icon: icons::ui("close"),
+            role: if active { "tab_on" } else { "tab" },
+            tooltip: format!("Close {}", p.name),
+            on: |_| { close(S, held); },
+        });
+    }
+    // The panel's own controls sit between the names and the fold, which is
+    // where they have always been; a `draw` control is a node like the rest.
+    out.push(#{
+        kind: "draw", grow: 1,
+        draw: format!("draw_dock_tools_{}", side),
     });
+    out.push(#{
+        kind: "button", height: h, width: 22, text: "",
+        icon: icons::ui(shut_icon(side)), role: "icon_button",
+        tooltip: "Minimise",
+        on: |_| { S.docks[side].shut = true; },
+    });
+    out
+}
+
+/// The panel's own controls, in the slot beside its dock's tabs.
+pub fn draw_tools(S, k, side) {
+    let d = S.docks[side];
+    if d.shut || d.tabs.len() == 0 {
+        return;
+    }
+    tools(S, k, d.active, S.layout[side].w);
+}
+
+/// Stop drawing a dock's tab strip, for a dock that is folded or empty.
+fn hide_tabs(side) {
+    util::hide(head_of(side));
 }
 
 fn tab_menu(S, k, side, id, name) {
@@ -464,11 +483,11 @@ pub fn draw_status(S, k) {
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
     hide_unused(S, side, d);
-    if d.tabs.len() == 0 {
-        return;
-    }
-    if d.shut {
-        handle_body(S, k, side);
+    if d.tabs.len() == 0 || d.shut {
+        hide_tabs(side);
+        if d.tabs.len() > 0 {
+            handle_body(S, k, side);
+        }
         return;
     }
     tab_row(S, k, side, d);

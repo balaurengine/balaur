@@ -99,74 +99,85 @@ pub fn transport_spot(S, n) {
     (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0)
 }
 
-/// The one bar across the top, drawn into the rect its node hands over. The
-/// sheet around it is the node's own paint.
+// The strip beside the brand, which every control past it lives on.
+const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadStrip";
+
+/// The brand, drawn into the rect its node hands over: it is a picture with a
+/// menu hanging off it, which is the one control here a node cannot yet be.
 pub fn top_bar(S) {
     let k = S.theme;
     let h = row_h(S);
-    {
-        ui::horizontal(#{ height: h }, || {
-            ui::spacing(4, 0);
-            ui::add_space(2);
-            let mark = brand(S);
-            // The mark is the shell's one menu, and wears the tile and caret a
-            // menu button wears: a bare picture says nothing about clicking.
-            ui::frame(#{ fill: k.sunken, radius: 6, padding_x: 3 }, || {
-                ui::horizontal(#{ height: h - 4.0, tight: true }, || {
-                    ui::spacing(3, 0);
-                    ui::image_button(mark.logo, #{
-                        height: h - 12.0, radius: 9, fill: "#ffffff", padding: 2,
-                        tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
-                    });
-                    if !S.compact {
-                        ui::label(mark.name, #{ role: "title", color: k.text });
-                    }
-                    ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });
-                });
+    let mark = brand(S);
+    ui::frame(#{ fill: k.sunken, radius: 6, padding_x: 3 }, || {
+        ui::horizontal(#{ height: h - 4.0, tight: true }, || {
+            ui::spacing(3, 0);
+            ui::image_button(mark.logo, #{
+                height: h - 12.0, radius: 9, fill: "#ffffff", padding: 2,
+                tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
             });
-            ui::add_space(8);
-            for p in defs::personas() {
-                let active = S.persona == p.id;
-                let label = if S.compact { "" } else { p.name };
-                if ui::pill(label, #{
-                    role: if active { "navtab_on" } else { "navtab" },
-                    height: h - 4.0, padding_x: if S.compact { 6 } else { 8 },
-                    icon: p.icon, tooltip: p.name,
-                }) {
-                    shell::set_persona(S, p.id);
-                }
+            if !S.compact {
+                ui::label(mark.name, #{ role: "title", color: k.text });
             }
-            ui::add_space(8);
-            doc_tabs(S, k);
-            ui::right(|| {
-                if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
-                    height: h, min_width: THEME_W, size: style::LG, radius: 8, padding_x: 0,
-                    fill: k.sunken, color: k.dim, tooltip: "Toggle theme",
-                }) {
-                    theme::set_dark(S, !k.dark);
-                }
-                if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                    height: h, min_width: CMD_W_COMPACT, size: style::MD, radius: 8,
-                    padding_x: if S.compact { 0 } else { 9 }, icon: icons::ui("search"),
-                    fill: k.sunken, color: k.faint, tooltip: "⌘K",
-                }) {
-                    shell::open_palette(S, "");
-                }
-                ui::add_space(4);
-                ui::horizontal(#{ height: h, width: BLOCK_W }, || {
-                    ui::right(|| transport(S, k));
-                });
-            });
+            ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });
         });
-    }
+    });
+    crate::pool::strip(S, STRIP_NODE, bar_controls(S, k));
 }
 
-// The open documents: the scene, always; the selection's script and the
-// event bindings while they are open. Only the last two close.
-fn doc_tabs(S, k) {
+// Everything on the bar past the brand, in the order it reads: the personas,
+// the open documents, then the split, and the right end after a spring.
+fn bar_controls(S, k) {
+    let h = row_h(S) - 4.0;
+    let out = [];
+    for p in defs::personas() {
+        let id = p.id;
+        out.push(#{
+            kind: "button", height: h,
+            role: if S.persona == id { "navtab_on" } else { "navtab" },
+            text: if S.compact { "" } else { p.name },
+            icon: p.icon, tooltip: p.name,
+            on: |_| { shell::set_persona(S, id); },
+        });
+    }
+    for entry in doc_controls(S, k, h) {
+        out.push(entry);
+    }
+    out.push(#{
+        kind: "button", height: h, icon: icons::ui("split"),
+        role: if S.split { "navtab_on" } else { "navtab" },
+        text: if S.compact { "" } else { "Split" },
+        tooltip: "Show the code and the viewport at once (⌘\\)",
+        on: |_| { shell::toggle_split(S); },
+    });
+    // The spring: what is after it sits against the bar's right edge.
+    out.push(#{ kind: "row", grow: 1 });
+    out.push(#{
+        kind: "button", height: row_h(S), width: THEME_W, radius: 8, fill: "sunken",
+        text: "", icon: if k.dark { icons::ui("dark") } else { icons::ui("light") },
+        tooltip: "Toggle theme",
+        on: |_| { theme::set_dark(S, !k.dark); },
+    });
+    out.push(#{
+        kind: "button", height: row_h(S), radius: 8, fill: "sunken", role: "meta",
+        text: if S.compact { "" } else { "Run a command" }, icon: icons::ui("search"),
+        tooltip: "⌘K",
+        on: |_| { shell::open_palette(S, ""); },
+    });
+    for entry in transport_controls(S) {
+        out.push(entry);
+    }
+    out
+}
+
+// The open documents: the scene, always; the selection's script and the event
+// bindings while they are open. Only the last two close.
+fn doc_controls(S, k, h) {
     let node = model::selected_node(S);
+    let out = [];
     let scene = util::last_segment(S.scene_rel) + (if history::dirty(S) { " ●" } else { "" });
-    tab(S, k, "scene", icons::panel("scene"), scene, false);
+    for entry in doc_tab(S, "scene", icons::panel("scene"), scene, false, h) {
+        out.push(entry);
+    }
     if S.script_open {
         let label = match model::script_rel(node) {
             Some(script) => {
@@ -175,69 +186,56 @@ fn doc_tabs(S, k) {
             }
             None => "no script",
         };
-        tab(S, k, "script", icons::ui("scriptfile"), label, true);
+        for entry in doc_tab(S, "script", icons::ui("scriptfile"), label, true, h) {
+            out.push(entry);
+        }
     }
     if S.events_open {
-        tab(S, k, "events", icons::ui("events"), "events", true);
+        for entry in doc_tab(S, "events", icons::ui("events"), "events", true, h) {
+            out.push(entry);
+        }
     }
-    ui::add_space(2);
-    if ui::pill(if S.compact { "" } else { "Split" }, #{
-        role: if S.split { "navtab_on" } else { "navtab" }, icon: icons::ui("split"),
-        height: row_h(S) - 4.0, padding_x: if S.compact { 6 } else { 8 },
-        tooltip: "Show the code and the viewport at once (⌘\\)",
-    }) {
-        shell::toggle_split(S);
-    }
+    out
 }
 
-// One tab: the label pill and, when it closes, a close mark in the same
-// tile, so the two read as one control.
-fn tab(S, k, id, icon, label, closable) {
+// One tab: the label, and the close mark beside it when it closes.
+fn doc_tab(S, id, icon, label, closable, h) {
     let active = S.doctab == id;
-    let h = row_h(S) - 4.0;
-    ui::frame(#{ fill: if active { k.accent_soft } else { k.panel }, radius: 5 }, || {
-        ui::horizontal(#{ height: h, tight: true }, || {
-            ui::spacing(0, 0);
-            if ui::pill(label, #{
-                role: if active { "navtab_on" } else { "navtab" }, icon: icon, fill: "none",
-                height: h, padding_x: 8,
-            }) {
-                shell::open_doc(S, id);
-            }
-            if closable {
-                if ui::pill(icons::ui("close"), #{
-                    height: h, min_width: 18, size: style::MD, fill: "none", padding_x: 2,
-                    color: if active { k.accent } else { k.faint }, tooltip: "Close",
-                }) {
-                    shell::close_doc(S, id);
-                }
-            }
+    let out = [#{
+        kind: "button", height: h, text: label, icon: icon,
+        role: if active { "navtab_on" } else { "navtab" },
+        on: |_| { shell::open_doc(S, id); },
+    }];
+    if closable {
+        out.push(#{
+            kind: "button", height: h, width: 18, text: "", icon: icons::ui("close"),
+            role: if active { "navtab_on" } else { "navtab" },
+            tooltip: "Close",
+            on: |_| { shell::close_doc(S, id); },
         });
-    });
+    }
+    out
 }
 
-// Play, pause and stop; the last two are off until something runs. A loaded
-// session pauses through the player, or the scripts would run on and the
-// replay would stop reproducing the recording.
-fn transport(S, k) {
-    ui::horizontal(#{ height: row_h(S), width: BLOCK_W, tight: true }, || {
-        ui::spacing(3, 0);
-        let replaying = crate::session::loaded(S);
-        let running = S.playing || replaying;
-        if ui::circle_button(icons::ui("play"), #{
+// Play, pause and stop; the last two are off until something runs.
+fn transport_controls(S) {
+    let replaying = crate::session::loaded(S);
+    let running = S.playing || replaying;
+    let paused = if replaying {
+        replay::state() == replay::STATE_PAUSED
+    } else {
+        S.playing && (physics::is_paused())
+    };
+    [
+        #{
+            kind: "button", text: "", icon: icons::ui("play"),
             role: if S.playing { "transport_on" } else { "transport" },
             tooltip: if S.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
-        }) {
-            shell::toggle_play(S);
-        }
-        let paused = if replaying {
-            replay::state() == replay::STATE_PAUSED
-        } else {
-            S.playing && (physics::is_paused())
-        };
-        if ui::circle_button(icons::ui("pause"), #{
+            on: |_| { shell::toggle_play(S); },
+        },
+        #{
+            kind: "button", text: "", icon: icons::ui("pause"), disabled: !running,
             role: if paused { "transport_on" } else { "transport" },
-            disabled: !running,
             tooltip: if !running {
                 "Run the scene first"
             } else if replaying {
@@ -245,24 +243,27 @@ fn transport(S, k) {
             } else {
                 "Pause simulation"
             },
-        }) {
-            if replaying {
-                crate::session::toggle_pause(S);
-            } else {
-                physics::set_paused(!physics::is_paused());
-            }
-        }
-        if ui::circle_button(icons::ui("stop"), #{
-            role: "transport", disabled: !running,
+            on: |_| {
+                if replaying {
+                    crate::session::toggle_pause(S);
+                } else {
+                    physics::set_paused(!physics::is_paused());
+                }
+            },
+        },
+        #{
+            kind: "button", text: "", icon: icons::ui("stop"), disabled: !running,
+            role: "transport",
             tooltip: if running { "Stop" } else { "Nothing is running" },
-        }) {
-            if replaying {
-                crate::session::close(S);
-            } else {
-                shell::stop_play(S);
-            }
-        }
-    });
+            on: |_| {
+                if replaying {
+                    crate::session::close(S);
+                } else {
+                    shell::stop_play(S);
+                }
+            },
+        },
+    ]
 }
 
 /// The status strip: what the editor is doing, how big the scene is, and the

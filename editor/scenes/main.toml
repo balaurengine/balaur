@@ -37,14 +37,38 @@ height = 40
 padding = 5
 gap = 0
 
+# A panel stacks what is in it, so the bar's own direction is this row.
+[[nodes]]
+id = "head_row"
+name = "HeadRow"
+parent = "head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 8
+align = "center"
+
+# The brand, which is the shell's one menu, and then everything else as a
+# strip `chrome.rn` fills: how many personas and documents there are changes
+# with the persona and with what is open, so the bar cannot be authored.
 [[nodes]]
 id = "head_body"
 name = "HeadBody"
-parent = "head"
+parent = "head_row"
 [nodes.widget]
 kind = "draw"
 draw = "draw_top_bar"
+width = 118
+
+[[nodes]]
+id = "head_strip"
+name = "HeadStrip"
+parent = "head_row"
+[nodes.widget]
+kind = "row"
 grow = 1
+gap = 4
+align = "center"
 
 [[nodes]]
 id = "body"
@@ -78,6 +102,26 @@ grow = 1
 # What a sheet keeps inside its edge. Stated rather than left to the widget
 # theme because a folded dock writes a smaller one and needs this back.
 padding = 8
+
+# The dock's tab row: one control a tab, and the mark that closes it.
+[[nodes]]
+id = "left_head"
+name = "LeftHead"
+parent = "left_sheet"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "left_tabs"
+name = "LeftTabs"
+parent = "left_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
 
 [[nodes]]
 id = "left_body"
@@ -135,6 +179,26 @@ padding = 8
 
 # The right sheet in three: the header and the search the panel draws, the
 # rows the pool makes, and the footer that must stay under a long form.
+# The dock's tab row: one control a tab, and the mark that closes it.
+[[nodes]]
+id = "right_head"
+name = "RightHead"
+parent = "right_sheet"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "right_tabs"
+name = "RightTabs"
+parent = "right_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
+
 [[nodes]]
 id = "right_body"
 name = "RightBody"
@@ -225,6 +289,25 @@ gap = 0
 
 # What a dock panel may scroll, and the status strip sharing the same sheet so
 # a tall panel cannot push it off the bottom.
+[[nodes]]
+id = "bottom_head"
+name = "BottomHead"
+parent = "bottom"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "bottom_tabs"
+name = "BottomTabs"
+parent = "bottom_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
+
 [[nodes]]
 id = "dockbody"
 name = "DockBody"

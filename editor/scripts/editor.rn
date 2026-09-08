@@ -523,6 +523,18 @@ pub fn draw_dock_right(this) {
     docks::draw_body(this.S, this.S.theme, "right");
 }
 
+pub fn draw_dock_tools_left(this) {
+    docks::draw_tools(this.S, this.S.theme, "left");
+}
+
+pub fn draw_dock_tools_right(this) {
+    docks::draw_tools(this.S, this.S.theme, "right");
+}
+
+pub fn draw_dock_tools_bottom(this) {
+    docks::draw_tools(this.S, this.S.theme, "bottom");
+}
+
 pub fn draw_dock_right_foot(this) {
     docks::draw_right_foot(this.S, this.S.theme);
 }

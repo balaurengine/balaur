@@ -5,6 +5,7 @@
 //! asks the font atlas instead, so a row sizes itself to a label that changed
 //! this frame rather than to the one it showed last.
 
+use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget_arrange::padding_of;
 use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
@@ -86,11 +87,7 @@ impl<'a> Measure<'a> {
                         )
                     })
             }
-            w::BUTTON => {
-                let text = self.text(widget, theme);
-                // egui's own button padding, which is what it will draw with.
-                text + self.padding
-            }
+            w::BUTTON => self.button(widget, theme),
             w::LABEL => self.text(widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
@@ -285,6 +282,37 @@ impl<'a> Measure<'a> {
             size = size.max(self.of(child, theme));
         }
         size
+    }
+
+    /// A button's box: the icon, the caption, the air either side, and the
+    /// floor its role carries. The same arithmetic the draw does, or a strip
+    /// of buttons is handed less room than it paints into.
+    fn button(&self, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let style = crate::widget_layer::styled(theme, widget);
+        let (_, font) = crate::widget_layer::face(&style, widget, self.scale);
+        let text = self.text(widget, theme);
+        let mark = if widget.icon.is_empty() {
+            egui::Vec2::ZERO
+        } else {
+            let face = egui::FontId::new(font.size, family(w::ICON));
+            self.painter
+                .layout_no_wrap(widget.icon.clone(), face, egui::Color32::WHITE)
+                .size()
+        };
+        let gap = if mark.x > 0.0 && text.x > 0.0 {
+            font.size * 0.5
+        } else {
+            0.0
+        };
+        let pad = style
+            .padding_x
+            .map_or(self.padding.x, |p| p * self.scale * 2.0);
+        let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0)) * self.scale;
+        vec2(
+            mark.x + gap + text.x + pad,
+            mark.y.max(text.y) + self.padding.y,
+        )
+        .max(floor)
     }
 
     fn text(&self, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {

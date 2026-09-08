@@ -366,16 +366,13 @@ fn script_props_rows(S, k, node) {
         data[export.name] = value;
         prop_row(S, k, SCRIPT_PROPS, export.name, spec, data);
         if overridden {
-            ui::horizontal(#{ height: 20 }, || {
-                ui::add_space(label_w(S) + 8.0);
-                if ui::pill("reset", #{
-                    height: 20, size: style::SM, radius: 3, fill: k.sunken, color: k.faint,
-                    tooltip: "Back to the script's default",
-                }) {
-                    model::set_script_prop(S, export.name, export["default"]);
-                }
-            });
-            ui::add_space(4);
+            let name = export.name;
+            let back = export["default"];
+            push(S, #{ label: "", height: 22, controls: [#{
+                kind: "button", height: 20, text: "reset", role: "chip", width: 52,
+                tooltip: "Back to the script's default",
+                on: |_| { model::set_script_prop(S, name, back); },
+            }] });
         }
     }
 }
@@ -1410,12 +1407,17 @@ fn events_section(S, k) {
     let script = match model::script_rel(node) {
         Some(script) => script,
         None => {
-            style::empty(k, "no script attached");
+            wide_row(S, 26, || {
+                style::empty(k, "no script attached");
+            });
             return;
         }
     };
     for hook in model::hooks(S, script) {
-        style::hook_pill(k, hook.name, hook.name + "()", "→ engine");
+        let held = hook;
+        wide_row(S, 26, || {
+            style::hook_pill(k, held.name, held.name + "()", "→ engine");
+        });
     }
 }
 

@@ -85,7 +85,16 @@ fn apply_control(S, host, key, node, want) {
     let carries = carrier(kind);
     let params = util::obj(node.get_component("widget"));
     let fired = false;
-    if carries != "" {
+    // A press is not a value: it is true for one frame and the layer clears
+    // it, so there is nothing to remember and nothing to write back.
+    if carries == "clicked" {
+        if params["clicked"] == true {
+            let found = want.get("on");
+            if let Some(act) = found {
+                act(true);
+            }
+        }
+    } else if carries != "" {
         let seen = params[carries];
         let table = memo(S, host);
         let before = table.get(key);
@@ -106,14 +115,41 @@ fn apply_control(S, host, key, node, want) {
     }
     let set = util::merge(want, #{ visible: true });
     set.remove("on");
+    set.remove("clicked");
     if fired {
         set.remove(carries);
     }
     node.patch_component("widget", set);
     // Remembered as the node holds it, not as it was asked for: a float goes
     // through the component as an f32, and 0.2 does not come back as 0.2.
-    if carries != "" && !fired {
+    if carries != "" && carries != "clicked" && !fired {
         remember(S, host, key, util::obj(node.get_component("widget"))[carries]);
+    }
+}
+
+/// Fill a row of controls, one node each, making and hiding as needed.
+///
+/// The strip the chrome is made of: how many personas, documents and tools
+/// there are changes with the persona and with what is open, so the bar can
+/// no more be authored than the inspector's form can.
+pub fn strip(S, host_path, controls) {
+    let host = scene::get_node(host_path);
+    if util::is_nil(host) {
+        return;
+    }
+    host.patch_component("widget", #{ visible: true });
+    let made = host.children().len();
+    while made < controls.len() {
+        let node = host.add_child(format!("C{}", made));
+        node.set_component("widget", #{ kind: "label" });
+        made += 1;
+    }
+    for (i, node) in host.children().iter().enumerate() {
+        if i >= controls.len() {
+            node.patch_component("widget", #{ visible: false });
+            continue;
+        }
+        apply_control(S, host_path, format!("{}", i), node, controls[i]);
     }
 }
 
