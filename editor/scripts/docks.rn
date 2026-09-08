@@ -381,6 +381,7 @@ fn tab_controls(S, k, side, d) {
             tooltip: format!("Close {}", p.name),
             on: |_| { close(S, held); },
         });
+        inner.push(#{ kind: "row", width: 5 });
         out.push(#{
             height: h, radius: 5, controls: inner,
             fill: if active { "accent_soft" } else { "none" },

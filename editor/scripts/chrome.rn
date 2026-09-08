@@ -215,6 +215,7 @@ fn doc_tab(S, id, icon, label, closable, h) {
             on: |_| { shell::close_doc(S, id); },
         });
     }
+    inner.push(#{ kind: "row", width: 5 });
     // One tile: the row carries the fill and the corners, and the halves
     // inside it paint nothing.
     let out = [];

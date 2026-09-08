@@ -302,21 +302,17 @@ fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool]) {
     let ink = ui.visuals().weak_text_color().gamma_multiply(0.55);
     let stroke = Stroke::new(1.0, ink);
     let middle = head.y + step / 2.0;
-    for (level, &continues) in trail.iter().take(own).enumerate() {
+    // One vertical at most: the shallowest level whose branch carries on.
+    // Everything inside it is a dash, so a deep row reads `| - -` rather than
+    // a wall of pipes.
+    let pipe = trail.iter().position(|carries| *carries);
+    for level in 0..own {
         let x = head.x + (level as f32 + 0.5) * step;
-        if level + 1 < own {
-            if continues {
-                ui.painter()
-                    .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
-            }
-            continue;
-        }
-        // The row's own column: a tee where the branch carries on below, and
-        // nothing above the dash where this is the last of them.
-        if trail[own] {
+        if pipe == Some(level) {
             ui.painter()
                 .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
         }
+        // The dash leads in: from the pipe, or from where one would be.
         ui.painter()
             .line_segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
     }
