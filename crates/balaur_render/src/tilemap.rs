@@ -583,10 +583,7 @@ fn apply_tilemap(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
         Some(value) => parse_cells_value(value)?,
         None => Vec::new(),
     };
-    let seed = params
-        .get(k::SEED)
-        .and_then(toml::Value::as_integer)
-        .unwrap_or(0) as u64;
+    let seed = balaur_core::components::prop_i64(params, k::SEED) as u64;
     let mut next = Tilemap {
         tileset,
         cells,
@@ -942,11 +939,7 @@ fn rebuild_chunks(
 ) -> Result<()> {
     let eng = &app.engine;
     let tileset = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset)?;
-    let bytes = eng
-        .resource::<balaur_core::project::ProjectFiles>()
-        .borrow()
-        .read(&tileset.texture)?;
-    let (width, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
+    let (width, height) = crate::texture::size_of(eng, &tileset.texture)?;
     let sheet = glamx::Vec2::new(width as f32, height as f32);
     let grid = grid_of(map, &tileset);
     let wanted = chunks_of(&grid, &tileset, eng.time() as f32, frame);

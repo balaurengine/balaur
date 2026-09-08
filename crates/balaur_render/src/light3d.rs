@@ -6,7 +6,7 @@
 //! the backend's own sun, which is what lets every example draw unchanged.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::{ComponentDef, as_f64, prop_bool, prop_str};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
@@ -129,11 +129,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = match params
-                    .get(k::KIND)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(words::DIRECTIONAL)
-                {
+                let kind = match prop_str(params, k::KIND) {
                     words::POINT => LightKind3d::Point,
                     words::DIRECTIONAL => LightKind3d::Directional,
                     words::SPOT => LightKind3d::Spot,
@@ -156,10 +152,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                         radius: num(k::RADIUS, 30.0).max(0.0),
                         inner: num(k::INNER, 20.0),
                         outer: num(k::OUTER, 35.0),
-                        shadows: params
-                            .get(k::SHADOWS)
-                            .and_then(toml::Value::as_bool)
-                            .unwrap_or(true),
+                        shadows: prop_bool(params, k::SHADOWS),
                         layers,
                     },
                 )

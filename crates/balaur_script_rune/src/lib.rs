@@ -624,7 +624,7 @@ impl RuneHost {
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
-        self.invoke(entity, &key, "init", vec![state], true);
+        self.invoke(entity, &key, "init", (state,), true);
         Ok(())
     }
 
@@ -788,7 +788,7 @@ impl RuneHost {
 
     pub fn call_all(&self, method: &str) {
         for (entity, key, state) in self.live_batch() {
-            self.invoke(entity, &key, method, vec![state], true);
+            self.invoke(entity, &key, method, (state,), true);
         }
     }
 
@@ -865,7 +865,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, "hot_reload", vec![state], false);
+            self.invoke(entity, key, "hot_reload", (state,), false);
         }
     }
 

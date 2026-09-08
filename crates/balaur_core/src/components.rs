@@ -98,6 +98,46 @@ fn is_readonly(spec: Option<&toml::Value>) -> bool {
         == Some(true)
 }
 
+/// The readers an `apply` uses on the table it was handed.
+///
+/// Every declared property carries a `default` — [`validate_property`] refuses
+/// one without — and [`add`] and [`patch`] merge those in before `apply` runs,
+/// so the key is always there and holds its declared type. These take no
+/// fallback of their own on purpose: a second default written beside the
+/// reader is a copy of the schema's that nothing would notice going stale.
+pub fn prop_f32(params: &toml::Value, key: &str) -> f32 {
+    prop_f64(params, key) as f32
+}
+
+/// [`prop_f32`] at full width, for a property compared against `f64` data.
+pub fn prop_f64(params: &toml::Value, key: &str) -> f64 {
+    params.get(key).and_then(as_f64).unwrap_or_default()
+}
+
+/// The whole number an `int`-typed property holds.
+pub fn prop_i64(params: &toml::Value, key: &str) -> i64 {
+    params
+        .get(key)
+        .and_then(toml::Value::as_integer)
+        .unwrap_or_default()
+}
+
+/// Whether a `bool`-typed property is set.
+pub fn prop_bool(params: &toml::Value, key: &str) -> bool {
+    params
+        .get(key)
+        .and_then(toml::Value::as_bool)
+        .unwrap_or_default()
+}
+
+/// The text a `string`, `enum`, `asset` or `node` property holds.
+pub fn prop_str<'a>(params: &'a toml::Value, key: &str) -> &'a str {
+    params
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+}
+
 /// The names a `flags`-typed property holds, in the order they were written.
 ///
 /// Anything that is not a string is dropped rather than refused: a schema

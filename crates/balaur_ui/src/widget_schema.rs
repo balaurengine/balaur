@@ -90,13 +90,13 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                crate::widget_layer::content_changed();
+                crate::widget_layer::widget_changed(entity);
                 eng.world_mut()
                     .insert_one(entity, widget_from(params))
                     .map_err(|_| anyhow::anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
-                crate::widget_layer::content_changed();
+                crate::widget_layer::widget_changed(entity);
                 let _ = eng.world_mut().remove_one::<Widget>(entity);
                 Ok(())
             }),
@@ -115,7 +115,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(k::KIND.into(), toml::Value::String(widget.kind.to_string()));
     map.insert(k::TEXT.into(), toml::Value::String(widget.text.to_string()));
     map.insert(k::VISIBLE.into(), toml::Value::Boolean(widget.visible));
-    map.insert(k::ANCHOR.into(), toml::Value::String(widget.anchor.to_string()));
+    map.insert(
+        k::ANCHOR.into(),
+        toml::Value::String(widget.anchor.to_string()),
+    );
     map.insert(k::X.into(), toml::Value::Float(f64::from(widget.x)));
     map.insert(k::Y.into(), toml::Value::Float(f64::from(widget.y)));
     map.insert(k::WIDTH.into(), toml::Value::Float(f64::from(widget.width)));
@@ -147,13 +150,19 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::Float(f64::from(widget.padding)),
     );
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
-    map.insert(k::ALIGN.into(), toml::Value::String(widget.align.to_string()));
+    map.insert(
+        k::ALIGN.into(),
+        toml::Value::String(widget.align.to_string()),
+    );
     map.insert(k::FOCUSABLE.into(), toml::Value::Boolean(widget.focusable));
     map.insert(
         k::ON_FOCUS.into(),
         toml::Value::String(widget.on_focus.to_string()),
     );
-    map.insert(k::THEME.into(), toml::Value::String(widget.theme.to_string()));
+    map.insert(
+        k::THEME.into(),
+        toml::Value::String(widget.theme.to_string()),
+    );
     map.insert(
         k::TEXT_KEY.into(),
         toml::Value::String(widget.text_key.to_string()),
@@ -172,14 +181,32 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::HANDLE.into(),
         toml::Value::Float(f64::from(widget.handle)),
     );
-    map.insert(k::ACTIVE.into(), toml::Value::String(widget.active.to_string()));
-    map.insert(k::LAYER.into(), toml::Value::String(widget.layer.to_string()));
+    map.insert(
+        k::ACTIVE.into(),
+        toml::Value::String(widget.active.to_string()),
+    );
+    map.insert(
+        k::LAYER.into(),
+        toml::Value::String(widget.layer.to_string()),
+    );
     map.insert(k::WRAP.into(), toml::Value::Boolean(widget.wrap));
+    text_to_toml(widget, &mut map);
+    look_to_toml(widget, &mut map);
+    controls_to_toml(widget, &mut map);
+    toml::Value::Table(map)
+}
+
+/// The keys a widget's text carries: where it sits, the face it is drawn in,
+/// and what a `field` accepts.
+fn text_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(
         k::TEXT_ALIGN.into(),
         toml::Value::String(widget.text_align.to_string()),
     );
-    map.insert(k::SOURCE.into(), toml::Value::String(widget.source.to_string()));
+    map.insert(
+        k::SOURCE.into(),
+        toml::Value::String(widget.source.to_string()),
+    );
     map.insert(k::MARKUP.into(), toml::Value::Boolean(widget.markup));
     map.insert(
         k::FONT_WEIGHT.into(),
@@ -207,9 +234,6 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ON_SUBMIT.into(),
         toml::Value::String(widget.on_submit.to_string()),
     );
-    look_to_toml(widget, &mut map);
-    controls_to_toml(widget, &mut map);
-    toml::Value::Table(map)
 }
 
 /// The keys a widget's look carries: the role it names, the marks and hover
@@ -223,7 +247,10 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
     map.insert(k::ICON.into(), toml::Value::String(widget.icon.to_string()));
     map.insert(k::DISABLED.into(), toml::Value::Boolean(widget.disabled));
     map.insert(k::FILL.into(), toml::Value::String(widget.fill.to_string()));
-    map.insert(k::STROKE.into(), toml::Value::String(widget.stroke.to_string()));
+    map.insert(
+        k::STROKE.into(),
+        toml::Value::String(widget.stroke.to_string()),
+    );
     map.insert(
         k::RADIUS.into(),
         toml::Value::Float(f64::from(widget.radius)),
@@ -349,39 +376,32 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
 /// property grows by one line rather than by a closure.
 struct Read<'a>(&'a toml::Value);
 
+/// Every reader takes the key alone: the schema declares a default for each
+/// property and `add`/`patch` merge them in before this runs, so a default
+/// written here too would be a second copy of one nothing checks.
 impl Read<'_> {
-    fn str(&self, key: &str, default: &str) -> smol_str::SmolStr {
-        self.0
-            .get(key)
-            .and_then(|v| v.as_str())
-            .unwrap_or(default)
-            .into()
+    fn str(&self, key: &str) -> smol_str::SmolStr {
+        balaur_core::components::prop_str(self.0, key).into()
     }
 
-    fn num(&self, key: &str, default: f64) -> f32 {
-        self.0
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
+    fn num(&self, key: &str) -> f32 {
+        balaur_core::components::prop_f32(self.0, key)
     }
 
-    fn flag(&self, key: &str, default: bool) -> bool {
-        self.0
-            .get(key)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(default)
+    fn flag(&self, key: &str) -> bool {
+        balaur_core::components::prop_bool(self.0, key)
     }
 
     /// One colour's four channels. Hex strings were expanded to floats by
     /// `merge_defaults`, so this only ever reads an array.
-    fn quad(&self, key: &str, default: [f64; 4]) -> [f32; 4] {
+    fn quad(&self, key: &str) -> [f32; 4] {
         let channel = |i: usize| {
             self.0
                 .get(key)
                 .and_then(|v| v.as_array())
                 .and_then(|a| a.get(i))
                 .and_then(balaur_core::components::as_f64)
-                .unwrap_or(default[i]) as f32
+                .unwrap_or_default() as f32
         };
         [channel(0), channel(1), channel(2), channel(3)]
     }
@@ -389,79 +409,58 @@ impl Read<'_> {
 
 fn widget_from(params: &toml::Value) -> Widget {
     let r = Read(params);
-    let (s, f) = (
-        |k: &str, d: &str| r.str(k, d),
-        |k: &str, d: f64| r.num(k, d),
-    );
+    let (s, f) = (|k: &str| r.str(k), |k: &str| r.num(k));
     let mut widget = Widget {
-        kind: s(k::KIND, w::LABEL),
-        text: s(k::TEXT, w::LABEL),
-        visible: params
-            .get(k::VISIBLE)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
-        anchor: s(k::ANCHOR, w::TOP_LEFT),
-        x: f(k::X, 16.0),
-        y: f(k::Y, 16.0),
-        width: f(k::WIDTH, 0.0),
-        height: f(k::HEIGHT, 0.0),
-        font_size: f(k::FONT_SIZE, 16.0),
-        text_color: r.quad(k::TEXT_COLOR, [0.0; 4]),
-        color: r.quad(k::COLOR, [1.0, 1.0, 1.0, 1.0]),
-        row_height: f(k::ROW_HEIGHT, 0.0),
-        font: s(k::FONT, w::UI),
-        on_click: s(k::ON_CLICK, ""),
+        kind: s(k::KIND),
+        text: s(k::TEXT),
+        visible: r.flag(k::VISIBLE),
+        anchor: s(k::ANCHOR),
+        x: f(k::X),
+        y: f(k::Y),
+        width: f(k::WIDTH),
+        height: f(k::HEIGHT),
+        font_size: f(k::FONT_SIZE),
+        text_color: r.quad(k::TEXT_COLOR),
+        color: r.quad(k::COLOR),
+        row_height: f(k::ROW_HEIGHT),
+        font: s(k::FONT),
+        on_click: s(k::ON_CLICK),
         clicked: false,
-        padding: f(k::PADDING, 0.0),
-        gap: f(k::GAP, 8.0),
-        align: s(k::ALIGN, w::START),
-        focusable: params
-            .get(k::FOCUSABLE)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
-        on_focus: s(k::ON_FOCUS, ""),
-        theme: s(k::THEME, ""),
-        text_key: s(k::TEXT_KEY, ""),
-        grow: f(k::GROW, 0.0),
-        min_width: f(k::MIN_WIDTH, 0.0),
-        min_height: f(k::MIN_HEIGHT, 0.0),
-        draw: s(k::DRAW, ""),
-        handle: f(k::HANDLE, 0.0),
-        active: s(k::ACTIVE, ""),
-        layer: s(k::LAYER, ""),
-        wrap: params
-            .get(k::WRAP)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
-        text_align: s(k::TEXT_ALIGN, w::START),
-        source: s(k::SOURCE, ""),
-        markup: params
-            .get(k::MARKUP)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
-        font_weight: f(k::FONT_WEIGHT, 400.0),
-        font_style: s(k::FONT_STYLE, w::NORMAL),
-        placeholder: s(k::PLACEHOLDER, ""),
-        max_length: f(k::MAX_LENGTH, 0.0),
-        secret: params
-            .get(k::SECRET)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
-        numeric: params
-            .get(k::NUMERIC)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
-        on_change: s(k::ON_CHANGE, ""),
-        on_submit: s(k::ON_SUBMIT, ""),
-        role: s(k::ROLE, ""),
-        tooltip: s(k::TOOLTIP, ""),
-        icon: s(k::ICON, ""),
-        disabled: r.flag(k::DISABLED, false),
-        fill: s(k::FILL, ""),
-        stroke: s(k::STROKE, ""),
-        radius: f(k::RADIUS, -1.0),
-        justify: s(k::JUSTIFY, w::START),
-        padding_x: f(k::PADDING_X, -1.0),
+        padding: f(k::PADDING),
+        gap: f(k::GAP),
+        align: s(k::ALIGN),
+        focusable: r.flag(k::FOCUSABLE),
+        on_focus: s(k::ON_FOCUS),
+        theme: s(k::THEME),
+        text_key: s(k::TEXT_KEY),
+        grow: f(k::GROW),
+        min_width: f(k::MIN_WIDTH),
+        min_height: f(k::MIN_HEIGHT),
+        draw: s(k::DRAW),
+        handle: f(k::HANDLE),
+        active: s(k::ACTIVE),
+        layer: s(k::LAYER),
+        wrap: r.flag(k::WRAP),
+        text_align: s(k::TEXT_ALIGN),
+        source: s(k::SOURCE),
+        markup: r.flag(k::MARKUP),
+        font_weight: f(k::FONT_WEIGHT),
+        font_style: s(k::FONT_STYLE),
+        placeholder: s(k::PLACEHOLDER),
+        max_length: f(k::MAX_LENGTH),
+        secret: r.flag(k::SECRET),
+        numeric: r.flag(k::NUMERIC),
+        on_change: s(k::ON_CHANGE),
+        on_submit: s(k::ON_SUBMIT),
+        role: s(k::ROLE),
+        tooltip: s(k::TOOLTIP),
+        icon: s(k::ICON),
+        disabled: r.flag(k::DISABLED),
+        fill: s(k::FILL),
+        stroke: s(k::STROKE),
+        radius: f(k::RADIUS),
+        justify: s(k::JUSTIFY),
+        padding_x: f(k::PADDING_X),
         checked: false,
         value: 0.0,
         min: 0.0,
@@ -483,15 +482,12 @@ fn widget_from(params: &toml::Value) -> Widget {
 /// insets, an image's slice and a scroll's deadzone.
 fn read_controls(widget: &mut Widget, params: &toml::Value) {
     let r = Read(params);
-    let (f, b) = (
-        |k: &str, d: f64| r.num(k, d),
-        |k: &str, d: bool| r.flag(k, d),
-    );
-    widget.checked = b(k::CHECKED, false);
-    widget.value = f(k::VALUE, 0.0);
-    widget.min = f(k::MIN, 0.0);
-    widget.max = f(k::MAX, 1.0);
-    widget.step = f(k::STEP, 0.0);
+    let (f, b) = (|k: &str| r.num(k), |k: &str| r.flag(k));
+    widget.checked = b(k::CHECKED);
+    widget.value = f(k::VALUE);
+    widget.min = f(k::MIN);
+    widget.max = f(k::MAX);
+    widget.step = f(k::STEP);
     widget.options = params
         .get(k::OPTIONS)
         .and_then(toml::Value::as_array)
@@ -503,11 +499,11 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
                 .collect()
         })
         .unwrap_or_default();
-    widget.columns = f(k::COLUMNS, 0.0).max(0.0) as u32;
-    widget.open = b(k::OPEN, true);
+    widget.columns = f(k::COLUMNS).max(0.0) as u32;
+    widget.open = b(k::OPEN);
     widget.inset = crate::widget_theme::four_of(params.get(k::INSET));
     widget.slice = crate::widget_theme::four_of(params.get(k::SLICE));
-    widget.deadzone = f(k::DEADZONE, 0.0);
+    widget.deadzone = f(k::DEADZONE);
 }
 
 /// Four numbers as the array a `vec4` property holds.

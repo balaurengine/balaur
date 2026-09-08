@@ -54,7 +54,7 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     // A `draw` node's size comes from the script that filled it, not from any
     // property, so this is the one layout input no component write announces.
     if measured_of(entity) != size {
-        crate::widget_layer::content_changed();
+        crate::widget_layer::widget_changed(entity);
     }
 }
 
@@ -180,7 +180,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 vec2(inner.x, inner.y),
             ));
             let solved = crate::widget_taffy::solve_subtree(
-                at.eng, at.arena, index, ui, at.scale, &at.theme, &room, at.fresh);
+                at.eng, at.arena, index, ui, at.scale, &at.theme, &room, at.deep(index));
             let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
@@ -287,7 +287,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let showing = pages[showing].0;
     let room = crate::widget_taffy::Room::fixed(page);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, showing, ui, at.scale, &at.theme, &room, at.fresh);
+        at.eng, at.arena, showing, ui, at.scale, &at.theme, &room, at.deep(index));
     let restore = at.assigned;
     at.assigned = page.size();
     let held = std::mem::replace(&mut at.rects, solved);

@@ -785,7 +785,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
 /// Not behind the windowed feature: the size lands in a component a script can
 /// read, so a headless run has to compute the same number a windowed one does.
 fn natural_half_extents(
-    bytes: &[u8],
+    eng: &Engine,
     name: &str,
     sheet: Option<SpriteSheet2d>,
     region: Option<[u32; 4]>,
@@ -800,7 +800,7 @@ fn natural_half_extents(
     if let Some([_, _, w, h]) = region {
         return Ok((w as f32 / ppu / 2.0, h as f32 / ppu / 2.0));
     }
-    let (w, h) = texture::image_size(bytes, name)?;
+    let (w, h) = texture::size_of(eng, name)?;
     let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     Ok((
         (w as f32 / cols as f32) / ppu / 2.0,
@@ -824,11 +824,7 @@ pub(crate) fn set_sprite(
         // refusing to exist, at the same default size as a `rect`.
         (0.5, 0.5)
     } else {
-        let bytes = eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&texture.path)?;
-        natural_half_extents(&bytes, &texture.path, texture.sheet, texture.region, ppu)?
+        natural_half_extents(eng, &texture.path, texture.sheet, texture.region, ppu)?
     };
     let shape = Shape2d::Sprite {
         hx: hx.max(f32::EPSILON),

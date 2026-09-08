@@ -544,13 +544,18 @@ impl ProjectFiles {
             return self.fs.read(p);
         }
         // Separators are normalised because a pack is keyed the way it was
-        // built, which is always with forward slashes.
-        let key = path.replace('\\', "/");
+        // built, which is always with forward slashes. Rewritten only where
+        // there is a separator to rewrite: every read takes this path.
+        let key = if path.contains('\\') {
+            std::borrow::Cow::Owned(path.replace('\\', "/"))
+        } else {
+            std::borrow::Cow::Borrowed(path.as_str())
+        };
         let embedded = matches!(
             self.source,
             AssetSource::Embedded | AssetSource::EmbeddedThenFiles
         );
-        if embedded && let Some(bytes) = self.packed.get(&key) {
+        if embedded && let Some(bytes) = self.packed.get(key.as_ref()) {
             return Ok(bytes.clone());
         }
         if self.source != AssetSource::Embedded {

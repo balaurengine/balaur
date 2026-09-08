@@ -284,3 +284,104 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         "##,
     );
 }
+
+/// Properties a component declares but does not always emit, because they
+/// belong to one variant of it and the schema has no way to say so.
+///
+/// Every entry is checked both ways: an exempt property must still be
+/// declared, and must still be genuinely absent. An entry that stops being
+/// true fails rather than quietly covering for a real gap.
+const CONDITIONAL: &[(&str, &[&str])] = &[
+    // A shape reports the geometry of the `kind` it is: a box has
+    // `half_extents`, a sphere a `radius`, and neither carries the other's.
+    (
+        "shape2d",
+        &[
+            "closed",
+            "gradient",
+            "height",
+            "inner_radius",
+            "mesh",
+            "points",
+            "radius",
+            "sides",
+            "texture",
+            "width",
+        ],
+    ),
+    (
+        "shape3d",
+        &[
+            "height",
+            "inner_radius",
+            "radius",
+            "rings",
+            "sides",
+            "tube_radius",
+        ],
+    ),
+    // A sprite cut from a sheet reports the cut; one drawing a whole image
+    // has no cut to report.
+    (
+        "sprite",
+        &[
+            "columns",
+            "half_extents",
+            "region_origin",
+            "region_size",
+            "rows",
+            "sheet",
+        ],
+    ),
+    // A map reports what was painted only once something has been.
+    ("tilemap", &["flags", "seed", "terrain"]),
+];
+
+/// The other half of [`every_component_emits_only_keys_its_schema_declares`]:
+/// a property the schema promises the editor has to come back out of `get`,
+/// or the inspector shows a control that reads as absent.
+#[test]
+fn every_component_emits_every_key_its_schema_declares() {
+    let (_dir, app) = app_with_every_component();
+    let registry = app
+        .engine
+        .resource::<balaur::components::ComponentRegistry>();
+    let registry = registry.borrow();
+
+    for (name, def) in &registry.0 {
+        let entity = spawn(&app, name);
+        // `color` writes into a renderable rather than owning storage, so
+        // seed both; every other component applies on a bare node.
+        for seed in ["shape3d", "shape2d"] {
+            balaur::components::add(&app.engine, entity, seed, None).unwrap();
+        }
+        balaur::components::add(&app.engine, entity, name, None).unwrap();
+
+        let emitted = (def.get)(&app.engine, entity)
+            .unwrap_or_else(|| panic!("`{name}` applied but reads back as absent"));
+        let emitted = emitted.as_table().unwrap();
+        let declared = def.schema.as_table().unwrap();
+        let exempt: &[&str] = CONDITIONAL
+            .iter()
+            .find(|(component, _)| component == name)
+            .map_or(&[], |(_, props)| *props);
+
+        for key in declared.keys() {
+            assert!(
+                exempt.contains(&key.as_str()) || emitted.contains_key(key),
+                "`{name}.{key}` is declared but `get` never emits it: either emit \
+                 it or record it in CONDITIONAL with the variant it belongs to"
+            );
+        }
+        for prop in exempt {
+            assert!(
+                declared.contains_key(*prop),
+                "`{name}.{prop}` is in CONDITIONAL but no schema declares it any more"
+            );
+            assert!(
+                !emitted.contains_key(*prop),
+                "`{name}.{prop}` is in CONDITIONAL but `get` now always emits it; drop the entry"
+            );
+        }
+    }
+}

@@ -85,12 +85,7 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let num = |key: &str| {
-                    params
-                        .get(key)
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0)
-                };
+                let num = |key: &str| balaur_core::components::prop_f64(params, key);
                 let mut texture = params
                     .get(k::TEXTURE)
                     .and_then(|v| v.as_str())

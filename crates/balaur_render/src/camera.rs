@@ -265,11 +265,7 @@ fn drive_post(eng: &Engine, post: &Post) {
 
 /// The authored camera a full property table describes.
 fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
-    let kind = match params
-        .get(k::KIND)
-        .and_then(|v| v.as_str())
-        .unwrap_or(words::PERSPECTIVE)
-    {
+    let kind = match balaur_core::components::prop_str(params, k::KIND) {
         words::PERSPECTIVE => CameraKind::Perspective,
         words::ORTHOGRAPHIC => CameraKind::Orthographic,
         other => return Err(anyhow!("unknown camera kind '{other}'")),
@@ -306,10 +302,7 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
             bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
             bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
         },
-        current: params
-            .get("current")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
+        current: balaur_core::components::prop_bool(params, "current"),
         look_at: glamx::Vec3::new(la(0), la(1), la(2)),
         zoom: num(k::ZOOM, 60.0).max(MIN_ZOOM_2D),
     })

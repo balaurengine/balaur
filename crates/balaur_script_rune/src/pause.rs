@@ -28,12 +28,12 @@ impl RuneHost {
     /// unit has breakpoints and the function is synchronous, through a plain
     /// call otherwise. The ticks pass `allow_async` false: they may not
     /// suspend.
-    pub(crate) fn invoke(
+    pub(crate) fn invoke<A: rune::runtime::Args + rune::runtime::GuardedArgs>(
         &self,
         owner: Entity,
         key: &str,
         name: &str,
-        args: Vec<rune::Value>,
+        args: A,
         allow_async: bool,
     ) -> Option<balaur_script::Value> {
         let stepping = {
@@ -88,12 +88,12 @@ impl RuneHost {
         }
     }
 
-    fn invoke_stepping(
+    fn invoke_stepping<A: rune::runtime::Args>(
         &self,
         owner: Entity,
         key: &str,
         name: &str,
-        args: Vec<rune::Value>,
+        args: A,
     ) -> Option<balaur_script::Value> {
         let (unit, lines) = {
             let state = self.state.borrow();
@@ -401,7 +401,7 @@ impl RuneHost {
             let Ok(dt_arg) = dt_value.try_clone() else {
                 continue;
             };
-            self.invoke(entity, &key, method, vec![state, dt_arg], false);
+            self.invoke(entity, &key, method, (state, dt_arg), false);
             let mut host = self.state.borrow_mut();
             if let Some(paused) = host
                 .paused

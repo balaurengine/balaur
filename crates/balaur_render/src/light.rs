@@ -6,7 +6,7 @@
 //! (`light_map`) only rasterises what these hand it.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::{ComponentDef, as_f64, prop_bool, prop_f32, prop_str};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
@@ -237,17 +237,10 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = match params
-                    .get(k::KIND)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(words::POINT)
-                {
+                let kind = match prop_str(params, k::KIND) {
                     words::POINT => LightKind2d::Point,
                     words::DIRECTIONAL => LightKind2d::Directional,
                     other => return Err(anyhow!("unknown light2d kind '{other}'")),
-                };
-                let num = |key: &str, default: f64| {
-                    params.get(key).and_then(as_f64).unwrap_or(default) as f32
                 };
                 set_light(
                     eng,
@@ -255,12 +248,9 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                     Light2d {
                         kind,
                         color: color_from_params(params),
-                        radius: num(k::RADIUS, 6.0).max(0.0),
-                        intensity: num(k::INTENSITY, 1.0).max(0.0),
-                        shadows: params
-                            .get("shadows")
-                            .and_then(toml::Value::as_bool)
-                            .unwrap_or(true),
+                        radius: prop_f32(params, k::RADIUS).max(0.0),
+                        intensity: prop_f32(params, k::INTENSITY).max(0.0),
+                        shadows: prop_bool(params, "shadows"),
                     },
                 )
             }),
@@ -318,15 +308,8 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let mesh = params
-                    .get("mesh")
-                    .and_then(toml::Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                let closed = params
-                    .get(k::CLOSED)
-                    .and_then(toml::Value::as_bool)
-                    .unwrap_or(true);
+                let mesh = prop_str(params, "mesh").to_string();
+                let closed = prop_bool(params, k::CLOSED);
                 let points = if mesh.is_empty() {
                     Vec::new()
                 } else {

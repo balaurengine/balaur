@@ -14,7 +14,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::{MeshData, MeshSkin};
+use balaur_core::mesh::MeshSkin;
 use glamx::Vec2;
 
 use crate::shape::{keys as k, words};
@@ -141,9 +141,7 @@ fn resolve(
     if polygon.mesh.is_empty() {
         return Ok(polygon);
     }
-    let data = match balaur_core::assets::load_typed::<MeshData>(eng, &polygon.mesh)
-        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
-    {
+    let data = match balaur_core::mesh::resolved(eng, &polygon.mesh) {
         Ok(data) => data,
         Err(why) => {
             tracing::warn!("polygon mesh '{}': {why:#}", polygon.mesh);
@@ -155,8 +153,8 @@ fn resolve(
         .iter()
         .map(|p| Vec2::new(p[0], p[1]))
         .collect();
-    polygon.indices = data.indices;
-    polygon.uvs = if let Some(uvs) = data.uvs {
+    polygon.indices.clone_from(&data.indices);
+    polygon.uvs = if let Some(uvs) = &data.uvs {
         uvs.iter().map(|uv| Vec2::new(uv[0], uv[1])).collect()
     } else {
         let size = texture_size(eng, &polygon.texture)?;
@@ -166,7 +164,7 @@ fn resolve(
             .map(|&p| PolygonMesh::default_uv(p, ppu, size))
             .collect()
     };
-    polygon.skin = data.skin;
+    polygon.skin.clone_from(&data.skin);
     Ok(polygon)
 }
 
@@ -177,11 +175,7 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
     if texture.is_empty() {
         return Ok((1, 1));
     }
-    let bytes = eng
-        .resource::<balaur_core::project::ProjectFiles>()
-        .borrow()
-        .read(texture)?;
-    crate::texture::image_size(&bytes, texture)
+    crate::texture::size_of(eng, texture)
 }
 
 fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {

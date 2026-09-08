@@ -57,15 +57,13 @@ impl Stats {
 /// What counting a node cost last time, so a still frame counts nothing
 /// twice.
 ///
-/// Every answer here is the whole asset: an image is read to be measured and a
-/// primitive is spun into triangles to be counted. Both are the same until an
-/// asset reloads, and this pass runs every frame over every node.
+/// Counting a triangle means spinning the primitive or parsing the mesh, and
+/// this pass runs every frame over every node. Image sizes are kept by
+/// `texture::size_of`, which every other reader shares.
 #[derive(Default)]
 pub(crate) struct Measured {
     /// The asset generation these answers were read at.
     generation: u64,
-    /// Bytes an image occupies on the GPU, by project-relative path.
-    images: DetHashMap<String, u64>,
     /// Triangles a `mesh` asset holds, by reference.
     meshes: DetHashMap<String, u32>,
     /// Triangles a primitive spins into. A list because a `Solid` holds
@@ -88,7 +86,6 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
     let generation = balaur_core::assets::generation(eng);
     if cache.generation != generation {
         cache.generation = generation;
-        cache.images.clear();
         cache.meshes.clear();
     }
     {
@@ -114,7 +111,7 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
                 cost.draws += 1;
                 cost.triangles += triangles_3d(eng, &renderable, &mut cache) * copies;
                 if !renderable.texture.is_empty() {
-                    count_image(eng, &mut cache, &mut seen, &mut cost, &renderable.texture);
+                    count_image(eng, &mut seen, &mut cost, &renderable.texture);
                 }
             }
             if let Ok(renderable) = world.get::<&crate::Renderable2d>(entity) {
@@ -123,7 +120,7 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
                 // as once it is triangulated.
                 cost.triangles += 2 * copies;
                 if let Some(sprite) = &renderable.sprite {
-                    count_image(eng, &mut cache, &mut seen, &mut cost, &sprite.path);
+                    count_image(eng, &mut seen, &mut cost, &sprite.path);
                 }
             }
             if cost.draws == 0 {
@@ -140,24 +137,8 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
 }
 
 /// Add one image to a node's cost and to the frame's distinct set.
-fn count_image(
-    eng: &Engine,
-    cache: &mut Measured,
-    seen: &mut BTreeMap<String, u64>,
-    cost: &mut NodeCost,
-    path: &str,
-) {
-    let bytes = if let Some(bytes) = cache.images.get(path) {
-        *bytes
-    } else {
-        // A zero is not remembered: it means the file did not read, and the
-        // next frame is when it may.
-        let bytes = image_bytes(eng, path);
-        if bytes > 0 {
-            cache.images.insert(path.to_string(), bytes);
-        }
-        bytes
-    };
+fn count_image(eng: &Engine, seen: &mut BTreeMap<String, u64>, cost: &mut NodeCost, path: &str) {
+    let bytes = image_bytes(eng, path);
     cost.texture_bytes += bytes;
     if !seen.contains_key(path) {
         seen.insert(path.to_string(), bytes);
@@ -175,10 +156,7 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measur
         if let Some(count) = cache.meshes.get(name.as_str()) {
             return *count;
         }
-        if let Ok(definition) =
-            balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, name)
-            && let Ok(data) = balaur_core::mesh::load_from(eng, &definition)
-        {
+        if let Ok(data) = balaur_core::mesh::resolved(eng, name) {
             let count = u32::try_from(data.indices.len() / 3).unwrap_or(u32::MAX);
             cache.meshes.insert(name.clone(), count);
             return count;
@@ -199,12 +177,7 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measur
 
 /// Four bytes a pixel, which is what every format the engine uploads becomes.
 fn image_bytes(eng: &Engine, path: &str) -> u64 {
-    let files = eng.resource::<balaur_core::project::ProjectFiles>();
-    let read = files.borrow().read(path);
-    let Ok(bytes) = read else {
-        return 0;
-    };
-    match crate::texture::image_size(&bytes, path) {
+    match crate::texture::size_of(eng, path) {
         Ok((width, height)) => u64::from(width) * u64::from(height) * 4,
         Err(_) => 0,
     }

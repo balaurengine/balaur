@@ -519,11 +519,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     m.function("texture_size", |eng: &Engine, path: String| {
-        let bytes = eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&path)?;
-        crate::texture::image_size(&bytes, &path)
+        crate::texture::size_of(eng, &path)
     });
     m.function(
         "trace_texture",

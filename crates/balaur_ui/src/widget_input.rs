@@ -144,11 +144,6 @@ fn apply_system(eng: &Engine, _dt: f32) {
 /// it, and collect the field handlers to call with what was typed.
 fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, String, Value)> {
     let mut signals = Vec::new();
-    if !edits.is_empty() {
-        // Written straight onto the component, so the arena kept from last
-        // pass no longer describes it.
-        crate::widget_layer::content_changed();
-    }
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
             continue;
@@ -157,6 +152,9 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
         let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             continue;
         };
+        // Written straight onto the component, so the arena's copy of this one
+        // is stale until the next pass re-reads it.
+        crate::widget_layer::widget_changed(entity);
         match edit {
             Edit::Width(w) => widget.width = *w,
             Edit::Height(h) => widget.height = *h,
@@ -224,7 +222,7 @@ fn settle_clicks(
         // write that put the same `false` back would rebuild the whole arena.
         if widget.clicked != struck {
             widget.clicked = struck;
-            crate::widget_layer::content_changed();
+            crate::widget_layer::widget_changed(entity);
         }
         if !struck {
             continue;
@@ -232,7 +230,7 @@ fn settle_clicks(
         // A click on a check is the tick itself, by mouse or by `accept`.
         if widget.kind == w::CHECK {
             widget.checked = !widget.checked;
-            crate::widget_layer::content_changed();
+            crate::widget_layer::widget_changed(entity);
             if !widget.on_change.is_empty() {
                 changes.push((
                     entity,

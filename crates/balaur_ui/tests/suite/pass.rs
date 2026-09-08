@@ -327,7 +327,7 @@ fn pass_names(app: &App) -> Vec<String> {
         .borrow()
         .spans
         .iter()
-        .map(|(name, _)| name.clone())
+        .map(|(name, _)| name.to_string())
         .filter(|name| name.starts_with("ui"))
         .collect()
 }

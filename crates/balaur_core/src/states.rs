@@ -132,10 +132,7 @@ pub(crate) fn register_states_component(app: &mut App) {
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                let duration = params
-                    .get("duration")
-                    .and_then(crate::components::as_f64)
-                    .unwrap_or(0.0) as f32;
+                let duration = crate::components::prop_f32(params, "duration");
                 let next = States {
                     named,
                     // Applied below rather than assumed: the component is set

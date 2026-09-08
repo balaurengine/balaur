@@ -3,7 +3,7 @@
 
 use crate::shape::keys as k;
 use anyhow::Result;
-use balaur_core::components::ComponentDef;
+use balaur_core::components::{ComponentDef, prop_str};
 use balaur_core::primitive::{Flat, Solid};
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
@@ -387,10 +387,7 @@ fn line_style_from_params(params: &toml::Value) -> crate::LineStyle {
 /// A `shape2d` component's params, as the shape plus -- for a polyline --
 /// the mesh asset its points come from.
 fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)> {
-    let kind = params
-        .get(k::KIND)
-        .and_then(|v| v.as_str())
-        .unwrap_or(words::RECT);
+    let kind = prop_str(params, k::KIND);
     // A polyline is the one 2D kind with no dimensions of its own: its points
     // come from a mesh asset, so it is read here rather than by the mesher.
     if kind == words::POLYLINE {
@@ -400,15 +397,8 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
             .unwrap_or_default()
             .to_string();
         let shape = Shape2d::Polyline {
-            width: params
-                .get(k::WIDTH)
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(0.02)
-                .max(0.001) as f32,
-            closed: params
-                .get(k::CLOSED)
-                .and_then(toml::Value::as_bool)
-                .unwrap_or(false),
+            width: balaur_core::components::prop_f32(params, k::WIDTH).max(0.001),
+            closed: balaur_core::components::prop_bool(params, k::CLOSED),
         };
         return Ok((shape, Some(source)));
     }

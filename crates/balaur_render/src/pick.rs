@@ -166,9 +166,10 @@ struct Candidate {
 }
 
 /// The `mesh` asset's triangles, resolved the way a collider resolves them.
-fn loaded(eng: &Engine, reference: &str) -> Option<MeshData> {
-    let definition = balaur_core::assets::load_typed::<MeshData>(eng, reference).ok()?;
-    balaur_core::mesh::load_from(eng, &definition).ok()
+fn loaded(eng: &Engine, reference: &str) -> Option<std::rc::Rc<MeshData>> {
+    // Through the cache: the pointer is picked every frame, and following a
+    // mesh's `source` reads and parses the whole file.
+    balaur_core::mesh::resolved(eng, reference).ok()
 }
 
 /// The nearest `Renderable` the ray meets, and how far along it that is.

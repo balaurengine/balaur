@@ -29,16 +29,34 @@ thread_local! {
 
 struct Held {
     tree: TaffyTree<usize>,
-    /// One node per widget entity, so a widget keeps its node across frames.
-    nodes: FxHashMap<u64, NodeId>,
-    /// What each leaf measured last frame. A leaf's size comes from its
-    /// content, which no style comparison can see, so this is what says
-    /// whether taffy has to solve it again.
-    measures: FxHashMap<u64, egui::Vec2>,
+    /// One record per widget entity, kept across frames. One map and not
+    /// three: every widget asked all three of them every frame.
+    nodes: FxHashMap<u64, Kept>,
+}
+
+/// What the tree remembers about one widget between frames.
+struct Kept {
+    /// The node the widget keeps across frames.
+    id: NodeId,
     /// Everything the node's style was built from last frame, hashed. Taffy's
     /// `Style` is a few hundred bytes with vectors in it, and building one a
     /// node a frame only to find it equal was most of the sync walk.
-    styles: FxHashMap<u64, u64>,
+    style: u64,
+    /// What the leaf measured last frame, or `None` before it has. A leaf's
+    /// size comes from its content, which no style comparison can see, so
+    /// this is what says whether taffy has to solve it again.
+    measure: Option<egui::Vec2>,
+}
+
+/// A record for a widget the tree holds no node for yet.
+fn kept_of(tree: &mut TaffyTree<usize>, style: Style, index: usize, stamp: u64) -> Kept {
+    Kept {
+        id: tree
+            .new_leaf_with_context(style, index)
+            .expect("a taffy tree only fails to make a leaf when out of memory"),
+        style: stamp,
+        measure: None,
+    }
 }
 
 impl Default for Held {
@@ -50,8 +68,6 @@ impl Default for Held {
         Self {
             tree,
             nodes: FxHashMap::default(),
-            measures: FxHashMap::default(),
-            styles: FxHashMap::default(),
         }
     }
 }
@@ -273,6 +289,7 @@ pub(crate) fn solve(
     theme: &Rc<WidgetTheme>,
     room: &Room,
     fresh: bool,
+    touched: &[usize],
 ) -> Rects {
     let mut measure = Measure::new(eng, arena, ui, scale);
     TREE.with(|held| {
@@ -293,6 +310,22 @@ pub(crate) fn solve(
             true,
             fresh,
         );
+        // The slots a write touched, pushed straight at their own nodes: the
+        // walk that would have found them is what this pass is skipping.
+        for &index in touched {
+            let at = crate::widget_layer::theme_at(arena, index, theme);
+            sync(
+                &mut held,
+                arena,
+                index,
+                &at,
+                scale,
+                &mut measure,
+                None,
+                false,
+                true,
+            );
+        }
         crate::widget_layer::PHASES
             .with(|p| p.borrow_mut()[4] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0);
         let mark = std::time::Instant::now();
@@ -332,7 +365,9 @@ pub(crate) fn solve_subtree(
     room: &Room,
     fresh: bool,
 ) -> Rects {
-    solve(eng, arena, root, ui, scale, theme, room, fresh)
+    // No touched slots: the pass's first solve pushed them, and the tree they
+    // went into is the same one this subtree is solved in.
+    solve(eng, arena, root, ui, scale, theme, room, fresh, &[])
 }
 
 /// What one leaf needs, asked of the fonts rather than of last frame's draw.
@@ -372,42 +407,54 @@ fn sync(
     let drawn = crate::widget_arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
     let key = placed.entity.to_bits().get();
     let stamp = style_key(widget, pad, scale, drawn, fills);
-    let node = match held.nodes.get(&key).copied() {
-        Some(node) if held.tree.style(node).is_ok() => {
-            // Only on a change: `set_style` marks the node dirty, and a shell
-            // that is not moving should re-solve nothing. The stamp is what
-            // says so without building a style to compare against.
-            if held.styles.get(&key).copied() != Some(stamp) {
-                let _ = held
-                    .tree
-                    .set_style(node, styled(widget, pad, scale, drawn, fills));
-                held.styles.insert(key, stamp);
+    // Whether taffy lays this widget's children out, and whether it is
+    // measured as a leaf: a kind that places its own children is, and so is a
+    // container with nothing in it. Neither recurses, which is what lets the
+    // measure happen here with the record already in hand.
+    let owns = is_root || owns_children(&widget.kind);
+    let leaf = !owns || placed.children.is_empty();
+    let node = {
+        // One lookup for the node, its stamp and what it measured.
+        let Held { tree, nodes } = &mut *held;
+        let kept = nodes
+            .entry(key)
+            .or_insert_with(|| kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp));
+        // A record can outlive the node it names, when the tree dropped it.
+        if tree.style(kept.id).is_err() {
+            *kept = kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp);
+        }
+        // Only on a change: `set_style` marks the node dirty, and a shell
+        // that is not moving should re-solve nothing. The stamp is what
+        // says so without building a style to compare against.
+        if kept.style != stamp {
+            let _ = tree.set_style(kept.id, styled(widget, pad, scale, drawn, fills));
+            kept.style = stamp;
+        }
+        // Only on a change, because setting a context marks the node dirty and
+        // an arena index holds still for as long as the scene does.
+        if tree.get_node_context(kept.id).copied() != Some(index) {
+            let _ = tree.set_node_context(kept.id, Some(index));
+        }
+        // A leaf's size is its content's, and nothing about the style says the
+        // content changed. Measuring once here and comparing is what lets a
+        // still screen be solved not at all rather than solved again.
+        if deep && leaf {
+            let want = measure.leaf(index, &theme);
+            if kept.measure != Some(want) {
+                kept.measure = Some(want);
+                let _ = tree.mark_dirty(kept.id);
             }
-            node
         }
-        _ => {
-            let made = held
-                .tree
-                .new_leaf_with_context(styled(widget, pad, scale, drawn, fills), index)
-                .expect("a taffy tree only fails to make a leaf when out of memory");
-            held.nodes.insert(key, made);
-            held.styles.insert(key, stamp);
-            made
-        }
+        kept.id
     };
-    // Only on a change, because setting a context marks the node dirty and
-    // an arena index holds still for as long as the scene does.
-    if held.tree.get_node_context(node).copied() != Some(index) {
-        let _ = held.tree.set_node_context(node, Some(index));
-    }
-    // A container's children are taffy's, except the five that place their
-    // own; each of those solves its subtree separately.
     if !deep {
         // The children taffy holds are the ones this arena put there, and the
         // leaf sizes with them: nothing below this node can have moved.
         return node;
     }
-    let kids: Vec<NodeId> = if is_root || owns_children(&widget.kind) {
+    // A container's children are taffy's, except the five that place their
+    // own; each of those solves its subtree separately.
+    let kids: Vec<NodeId> = if owns {
         placed
             .children
             .iter()
@@ -418,15 +465,6 @@ fn sync(
     };
     if !same_children(&held.tree, node, &kids) {
         let _ = held.tree.set_children(node, &kids);
-    }
-    // A leaf's size is its content's, and nothing about the style says the
-    // content changed. Measuring once here and comparing is what lets a
-    // still screen be solved not at all rather than solved again.
-    if kids.is_empty() {
-        let want = measure.leaf(index, &theme);
-        if held.measures.insert(key, want) != Some(want) {
-            let _ = held.tree.mark_dirty(node);
-        }
     }
     node
 }
@@ -482,10 +520,8 @@ pub(crate) fn sweep(eng: &Engine) {
             })
             .collect();
         for bits in gone {
-            held.measures.remove(&bits);
-            held.styles.remove(&bits);
-            if let Some(node) = held.nodes.remove(&bits) {
-                let _ = held.tree.remove(node);
+            if let Some(kept) = held.nodes.remove(&bits) {
+                let _ = held.tree.remove(kept.id);
             }
         }
     });

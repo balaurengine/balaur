@@ -771,7 +771,7 @@ pub(crate) fn fold(
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget_taffy::Room::scrolling(body);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, index, ui, at.scale, &at.theme, &space, at.fresh);
+        at.eng, at.arena, index, ui, at.scale, &at.theme, &space, at.deep(index));
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(body));
     let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);

@@ -28,6 +28,8 @@
 use std::fmt::Write as _;
 use std::time::Duration;
 
+use smol_str::SmolStr;
+
 use crate::engine::Engine;
 use crate::time::Instant;
 
@@ -62,9 +64,11 @@ pub struct Timings {
     /// frame and the reason `fixed_update` can read as free.
     pub fixed_steps: u32,
     /// What plugins measured by name this frame, in the order they finished.
-    pub spans: Vec<(String, Duration)>,
+    /// Inline strings: every name is a short literal, and building one a span
+    /// a frame was an allocation for a number nothing reads most frames.
+    pub spans: Vec<(SmolStr, Duration)>,
     /// Spans of the frame in progress, moved into `spans` when it ends.
-    pending: Vec<(String, Duration)>,
+    pending: Vec<(SmolStr, Duration)>,
 }
 
 impl Timings {
@@ -80,10 +84,7 @@ impl Timings {
 /// wrap — an awaited render, or a cost the window reports after the fact.
 pub fn record(eng: &Engine, name: &str, elapsed: Duration) {
     if let Some(timings) = eng.try_resource::<Timings>() {
-        timings
-            .borrow_mut()
-            .pending
-            .push((name.to_string(), elapsed));
+        timings.borrow_mut().pending.push((name.into(), elapsed));
     }
 }
 
@@ -139,9 +140,9 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
     // name: a caller wants "physics cost 4 ms", not four rows of one.
     let mut spans: Vec<(String, Duration)> = Vec::new();
     for (name, elapsed) in &timings.spans {
-        match spans.iter_mut().find(|(n, _)| n == name) {
+        match spans.iter_mut().find(|(n, _)| n == name.as_str()) {
             Some(slot) => slot.1 += *elapsed,
-            None => spans.push((name.clone(), *elapsed)),
+            None => spans.push((name.to_string(), *elapsed)),
         }
     }
     Value::Map(vec![
@@ -194,12 +195,12 @@ impl TimingLog {
             self.stage_worst[i] = self.stage_worst[i].max(*stage);
         }
         for (name, elapsed) in &timings.spans {
-            match self.spans.iter_mut().find(|(n, _, _)| n == name) {
+            match self.spans.iter_mut().find(|(n, _, _)| n == name.as_str()) {
                 Some(slot) => {
                     slot.1 += *elapsed;
                     slot.2 = slot.2.max(*elapsed);
                 }
-                None => self.spans.push((name.clone(), *elapsed, *elapsed)),
+                None => self.spans.push((name.to_string(), *elapsed, *elapsed)),
             }
         }
     }

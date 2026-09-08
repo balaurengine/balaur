@@ -578,11 +578,7 @@ fn apply_bone3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
         rest_position: vec3_param(params, k::REST_POSITION, Vec3::ZERO),
         rest_rotation: vec3_param(params, k::REST_ROTATION, Vec3::ZERO),
         rest_scale: vec3_param(params, k::REST_SCALE, Vec3::ONE),
-        length: params
-            .get(k::LENGTH)
-            .and_then(as_f64)
-            .unwrap_or(0.0)
-            .max(0.0) as f32,
+        length: crate::components::prop_f32(params, k::LENGTH).max(0.0),
         angle: 0.0,
         planar: false,
     };

@@ -24,6 +24,7 @@
 //! replay re-runs the script, which emits again.
 
 use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
+use smol_str::SmolStr;
 
 use crate::collections::DetHashMap;
 use crate::engine::Engine;
@@ -47,15 +48,17 @@ pub struct EventState {
     /// Subscribers by event name and the emitter they asked for, `None`
     /// being every emitter. Each bucket is in ascending `seq`, since a
     /// subscription only ever pushes.
-    listeners: DetHashMap<(String, Option<Entity>), Vec<Listener>>,
+    /// Keyed on an inline string: an event name is short, so a pump looks a
+    /// bucket up without building a `String` to do it.
+    listeners: DetHashMap<(SmolStr, Option<Entity>), Vec<Listener>>,
     /// Handed out in subscription order and never reused.
     next_seq: u64,
     /// Emitted since the last pump, in emission order.
-    queued: Vec<(String, Option<Entity>, Value)>,
+    queued: Vec<(SmolStr, Option<Entity>, Value)>,
     /// What the last pump delivered, with the emitter each came from, until
     /// the next one replaces it. This is what `delivered` reads, so asking
     /// and being called see the same frame.
-    delivered: DetHashMap<String, Vec<(Option<Entity>, Value)>>,
+    delivered: DetHashMap<SmolStr, Vec<(Option<Entity>, Value)>>,
 }
 
 /// Hear `name` on this node, through its script's `on_<name>` method.
@@ -69,7 +72,7 @@ pub fn subscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity>)
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
     let seq = state.next_seq;
-    let listeners = state.listeners.entry((name.to_string(), from)).or_default();
+    let listeners = state.listeners.entry((name.into(), from)).or_default();
     if listeners.iter().any(|l| l.entity == entity) {
         return;
     }
@@ -81,7 +84,7 @@ pub fn subscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity>)
 pub fn unsubscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity>) {
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
-    if let Some(listeners) = state.listeners.get_mut(&(name.to_string(), from)) {
+    if let Some(listeners) = state.listeners.get_mut(&(name.into(), from)) {
         listeners.retain(|l| l.entity != entity);
     }
 }
@@ -101,10 +104,7 @@ pub fn emit_from(eng: &Engine, from: Entity, name: &str, payload: Value) {
 
 fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
     let state = eng.resource::<EventState>();
-    state
-        .borrow_mut()
-        .queued
-        .push((name.to_string(), from, payload));
+    state.borrow_mut().queued.push((name.into(), from, payload));
 }
 
 /// What the last pump delivered under `name`, whoever emitted it, in
