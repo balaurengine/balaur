@@ -73,20 +73,30 @@ pub struct Request {
     pub letter_spacing: f32,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct Key {
-    text: String,
-    size: u32,
-    weight: u16,
-    italic: bool,
-    width: Option<u32>,
-    align: u8,
-    markup: bool,
-    font: String,
-    family: String,
-    line_height: u32,
-    letter_spacing: u32,
-    generation: u64,
+/// What a shaped block is filed under: everything about the request that
+/// changes the picture, hashed into one number.
+///
+/// A number rather than the request itself, because the lookup happens twice
+/// a widget a frame — once to measure it and once to draw it — and a key that
+/// owned its strings allocated three times on every one of them.
+type Key = u64;
+
+fn key_of(request: &Request, generation: u64) -> Key {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    request.text.hash(&mut hasher);
+    request.size.to_bits().hash(&mut hasher);
+    request.weight.hash(&mut hasher);
+    request.italic.hash(&mut hasher);
+    request.width.map(f32::to_bits).hash(&mut hasher);
+    (request.align as u8).hash(&mut hasher);
+    request.markup.hash(&mut hasher);
+    request.font.hash(&mut hasher);
+    request.family.hash(&mut hasher);
+    request.line_height.to_bits().hash(&mut hasher);
+    request.letter_spacing.to_bits().hash(&mut hasher);
+    generation.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// One glyph, positioned relative to the block's top-left corner.
@@ -272,20 +282,7 @@ impl TextState {
     /// pixels itself, which is what lets the world draw the same glyphs as
     /// the widgets.
     pub fn shape(&mut self, request: &Request) -> Rc<Shaped> {
-        let key = Key {
-            text: request.text.clone(),
-            size: request.size.to_bits(),
-            weight: request.weight,
-            italic: request.italic,
-            width: request.width.map(f32::to_bits),
-            align: request.align as u8,
-            markup: request.markup,
-            font: request.font.clone(),
-            family: request.family.clone(),
-            line_height: request.line_height.to_bits(),
-            letter_spacing: request.letter_spacing.to_bits(),
-            generation: self.atlas.generation,
-        };
+        let key = key_of(request, self.atlas.generation);
         if let Some(found) = self.layouts.get(&key) {
             return Rc::clone(found);
         }
