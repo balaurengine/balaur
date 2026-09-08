@@ -34,44 +34,49 @@ pub fn persona(id) {
 /// A dock panel, by its tab id.
 /// The mark an inspector section wears, by component. A component with none
 /// of its own takes the plain node mark, so every heading is marked.
+/// A component's glyph, and the theme token it is drawn in -- the same pair
+/// `model::node_icon` gives the tree, so a `body2d` section and a node holding
+/// one read as the same thing in both panels.
 pub fn component(name) {
     if name == "transform" {
-        return tool("move");
+        return (tool("move"), "node_plain");
     }
     if name == "widget" {
-        return persona("ui");
+        return (persona("ui"), "node_ui");
     }
     if name == "script" {
-        return ui("scriptfile");
+        return (ui("scriptfile"), "node_plain");
     }
     if name == "bone2d" || name == "bone3d" || name == "skeleton" {
-        return tool("bone");
+        return (tool("bone"), "node_bone");
     }
     if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" {
-        return tool("polygon");
+        return (tool("polygon"), "node_2d");
     }
     if name == "shape3d" || name == "mesh" || name == "text3d" {
-        return persona("scene");
+        return (persona("scene"), "node_3d");
     }
-    if name == "body" || name == "body2d" || name == "collider" || name == "collider2d" {
-        return persona("phys");
+    if name.starts_with("body") || name.starts_with("collider")
+        || name.starts_with("character") || name.starts_with("joint")
+        || name == "ragdoll" || name == "vehicle" {
+        return (persona("phys"), "node_phys");
     }
     if name == "camera" || name == "camera2d" || name == "light" || name == "environment" {
-        return ui("viewmode");
+        return (ui("viewmode"), "node_plain");
     }
     if name == "animation" || name == "animation_player" {
-        return panel("timeline");
+        return (panel("timeline"), "node_plain");
     }
     if name == "tilemap" || name == "tileset" {
-        return panel("tiles");
+        return (panel("tiles"), "node_2d");
     }
     if name == "audio" || name == "audio_player" {
-        return panel("session");
+        return (panel("session"), "node_plain");
     }
     if name == "bindings" || name == "events" {
-        return ui("events");
+        return (ui("events"), "node_plain");
     }
-    node("world")
+    (node("world"), "node_plain")
 }
 
 pub fn panel(id) {

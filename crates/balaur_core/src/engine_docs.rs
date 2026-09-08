@@ -76,6 +76,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
+        ("component_expects", &[], "(name: string)", "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered."),
         ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "()", "The names of every registered preset."),

@@ -269,7 +269,9 @@ fn viewport(S, k) {
     let near = chips_wanted(S, vp);
     // Sized, so the row is clipped to the scene: unsized, a persona with one
     // chip too many painted its last over the inspector beside it.
-    ui::overlay("vp-chips", #{ x: vp.x, y: vp.y, w: vp.w, h: HUD_H }, || {
+    // Clear of the folded left dock's handle, which shares this row.
+    let inset = crate::docks::fold_inset(S);
+    ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: HUD_H }, || {
         ui::horizontal(#{ height: HUD_H }, || {
             ui::spacing(6, 0);
             for c in defs::chips(S.persona) {
@@ -468,6 +470,10 @@ pub fn draw(S) {
     }
     if S.viewport_live {
         viewport(S, k);
+    }
+    let vp = S.layout.stage;
+    if style::placed(vp) {
+        crate::docks::fold_strip(S, k, vp);
     }
     if S.doc_open {
         if S.doctab == "events" {

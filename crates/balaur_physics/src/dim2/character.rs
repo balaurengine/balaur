@@ -169,8 +169,10 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
             doc: "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
             schema: ComponentDef::parse_schema(c::CHARACTER_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
-            expects: &[c::COLLIDER_2D],
+            expects: &[c::COLLIDER_2D, balaur_core::transform::COMPONENT],
             apply: Box::new(|eng, entity, params| {
+                // Moving a character writes the node's transform.
+                balaur_core::transform::ensure(eng, entity);
                 let _ = eng
                     .world_mut()
                     .insert_one(entity, Character2d(params.clone()));

@@ -22,6 +22,12 @@
 //!   asset = "clip_type"    (asset only, and required there)
 //!   min/max/step/decimals  (float and int, optional)
 //!   shorthand/readonly     (bool, optional)
+//!   description = "..."    (optional, one line, for the reference and the
+//!                           inspector row's tooltip)
+//!   unit = "degrees"       (optional; what an editor draws the property in,
+//!                           and the unit `min`, `max` and `step` are written
+//!                           in. Nothing stores it: the file and a script both
+//!                           read what the property declares)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
 //! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
@@ -112,6 +118,20 @@ pub fn prop_f32(params: &toml::Value, key: &str) -> f32 {
 /// [`prop_f32`] at full width, for a property compared against `f64` data.
 pub fn prop_f64(params: &toml::Value, key: &str) -> f64 {
     params.get(key).and_then(as_f64).unwrap_or_default()
+}
+
+/// The three numbers a `vec3`-typed property holds.
+pub fn prop_vec3(params: &toml::Value, key: &str) -> [f32; 3] {
+    let axis = |i: usize| {
+        params
+            .get(key)
+            .and_then(toml::Value::as_array)
+            .and_then(|a| a.get(i))
+            .and_then(as_f64)
+            .map(|v| v as f32)
+            .unwrap_or_default()
+    };
+    [axis(0), axis(1), axis(2)]
 }
 
 /// The whole number an `int`-typed property holds.
@@ -277,6 +297,11 @@ impl ComponentDef {
     }
 }
 
+/// The units a property may be drawn in. Closed like [`PROPERTY_TYPES`]: an
+/// editor has to know how to convert one, so a name it has never seen would
+/// draw the number unconverted and say nothing.
+pub const UNITS: &[&str] = &["degrees"];
+
 /// The closed set as prose, for a panic message.
 fn type_list() -> String {
     PROPERTY_TYPES
@@ -347,6 +372,18 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
             "`description` is {}, not a string",
             description.type_str()
         ));
+    }
+    if let Some(unit) = spec.get("unit") {
+        match unit.as_str() {
+            Some(name) if UNITS.contains(&name) => {}
+            Some(name) => {
+                return Err(format!(
+                    "`unit = \"{name}\"` is not one of {}",
+                    UNITS.join(", ")
+                ));
+            }
+            None => return Err(format!("`unit` is {}, not a unit name", unit.type_str())),
+        }
     }
     let default = spec
         .get("default")
@@ -872,10 +909,15 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
     let registry = registry.borrow();
     let mut extra = 0u128;
     for (i, (name, def)) in registry.0.iter().enumerate() {
-        if bits & (1u128 << i) == 0 && (def.get)(eng, entity).is_some() {
-            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
-            extra |= 1u128 << i;
+        if bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_none() {
+            continue;
         }
+        // The node bundle attaches a `Transform` in the one spawn, so a node
+        // that never went through `add` carries one; freeing takes it off.
+        if name != crate::transform::COMPONENT {
+            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
+        }
+        extra |= 1u128 << i;
     }
     extra
 }

@@ -265,12 +265,14 @@ impl GlobalTransform {
 ///
 /// One tuple rather than a spawn and then an insert: adding a component
 /// afterwards moves the entity to another archetype, and that move was the
-/// single hottest function of a script adding children.
+/// single hottest function of a script adding children. A local `Transform` is
+/// one of the extras rather than one of these, because a node may have none;
+/// its `GlobalTransform` is here either way, so a bare node still has a world
+/// position and every reader of one is untouched.
 macro_rules! node_bundle {
     ($name:expr $(, $extra:expr)* $(,)?) => {
         (
             Name($name.to_string()),
-            Transform::identity(),
             GlobalTransform::identity(),
             Appearance::identity(),
             GlobalAppearance::identity(),
@@ -282,11 +284,24 @@ macro_rules! node_bundle {
 }
 
 pub(crate) fn spawn_root(world: &mut World) -> Entity {
-    world.spawn(node_bundle!("Root"))
+    world.spawn(node_bundle!("Root", Transform::identity()))
 }
 
 /// Spawn a new node under `parent`.
 pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
+    let entity = world.spawn(node_bundle!(name, Parent(parent), Transform::identity()));
+    attach(world, parent, name, entity);
+    entity
+}
+
+/// [`spawn_node`] without a local `Transform`, for a node that only groups or
+/// only draws.
+///
+/// What a scene file naming no `[nodes.transform]` gets: the component is
+/// absent rather than at its defaults, the same way an absent `[nodes.sprite]`
+/// means no sprite. Spawning it bare rather than removing one afterwards is
+/// what keeps the archetype move out of loading a scene.
+pub fn spawn_node_bare(world: &mut World, name: &str, parent: Entity) -> Entity {
     let entity = world.spawn(node_bundle!(name, Parent(parent)));
     attach(world, parent, name, entity);
     entity
@@ -297,6 +312,7 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
     let entity = world.spawn(node_bundle!(
         name,
         Parent(parent),
+        Transform::identity(),
         crate::components::StableId(id)
     ));
     attach(world, parent, name, entity);

@@ -191,7 +191,7 @@ pub fn draw_windows(S, k) {
             ui::horizontal(#{ height: 30 }, || {
                 ui::label(entry.title, #{ size: style::MD, font: ui::FONT_HEADING, strong: true, color: k.text });
                 ui::right(|| {
-                    if ui::circle_button("✕", #{ d: 20, size: style::SM, color: k.dim, tooltip: "Close" }) {
+                    if ui::circle_button(crate::icons::ui("close"), #{ d: 20, size: style::SM, color: k.dim, tooltip: "Close" }) {
                         S.registry.open[entry.id] = false;
                     }
                 });

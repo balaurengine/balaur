@@ -9,9 +9,11 @@ use crate::left;
 use crate::style;
 use crate::util;
 
-// The square a folded side dock keeps: SHUT_W in `layout.rn` less the
-// padding either side of it.
-const RAIL_W = 24.0;
+// One folded dock's handle, and the sheet's own air: the zoom reading's
+// numbers, so the pair match across the viewport.
+const TILE = 20.0;
+const PAD_X = 6.0;
+const PAD_Y = 3.0;
 
 pub fn sides() {
     ["left", "bottom", "right"]
@@ -549,7 +551,7 @@ pub fn draw_body(S, k, side) {
     hide_unused(S, side, d);
     if d.tabs.len() == 0 || d.shut {
         hide_tabs(side);
-        if d.tabs.len() > 0 {
+        if d.tabs.len() > 0 && side == "bottom" {
             handle_body(S, k, side);
         }
         return;
@@ -566,27 +568,54 @@ pub fn draw_body(S, k, side) {
     chrome::status_strip(S, k, S.layout[side].w, || {});
 }
 
-// Minimised: one control, filling the square the sheet folded to. The tabs
-// are not drawn — a folded dock is a thing to reopen, and the marks for what
-// is in it were a second row of chrome in a column 32 px wide.
+// Minimised, the bottom dock keeps its status strip, and the control that
+// reopens it sits in that strip. A side dock keeps nothing: its handle is in
+// the top strip, which `fold_strip` draws.
 fn handle_body(S, k, side) {
-    if side == "bottom" {
-        ui::add_space(2);
-        chrome::status_strip(S, k, S.layout[side].w, || {
-            if ui::pill(icons::ui(open_icon(side)), #{
-                role: "icon_button", height: 22, size: style::LG, padding_x: 5,
-                tooltip: "Open the dock",
-            }) {
-                S.docks[side].shut = false;
-            }
-        });
+    ui::add_space(2);
+    chrome::status_strip(S, k, S.layout[side].w, || {
+        if ui::pill(icons::ui(open_icon(side)), #{
+            role: "icon_button", height: 22, size: style::LG, padding_x: 5,
+            tooltip: "Open the dock",
+        }) {
+            S.docks[side].shut = false;
+        }
+    });
+}
+
+/// How much room the left dock's handle takes at the head of the top strip,
+/// so whatever the centre draws there starts clear of it.
+pub fn fold_inset(S) {
+    if folded(S, "left") && S.docks.left.tabs.len() > 0 {
+        return TILE + 2.0 * PAD_X + 6.0;
+    }
+    0.0
+}
+
+/// The handle a folded side dock leaves behind, at the end of the top strip
+/// it folded towards. A folded dock gives its column back, so this is the way
+/// back to it, and it is drawn wherever the centre is.
+pub fn fold_strip(S, k, vp) {
+    handle_tile(S, k, "left", vp.x, vp.y);
+    handle_tile(S, k, "right", vp.x + vp.w - TILE - 2.0 * PAD_X, vp.y);
+}
+
+// The zoom reading's own geometry, because the two are the same thing at
+// opposite corners: same height, same edge, centred on the row it shares.
+fn handle_tile(S, k, side, x, y) {
+    if !folded(S, side) || S.docks[side].tabs.len() == 0 {
         return;
     }
     let p = panel(S, S.docks[side].active);
-    if ui::pill(icons::ui(open_icon(side)), #{
-        height: RAIL_W, min_width: RAIL_W, size: style::LG, padding_x: 0, radius: 5,
-        color: k.dim, tooltip: format!("Open the {}", p.name.to_lowercase()),
-    }) {
-        S.docks[side].shut = false;
-    }
+    ui::overlay("fold-" + side, #{
+        x: x, y: y + 1.0, w: TILE + 2.0 * PAD_X, h: TILE + 2.0 * PAD_Y,
+        fill: k.panel, radius: 8, padding_x: PAD_X, padding_y: PAD_Y,
+    }, || {
+        if ui::pill(icons::ui(open_icon(side)), #{
+            height: TILE, min_width: TILE, size: style::MD, padding_x: 0,
+            color: k.dim, tooltip: format!("Open the {}", p.name.to_lowercase()),
+        }) {
+            S.docks[side].shut = false;
+        }
+    });
 }

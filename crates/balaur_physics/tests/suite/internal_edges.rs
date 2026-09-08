@@ -177,6 +177,8 @@ fn a_polyline_is_two_sided_until_it_is_asked_to_be_oriented() {
 const ONE_WAY_SCENE: &str = r#"[[nodes]]
 id = "n_platform_a"
 name = "PlatformA"
+
+[nodes.transform]
 position = [0.0, 0.0, 0.0]
 
 [nodes.collider2d]
@@ -187,8 +189,10 @@ one_way = true
 [[nodes]]
 id = "n_body_a"
 name = "BodyA"
-position = [0.0, -2.0, 0.0]
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [0.0, -2.0, 0.0]
 
 [nodes.body2d]
 kind = "dynamic"
@@ -200,8 +204,10 @@ radius = 0.3
 [[nodes]]
 id = "n_body_b"
 name = "BodyB"
-position = [10.0, -2.0, 0.0]
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [10.0, -2.0, 0.0]
 
 [nodes.body2d]
 kind = "dynamic"
@@ -213,6 +219,8 @@ radius = 0.3
 [[nodes]]
 id = "n_platform_b"
 name = "PlatformB"
+
+[nodes.transform]
 position = [10.0, 0.0, 0.0]
 
 [nodes.collider2d]

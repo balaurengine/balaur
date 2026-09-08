@@ -843,14 +843,32 @@ pub fn schema(S, name) {
     }
 }
 
+/// What a component declares it needs something from, cached beside the
+/// schemas: the inspector asks once per component per frame otherwise.
+pub fn expects(S, name) {
+    match S.expects.get(name) {
+        Some(cached) => cached,
+        None => {
+            let fresh = util::vec(scene::component_expects(name));
+            S.expects[name] = fresh;
+            fresh
+        }
+    }
+}
+
 pub fn set_transform(S, i, parts) {
     let node = S.doc[i];
     let target = live(S, i);
-    for key in ["position", "rotation_euler", "scale"] {
+    // Moving a node is what gives it a transform: one the file left out is
+    // written the first time something places it.
+    if !node.contains_key(TRANSFORM) {
+        node[TRANSFORM] = #{};
+    }
+    let held = node[TRANSFORM];
+    for key in TRANSFORM_KEYS {
         match parts.get(key) {
             Some(v) => {
-                node[key] = v;
-                record_override(S, node, key);
+                held[key] = v;
                 match target {
                     Some(t) => apply_transform(t, key, v),
                     None => (),
@@ -859,7 +877,26 @@ pub fn set_transform(S, i, parts) {
             None => (),
         }
     }
+    record_override(S, node, TRANSFORM);
 }
+
+/// One of the transform's vectors as the *document* holds it, for a reader
+/// that wants the authored value rather than the live node's.
+pub fn doc_transform(node, key, fallback) {
+    let held = node.get(TRANSFORM);
+    match held {
+        Some(held) => if held is Object {
+            util::vec3(held.get(key).unwrap_or(()), fallback)
+        } else {
+            fallback
+        },
+        None => fallback,
+    }
+}
+
+/// The transform component's name, and the properties it holds.
+pub const TRANSFORM = "transform";
+const TRANSFORM_KEYS = ["position", "rotation_euler", "scale"];
 
 fn apply_transform(t, key, v) {
     if key == "position" {
@@ -983,7 +1020,7 @@ pub fn instance_scene(S, rel) {
         name: name,
         parent: S.doc[S.sel].get("id").unwrap_or(""),
         instance: rel,
-        position: [0.0, 0.0, 0.0],
+        transform: #{ position: [0.0, 0.0, 0.0] },
     });
     // The engine builds the prefab, so the mirror has to be rebuilt rather
     // than grown a node: `expand_instances` reads the file again with it.
@@ -1092,7 +1129,7 @@ pub fn add_child(S, preset) {
         id: fresh_id(S.doc, name),
         name: name,
         parent: parent.get("id").unwrap_or(""),
-        position: [0.0, 0.0, 0.0],
+        transform: #{ position: [0.0, 0.0, 0.0] },
     };
     S.doc.push(entry);
     if let Some(found) = live(S, S.sel) {

@@ -435,9 +435,8 @@ pub fn drag_handle(S, i, mx, my) {
     } else {
         (mx, my)
     };
-    let z = util::f(util::vec3(S.doc[at].get("position").unwrap_or([]), [0.0, 0.0, 0.0])[2]);
-    S.doc[at].position = [lx, ly, z];
-    target.set_position(lx, ly, z);
+    let z = util::f(model::doc_transform(S.doc[at], "position", [0.0, 0.0, 0.0])[2]);
+    model::set_transform(S, at, #{ position: [lx, ly, z] });
 }
 
 // Flip the chain a two-bone modifier bends, which is the one property a
@@ -617,7 +616,7 @@ pub fn add_bone(S, parent_i, wx, wy) {
         id: model::fresh_id(S.doc, name),
         name: name,
         parent: parent.get("id").unwrap_or(""),
-        position: [lx, ly, 0.0],
+        transform: #{ position: [lx, ly, 0.0] },
     };
     entry[component] = child.get_component(component);
     S.doc.push(entry);
@@ -684,9 +683,11 @@ fn sync_bones(S, root_i, transforms) {
                         let p = found.position();
                         let r = found.rotation_euler();
                         let s = found.scale();
-                        S.doc[i].position = util::xyz(p);
-                        S.doc[i].rotation_euler = util::xyz(r);
-                        S.doc[i].scale = util::xyz(s);
+                        model::set_transform(S, i, #{
+                            position: util::xyz(p),
+                            rotation_euler: util::xyz(r),
+                            scale: util::xyz(s),
+                        });
                     } else {
                         let component = if S.doc[i].contains_key("bone3d") { "bone3d" } else { "bone2d" };
                         S.doc[i][component] = found.get_component(component);

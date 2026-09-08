@@ -4,8 +4,10 @@
 [[nodes]]
 id = "rig_first_person"
 name = "First person rig"
-position = [0, 1, 0]
 script = "scripts/first_person.rn"
+
+[nodes.transform]
+position = [0, 1, 0]
 
 [nodes.character3d]
 snap_to_ground = 0.3

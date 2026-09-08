@@ -401,11 +401,12 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             continue;
         }
-        // Off the clip nothing is ever seen and nothing can be reached, so
-        // the whole subtree is skipped: its measurement carries over, since
-        // the layout it feeds must not move because a list scrolled.
-        if !ui.clip_rect().intersects(rect) {
-            record_measure(entity, measured_of(entity));
+        // Off the clip nothing is seen or reached, so the subtree is skipped
+        // and its measurement carries over. Only once it has one, though, or
+        // a bootstrap frame settles the layout at zero.
+        let measured = measured_of(entity);
+        if measured != egui::Vec2::ZERO && !ui.clip_rect().intersects(rect) {
+            record_measure(entity, measured);
             ui.advance_cursor_after_rect(rect);
             continue;
         }

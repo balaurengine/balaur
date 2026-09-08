@@ -14,8 +14,10 @@ fog_density = 0.008
 [[nodes]]
 name = "Sun"
 parent = "Daylight"
+
+[nodes.transform]
 position = [10, 20, 10]
-rotation_euler = [-55, 35, 0]
+rotation_euler = [-0.95993, 0.61087, 0]
 
 [nodes.light3d]
 kind = "directional"

@@ -14,7 +14,9 @@
 //! way a scene file does instead of building a table for one number.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
+
+use rustc_hash::FxHashMap;
 
 use balaur_core::Engine;
 use balaur_core::node_api::NODE_OPS;
@@ -91,7 +93,7 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
 
     // Method name -> component -> bound function, from what each function
     // declared it acts on.
-    let mut methods: BTreeMap<String, HashMap<String, usize>> = BTreeMap::new();
+    let mut methods: BTreeMap<String, FxHashMap<String, usize>> = BTreeMap::new();
     for entry in api_docs() {
         if entry.acts_on.is_empty() {
             continue;
@@ -164,14 +166,17 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
             &Protocol::SET,
             name,
             move |this: &Component, value: rune::Value| {
-                write_property(this, name, &components, write, value)
+                write_property(this, name, &components, write, &value)
             },
         )?;
     }
     Ok(())
 }
 
-fn node_op(name: &str) -> Option<fn(&Engine, &[Neutral]) -> anyhow::Result<Neutral>> {
+/// One of the node's own component operations, as `NODE_OPS` stores it.
+type NodeOp = fn(&Engine, &[Neutral]) -> anyhow::Result<Neutral>;
+
+fn node_op(name: &str) -> Option<NodeOp> {
     NODE_OPS.iter().find(|d| d.name == name).map(|d| d.call)
 }
 
@@ -212,13 +217,13 @@ fn write_property(
     prop: &'static str,
     owners: &HashSet<String>,
     handle: usize,
-    value: rune::Value,
+    value: &rune::Value,
 ) -> VmResult<()> {
     if !owners.contains(&this.name) {
         return fail(format!("`{}` has no property `{prop}`", this.name));
     }
     let _scope = CallbackScope::enter();
-    let value = match to_neutral(&value) {
+    let value = match to_neutral(value) {
         Ok(v) => v,
         Err(err) => return fail(err),
     };
@@ -289,7 +294,7 @@ fn generic_handler(
 
 fn method_handler(
     method: &'static str,
-    targets: HashMap<String, usize>,
+    targets: FxHashMap<String, usize>,
 ) -> impl 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync {
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
         let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();

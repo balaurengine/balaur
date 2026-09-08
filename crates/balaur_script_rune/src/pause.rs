@@ -13,7 +13,7 @@ use rune::runtime::VmExecution;
 use rune::{TypeHash as _, Vm};
 
 use crate::debugger::{self, Hit, Lines, Outcome, StepPlan, Stops};
-use crate::{Paused, RuneHost, State};
+use crate::{Method, Paused, RuneHost, State};
 
 /// The instance and method an execution is running for.
 #[derive(Clone, Copy)]
@@ -21,6 +21,28 @@ struct Callee<'a> {
     owner: Entity,
     key: &'a str,
     label: &'a str,
+}
+
+/// What a tick needs to know about one script, read once instead of once per
+/// node. A frame calls `update` on every scripted node but across only a
+/// handful of files, and resolving the method costs more than running it.
+pub(crate) struct Prepared {
+    key: Rc<str>,
+    /// The method, or `None` when the script does not declare it — which is
+    /// most scripts for most handlers, and is not an error.
+    method: Option<Method>,
+    stepping: bool,
+    /// Borrowed from the script's pool for the tick and returned at its end,
+    /// so a node's call is not a fresh `Vm::new`.
+    vm: Option<Vm>,
+}
+
+impl Prepared {
+    /// Whether the script declares the method at all. A miss is not an error:
+    /// handlers are opt-in, and most scripts declare none of them.
+    pub(crate) fn declares(&self) -> bool {
+        self.method.is_some()
+    }
 }
 
 impl RuneHost {
@@ -38,21 +60,23 @@ impl RuneHost {
     ) -> Option<balaur_script::Value> {
         let stepping = {
             let state = self.state.borrow();
-            let has_breakpoints = state
-                .breakpoints
-                .get(key)
-                .is_some_and(|b| !b.ips.is_empty());
-            // Asked of the unit, not of the signature list: a function the
-            // source scan missed would otherwise be taken for async and run
-            // with its breakpoints ignored.
-            let sync = state
-                .scripts
-                .get(key)
-                .is_some_and(|s| s.unit.is_immediate(rune::Hash::type_hash([name])));
             // Breaking where a script threw needs the instruction it threw
             // on, which only the stepping executor still has; an asked-for
             // break needs it to have somewhere to stop at all.
-            sync && (has_breakpoints || state.break_on_error || state.break_next)
+            let armed = state.break_on_error
+                || state.break_next
+                || state
+                    .breakpoints
+                    .get(key)
+                    .is_some_and(|b| !b.ips.is_empty());
+            // Asked of the unit, not of the signature list: a function the
+            // source scan missed would be taken for async and run with its
+            // breakpoints ignored. Second because it costs more than `armed`.
+            armed
+                && state
+                    .scripts
+                    .get(key)
+                    .is_some_and(|s| s.unit.is_immediate(rune::Hash::type_hash([name])))
         };
         if stepping {
             return self.invoke_stepping(owner, key, name, args);
@@ -396,12 +420,42 @@ impl RuneHost {
                 return;
             }
         };
+        let mut prepared: Vec<Prepared> = Vec::new();
+        self.drive_batch(method, dt, batch, &dt_value, &mut prepared);
+        self.release(prepared);
+    }
+
+    /// The batch loop itself. Split from [`Self::run_batch`] so a pause can
+    /// leave through a `return` and still have its VMs handed back.
+    fn drive_batch(
+        &self,
+        method: &str,
+        dt: f32,
+        batch: Vec<(Entity, Rc<str>, rune::Value)>,
+        dt_value: &rune::Value,
+        prepared: &mut Vec<Prepared>,
+    ) {
+        // Read once for the whole batch: turning profiling on or off mid-tick
+        // would split one frame's cost across two answers anyway.
+        let profiling = self.profiling();
         let mut batch = batch.into_iter();
         while let Some((entity, key, state)) = batch.next() {
+            let slot = self.slot_for(prepared, &key, method);
+            // Asked of the file once rather than of every node running it.
+            if !prepared[slot].declares() {
+                continue;
+            }
             let Ok(dt_arg) = dt_value.try_clone() else {
                 continue;
             };
-            self.invoke(entity, &key, method, (state, dt_arg), false);
+            self.invoke_prepared(
+                entity,
+                &mut prepared[slot],
+                method,
+                (state, dt_arg),
+                profiling,
+                false,
+            );
             let mut host = self.state.borrow_mut();
             if let Some(paused) = host
                 .paused
@@ -411,6 +465,111 @@ impl RuneHost {
                 paused.remaining = batch.collect();
                 paused.method = Some((method.to_string(), dt));
                 return;
+            }
+        }
+    }
+
+    /// The slot in `prepared` for `key`, resolving its script on first sight.
+    ///
+    /// Linear because a frame's nodes run a handful of files between them, and
+    /// comparing `Rc` addresses is cheaper than hashing the key.
+    pub(crate) fn slot_for(
+        &self,
+        prepared: &mut Vec<Prepared>,
+        key: &Rc<str>,
+        name: &str,
+    ) -> usize {
+        if let Some(slot) = prepared.iter().position(|p| Rc::ptr_eq(&p.key, key)) {
+            return slot;
+        }
+        prepared.push(self.prepare(key, name));
+        prepared.len() - 1
+    }
+
+    /// Hand every borrowed VM back to its script's pool.
+    pub(crate) fn release(&self, prepared: Vec<Prepared>) {
+        for script in prepared {
+            if let Some(vm) = script.vm {
+                self.return_vm(&script.key, vm);
+            }
+        }
+    }
+
+    /// Resolve one script's method and borrow it a VM, once for the tick.
+    fn prepare(&self, key: &Rc<str>, name: &str) -> Prepared {
+        let method = self.resolve(key, name);
+        let immediate = method.as_ref().is_some_and(|m| m.immediate);
+        let armed = {
+            let state = self.state.borrow();
+            state.break_on_error
+                || state.break_next
+                || state
+                    .breakpoints
+                    .get(&**key)
+                    .is_some_and(|b| !b.ips.is_empty())
+        };
+        let stepping = immediate && armed;
+        // The stepping executor and an async call each need a VM of their
+        // own, so only the plain synchronous path borrows one here.
+        let vm = if immediate && !stepping {
+            self.take_vm(key)
+        } else {
+            None
+        };
+        Prepared {
+            key: key.clone(),
+            method,
+            stepping,
+            vm,
+        }
+    }
+
+    /// Call one instance with a script already resolved by [`Self::prepare`].
+    pub(crate) fn invoke_prepared<A: rune::runtime::Args + rune::runtime::GuardedArgs>(
+        &self,
+        owner: Entity,
+        prepared: &mut Prepared,
+        name: &str,
+        args: A,
+        profiling: bool,
+        allow_async: bool,
+    ) -> Option<balaur_script::Value> {
+        let Prepared {
+            key,
+            method,
+            stepping,
+            vm,
+        } = prepared;
+        let method = method.as_ref()?;
+        if *stepping {
+            return self.invoke_stepping(owner, key, name, args);
+        }
+        let outcome = match vm.as_mut() {
+            Some(vm) => {
+                let before = profiling.then(|| vm.instruction_count());
+                let outcome = vm.call(method.hash, args);
+                if let Some(before) = before {
+                    self.charge(key, vm.instruction_count().wrapping_sub(before));
+                }
+                outcome
+            }
+            None => method.function.call::<rune::Value>(args).into_result(),
+        };
+        match outcome {
+            Ok(value) => {
+                // The ticks may not suspend: `update` is deliberately
+                // synchronous, so a future there is a mistake, not a task.
+                if !allow_async && value.type_hash() == rune::runtime::Future::HASH {
+                    tracing::error!(
+                        "[{key}] {name} cannot be async; suspend in init or a handler instead"
+                    );
+                    return None;
+                }
+                self.settle_call(owner, key, name, value)
+            }
+            Err(err) => {
+                self.report(key, name, &err);
+                None
             }
         }
     }

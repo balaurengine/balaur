@@ -7,8 +7,6 @@ use crate::util;
 // A minimised dock is one control: a square this big at the top of a side
 // column, this tall across the bottom, and keeping less padding than an
 // open sheet does.
-const SHUT_W = 32.0;
-const SHUT_PAD = 4.0;
 const SHUT_H = 28.0;
 // What a timeline, a debugger or a session list needs over the bottom dock's
 // resting height, which the scene states.
@@ -218,6 +216,23 @@ fn size(S, id, key, value) {
     found.set_component("widget", params);
 }
 
+/// Draw a box, or stop drawing it. Memoised like `size`, because a component
+/// written every frame is a widget tree rebuilt every frame.
+fn show(S, id, on) {
+    let m = S.layout;
+    let mark = id + ":visible";
+    let want = if on { 1.0 } else { 0.0 };
+    if m.sent.get(mark) == Some(want) {
+        return;
+    }
+    let found = node(S, id);
+    if util::is_nil(found) {
+        return;
+    }
+    m.sent[mark] = want;
+    found.patch_component("widget", #{ visible: on });
+}
+
 /// Where a box was laid out, in design pixels; a zero rect until it has
 /// drawn once, which is the frame before the editor's first.
 fn box_of(S, id) {
@@ -302,13 +317,11 @@ pub fn compute(S) {
     size(S, "shell", "height", S.screen_h);
     size(S, "left", "width", tree_w);
     size(S, "right", "width", insp_w);
-    // Folded, the sheet is a square at the top of its column rather than a
-    // painted strip the whole height of the window.
+    // Folded, a side dock's whole column goes. Not the sheet inside it: a
+    // box left at zero width still takes the row's gap either side of it,
+    // which is what stopped the centre reaching the window's own edge.
     for side in ["left", "right"] {
-        let shut = S.docks[side].shut;
-        size(S, side + "sheet", "grow", if shut { 0.0 } else { 1.0 });
-        size(S, side + "sheet", "height", if shut { SHUT_W } else { 0.0 });
-        size(S, side + "sheet", "padding", if shut { SHUT_PAD } else { m.pad });
+        show(S, side, !crate::docks::folded(S, side));
     }
     size(S, "bottom", "height", dock_h);
     // The right sheet's header, above the rows the pool makes: a `draw` node
@@ -390,10 +403,10 @@ fn right_head_h(S) {
 // A side dock's width: nothing when it holds no panel, its rail when it is
 // folded, and what the seam was dragged to otherwise.
 fn side_w(S, side, open_w) {
-    if S.docks[side].tabs.len() == 0 {
+    if S.docks[side].tabs.len() == 0 || S.docks[side].shut {
         return 0.0;
     }
-    if S.docks[side].shut { SHUT_W } else { open_w }
+    open_w
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

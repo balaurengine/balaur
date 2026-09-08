@@ -86,6 +86,7 @@
     "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
+    "transform": "Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.",
     "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
     "wheel3d": "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
     "widget": "A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method."
@@ -227,6 +228,10 @@
     "tilemap": [
       "2d",
       "render"
+    ],
+    "transform": [
+      "2d",
+      "3d"
     ],
     "vehicle3d": [
       "3d",
@@ -3594,6 +3599,37 @@
         "default": "",
         "description": "The tileset naming the texture and tile grid",
         "type": "asset"
+      }
+    },
+    "transform": {
+      "position": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where the node sits in its parent's space",
+        "type": "vec3"
+      },
+      "rotation_euler": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Local rotation as euler angles in radians, x then y then z",
+        "step": 0.5,
+        "type": "vec3",
+        "unit": "degrees"
+      },
+      "scale": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Size relative to the parent's",
+        "type": "vec3"
       }
     },
     "vehicle3d": {

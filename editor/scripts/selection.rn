@@ -171,7 +171,7 @@ pub fn snapshot(S) {
             index: i,
             pos: util::xyz(found.position()),
             scale: util::xyz(found.scale()),
-            rot: util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]),
+            rot: model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]),
             world: util::xyz(found.global_position()),
         });
     }

@@ -450,12 +450,43 @@ fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {
+/// Read the node's local transform, answering identity when it has none.
+///
+/// A node without the `transform` component sits where its parent does, which
+/// is what `propagate_transforms` already does with one, so a reader gets that
+/// answer rather than an error about a component nothing said it needed.
+fn read_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&Transform) -> R) -> Result<R> {
     let world = eng.world();
-    let mut transform = world
-        .get::<&mut Transform>(e)
-        .map_err(|_| anyhow!("node is dead or has no transform"))?;
-    Ok(f(&mut transform))
+    if !world.contains(e) {
+        return Err(anyhow!("node is dead"));
+    }
+    match world.get::<&Transform>(e) {
+        Ok(transform) => Ok(f(&transform)),
+        Err(_) => Ok(f(&Transform::identity())),
+    }
+}
+
+/// Write the node's local transform, giving it one when it has none.
+///
+/// Moving a node is what says it has a transform, so a script never has to add
+/// the component before setting a position. The node changes archetype the once
+/// -- which is why a scene file naming a transform is spawned with one.
+fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {
+    {
+        let world = eng.world();
+        if let Ok(mut transform) = world.get::<&mut Transform>(e) {
+            return Ok(f(&mut transform));
+        }
+        if !world.contains(e) {
+            return Err(anyhow!("node is dead"));
+        }
+    }
+    let mut transform = Transform::identity();
+    let out = f(&mut transform);
+    eng.world_mut()
+        .insert_one(e, transform)
+        .map_err(|_| anyhow!("node is dead"))?;
+    Ok(out)
 }
 
 fn is_valid(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -488,7 +519,7 @@ fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn position(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| vec3(t.position))
+    read_transform(eng, node(args)?, |t| vec3(t.position))
 }
 
 fn set_position(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -504,7 +535,7 @@ fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| {
+    read_transform(eng, node(args)?, |t| {
         let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
         Value::Vec3([roll, pitch, yaw])
     })
@@ -524,7 +555,7 @@ fn set_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// person authors, so the pair exists rather than every caller carrying its
 /// own `math.deg` conversion the way the editor's inspector used to.
 fn rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| {
+    read_transform(eng, node(args)?, |t| {
         let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
         Value::Vec3([roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees()])
     })
@@ -544,7 +575,7 @@ fn set_rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn scale(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| vec3(t.scale))
+    read_transform(eng, node(args)?, |t| vec3(t.scale))
 }
 
 fn set_scale(eng: &Engine, args: &[Value]) -> Result<Value> {

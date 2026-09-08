@@ -251,6 +251,7 @@ fn register_core_content(app: &mut App) {
     crate::path::register_path_assets(app);
     crate::heightfield::register_heightfield_asset(app);
     crate::voxels::register_voxels_asset(app);
+    crate::transform::register_transform_component(app);
     crate::skeleton::register_bone2d_component(app);
     crate::skeleton::register_bone3d_component(app);
     crate::states::register_states_component(app);

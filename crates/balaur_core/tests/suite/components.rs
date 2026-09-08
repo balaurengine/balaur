@@ -42,6 +42,15 @@ fn spawn(app: &App) -> hecs::Entity {
     balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "N", root)
 }
 
+/// What the node carries beside the `transform` every spawned node is given,
+/// which is what a test about some other component is asking about.
+fn present_beside_the_transform(app: &App, e: hecs::Entity) -> Vec<String> {
+    components::present_on(&app.engine, e)
+        .into_iter()
+        .filter(|name| name != balaur_core::transform::COMPONENT)
+        .collect()
+}
+
 #[test]
 fn a_registered_component_is_listed_and_has_a_schema() {
     let app = app_with_marker();
@@ -98,7 +107,7 @@ fn adding_twice_updates_rather_than_duplicating() {
         Some("second")
     );
     assert_eq!(
-        components::present_on(&app.engine, e),
+        present_beside_the_transform(&app, e),
         vec!["marker".to_string()]
     );
 }
@@ -108,11 +117,11 @@ fn remove_takes_it_off_the_node() {
     let app = app_with_marker();
     let e = spawn(&app);
     components::add(&app.engine, e, "marker", None).unwrap();
-    assert!(!components::present_on(&app.engine, e).is_empty());
+    assert!(!present_beside_the_transform(&app, e).is_empty());
 
     components::remove(&app.engine, e, "marker").unwrap();
     assert!(components::get(&app.engine, e, "marker").is_none());
-    assert!(components::present_on(&app.engine, e).is_empty());
+    assert!(present_beside_the_transform(&app, e).is_empty());
 }
 
 #[test]
@@ -125,10 +134,14 @@ fn an_unregistered_name_is_an_error_that_says_so() {
 }
 
 #[test]
-fn a_node_starts_with_no_components() {
+fn a_node_starts_with_only_the_transform_it_was_spawned_with() {
     let app = app_with_marker();
     let e = spawn(&app);
-    assert!(components::present_on(&app.engine, e).is_empty());
+    assert_eq!(
+        components::present_on(&app.engine, e),
+        vec![balaur_core::transform::COMPONENT.to_string()]
+    );
+    assert!(present_beside_the_transform(&app, e).is_empty());
     assert!(components::get(&app.engine, e, "marker").is_none());
 }
 

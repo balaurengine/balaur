@@ -8,6 +8,8 @@ name = "World"
 id = "n_camera"
 name = "Camera"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, 0, 10]
 
 [nodes.camera]
@@ -19,8 +21,10 @@ zoom = 48
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-position = [0, -3, 0]
 body2d = "static"
+
+[nodes.transform]
+position = [0, -3, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -35,8 +39,10 @@ half_extents = [12, 0.5]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-position = [0, 0, 0]
 script = "scripts/player.rn"
+
+[nodes.transform]
+position = [0, 0, 0]
 
 [nodes.shape2d]
 kind = "capsule"

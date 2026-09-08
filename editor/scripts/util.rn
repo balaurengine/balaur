@@ -193,6 +193,23 @@ pub fn match_case(sample, text) {
     lower[..1].to_uppercase() + lower[1..]
 }
 
+/// Words a schema key spells lowercase that a label spells in capitals.
+const ACRONYMS = ["ccd", "fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"];
+
+/// A schema key as a row label: `half_extents` reads "Half extents". The key
+/// itself is untouched, so a label never becomes the name of anything.
+pub fn prop_label(prop) {
+    if prop == "" {
+        return prop;
+    }
+    let words = [];
+    for word in prop.split('_') {
+        words.push(if contains(ACRONYMS, word) { word.to_uppercase() } else { word });
+    }
+    let out = join(words, " ");
+    out[..1].to_uppercase() + out[1..]
+}
+
 /// The last segment of a `/`-separated path, which is what a column too
 /// narrow for the whole thing shows.
 pub fn leaf(path) {

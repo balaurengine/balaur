@@ -153,7 +153,10 @@ fn rows(
     let trails = branches(&items, &open_rows, &depth_of);
     let mut picked = None;
     let mut toggled = None;
-    let mut area = egui::ScrollArea::vertical()
+    // Both ways: a row wider than the list is a log line or a long node
+    // name, and a bar to reach the end of it is better than the end being
+    // painted over whatever sits beside the list.
+    let mut area = egui::ScrollArea::both()
         .id_salt(id)
         .auto_shrink([false, false]);
     if want.y > 0.0 {

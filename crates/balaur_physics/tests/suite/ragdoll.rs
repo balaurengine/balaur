@@ -28,6 +28,8 @@ rest_position = [0.0, 0.0]
 id = "n_knee"
 name = "Knee"
 parent = "n_hip"
+
+[nodes.transform]
 position = [1.0, 0.0, 0.0]
 
 [nodes.bone2d]
@@ -37,6 +39,8 @@ rest_position = [1.0, 0.0]
 id = "n_foot"
 name = "Foot"
 parent = "n_knee"
+
+[nodes.transform]
 position = [1.0, 0.0, 0.0]
 
 [nodes.bone2d]

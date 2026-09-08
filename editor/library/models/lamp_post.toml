@@ -7,6 +7,8 @@ name = "LampPost"
 [[nodes]]
 name = "Base"
 parent = "LampPost"
+
+[nodes.transform]
 position = [0, 0.06, 0]
 
 [nodes.shape3d]
@@ -18,6 +20,8 @@ color = "#2f3236"
 [[nodes]]
 name = "Pole"
 parent = "LampPost"
+
+[nodes.transform]
 position = [0, 1.5, 0]
 
 [nodes.shape3d]
@@ -29,6 +33,8 @@ color = "#2f3236"
 [[nodes]]
 name = "Head"
 parent = "LampPost"
+
+[nodes.transform]
 position = [0, 3.06, 0]
 
 [nodes.shape3d]

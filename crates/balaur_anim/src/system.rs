@@ -17,7 +17,7 @@ use balaur_core::components;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::Bone;
-use glamx::Vec4;
+use glamx::{EulerRot, Vec3, Vec4};
 
 use crate::clip::{Clip, Property, Wrap};
 use crate::player::{AnimationState, FIXED_DT, MAX_SUBSTEPS, Playback};
@@ -304,6 +304,17 @@ pub(crate) fn write_pose(
             continue;
         }
         let Ok(mut transform) = world.get::<&mut Transform>(target) else {
+            // A node its scene gave no transform still moves when a clip says
+            // so: the patch adds the component, as a component track's does,
+            // and the next frame takes the write above.
+            if let Some((property, value)) = transform_patch(&value) {
+                effects.push(Effect::Patch {
+                    entity: target,
+                    component: balaur_core::transform::COMPONENT.to_string(),
+                    property,
+                    value,
+                });
+            }
             continue;
         };
         // Rests are read once per track and only while retargeting: a clip
@@ -392,6 +403,24 @@ fn target_of(world: &World, entity: Entity, root: &str, target: &str) -> Option<
 ///
 /// One channel is a number and the rest are a list, which is how a component
 /// schema spells `radius = 0.5` against `rgba = [1, 0, 0, 1]`.
+/// One transform track as a `transform` property and its value, for the node
+/// that has no `Transform` to write into yet.
+fn transform_patch(value: &TrackValue) -> Option<(String, toml::Value)> {
+    let vector = |v: Vec3| numbers(v.extend(0.0), 3);
+    match value {
+        TrackValue::Position(position) => Some(("position".to_string(), vector(*position))),
+        TrackValue::Scale(scale) => Some(("scale".to_string(), vector(*scale))),
+        TrackValue::Rotation(rotation) => {
+            let (yaw, pitch, roll) = rotation.to_euler(EulerRot::ZYX);
+            Some((
+                "rotation_euler".to_string(),
+                vector(Vec3::new(roll, pitch, yaw)),
+            ))
+        }
+        TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => None,
+    }
+}
+
 fn numbers(value: Vec4, channels: usize) -> toml::Value {
     if channels == 1 {
         return toml::Value::Float(f64::from(value.x));

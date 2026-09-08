@@ -83,6 +83,7 @@ pub fn init(this) {
         ui_scale: 1.25,
         script_buffers: #{},
         schemas: #{},
+        expects: #{},
         script_dirty: #{},
         collapsed: #{},
         // The panel `view:<id>` asked for, reported once the shot is taken.

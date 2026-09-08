@@ -575,6 +575,21 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 </tbody>
 </table>
 
+### `transform`
+
+`2d` · `3d` · 3 properties
+
+Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the node sits in its parent&#x27;s space</td></tr>
+<tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
+<tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Size relative to the parent&#x27;s</td></tr>
+</tbody>
+</table>
+
 ## 3D
 
 ### `body3d`

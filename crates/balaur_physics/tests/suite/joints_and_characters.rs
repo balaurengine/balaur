@@ -58,8 +58,10 @@ events = ["collision"]
 [[nodes]]
 id = "n_faller"
 name = "Faller"
-position = [0.0, 6.0, 0.0]
 body3d = "dynamic"
+
+[nodes.transform]
+position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -96,9 +98,11 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
-position = [1.0, 0.0, 0.0]
 body3d = "dynamic"
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -142,9 +146,11 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
-position = [1.0, 0.0, 0.0]
 body3d = "dynamic"
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -191,9 +197,11 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
-position = [1.0, 0.0, 0.0]
 body2d = "dynamic"
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [1.0, 0.0, 0.0]
 
 [nodes.collider2d]
 kind = "circle"
@@ -232,9 +240,11 @@ fn a_joint_waits_for_a_node_that_comes_later() {
         r#"[[nodes]]
 id = "n_hanging"
 name = "Hanging"
-position = [1.0, 0.0, 0.0]
 body3d = "dynamic"
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -276,6 +286,8 @@ fn a_character_slides_along_a_wall_instead_of_entering_it() {
         r#"[[nodes]]
 id = "n_wall"
 name = "Wall"
+
+[nodes.transform]
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
@@ -406,6 +418,8 @@ fn asking_is_grounded_does_not_move_the_character() {
         r#"[[nodes]]
 id = "n_floor"
 name = "Floor"
+
+[nodes.transform]
 position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
@@ -415,8 +429,10 @@ half_extents = [8.0, 0.5, 8.0]
 [[nodes]]
 id = "n_player"
 name = "Player"
-position = [0.0, 1.0, 0.0]
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [0.0, 1.0, 0.0]
 
 [nodes.collider3d]
 kind = "capsule"
@@ -461,8 +477,10 @@ fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
-rotation_euler = [0.0, 0.0, 1.5707963]
 script = "scripts/s.rn"
+
+[nodes.transform]
+rotation_euler = [0.0, 0.0, 1.5707963]
 
 [nodes.collider2d]
 kind = "rect"
@@ -497,6 +515,8 @@ fn a_contact_point_is_reported_in_world_space() {
         r#"[[nodes]]
 id = "n_ground"
 name = "Ground"
+
+[nodes.transform]
 position = [0.0, -10.0, 0.0]
 
 [nodes.collider3d]
@@ -506,9 +526,11 @@ half_extents = [8.0, 0.5, 8.0]
 [[nodes]]
 id = "n_faller"
 name = "Faller"
-position = [0.0, -8.0, 0.0]
 body3d = "dynamic"
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [0.0, -8.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"

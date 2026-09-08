@@ -42,6 +42,9 @@ macro_rules! functions {
 
         /// Create the body if the node has none, then write every property onto it.
         pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+            // The step writes the body's pose back onto the node, so a body on
+            // a node the scene left bare has to give it a transform first.
+            balaur_core::transform::ensure(eng, entity);
             let exists = {
                 let state = eng.resource::<$State>();
                 let exists = state.borrow().bodies.contains_key(&entity);

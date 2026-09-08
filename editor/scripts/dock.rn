@@ -204,7 +204,7 @@ pub fn output(S, k) {
                 let marker = " ";
                 if entry.level == "error" {
                     color = k.accent;
-                    marker = "✕";
+                    marker = icons::ui("close");
                 } else if entry.level == "warn" {
                     color = k.accent;
                     marker = "!";

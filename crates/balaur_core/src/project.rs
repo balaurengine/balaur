@@ -19,12 +19,11 @@ use crate::collections::DetHashMap;
 use crate::components::StableId;
 use anyhow::{Context, Result, anyhow, bail};
 use balaur_script::Value;
-use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 use serde::Deserialize;
 
 use crate::engine::Engine;
-use crate::scene::{self, Appearance, Tags, Transform};
+use crate::scene::{self, Appearance, Tags};
 
 /// A project's manifest, `project.toml`.
 ///
@@ -253,9 +252,6 @@ struct SceneNode {
     /// root (`"World/Ground"`). Omitted or empty means a root child.
     #[serde(default)]
     parent: String,
-    position: Option<[f32; 3]>,
-    rotation_euler: Option<[f32; 3]>,
-    scale: Option<[f32; 3]>,
     /// Hides the node and everything under it. Physics is unaffected.
     visible: Option<bool>,
     z_index: Option<i32>,
@@ -730,23 +726,19 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let ids = repair_ids(&doc.nodes);
     for (index, node) in doc.nodes.iter().enumerate() {
         let parent = resolve_parent(eng, node, root, &by_id)?;
-        let entity = scene::spawn_node(&mut eng.world_mut(), &node.name, parent);
+        // The transform is a component, so a node that names none has none.
+        // Chosen at the spawn rather than inserted after, which would move
+        // every node in the file to another archetype.
+        let entity = if node.extra.contains_key(crate::transform::COMPONENT) {
+            scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
+        } else {
+            scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent)
+        };
         by_id.insert(ids[index].as_str(), entity);
         eng.world_mut()
             .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         {
             let world = eng.world();
-            // spawn_node inserts a Transform on every node it creates.
-            let mut transform = world.get::<&mut Transform>(entity).unwrap();
-            if let Some([x, y, z]) = node.position {
-                transform.position = Vec3::new(x, y, z);
-            }
-            if let Some([roll, pitch, yaw]) = node.rotation_euler {
-                transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
-            }
-            if let Some([x, y, z]) = node.scale {
-                transform.scale = Vec3::new(x, y, z);
-            }
             // spawn_node inserts an Appearance on every node it creates.
             let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
             if let Some(on) = node.visible {
@@ -916,29 +908,10 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
 }
 
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 7] = [
-    "position",
-    "rotation_euler",
-    "scale",
-    "visible",
-    "z_index",
-    "z_relative",
-    "tags",
-];
+const NODE_KEYS: [&str; 4] = ["visible", "z_index", "z_relative", "tags"];
 
 fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
-    if let Ok(mut transform) = world.get::<&mut Transform>(entity) {
-        if let Some([x, y, z]) = triple(table.get("position")) {
-            transform.position = Vec3::new(x, y, z);
-        }
-        if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
-            transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
-        }
-        if let Some([x, y, z]) = triple(table.get("scale")) {
-            transform.scale = Vec3::new(x, y, z);
-        }
-    }
     let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
         return;
     };
@@ -960,18 +933,6 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
         drop(world);
         let _ = eng.world_mut().insert_one(entity, tags);
     }
-}
-
-fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
-    let items = value?.as_array()?;
-    if items.len() != 3 {
-        return None;
-    }
-    let mut out = [0.0; 3];
-    for (slot, item) in out.iter_mut().zip(items) {
-        *slot = crate::components::as_f64(item)? as f32;
-    }
-    Some(out)
 }
 
 /// A node's `parent`: the id of an earlier node, or a `/`-separated path of

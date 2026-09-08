@@ -152,7 +152,7 @@ pub fn undo(S) {
         history::commit(S);
         model::set_transform(S, S.sel, #{ position: [p.x + 5.0, p.y, p.z] });
         shell::undo(S);
-        let restored = util::vec3(model::selected_node(S).get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+        let restored = model::doc_transform(model::selected_node(S), "position", [0.0, 0.0, 0.0]);
         check(util::abs(restored[0] - p.x) < 1e-6, format!("undo restores the position ({} vs {})", restored[0], p.x));
     }
 
@@ -204,7 +204,7 @@ pub fn rigging(S) {
     rig::apply_rest(S);
     let bx = model::live(S, first).unwrap().position().x;
     check(util::abs(bx - p.x) < 1e-5, format!("reset to rest pose puts {} back ({} vs {})", bone_name, bx, p.x));
-    let doc_pos = util::vec3(S.doc[first].get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    let doc_pos = model::doc_transform(S.doc[first], "position", [0.0, 0.0, 0.0]);
     check(util::abs(doc_pos[0] - p.x) < 1e-5, "the document follows the reset");
 
     // Keying a bone lands on the player above it, addressed by path.
@@ -569,11 +569,11 @@ pub fn tiles_tool(S) {
 
     // Growing leaves the node where it is: a cell's place is its coordinate,
     // so the map may reach in any direction without sliding.
-    let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    let was_x = util::f(model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);
     check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
-    let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    let now_x = util::f(model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0]);
     check(util::abs(now_x - was_x) < 1e-4, format!("the node stayed where it was ({} to {})", was_x, now_x));
 
     // And reaching up and to the left, which the centred map could not do.

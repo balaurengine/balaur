@@ -156,6 +156,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
+        name: "component_expects",
+        call: component_expects,
+    },
+    EngineOp {
+        module: "scene",
         name: "presets",
         call: presets,
     },
@@ -808,6 +813,22 @@ fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
         Value::List(
             def.tags
+                .iter()
+                .map(|t| Value::Str((*t).to_string()))
+                .collect(),
+        )
+    }))
+}
+
+/// What a component declares it needs something from, for a tool ordering or
+/// grouping its sections. `unmet_expectations` answers the same question about
+/// one node; this answers it about the type.
+fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
+        Value::List(
+            def.expects
                 .iter()
                 .map(|t| Value::Str((*t).to_string()))
                 .collect(),

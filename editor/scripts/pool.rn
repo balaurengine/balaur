@@ -219,6 +219,7 @@ pub fn sync(S, host_path, specs, label_w, control_w) {
                 text: spec.get("label").unwrap_or(""),
                 width: label_w,
                 role: spec.get("label_role").unwrap_or("label"),
+                tooltip: spec.get("tooltip").unwrap_or(""),
             });
         }
         let slot = row.get_node("C");

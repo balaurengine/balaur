@@ -153,7 +153,7 @@ fn draw_row(S, k, at, row) {
             }
         }
         text_field(S, k, at, "value", as_text(row.get("value")), "value", 110.0);
-        if ui::pill("✕", #{ height: 20, size: style::SM, min_width: 22, color: k.accent }) {
+        if ui::pill(icons::ui("close"), #{ height: 20, size: style::SM, min_width: 22, color: k.accent }) {
             remove_row(S, at);
         }
     });

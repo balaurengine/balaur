@@ -53,8 +53,10 @@ text_color = "#4b4b4b"
 id = "n_ground"
 name = "Ground"
 parent = ""
-position = [0, -0.5, 0]
 body2d = "static"
+
+[nodes.transform]
+position = [0, -0.5, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -70,6 +72,8 @@ friction = 0.9
 id = "n_slingpost"
 name = "SlingPost"
 parent = ""
+
+[nodes.transform]
 position = [-8, 0.9, 0]
 
 [nodes.shape2d]
@@ -81,8 +85,10 @@ color = [0.42, 0.28, 0.16, 1.0]
 id = "n_bird"
 name = "Bird"
 parent = ""
-position = [-8, 2.2, 0]
 body2d = "kinematic"
+
+[nodes.transform]
+position = [-8, 2.2, 0]
 
 [nodes.shape2d]
 kind = "circle"
@@ -100,8 +106,10 @@ density = 2.5
 id = "n_columnl"
 name = "ColumnL"
 parent = ""
-position = [6, 1.0, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [6, 1.0, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -117,8 +125,10 @@ friction = 0.7
 id = "n_columnr"
 name = "ColumnR"
 parent = ""
-position = [8, 1.0, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [8, 1.0, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -134,8 +144,10 @@ friction = 0.7
 id = "n_plank"
 name = "Plank"
 parent = ""
-position = [7, 2.16, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7, 2.16, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -151,8 +163,10 @@ friction = 0.7
 id = "n_columnl2"
 name = "ColumnL2"
 parent = ""
-position = [6.4, 3.1, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [6.4, 3.1, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -168,8 +182,10 @@ friction = 0.7
 id = "n_columnr2"
 name = "ColumnR2"
 parent = ""
-position = [7.6, 3.1, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7.6, 3.1, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -185,8 +201,10 @@ friction = 0.7
 id = "n_plank2"
 name = "Plank2"
 parent = ""
-position = [7, 4.04, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7, 4.04, 0]
 
 [nodes.shape2d]
 kind = "rect"
@@ -202,8 +220,10 @@ friction = 0.7
 id = "n_pig1"
 name = "Pig1"
 parent = ""
-position = [7, 0.45, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7, 0.45, 0]
 
 [nodes.shape2d]
 kind = "circle"
@@ -221,6 +241,8 @@ friction = 0.6
 id = "n_riml"
 name = "RimL"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [-0.18, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -232,6 +254,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_rimr"
 name = "RimR"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [0.18, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -243,6 +267,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_bridge"
 name = "Bridge"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [0, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -254,6 +280,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_lensl"
 name = "LensL"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [-0.18, 0.072, 0.02]
 
 [nodes.shape2d]
@@ -265,6 +293,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_lensr"
 name = "LensR"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [0.18, 0.072, 0.02]
 
 [nodes.shape2d]
@@ -276,6 +306,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_pupill"
 name = "PupilL"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [-0.18, 0.072, 0.03]
 
 [nodes.shape2d]
@@ -287,6 +319,8 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pupilr"
 name = "PupilR"
 parent = "n_pig1"
+
+[nodes.transform]
 position = [0.18, 0.072, 0.03]
 
 [nodes.shape2d]
@@ -298,8 +332,10 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pig2"
 name = "Pig2"
 parent = ""
-position = [7, 2.72, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7, 2.72, 0]
 
 [nodes.shape2d]
 kind = "circle"
@@ -317,6 +353,8 @@ friction = 0.6
 id = "n_riml_2"
 name = "RimL"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [-0.16, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -328,6 +366,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_rimr_2"
 name = "RimR"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [0.16, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -339,6 +379,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_bridge_2"
 name = "Bridge"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [0, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -350,6 +392,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_lensl_2"
 name = "LensL"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [-0.16, 0.064, 0.02]
 
 [nodes.shape2d]
@@ -361,6 +405,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_lensr_2"
 name = "LensR"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [0.16, 0.064, 0.02]
 
 [nodes.shape2d]
@@ -372,6 +418,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_pupill_2"
 name = "PupilL"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [-0.16, 0.064, 0.03]
 
 [nodes.shape2d]
@@ -383,6 +431,8 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pupilr_2"
 name = "PupilR"
 parent = "n_pig2"
+
+[nodes.transform]
 position = [0.16, 0.064, 0.03]
 
 [nodes.shape2d]
@@ -394,8 +444,10 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pig3"
 name = "Pig3"
 parent = ""
-position = [7, 4.55, 0]
 body2d = "dynamic"
+
+[nodes.transform]
+position = [7, 4.55, 0]
 
 [nodes.shape2d]
 kind = "circle"
@@ -412,6 +464,8 @@ friction = 0.6
 id = "n_riml_3"
 name = "RimL"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [-0.144, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -423,6 +477,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_rimr_3"
 name = "RimR"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [0.144, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -434,6 +490,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_bridge_3"
 name = "Bridge"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [0, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -445,6 +503,8 @@ color = [0.16, 0.13, 0.11, 1.0]
 id = "n_lensl_3"
 name = "LensL"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [-0.144, 0.058, 0.02]
 
 [nodes.shape2d]
@@ -456,6 +516,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_lensr_3"
 name = "LensR"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [0.144, 0.058, 0.02]
 
 [nodes.shape2d]
@@ -467,6 +529,8 @@ color = [0.96, 0.96, 0.93, 1.0]
 id = "n_pupill_3"
 name = "PupilL"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [-0.144, 0.058, 0.03]
 
 [nodes.shape2d]
@@ -478,6 +542,8 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pupilr_3"
 name = "PupilR"
 parent = "n_pig3"
+
+[nodes.transform]
 position = [0.144, 0.058, 0.03]
 
 [nodes.shape2d]

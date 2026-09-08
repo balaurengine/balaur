@@ -65,6 +65,30 @@ fn update_across_nodes(c: &mut Criterion) {
     group.finish();
 }
 
+/// The other per-frame path over every node: `draw_ui` reaches every scripted
+/// node in the editor, and in a real scene most of them never declare it.
+fn call_all_across_nodes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("call_all");
+    let count = 1000usize;
+    for (name, declared) in [("declared", true), ("undeclared", false)] {
+        group.throughput(Throughput::Elements(count as u64));
+        for backend in Backend::ALL {
+            let body = match (backend, declared) {
+                (Backend::Rune, true) => "pub fn init(this) {}\npub fn draw_ui(this) {}\n",
+                (Backend::Rune, false) => "pub fn init(this) {}\n",
+            };
+            let project = Project::new(backend, body).unwrap();
+            let app = app(backend, &project).unwrap();
+            attach_many(&app, backend, count).unwrap();
+            let host = app.engine.script_host().unwrap();
+            group.bench_function(BenchmarkId::new(backend.name(), name), |b| {
+                b.iter(|| host.call_all("draw_ui"));
+            });
+        }
+    }
+    group.finish();
+}
+
 /// A binding call on its own: script in, Rust out, value back.
 fn binding_call(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_call");
@@ -213,6 +237,7 @@ fn binding_arg_shapes(c: &mut Criterion) {
 criterion_group!(
     benches,
     update_across_nodes,
+    call_all_across_nodes,
     binding_call,
     binding_arg_shapes,
     attach_first,

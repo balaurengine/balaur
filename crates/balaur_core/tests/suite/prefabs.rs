@@ -61,6 +61,8 @@ label = "body"
 id = "n_arm"
 name = "Arm"
 parent = "n_body"
+
+[nodes.transform]
 position = [1.0, 0.0, 0.0]
 
 [nodes.marker]
@@ -98,6 +100,8 @@ fn an_instance_builds_the_prefab_under_the_node_that_names_it() {
 id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
+
+[nodes.transform]
 position = [4.0, 0.0, 0.0]
 "#,
     );
@@ -166,7 +170,7 @@ id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
 
-[nodes.overrides."Body/Arm"]
+[nodes.overrides."Body/Arm".transform]
 position = [0.0, 2.0, 0.0]
 "#,
     );

@@ -8,8 +8,10 @@ name = "World"
 id = "n_camera"
 name = "Camera"
 parent = "n_world"
+
+[nodes.transform]
 position = [4, 3, 6]
-rotation_euler = [-18, 34, 0]
+rotation_euler = [-0.31416, 0.59341, 0]
 
 [nodes.camera]
 current = true
@@ -28,8 +30,10 @@ tonemap = "neutral"
 id = "n_key"
 name = "Key"
 parent = "n_world"
+
+[nodes.transform]
 position = [4, 6, 4]
-rotation_euler = [-45, 40, 0]
+rotation_euler = [-0.7854, 0.69813, 0]
 
 [nodes.light3d]
 kind = "spot"
@@ -43,8 +47,10 @@ outer = 50
 id = "n_stand"
 name = "Stand"
 parent = "n_world"
-position = [0, 0, 0]
 script = "scripts/turntable.rn"
+
+[nodes.transform]
+position = [0, 0, 0]
 
 [nodes.shape3d]
 kind = "cylinder"

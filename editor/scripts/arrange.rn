@@ -11,7 +11,7 @@ use crate::util;
 fn world_of(S, i) {
     match model::live(S, i) {
         Some(found) => util::xyz(found.global_position()),
-        None => util::vec3(S.doc[i].get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
+        None => model::doc_transform(S.doc[i], "position", [0.0, 0.0, 0.0]),
     }
 }
 
@@ -19,7 +19,7 @@ fn world_of(S, i) {
 fn move_world_to(S, i, target) {
     let world = world_of(S, i);
     let node = S.doc[i];
-    let local = util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    let local = model::doc_transform(node, "position", [0.0, 0.0, 0.0]);
     model::set_transform(S, i, #{ position: util::vadd(local, util::vsub(target, world)) });
 }
 
@@ -136,12 +136,15 @@ pub fn group(S) {
     // the nodes naming it, and the engine says so rather than guessing.
     S.doc.insert(at, #{
         id: id, name: model::unique_name(S.doc, "Group"), parent: parent,
-        position: util::vsub(center, base),
-        rotation_euler: [0.0, 0.0, 0.0], scale: [1.0, 1.0, 1.0],
+        transform: #{
+            position: util::vsub(center, base),
+            rotation_euler: [0.0, 0.0, 0.0], scale: [1.0, 1.0, 1.0],
+        },
     });
     for member in members {
         member.node.parent = id;
-        member.node.position = util::vsub(member.world, center);
+        model::set_transform(S, model::index_of_id(S.doc, member.node.id).unwrap_or(0),
+            #{ position: util::vsub(member.world, center) });
     }
     model::build_mirror(S);
     selection::only(S, at);
@@ -181,7 +184,7 @@ pub fn ungroup(S) {
     for j in kids {
         let kid = S.doc[j];
         kid.parent = up;
-        kid.position = util::vsub(worlds[format!("{}", j)], base);
+        model::set_transform(S, j, #{ position: util::vsub(worlds[format!("{}", j)], base) });
     }
     S.doc.remove(i);
     model::build_mirror(S);

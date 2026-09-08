@@ -24,7 +24,7 @@ const FOOT_H = 58.0;
 fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
-    let mark = icons::component(title.to_lowercase());
+    let (mark, tint) = icons::component(title.to_lowercase());
     wide_row(S, 24, || {
         ui::horizontal(#{ height: 20 }, || {
             ui::add_space(2);
@@ -33,7 +33,7 @@ fn section(S, k, title) {
             ui::add_space(4);
             if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
                 height: 20, radius: 4, align: ui::ALIGN_LEFT,
-                icon: mark, icon_size: style::MD, icon_color: k.dim,
+                icon: mark, icon_size: style::MD, icon_color: k.get(tint).unwrap_or(k.dim),
             })) {
                 if open {
                     S.collapsed[key] = true;
@@ -80,8 +80,38 @@ pub fn form_row(S, label, controls) {
 /// A row the caller draws: a label column and a `draw` node beside it, so the
 /// bespoke rows a control table cannot describe are nodes like the rest.
 fn row(S, k, label, body) {
+    tip_row(S, k, label, "", body);
+}
+
+/// A drawn row whose label says more on hover: the label column is 82 px and
+/// cuts what does not fit, so the tooltip is where the whole of it lives.
+fn tip_row(S, k, label, tooltip, body) {
     S.form_draws.push(body);
-    push(S, #{ label: label, height: 24, draw: ROW_HATCH });
+    push(S, #{ label: label, tooltip: tooltip, height: 24, draw: ROW_HATCH });
+}
+
+/// A drawn row for one schema property, labelled and described from its spec.
+fn spec_row(S, k, prop, spec, body) {
+    tip_row(S, k, util::prop_label(prop), prop_tip(prop, spec), body);
+}
+
+/// A property's value as its row draws it. `unit` is display only: the
+/// component, the scene file and a script all hold what the schema declares,
+/// and `min`, `max` and `step` are written in the unit shown.
+fn shown_as(spec, v) {
+    if spec.get("unit").unwrap_or("") == "degrees" { math::deg(v) } else { v }
+}
+
+/// The inverse of `shown_as`, for the value a row writes back.
+fn stored_as(spec, v) {
+    if spec.get("unit").unwrap_or("") == "degrees" { math::rad(v) } else { v }
+}
+
+/// A property's full label, and what its schema says it is under it.
+fn prop_tip(prop, spec) {
+    let label = util::prop_label(prop);
+    let description = spec.get("description").unwrap_or("");
+    if description == "" { label } else { label + "\n" + description }
 }
 
 /// A drawn row spanning both columns, for a heading or a note.
@@ -125,34 +155,6 @@ fn panel_w(S) {
     util::max(S.layout.right.w - 26.0, 150.0)
 }
 
-// A draggable vector field writing straight back to doc + live node.
-fn vec3_row(S, k, label, getter, setter) {
-    let (node, found) = model::selected(S);
-    let cell = #{ v: getter(node, found), changed: false };
-    row(S, k, label, || {
-        let axes = ["x", "y", "z"];
-        // Touching, with nothing between them: three cells of a vector read as
-        // one control, and the seams between them are the only divider needed.
-        ui::spacing(0, 0);
-        let w = control_w(S) / 3.0;
-        for i in 0..3 {
-            let (nv, ch) = ui::drag_value(cell.v[i], #{
-                width: w, speed: 0.02, decimals: 2,
-                prefix: axes[i], prefix_color: k.accent,
-                fill: k.sunken, stroke: k.line, color: k.text,
-            });
-            if ch {
-                cell.v[i] = nv;
-                cell.changed = true;
-            }
-        }
-        if cell.changed {
-            history::record(S, format!("set {}", label.to_lowercase()), Some(format!("xform:{}:{}", label, S.sel)));
-            setter(cell.v);
-        }
-    });
-}
-
 fn value_field(k, value, opts) {
     ui::drag_value(value, #{
         width: opts.get("width").unwrap_or(184.0),
@@ -161,52 +163,6 @@ fn value_field(k, value, opts) {
         suffix: opts.get("suffix").unwrap_or(()),
         fill: k.sunken, stroke: k.line, color: k.text,
     })
-}
-
-fn transform_section(S, k) {
-    if !section(S, k, "Transform") {
-        return;
-    }
-    vec3_row(S, k, "Position", |node, found| {
-        match found {
-            Some(found) => {
-                let p = found.position();
-                util::xyz(p)
-            }
-            None => util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
-        }
-    }, |v| {
-        model::set_transform(S, S.sel, #{ position: [v[0], v[1], v[2]] });
-    });
-    // The row is in degrees and the engine takes them directly. The scene doc
-    // still stores radians, which is the scene-file unit, so the doc write is
-    // the only conversion left.
-    vec3_row(S, k, "Rotation", |node, found| {
-        match found {
-            Some(found) => {
-                let r = found.rotation_degrees();
-                util::xyz(r)
-            }
-            None => {
-                let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
-                [math::deg(r[0]), math::deg(r[1]), math::deg(r[2])]
-            }
-        }
-    }, |v| {
-        let r = [math::rad(v[0]), math::rad(v[1]), math::rad(v[2])];
-        model::set_transform(S, S.sel, #{ rotation_euler: r });
-    });
-    vec3_row(S, k, "Scale", |node, found| {
-        match found {
-            Some(found) => {
-                let s = found.scale();
-                util::xyz(s)
-            }
-            None => util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]),
-        }
-    }, |v| {
-        model::set_transform(S, S.sel, #{ scale: [v[0], v[1], v[2]] });
-    });
 }
 
 // A row that came from a prefab says so, and says where an edit will land.
@@ -663,33 +619,9 @@ fn animation_section(S, k) {
             return;
         }
     };
-    let comp = util::obj(anim::component(node).unwrap_or(#{}));
-    row(S, k, "Clip", || {
-        let id = format!("clipname:{}", S.sel);
-        let (text, _, submitted) = ui::text_field(id, "unnamed",
-            util::merge(style::field(k, control_w(S)), #{ value: anim::clip_name(node) }));
-        if submitted {
-            // The name is `autoplay`: what the scene starts is what the
-            // Timeline edits, so there is one clip to get wrong instead of two.
-            history::record(S, "rename clip", None);
-            comp.autoplay = text;
-            S.clip = None;
-            anim::arm(S);
-        }
-    });
+    // The clip and the rate are `animation.autoplay` and `animation.speed`,
+    // edited in the player's own ANIMATION section rather than twice.
     clip_source_row(S, k, node);
-    row(S, k, "Speed", || {
-        let (v, ch) = ui::slider(util::f(comp.get("speed").unwrap_or(1.0)), 0.1, 3.0, #{
-            width: CONTROL_W - 44.0,
-            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
-        });
-        ui::add_space(6);
-        ui::label(format!("{:.2}", v), style::mono(k.text));
-        if ch {
-            comp.speed = v;
-            anim::touch(S);
-        }
-    });
     row(S, k, "Length", || {
         let (v, ch) = value_field(k, anim::length(def), #{ speed: 0.01, suffix: " s" });
         if ch {
@@ -792,8 +724,14 @@ const SCRIPT_PROPS = "script/props";
 fn write(S, comp, prop, value) {
     if comp == SCRIPT_PROPS {
         model::set_script_prop(S, prop, value);
-    } else {
-        model::set_component_prop(S, comp, prop, value);
+        return;
+    }
+    model::set_component_prop(S, comp, prop, value);
+    // The clip the Timeline holds was named by the value just written, so the
+    // cache goes and the engine is handed the clip again.
+    if comp == "animation" {
+        S.clip = None;
+        anim::arm(S);
     }
 }
 
@@ -801,7 +739,7 @@ fn write(S, comp, prop, value) {
 // held. A checkbox grid in everything but the shape of the control.
 fn edit_flags(S, k, comp, prop, spec, value) {
     let held = util::vec(value);
-    row(S, k, prop, || {
+    spec_row(S, k, prop, spec, || {
         for name in util::vec(spec.get("options").unwrap_or([])) {
             let on = util::contains(held, name);
             if ui::pill(name, #{
@@ -828,7 +766,7 @@ fn edit_flags(S, k, comp, prop, spec, value) {
 // dropdown lists every node in the document as an absolute path, which is
 // what a leading `/` means to the engine's resolver.
 fn edit_node(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
+    spec_row(S, k, prop, spec, || {
         let id = format!("node:{}:{}:{}", comp, prop, S.sel);
         let (text, _, submitted) = ui::text_field(id, "— none —",
             util::merge(style::field(k, CONTROL_W - 78.0), #{ value: as_text(value) }));
@@ -911,16 +849,16 @@ fn number_of(value) {
 }
 
 fn edit_float(S, k, comp, prop, spec, value) {
-    push(S, #{ label: prop, controls: [#{
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [#{
         kind: "drag_value", grow: 1,
-        value: number_of(value),
+        value: shown_as(spec, number_of(value)),
         step: spec.get("step").unwrap_or(0.02),
-        on: |v| { write(S, comp, prop, clamped(spec, v)); },
+        on: |v| { write(S, comp, prop, stored_as(spec, clamped(spec, v))); },
     }] });
 }
 
 fn edit_int(S, k, comp, prop, spec, value) {
-    push(S, #{ label: prop, controls: [#{
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [#{
         kind: "drag_value", grow: 1,
         value: number_of(value),
         step: spec.get("step").unwrap_or(1.0),
@@ -929,7 +867,7 @@ fn edit_int(S, k, comp, prop, spec, value) {
 }
 
 fn edit_bool(S, k, comp, prop, spec, value) {
-    push(S, #{ label: prop, controls: [#{
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [#{
         kind: "check", text: "",
         checked: value == true,
         on: |on| { write(S, comp, prop, on); },
@@ -937,7 +875,7 @@ fn edit_bool(S, k, comp, prop, spec, value) {
 }
 
 fn edit_enum(S, k, comp, prop, spec, value) {
-    push(S, #{ label: prop, controls: [#{
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [#{
         kind: "dropdown", grow: 1,
         text: as_text(value),
         options: util::vec(spec.get("options").unwrap_or([])),
@@ -952,7 +890,7 @@ fn edit_color(S, k, comp, prop, spec, value) {
     let text = format!("{} {} {} {}",
         fixed(channel(held, 0, 1.0), 2), fixed(channel(held, 1, 1.0), 2),
         fixed(channel(held, 2, 1.0), 2), fixed(channel(held, 3, 1.0), 2));
-    push(S, #{ label: prop, controls: [
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [
         #{ kind: "color", width: 34, color: held, on: |rgba| { write(S, comp, prop, rgba); } },
         #{ kind: "label", grow: 1, text: text, role: "meta" },
     ] });
@@ -978,20 +916,24 @@ fn edit_vector(S, k, comp, prop, spec, value) {
         let slot = i;
         controls.push(#{
             kind: "drag_value", grow: 1,
-            value: channel(held, slot, fallback),
-            step: if datatype == "color" { 0.005 } else { 0.02 },
+            value: shown_as(spec, channel(held, slot, fallback)),
+            step: spec.get("step").unwrap_or(if datatype == "color" { 0.005 } else { 0.02 }),
             placeholder: letters[slot],
             on: |v| {
                 let out = [];
                 for n in 0..count {
                     out.push(channel(util::vec(read_now(S, comp, prop, held)), n, fallback));
                 }
-                out[slot] = if datatype == "color" { util::clamp(v, 0.0, 1.0) } else { v };
+                out[slot] = if datatype == "color" {
+                    util::clamp(v, 0.0, 1.0)
+                } else {
+                    stored_as(spec, v)
+                };
                 write(S, comp, prop, out);
             },
         });
     }
-    push(S, #{ label: prop, controls: controls });
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: controls });
 }
 
 // The vector as it stands now, so writing one component keeps the others: the
@@ -1011,7 +953,7 @@ fn read_now(S, comp, prop, fallback) {
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
+    spec_row(S, k, prop, spec, || {
         let reference = model::relative_file(S, as_text(value));
         let inline = reference.starts_with("#!");
         let asset_type = spec.get("asset").unwrap_or("");
@@ -1090,7 +1032,7 @@ fn shader_row(S, k, reference, shader) {
     if !util::contains(choices, current) {
         choices.insert(0, current);
     }
-    row(S, k, "  shader", || {
+    row(S, k, "  Shader", || {
         if ui::pill(icons::ui("open"), #{
             role: "icon_button", min_width: 22, height: 24,
             tooltip: "Edit " + current, fill: k.sage_soft, color: k.sage,
@@ -1157,7 +1099,7 @@ fn write_material_feature(S, reference, name, on) {
 
 fn material_row(S, k, reference, name, datatype, value) {
     // Indented, because these belong to the row above rather than the node.
-    row(S, k, "  " + name, || {
+    tip_row(S, k, "  " + util::prop_label(name), util::prop_label(name), || {
         if datatype == "color" {
             let (rgba, changed) = ui::color(#{ value: util::vec(value) });
             if changed {
@@ -1240,7 +1182,7 @@ fn write_material_param(S, reference, name, value) {
 
 // Anything with no registered editor: its text, straight through.
 fn edit_text(S, k, comp, prop, spec, value) {
-    push(S, #{ label: prop, controls: [#{
+    push(S, #{ label: util::prop_label(prop), tooltip: prop_tip(prop, spec), controls: [#{
         kind: "field", grow: 1, role: "field",
         text: model::relative_file(S, as_text(value)),
         placeholder: "— empty —",
@@ -1264,7 +1206,8 @@ fn fixed(v, decimals) {
 fn readonly_text(spec, value) {
     let datatype = spec["type"];
     if datatype == "float" {
-        fixed(if value is Tuple { 0.0 } else { util::f(value) }, util::i(spec.get("decimals").unwrap_or(2)))
+        fixed(shown_as(spec, if value is Tuple { 0.0 } else { util::f(value) }),
+            util::i(spec.get("decimals").unwrap_or(2)))
     } else if datatype == "bool" {
         if value == true { "true" } else { "false" }
     } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
@@ -1273,7 +1216,8 @@ fn readonly_text(spec, value) {
         let parts = [];
         for i in 0..count {
             let fallback = if datatype == "color" { 1.0 } else { 0.0 };
-            parts.push(format!("{:.2}", match v.get(i) { Some(x) => util::f(x), None => fallback }));
+            let held = match v.get(i) { Some(x) => util::f(x), None => fallback };
+            parts.push(format!("{:.2}", shown_as(spec, held)));
         }
         util::join(parts, ", ")
     } else {
@@ -1286,7 +1230,7 @@ fn readonly_row(S, k, prop, spec, data) {
         Some(value) => value,
         None => spec.get("default").unwrap_or(()),
     };
-    row(S, k, prop, || {
+    spec_row(S, k, prop, spec, || {
         // A read-only value is whatever the component reports, a joined list
         // included: it gets the column, and an ellipsis past its end.
         ui::horizontal(#{ height: 24, width: control_w(S) - 62.0 }, || {
@@ -1318,6 +1262,58 @@ fn bindings_note(S, k) {
     });
 }
 
+/// The node's components with each above the ones it needs, so the transform a
+/// body and a bone both expect sits under them rather than over them.
+///
+/// Kahn's order over `expects`: a component is drawn once nothing left still
+/// needs it. A cycle keeps registration order for what is left of it rather
+/// than dropping those sections.
+fn ordered_components(S, names) {
+    let waiting = #{};
+    for name in names {
+        waiting[name] = 0;
+    }
+    for name in names {
+        for need in model::expects(S, name) {
+            if waiting.contains_key(need) {
+                waiting[need] = waiting[need] + 1;
+            }
+        }
+    }
+    let out = [];
+    let left = names;
+    for _ in 0..names.len() {
+        if left.is_empty() {
+            break;
+        }
+        let ready = [];
+        let held = [];
+        for name in left {
+            if waiting[name] == 0 {
+                ready.push(name);
+            } else {
+                held.push(name);
+            }
+        }
+        if ready.is_empty() {
+            for name in held {
+                out.push(name);
+            }
+            return out;
+        }
+        for name in ready {
+            out.push(name);
+            for need in model::expects(S, name) {
+                if waiting.contains_key(need) {
+                    waiting[need] = waiting[need] - 1;
+                }
+            }
+        }
+        left = held;
+    }
+    out
+}
+
 // One auto-generated section per component present on the node.
 // `filter` limits which components a persona shows (`None` = all).
 fn component_sections(S, k, filter) {
@@ -1332,7 +1328,7 @@ fn component_sections(S, k, filter) {
         unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
     }
     let query = crate::search::query(S, "inspector");
-    for comp in found.component_names() {
+    for comp in ordered_components(S, util::vec(found.component_names())) {
         let shown = match filter {
             Some(filter) => util::contains(filter, comp),
             None => true,
@@ -1355,7 +1351,7 @@ fn component_sections(S, k, filter) {
         let key = format!("inspector/{}", comp);
         let open = !S.collapsed.contains_key(key);
         let held = comp;
-        let mark = icons::component(held);
+        let (mark, tint) = icons::component(held);
         wide_row(S, 24, || {
             ui::horizontal(#{ height: 20 }, || {
                 ui::add_space(2);
@@ -1363,7 +1359,7 @@ fn component_sections(S, k, filter) {
                     #{ size: style::SM, color: k.faint });
                 ui::add_space(4);
                 if ui::pill(held.to_uppercase(), util::merge(style::heading(k), #{
-                    icon: mark, icon_size: style::MD, icon_color: k.dim, height: 20,
+                    icon: mark, icon_size: style::MD, icon_color: k.get(tint).unwrap_or(k.dim), height: 20,
                     align: ui::ALIGN_LEFT, radius: 4,
                 })) {
                     if open {
@@ -1374,7 +1370,7 @@ fn component_sections(S, k, filter) {
                 }
                 ui::right(|| {
                     ui::add_space(2);
-                    if ui::pill("✕", #{
+                    if ui::pill(icons::ui("close"), #{
                         height: 20, size: style::SM, strong: true, tooltip: "Remove component",
                         fill: k.sunken, color: k.faint,
                     }) {
@@ -1462,15 +1458,13 @@ pub fn body(S, k) {
         skeleton_section(S, k);
         polygon_section(S, k);
         animation_section(S, k);
-        transform_section(S, k);
-        component_sections(S, k, Some(["bone2d", "bone3d", "polygon"]));
+        component_sections(S, k, Some(["animation", "bone2d", "bone3d", "polygon", "transform"]));
         script_section(S, k, "Script");
     } else if S.persona == "ui" {
         component_sections(S, k, Some(["widget"]));
         interface_section(S, k);
         script_section(S, k, "Script");
     } else {
-        transform_section(S, k);
         skeleton_section(S, k);
         polygon_section(S, k);
         component_sections(S, k, None);
