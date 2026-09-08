@@ -5,7 +5,6 @@
 //! asks the font atlas instead, so a row sizes itself to a label that changed
 //! this frame rather than to the one it showed last.
 
-use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget_arrange::padding_of;
 use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
@@ -88,34 +87,34 @@ impl<'a> Measure<'a> {
                     })
             }
             w::BUTTON => {
-                let text = self.text(widget);
+                let text = self.text(widget, theme);
                 // egui's own button padding, which is what it will draw with.
                 text + self.padding
             }
-            w::LABEL => self.text(widget),
+            w::LABEL => self.text(widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
             w::FIELD => {
-                let line = self.galley("MMMMMMMMMMMM", widget);
+                let line = self.galley("MMMMMMMMMMMM", widget, theme);
                 line + self.padding
             }
             w::TAB => {
-                let strip = self.strip(index);
+                let strip = self.strip(index, theme);
                 let pages = self.widest_child(index, theme);
                 let gap = widget.gap * self.scale;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
             w::CHECK => {
-                let text = self.text(widget);
+                let text = self.text(widget, theme);
                 let line = widget.font_size * self.scale;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
             }
             // The widest option, and room for the arrow.
             w::DROPDOWN => {
-                let mut widest = self.text(widget);
+                let mut widest = self.text(widget, theme);
                 for option in &widget.options {
-                    widest = widest.max(self.galley(option, widget));
+                    widest = widest.max(self.galley(option, widget, theme));
                 }
                 widest + self.padding + vec2(20.0 * self.scale, 0.0)
             }
@@ -125,7 +124,7 @@ impl<'a> Measure<'a> {
             ),
             w::SEPARATOR => egui::Vec2::splat(6.0 * self.scale),
             w::FOLD => {
-                let head = self.text(widget) + vec2(20.0 * self.scale, 0.0);
+                let head = self.text(widget, theme) + vec2(20.0 * self.scale, 0.0);
                 if !widget.open {
                     return head;
                 }
@@ -135,7 +134,7 @@ impl<'a> Measure<'a> {
             w::GRID => self.grid(index, theme),
             w::FLOW => self.flow(index, theme),
             _ if lays_out(&kind) => self.container(index, theme),
-            _ => self.text(widget),
+            _ => self.text(widget, theme),
         }
     }
 
@@ -147,7 +146,7 @@ impl<'a> Measure<'a> {
         let row = widget.kind == w::ROW;
         let children = placed.children.clone();
         let caption = if widget.kind == w::PANEL {
-            self.text(widget)
+            self.text(widget, theme)
         } else {
             egui::Vec2::ZERO
         };
@@ -176,7 +175,7 @@ impl<'a> Measure<'a> {
             // A panel's caption sits above its children, so it adds a row.
             vec2(across.max(caption.x), along + caption.y)
         };
-        let pad = padding_of(widget, &theme.style(&widget.kind), self.scale);
+        let pad = padding_of(widget, &crate::widget_layer::styled(theme, &widget), self.scale);
         inner + egui::Vec2::splat(pad * 2.0)
     }
 
@@ -185,7 +184,7 @@ impl<'a> Measure<'a> {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let children = placed.children.clone();
-        let columns = (widget.columns.max(1)) as usize;
+        let columns = crate::widget_kinds::grid_columns(&widget);
         let gap = widget.gap * self.scale;
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
@@ -206,7 +205,7 @@ impl<'a> Measure<'a> {
             across as f32 * cell.x + gap * (across as f32 - 1.0),
             rows as f32 * cell.y + gap * (rows as f32 - 1.0),
         );
-        let pad = padding_of(&widget, &theme.style(&widget.kind), self.scale);
+        let pad = padding_of(&widget, &crate::widget_layer::styled(theme, &widget), self.scale);
         inner + egui::Vec2::splat(pad * 2.0)
     }
 
@@ -216,7 +215,7 @@ impl<'a> Measure<'a> {
         let widget = placed.widget.clone();
         let children = placed.children.clone();
         let gap = widget.gap * self.scale;
-        let pad = padding_of(&widget, &theme.style(&widget.kind), self.scale);
+        let pad = padding_of(&widget, &crate::widget_layer::styled(theme, &widget), self.scale);
         let limit = if widget.width > 0.0 {
             widget.width * self.scale - 2.0 * pad
         } else {
@@ -245,7 +244,7 @@ impl<'a> Measure<'a> {
     }
 
     /// A tab's strip: every page's label side by side, as buttons.
-    fn strip(&mut self, index: usize) -> egui::Vec2 {
+    fn strip(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let gap = (widget.gap * self.scale).max(4.0);
@@ -259,7 +258,7 @@ impl<'a> Measure<'a> {
             } else {
                 page.widget.text.clone()
             };
-            let size = self.galley(&label, &widget) + padding;
+            let size = self.galley(&label, &widget, theme) + padding;
             width += size.x + if slot > 0 { gap } else { 0.0 };
             height = height.max(size.y);
         }
@@ -276,25 +275,30 @@ impl<'a> Measure<'a> {
         size
     }
 
-    fn text(&self, widget: &Widget) -> egui::Vec2 {
+    fn text(&self, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let caption = caption(self.eng, widget);
         if caption.is_empty() {
             return egui::Vec2::ZERO;
         }
-        self.galley(&caption, widget)
+        self.galley(&caption, widget, theme)
     }
 
     /// One line of text, unwrapped: what the widget needs to show it whole.
     /// Shaped once the fonts are up; egui's own layout stands in before.
-    fn galley(&self, text: &str, widget: &Widget) -> egui::Vec2 {
+    ///
+    /// The face comes from the theme the same way the draw resolves it, or a
+    /// row under a role would be measured at a size it never draws at.
+    fn galley(&self, text: &str, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let style = crate::widget_layer::styled(theme, widget);
+        let (_, font) = crate::widget_layer::face(&style, widget, self.scale);
         if let Some(state) = crate::text::state(self.eng) {
-            let request = crate::widget_text::text_request(widget, text, self.scale, None);
+            let request =
+                crate::widget_text::text_request(widget, text, None, &font, &style);
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)
                 .size;
         }
-        let font = egui::FontId::new(widget.font_size * self.scale, family(w::UI));
         self.painter
             .layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
             .size()

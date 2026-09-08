@@ -139,46 +139,36 @@ const LOG_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomLog";
 
 // Put `items` on the node and show it. A row is icon, label, note and colour,
 // separated by U+001F, which is what a `list` row splits on.
-fn show_log(items) {
-    let found = scene::get_node(LOG_NODE);
-    if util::is_nil(found) {
-        return false;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["options"] = items;
-    params["visible"] = true;
-    found.set_component("widget", params);
+pub fn show_log(items) {
+    util::fill(LOG_NODE, #{ options: items, visible: true });
     true
 }
 
 // What the node reports as picked, and clearing it once acted on.
 fn picked_log() {
-    let found = scene::get_node(LOG_NODE);
-    if util::is_nil(found) {
-        return "";
-    }
-    util::obj(found.get_component("widget"))["text"]
-}
-
-fn clear_log_pick() {
-    let found = scene::get_node(LOG_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["text"] = "";
-    found.set_component("widget", params);
+    util::taken(LOG_NODE, util::fill(LOG_NODE, #{}))
 }
 
 // Hidden while a panel that is not a list is up.
 pub fn hide_log() {
-    let found = scene::get_node(LOG_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["visible"] = false;
-    found.set_component("widget", params);
+    util::hide(LOG_NODE);
+}
+
+// The bottom dock's card grid, which Assets, Library and Tiles take turns
+// filling. Six across is the widest the dock ever wants; a view that wants
+// fewer writes its own `columns`.
+pub const CARDS_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomCards";
+
+pub fn hide_cards() {
+    util::hide(CARDS_NODE);
+}
+
+// The bottom dock's `tree` node: the Debugger's call stack, and the locals
+// each frame opens onto.
+pub const TREE_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomTree";
+
+pub fn hide_tree() {
+    util::hide(TREE_NODE);
 }
 
 pub fn output(S, k) {
@@ -423,64 +413,60 @@ pub fn assets(S, k) {
             crate::search::field(S, k, "assets", "filter…", 140.0);
         });
     });
-    // Cards wrap into rows: the row count is what the dock's height scrolls.
-    let per_row = util::max(1, ((ui::available_width() - 24.0) / (CARD_W + 12.0)) as i64);
-    ui::scroll("assets", #{ max_height: S.layout.body_h - 24.0 }, || {
-        ui::add_space(6);
-        let index = 0;
-        while index < files.len() {
-            let start = index;
-            ui::horizontal((), || {
-                ui::spacing(12, 0);
-                ui::add_space(12);
-                for n in 0..per_row {
-                    let f = match files.get(start + n) {
-                        Some(f) => f,
-                        None => break,
-                    };
-                    let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
-                    let (icon, ink) = asset_look(f.name, f.is_dir);
-                    let chosen = S.assets.sel == rel;
-                    ui::vertical(|| {
-                        ui::spacing(0, 0);
-                        if ui::pill(icon, #{
-                            height: CARD_H, min_width: CARD_W, size: style::XL, radius: 6,
-                            fill: if chosen { k.accent_soft } else { k.sunken },
-                            color: if chosen { k.accent } else { k[ink] },
-                            tooltip: rel,
-                        }) {
-                            // A second click on the selected card opens it,
-                            // so one click can mean "act on this one".
-                            if S.assets.sel == rel {
-                                if f.is_dir {
-                                    S.assets.dir = rel;
-                                    S.assets.sel = "";
-                                } else {
-                                    open_asset(S, rel);
-                                }
-                            } else {
-                                S.assets.sel = rel;
-                                S.assets.renaming = false;
-                            }
-                        }
-                        // The name belongs to the card, not to the gap under it.
-                        let short = if f.name.len() > 13 { f.name[..12] + "…" } else { f.name };
-                        ui::pill(short, #{
-                            height: 20, min_width: CARD_W, size: style::SM, radius: 6, align: ui::ALIGN_CENTER,
-                            font: ui::FONT_MONO,
-                            fill: if chosen { k.accent_soft } else { k.sunken },
-                            color: if chosen { k.accent } else { k.dim },
-                        });
-                    });
-                }
-            });
-            index += per_row;
-            ui::add_space(8);
+    show_cards(S, k, dir, files);
+}
+
+// The cards themselves, on the bottom dock's `list` node in its icon mode.
+// One string a card: the mark, the name, the path it opens and its own ink.
+fn show_cards(S, k, dir, files) {
+    let items = [];
+    let paths = [];
+    for f in files {
+        let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
+        let (icon, ink) = asset_look(f.name, f.is_dir);
+        items.push(util::row(icon, f.name, rel, k[ink]));
+        paths.push(rel);
+    }
+    let chosen = "";
+    for (n, rel) in paths.iter().enumerate() {
+        if rel == S.assets.sel {
+            chosen = items[n];
         }
-        if files.len() == 0 {
-            style::empty(k, "empty folder");
-        }
+    }
+    let params = util::fill(CARDS_NODE, #{
+        options: items, visible: true, columns: 6, text: chosen,
     });
+    // `clicked` rather than a changed `text`: a second click on the selected
+    // card reports the same string, and that is the one that opens it.
+    if !params["clicked"] {
+        return;
+    }
+    let picked = params["text"];
+    if picked == chosen {
+        open_selected_asset(S);
+        return;
+    }
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            S.assets.sel = paths[n];
+            S.assets.renaming = false;
+        }
+    }
+}
+
+// A second click on the selected card opens it, so one click can still mean
+// "act on this one". The node reports the pick; this decides what it means.
+pub fn open_selected_asset(S) {
+    let rel = S.assets.sel;
+    if rel == "" {
+        return;
+    }
+    if fs::is_dir(asset_path(S, rel)) {
+        S.assets.dir = rel;
+        S.assets.sel = "";
+        return;
+    }
+    open_asset(S, rel);
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
@@ -705,38 +691,36 @@ pub fn debugger_view(S, k) {
             break_on_error_pill(k);
         });
     });
-    ui::scroll("debug-frames", #{ max_height: S.layout.body_h - 30.0 }, || {
-        ui::spacing(4, 2);
-        for (i, frame) in p.frames.iter().enumerate() {
-            let chosen = i == S.debug.frame;
-            ui::horizontal(#{ height: 24 }, || {
-                ui::add_space(6);
-                if ui::pill(frame["function"], #{
-                    height: 20, size: style::SM, strong: true,
-                    fill: if chosen { k.accent_fill } else { k.sunken },
-                    color: if chosen { k.on_accent } else { k.dim },
-                }) {
-                    S.debug.frame = i;
-                }
-                ui::add_space(6);
-                ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), style::mono(k.faint));
-            });
-            if chosen {
-                let names = util::keys_sorted(frame.locals);
-                for name in names {
-                    ui::horizontal((), || {
-                        ui::add_space(24);
-                        ui::label(name, util::merge(style::mono(k.text), #{ strong: true }));
-                        ui::add_space(6);
-                        ui::label(value_text(frame.locals[name]), style::mono(k.dim));
-                    });
-                }
-                if names.len() == 0 {
-                    style::empty(k, "no locals");
-                }
-            }
+    show_frames(S, k, p);
+}
+
+// The call stack on the `tree` node: a frame is a row, and its locals are
+// rows a tab deeper. The caret is the tree's own, so nothing here folds.
+fn show_frames(S, k, p) {
+    let items = [];
+    let owners = [];
+    for (i, frame) in p.frames.iter().enumerate() {
+        let site = format!("{}:{}", shell::script_rel(S, frame.path), frame.line);
+        items.push(util::row(icons::ui("step-into"), frame["function"], site, k.text));
+        owners.push(i);
+        for name in util::keys_sorted(frame.locals) {
+            items.push("\t" + util::row("", name, value_text(frame.locals[name]), k.dim));
+            owners.push(i);
         }
-    });
+    }
+    let chosen = "";
+    for (n, owner) in owners.iter().enumerate() {
+        if owner == S.debug.frame && chosen == "" {
+            chosen = items[n];
+        }
+    }
+    let params = util::fill(TREE_NODE, #{ options: items, visible: true, text: chosen });
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            S.debug.frame = owners[n];
+        }
+    }
 }
 
 // Problems: every finding the last sweep produced, worst first, each row a
@@ -768,7 +752,6 @@ pub fn problems(S, k) {
         for (n, item) in items.iter().enumerate() {
             if item == picked {
                 open_at(S, rows[n]);
-                clear_log_pick();
             }
         }
         return;
@@ -1077,6 +1060,15 @@ pub fn profiler(S, k) {
         }
     });
     ui::add_space(6);
+    let items = [];
+    log_rows(items, k, util::obj(timings.stages), "stage");
+    let spans = util::obj(timings.spans);
+    if !spans.is_empty() {
+        log_rows(items, k, spans, "span");
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("profiler", (), || {
         rows(k, util::obj(timings.stages), "stage");
         let spans = util::obj(timings.spans);
@@ -1153,6 +1145,21 @@ fn by_cost(table) {
 }
 
 // One row per entry, worst first, with a bar as its share of the budget.
+// The same rows as `rows`, as strings for the `list` node: a name, its cost
+// and a bar drawn in blocks rather than a filled rect.
+fn log_rows(items, k, table, kind) {
+    for row in by_cost(table) {
+        let share = util::clamp(row.ms / BUDGET_MS, 0.0, 1.0);
+        let filled = util::i(share * 20.0);
+        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 20 - filled);
+        let line = "\u{1f}";
+        line += format!("{:<26}{:>9} ms  {}", row.name, fixed(row.ms, 3), bar);
+        line += "\u{1f}\u{1f}";
+        line += if row.ms > BUDGET_MS * 0.5 { k.accent } else if kind == "span" { k.sage } else { k.dim };
+        items.push(line);
+    }
+}
+
 fn rows(k, table, kind) {
     for row in by_cost(table) {
         let name = row.name;
@@ -1243,6 +1250,23 @@ pub fn cost(S, k) {
         return;
     }
     let worst = util::f(by_key(nodes, "triangles")[0].triangles);
+    let items = [];
+    for row in by_key(nodes, "triangles") {
+        let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);
+        let filled = util::i(share * 16.0);
+        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 16 - filled);
+        let copies = util::i(row.copies);
+        let mark = if copies > 1 { format!("x{}", copies) } else { "" };
+        let line = "\u{1f}";
+        line += format!("{:<22}{:>10} tri {:>9}  {}  {}",
+            util::leaf(row.node), util::i(row.triangles),
+            bytes(util::f(row.texture_bytes)), bar, mark);
+        line += "\u{1f}\u{1f}" + k.dim;
+        items.push(line);
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("cost", (), || {
         for row in by_key(nodes, "triangles") {
             let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);

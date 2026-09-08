@@ -108,7 +108,7 @@ fn themed_frame(
         .stroke(
             style
                 .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
         )
 }
 
@@ -132,7 +132,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             room.height()
         },
     );
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, at.scale);
     let frame = themed_frame(&style, at.scale, None);
     let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
@@ -223,7 +223,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 
     let box_size = box_of(&widget, at.assigned, scale);
     let rect = room_of(ui, box_size);
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let font = egui::FontId::new(widget.font_size * scale, family("ui"));
     let color = rgba_color(widget.text_color);
     let gap = widget.gap * scale;
@@ -369,7 +369,7 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     // The padding comes off in floats rather than through a `Margin`, which
     // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
     // the truncation moved every sheet in the editor's shell by 0.4 px.
-    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
+    let pad = padding_of(widget, &at.style_of(widget), scale);
     let box_size = box_of(widget, at.assigned, scale);
     let outer = room_of(ui, box_size).shrink(pad);
     let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);

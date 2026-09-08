@@ -960,6 +960,7 @@ const SWATCH = 34.0;
 /// two modes, and the layers of the map beside it.
 pub fn palette(S, k) {
     if !editable(S) {
+        crate::dock::hide_cards();
         ui::add_space(10);
         style::empty(k, "Select a node with a tilemap to paint it.");
         return;
@@ -967,6 +968,7 @@ pub fn palette(S, k) {
     let set = match tileset(S) {
         Some(set) => set,
         None => {
+            crate::dock::hide_cards();
             ui::add_space(10);
             style::empty(k, "This tilemap names no tile set, or one that will not load.");
             return;
@@ -1059,46 +1061,12 @@ pub fn palette(S, k) {
     }
     let count = tile_count(S);
     if count < 1 {
+        crate::dock::hide_cards();
         ui::add_space(10);
         style::empty(k, "The tile set's texture could not be measured.");
         return;
     }
-    let texture = S.game_root + "/" + set.texture;
-    let per_row = util::max(util::i(math::floor((ui::available_width() - 16.0) / (SWATCH + 4.0))), 1);
-    // The rows are cut before they are drawn: a `ui::` closure captures what
-    // it reads, so a counter advanced inside one never reaches the loop
-    // outside it, and the loop would never end.
-    let shelves = [];
-    let index = 0;
-    while index < count {
-        let shelf = [];
-        let column = 0;
-        while column < per_row && index < count {
-            shelf.push(index);
-            index += 1;
-            column += 1;
-        }
-        shelves.push(shelf);
-    }
-    ui::scroll("tiles-palette", #{ max_height: util::max(S.layout.body_h - 44.0, 60.0) }, || {
-        for shelf in shelves {
-            ui::horizontal(#{ height: SWATCH + 4.0 }, || {
-                ui::add_space(8);
-                for tile in shelf {
-                    let rect = tile_rect(set, tile);
-                    if ui::image_button(texture, #{
-                        width: SWATCH, height: SWATCH,
-                        region: rect,
-                        selected: S.tiles.tile == tile,
-                        fill: k.sunken, stroke: k.accent, hover_fill: k.line,
-                        tooltip: format!("tile {}", tile),
-                    }) {
-                        S.tiles.tile = tile;
-                    }
-                }
-            });
-        }
-    });
+    show_swatches(S, k, set, count);
     let found = layers(S);
     if found.len() > 1 {
         ui::add_space(6);
@@ -1113,6 +1081,36 @@ pub fn palette(S, k) {
             }) {
                 crate::selection::only(S, layer.index);
             }
+        }
+    }
+}
+
+
+// The atlas as cards on the bottom dock's `list` node. A row's first field is
+// the tile's rect in the sheet's own pixels, which the card draws in place of
+// a glyph because the node names the sheet as its `source`.
+fn show_swatches(S, k, set, count) {
+    let items = [];
+    let tile = 0;
+    while tile < count {
+        let r = tile_rect(set, tile);
+        items.push(util::row(
+            format!("{},{},{},{}", r[0], r[1], r[2], r[3]),
+            format!("{}", tile),
+            format!("tile {}", tile),
+            k.dim,
+        ));
+        tile += 1;
+    }
+    let chosen = if S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
+    let params = util::fill(crate::dock::CARDS_NODE, #{
+        options: items, visible: true, columns: 8, text: chosen,
+        source: S.game_root + "/" + set.texture,
+    });
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            S.tiles.tile = n;
         }
     }
 }

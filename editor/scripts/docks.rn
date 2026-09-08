@@ -229,6 +229,52 @@ fn body(S, k, id) {
     }
 }
 
+// Which panels fill which node. A node keeps drawing until told not to, and
+// only the dock owning one may say so: every dock draws each frame, so a
+// global hide has one dock turning off another's node.
+fn node_owners() {
+    #{
+        bottom: [
+            #{ hide: "log", panels: ["output", "problems", "cost", "profiler", "docs"] },
+            #{ hide: "cards", panels: ["assets", "library", "tiles"] },
+            #{ hide: "stack", panels: ["debugger"] },
+        ],
+        left: [
+            #{ hide: "tree", panels: ["scene"] },
+            #{ hide: "outline", panels: ["outline"] },
+        ],
+        right: [],
+    }
+}
+
+fn hide_node(which) {
+    if which == "log" {
+        dock::hide_log();
+    } else if which == "cards" {
+        dock::hide_cards();
+    } else if which == "stack" {
+        dock::hide_tree();
+    } else if which == "tree" {
+        left::hide_tree();
+    } else if which == "outline" {
+        left::hide_outline();
+    }
+}
+
+fn hide_unused(S, side, d) {
+    for entry in node_owners()[side] {
+        let wanted = false;
+        for id in entry.panels {
+            if id == d.active {
+                wanted = true;
+            }
+        }
+        if d.shut || !wanted {
+            hide_node(entry.hide);
+        }
+    }
+}
+
 // The tab row, and the tiles in it. A small window gets a step less of both:
 // the row is chrome, and chrome is what a short window has least room for.
 pub fn row_h(S) {
@@ -404,19 +450,7 @@ pub fn draw_status(S, k) {
 /// the tab row, the panel, and for the bottom dock the status strip.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
-    // A node keeps drawing until told not to; only the dock owning it may say.
-    // The bottom dock's list node, hidden unless a log-shaped panel is up.
-    if side == "bottom" && (d.shut || (d.active != "output" && d.active != "problems")) {
-        dock::hide_log();
-    }
-    if side == "left" {
-        if d.shut || d.active != "scene" {
-            left::hide_tree();
-        }
-        if d.shut || d.active != "outline" {
-            left::hide_outline();
-        }
-    }
+    hide_unused(S, side, d);
     if d.tabs.len() == 0 {
         return;
     }

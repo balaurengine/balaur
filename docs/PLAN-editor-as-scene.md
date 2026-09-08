@@ -209,38 +209,125 @@ mode and do not answer that; `taffy` itself, which `egui_taffy` wraps, is a
 retained layout tree and is the shape to look at. Whatever replaces it has to
 keep those five properties and the rect read-back.
 
+## 4.2 Every view a node
+
+Seven are done, 2026-09-08. The rest are grouped by the kind they want, not by
+how hard they look: three groups need one new capability each, and the fourth
+is honest custom drawing.
+
+**Done, on a widget node.**
+
+| view | kind |
+| --- | --- |
+| the outliner | `tree`, with the fold caret |
+| the persona outline | `list` |
+| Output | `list`, mono, a colour a row |
+| Problems | `list`, and the pick opens the file |
+| Cost | `list`, the bar drawn in block characters |
+| Profiler | `list`, the same |
+| Docs | `list`, the reference read out of the live engine |
+
+**A card grid: Assets, Library, Tiles.** These are not one column, and a `list`
+would make them worse. They are `ItemList` in its icon mode, which Godot spells
+`max_columns`. So `list` grows a `columns`: above one, rows flow into a grid of
+cards rather than a column of lines, the icon sits over the label, and the
+existing U+001F fields carry both. One addition, three views.
+
+**A tree: Debugger.** A call stack whose frames open onto their locals is an
+outline, and `tree` already folds one. A frame is a row, a local is a row a tab
+deeper, and the caret is the disclosure the panel draws by hand today.
+
+**A form: Inspector, Import.** A row per property, made and reused as the
+selection changes. §4.3 is the whole of it.
+
+**Custom drawing: Timeline, Session, Weights, Bone map.** Lanes with a
+transport, and two painting tools where the pointer is the input. These stay
+`draw`, and that is the point rather than a shortfall: a `draw` widget *is* a
+node, and §2 chose it for exactly this. What is left to do is small and worth
+doing: give each its own `draw` node under the dock instead of sharing one
+hatch, so the scene names every view and a reader can see which of them draw.
+
+## 4.3 The row pool the Inspector needs
+
+The inspector is a form whose fields change with the selection, so the rows
+cannot be authored. A script makes and reuses them:
+
+1. A `column` node under the right sheet is the host.
+2. Each frame the inspector asks for `n` rows. Missing ones are made with
+   `node.add_child`, each a `row` holding a `label` and one control; extra ones
+   are hidden rather than freed, so scrolling a long component list does not
+   churn the tree.
+3. The control's `kind` is the property's datatype: `drag_value` for a float or
+   an int, `check` for a bool, `dropdown` for an enum, `color` for a colour,
+   `field` for an asset or a node path, and a nested `row` of `drag_value` for
+   a `vec2` or a `vec3`.
+4. The edit comes back the way every widget reports one: the layer writes
+   `value`, `checked` or `text` onto the component and the script reads it,
+   clamps it to the schema's `min` and `max`, and records the undo entry the
+   drawn path records today.
+
+Two things to know before starting.
+
+**The plugin editor hook is the sharp edge.** `plugins::editor` returns a
+closure, and a `draw` widget names a method by string, so a plugin's editor
+cannot be a node. Until that API takes a name instead, the panel falls back to
+drawing itself whenever a visible property has a plugin editor. That keeps the
+mixing problem away: node rows and drawn rows cannot interleave in one ordered
+scroll, so it is the whole panel either way.
+
+**Import is the same shape, smaller.** Do it second, from what the inspector
+teaches.
+
+## 4.4 What a migration actually involves
+
+The seven done all took the same five steps, and the sixth is where the time
+goes.
+
+1. Add the node to `editor/scenes/main.toml`, under the dock's sheet and
+   **after** the `draw` hatch, so the hatch's header draws above it.
+2. Fill it from the panel's function: read the component, set `options`, set
+   `visible`, write it back.
+3. Hide it in `docks::draw_body`, in the branch for the dock that owns it. Only
+   that dock may hide it: every dock draws each frame, and a global hide has
+   one dock turning off another's node.
+4. Read the pick back from `text` and clear it once acted on.
+5. Screenshot it. `--offscreen --frames 120 --state "dock:<id>,shot=out.png"`.
+
+Five Rune and tooling traps cost time on the seven, all avoidable:
+
+- `scene::get_node` returns a node **or nil**, not an `Option`. Use
+  `util::is_nil`, not `if let Some(...)`, which silently never matches.
+- A Rune `Vec` has no `contains`; spell the comparisons out.
+- `_` is not a loop binding, and `.to_string()` is not on a bool.
+- Script failures print `ERROR`, not `error:`. A grep for the latter reports
+  a clean run over a broken one.
+- The editor runs on the compiled binary, so a kind or a layout change needs
+  `cargo build --release -p balaur_cli --features window,extensions`, about six
+  minutes. Editor scripts and scenes are read at run time and need none, so
+  batch the Rust work and iterate on the scripts.
+
 ## 5. Build order
 
-The kinds first, cheapest and most used before the ones carrying design risk,
-then the editor onto them a dock at a time. Each step lands with a pass test
-and a screenshot, and each migration is measured against the numbers in
-`docs/PLAN-editor-performance.md` §0 so a regression shows up as one.
+Steps 0 to 5 are built: the sibling reorder, then `drag_value`, `text_area`,
+`color`, `menu`, `list` and `tree`, and seven views onto them. What is left,
+in the order that unblocks the most:
 
-0. **A sibling reorder.** Built. Order is layout order in a `row` or a `column`, so
-   authoring UI as a scene means moving a child up and down. `scene.rs` has
-   `move_child_to` for the replay path and nothing reaches it: no script call,
-   no editor command, no drag in the outliner. The roadmap carries it as
-   in-tree work at `(0.3)`, and this plan makes it a prerequisite rather than
-   a nicety. It needs the verb, the undo entry, and the drag.
-1. **`drag_value`.** Built. egui's own, over the `value`, `min`, `max` and `step` the
-   `slider` kind already declares. It is the control the inspector is mostly
-   made of, so it deletes the most script for the least new surface.
-2. Built: **`text_area`**, egui's multiline field, and **`color`**, its colour button.
-   Both are a kind and a draw arm each.
-3. **`menu`**, built over egui's `menu_button`. The logo menu and
-   every row's context menu are waiting on it.
-4. **`list`.** Built as a kind over `options`, not the repeater an earlier
-   draft proposed; §0.2 says why. A test draws 2000 items and asserts fewer
-   than sixty rows are built. A row splits on U+001F into an icon, a label and
-   a trailing note, which is what `ItemList`'s icon column is for.
-5. **`tree`**, built: `list` reading a row's leading tabs as its depth, with a
-   caret on any row the next one is deeper than. Which branches are shut is the
-   widget's own state, so a script hands over the whole outline and never hears
-   about a fold.
-6. **The editor onto them**, in the order the docks cost: the outliner, the
-   inspector, then the rest.
+1. **`columns` on `list`.** One property and one branch in the draw: above one,
+   the rows flow into a grid of cards. It turns Assets, Library and Tiles from
+   three rewrites into three fills.
+2. **Debugger onto `tree`.** No new capability; the frames and their locals are
+   an outline already.
+3. **The inspector's row pool**, §4.3. The largest piece by some way, and the
+   one that decides whether a form can be a scene at all.
+4. **Import**, from what the inspector taught.
+5. **A `draw` node per canvas view** — Timeline, Session, Weights, Bone map —
+   so the scene names every view rather than four of them sharing a hatch.
+6. **Then the layout**, §4.1: replace the hand-written arrange and measure with
+   a retained tree, `taffy` being the candidate, keeping `grow`, `gap`,
+   `padding`, `align`, `handle` and the rect read-back `layout.rn` depends on.
 
-`code` waits on a highlighter, and `graph` is `docs/PLAN-authoring-without-code.md`.
+`code` still waits on a highlighter, and `graph` is
+`docs/PLAN-authoring-without-code.md`.
 
 ## 6. Not in scope
 

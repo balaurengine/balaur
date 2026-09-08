@@ -208,6 +208,7 @@ fn rows(
         ui.data_mut(|d| d.insert_temp(id, next));
     }
     if let Some(item) = picked {
+        at.clicked.push(entity);
         at.edits.push((entity, Edit::Choice(item)));
     }
 }
@@ -229,7 +230,8 @@ fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
     }
 }
 
-/// Godot's `ItemList`.
+/// Godot's `ItemList`, in its line mode and its icon mode: above one
+/// `columns` the rows flow into a grid of cards instead of a column of lines.
 pub(crate) fn list(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -237,7 +239,151 @@ pub(crate) fn list(
     font: &egui::FontId,
     color: Color32,
 ) {
+    if at.arena[index].widget.columns > 1 {
+        cards(ui, at, index, font, color);
+        return;
+    }
     rows(ui, at, index, font, color, false);
+}
+
+/// One card: the icon over the label, in a box the caller sized.
+///
+/// The same U+001F fields a row splits on, so a view moves between the two
+/// modes by setting `columns` and changing nothing else.
+fn card(
+    ui: &mut egui::Ui,
+    item: &str,
+    size: egui::Vec2,
+    font: &egui::FontId,
+    color: Color32,
+    on: bool,
+    sheet: Option<&egui::TextureHandle>,
+) -> bool {
+    let (icon, label, trailing, tint) = fields(item);
+    let color = tint.unwrap_or(color);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = if on {
+        ui.visuals().selection.bg_fill
+    } else if response.hovered() {
+        ui.visuals().widgets.hovered.bg_fill
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(5), fill);
+    let mut head = rect.top() + 6.0;
+    // A list that names a `source` reads the icon field as `x,y,w,h` in that
+    // picture's own pixels, which is how an atlas picker shows its tiles.
+    let region = sheet.and_then(|sheet| region_uv(sheet.size_vec2(), icon));
+    if let (Some(sheet), Some(uv)) = (sheet, region) {
+        let side = (size.x.min(size.y) * 0.6).max(1.0);
+        let face = egui::Rect::from_center_size(
+            pos2(rect.center().x, head + side / 2.0),
+            egui::Vec2::splat(side),
+        );
+        ui.painter().image(sheet.id(), face, uv, Color32::WHITE);
+        head += side + 4.0;
+    } else if !icon.is_empty() {
+        // The project's icon face, at the card's own size rather than the
+        // label's: an icon mode that drew the glyph at line height is a list.
+        let mark = egui::FontId::new(size.x.min(size.y) * 0.42, crate::theme::family("icon"));
+        let galley = ui
+            .painter()
+            .layout_no_wrap(icon.to_owned(), mark, color);
+        ui.painter().galley(
+            pos2(rect.center().x - galley.size().x / 2.0, head),
+            galley.clone(),
+            color,
+        );
+        head += galley.size().y + 4.0;
+    }
+    let text = ui.painter().layout(
+        label.to_owned(),
+        font.clone(),
+        color,
+        (size.x - 8.0).max(8.0),
+    );
+    ui.painter().galley(
+        pos2(rect.center().x - text.size().x / 2.0, head),
+        text,
+        color,
+    );
+    if !trailing.is_empty() {
+        response.clone().on_hover_text(trailing);
+    }
+    response.clicked()
+}
+
+/// A row's `x,y,w,h` in the sheet's own pixels, as egui's unit coordinates.
+/// `None` for anything that is not four numbers, which is a glyph instead.
+fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
+    if native.x <= 0.0 || native.y <= 0.0 {
+        return None;
+    }
+    let mut parts = field.split(',').map(|n| n.trim().parse::<f32>());
+    let (x, y, w, h) = (parts.next()?.ok()?, parts.next()?.ok()?, parts.next()?.ok()?, parts.next()?.ok()?);
+    if w <= 0.0 || h <= 0.0 || parts.next().is_some() {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        pos2((x / native.x).clamp(0.0, 1.0), (y / native.y).clamp(0.0, 1.0)),
+        pos2(
+            ((x + w) / native.x).clamp(0.0, 1.0),
+            ((y + h) / native.y).clamp(0.0, 1.0),
+        ),
+    ))
+}
+
+/// The cards, wrapped into rows of `columns` and scrolled a row at a time.
+fn cards(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let columns = widget.columns.max(1) as usize;
+    let items = widget.options.clone();
+    let chosen = widget.text.clone();
+    let gap = 6.0 * at.scale;
+    let room = if want.x > 0.0 { want.x } else { ui.available_width() };
+    let side = ((room - gap * (columns as f32 - 1.0)) / columns as f32).max(24.0);
+    // A card is a little taller than it is wide: the icon takes the square
+    // and the label sits under it.
+    let cell = egui::vec2(side, side * 0.86);
+    let lines = items.len().div_ceil(columns);
+    let sheet = (!widget.source.is_empty())
+        .then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
+        .flatten();
+    let mut picked = None;
+    let mut area = egui::ScrollArea::vertical()
+        .id_salt(egui::Id::new(("balaur-cards", entity)))
+        .auto_shrink([false, false]);
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area.show_rows(ui, cell.y + gap, lines, |ui, range| {
+        for line in range {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+                for slot in 0..columns {
+                    let Some(item) = items.get(line * columns + slot) else {
+                        break;
+                    };
+                    if card(ui, item, cell, font, color, *item == chosen, sheet.as_ref()) {
+                        picked = Some(item.clone());
+                    }
+                }
+            });
+        }
+    });
+    if let Some(item) = picked {
+        at.clicked.push(entity);
+        at.edits.push((entity, Edit::Choice(item)));
+    }
 }
 
 /// Godot's `Tree`, as an outline: a row's leading tabs are its depth.
@@ -365,7 +511,7 @@ pub(crate) fn progress(
     if want.y > 0.0 {
         bar = bar.desired_height(want.y);
     }
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     if let Some(fill) = style.fill {
         bar = bar.fill(fill);
     }
@@ -378,9 +524,9 @@ pub(crate) fn progress(
 /// A line across the parent's direction, in the theme's stroke.
 pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &at.arena[index].widget;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     if let Some(color) = style.stroke {
-        ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_width, color);
+        ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
     ui.add(egui::Separator::default().spacing(6.0 * at.scale));
 }
@@ -399,7 +545,7 @@ pub(crate) fn fold(
     let placed = &at.arena[index];
     let (entity, open) = (placed.entity, placed.widget.open);
     let widget = placed.widget.clone();
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let scale = at.scale;
     let pad = padding_of(&widget, &style, scale);
     let mark = if open { "▾" } else { "▸" };
@@ -430,6 +576,15 @@ pub(crate) fn fold(
     ui.advance_cursor_after_rect(inner.min_rect());
 }
 
+/// How many across a `grid` puts its children: what it states, or the two
+/// it has always drawn when it states nothing.
+pub(crate) fn grid_columns(widget: &crate::widget_layer::Widget) -> usize {
+    if widget.columns == 0 {
+        return 2;
+    }
+    widget.columns as usize
+}
+
 /// Children in rows of `columns`, every cell as big as the biggest child
 /// and, given a width, sharing it equally.
 pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
@@ -440,9 +595,9 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
     let widget = placed.widget.clone();
     let scale = at.scale;
-    let columns = (widget.columns.max(1)) as usize;
+    let columns = grid_columns(&widget);
     let gap = widget.gap * scale;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, scale);
     let box_size = box_of(&widget, at.assigned, scale);
     let mut cell = egui::Vec2::ZERO;
@@ -483,7 +638,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = placed.widget.clone();
     let scale = at.scale;
     let gap = widget.gap * scale;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, scale);
     let box_size = box_of(&widget, at.assigned, scale);
     let room = ui.available_rect_before_wrap();

@@ -22,7 +22,7 @@ use crate::widget_arrange::{
     settle_rects, tabs,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
-use crate::widget_theme::WidgetTheme;
+use crate::widget_theme::{Style, WidgetTheme};
 
 /// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
 pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
@@ -151,6 +151,22 @@ pub struct Widget {
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
     pub deadzone: f32,
+    /// A `[roles.<name>]` entry of the theme, taken over the kind's own style.
+    pub role: String,
+    /// Text shown after the pointer rests on the widget.
+    pub tooltip: String,
+    /// A glyph from the theme's icon family, drawn before `text`.
+    pub icon: String,
+    /// Greyed out, and deaf to clicks.
+    pub disabled: bool,
+    /// A fill and an outline this one widget states, as `#rrggbb` or a name
+    /// from the theme's `[colors]`; empty takes the theme's own.
+    pub fill: String,
+    pub stroke: String,
+    /// Corner radius in design pixels; below zero takes the theme's own.
+    pub radius: f32,
+    /// How a container spreads its children along its own direction.
+    pub justify: String,
 }
 
 /// Whether focus can land on this widget.
@@ -586,6 +602,66 @@ pub(crate) struct Painting<'a> {
     pub(crate) edits: Vec<(Entity, Edit)>,
 }
 
+impl Painting<'_> {
+    /// The style a widget is drawn with, in the theme in force here.
+    pub(crate) fn style_of(&self, widget: &Widget) -> Style {
+        styled(&self.theme, widget)
+    }
+}
+
+/// The style a widget is drawn with: its kind's, the `role` it names over
+/// that, and the `fill`, `stroke` and `radius` it states over both.
+///
+/// The measure pass calls this too, so a row is sized at the face it draws at.
+pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Style {
+    let mut style = theme.resolved(&widget.kind, &widget.role);
+    if !widget.fill.is_empty() {
+        style.fill = theme.token(&widget.fill);
+    }
+    if !widget.stroke.is_empty() {
+        style.stroke = theme.token(&widget.stroke);
+    }
+    if widget.radius >= 0.0 {
+        style.radius = Some(widget.radius);
+    }
+    style
+}
+
+/// The near-white a caption takes when neither the widget nor its theme says.
+pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
+
+/// The ink and the face a widget draws its caption in.
+///
+/// A property left at its default is the widget saying nothing, so the theme
+/// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
+/// and a weight of 400 each take what the role or the kind carries.
+pub(crate) fn face(style: &Style, widget: &Widget, scale: f32) -> (Color32, egui::FontId) {
+    let ink = if widget.text_color[3] > 0.0 {
+        rgba_color(widget.text_color)
+    } else {
+        style.text_color.unwrap_or(DEFAULT_INK)
+    };
+    let size = if widget.font_size > 0.0 {
+        widget.font_size
+    } else {
+        style.font_size.unwrap_or(16.0)
+    };
+    let named = if widget.font == w::UI {
+        style.font.as_deref().unwrap_or(w::UI)
+    } else {
+        widget.font.as_str()
+    };
+    (ink, egui::FontId::new(size * scale, family(named)))
+}
+
+/// The weight a widget draws at, the theme answering for one left at 400.
+pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
+    if (widget.font_weight - 400.0).abs() > f32::EPSILON {
+        return widget.font_weight;
+    }
+    style.weight.unwrap_or(400.0)
+}
+
 /// A change a container made while drawing — a dragged seam, a chosen tab.
 ///
 /// Applied after the pass: the tree the draw walked is a snapshot, and
@@ -675,8 +751,12 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let caption = caption(at.eng, widget);
     let scale = at.scale;
-    let color = rgba_color(widget.text_color);
-    let font = egui::FontId::new(widget.font_size * scale, family(&widget.font));
+    let style = at.style_of(widget);
+    let (color, font) = face(&style, widget, scale);
+    let (tooltip, entity) = (widget.tooltip.clone(), placed.entity);
+    if widget.disabled {
+        ui.disable();
+    }
     match widget.kind.as_str() {
         w::BUTTON => button(ui, at, index, &caption, &font, color),
         // A line the player types into. The text lives on the widget; the
@@ -743,7 +823,7 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            if !crate::widget_text::shaped_label(ui, at, widget, &caption, color) {
+            if !crate::widget_text::shaped_label(ui, at, widget, &caption, color, &font) {
                 let mut label =
                     egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
                 // `extend` is the old behaviour: one line, however wide it runs.
@@ -758,9 +838,118 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             }
         }
     }
+    tip(ui, entity, &tooltip);
+}
+
+/// Hover text over whatever the kind just drew, from the rect it took.
+///
+/// Applied here rather than inside twenty draws: every kind ends up with a
+/// rect, and a disabled widget keeps its tooltip because that is where it
+/// says why it is off.
+fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
+    if tooltip.is_empty() {
+        return;
+    }
+    let rect = ui.min_rect();
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
+    }
+    let id = egui::Id::new(("balaur-tip", entity));
+    let response = ui.interact(rect, id, egui::Sense::hover());
+    if ui.is_enabled() {
+        response.on_hover_text(tooltip);
+    } else {
+        response.on_disabled_hover_text(tooltip);
+    }
+}
+
+/// What a button paints inside itself: the icon glyph, the caption, and the
+/// box the two of them need.
+struct Face {
+    icon: Option<std::sync::Arc<egui::Galley>>,
+    shaped: Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)>,
+    plain: Option<std::sync::Arc<egui::Galley>>,
+    size: egui::Vec2,
+    gap: f32,
+}
+
+/// The icon and the caption, measured but not yet painted.
+fn face_of(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+) -> Face {
+    let widget = &at.arena[index].widget;
+    let icon = (!widget.icon.is_empty()).then(|| {
+        let mark = egui::FontId::new(font.size, family(w::ICON));
+        ui.painter()
+            .layout_no_wrap(widget.icon.clone(), mark, Color32::WHITE)
+    });
+    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption, font);
+    let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
+        ui.painter()
+            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::WHITE)
+    });
+    let text = shaped.as_ref().map_or_else(
+        || plain.as_ref().map_or(egui::Vec2::ZERO, |g| g.size()),
+        |(shaped, _)| shaped.size,
+    );
+    let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let gap = if mark.x > 0.0 && text.x > 0.0 {
+        font.size * 0.5
+    } else {
+        0.0
+    };
+    let size = vec2(mark.x + gap + text.x, mark.y.max(text.y));
+    Face {
+        icon,
+        shaped,
+        plain,
+        size,
+        gap,
+    }
+}
+
+/// The icon and the caption, centred together in the rect the button took.
+fn paint_face(ui: &egui::Ui, at: &Painting<'_>, face: &Face, rect: egui::Rect, ink: Color32) {
+    let mut at_x = rect.center().x - face.size.x / 2.0;
+    if let Some(icon) = &face.icon {
+        let y = rect.center().y - icon.size().y / 2.0;
+        ui.painter()
+            .galley(pos2(at_x, y), std::sync::Arc::clone(icon), ink);
+        at_x += icon.size().x + face.gap;
+    }
+    if let Some((shaped, texture)) = &face.shaped {
+        let origin = pos2(at_x, rect.center().y - shaped.size.y / 2.0);
+        crate::text::paint(ui.painter(), *texture, shaped, origin, ink, at.eng.time());
+        return;
+    }
+    if let Some(plain) = &face.plain {
+        let y = rect.center().y - plain.size().y / 2.0;
+        ui.painter()
+            .galley(pos2(at_x, y), std::sync::Arc::clone(plain), ink);
+    }
+}
+
+/// The corner a button is drawn with: what the theme says, else as round as
+/// its text is tall, which is the pill the layer has always drawn.
+fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::CornerRadius {
+    if style.round == Some(true) {
+        return egui::CornerRadius::same((height / 2.0).min(120.0) as u8);
+    }
+    let stated = style
+        .radius
+        .unwrap_or_else(|| if widget.font_size > 0.0 { widget.font_size } else { 16.0 });
+    egui::CornerRadius::same((stated * scale).min(120.0) as u8)
 }
 
 /// A pill that reports its click.
+///
+/// The background is painted into a slot reserved before the button rather
+/// than handed to `egui::Button`: a widget that states a fill of its own
+/// otherwise keeps it under the pointer, and the theme's `hover` never shows.
 fn button(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -769,46 +958,32 @@ fn button(
     font: &egui::FontId,
     color: egui::Color32,
 ) {
-    let placed = &at.arena[index];
-    let widget = &placed.widget;
-    let style = at.theme.style(&widget.kind);
+    let (entity, widget) = {
+        let placed = &at.arena[index];
+        (placed.entity, placed.widget.clone())
+    };
+    let base = at.style_of(&widget);
     let (scale, focused) = (at.scale, at.focused);
-    // Without a theme a button is as round as its text is tall,
-    // which is the pill the layer has always drawn.
-    let radius = egui::CornerRadius::same(
-        (style.radius.unwrap_or(widget.font_size) * scale).min(120.0) as u8,
+    let face = face_of(ui, at, index, caption, font);
+    let pad_x = base.padding_x.map_or(ui.spacing().button_padding.x, |p| p * scale);
+    let floor = vec2(
+        base.width.unwrap_or(0.0) * scale,
+        base.height.unwrap_or(0.0) * scale,
     );
-    // The caption is shaped and painted over an empty button, so a button
-    // says in Arabic what it says in English.
-    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption);
-    let mut button = match &shaped {
-        Some((shaped, _)) => egui::Button::new("").min_size(
-            (shaped.size + 2.0 * ui.spacing().button_padding)
-                .max(vec2(widget.width, widget.height) * scale),
-        ),
-        None => egui::Button::new(egui::RichText::new(caption).font(font.clone()).color(color))
-            .min_size(vec2(widget.width, widget.height) * scale),
-    }
-    .corner_radius(radius)
-    .stroke(Stroke::new(
-        style.stroke_width,
-        style.stroke.unwrap_or(color),
-    ));
-    if let Some(fill) = style.fill {
-        button = button.fill(fill);
-    }
-    // A themed picture goes under the button, which then paints nothing of
-    // its own; the plate is reserved first so the picture sits below the text.
-    let plate = style
-        .image
-        .as_ref()
-        .map(|_| ui.painter().add(egui::Shape::Noop));
-    if plate.is_some() {
-        button = button.fill(Color32::TRANSPARENT).stroke(Stroke::NONE);
-    }
-    let response = ui.add(button);
-    if let (Some(plate), Some(path)) = (plate, style.image.as_ref()) {
-        crate::widget_kinds::nine_patch_plate(
+    let min = (face.size + vec2(pad_x, ui.spacing().button_padding.y) * 2.0)
+        .max(vec2(widget.width, widget.height) * scale)
+        .max(floor);
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let response = ui.add(
+        egui::Button::new("")
+            .min_size(min)
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE),
+    );
+    let style = base.in_state(response.hovered(), response.is_pointer_button_down_on());
+    let radius = corner(&style, &widget, scale, response.rect.height());
+    match style.image.as_ref() {
+        Some(path) => crate::widget_kinds::nine_patch_plate(
             ui,
             at.eng,
             plate,
@@ -816,22 +991,36 @@ fn button(
             style.slice,
             response.rect,
             scale,
-        );
+        ),
+        None => ui.painter().set(
+            plate,
+            egui::epaint::RectShape::new(
+                response.rect,
+                radius,
+                style.fill.unwrap_or(Color32::TRANSPARENT),
+                style
+                    .stroke
+                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+                egui::StrokeKind::Inside,
+            ),
+        ),
     }
-    if let Some((shaped, texture)) = &shaped {
-        let origin = response.rect.center() - shaped.size / 2.0;
-        crate::text::paint(ui.painter(), *texture, shaped, origin, color, at.eng.time());
-    }
+    let ink = if widget.text_color[3] > 0.0 {
+        color
+    } else {
+        style.text_color.unwrap_or(color)
+    };
+    paint_face(ui, at, &face, response.rect, ink);
     if response.clicked() {
-        at.clicked.push(placed.entity);
+        at.clicked.push(entity);
     }
-    if focused == Some(placed.entity) {
+    if focused == Some(entity) {
         // Drawn rather than egui's own focus ring: the ring follows
         // egui's keyboard focus, and this follows the scene's.
         ui.painter().rect_stroke(
             response.rect.expand(2.0),
             radius,
-            Stroke::new(2.0, style.stroke.unwrap_or(color)),
+            Stroke::new(2.0, style.stroke.unwrap_or(ink)),
             egui::StrokeKind::Outside,
         );
     }
@@ -878,7 +1067,7 @@ fn panel(
 ) {
     let scale = at.scale;
     let widget = &at.arena[index].widget;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     let pad = padding_of(widget, &style, scale);
     let box_size = box_of(widget, at.assigned, scale);
     let plate = ui.painter().add(egui::Shape::Noop);
@@ -912,7 +1101,7 @@ fn panel(
                 style.fill.unwrap_or(Color32::from_black_alpha(96)),
                 style
                     .stroke
-                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
                 egui::StrokeKind::Inside,
             ),
         );

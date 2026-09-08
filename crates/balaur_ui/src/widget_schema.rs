@@ -33,7 +33,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel width in design pixels; 0 sizes to content" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content" }"#),
                     (k::FONT_SIZE, r#"{ type = "float", default = 16.0, min = 6.0, description = "Text size in design pixels" }"#),
-                    (k::TEXT_COLOR, r#"{ type = "color", default = [0.933, 0.945, 0.957, 1.0], description = "Text color" }"#),
+                    (k::TEXT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white" }"#),
                     (k::PADDING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Space inside a container's edge, in design pixels" }"#),
                     (k::GAP, r#"{ type = "float", default = 8.0, min = 0.0, description = "Space between a container's children, in design pixels" }"#),
                     (k::ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a container puts its children across its own direction" }}"#, w::START, v::options(w::ALIGNS))),
@@ -71,11 +71,19 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height" }"#),
                     (k::FONT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
                     (k::OPTIONS, r#"{ type = "strings", default = [], description = "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, and a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row. `on_change` hears every pick" }"#),
-                    (k::COLUMNS, r#"{ type = "int", default = 2, min = 1, description = "How many children a `grid` puts on each row" }"#),
+                    (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels" }"#),
                     (k::SLICE, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture" }"#),
                     (k::DEADZONE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once" }"#),
+                    (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled" }"#),
+                    (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why" }"#),
+                    (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`" }"#),
+                    (k::DISABLED, r#"{ type = "bool", default = false, description = "Grey the widget out and swallow its clicks" }"#),
+                    (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own" }"#),
+                    (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = -1.0, description = "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall" }"#),
+                    (k::JUSTIFY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a container spreads its children along its own direction once they have their sizes" }}"#, w::START, v::options(w::JUSTIFYS))),
                 ]),
             ),
             tags: &[balaur_core::components::tag::UI],
@@ -195,6 +203,23 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(
         k::ON_SUBMIT.into(),
         toml::Value::String(widget.on_submit.clone()),
+    );
+    map.insert(k::ROLE.into(), toml::Value::String(widget.role.clone()));
+    map.insert(
+        k::TOOLTIP.into(),
+        toml::Value::String(widget.tooltip.clone()),
+    );
+    map.insert(k::ICON.into(), toml::Value::String(widget.icon.clone()));
+    map.insert(k::DISABLED.into(), toml::Value::Boolean(widget.disabled));
+    map.insert(k::FILL.into(), toml::Value::String(widget.fill.clone()));
+    map.insert(k::STROKE.into(), toml::Value::String(widget.stroke.clone()));
+    map.insert(
+        k::RADIUS.into(),
+        toml::Value::Float(f64::from(widget.radius)),
+    );
+    map.insert(
+        k::JUSTIFY.into(),
+        toml::Value::String(widget.justify.clone()),
     );
     controls_to_toml(widget, &mut map);
     toml::Value::Table(map)
@@ -368,7 +393,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         width: f(k::WIDTH, 0.0),
         height: f(k::HEIGHT, 0.0),
         font_size: f(k::FONT_SIZE, 16.0),
-        text_color: r.quad(k::TEXT_COLOR, [0.933, 0.945, 0.957, 1.0]),
+        text_color: r.quad(k::TEXT_COLOR, [0.0; 4]),
         color: r.quad(k::COLOR, [1.0, 1.0, 1.0, 1.0]),
         row_height: f(k::ROW_HEIGHT, 0.0),
         font: s(k::FONT, w::UI),
@@ -415,6 +440,14 @@ fn widget_from(params: &toml::Value) -> Widget {
             .unwrap_or(false),
         on_change: s(k::ON_CHANGE, ""),
         on_submit: s(k::ON_SUBMIT, ""),
+        role: s(k::ROLE, ""),
+        tooltip: s(k::TOOLTIP, ""),
+        icon: s(k::ICON, ""),
+        disabled: r.flag(k::DISABLED, false),
+        fill: s(k::FILL, ""),
+        stroke: s(k::STROKE, ""),
+        radius: f(k::RADIUS, -1.0),
+        justify: s(k::JUSTIFY, w::START),
         checked: false,
         value: 0.0,
         min: 0.0,
@@ -456,7 +489,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
                 .collect()
         })
         .unwrap_or_default();
-    widget.columns = (f(k::COLUMNS, 2.0).max(1.0)) as u32;
+    widget.columns = f(k::COLUMNS, 0.0).max(0.0) as u32;
     widget.open = b(k::OPEN, true);
     widget.inset = crate::widget_theme::four_of(params.get(k::INSET));
     widget.slice = crate::widget_theme::four_of(params.get(k::SLICE));

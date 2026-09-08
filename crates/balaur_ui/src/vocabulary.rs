@@ -54,6 +54,12 @@ pub(crate) mod words {
     /// Where a container puts its children, and where text sits.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
 
+    pub(crate) const BETWEEN: &str = "between";
+    pub(crate) const AROUND: &str = "around";
+    pub(crate) const EVENLY: &str = "evenly";
+    /// How a container spreads its children along its own direction.
+    pub(crate) const JUSTIFYS: &[&str] = &[START, CENTER, END, BETWEEN, AROUND, EVENLY];
+
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
     /// Slant.
@@ -123,6 +129,7 @@ pub(crate) mod keys {
     pub(crate) const K_STR: &str = "k_str";
     pub(crate) const K_TYPE: &str = "k_type";
     pub(crate) const KEEP_OPEN: &str = "keep_open";
+    pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KNOB: &str = "knob";
     pub(crate) const LANGUAGE: &str = "language";

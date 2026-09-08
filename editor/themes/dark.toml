@@ -1,6 +1,7 @@
-# The editor's whole look. A call site names a role and says only what it
-# changes; nothing here is spelled in a script.
-type = "editor_theme"
+# The editor's whole look, for both readers: the `ui::*` calls a script makes
+# name a role, and the nodes in `scenes/main.toml` take the same roles and the
+# kind tables below.
+type = "widget_theme"
 dark = true
 
 # Four surfaces, one seam, three levels of text, one accent and one second
@@ -243,3 +244,16 @@ size = 12
 strong = true
 fill = "accent_soft"
 color = "accent"
+
+# The shell's own boxes, as `scenes/main.toml` holds them. `panel` is the
+# sheet a dock is drawn on; the two containers only round what clips inside.
+[panel]
+fill = "panel"
+radius = 8
+padding = 8
+
+[row]
+radius = 8
+
+[column]
+radius = 8

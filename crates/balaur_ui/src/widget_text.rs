@@ -5,19 +5,22 @@ use egui::vec2;
 
 use crate::vocabulary::words as w;
 use crate::widget_arrange::box_of;
-use crate::widget_layer::{Edit, Painting, Widget};
+use crate::widget_layer::{Edit, Painting, Widget, weight_of};
 
 /// What a widget's text asks the shaper for, at this scale.
 pub(crate) fn text_request(
     widget: &Widget,
     caption: &str,
-    scale: f32,
     width: Option<f32>,
+    font: &egui::FontId,
+    style: &crate::widget_theme::Style,
 ) -> crate::text::Request {
     crate::text::Request {
         text: caption.to_string(),
-        size: widget.font_size * scale,
-        weight: widget.font_weight.clamp(100.0, 900.0) as u16,
+        // The face the caller already resolved, so a role's `size` and
+        // `strong` reach the shaper the way they reach egui's own text.
+        size: font.size,
+        weight: weight_of(style, widget).clamp(100.0, 900.0) as u16,
         italic: widget.font_style == w::ITALIC,
         width,
         align: match widget.text_align.as_str() {
@@ -43,10 +46,12 @@ pub(crate) fn shaped_caption(
     at: &Painting<'_>,
     widget: &Widget,
     caption: &str,
+    font: &egui::FontId,
 ) -> Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)> {
     let state = crate::text::state(at.eng)?;
+    let style = at.style_of(widget);
     let mut state = state.borrow_mut();
-    let request = text_request(widget, caption, at.scale, None);
+    let request = text_request(widget, caption, None, font, &style);
     let shaped = state.shape_for_egui(ui.ctx(), &request);
     Some((shaped, state.texture()))
 }
@@ -59,15 +64,17 @@ pub(crate) fn shaped_label(
     widget: &Widget,
     caption: &str,
     color: egui::Color32,
+    font: &egui::FontId,
 ) -> bool {
     let Some(state) = crate::text::state(at.eng) else {
         return false;
     };
+    let style = at.style_of(widget);
     let room = ui.available_width();
     let width = widget.wrap.then_some(room.max(1.0));
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
-        let request = text_request(widget, caption, at.scale, width);
+        let request = text_request(widget, caption, width, font, &style);
         (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
     // An aligned line takes the width it is aligned in; a wrapped block

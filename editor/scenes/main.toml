@@ -12,7 +12,7 @@ id = "shell"
 name = "Shell"
 parent = "n_editor"
 [nodes.widget]
-theme = "themes/shell-dark.toml"
+theme = "themes/dark.toml"
 kind = "column"
 layer = "shell"
 anchor = "top_left"
@@ -142,6 +142,18 @@ kind = "draw"
 draw = "draw_dock_right"
 grow = 1
 
+# The Inspector's and Import's rows: a form whose fields change with the
+# selection, so `pool.rn` makes them and hides the spares.
+[[nodes]]
+id = "right_form"
+name = "RightForm"
+parent = "right_sheet"
+[nodes.widget]
+kind = "column"
+visible = false
+grow = 1
+gap = 2
+
 [[nodes]]
 id = "railslot"
 name = "RailSlot"
@@ -212,6 +224,29 @@ visible = false
 grow = 1
 row_height = 18
 font = "mono"
+
+# The Debugger's call stack: frames, with each frame's locals a level in.
+[[nodes]]
+id = "bottom_tree"
+name = "BottomTree"
+parent = "bottom"
+[nodes.widget]
+kind = "tree"
+visible = false
+grow = 1
+font = "mono"
+
+# Assets, Library and Tiles: three card grids, one node. Only one of them is
+# the bottom dock's active panel, so they take turns filling it.
+[[nodes]]
+id = "bottom_cards"
+name = "BottomCards"
+parent = "bottom"
+[nodes.widget]
+kind = "list"
+visible = false
+grow = 1
+columns = 6
 
 [[nodes]]
 id = "status"

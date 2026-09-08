@@ -26,6 +26,47 @@ pub fn obj(v) {
     if v is Object { v } else { #{} }
 }
 
+/// Fill a widget node from a table and answer the whole component back, so a
+/// caller writes what changed and reads what the node reports.
+///
+/// `patch_component` rather than get-mutate-set: every property the table
+/// leaves out stays where it was, and a view that only sets `options` and
+/// `visible` cannot flatten the rest of the widget by forgetting one.
+pub fn fill(id, params) {
+    let found = scene::get_node(id);
+    if is_nil(found) {
+        return #{};
+    }
+    found.patch_component("widget", params);
+    obj(found.get_component("widget"))
+}
+
+/// Stop drawing a node. Only the dock that owns one may call this: every dock
+/// draws each frame, so a global hide has one turning off another's node.
+pub fn hide(id) {
+    let found = scene::get_node(id);
+    if is_nil(found) {
+        return;
+    }
+    found.patch_component("widget", #{ visible: false });
+}
+
+/// What a list or tree node reports it was picked, and a clear so the same
+/// pick is not acted on again next frame.
+pub fn taken(id, params) {
+    let picked = params["text"];
+    if picked != "" {
+        fill(id, #{ text: "" });
+    }
+    picked
+}
+
+/// One row of a `list` or `tree`: the icon, the label, a trailing note and a
+/// colour of its own, joined by the unit separator the kind splits on.
+pub fn row(icon, label, trailing, tint) {
+    icon + "\u{1f}" + label + "\u{1f}" + trailing + "\u{1f}" + tint
+}
+
 pub fn vec(v) {
     if v is Vec { v } else { [] }
 }

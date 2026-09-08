@@ -82,6 +82,32 @@ pub fn draw(S, k) {
         }
     };
     let query = search::query(S, "docs");
+    let signatures = util::obj(m.signatures);
+    let docs = util::obj(m.docs);
+    let items = [];
+    if m.doc != "" {
+        items.push("\u{1f}" + m.doc + "\u{1f}\u{1f}" + k.dim);
+    }
+    for name in m.functions {
+        if !search::matches(query, name) {
+            continue;
+        }
+        let picked = name == S.docs.fn_pick;
+        let sig = signatures.get(name).unwrap_or("");
+        items.push("\u{1f}" + name + sig + "\u{1f}\u{1f}" + if picked { k.accent } else { k.text });
+        let doc = docs.get(name).unwrap_or("");
+        if doc != "" {
+            items.push("\u{1f}\t  " + doc + "\u{1f}\u{1f}" + k.faint);
+        }
+    }
+    if query == "" {
+        for c in m.constants {
+            items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.faint);
+        }
+    }
+    if crate::dock::show_log(items) {
+        return;
+    }
     ui::scroll("docs", #{ max_height: S.layout.body_h - 34.0 }, || {
         if m.doc != "" {
             ui::horizontal(#{ height: 30 }, || {
