@@ -7,6 +7,7 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -521,6 +522,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
         edits: Vec::new(),
+        rects: crate::widget_taffy::Rects::new(),
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
@@ -548,6 +550,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         }
         let (pos, align, assigned, order) = root_frame(widget, area, scale);
         painting.assigned = assigned;
+        painting.rects = place_root(eng, ctx, &mut painting, root, area, (pos, align, assigned));
         let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
             .order(order)
             .pivot(align)
@@ -556,8 +559,12 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             // theme sets; egui's fade would override both.
             .fade_in(false)
             .show(ctx, |ui| {
+                // A root handed a box reserves it before anything draws: its
+                // children are placed at absolute rects and report nothing
+                // back, so the area would otherwise hug the first of them.
                 if assigned != egui::Vec2::ZERO {
                     ui.set_max_size(assigned);
+                    ui.advance_cursor_after_rect(egui::Rect::from_min_size(pos, assigned));
                 }
                 draw_one(ui, &mut painting, root);
             });
@@ -573,12 +580,69 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
     // script's `draw_ui` runs after this and reads this frame's rects.
     settle_rects();
     roll_measurements();
+    crate::widget_taffy::sweep(eng);
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     // Only on the change: a handler firing every frame focus merely *stayed*
     // would be a different event, and not a useful one.
     let arrived = (focused != was_focused).then_some(focused).flatten();
     crate::widget_input::record(eng, &clicked, edits, arrived);
+}
+
+/// Where everything in one root goes, decided before a pixel is drawn.
+///
+/// A root that fills is solved against its own box. One on a corner takes
+/// what it measures, and only then is it known where its corner puts it, so
+/// it is solved at the origin and moved once the size is out.
+fn place_root(
+    eng: &Engine,
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    root: usize,
+    area: egui::Rect,
+    frame: (egui::Pos2, Align2, egui::Vec2),
+) -> crate::widget_taffy::Rects {
+    let (pos, align, assigned) = frame;
+    let hugs = assigned == egui::Vec2::ZERO;
+    let room = if hugs {
+        crate::widget_taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, area.size()))
+    } else {
+        crate::widget_taffy::Room::fixed(egui::Rect::from_min_size(pos, assigned))
+    };
+    let probe = root_ui(ctx);
+    let mut rects = crate::widget_taffy::solve(
+        eng,
+        painting.arena,
+        root,
+        &probe,
+        painting.scale,
+        &theme_root(),
+        &room,
+    );
+    if hugs {
+        let size = rects.get(&root).map_or(egui::Vec2::ZERO, egui::Rect::size);
+        let shift = align.anchor_size(pos, size).min.to_vec2();
+        for rect in rects.values_mut() {
+            *rect = rect.translate(shift);
+        }
+    }
+    rects
+}
+
+/// A `Ui` over the viewport, for a pass that has to measure before it draws.
+fn root_ui(ctx: &egui::Context) -> egui::Ui {
+    egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("balaur-layout-probe"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.viewport_rect()),
+    )
+}
+
+/// The theme a root starts from, before it names one of its own.
+fn theme_root() -> Rc<WidgetTheme> {
+    Rc::new(WidgetTheme::default())
 }
 
 /// What one draw pass carries down the widget tree.
@@ -600,6 +664,8 @@ pub(crate) struct Painting<'a> {
     pub(crate) bounds: egui::Vec2,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
+    /// Where the layout pass put every widget in the subtree being drawn.
+    pub(crate) rects: crate::widget_taffy::Rects,
 }
 
 impl Painting<'_> {
@@ -686,6 +752,26 @@ pub(crate) enum Edit {
     Color([f32; 4]),
 }
 
+/// The theme a widget's own subtree is drawn with, for a caller that holds no
+/// `Engine` handy — the layout pass, which walks the same tree the draw does.
+pub(crate) fn theme_of_owned(reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+    if reference.is_empty() {
+        return inherited.clone();
+    }
+    THEMES.with(|held| {
+        held.borrow()
+            .get(reference)
+            .cloned()
+            .unwrap_or_else(|| inherited.clone())
+    })
+}
+
+thread_local! {
+    /// Every theme the draw has resolved this session, by asset path, so the
+    /// layout pass can reach one without an `Engine`.
+    static THEMES: RefCell<HashMap<String, Rc<WidgetTheme>>> = RefCell::new(HashMap::new());
+}
+
 /// The theme in force for a widget: its own, or the nearest ancestor's.
 ///
 /// Resolved once per frame per root rather than per widget, because a screen
@@ -700,7 +786,13 @@ pub(crate) fn theme_of(
         return inherited.clone();
     }
     match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
-        Ok(theme) => theme,
+        Ok(theme) => {
+            THEMES.with(|held| {
+                held.borrow_mut()
+                    .insert(reference.to_string(), theme.clone());
+            });
+            theme
+        }
         Err(err) => {
             // Once per reference: a missing theme is a typo in a scene file,
             // and repeating it sixty times a second buries everything else.
@@ -758,7 +850,7 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ui.disable();
     }
     match widget.kind.as_str() {
-        w::BUTTON => button(ui, at, index, &caption, &font, color),
+        w::BUTTON => crate::widget_button::button(ui, at, index, &caption, &font, color),
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
         w::FIELD => crate::widget_text::field(ui, at, index, &font, color),
@@ -868,175 +960,6 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
         response.on_hover_text(tooltip);
     } else {
         response.on_disabled_hover_text(tooltip);
-    }
-}
-
-/// What a button paints inside itself: the icon glyph, the caption, and the
-/// box the two of them need.
-struct Face {
-    icon: Option<std::sync::Arc<egui::Galley>>,
-    shaped: Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)>,
-    plain: Option<std::sync::Arc<egui::Galley>>,
-    size: egui::Vec2,
-    gap: f32,
-}
-
-/// The icon and the caption, measured but not yet painted.
-fn face_of(
-    ui: &egui::Ui,
-    at: &Painting<'_>,
-    index: usize,
-    caption: &str,
-    font: &egui::FontId,
-) -> Face {
-    let widget = &at.arena[index].widget;
-    let icon = (!widget.icon.is_empty()).then(|| {
-        let mark = egui::FontId::new(font.size, family(w::ICON));
-        ui.painter()
-            .layout_no_wrap(widget.icon.clone(), mark, Color32::WHITE)
-    });
-    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption, font);
-    let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
-        ui.painter()
-            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::WHITE)
-    });
-    let text = shaped.as_ref().map_or_else(
-        || plain.as_ref().map_or(egui::Vec2::ZERO, |g| g.size()),
-        |(shaped, _)| shaped.size,
-    );
-    let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
-    let gap = if mark.x > 0.0 && text.x > 0.0 {
-        font.size * 0.5
-    } else {
-        0.0
-    };
-    let size = vec2(mark.x + gap + text.x, mark.y.max(text.y));
-    Face {
-        icon,
-        shaped,
-        plain,
-        size,
-        gap,
-    }
-}
-
-/// The icon and the caption, centred together in the rect the button took.
-fn paint_face(ui: &egui::Ui, at: &Painting<'_>, face: &Face, rect: egui::Rect, ink: Color32) {
-    let mut at_x = rect.center().x - face.size.x / 2.0;
-    if let Some(icon) = &face.icon {
-        let y = rect.center().y - icon.size().y / 2.0;
-        ui.painter()
-            .galley(pos2(at_x, y), std::sync::Arc::clone(icon), ink);
-        at_x += icon.size().x + face.gap;
-    }
-    if let Some((shaped, texture)) = &face.shaped {
-        let origin = pos2(at_x, rect.center().y - shaped.size.y / 2.0);
-        crate::text::paint(ui.painter(), *texture, shaped, origin, ink, at.eng.time());
-        return;
-    }
-    if let Some(plain) = &face.plain {
-        let y = rect.center().y - plain.size().y / 2.0;
-        ui.painter()
-            .galley(pos2(at_x, y), std::sync::Arc::clone(plain), ink);
-    }
-}
-
-/// The corner a button is drawn with: what the theme says, else as round as
-/// its text is tall, which is the pill the layer has always drawn.
-fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::CornerRadius {
-    if style.round == Some(true) {
-        return egui::CornerRadius::same((height / 2.0).min(120.0) as u8);
-    }
-    let stated = style.radius.unwrap_or_else(|| {
-        if widget.font_size > 0.0 {
-            widget.font_size
-        } else {
-            16.0
-        }
-    });
-    egui::CornerRadius::same((stated * scale).min(120.0) as u8)
-}
-
-/// A pill that reports its click.
-///
-/// The background is painted into a slot reserved before the button rather
-/// than handed to `egui::Button`: a widget that states a fill of its own
-/// otherwise keeps it under the pointer, and the theme's `hover` never shows.
-fn button(
-    ui: &mut egui::Ui,
-    at: &mut Painting<'_>,
-    index: usize,
-    caption: &str,
-    font: &egui::FontId,
-    color: egui::Color32,
-) {
-    let (entity, widget) = {
-        let placed = &at.arena[index];
-        (placed.entity, placed.widget.clone())
-    };
-    let base = at.style_of(&widget);
-    let (scale, focused) = (at.scale, at.focused);
-    let face = face_of(ui, at, index, caption, font);
-    let pad_x = base
-        .padding_x
-        .map_or(ui.spacing().button_padding.x, |p| p * scale);
-    let floor = vec2(
-        base.width.unwrap_or(0.0) * scale,
-        base.height.unwrap_or(0.0) * scale,
-    );
-    let min = (face.size + vec2(pad_x, ui.spacing().button_padding.y) * 2.0)
-        .max(vec2(widget.width, widget.height) * scale)
-        .max(floor);
-    let plate = ui.painter().add(egui::Shape::Noop);
-    let response = ui.add(
-        egui::Button::new("")
-            .min_size(min)
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::NONE),
-    );
-    let style = base.in_state(response.hovered(), response.is_pointer_button_down_on());
-    let radius = corner(&style, &widget, scale, response.rect.height());
-    match style.image.as_ref() {
-        Some(path) => crate::widget_kinds::nine_patch_plate(
-            ui,
-            at.eng,
-            plate,
-            path,
-            style.slice,
-            response.rect,
-            scale,
-        ),
-        None => ui.painter().set(
-            plate,
-            egui::epaint::RectShape::new(
-                response.rect,
-                radius,
-                style.fill.unwrap_or(Color32::TRANSPARENT),
-                style
-                    .stroke
-                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
-                egui::StrokeKind::Inside,
-            ),
-        ),
-    }
-    let ink = if widget.text_color[3] > 0.0 {
-        color
-    } else {
-        style.text_color.unwrap_or(color)
-    };
-    paint_face(ui, at, &face, response.rect, ink);
-    if response.clicked() {
-        at.clicked.push(entity);
-    }
-    if focused == Some(entity) {
-        // Drawn rather than egui's own focus ring: the ring follows
-        // egui's keyboard focus, and this follows the scene's.
-        ui.painter().rect_stroke(
-            response.rect.expand(2.0),
-            radius,
-            Stroke::new(2.0, style.stroke.unwrap_or(ink)),
-            egui::StrokeKind::Outside,
-        );
     }
 }
 

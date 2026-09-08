@@ -698,10 +698,16 @@ pub(crate) fn fold(
     }
     let room = ui.available_rect_before_wrap();
     let body = Rect::from_min_max(pos2(room.min.x + pad, room.min.y), room.max);
+    // Solved on its own: the header is drawn here rather than authored, so
+    // what is under it is a subtree of its own from the layout's side.
+    let space = crate::widget_taffy::Room::scrolling(body);
+    let solved = crate::widget_taffy::solve_subtree(
+        at.eng, at.arena, index, ui, at.scale, &at.theme, &space,
+    );
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(body));
-    let held = std::mem::replace(&mut at.bounds, egui::Vec2::ZERO);
+    let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);
-    at.bounds = held;
+    at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
 }
 

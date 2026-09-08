@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-756 packages listed here, some under licences that are not MIT.
+757 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -23,7 +23,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | Licence | Packages |
 | --- | --- |
 | `MIT OR Apache-2.0` | 402 |
-| `MIT` | 139 |
+| `MIT` | 140 |
 | `Apache-2.0 OR MIT` | 50 |
 | `Apache-2.0` | 27 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
@@ -626,6 +626,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [synstructure](https://github.com/mystor/synstructure) | 0.13.2 | `MIT` |
 | [syntree](https://github.com/udoprog/syntree) | 0.18.0 | `MIT OR Apache-2.0` |
 | [sys-locale](https://github.com/1Password/sys-locale) | 0.3.2 | `MIT OR Apache-2.0` |
+| [taffy](https://github.com/DioxusLabs/taffy) | 0.14.0 | `MIT` |
 | [tar](https://github.com/composefs/tar-rs) | 0.4.46 | `MIT OR Apache-2.0` |
 | [tempfile](https://github.com/Stebalien/tempfile) | 3.27.0 | `MIT OR Apache-2.0` |
 | [term](https://github.com/Stebalien/term) | 1.2.1 | `MIT OR Apache-2.0` |
@@ -823,7 +824,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, codespan-reporting, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, harfrust, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, codespan-reporting, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, harfrust, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
 ### LICENSE-APACHE — 159 packages
 

@@ -10,6 +10,7 @@ authors.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 egui.workspace = true
+taffy.workspace = true
 anyhow.workspace = true
 toml.workspace = true
 serde.workspace = true

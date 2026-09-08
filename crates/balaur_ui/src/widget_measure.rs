@@ -42,6 +42,17 @@ impl<'a> Measure<'a> {
         }
     }
 
+    /// What one leaf asks for, with no recursion into children: what the
+    /// layout tree calls back for, since it owns every container itself.
+    pub(crate) fn leaf(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        if !widget.visible {
+            return egui::Vec2::ZERO;
+        }
+        let theme = theme_of(self.eng, &widget.theme, theme);
+        self.natural(index, &theme)
+    }
+
     /// The smallest box `index` can be drawn in, in device pixels.
     ///
     /// Zero on an axis nothing can answer for: a `draw` node is a script's to
@@ -74,9 +85,11 @@ impl<'a> Measure<'a> {
         let widget = &self.arena[index].widget;
         let kind = widget.kind.clone();
         match kind.as_str() {
-            // A script fills its own rect, and a scroll is meant to clip: both
-            // answer with their stated size or with nothing.
-            w::DRAW | w::SCROLL => egui::Vec2::ZERO,
+            // A scroll is meant to clip, so it answers with its stated size
+            // or with nothing. A script's rect can only be remembered: what
+            // it drew last frame is the one thing anything knows about it.
+            w::SCROLL => egui::Vec2::ZERO,
+            w::DRAW => crate::widget_arrange::measured_of(self.arena[index].entity),
             // A picture knows its own size, so a row can divide by it.
             w::IMAGE => {
                 crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)

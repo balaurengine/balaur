@@ -58,7 +58,10 @@ parent = "head_row"
 [nodes.widget]
 kind = "draw"
 draw = "draw_top_bar"
+# Stated, both ways: a `draw` node is measured by what it drew, so one that
+# is handed a zero box never draws and never gets a size.
 width = 118
+height = 26
 
 [[nodes]]
 id = "head_strip"
