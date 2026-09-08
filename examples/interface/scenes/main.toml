@@ -1,0 +1,264 @@
+# A whole screen as scene nodes: no `draw_ui`, no immediate mode, nothing
+# spelled in a script but the rows a list holds. Every box below is laid out
+# by the widget tree — `grow` divides what is left, `gap` and `padding` are
+# the air, and `justify` puts the header's buttons against the right edge.
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+
+[nodes.script]
+source = "scripts/screen.rn"
+[nodes.script.props]
+# Set when the manual's picture is being taken; empty for a normal run.
+shot = "/tmp/interface.png"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "panel"
+text = ""
+anchor = "fill"
+inset = [24.0, 24.0, 24.0, 24.0]
+padding = 16
+gap = 14
+
+# The header: a title, then two buttons against the far edge. Nothing is
+# positioned here — `grow` on the title is what pushes the pair right.
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 34
+gap = 8
+align = "center"
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "head"
+[nodes.widget]
+kind = "label"
+text = "Interface"
+role = "title"
+grow = 1
+
+[[nodes]]
+id = "shuffle"
+name = "Shuffle"
+parent = "head"
+[nodes.widget]
+kind = "button"
+text = "Shuffle"
+# A glyph from the theme's icon family, drawn before the caption.
+icon = "\ue3d0"
+tooltip = "Re-order the cards"
+on_click = "shuffle"
+
+[[nodes]]
+id = "apply"
+name = "Apply"
+parent = "head"
+[nodes.widget]
+kind = "button"
+text = "Apply"
+role = "primary"
+tooltip = "Nothing to apply; the role is the point"
+
+# Three pages on one strip. Only the page showing takes part in the layout,
+# so a tall table does not stretch the sheet while the cards are up.
+[[nodes]]
+id = "pages"
+name = "Pages"
+parent = "sheet"
+[nodes.widget]
+kind = "tab"
+grow = 1
+gap = 10
+
+[[nodes]]
+id = "cards"
+name = "Cards"
+parent = "pages"
+[nodes.widget]
+kind = "list"
+# Above one, the rows flow into a grid of cards: `ItemList` in its icon mode.
+columns = 5
+grow = 1
+# A card's own height; the width is the room divided by `columns`.
+row_height = 84
+
+[[nodes]]
+id = "outline"
+name = "Outline"
+parent = "pages"
+[nodes.widget]
+kind = "tree"
+grow = 1
+font = "mono"
+
+[[nodes]]
+id = "table"
+name = "Table"
+parent = "pages"
+[nodes.widget]
+kind = "table"
+grow = 1
+font = "mono"
+# The column names, split on the same separator the rows are.
+placeholder = "name\u001Fkind\u001Fsize"
+
+# One row of every control kind, sharing the width equally.
+[[nodes]]
+id = "controls"
+name = "Controls"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 32
+gap = 8
+align = "center"
+
+[[nodes]]
+id = "amount"
+name = "Amount"
+parent = "controls"
+[nodes.widget]
+kind = "drag_value"
+value = 1.5
+step = 0.05
+placeholder = "x"
+grow = 1
+
+[[nodes]]
+id = "shadows"
+name = "Shadows"
+parent = "controls"
+[nodes.widget]
+kind = "check"
+text = "shadows"
+checked = true
+
+[[nodes]]
+id = "quality"
+name = "Quality"
+parent = "controls"
+[nodes.widget]
+kind = "dropdown"
+text = "high"
+options = ["low", "medium", "high"]
+grow = 1
+
+[[nodes]]
+id = "tint"
+name = "Tint"
+parent = "controls"
+[nodes.widget]
+kind = "color"
+color = [0.44, 0.64, 0.85, 1.0]
+width = 40
+
+[[nodes]]
+id = "loudness"
+name = "Loudness"
+parent = "controls"
+[nodes.widget]
+kind = "slider"
+value = 0.6
+min = 0.0
+max = 1.0
+grow = 1
+
+# Chips that wrap when the row runs out, and a caption under them.
+[[nodes]]
+id = "chips"
+name = "Chips"
+parent = "sheet"
+[nodes.widget]
+kind = "flow"
+gap = 6
+height = 30
+
+[[nodes]]
+id = "foot"
+name = "Foot"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "caption"
+text = "every box on this screen is a node; taffy decided where it goes"
+
+[[nodes]]
+id = "chip0"
+name = "Chip0"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "physics"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip1"
+name = "Chip1"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "audio"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip2"
+name = "Chip2"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "input"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip3"
+name = "Chip3"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "networking"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip4"
+name = "Chip4"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "shaders"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip5"
+name = "Chip5"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "animation"
+role = "chip"
+height = 22
+
+[[nodes]]
+id = "chip6"
+name = "Chip6"
+parent = "chips"
+[nodes.widget]
+kind = "button"
+text = "tilemaps"
+role = "chip"
+height = 22

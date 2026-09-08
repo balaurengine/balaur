@@ -1,0 +1,3 @@
+[application]
+name = "interface"
+main_scene = "scenes/main.toml"
