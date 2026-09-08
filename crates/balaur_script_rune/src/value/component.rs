@@ -141,11 +141,15 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
     // Property name -> the components declaring it, so dispatch is by
     // component name at call time, as the methods are.
     let mut owners: BTreeMap<String, HashSet<String>> = BTreeMap::new();
+    // The same, narrowed to where the schema says `vec3`, so a position reads
+    // back as the `Vec3` the node's own accessors answer with rather than as
+    // three numbers in a list.
+    let mut vectors: BTreeMap<String, HashSet<String>> = BTreeMap::new();
     for (component, schema) in balaur_core::components::schemas(eng) {
         let Some(table) = schema.as_table() else {
             continue;
         };
-        for prop in table.keys() {
+        for (prop, spec) in table {
             if !is_identifier(prop) {
                 tracing::warn!("`{component}.{prop}` is not a script identifier; no field");
                 continue;
@@ -154,13 +158,20 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
                 .entry(prop.clone())
                 .or_default()
                 .insert(component.clone());
+            if spec.get("type").and_then(|v| v.as_str()) == Some("vec3") {
+                vectors
+                    .entry(prop.clone())
+                    .or_default()
+                    .insert(component.clone());
+            }
         }
     }
     for (prop, components) in owners {
         let name = intern(&prop);
         let readers = components.clone();
+        let as_vector = vectors.remove(&prop).unwrap_or_default();
         m.field_function(&Protocol::GET, name, move |this: &Component| {
-            read_property(this, name, &readers, read)
+            read_property(this, name, &readers, &as_vector, read)
         })?;
         m.field_function(
             &Protocol::SET,
@@ -189,6 +200,7 @@ fn read_property(
     this: &Component,
     prop: &'static str,
     owners: &HashSet<String>,
+    vectors: &HashSet<String>,
     handle: usize,
 ) -> VmResult<rune::Value> {
     if !owners.contains(&this.name) {
@@ -206,10 +218,35 @@ fn read_property(
     let Some((_, value)) = props.into_iter().find(|(key, _)| key == prop) else {
         return fail(format!("`{}` does not report `{prop}`", this.name));
     };
+    let value = if vectors.contains(&this.name) {
+        as_vec3(value)
+    } else {
+        value
+    };
     match from_neutral(&value) {
         Ok(v) => VmResult::Ok(v),
         Err(err) => fail(err),
     }
+}
+
+/// Three numbers as the vector a `vec3` property is, so `node.transform.position`
+/// answers what `node.position()` does. Anything else passes through.
+fn as_vec3(value: Neutral) -> Neutral {
+    let Neutral::List(items) = &value else {
+        return value;
+    };
+    let mut out = [0.0f32; 3];
+    if items.len() != out.len() {
+        return value;
+    }
+    for (slot, item) in out.iter_mut().zip(items) {
+        match item {
+            Neutral::Num(n) => *slot = *n as f32,
+            Neutral::Int(i) => *slot = *i as f32,
+            _ => return value,
+        }
+    }
+    Neutral::Vec3(out)
 }
 
 fn write_property(

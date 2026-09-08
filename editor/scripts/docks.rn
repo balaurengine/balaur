@@ -583,27 +583,62 @@ fn handle_body(S, k, side) {
     });
 }
 
-/// How much room the left dock's handle takes at the head of the top strip,
-/// so whatever the centre draws there starts clear of it.
+/// Whether a side dock is folded with something to go back to.
+fn has_handle(S, side) {
+    folded(S, side) && S.docks[side].tabs.len() > 0
+}
+
+/// The room the left dock's handle takes above the tool rail, which is where
+/// it goes when there is a rail to sit over.
+pub fn rail_top_h(S) {
+    if S.rail_visible && has_handle(S, "left") {
+        return TILE + 2.0 * PAD_Y + 6.0;
+    }
+    0.0
+}
+
+/// The room that handle takes at the head of the top strip instead, for a
+/// centre with no rail to put it over.
 pub fn fold_inset(S) {
-    if folded(S, "left") && S.docks.left.tabs.len() > 0 {
+    if !S.rail_visible && has_handle(S, "left") {
         return TILE + 2.0 * PAD_X + 6.0;
     }
     0.0
 }
 
-/// The handle a folded side dock leaves behind, at the end of the top strip
-/// it folded towards. A folded dock gives its column back, so this is the way
-/// back to it, and it is drawn wherever the centre is.
+/// The handle a folded dock leaves behind, at the edge it folded towards: the
+/// left one above the tools, the right one opposite it, the bottom one beside
+/// the zoom reading. A folded dock gives its space back, so this is the way
+/// back to it.
 pub fn fold_strip(S, k, vp) {
-    handle_tile(S, k, "left", vp.x, vp.y);
+    let top = S.layout.railtop;
+    if top.h > 0.0 {
+        handle_tile(S, k, "left", top.x, top.y - 1.0);
+    } else {
+        handle_tile(S, k, "left", vp.x, vp.y);
+    }
     handle_tile(S, k, "right", vp.x + vp.w - TILE - 2.0 * PAD_X, vp.y);
+}
+
+/// The bottom dock's handle, drawn into the row the zoom reading is in so it
+/// lands just after it.
+pub fn fold_foot(S, k) {
+    if !has_handle(S, "bottom") {
+        return;
+    }
+    if ui::pill(icons::ui(open_icon("bottom")), #{
+        height: TILE + 2.0 * PAD_Y, min_width: TILE + 2.0 * PAD_X, size: style::MD,
+        padding_x: 0, radius: 8, fill: k.panel, color: k.dim,
+        tooltip: "Open the dock",
+    }) {
+        S.docks.bottom.shut = false;
+    }
 }
 
 // The zoom reading's own geometry, because the two are the same thing at
 // opposite corners: same height, same edge, centred on the row it shares.
 fn handle_tile(S, k, side, x, y) {
-    if !folded(S, side) || S.docks[side].tabs.len() == 0 {
+    if !has_handle(S, side) {
         return;
     }
     let p = panel(S, S.docks[side].active);

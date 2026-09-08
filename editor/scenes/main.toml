@@ -263,6 +263,16 @@ parent = "upper_row"
 kind = "column"
 width = 44
 
+# Where a folded left dock's handle goes, above the tools rather than beside
+# them; `layout.rn` gives it a height only when there is one to draw.
+[[nodes]]
+id = "railtop"
+name = "RailTop"
+parent = "railslot"
+[nodes.widget]
+kind = "row"
+height = 0
+
 # The rail is only as tall as its tools, so it takes the top of the slot
 # rather than the whole of it; `layout.rn` states the height.
 [[nodes]]

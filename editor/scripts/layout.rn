@@ -7,7 +7,6 @@ use crate::util;
 // A minimised dock is one control: a square this big at the top of a side
 // column, this tall across the bottom, and keeping less padding than an
 // open sheet does.
-const SHUT_H = 28.0;
 // What a timeline, a debugger or a session list needs over the bottom dock's
 // resting height, which the scene states.
 const TALL_EXTRA = 62.0;
@@ -27,6 +26,7 @@ pub fn state() {
     #{
         bar: rect(0.0, 0.0, 0.0, 0.0),
         left: rect(0.0, 0.0, 0.0, 0.0), rail: rect(0.0, 0.0, 0.0, 0.0),
+        railtop: rect(0.0, 0.0, 0.0, 0.0),
         right: rect(0.0, 0.0, 0.0, 0.0), bottom: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
@@ -78,6 +78,7 @@ fn node(S, id) {
         "rightbody" => SHELL + "/Body/Right/RightSheet/RightBody",
         "railslot" => SHELL + "/Body/Centre/UpperRow/RailSlot",
         "rail" => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
+        "railtop" => SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop",
         "work" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work",
         "canvas" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas",
         "stage" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage",
@@ -296,9 +297,10 @@ pub fn compute(S) {
     let tree_w = side_w(S, "left", util::clamp(m.tree_w, 180.0, w * 0.28));
     let insp_w = side_w(S, "right", util::clamp(m.insp_w, 220.0, w * 0.32));
     let tall = if crate::docks::bottom_tall(S) { TALL_EXTRA } else { 0.0 };
-    // Minimised, the dock is its status strip and the handle that reopens it.
+    // Minimised, the dock is gone: its handle sits beside the zoom reading,
+    // the way each side dock's sits at the edge it folded towards.
     let dock_h = if crate::docks::folded(S, "bottom") {
-        SHUT_H
+        0.0
     } else {
         m.dock_h + tall + m.status_h
     };
@@ -320,7 +322,7 @@ pub fn compute(S) {
     // Folded, a side dock's whole column goes. Not the sheet inside it: a
     // box left at zero width still takes the row's gap either side of it,
     // which is what stopped the centre reaching the window's own edge.
-    for side in ["left", "right"] {
+    for side in ["left", "right", "bottom"] {
         show(S, side, !crate::docks::folded(S, side));
     }
     size(S, "bottom", "height", dock_h);
@@ -329,6 +331,9 @@ pub fn compute(S) {
     size(S, "rightbody", "height", right_head_h(S));
     size(S, "railslot", "width", rail_w);
     size(S, "rail", "height", crate::center::rail_span(grid, grid.rows));
+    // The folded left dock's handle sits above the tools, so the rail starts
+    // below it rather than beside it.
+    size(S, "railtop", "height", crate::docks::rail_top_h(S));
     size(S, "hooks", "width", hooks_w);
 
     // The widget layer draws after `draw_ui`, so these are a frame behind.
@@ -341,6 +346,7 @@ pub fn compute(S) {
         bottom: box_of(S, "bottom"),
         dockbody: box_of(S, "dockbody"),
         rail: box_of(S, "rail"),
+        railtop: box_of(S, "railtop"),
         centre: box_of(S, "centre"),
         canvas: box_of(S, "canvas"),
         stage: box_of(S, "stage"),
@@ -354,6 +360,7 @@ pub fn compute(S) {
     m.bottom = r.bottom;
     m.hooks = r.hooks;
     m.rail = r.rail;
+    m.railtop = r.railtop;
     m.rail_room = util::max(120.0, r.centre.h);
     // What a dock panel may scroll: its share of the sheet, less the tab row
     // and the status strip at the foot.

@@ -281,9 +281,19 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 // The gap either side of the label, when the caller or its
                 // role names one. Put back after: the spacing is the row's.
                 let was = ui.spacing().button_padding.x;
-                if let Some(pad) = opts.opt_px(k::PADDING_X) {
-                    ui.spacing_mut().button_padding.x = pad;
+                let mut pad = opts.opt_px(k::PADDING_X).unwrap_or(was);
+                let floor = opts.px(k::MIN_WIDTH, 0.0);
+                if floor > 0.0 {
+                    // Widened to the floor rather than left to `min_size`:
+                    // egui puts a caption where the layout says, which in a
+                    // row is hard left of the space a floor made.
+                    let face = FontId::new(opts.px(k::SIZE, 12.0), theme::family(fam));
+                    let ink = ui.fonts_mut(|f| {
+                        f.layout_no_wrap(display.clone(), face, Color32::WHITE).size().x
+                    });
+                    pad = pad.max((floor - ink) / 2.0);
                 }
+                ui.spacing_mut().button_padding.x = pad;
                 let mut response = enabled_add(ui, button, &opts);
                 ui.spacing_mut().button_padding.x = was;
                 if let Some(tip) = opts.string(k::TOOLTIP) {

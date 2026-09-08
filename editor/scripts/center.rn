@@ -310,6 +310,9 @@ fn viewport(S, k) {
                 });
             });
             ui::right(|| {
+                // First in a right-aligned row is right-most, so the dock's
+                // handle lands after the reading rather than before it.
+                crate::docks::fold_foot(S, k);
                 let text = format!("{} %", S.zoom as i64);
                 ui::frame(#{ fill: k.panel, radius: 8, padding_x: 6, padding_y: 3 }, || {
                     // A width, not `tight`: a hugging row measures zero here
