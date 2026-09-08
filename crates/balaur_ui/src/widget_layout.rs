@@ -355,26 +355,50 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let d = opts.px(k::D, 32.0);
-                let rt = text(
-                    &glyph,
-                    opts.px(k::SIZE, 14.0),
-                    &opts.string(k::FONT).unwrap_or_else(|| "ui".into()),
-                    opts.opt_color(k::COLOR),
-                    opts.boolean(k::STRONG, false),
-                );
-                let mut button = egui::Button::new(rt)
-                    .fill(opts.color(k::FILL, Color32::TRANSPARENT))
-                    .corner_radius(pill_radius(d))
-                    .min_size(vec2(d, d));
-                button = match opts.opt_color(k::STROKE) {
-                    Some(color) => button.stroke(Stroke::new(1.0, color)),
-                    None => button.stroke(Stroke::NONE),
+                // Painted rather than handed to `egui::Button`: a button is
+                // as wide as its glyph plus egui's own padding, and a rail
+                // that reserved `d` was then a pixel too narrow for it.
+                let off = opts.boolean(k::DISABLED, false);
+                // A disabled control is inert: it takes no click, and only
+                // the hover the tooltip needs.
+                let sense = if off {
+                    egui::Sense::hover()
+                } else {
+                    egui::Sense::click()
                 };
-                let mut response = enabled_add(ui, button, &opts);
-                if let Some(tip) = opts.string(k::TOOLTIP) {
-                    response = hover_text(response, &opts, tip);
+                let (rect, response) = ui.allocate_exact_size(vec2(d, d), sense);
+                let ink = opts
+                    .opt_color(k::COLOR)
+                    .unwrap_or_else(|| ui.visuals().text_color());
+                let ink = if off { ink.gamma_multiply(0.4) } else { ink };
+                let fill = opts.color(k::FILL, Color32::TRANSPARENT);
+                let hovered = !off && response.hovered();
+                let fill = if hovered {
+                    ui.visuals().widgets.hovered.bg_fill
+                } else {
+                    fill
+                };
+                ui.painter().circle_filled(rect.center(), d / 2.0, fill);
+                if let Some(stroke) = opts.opt_color(k::STROKE) {
+                    ui.painter()
+                        .circle_stroke(rect.center(), d / 2.0, Stroke::new(1.0, stroke));
                 }
-                Ok(response.clicked())
+                let font = FontId::new(
+                    opts.px(k::SIZE, 14.0),
+                    theme::family(&opts.string(k::FONT).unwrap_or_else(|| "ui".into())),
+                );
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &glyph,
+                    font,
+                    ink,
+                );
+                let clicked = response.clicked();
+                if let Some(tip) = opts.string(k::TOOLTIP) {
+                    hover_text(response, &opts, tip);
+                }
+                Ok(clicked)
             })
         },
     );

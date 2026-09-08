@@ -49,10 +49,12 @@ pub fn modes(S) {
 /// `layout.rn` can state a rail exactly as tall as what this draws into it:
 /// the two disagreed by 18 px, which showed as padding only at the foot.
 pub fn rail_metrics(S) {
+    // The pad is a pixel wider than the gap: with none to spare the sheet's
+    // own rounded corner cut into the selected tool's tile.
     if S.compact {
-        return #{ d: 24.0, gap: 3.0, pad: 5.0 };
+        return #{ d: 24.0, gap: 3.0, pad: 6.0 };
     }
-    #{ d: 28.0, gap: 4.0, pad: 7.0 }
+    #{ d: 28.0, gap: 4.0, pad: 8.0 }
 }
 
 /// The marks the rail carries: the persona's tools, then the one that folds

@@ -545,6 +545,9 @@ pub struct Renderable2d {
     /// from its image: a derived one re-derives when the sheet or
     /// `pixels_per_unit` moves, and an authored one is left alone.
     pub sized: bool,
+    /// The scale a sprite's size was derived at. Kept so `get` reports it and
+    /// a patch of anything else does not re-derive the quad at the default.
+    pub pixels_per_unit: f32,
     pub version: u64,
 }
 
@@ -577,6 +580,7 @@ pub(crate) fn set_polygon(
                 polygon: Some(polygon),
                 material: String::new(),
                 sized: false,
+                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
                 version: 0,
             },
         )
@@ -745,6 +749,7 @@ pub(crate) fn set_polyline(
                 polygon: None,
                 material: String::new(),
                 sized: false,
+                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
                 version: 0,
             },
         )
@@ -772,6 +777,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
                 polygon: None,
                 material: String::new(),
                 sized: false,
+                pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
                 version: 0,
             },
         )
@@ -846,6 +852,7 @@ pub(crate) fn set_sprite(
         r.shape = shape;
         r.sprite = Some(texture);
         r.sized = sized;
+        r.pixels_per_unit = ppu;
         if rebuild {
             r.version += 1;
         }
@@ -863,6 +870,7 @@ pub(crate) fn set_sprite(
                 polygon: None,
                 material: String::new(),
                 sized,
+                pixels_per_unit: ppu,
                 version: 0,
             },
         )

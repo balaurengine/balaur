@@ -85,6 +85,8 @@ pub fn init(this) {
         schemas: #{},
         script_dirty: #{},
         collapsed: #{},
+        // The panel `view:<id>` asked for, reported once the shot is taken.
+        view_shot: "",
         // The stage width the layout self-test last saw, so it asserts on a
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
@@ -227,6 +229,7 @@ pub fn update(this, dt) {
     if let Some(shot) = shot_some {
         if S.frame == 60 {
             render::screenshot(shot);
+            report_view(S);
         }
     }
     let cap = S.capture;
@@ -525,6 +528,22 @@ pub fn draw_dock_right(this) {
 
 // One hatch per painting view, so the scene names each rather than four of
 // them sharing the dock's body.
+/// Where the panel `view:<id>` asked for was drawn, in device pixels, so a
+/// design pass can cut it out of the shot.
+fn report_view(S) {
+    if S.view_shot == "" {
+        return;
+    }
+    let side = match docks::side_of(S, S.view_shot) {
+        Some(side) => side,
+        None => return,
+    };
+    let r = S.layout[side];
+    let f = S.ui_scale;
+    log::info(format!("viewrect {} {} {} {} {}", S.view_shot,
+        r.x * f, r.y * f, r.w * f, r.h * f));
+}
+
 pub fn draw_view_timeline(this) {
     dock::timeline(this.S, this.S.theme);
 }

@@ -365,12 +365,12 @@ fn tab_controls(S, k, side, d) {
         // halves inside it paint nothing, so the pair reads as one control.
         let inner = [];
         inner.push(#{
-            kind: "button", height: h, text: label, padding_x: 7, radius: 0, fill: "none",
+            kind: "button", height: h, text: label, padding_x: 6, radius: 0, fill: "none",
             role: if active { "tab_on" } else { "tab" },
             on: |_| { S.docks[side].active = held; },
         });
         inner.push(#{
-            kind: "button", height: h, width: 16, text: "", radius: 0, fill: "none",
+            kind: "button", height: h, width: 14, text: "", radius: 0, fill: "none",
             icon: icons::ui("close"),
             role: if active { "tab_on" } else { "tab" },
             tooltip: format!("Close {}", p.name),

@@ -105,6 +105,65 @@ fn a_patch_leaves_the_properties_it_does_not_name() {
     );
 }
 
+/// A schema property is a field on the component handle, so a script names
+/// one the way a scene file does. Writing it patches, so `b` survives.
+#[test]
+fn a_property_is_a_field_on_the_component_handle() {
+    let dir = project(&[(
+        "edit.rn",
+        "pub fn init(this) {\n\
+         \x20   this.node.set_component(\"marker\", #{ a: 10.0, b: 20.0 });\n\
+         \x20   this.node.marker.a = 99.0;\n\
+         \x20   this.read_back = this.node.marker.a;\n\
+         }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    marker_component(&mut app);
+    let node = spawn(&app, "N");
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur_core::node_id_of(node), "edit.rn")
+        .unwrap();
+
+    let found = balaur_core::components::get(&app.engine, node, "marker").expect("it was added");
+    assert_eq!(found.get("a").and_then(toml::Value::as_float), Some(99.0));
+    assert_eq!(
+        found.get("b").and_then(toml::Value::as_float),
+        Some(20.0),
+        "writing one field left the other alone"
+    );
+    assert_eq!(
+        rune(&app).number_field(node, "read_back"),
+        Some(99.0),
+        "the field read back what it was assigned"
+    );
+}
+
+/// A name no component declares is not a field at all, so a typo fails to
+/// compile rather than writing nothing.
+#[test]
+fn a_property_no_component_declares_is_not_a_field() {
+    let dir = project(&[(
+        "edit.rn",
+        "pub fn init(this) {\n\
+         \x20   this.node.set_component(\"marker\", #{ a: 1.0 });\n\
+         \x20   let (ok, why) = script::attempt(|| this.node.marker.c);\n\
+         \x20   this.refused = if ok { 0.0 } else { 1.0 };\n\
+         }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    marker_component(&mut app);
+    let node = spawn(&app, "N");
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur_core::node_id_of(node), "edit.rn")
+        .unwrap();
+
+    assert_eq!(rune(&app).number_field(node, "refused"), Some(1.0));
+}
+
 /// The control for the pair: `set_component` really does reset, so the test
 /// above is measuring the difference rather than an accident.
 #[test]

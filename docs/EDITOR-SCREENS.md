@@ -4,6 +4,13 @@ Every surface the editor draws: an ASCII mockup, the code that draws it, and the
 screenshot that proves what it looks like. The review sheet — read a mockup, open
 the PNG, write the complaint in §8.
 
+`scripts/uiaudit.sh` shoots whole shells, one a state. `scripts/views.sh` shoots
+one **view** at a time — each dock panel, cut out of the shell to its own PNG in
+`target/views/`, plus two contact sheets: `_sides.png` puts the side panels in a
+row and `_bottoms.png` stacks the bottom ones, which is the shape each is seen
+in. Design a panel against its own picture rather than hunting for it in a
+screenshot of everything.
+
 The shell is **Stage**: the scene runs edge to edge and every panel is a sheet at
 a rect `editor/scripts/layout.rn` computes. The rects that matter are the table
 in [PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1; §1 below is the docked

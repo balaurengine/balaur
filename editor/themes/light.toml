@@ -203,6 +203,7 @@ color = "accent"
 d = 26
 size = 14
 round = true
+fill = "sunken"
 color = "dim"
 
 [roles.transport_on]

@@ -35,8 +35,12 @@ struct Held {
 
 impl Default for Held {
     fn default() -> Self {
+        let mut tree = TaffyTree::new();
+        // Rounding to whole device pixels loses the fraction a design pixel
+        // carries at a scale like 1.25, which cut a 42 px rail to 41.6.
+        tree.disable_rounding();
         Self {
-            tree: TaffyTree::new(),
+            tree,
             nodes: HashMap::new(),
         }
     }

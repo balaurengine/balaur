@@ -161,6 +161,7 @@ parent = "body"
 kind = "column"
 grow = 1
 gap = 12
+handle = 12
 
 # The rail and the scene share this row; the dock below is the centre's own
 # child, so it runs the full width rather than starting clear of the rail.

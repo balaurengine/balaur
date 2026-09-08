@@ -138,14 +138,16 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     // is what an editor's "Sleep bodies" switch writes, and a per-body opinion
     // must not quietly re-enable sleeping under it.
     let may_sleep = world_may_sleep && v::boolean(params, k::CAN_SLEEP, true);
-    *body.activation_mut() = if may_sleep {
-        let mut activation = RigidBodyActivation::default();
-        activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
-        activation
+    let mut activation = if may_sleep {
+        RigidBodyActivation::default()
     } else {
         body.wake_up(true);
         RigidBodyActivation::cannot_sleep()
     };
+    // A body that cannot sleep keeps its `sleep_time` anyway: the negative
+    // thresholds are what hold it awake, so the number survives a re-save.
+    activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
+    *body.activation_mut() = activation;
 }
 
 /// `mass` is *additional* mass, so 0 means "whatever the colliders weigh" —
@@ -501,10 +503,10 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
             "How fast a world point on the body is moving, spin included.",
         ),
         (
-            k::MASS,
+            "total_mass",
             &[c::BODY_3D],
             "",
-            "The body's total mass, colliders included.",
+            "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         ),
         (
             "kinetic_energy",
@@ -556,7 +558,7 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
 /// What a body weighs and how it is moving, read-only: the numbers a script
 /// asks about rather than the ones it sets.
 fn install_body_readers(m: &mut dyn Bindings<Engine>) {
-    m.function("mass", |eng: &Engine, node: NodeId| {
+    m.function("total_mass", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::mass)
     });
     m.function("kinetic_energy", |eng: &Engine, node: NodeId| {

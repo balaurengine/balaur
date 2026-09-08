@@ -474,6 +474,7 @@ pub(crate) fn text_field(
         // The hint carries the field's own font: a bare string is laid out in
         // egui's default body style, at neither this size nor this scale.
         let font = FontId::new(size, family);
+        let font_for_margin = font.clone();
         let mut edit = egui::TextEdit::singleline(&mut buffer)
             .id(egui::Id::new(id_owned.clone()))
             .frame(egui::Frame::NONE)
@@ -491,6 +492,10 @@ pub(crate) fn text_field(
             edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
         }
         let response = if h > 0.0 {
+            // Centred by the margin, not by a centring layout: a layout that
+            // centres also fills, and the field then took the whole panel.
+            let line = ui.fonts_mut(|f| f.row_height(&font_for_margin));
+            let vpad = ((h - line) / 2.0).max(0.0);
             let radius = opts.px(k::RADIUS, 0.0);
             let corner = if radius > 0.0 {
                 pill_radius(radius * 2.0)
@@ -504,11 +509,8 @@ pub(crate) fn text_field(
                     opts.color(k::STROKE, Color32::TRANSPARENT),
                 ))
                 .corner_radius(corner)
-                .inner_margin(Margin::symmetric(pad as i8, 0))
-                .show(ui, |ui| {
-                    ui.set_min_height(h);
-                    ui.add(edit)
-                })
+                .inner_margin(Margin::symmetric(pad as i8, vpad as i8))
+                .show(ui, |ui| ui.add(edit))
                 .inner
         } else {
             ui.add(edit)

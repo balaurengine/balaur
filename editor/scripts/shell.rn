@@ -628,6 +628,7 @@ fn prefixed_states() {
         ("show:", state_show),
         ("tool:", state_tool),
         ("dock:", state_dock),
+        ("view:", state_view),
         ("asset:", state_asset),
         ("tab:", state_tab),
         ("shut:", state_shut),
@@ -685,6 +686,16 @@ pub fn apply_start_state(S, start) {
 // check of an editor state a headless run cannot show.
 fn state_shot(S, path) {
     S.shot = Some(path);
+}
+
+/// `view:<panel>` brings one panel up and reports the rect it was drawn in,
+/// so a design pass can cut it out of the shot and look at it on its own.
+///
+/// The rect is logged rather than cropped here: the renderer saves whole
+/// frames, and one line a run is all a script needs to cut them up.
+fn state_view(S, id) {
+    crate::docks::show(S, id);
+    S.view_shot = id;
 }
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.

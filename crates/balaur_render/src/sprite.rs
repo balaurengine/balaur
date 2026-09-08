@@ -264,6 +264,10 @@ fn read_sprite(
             ]),
         );
     }
+    map.insert(
+        k::PIXELS_PER_UNIT.into(),
+        toml::Value::Float(f64::from(renderable.pixels_per_unit)),
+    );
     map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
     map.insert(
         "material".into(),

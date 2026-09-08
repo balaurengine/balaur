@@ -148,6 +148,9 @@ fn rows(
         }
     }
 
+    // Where each open row's branch still continues, so a guide is drawn only
+    // down a level that has another row below this one.
+    let trails = branches(&items, &open_rows, &depth_of);
     let mut picked = None;
     let mut toggled = None;
     let mut area = egui::ScrollArea::vertical()
@@ -166,7 +169,14 @@ fn rows(
             let parent = indent && items.get(i + 1).is_some_and(|next| depth_of(next) > depth);
             ui.horizontal(|ui| {
                 if depth > 0 {
+                    let head = ui.cursor().min;
                     ui.add_space(row_h * depth as f32);
+                    guides(
+                        ui,
+                        head,
+                        row_h,
+                        trails.get(slot).map_or(&[][..], Vec::as_slice),
+                    );
                 }
                 if parent {
                     let caret = if shut.contains(item) { "▸" } else { "▾" };
@@ -256,6 +266,56 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 
 fn warn_code(err: &anyhow::Error) {
     tracing::warn!("code widget: {err:#}");
+}
+
+/// Whether each level above a row still has a row below it, and whether the
+/// row itself has a later sibling. One entry a level, plus the row's own.
+fn branches(
+    items: &[String],
+    open: &[usize],
+    depth_of: &impl Fn(&String) -> usize,
+) -> Vec<Vec<bool>> {
+    let depths: Vec<usize> = open.iter().map(|&i| depth_of(&items[i])).collect();
+    depths
+        .iter()
+        .enumerate()
+        .map(|(n, &own)| {
+            (0..=own)
+                .map(|level| {
+                    depths[n + 1..]
+                        .iter()
+                        .find(|later| **later <= level)
+                        .is_some_and(|later| *later == level)
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// The lines down an outline: one a level while the branch continues, and an
+/// elbow into the row itself. A tree without them cannot show depth.
+fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool]) {
+    let Some(own) = trail.len().checked_sub(1) else {
+        return;
+    };
+    let ink = ui.visuals().weak_text_color().gamma_multiply(0.6);
+    let stroke = Stroke::new(1.0, ink);
+    let middle = head.y + step / 2.0;
+    for (level, &continues) in trail.iter().take(own).enumerate() {
+        let x = head.x + (level as f32 + 0.5) * step;
+        // The row's own column carries the elbow; the ones above it carry a
+        // line only while something is still below them.
+        if level + 1 == own {
+            let foot = if trail[own] { head.y + step } else { middle };
+            ui.painter()
+                .line_segment([pos2(x, head.y), pos2(x, foot)], stroke);
+            ui.painter()
+                .line_segment([pos2(x, middle), pos2(x + step * 0.5, middle)], stroke);
+        } else if continues {
+            ui.painter()
+                .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
+        }
+    }
 }
 
 /// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,

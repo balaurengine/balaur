@@ -25,7 +25,7 @@ fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
     let mark = icons::component(title.to_lowercase());
-    wide_row(S, 26, || {
+    wide_row(S, 24, || {
         ui::horizontal(#{ height: 20 }, || {
             ui::add_space(2);
             ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
@@ -1356,7 +1356,7 @@ fn component_sections(S, k, filter) {
         let open = !S.collapsed.contains_key(key);
         let held = comp;
         let mark = icons::component(held);
-        wide_row(S, 26, || {
+        wide_row(S, 24, || {
             ui::horizontal(#{ height: 20 }, || {
                 ui::add_space(2);
                 ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
@@ -1430,8 +1430,8 @@ fn events_section(S, k) {
 
 pub fn body(S, k) {
     let node = model::selected_node(S);
-    ui::add_space(8);
-    ui::horizontal(#{ height: 26 }, || {
+    ui::add_space(2);
+    ui::horizontal(#{ height: 24 }, || {
         let (icon, token) = model::node_icon(node);
         ui::label(icon, #{ size: style::LG, color: k.get(token).unwrap_or(k.accent) });
         ui::add_space(7);
@@ -1445,7 +1445,7 @@ pub fn body(S, k) {
             util::merge(style::mono_sm(k.faint), #{ truncate: true }));
     });
     multi_note(S, k);
-    ui::add_space(4);
+    ui::add_space(3);
     crate::search::field(S, k, "inspector", "Search", panel_w(S) - 16.0);
     // Every row is a node now: the sections describe them, and the pool makes
     // and reuses them under the sheet's scroll.

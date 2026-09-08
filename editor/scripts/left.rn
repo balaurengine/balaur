@@ -360,12 +360,12 @@ pub fn tree_body(S, k) {
         filtered_tree(S, k, query);
         return;
     }
-    show_tree(S, open_rows(S));
+    show_tree(S, k, open_rows(S));
 }
 
 // The outliner's rows on the `tree` node beside this hatch. One string a row:
 // a tab a level, then the icon and the name either side of a unit separator.
-fn show_tree(S, rows) {
+fn show_tree(S, k, rows) {
     let found = scene::get_node(TREE_NODE);
     if util::is_nil(found) {
         return;
@@ -379,10 +379,10 @@ fn show_tree(S, rows) {
             line += "\t";
             at += 1;
         }
-        let (mark, _) = model::node_icon(node);
-        line += mark;
-        line += "\u{1f}";
-        line += node.name;
+        let (mark, token) = model::node_icon(node);
+        // The type's own colour on the row, which is what a mark alone
+        // cannot say: 2D, 3D, UI and physics each read at a glance.
+        line += util::row(mark, node.name, "", k.get(token).unwrap_or(k.text));
         items.push(line);
     }
     let params = util::obj(found.get_component("widget"));

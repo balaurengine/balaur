@@ -38,6 +38,9 @@ pub fn state() {
         // The scene's own numbers, adopted before anything writes over them.
         // Zero until `adopt` has run, which is what `asked` says.
         asked: false,
+        // What each open dock last measured, so folding one at its floor can
+        // put the size it had back when it opens again.
+        reopen: #{},
         gutter: 0.0, gap: 0.0, pad: 0.0,
         tree_w: 0.0, insp_w: 0.0, dock_h: 0.0, hooks_w: 0.0,
         status_h: 0.0,
@@ -166,6 +169,28 @@ fn dragged(S, id, key, into) {
     }
 }
 
+// What each open dock measured, so folding one at its floor can put the size
+// it had back when it opens again.
+fn remember_open(S) {
+    let m = S.layout;
+    for (side, key) in #{ left: "tree_w", right: "insp_w", bottom: "dock_h" } {
+        if !S.docks[side].shut && m[key] > 0.0 {
+            m.reopen[side] = m[key];
+        }
+    }
+}
+
+// A dock dragged down to the size it cannot go under is folded instead, and
+// the size it had is kept so opening it again lands where it was.
+fn fold_at_floor(S, side, key, floor) {
+    let m = S.layout;
+    if S.docks[side].shut || m[key] > floor + 1.0 {
+        return;
+    }
+    m[key] = m.reopen.get(side).unwrap_or(floor * 1.4);
+    S.docks[side].shut = true;
+}
+
 fn size(S, id, key, value) {
     let m = S.layout;
     let mark = id + ":" + key;
@@ -240,8 +265,15 @@ pub fn compute(S) {
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
+    remember_open(S);
     dragged(S, "left", "width", "tree_w");
     dragged(S, "right", "width", "insp_w");
+    dragged(S, "bottom", "height", "dock_h");
+    // Dragged to its floor, a dock folds: the gesture that makes it smallest
+    // is the one that means "put it away".
+    fold_at_floor(S, "left", "tree_w", 180.0);
+    fold_at_floor(S, "right", "insp_w", 220.0);
+    fold_at_floor(S, "bottom", "dock_h", 84.0);
 
     // A narrow window would leave no scene at all, so the sheets give way
     // before the stage does. A dock with every tab closed gives its column
@@ -347,7 +379,7 @@ fn right_head_h(S) {
     }
     let rows = crate::docks::row_h(S) + 8.0;
     if d.active == "inspector" {
-        return rows + 62.0;
+        return rows + 44.0;
     }
     if d.active == "import" {
         return rows + 52.0;

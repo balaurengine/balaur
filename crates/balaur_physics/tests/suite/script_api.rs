@@ -248,3 +248,53 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
         "#,
     );
 }
+
+/// A schema property is a field on the component handle, so one number moves
+/// without building a table for it.
+#[test]
+fn a_collider_property_is_read_and_written_as_a_field() {
+    run_clean(
+        r#"
+        this.node.set_component("body3d", #{ kind: "dynamic" });
+        this.node.set_component("collider3d", #{ kind: "cuboid", density: 1.0 });
+        this.node.collider3d.density = 15.0;
+        let back = this.node.collider3d.density;
+        assert!(math::abs(back - 15.0) < 1e-4, "density came back as {}", back);
+        let heavy = this.node.collider3d.collider_mass();
+        this.node.collider3d.density = 1.0;
+        let light = this.node.collider3d.collider_mass();
+        assert!(heavy > light * 10.0, "{} was not ten times {}", heavy, light);
+        "#,
+    );
+}
+
+/// Writing a field leaves the rest of the component alone, as `patch` does.
+#[test]
+fn writing_one_property_field_leaves_the_others() {
+    run_clean(
+        r#"
+        this.node.set_component("collider3d", #{ kind: "ball", radius: 0.75, friction: 0.25 });
+        this.node.collider3d.friction = 0.9;
+        let radius = this.node.collider3d.radius;
+        assert!(math::abs(radius - 0.75) < 1e-4, "radius became {}", radius);
+        let friction = this.node.collider3d.friction;
+        assert!(math::abs(friction - 0.9) < 1e-4, "friction became {}", friction);
+        "#,
+    );
+}
+
+/// A property one component declares is not a field on another, so a typo or
+/// the wrong handle is an error rather than a silent no-op.
+#[test]
+fn a_property_of_another_component_is_refused() {
+    run_clean(
+        r#"
+        this.node.set_component("body3d", #{ kind: "dynamic" });
+        this.node.set_component("collider3d", #{ kind: "ball" });
+        let (ok, why) = script::attempt(|| this.node.body3d.density);
+        assert!(!ok, "`density` answered on a body3d");
+        let (wrote, _) = script::attempt(|| { this.node.body3d.density = 4.0; });
+        assert!(!wrote, "`density` was written on a body3d");
+        "#,
+    );
+}
