@@ -89,7 +89,7 @@ pub(crate) fn with_ctx<R>(
 }
 
 /// Make `ui` the target every later `ui.*` call acts on, until [`pop`].
-fn push(ui: &mut egui::Ui) {
+pub(crate) fn push(ui: &mut egui::Ui) {
     PASS.with(|p| {
         p.borrow_mut()
             .stack
@@ -97,7 +97,7 @@ fn push(ui: &mut egui::Ui) {
     });
 }
 
-fn pop() {
+pub(crate) fn pop() {
     PASS.with(|p| {
         p.borrow_mut().stack.pop();
     });

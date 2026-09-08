@@ -772,6 +772,10 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::MENU => crate::widget_kinds::menu(ui, at, index, &caption, &font, color),
         w::LIST => crate::widget_kinds::list(ui, at, index, &font, color),
         w::TREE => crate::widget_kinds::tree(ui, at, index, &font, color),
+        w::TABLE => crate::widget_kinds::table(ui, at, index, &font, color),
+        // The file being edited, with the gutter and the colouring the script
+        // call has always had.
+        w::CODE => crate::widget_kinds::code(ui, at, index),
         w::SLIDER => crate::widget_kinds::slider(ui, at, index),
         w::DRAG_VALUE => crate::widget_kinds::drag_value(ui, at, index, &font, color),
         w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
@@ -826,9 +830,13 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             if !crate::widget_text::shaped_label(ui, at, widget, &caption, color, &font) {
                 let mut label =
                     egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
-                // `extend` is the old behaviour: one line, however wide it runs.
+                // A stated width is a column, so the text is cut to it rather
+                // than run past into whatever sits beside it. Without one,
+                // `extend` is the old behaviour: one line, however wide.
                 label = if widget.wrap {
                     label.wrap()
+                } else if widget.width > 0.0 {
+                    label.truncate()
                 } else {
                     label.extend()
                 };

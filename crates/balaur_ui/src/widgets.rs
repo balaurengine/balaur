@@ -357,6 +357,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_MENU", w::MENU),
     ("WIDGET_LIST", w::LIST),
     ("WIDGET_TREE", w::TREE),
+    ("WIDGET_TABLE", w::TABLE),
     ("WIDGET_SLIDER", w::SLIDER),
     ("WIDGET_DRAG_VALUE", w::DRAG_VALUE),
     ("WIDGET_PROGRESS", w::PROGRESS),
@@ -365,6 +366,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),
     ("WIDGET_SEPARATOR", "separator"),
+    ("WIDGET_CODE", w::CODE),
 ];
 
 /// Where a container puts its children, and where text sits in its width.
@@ -895,6 +897,20 @@ pub(crate) struct Caret {
 /// Returns the buffer, whether it changed, the gutter line clicked this frame
 /// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
 /// one.
+/// A `code` widget's values as the options `code_editor` reads, so the node
+/// and the script call reach the same editor.
+pub(crate) fn code_opts(widget: &crate::widget_layer::Widget, scale: f32) -> Opts {
+    let size = if widget.font_size > 0.0 {
+        widget.font_size
+    } else {
+        12.5
+    };
+    Opts::plain(Some(Value::Map(vec![
+        (k::SIZE.into(), Value::Num(f64::from(size * scale))),
+        (k::LANGUAGE.into(), Value::Str(widget.source.clone())),
+    ])))
+}
+
 pub(crate) fn code_editor(
     eng: &Engine,
     id: &str,

@@ -24,37 +24,72 @@ const FOOT_H = 58.0;
 fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
-    ui::add_space(11);
-    ui::horizontal(#{ height: 20 }, || {
-        ui::add_space(2);
-        if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
-            height: 20, radius: 4, align: ui::ALIGN_LEFT,
-            icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: style::SM, icon_color: k.faint,
-        })) {
-            if open {
-                S.collapsed[key] = true;
-            } else {
-                S.collapsed.remove(key);
+    wide_row(S, 30, || {
+        ui::add_space(8);
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(2);
+            if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
+                height: 20, radius: 4, align: ui::ALIGN_LEFT,
+                icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: style::SM, icon_color: k.faint,
+            })) {
+                if open {
+                    S.collapsed[key] = true;
+                } else {
+                    S.collapsed.remove(key);
+                }
             }
-        }
+        });
     });
-    ui::add_space(5);
     open
 }
 
+// The host the pool builds the rows on, and the hatch a drawn row names.
+const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
+const ROW_HATCH = "draw_form_row";
+
+// The rows this frame wants, and the closures the drawn ones run. Built as
+// the sections walk the selection, then handed to `pool::sync` in one go.
+fn open_form(S) {
+    S.form = [];
+    S.form_draws = [];
+    S.form_cursor = 0;
+}
+
+fn push(S, spec) {
+    S.form.push(spec);
+}
+
+/// A row the caller draws: a label column and a `draw` node beside it, so the
+/// bespoke rows a control table cannot describe are nodes like the rest.
 fn row(S, k, label, body) {
-    ui::horizontal(#{ height: 24 }, || {
-        ui::spacing(6, 0);
-        // Fixed label column so control widths stay inside the panel
-        // regardless of the label's length.
-        ui::horizontal(#{ height: 24, width: label_w(S) }, || {
-            ui::label(label, #{ size: style::MD, color: k.dim });
-        });
-        // The control column is pinned too: egui grows a row to its content,
-        // so one long value (a path, a joined list) would widen the panel.
-        ui::horizontal(#{ height: 24, width: control_w(S) }, body);
-    });
-    ui::add_space(2);
+    S.form_draws.push(body);
+    push(S, #{ label: label, height: 24, draw: ROW_HATCH });
+}
+
+/// A drawn row spanning both columns, for a heading or a note.
+fn wide_row(S, height, body) {
+    S.form_draws.push(body);
+    push(S, #{ full: true, height: height, draw: ROW_HATCH });
+}
+
+/// Stop drawing the form, for a right dock showing something else.
+pub fn hide_form() {
+    crate::pool::hide(FORM_NODE);
+}
+
+/// Run the next drawn row. The pool draws its visible children in the order
+/// they were pushed, so one cursor keeps the two in step.
+///
+/// A hatch can fire before the panel has described a single row — the frame a
+/// dock is switched away from still draws what the last one left — so a
+/// cursor past the end draws nothing rather than failing the frame.
+pub fn draw_row(S) {
+    let n = S.form_cursor;
+    S.form_cursor = n + 1;
+    let found = S.form_draws.get(n);
+    if let Some(body) = found {
+        body();
+    }
 }
 
 // The two columns of a row, both derived from the panel: at a width neither
@@ -185,6 +220,7 @@ fn instance_note(S, k) {
     if !model::is_instanced(node) {
         return;
     }
+    wide_row(S, 54, || {
     ui::add_space(6);
     ui::horizontal((), || {
         ui::add_space(8);
@@ -211,7 +247,7 @@ fn instance_note(S, k) {
         ui::label("edits become overrides on " + node.at,
             util::merge(style::mono_sm(k.faint), #{ truncate: true }));
     });
-    ui::add_space(4);
+    });
 }
 
 // An instance node's own row: which prefab it builds, and a way into it.
@@ -298,7 +334,9 @@ fn script_props_rows(S, k, node) {
         return;
     }
     let props = model::script_props(node);
-    style::section_label(k, "properties");
+    wide_row(S, 20, || {
+        style::section_label(k, "properties");
+    });
     for export in declared {
         let overridden = props.contains_key(export.name);
         let value = if overridden { props[export.name] } else { export["default"] };
@@ -835,115 +873,122 @@ fn prop_row(S, k, comp, prop, spec, data) {
     editor(S, k, comp, prop, spec, value);
 }
 
-fn edit_float(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
-            speed: spec.get("step").unwrap_or(0.02),
-            decimals: spec.get("decimals").unwrap_or(2),
-        });
-        if ch {
-            let min_some = spec.get("min");
-            if let Some(min) = min_some {
-                v = util::max(util::f(min), v);
-            }
-            let max_some = spec.get("max");
-            if let Some(max) = max_some {
-                v = util::min(util::f(max), v);
-            }
-            write(S, comp, prop, v);
-        }
-    });
+// The schema's `min` and `max` as the write must respect them. The control
+// itself drags free: a clamp on the widget makes a value unreachable by
+// typing, which is how a range is escaped when a scene wants one.
+fn clamped(spec, v) {
+    let out = v;
+    let low = spec.get("min");
+    if let Some(low) = low {
+        out = util::max(util::f(low), out);
+    }
+    let high = spec.get("max");
+    if let Some(high) = high {
+        out = util::min(util::f(high), out);
+    }
+    out
 }
 
-// A whole number: the same drag, rounded on the way out. Without it an
-// `int` property would be written back as 2.0, which is a different value to
-// the schema and to the file.
+fn number_of(value) {
+    if value is Tuple { 0.0 } else { util::f(value) }
+}
+
+fn edit_float(S, k, comp, prop, spec, value) {
+    push(S, #{ label: prop, controls: [#{
+        kind: "drag_value", grow: 1,
+        value: number_of(value),
+        step: spec.get("step").unwrap_or(0.02),
+        on: |v| { write(S, comp, prop, clamped(spec, v)); },
+    }] });
+}
+
 fn edit_int(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
-            speed: spec.get("step").unwrap_or(1.0),
-            decimals: 0,
-        });
-        if ch {
-            let min_some = spec.get("min");
-            if let Some(min) = min_some {
-                v = util::max(util::f(min), v);
-            }
-            let max_some = spec.get("max");
-            if let Some(max) = max_some {
-                v = util::min(util::f(max), v);
-            }
-            write(S, comp, prop, math::round(v) as i64);
-        }
-    });
+    push(S, #{ label: prop, controls: [#{
+        kind: "drag_value", grow: 1,
+        value: number_of(value),
+        step: spec.get("step").unwrap_or(1.0),
+        on: |v| { write(S, comp, prop, math::round(clamped(spec, v)) as i64); },
+    }] });
 }
 
 fn edit_bool(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let (on, ch) = ui::toggle(value == true, #{ role: "toggle",
-            on_fill: k.accent_fill, off_fill: k.sunken,
-            on_knob: k.on_accent, off_knob: k.faint,
-        });
-        if ch {
-            write(S, comp, prop, on);
-        }
-    });
+    push(S, #{ label: prop, controls: [#{
+        kind: "check", text: "",
+        checked: value == true,
+        on: |on| { write(S, comp, prop, on); },
+    }] });
 }
 
 fn edit_enum(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
-            width: control_w(S), size: style::MD, height: 24, color: k.text,
-        });
-        if changed {
-            write(S, comp, prop, v);
-        }
-    });
+    push(S, #{ label: prop, controls: [#{
+        kind: "dropdown", grow: 1,
+        text: as_text(value),
+        options: util::vec(spec.get("options").unwrap_or([])),
+        on: |picked| { write(S, comp, prop, picked); },
+    }] });
 }
 
-// A swatch that opens egui's picker, and the four channels beside it: a
-// colour is the one vector nobody reads as numbers.
+// A swatch that opens egui's picker, and the channels beside it: a colour is
+// the one vector nobody reads as numbers.
 fn edit_color(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let (rgba, changed) = ui::color(#{ value: util::vec(value) });
-        if changed {
-            write(S, comp, prop, rgba);
-        }
-        ui::add_space(6);
-        let text = format!("{} {} {} {}",
-            fixed(rgba[0], 2), fixed(rgba[1], 2), fixed(rgba[2], 2), fixed(rgba[3], 2));
-        ui::label(text, style::mono_sm(k.faint));
-    });
+    let held = util::vec(value);
+    let text = format!("{} {} {} {}",
+        fixed(channel(held, 0, 1.0), 2), fixed(channel(held, 1, 1.0), 2),
+        fixed(channel(held, 2, 1.0), 2), fixed(channel(held, 3, 1.0), 2));
+    push(S, #{ label: prop, controls: [
+        #{ kind: "color", width: 34, color: held, on: |rgba| { write(S, comp, prop, rgba); } },
+        #{ kind: "label", grow: 1, text: text, role: "meta" },
+    ] });
 }
 
-// vec2 and vec3 are one editor: a row of drag values differing only in how
-// many and what they are lettered.
+fn channel(v, i, fallback) {
+    match v.get(i) {
+        Some(x) => util::f(x),
+        None => fallback,
+    }
+}
+
+// vec2 and vec3 are one editor: a drag value a component, differing only in
+// how many and what they are lettered.
 fn edit_vector(S, k, comp, prop, spec, value) {
     let datatype = spec["type"];
-    row(S, k, prop, || {
-        let v = util::vec(value);
-        let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
-        let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
-        let w = CONTROL_W / (count as f64) - 5.0;
-        let cell = #{ changed: false, out: [] };
-        for i in 0..count {
-            let fallback = if datatype == "color" { 1.0 } else { 0.0 };
-            cell.out.push(match v.get(i) { Some(x) => util::f(x), None => fallback });
-            let (nv, ch) = ui::drag_value(cell.out[i], #{
-                width: w, speed: if datatype == "color" { 0.005 } else { 0.02 },
-                decimals: 2,
-                prefix: letters[i], prefix_color: k.accent,
-                fill: k.sunken, stroke: k.line, color: k.text,
-            });
-            if ch {
-                cell.out[i] = if datatype == "color" { util::clamp(nv, 0.0, 1.0) } else { nv };
-                cell.changed = true;
-            }
-        }
-        if cell.changed {
-            write(S, comp, prop, cell.out);
-        }
-    });
+    let held = util::vec(value);
+    let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+    let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
+    let fallback = if datatype == "color" { 1.0 } else { 0.0 };
+    let controls = [];
+    for i in 0..count {
+        let slot = i;
+        controls.push(#{
+            kind: "drag_value", grow: 1,
+            value: channel(held, slot, fallback),
+            step: if datatype == "color" { 0.005 } else { 0.02 },
+            placeholder: letters[slot],
+            on: |v| {
+                let out = [];
+                for n in 0..count {
+                    out.push(channel(util::vec(read_now(S, comp, prop, held)), n, fallback));
+                }
+                out[slot] = if datatype == "color" { util::clamp(v, 0.0, 1.0) } else { v };
+                write(S, comp, prop, out);
+            },
+        });
+    }
+    push(S, #{ label: prop, controls: controls });
+}
+
+// The vector as it stands now, so writing one component keeps the others: the
+// spec was built before the edit and holds the value the reader started from.
+fn read_now(S, comp, prop, fallback) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return fallback,
+    };
+    let data = util::obj(found.get_component(comp));
+    match data.get(prop) {
+        Some(value) => value,
+        None => fallback,
+    }
 }
 
 // A reference, or an inline definition the engine reports as a `#!` digest. A
@@ -1178,15 +1223,12 @@ fn write_material_param(S, reference, name, value) {
 
 // Anything with no registered editor: its text, straight through.
 fn edit_text(S, k, comp, prop, spec, value) {
-    row(S, k, prop, || {
-        let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
-        let (text, _, submitted) = ui::text_field(id, "— empty —",
-            util::merge(style::field(k, control_w(S)),
-                #{ value: model::relative_file(S, as_text(value)) }));
-        if submitted {
-            write(S, comp, prop, text);
-        }
-    });
+    push(S, #{ label: prop, controls: [#{
+        kind: "field", grow: 1, role: "field",
+        text: model::relative_file(S, as_text(value)),
+        placeholder: "— empty —",
+        on: |text| { write(S, comp, prop, text); },
+    }] });
 }
 
 fn fixed(v, decimals) {
@@ -1244,16 +1286,18 @@ fn readonly_row(S, k, prop, spec, data) {
 // draw: the rows are tables, not properties.
 fn bindings_note(S, k) {
     section(S, k, "BINDINGS");
-    ui::horizontal(#{ height: 24 }, || {
-        ui::add_space(2);
-        if ui::pill(format!("{}  {} row(s) · open the Events view",
-            icons::ui("events"), crate::events::rows(S).len()), #{
-            height: 24, size: style::SM, align: ui::ALIGN_LEFT,
-            min_width: panel_w(S) - 16.0,
-            fill: k.sunken, color: k.text,
-        }) {
-            shell::open_doc(S, "events");
-        }
+    wide_row(S, 26, || {
+        ui::horizontal(#{ height: 24 }, || {
+            ui::add_space(2);
+            if ui::pill(format!("{}  {} row(s) · open the Events view",
+                icons::ui("events"), crate::events::rows(S).len()), #{
+                height: 24, size: style::SM, align: ui::ALIGN_LEFT,
+                min_width: panel_w(S) - 16.0,
+                fill: k.sunken, color: k.text,
+            }) {
+                shell::open_doc(S, "events");
+            }
+        });
     });
 }
 
@@ -1293,37 +1337,41 @@ fn component_sections(S, k, filter) {
         }
         let key = format!("inspector/{}", comp);
         let open = !S.collapsed.contains_key(key);
-        ui::add_space(12);
-        ui::horizontal(#{ height: 20 }, || {
-            if ui::pill(comp.to_uppercase(), util::merge(style::heading(k), #{
-                icon: if open { "▾" } else { "▸" }, height: 20,
-            })) {
-                if open {
-                    S.collapsed[key] = true;
-                } else {
-                    S.collapsed.remove(key);
+        let held = comp;
+        wide_row(S, 30, || {
+            ui::add_space(6);
+            ui::horizontal(#{ height: 20 }, || {
+                ui::add_space(2);
+                if ui::pill(held.to_uppercase(), util::merge(style::heading(k), #{
+                    icon: if open { "▾" } else { "▸" }, height: 20,
+                })) {
+                    if open {
+                        S.collapsed[key] = true;
+                    } else {
+                        S.collapsed.remove(key);
+                    }
                 }
-            }
-            ui::right(|| {
-                if ui::pill("✕", #{
-                    height: 20, size: style::SM, strong: true, tooltip: "Remove component",
-                    fill: k.sunken, color: k.faint,
-                }) {
-                    model::remove_component(S, comp);
-                }
+                ui::right(|| {
+                    ui::add_space(2);
+                    if ui::pill("✕", #{
+                        height: 20, size: style::SM, strong: true, tooltip: "Remove component",
+                        fill: k.sunken, color: k.faint,
+                    }) {
+                        model::remove_component(S, held);
+                    }
+                });
             });
         });
-        ui::separator(k.line);
         if !open {
             continue;
         }
         if let Some(needs) = unmet.get(comp) {
-            ui::add_space(4);
-            ui::label(format!("⚠ needs one of: {}", needs), #{
-                size: style::SM, color: k.get("warn").unwrap_or(k.faint), wrap: true,
+            wide_row(S, 34, || {
+                ui::label(format!("⚠ needs one of: {}", needs), #{
+                    size: style::SM, color: k.get("warn").unwrap_or(k.faint), wrap: true,
+                });
             });
         }
-        ui::add_space(8);
         let schema = model::schema(S, comp);
         let data = util::obj(found.get_component(comp));
         for prop in util::keys_sorted(schema) {
@@ -1357,64 +1405,64 @@ fn events_section(S, k) {
 pub fn body(S, k) {
     let node = model::selected_node(S);
     ui::add_space(8);
-        ui::horizontal(#{ height: 30 }, || {
-            let (icon, token) = model::node_icon(node);
-            ui::label(icon, #{ size: style::XL, color: k.get(token).unwrap_or(k.accent) });
-            ui::add_space(9);
-            ui::vertical(|| {
-                ui::spacing(4, 1);
-                // Ellipsised: the header is the panel's width, and a node is
-                // named whatever the scene named it.
-                ui::label(node.name, #{
-                    size: style::XL, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
-                });
-                ui::label(model::node_type(node),
-                    util::merge(style::mono_sm(k.faint), #{ truncate: true }));
+    ui::horizontal(#{ height: 30 }, || {
+        let (icon, token) = model::node_icon(node);
+        ui::label(icon, #{ size: style::XL, color: k.get(token).unwrap_or(k.accent) });
+        ui::add_space(9);
+        ui::vertical(|| {
+            ui::spacing(4, 1);
+            // Ellipsised: the header is the panel's width, and a node is
+            // named whatever the scene named it.
+            ui::label(node.name, #{
+                size: style::XL, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
             });
+            ui::label(model::node_type(node),
+                util::merge(style::mono_sm(k.faint), #{ truncate: true }));
         });
-
-        multi_note(S, k);
-        ui::add_space(6);
-        let query = crate::search::field(S, k, "inspector", "Find a property…", panel_w(S) - 16.0);
-        // Sized from the sheet, like every other dock's scroll: the header
-        // above and the Add component button below are fixed heights.
-        ui::scroll("inspector-scroll", #{ max_height: util::max(40.0, S.layout.right.h - HEAD_H - FOOT_H) }, || {
-            instance_note(S, k);
-            instance_source_row(S, k, node);
-            if S.persona == "phys" {
-                component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
-                polygon_section(S, k);
-                script_section(S, k, "Script");
-            } else if S.persona == "script" {
-                script_section(S, k, "Attached script");
-            } else if S.persona == "anim" {
-                skeleton_section(S, k);
-                polygon_section(S, k);
-                animation_section(S, k);
-                transform_section(S, k);
-                component_sections(S, k, Some(["bone2d", "bone3d", "polygon"]));
-                script_section(S, k, "Script");
-            } else if S.persona == "ui" {
-                component_sections(S, k, Some(["widget"]));
-                interface_section(S, k);
-                script_section(S, k, "Script");
-            } else {
-                transform_section(S, k);
-                skeleton_section(S, k);
-                polygon_section(S, k);
-                component_sections(S, k, None);
-                script_section(S, k, "Script");
-            }
-            events_section(S, k);
-            crate::plugins::draw_sections(S, k, node);
-            ui::add_space(12);
-        });
-
-        ui::add_space(6);
-        if ui::pill(icons::ui("add") + "  Add component", #{
-            role: "button", height: 30, min_width: S.layout.right.w - 26.0,
-        }) {
-            shell::open_palette(S, "add ");
-        }
+    });
+    multi_note(S, k);
     ui::add_space(6);
+    crate::search::field(S, k, "inspector", "Find a property…", panel_w(S) - 16.0);
+    // Every row is a node now: the sections describe them, and the pool makes
+    // and reuses them under the sheet's scroll.
+    open_form(S);
+    instance_note(S, k);
+    instance_source_row(S, k, node);
+    if S.persona == "phys" {
+        component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
+        polygon_section(S, k);
+        script_section(S, k, "Script");
+    } else if S.persona == "script" {
+        script_section(S, k, "Attached script");
+    } else if S.persona == "anim" {
+        skeleton_section(S, k);
+        polygon_section(S, k);
+        animation_section(S, k);
+        transform_section(S, k);
+        component_sections(S, k, Some(["bone2d", "bone3d", "polygon"]));
+        script_section(S, k, "Script");
+    } else if S.persona == "ui" {
+        component_sections(S, k, Some(["widget"]));
+        interface_section(S, k);
+        script_section(S, k, "Script");
+    } else {
+        transform_section(S, k);
+        skeleton_section(S, k);
+        polygon_section(S, k);
+        component_sections(S, k, None);
+        script_section(S, k, "Script");
+    }
+    events_section(S, k);
+    crate::plugins::draw_sections(S, k, node);
+    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), control_w(S));
+}
+
+/// The one control under the scroll, so a long form cannot push it away.
+pub fn foot(S, k) {
+    ui::add_space(3);
+    if ui::pill(icons::ui("add") + "  Add component", #{
+        role: "button", height: 30, min_width: S.layout.right.w - 26.0,
+    }) {
+        shell::open_palette(S, "add ");
+    }
 }

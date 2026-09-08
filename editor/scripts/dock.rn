@@ -442,31 +442,24 @@ fn show_cards(S, k, dir, files) {
         return;
     }
     let picked = params["text"];
-    if picked == chosen {
-        open_selected_asset(S);
-        return;
-    }
     for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            S.assets.sel = paths[n];
-            S.assets.renaming = false;
+        if item != picked {
+            continue;
         }
+        // A second click on the selected card opens it, so one click can
+        // still mean "act on this one".
+        if item == chosen {
+            if files[n].is_dir {
+                S.assets.dir = paths[n];
+                S.assets.sel = "";
+            } else {
+                open_asset(S, paths[n]);
+            }
+            return;
+        }
+        S.assets.sel = paths[n];
+        S.assets.renaming = false;
     }
-}
-
-// A second click on the selected card opens it, so one click can still mean
-// "act on this one". The node reports the pick; this decides what it means.
-pub fn open_selected_asset(S) {
-    let rel = S.assets.sel;
-    if rel == "" {
-        return;
-    }
-    if fs::is_dir(asset_path(S, rel)) {
-        S.assets.dir = rel;
-        S.assets.sel = "";
-        return;
-    }
-    open_asset(S, rel);
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):

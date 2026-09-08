@@ -85,6 +85,8 @@ pub fn init(this) {
         schemas: #{},
         script_dirty: #{},
         collapsed: #{},
+        // The inspector's rows, described each frame and made by `pool.rn`.
+        form: [], form_draws: [], form_cursor: 0, pool: #{},
         // Bumped whenever `S.doc` is replaced, so the outliner can keep a
         // flattened tree across frames instead of rebuilding one each pass.
         doc_rev: 0,
@@ -516,6 +518,16 @@ pub fn draw_dock_left(this) {
 
 pub fn draw_dock_right(this) {
     docks::draw_body(this.S, this.S.theme, "right");
+}
+
+pub fn draw_dock_right_foot(this) {
+    docks::draw_right_foot(this.S, this.S.theme);
+}
+
+// One hatch for every row the inspector's pool draws itself; the cursor in
+// `inspector` keeps the calls in step with the rows that pushed them.
+pub fn draw_form_row(this) {
+    inspector::draw_row(this.S);
 }
 
 pub fn draw_dock_bottom(this) {

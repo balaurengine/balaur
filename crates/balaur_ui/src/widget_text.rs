@@ -72,6 +72,9 @@ pub(crate) fn shaped_label(
     let style = at.style_of(widget);
     let room = ui.available_width();
     let width = widget.wrap.then_some(room.max(1.0));
+    // A stated width is a column, so a long line is cut off at its edge
+    // rather than run into whatever sits beside it.
+    let column = (!widget.wrap && widget.width > 0.0).then(|| widget.width * at.scale);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
         let request = text_request(widget, caption, width, font, &style);
@@ -84,7 +87,12 @@ pub(crate) fn shaped_label(
     } else {
         shaped.size.x
     };
+    let take = column.unwrap_or(take);
     let (rect, _) = ui.allocate_exact_size(vec2(take, shaped.size.y), egui::Sense::hover());
+    let held = ui.clip_rect();
+    if column.is_some() {
+        ui.set_clip_rect(held.intersect(rect));
+    }
     let slack = (take - shaped.size.x).max(0.0);
     let shift = match widget.text_align.as_str() {
         w::CENTER if width.is_none() => slack / 2.0,
@@ -103,6 +111,7 @@ pub(crate) fn shaped_label(
             );
         }
     }
+    ui.set_clip_rect(held);
     true
 }
 

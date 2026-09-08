@@ -58,6 +58,8 @@ fn make_row(host, index) {
     label.set_component("widget", #{ kind: "label", role: "label" });
     let slot = row.add_child("C");
     slot.set_component("widget", #{ kind: "row", gap: 4, grow: 1 });
+    let hatch = row.add_child("D");
+    hatch.set_component("widget", #{ kind: "draw", visible: false, grow: 1 });
     row
 }
 
@@ -91,8 +93,8 @@ fn apply_control(S, host, key, node, want) {
             None => seen,
         };
         if seen != known {
-            let act = want.get("on");
-            if let Some(act) = act {
+            let found = want.get("on");
+            if let Some(act) = found {
                 act(seen);
             }
             fired = true;
@@ -132,9 +134,21 @@ pub fn sync(S, host_path, specs, label_w, control_w) {
         }
         let spec = specs[i];
         row.patch_component("widget", #{ visible: true, height: spec.get("height").unwrap_or(24) });
+        // A row the caller draws itself: the bespoke ones no control table
+        // describes. It is still a node, and it still sits in the column.
+        let drawn = spec.get("draw");
+        let hatch = row.get_node("D");
+        if !util::is_nil(hatch) {
+            match drawn {
+                Some(name) => hatch.patch_component("widget", #{ visible: true, draw: name }),
+                None => hatch.patch_component("widget", #{ visible: false }),
+            }
+        }
+        let full = spec.get("full").unwrap_or(false);
         let label = row.get_node("L");
         if !util::is_nil(label) {
             label.patch_component("widget", #{
+                visible: !full,
                 text: spec.get("label").unwrap_or(""),
                 width: label_w,
                 role: spec.get("label_role").unwrap_or("label"),
@@ -144,7 +158,14 @@ pub fn sync(S, host_path, specs, label_w, control_w) {
         if util::is_nil(slot) {
             continue;
         }
-        slot.patch_component("widget", #{ visible: true, width: control_w });
+        slot.patch_component("widget", #{
+            visible: drawn.is_none(),
+            width: if full { 0.0 } else { control_w },
+            grow: if full { 1.0 } else { 0.0 },
+        });
+        if drawn.is_some() {
+            continue;
+        }
         let controls = util::vec(spec.get("controls").unwrap_or([]));
         let n = 0;
         while n < controls.len() {

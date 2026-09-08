@@ -8,6 +8,10 @@ is under 35 words, no filler, and an em dash is typography only at the lead of
 a list item or a roadmap row, never a splice in prose. The rule is the
 website's (balaur-website scripts/lint-prose.mjs).
 
+**Roadmap rows**, on `docs/ROADMAP.md`: the website draws each row as a card,
+so a row is one sentence and at most 25 words. Its generator warns rather than
+failing, so this is the gate.
+
 **Machine-writing rules**, on every hand-written `.md` here. The mechanical
 half of the `avoid-ai-writing` skill, which cannot run in CI because it is a
 model: the vocabulary a language model reaches for, the transitions it opens
@@ -36,6 +40,14 @@ ERRORS: list[str] = []
 REPORTS = ["docs/ROADMAP.md"]
 
 MAX_SENTENCE = 35
+
+# The website draws every roadmap row as a card, so a row is one sentence and
+# at most 25 words. Its generator (balaur-website scripts/gen-roadmap.mjs)
+# warns and builds the page anyway rather than losing a deploy to a sentence
+# written here, so this is the gate: the limit is checked where the file is.
+ROADMAP = "docs/ROADMAP.md"
+ROW_SENTENCES = 1
+ROW_WORDS = 25
 
 # Throat-clearing; the fix is to delete it.
 PHRASES = [
@@ -250,12 +262,44 @@ def lint(path: Path) -> list[Finding]:
     return out
 
 
+def roadmap_rows(path: Path) -> list[Finding]:
+    """Each `| **Title** — text | milestone | plan |` row, measured as the card
+    the website builds from it. Rows under `## Milestones` are that table, not
+    items, and a row whose milestone is parenthesised is in-tree work the page
+    never shows; both are skipped, as the generator skips them."""
+    out: list[Finding] = []
+    rel = str(path.relative_to(ROOT))
+    group = None
+    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if raw.startswith("## "):
+            heading = raw[3:].strip()
+            group = None if heading == "Milestones" else heading
+            continue
+        if not group or not raw.startswith("| ") or re.match(r"^\|\s*(?:Item|Milestone|:?-{3,})", raw):
+            continue
+        cells = [c.strip() for c in raw.strip().strip("|").split(" | ")]
+        if len(cells) != 3 or re.fullmatch(r"\(.+\)", cells[1]):
+            continue
+        row = re.match(r"^\*\*(.+?)\*\*\s+—\s(.+)$", cells[0])
+        if not row:
+            continue
+        title, text = row.group(1).replace("`", ""), row.group(2).replace("`", "").strip()
+        n_sentences, n_words = len(sentences(text)), len(text.split())
+        if n_sentences > ROW_SENTENCES or n_words > ROW_WORDS:
+            out.append(Finding(rel, n, "roadmap-row",
+                               f"\"{title}\" is {n_sentences} sentence(s) and {n_words} words; "
+                               f"a card is {ROW_SENTENCES} sentence and at most {ROW_WORDS} words"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
     ap.add_argument("--reports", action="store_true", help="also print REPORT findings")
     args = ap.parse_args()
     errors = [f for name in ERRORS if (ROOT / name).exists() for f in lint(ROOT / name)]
+    if (ROOT / ROADMAP).exists():
+        errors += roadmap_rows(ROOT / ROADMAP)
     reports = [f for name in REPORTS if (ROOT / name).exists() for f in lint(ROOT / name)]
     docs = documents()
     for doc in docs:

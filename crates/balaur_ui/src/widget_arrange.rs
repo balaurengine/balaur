@@ -503,6 +503,15 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     };
     let mut head = axis.along(outer.min.to_vec2());
     let far = head + axis.along(outer.size());
+    // What no child claimed, and how `justify` hands it out. Only when
+    // nothing grows: a child that grows has already taken the leftover.
+    let placed_count = asked
+        .iter()
+        .filter(|ask| !matches!(ask, Ask::Fixed(size) if *size <= 0.0))
+        .count();
+    let (lead, extra) = spread(&placed.widget.justify, free, shares, placed_count);
+    head += lead;
+    let gap = gap + extra;
     let mut laid = 0usize;
     for (slot, child) in children.iter().enumerate() {
         let entity = at.arena[*child].entity;
@@ -567,6 +576,23 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             );
             drag_seam(ui, at, &children, slot, axis, seam);
         }
+    }
+}
+
+/// How `justify` divides what no child claimed: what to put before the first
+/// child, and what to add to every gap.
+fn spread(justify: &str, free: f32, shares: f32, count: usize) -> (f32, f32) {
+    if shares > 0.0 || free <= 0.0 || count == 0 {
+        return (0.0, 0.0);
+    }
+    let n = count as f32;
+    match justify {
+        w::CENTER => (free / 2.0, 0.0),
+        w::END => (free, 0.0),
+        w::BETWEEN if count > 1 => (0.0, free / (n - 1.0)),
+        w::AROUND => (free / (2.0 * n), free / n),
+        w::EVENLY => (free / (n + 1.0), free / (n + 1.0)),
+        _ => (0.0, 0.0),
     }
 }
 

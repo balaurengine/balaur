@@ -200,6 +200,15 @@ pub fn bottom_tall(S) {
     panel(S, d.active).tall
 }
 
+/// What sits under the right sheet's scroll, whichever panel is up.
+pub fn draw_right_foot(S, k) {
+    let d = S.docks.right;
+    if d.shut || d.active != "inspector" {
+        return;
+    }
+    inspector::foot(S, k);
+}
+
 fn body(S, k, id) {
     match id {
         "scene" => left::tree_body(S, k),
@@ -243,7 +252,9 @@ fn node_owners() {
             #{ hide: "tree", panels: ["scene"] },
             #{ hide: "outline", panels: ["outline"] },
         ],
-        right: [],
+        right: [
+            #{ hide: "form", panels: ["inspector"] },
+        ],
     }
 }
 
@@ -258,6 +269,8 @@ fn hide_node(which) {
         left::hide_tree();
     } else if which == "outline" {
         left::hide_outline();
+    } else if which == "form" {
+        inspector::hide_form();
     }
 }
 

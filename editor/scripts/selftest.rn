@@ -1061,7 +1061,11 @@ pub fn layout_step(S) {
     // The shell is laid out by the engine and read back a frame later, so
     // this waits for a rect rather than for a frame number. The count is the
     // fallback: a headless run never gets one, and still has to report.
-    if S.layout.stage.w <= 0.0 && S.layout_demo < 10 {
+    //
+    // The *second* rect, not the first: on the frame the shell first draws it
+    // has no size stated yet, so its containers divide an unbounded box and
+    // the rect read back is the bootstrap one rather than the laid-out one.
+    if (S.layout.stage.w <= 0.0 || S.layout_demo < 3) && S.layout_demo < 10 {
         return;
     }
     S.layout_demo = -1;

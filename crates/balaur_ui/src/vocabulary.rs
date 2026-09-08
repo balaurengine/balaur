@@ -31,11 +31,13 @@ pub(crate) mod words {
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
     pub(crate) const SEPARATOR: &str = "separator";
+    pub(crate) const CODE: &str = "code";
+    pub(crate) const TABLE: &str = "table";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
-        COLOR, DROPDOWN, MENU, LIST, TREE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD, DIALOG,
-        SEPARATOR,
+        COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
+        DIALOG, SEPARATOR, CODE,
     ];
 
     pub(crate) const TOP_LEFT: &str = "top_left";

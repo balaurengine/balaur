@@ -133,6 +133,8 @@ text = ""
 grow = 1
 padding = 8
 
+# The right sheet in three: the header and the search the panel draws, the
+# rows the pool makes, and the footer that must stay under a long form.
 [[nodes]]
 id = "right_body"
 name = "RightBody"
@@ -140,18 +142,38 @@ parent = "right_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_right"
+# Stated, not measured: a `draw` node with neither a size nor a `grow` takes
+# whatever is left, which is the whole sheet. `layout.rn` writes the real one.
+height = 118
+
+[[nodes]]
+id = "right_scroll"
+name = "RightScroll"
+parent = "right_sheet"
+[nodes.widget]
+kind = "scroll"
 grow = 1
+
+[[nodes]]
+id = "right_foot"
+name = "RightFoot"
+parent = "right_sheet"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_right_foot"
+height = 36
 
 # The Inspector's and Import's rows: a form whose fields change with the
 # selection, so `pool.rn` makes them and hides the spares.
 [[nodes]]
 id = "right_form"
 name = "RightForm"
-parent = "right_sheet"
+parent = "right_scroll"
 [nodes.widget]
 kind = "column"
 visible = false
-grow = 1
+# No `grow`: inside a scroll there is no leftover to divide, so the column
+# takes what its rows measure and the bar makes up the difference.
 gap = 2
 
 [[nodes]]

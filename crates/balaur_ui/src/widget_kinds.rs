@@ -7,7 +7,7 @@ use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
-use crate::widget_arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
+use crate::widget_arrange::{Axis, box_of, hold_to, lay_out, padding_of, record_measure, record_rect};
 use crate::widget_layer::{Edit, Painting, draw_one, rgba_color};
 use crate::widget_measure::Measure;
 
@@ -213,6 +213,41 @@ fn rows(
     }
 }
 
+/// A file being edited, with the gutter and the colouring `ui::code_editor`
+/// draws: Godot's `CodeEdit` as a node.
+///
+/// The kind is the same call a script makes, given the widget's own values
+/// instead of an options table, so there is one editor and one highlighter.
+pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let id = format!("balaur-code-{}", entity.to_bits());
+    let opts = crate::widgets::code_opts(&widget, at.scale);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
+        ui.max_rect().min,
+        egui::vec2(
+            if want.x > 0.0 { want.x } else { ui.available_width() },
+            if want.y > 0.0 { want.y } else { ui.available_height() },
+        ),
+    )));
+    crate::bridge::push(&mut inner);
+    let edited = crate::widgets::code_editor(at.eng, &id, &widget.text, &opts);
+    crate::bridge::pop();
+    match edited {
+        Ok((text, changed, _, _)) if changed => at.edits.push((entity, Edit::Text(text))),
+        Ok(_) => {}
+        Err(err) => warn_code(&err),
+    }
+    let used = inner.min_rect().size();
+    record_measure(entity, used);
+    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
+}
+
+fn warn_code(err: &anyhow::Error) {
+    tracing::warn!("code widget: {err:#}");
+}
+
 /// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
 /// separated by U+001F. `ItemList` carries an icon and a per-item colour the
 /// same way, without a second array to keep in step with the first. Leading
@@ -397,6 +432,75 @@ pub(crate) fn tree(
     rows(ui, at, index, font, color, true);
 }
 
+/// Godot's `Tree` with named columns: `options` holds the rows, each split on
+/// U+001F into one cell a column, and `text` is the row picked.
+///
+/// The header comes from the widget's own `text` when it names the columns the
+/// same way; without one the first row is drawn as the header.
+pub(crate) fn table(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let heads: Vec<&str> = widget
+        .placeholder
+        .split('\u{1f}')
+        .filter(|head| !head.is_empty())
+        .collect();
+    let columns = heads.len().max(1);
+    let items = widget.options.clone();
+    let chosen = widget.text.clone();
+    let row_h = if widget.row_height > 0.0 {
+        widget.row_height * at.scale
+    } else {
+        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
+    };
+    let mut picked = None;
+    egui::Grid::new(("balaur-table", entity))
+        .num_columns(columns)
+        .striped(true)
+        .min_row_height(row_h)
+        .show(ui, |ui| {
+            for head in &heads {
+                ui.label(
+                    egui::RichText::new(*head)
+                        .font(font.clone())
+                        .color(color)
+                        .strong(),
+                );
+            }
+            if !heads.is_empty() {
+                ui.end_row();
+            }
+            for item in &items {
+                for cell in item.split('\u{1f}').take(columns) {
+                    if ui
+                        .selectable_label(
+                            *item == chosen,
+                            egui::RichText::new(cell).font(font.clone()).color(color),
+                        )
+                        .clicked()
+                    {
+                        picked = Some(item.clone());
+                    }
+                }
+                ui.end_row();
+            }
+        });
+    if want.y > 0.0 {
+        hold_to(ui, egui::vec2(want.x, want.y));
+    }
+    if let Some(item) = picked {
+        at.clicked.push(entity);
+        at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
 /// list a `PopupMenu` shows. `options` are the entries and `text` is the
 /// button; picking one reports it the way a dropdown reports a choice, so a
@@ -469,6 +573,11 @@ pub(crate) fn drag_value(
     let widget = &placed.widget;
     let mut value = widget.value;
     let mut drag = egui::DragValue::new(&mut value);
+    // The letter a vector row puts before each number, which is the one thing
+    // a drag value shows that is not the number itself.
+    if !widget.placeholder.is_empty() {
+        drag = drag.prefix(format!("{} ", widget.placeholder));
+    }
     let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
     if bounded {
         drag = drag.range(widget.min..=widget.max);
