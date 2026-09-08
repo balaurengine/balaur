@@ -173,6 +173,62 @@ fn a_tree_indents_a_row_by_its_leading_tabs() {
 }
 
 #[test]
+fn a_list_row_splits_into_icon_label_and_note() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
+        options = ["*\u{1f}Named\u{1f}12 KB\u{1f}#ff0000", "Plain"]
+    };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn: Vec<String> = texts(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+    for want in ["*", "Named", "12 KB", "Plain"] {
+        assert!(drawn.iter().any(|t| t == want), "{want} drawn: {drawn:?}");
+    }
+}
+
+#[test]
+fn a_tree_caret_folds_the_branch_under_it() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
+        options = ["Root", "\tChild", "\t\tLeaf", "After"]
+    };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let shown = |out: &egui::FullOutput| {
+        texts(out)
+            .into_iter()
+            .map(|(t, _)| t)
+            .filter(|t| t != "▾" && t != "▸")
+            .collect::<Vec<_>>()
+    };
+    let open = shown(&pass(&app, &ctx, vec![]));
+    assert!(
+        open.iter().any(|t| t == "Leaf"),
+        "the branch starts open: {open:?}"
+    );
+    // The caret sits left of the row it folds.
+    let (_, at) = texts(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .find(|(t, _)| t == "▾")
+        .expect("a parent row draws a caret");
+    let hit = pos2(at.x + 3.0, at.y + 3.0);
+    pass(&app, &ctx, press(hit, true));
+    pass(&app, &ctx, press(hit, false));
+    let folded = shown(&pass(&app, &ctx, vec![]));
+    assert!(
+        !folded.iter().any(|t| t == "Child") && folded.iter().any(|t| t == "After"),
+        "the branch folds and its sibling stays: {folded:?}"
+    );
+}
+
+#[test]
 fn a_menu_reports_the_item_that_was_picked() {
     let (_dir, mut app) = app();
     let params =

@@ -404,6 +404,19 @@ pub fn draw_status(S, k) {
 /// the tab row, the panel, and for the bottom dock the status strip.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
+    // A node keeps drawing until told not to; only the dock owning it may say.
+    // The bottom dock's list node, hidden unless a log-shaped panel is up.
+    if side == "bottom" && (d.shut || (d.active != "output" && d.active != "problems")) {
+        dock::hide_log();
+    }
+    if side == "left" {
+        if d.shut || d.active != "scene" {
+            left::hide_tree();
+        }
+        if d.shut || d.active != "outline" {
+            left::hide_outline();
+        }
+    }
     if d.tabs.len() == 0 {
         return;
     }

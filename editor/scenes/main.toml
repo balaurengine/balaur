@@ -86,6 +86,22 @@ parent = "left_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_left"
+
+[[nodes]]
+id = "left_tree"
+name = "LeftTree"
+parent = "left_sheet"
+[nodes.widget]
+kind = "tree"
+grow = 1
+
+[[nodes]]
+id = "left_outline"
+name = "LeftOutline"
+parent = "left_sheet"
+[nodes.widget]
+kind = "list"
+visible = false
 grow = 1
 
 # The tool rail down one side, and everything else beside it. The rail is a
@@ -183,6 +199,19 @@ parent = "bottom"
 kind = "draw"
 draw = "draw_dock_bottom"
 grow = 1
+
+# The log-shaped panels, as one node. `dock.rn` fills whichever is up and hides
+# it for the rest; the hatch above draws the tab row, so this sits under it.
+[[nodes]]
+id = "bottom_log"
+name = "BottomLog"
+parent = "bottom"
+[nodes.widget]
+kind = "list"
+visible = false
+grow = 1
+row_height = 18
+font = "mono"
 
 [[nodes]]
 id = "status"

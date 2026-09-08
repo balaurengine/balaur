@@ -958,3 +958,33 @@ fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
         "a surface shown again drew faded rather than at the alpha its theme set"
     );
 }
+
+/// A hidden child takes no room, the way a hidden Control does not in a Godot
+/// container. It used to keep the size it stated, so the column stayed as tall
+/// as if it were there.
+#[test]
+fn a_hidden_child_leaves_its_room_to_the_others() {
+    let column_height = |hide: bool| {
+        let (_dir, app) = app();
+        let column = add_widget(
+            &app,
+            &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = 0.0 }.into(),
+        );
+        let first = toml::toml! { kind = "label" text = "First" height = 60.0 visible = (!hide) };
+        add_child_widget(&app, column, "First", &first.into());
+        let second = toml::toml! { kind = "label" text = "Second" height = 60.0 };
+        add_child_widget(&app, column, "Second", &second.into());
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+            .expect("the column drew")
+            .height()
+    };
+    let with = column_height(false);
+    let without = column_height(true);
+    assert!(
+        without < with - 30.0,
+        "hiding one of two 60px children takes its room off the column: \
+         {without} against {with}"
+    );
+}

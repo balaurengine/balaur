@@ -413,6 +413,13 @@ fn share_out(
     let mut measure = Measure::new(at.eng, at.arena, ui, scale);
     for child in children {
         let widget = &at.arena[*child].widget;
+        // A hidden child takes no room, the way a hidden Control does not in a
+        // Godot container: it neither spends nor takes a share of the leftover.
+        // A hidden child takes no room, as in a Godot container.
+        if !widget.visible {
+            asked.push(Ask::Fixed(0.0));
+            continue;
+        }
         let (stated, floor) = asked_of(widget, axis, scale);
         let ask = if widget.grow > 0.0 {
             shares += widget.grow;

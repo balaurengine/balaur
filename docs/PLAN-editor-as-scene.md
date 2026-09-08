@@ -191,6 +191,24 @@ Alongside it, and worth doing regardless: the tail of call-site overrides in
 half of the same goal — the theme as the only place a look is decided.
 
 
+## 4.1 The layout is ours; the widgets are not
+
+Every kind draws through an egui widget: `Checkbox`, `ComboBox`, `Slider`,
+`DragValue`, `TextEdit`, `ProgressBar`, `ScrollArea`, `Image`, the colour
+picker, `menu_button` and `selectable_label`. None of the six added in
+September draws a pixel itself, and none added a dependency.
+
+The layout is hand written, in `widget_arrange.rs` and `widget_measure.rs`,
+about 940 lines carrying `grow`, `gap`, `padding`, `align` and `handle`.
+
+**Replacing it with a library is wanted, after the editor is migrated.** The
+reason it was written at all is that egui lays out while it draws, and a scene
+needs the rects decided first, from a retained tree, so `layout.rn` can read
+them back and place the docks. `egui_flex` and `egui_taffy` are both immediate
+mode and do not answer that; `taffy` itself, which `egui_taffy` wraps, is a
+retained layout tree and is the shape to look at. Whatever replaces it has to
+keep those five properties and the rect read-back.
+
 ## 5. Build order
 
 The kinds first, cheapest and most used before the ones carrying design risk,
@@ -213,9 +231,12 @@ and a screenshot, and each migration is measured against the numbers in
    every row's context menu are waiting on it.
 4. **`list`.** Built as a kind over `options`, not the repeater an earlier
    draft proposed; §0.2 says why. A test draws 2000 items and asserts fewer
-   than sixty rows are built.
-5. **`tree`**, built: `list` reading a row's leading tabs as its depth. A
-   caret that folds is still to come.
+   than sixty rows are built. A row splits on U+001F into an icon, a label and
+   a trailing note, which is what `ItemList`'s icon column is for.
+5. **`tree`**, built: `list` reading a row's leading tabs as its depth, with a
+   caret on any row the next one is deeper than. Which branches are shut is the
+   widget's own state, so a script hands over the whole outline and never hears
+   about a fold.
 6. **The editor onto them**, in the order the docks cost: the outliner, the
    inspector, then the rest.
 

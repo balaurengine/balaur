@@ -8,8 +8,9 @@ use crate::style;
 use crate::util;
 
 
-// One row: depth guides, collapse arrow, typed mark, name, trailing badge;
-// right-click opens the node's context menu.
+// The `tree` node this file fills; the hatch still draws the search above it.
+const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
+const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
 const ROW_H = 23.0;
 const INDENT = 14.0;
 // Where the first guide sits, measured from the sheet's inner edge.
@@ -35,6 +36,8 @@ fn guides(S, k, depth, is_last) {
     }
 }
 
+// One row: depth guides, collapse arrow, typed mark, name, trailing badge;
+// right-click opens the node's context menu.
 fn tree_row(S, k, row) {
     let i = row.index;
     let depth = row.depth;
@@ -357,11 +360,57 @@ pub fn tree_body(S, k) {
         filtered_tree(S, k, query);
         return;
     }
-    let rows = open_rows(S);
-    ui::list("tree", #{ max_height: S.layout.left.h - 98.0, row_height: ROW_H + 1.0 },
-        rows.len(), |i| {
-        tree_row(S, k, rows[i]);
-    });
+    show_tree(S, open_rows(S));
+}
+
+// The outliner's rows on the `tree` node beside this hatch. One string a row:
+// a tab a level, then the icon and the name either side of a unit separator.
+fn show_tree(S, rows) {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let items = [];
+    for row in rows {
+        let node = S.doc[row.index];
+        let line = "";
+        let at = 0;
+        while at < row.depth {
+            line += "\t";
+            at += 1;
+        }
+        let (mark, _) = model::node_icon(node);
+        line += mark;
+        line += "\u{1f}";
+        line += node.name;
+        items.push(line);
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["options"] = items;
+    params["visible"] = true;
+    params["text"] = if S.sel < rows.len() { items[selected_row(rows, S.sel)] } else { "" };
+    found.set_component("widget", params);
+}
+
+// Which drawn row is the selection, so the node can mark it.
+fn selected_row(rows, sel) {
+    for (n, row) in rows.iter().enumerate() {
+        if row.index == sel {
+            return n;
+        }
+    }
+    0
+}
+
+// Hidden while another panel is up, so its rows do not outlive the tree.
+pub fn hide_tree() {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["visible"] = false;
+    found.set_component("widget", params);
 }
 
 // Every node the query and the facet chip both allow, as a flat list.
@@ -390,19 +439,37 @@ fn filtered_tree(S, k, query) {
 
 pub fn outline_body(S, k) {
     let (_, rows) = secondary_content(S);
-    ui::add_space(4);
-    ui::scroll("outline", #{ max_height: S.layout.left.h - 44.0 }, || {
-        ui::spacing(4, 4);
-        for row in rows {
-            ui::horizontal(#{ height: 27 }, || {
-                ui::add_space(2);
-                if ui::pill(row.name, util::merge(style::list_row(k, 27), #{
-                    icon: row.icon, icon_size: style::MD, icon_color: k.dim,
-                    trailing: row.meta, trailing_color: k.faint,
-                })) {
-                    (row.run)();
-                }
-            });
+    let found = scene::get_node(OUTLINE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let items = [];
+    for row in rows {
+        items.push(row.icon + "\u{1f}" + row.name + "\u{1f}" + row.meta);
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["options"] = items;
+    params["visible"] = true;
+    found.set_component("widget", params);
+    // The pick is the row's own action, looked up by the string the node
+    // reports rather than held as a closure on the node.
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            (rows[n].run)();
+            params["text"] = "";
+            found.set_component("widget", params);
         }
-    });
+    }
+}
+
+// Hidden while another panel is up, the way the tree is.
+pub fn hide_outline() {
+    let found = scene::get_node(OUTLINE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["visible"] = false;
+    found.set_component("widget", params);
 }

@@ -68,7 +68,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1" }"#),
                     (k::STEP, r#"{ type = "float", default = 0.0, min = 0.0, description = "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous" }"#),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color` swatch holds; `on_change` hears the new one" }"#),
-                    (k::OPTIONS, r#"{ type = "strings", default = [], description = "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level. `on_change` hears every pick" }"#),
+                    (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height" }"#),
+                    (k::FONT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
+                    (k::OPTIONS, r#"{ type = "strings", default = [], description = "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, and a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row. `on_change` hears every pick" }"#),
                     (k::COLUMNS, r#"{ type = "int", default = 2, min = 1, description = "How many children a `grid` puts on each row" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels" }"#),
@@ -203,6 +205,11 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
 fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::CHECKED.into(), toml::Value::Boolean(widget.checked));
     map.insert(k::COLOR.into(), four(widget.color));
+    map.insert(k::FONT.into(), toml::Value::String(widget.font.clone()));
+    map.insert(
+        k::ROW_HEIGHT.into(),
+        toml::Value::Float(f64::from(widget.row_height)),
+    );
     map.insert(k::VALUE.into(), toml::Value::Float(f64::from(widget.value)));
     map.insert(k::MIN.into(), toml::Value::Float(f64::from(widget.min)));
     map.insert(k::MAX.into(), toml::Value::Float(f64::from(widget.max)));
@@ -300,34 +307,54 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
 }
 
 /// A `Widget` built from a full property table (defaults already merged).
-/// One colour's four channels. Hex strings were expanded to floats by
-/// `merge_defaults`, so this only ever reads an array.
-fn quad(params: &toml::Value, key: &str, default: [f64; 4]) -> [f32; 4] {
-    let channel = |i: usize| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default[i]) as f32
-    };
-    [channel(0), channel(1), channel(2), channel(3)]
-}
+/// The four readers every field goes through, so a `widget_from` that grows a
+/// property grows by one line rather than by a closure.
+struct Read<'a>(&'a toml::Value);
 
-fn widget_from(params: &toml::Value) -> Widget {
-    let s = |key: &str, default: &str| {
-        params
+impl Read<'_> {
+    fn str(&self, key: &str, default: &str) -> String {
+        self.0
             .get(key)
             .and_then(|v| v.as_str())
             .unwrap_or(default)
             .to_string()
-    };
-    let f = |key: &str, default: f64| {
-        params
+    }
+
+    fn num(&self, key: &str, default: f64) -> f32 {
+        self.0
             .get(key)
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(default) as f32
-    };
+    }
+
+    fn flag(&self, key: &str, default: bool) -> bool {
+        self.0
+            .get(key)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(default)
+    }
+
+    /// One colour's four channels. Hex strings were expanded to floats by
+    /// `merge_defaults`, so this only ever reads an array.
+    fn quad(&self, key: &str, default: [f64; 4]) -> [f32; 4] {
+        let channel = |i: usize| {
+            self.0
+                .get(key)
+                .and_then(|v| v.as_array())
+                .and_then(|a| a.get(i))
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(default[i]) as f32
+        };
+        [channel(0), channel(1), channel(2), channel(3)]
+    }
+}
+
+fn widget_from(params: &toml::Value) -> Widget {
+    let r = Read(params);
+    let (s, f) = (
+        |k: &str, d: &str| r.str(k, d),
+        |k: &str, d: f64| r.num(k, d),
+    );
     let mut widget = Widget {
         kind: s(k::KIND, w::LABEL),
         text: s(k::TEXT, w::LABEL),
@@ -341,8 +368,10 @@ fn widget_from(params: &toml::Value) -> Widget {
         width: f(k::WIDTH, 0.0),
         height: f(k::HEIGHT, 0.0),
         font_size: f(k::FONT_SIZE, 16.0),
-        text_color: quad(params, k::TEXT_COLOR, [0.933, 0.945, 0.957, 1.0]),
-        color: quad(params, k::COLOR, [1.0, 1.0, 1.0, 1.0]),
+        text_color: r.quad(k::TEXT_COLOR, [0.933, 0.945, 0.957, 1.0]),
+        color: r.quad(k::COLOR, [1.0, 1.0, 1.0, 1.0]),
+        row_height: f(k::ROW_HEIGHT, 0.0),
+        font: s(k::FONT, w::UI),
         on_click: s(k::ON_CLICK, ""),
         clicked: false,
         padding: f(k::PADDING, 0.0),
@@ -406,18 +435,11 @@ fn widget_from(params: &toml::Value) -> Widget {
 /// dropdown's options, a grid's columns, a fold's state, a fill root's
 /// insets, an image's slice and a scroll's deadzone.
 fn read_controls(widget: &mut Widget, params: &toml::Value) {
-    let f = |key: &str, default: f64| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    let b = |key: &str, default: bool| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(default)
-    };
+    let r = Read(params);
+    let (f, b) = (
+        |k: &str, d: f64| r.num(k, d),
+        |k: &str, d: bool| r.flag(k, d),
+    );
     widget.checked = b(k::CHECKED, false);
     widget.value = f(k::VALUE, 0.0);
     widget.min = f(k::MIN, 0.0);

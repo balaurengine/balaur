@@ -133,8 +133,78 @@ fn filtered(S) {
     built
 }
 
+// The bottom dock's `list` node, which the log-shaped panels fill instead of
+// drawing a row at a time.
+const LOG_NODE = "Editor/Shell/Body/Centre/Stack/Bottom/BottomLog";
+
+// Put `items` on the node and show it. A row is icon, label, note and colour,
+// separated by U+001F, which is what a `list` row splits on.
+fn show_log(items) {
+    let found = scene::get_node(LOG_NODE);
+    if util::is_nil(found) {
+        return false;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["options"] = items;
+    params["visible"] = true;
+    found.set_component("widget", params);
+    true
+}
+
+// What the node reports as picked, and clearing it once acted on.
+fn picked_log() {
+    let found = scene::get_node(LOG_NODE);
+    if util::is_nil(found) {
+        return "";
+    }
+    util::obj(found.get_component("widget"))["text"]
+}
+
+fn clear_log_pick() {
+    let found = scene::get_node(LOG_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["text"] = "";
+    found.set_component("widget", params);
+}
+
+// Hidden while a panel that is not a list is up.
+pub fn hide_log() {
+    let found = scene::get_node(LOG_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["visible"] = false;
+    found.set_component("widget", params);
+}
+
 pub fn output(S, k) {
     let shown = filtered(S);
+    let items = [];
+    for entry in shown.rows {
+        let tint = k.dim;
+        let marker = " ";
+        if entry.level == "error" {
+            tint = k.accent;
+            marker = "\u{d7}";
+        } else if entry.level == "warn" {
+            tint = k.accent;
+            marker = "!";
+        } else if entry.tag == "env" {
+            tint = k.sage;
+        }
+        let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
+        let line = marker + "\u{1f}";
+        line += format!("{:6.1}s  {}  {}", util::f(entry.time), tag, entry.message);
+        line += "\u{1f}\u{1f}" + tint;
+        items.push(line);
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("output", #{ stick_to_bottom: true, max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
         for entry in shown.rows {
@@ -682,6 +752,26 @@ pub fn problems(S, k) {
         if f.severity != "error" {
             rows.push(f);
         }
+    }
+    let items = [];
+    for f in rows {
+        let bad = f.severity == "error";
+        let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
+        let line = if bad { "\u{d7}" } else { "!" };
+        line += "\u{1f}" + format!("{}  {}", at, f.message);
+        line += "\u{1f}\u{1f}" + if bad { k.accent } else { k.sage };
+        items.push(line);
+    }
+    if rows.len() > 0 && show_log(items) {
+        // The pick is the row, so the click opens the file it names.
+        let picked = picked_log();
+        for (n, item) in items.iter().enumerate() {
+            if item == picked {
+                open_at(S, rows[n]);
+                clear_log_pick();
+            }
+        }
+        return;
     }
     ui::scroll("problems", #{ max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);

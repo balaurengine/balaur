@@ -63,6 +63,8 @@ pub(crate) mod words {
     pub(crate) const HEADING: &str = "heading";
     pub(crate) const ICON: &str = "icon";
     pub(crate) const UI: &str = "ui";
+    /// The families a widget may draw in, as the picker offers them.
+    pub(crate) const WIDGET_FONTS: &[&str] = &[UI, MONO, HEADING, ICON];
 
     pub(crate) const CMD: &str = "cmd";
     pub(crate) const CTRL: &str = "ctrl";

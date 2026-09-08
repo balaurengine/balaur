@@ -1292,7 +1292,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 50 properties
+`ui` · 52 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1309,6 +1309,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
+<tr><td><code>font</code></td><td>enum</td><td><code>ui</code></td><td>Which of the theme&#x27;s families the widget draws in One of <code>ui</code>, <code>mono</code>, <code>heading</code>, <code>icon</code>.</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
@@ -1331,9 +1332,10 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text on Enter, or when focus leaves it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
-<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level. `on_change` hears every pick</td></tr>
+<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, and a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>
 <tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty</td></tr>
+<tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws</td></tr>

@@ -118,39 +118,114 @@ fn rows(
     };
     let items = widget.options.clone();
     let chosen = widget.text.clone();
+    let id = egui::Id::new(("balaur-list", entity));
+
+    // A tab a row starts with is one level in, which is how an outline is
+    // written down and what keeps a tree inside a list of strings.
+    let depth_of = |item: &String| {
+        if indent {
+            item.len() - item.trim_start_matches('\t').len()
+        } else {
+            0
+        }
+    };
+    // Folded branches are the tree's own business, so a script hands over the
+    // whole outline and never hears about a caret.
+    let shut: std::collections::BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
+    let mut open_rows: Vec<usize> = Vec::new();
+    let mut hidden_under: Option<usize> = None;
+    for (i, item) in items.iter().enumerate() {
+        let depth = depth_of(item);
+        if hidden_under.is_some_and(|under| depth > under) {
+            continue;
+        }
+        hidden_under = None;
+        open_rows.push(i);
+        if shut.contains(item) {
+            hidden_under = Some(depth);
+        }
+    }
+
     let mut picked = None;
+    let mut toggled = None;
     let mut area = egui::ScrollArea::vertical()
-        .id_salt(("balaur-list", entity))
+        .id_salt(id)
         .auto_shrink([false, false]);
     if want.y > 0.0 {
         area = area.max_height(want.y);
     }
-    area.show_rows(ui, row_h, items.len(), |ui, range| {
-        for i in range {
-            let Some(item) = items.get(i) else {
+    area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
+        for slot in range {
+            let Some(&i) = open_rows.get(slot) else {
                 continue;
             };
-            // A tab a row starts with is one level in, which is how an outline
-            // is written down and what keeps a tree in a list of strings.
-            let (depth, label) = if indent {
-                let trimmed = item.trim_start_matches('\t');
-                (item.len() - trimmed.len(), trimmed)
-            } else {
-                (0, item.as_str())
-            };
+            let item = &items[i];
+            let depth = depth_of(item);
+            let parent = indent && items.get(i + 1).is_some_and(|next| depth_of(next) > depth);
             ui.horizontal(|ui| {
                 if depth > 0 {
                     ui.add_space(row_h * depth as f32);
                 }
+                if parent {
+                    let caret = if shut.contains(item) { "▸" } else { "▾" };
+                    let mark = egui::RichText::new(caret).font(font.clone()).color(color);
+                    if ui.selectable_label(false, mark).clicked() {
+                        toggled = Some(item.clone());
+                    }
+                } else if indent {
+                    ui.add_space(row_h);
+                }
+                let (icon, label, trailing, tint) = fields(item);
+                let color = tint.unwrap_or(color);
+                if !icon.is_empty() {
+                    // The icon field is a glyph from the project's icon face,
+                    // not a character in the UI one.
+                    let mark = egui::FontId::new(font.size, crate::theme::family("icon"));
+                    ui.label(egui::RichText::new(icon).font(mark).color(color));
+                }
                 let text = egui::RichText::new(label).font(font.clone()).color(color);
-                if ui.selectable_label(*item == chosen, text).clicked() {
+                let hit = ui.selectable_label(*item == chosen, text);
+                if !trailing.is_empty() {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            egui::RichText::new(trailing)
+                                .font(font.clone())
+                                .color(color),
+                        );
+                    });
+                }
+                if hit.clicked() {
                     picked = Some(item.clone());
                 }
             });
         }
     });
+    if let Some(item) = toggled {
+        let mut next = shut;
+        if !next.remove(&item) {
+            next.insert(item);
+        }
+        ui.data_mut(|d| d.insert_temp(id, next));
+    }
     if let Some(item) = picked {
         at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
+/// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
+/// separated by U+001F. `ItemList` carries an icon and a per-item colour the
+/// same way, without a second array to keep in step with the first. Leading
+/// tabs are the tree's depth and are not a field.
+fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
+    let body = item.trim_start_matches('\t');
+    let mut parts = body.split('\u{1f}');
+    let (a, b, c, d) = (parts.next(), parts.next(), parts.next(), parts.next());
+    let tint = d.and_then(crate::theme::parse_hex);
+    match (a, b, c) {
+        (Some(icon), Some(label), Some(trailing)) => (icon, label, trailing, tint),
+        (Some(icon), Some(label), None) => (icon, label, "", tint),
+        (Some(label), None, None) => ("", label, "", tint),
+        _ => ("", body, "", tint),
     }
 }
 

@@ -124,6 +124,12 @@ pub struct Widget {
     /// What a `color` swatch holds, as `[r, g, b, a]` in 0..=1. Separate from
     /// `text_color`, which is the ink a widget draws its caption in.
     pub color: [f32; 4],
+    /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the
+    /// font's own line height. Separate from `height`, which is the widget's.
+    pub row_height: f32,
+    /// Which of the theme's families the widget draws in: `ui`, `mono`,
+    /// `heading` or `icon`.
+    pub font: String,
     /// Whether a `check` is ticked.
     pub checked: bool,
     /// Where a `slider` or `progress` stands, between `min` and `max`.
@@ -670,7 +676,7 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let scale = at.scale;
     let color = rgba_color(widget.text_color);
-    let font = egui::FontId::new(widget.font_size * scale, family(w::UI));
+    let font = egui::FontId::new(widget.font_size * scale, family(&widget.font));
     match widget.kind.as_str() {
         w::BUTTON => button(ui, at, index, &caption, &font, color),
         // A line the player types into. The text lives on the widget; the

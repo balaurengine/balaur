@@ -3758,6 +3758,17 @@
         "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",
         "type": "bool"
       },
+      "font": {
+        "default": "ui",
+        "description": "Which of the theme's families the widget draws in",
+        "options": [
+          "ui",
+          "mono",
+          "heading",
+          "icon"
+        ],
+        "type": "enum"
+      },
       "font_size": {
         "default": 16.0,
         "description": "Text size in design pixels",
@@ -3916,7 +3927,7 @@
       },
       "options": {
         "default": [],
-        "description": "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level. `on_change` hears every pick",
+        "description": "The items a `dropdown`, `menu`, `list` or `tree` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, and a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row. `on_change` hears every pick",
         "type": "strings"
       },
       "padding": {
@@ -3929,6 +3940,12 @@
         "default": "",
         "description": "What a `field` shows while it is empty",
         "type": "string"
+      },
+      "row_height": {
+        "default": 0.0,
+        "description": "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height",
+        "min": 0.0,
+        "type": "float"
       },
       "secret": {
         "default": false,
