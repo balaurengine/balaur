@@ -32,7 +32,7 @@ pub(crate) fn apply_app_icon(app: &App) {
             return;
         };
         if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
-            let _ = std::fs::write(&dump, &bytes);
+            let _ = std::fs::write(&dump, &bytes); // os files: a macOS-only dump
         }
         let data = NSData::with_bytes(&bytes);
         let image = NSImage::initWithData(NSImage::alloc(), &data);

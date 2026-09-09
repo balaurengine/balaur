@@ -217,7 +217,7 @@ fn system_cache() -> &'static [FontFace] {
         SYSTEM_FACES
             .iter()
             .filter_map(|path| {
-                let bytes = std::fs::read(path).ok()?;
+                let bytes = std::fs::read(path).ok()?; // os files: the system's own faces
                 Some(FontFace {
                     name: format!("system:{path}"),
                     chain: "system",
@@ -334,9 +334,13 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         heading_chain.clone_from(&ui_chain);
     }
     // Icons resolve wherever a glyph is written, so they join every chain.
+    let text_faces = ui_chain.clone();
     for chain in [&mut heading_chain, &mut ui_chain, &mut mono_chain] {
         chain.extend(icon_chain.iter().cloned());
     }
+    // And the other way: an icon table names letters where a Fill face draws
+    // a tile — `×` closes a tab — and no icon face has those glyphs.
+    icon_chain.extend(text_faces);
     for chain in [
         &mut heading_chain,
         &mut ui_chain,
@@ -351,7 +355,8 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         }
     }
     heading_chain.extend(default_prop.clone());
-    ui_chain.extend(default_prop);
+    ui_chain.extend(default_prop.clone());
+    icon_chain.extend(default_prop);
     mono_chain.extend(default_mono);
 
     fonts
