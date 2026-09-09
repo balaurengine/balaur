@@ -707,10 +707,13 @@ fn inline_asset(S, comp, prop, reference) {
 fn as_text(value) {
     if value is String {
         value
-    } else if value is Tuple {
+    } else if value is Tuple || value is Vec || value is Object {
+        // A list has no text form, and a field is not where one is edited.
         ""
     } else {
-        format!("{}", value)
+        // `{:?}`: a value with no display of its own must not take the
+        // inspector's whole draw down.
+        format!("{:?}", value)
     }
 }
 
