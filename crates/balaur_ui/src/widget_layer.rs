@@ -311,7 +311,7 @@ pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme, scale
         return Rc::clone(held);
     }
     let style = styled(theme, &placed.widget);
-    let (ink, font) = face(&style, &placed.widget, scale);
+    let (ink, font) = face(theme, &style, &placed.widget, scale);
     let made = Rc::new(Look { style, font, ink });
     *placed.look.borrow_mut() = Some(Rc::clone(&made));
     made
@@ -784,11 +784,21 @@ pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
 /// A property left at its default is the widget saying nothing, so the theme
 /// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
 /// and a weight of 400 each take what the role or the kind carries.
-pub(crate) fn face(style: &Style, widget: &Widget, scale: f32) -> (Color32, egui::FontId) {
+pub(crate) fn face(
+    theme: &WidgetTheme,
+    style: &Style,
+    widget: &Widget,
+    scale: f32,
+) -> (Color32, egui::FontId) {
+    // The theme's own text colour last, not a constant: a widget with no role
+    // drew in near-white, which is invisible on a light theme.
     let ink = if widget.text_color[3] > 0.0 {
         rgba_color(widget.text_color)
     } else {
-        style.text_color.unwrap_or(DEFAULT_INK)
+        style
+            .text_color
+            .or_else(|| theme.token("text"))
+            .unwrap_or(DEFAULT_INK)
     };
     let size = if widget.font_size > 0.0 {
         widget.font_size

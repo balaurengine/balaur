@@ -32,12 +32,12 @@ fn face_of(
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(font.size, family(w::ICON));
         ui.painter()
-            .layout_no_wrap(widget.icon.to_string(), mark, Color32::WHITE)
+            .layout_no_wrap(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
     });
     let shaped = crate::widget_text::shaped_caption(ui, at, index, widget, caption, font);
     let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
         ui.painter()
-            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::WHITE)
+            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::PLACEHOLDER)
     });
     let text = shaped.as_ref().map_or_else(
         || plain.as_ref().map_or(egui::Vec2::ZERO, |g| g.size()),
