@@ -22,7 +22,7 @@ pub const MATERIAL_ASSET_TYPE: &str = "material";
 /// that way — names its shader relative to that game, not this engine's root.
 pub(crate) fn shader_text(eng: &Engine, reference: &str, shader: &str) -> Result<String> {
     let material = std::path::Path::new(reference);
-    if material.is_absolute() {
+    if balaur_core::files::rooted(material) {
         let mut dir = material.parent();
         while let Some(d) = dir {
             if d.join("project.toml").exists() {

@@ -108,3 +108,38 @@ fn a_packed_script_runs_and_keeps_its_exported_defaults() {
     assert_eq!(get("hits"), Some(&balaur_script::Value::Int(2)));
     assert_eq!(get("speed"), Some(&balaur_script::Value::Num(3.0)));
 }
+
+/// The browser editor runs from its own pack and edits a project mounted
+/// beside it, so a game script it attaches is a file the pack never held.
+#[test]
+fn a_packed_host_attaches_a_script_the_pack_does_not_hold() {
+    let editor = project();
+    let pack = pack_of(editor.path());
+
+    let game = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(game.path().join("scripts")).unwrap();
+    std::fs::write(
+        game.path().join("scripts/game.rn"),
+        "pub fn init(this) { this.hits = 7; }\n",
+    )
+    .unwrap();
+
+    let app = app_in(game.path(), Some(pack));
+    let host = app.engine.script_host().unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", root);
+    let path = game.path().join("scripts/game.rn");
+    host.attach(balaur_core::node_id_of(node), &path.to_string_lossy())
+        .expect("a script beside the pack is read from the project");
+
+    host.update(1.0 / 60.0);
+    let saved = host.save_state();
+    let (_, state) = saved.first().expect("one instance");
+    let balaur_script::Value::Map(fields) = state else {
+        panic!("expected a map, got {state:?}");
+    };
+    assert_eq!(
+        fields.iter().find(|(k, _)| k == "hits").map(|(_, v)| v),
+        Some(&balaur_script::Value::Int(7)),
+    );
+}

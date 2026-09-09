@@ -323,16 +323,19 @@ impl RuneHost {
     fn source_of(&self, key: &str) -> Result<String> {
         let state = self.state.borrow();
         if let Some(pack) = &state.pack {
-            let bytes = pack
-                .scripts
-                .get(key)
-                .ok_or_else(|| anyhow!("{key} is not in the pack"))?;
-            return Ok(String::from_utf8(bytes.clone())?);
+            if let Some(bytes) = pack.scripts.get(key) {
+                return Ok(String::from_utf8(bytes.clone())?);
+            }
         }
+        // A key the pack does not hold is a file: the editor runs from its
+        // own pack and the project it edits is mounted beside it.
         let path = state.project_root.join(key);
         let bytes = balaur_core::files::backend(&self.engine)
             .read(&path)
-            .with_context(|| format!("reading {key}"))?;
+            .with_context(|| match &state.pack {
+                Some(_) => format!("{key} is neither in the pack nor a file"),
+                None => format!("reading {key}"),
+            })?;
         Ok(String::from_utf8(bytes)?)
     }
 
@@ -350,8 +353,12 @@ impl RuneHost {
         let (path, packed) = {
             let state = self.state.borrow();
             match &state.pack {
-                Some(pack) => (PathBuf::from(key), Some(pack.scripts.clone())),
-                None => (state.project_root.join(key), None),
+                // Only for a script the pack holds: one read off the file
+                // system resolves its `mod` beside the file, as a dev run does.
+                Some(pack) if pack.scripts.contains_key(key) => {
+                    (PathBuf::from(key), Some(pack.scripts.clone()))
+                }
+                _ => (state.project_root.join(key), None),
             }
         };
         let mut sources = Sources::new();

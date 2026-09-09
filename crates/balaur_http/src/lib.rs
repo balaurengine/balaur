@@ -414,7 +414,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
         Some(other) => return Err(anyhow!("`save_to` should be a path, got {other:?}")),
     };
     let clean = balaur_core::files::lexical(path);
-    if path.is_absolute()
+    if balaur_core::files::rooted(path)
         || clean.as_os_str().is_empty()
         || clean
             .components()

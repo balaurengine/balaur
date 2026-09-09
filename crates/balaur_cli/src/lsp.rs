@@ -499,7 +499,7 @@ impl Server {
     /// A project-relative path as the `file://` URI a client speaks in. An
     /// absolute one is already what the compiler read it from.
     fn uri_of(&self, file: &str) -> String {
-        let path = if Path::new(file).is_absolute() {
+        let path = if balaur_core::files::rooted(Path::new(file)) {
             PathBuf::from(file)
         } else {
             self.root.join(file)

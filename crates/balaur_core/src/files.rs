@@ -93,6 +93,16 @@ pub fn set_backend(eng: &Engine, fs: Rc<dyn FileBackend>) {
     eng.insert_resource(Files(fs));
 }
 
+/// Whether a path starts at a root rather than at the project.
+///
+/// Not `is_absolute`: that is gated on `unix` or `wasi`, so on the web build's
+/// `wasm32-unknown-unknown` every path reads as relative — the editor mounts
+/// the project it edits at `/project` and names its files from there.
+#[must_use]
+pub fn rooted(path: &Path) -> bool {
+    path.is_absolute() || path.has_root()
+}
+
 /// `.` dropped and `..` popped, without touching a filesystem.
 pub fn lexical(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();

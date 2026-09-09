@@ -517,7 +517,7 @@ impl ProjectFiles {
     pub fn mtime(&self, path: &str) -> Option<f64> {
         let path = &self.path_of(path).ok()?;
         let p = std::path::Path::new(path);
-        if p.is_absolute() {
+        if crate::files::rooted(p) {
             return self.fs.mtime(p);
         }
         if self.source == AssetSource::Embedded {
@@ -536,7 +536,7 @@ impl ProjectFiles {
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
         let path = &self.path_of(path)?;
         let p = std::path::Path::new(path);
-        if p.is_absolute() {
+        if crate::files::rooted(p) {
             return self.fs.read(p);
         }
         // Separators are normalised because a pack is keyed the way it was

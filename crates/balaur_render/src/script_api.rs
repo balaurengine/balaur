@@ -173,7 +173,7 @@ pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
 /// A script-supplied path against the project, absolute paths left alone.
 pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
-    if p.is_absolute() {
+    if balaur_core::files::rooted(p) {
         return p.to_path_buf();
     }
     eng.try_resource::<balaur_core::project::ProjectRoot>()

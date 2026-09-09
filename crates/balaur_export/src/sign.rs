@@ -289,7 +289,7 @@ fn dlib() -> String {
 }
 
 fn absolute(path: &Path) -> Result<PathBuf> {
-    if path.is_absolute() {
+    if balaur::files::rooted(path) {
         return Ok(path.to_path_buf());
     }
     Ok(std::env::current_dir()?.join(path))

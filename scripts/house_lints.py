@@ -361,6 +361,12 @@ def item_rules(rel, i, line) -> list[Finding]:
         out.append(Finding(rel, i, "pub-inner",
                            f"`{m.group(2)}`: no `pub` item is named *Inner — it publishes what "
                            "the outer type's accessors exist to mediate (N12)", "ERROR"))
+    if (re.search(r"\.is_absolute\(\)", line)
+            and not str(rel).endswith("files.rs")
+            and not is_test_file(rel)):
+        out.append(Finding(rel, i, "is-absolute",
+                           "`Path::is_absolute` is gated on unix/wasi, so it answers false for "
+                           "every path in the web build: use `files::rooted`", "ERROR"))
     m = re.search(r"add_system\([^,]*,\s*([A-Za-z_][A-Za-z0-9_:]*)\s*\)", line)
     if m and not m.group(1).split("::")[-1].endswith("_system"):
         out.append(Finding(rel, i, "system-verb",

@@ -73,7 +73,7 @@ fn roots(eng: &Engine) -> Vec<PathBuf> {
 /// When the path lands outside every root the host declared.
 pub(crate) fn resolve(eng: &Engine, path: &str) -> Result<PathBuf> {
     let named = Path::new(path);
-    let joined = if named.is_absolute() {
+    let joined = if crate::files::rooted(named) {
         named.to_path_buf()
     } else {
         match eng.try_resource::<crate::project::ProjectRoot>() {

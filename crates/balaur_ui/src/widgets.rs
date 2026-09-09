@@ -79,6 +79,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::MIN_WIDTH,
     k::OFF_FILL,
     k::OFF_KNOB,
+    k::OFFSET,
     k::ON_FILL,
     k::ON_KNOB,
     k::PADDING,
