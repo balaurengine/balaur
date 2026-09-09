@@ -143,6 +143,12 @@ web)
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
   # what each feature costs, and gen_docs.py reads the default off this line.
   features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
+  # The solver threads only where the module can: `parallel` pulls rayon in,
+  # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
+  # is not cross-origin isolated. The plain template must not have it.
+  if [ -n "$threads" ]; then
+    features="$features,parallel"
+  fi
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   # webtransport is out: a browser backend exists, but no plugin registers it.

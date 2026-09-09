@@ -86,7 +86,7 @@ fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::Corn
     if style.round == Some(true) {
         return egui::CornerRadius::same((height / 2.0).min(120.0) as u8);
     }
-    let stated = style.radius.unwrap_or_else(|| {
+    let stated = style.radius.unwrap_or({
         if widget.font_size > 0.0 {
             widget.font_size
         } else {

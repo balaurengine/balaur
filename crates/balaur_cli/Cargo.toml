@@ -11,7 +11,10 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "web"]
+default = ["audio", "http", "websocket", "webtransport", "gamend", "web", "parallel"]
+# rapier's solver on rayon. The plain web template leaves it off: rayon blocks
+# on `Atomics.wait`, which a browser refuses without shared memory.
+parallel = ["balaur/parallel"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.

@@ -282,6 +282,10 @@ impl Room {
 /// The tree is rebuilt from the arena each frame — the arena is itself rebuilt
 /// from the world — but the nodes are kept, so taffy restyles only what
 /// changed and re-solves only what that dirtied.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one solve's invariants, threaded down a recursion rather than rebuilt"
+)]
 pub(crate) fn solve(
     eng: &Engine,
     arena: &[Placed],
@@ -349,6 +353,10 @@ pub(crate) fn solve(
 }
 
 /// Solve one subtree on its own, for a kind that places its own children.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one solve's invariants, threaded down a recursion rather than rebuilt"
+)]
 pub(crate) fn solve_subtree(
     eng: &Engine,
     arena: &[Placed],
@@ -382,6 +390,10 @@ fn leaf(
 }
 
 /// Mirror one widget and its children into the tree, and answer its node.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one solve's invariants, threaded down a recursion rather than rebuilt"
+)]
 fn sync(
     held: &mut Held,
     arena: &[Placed],

@@ -80,7 +80,7 @@ pub(crate) fn shaped_label(
     let width = widget.wrap.then_some(room.max(1.0));
     // A stated width is a column, so a long line is cut off at its edge
     // rather than run into whatever sits beside it.
-    let column = (!widget.wrap && widget.width > 0.0).then(|| widget.width * at.scale);
+    let column = (!widget.wrap && widget.width > 0.0).then_some(widget.width * at.scale);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
         let request = text_request(widget, caption, width, font, style);

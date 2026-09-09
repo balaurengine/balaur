@@ -426,7 +426,7 @@ impl TextState {
     fn layout_bitmap(&mut self, request: &RequestRef<'_>) -> Option<Shaped> {
         let page = self.pages.get(request.font)?;
         let (font, region, size) = (page.font.clone(), page.region, page.page_size);
-        Some(font.layout(&request.text, request.size, region, size))
+        Some(font.layout(request.text, request.size, region, size))
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
@@ -571,7 +571,7 @@ fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &RequestRef
 /// The runs a request breaks into: its marks, or the whole text as one.
 fn spans_of(request: &RequestRef<'_>) -> markup::Markup {
     if request.markup {
-        return markup::parse(&request.text);
+        return markup::parse(request.text);
     }
     markup::Markup {
         spans: vec![markup::Span {

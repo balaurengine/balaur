@@ -93,6 +93,7 @@ impl Style {
     /// falls through, so a role says only how it differs from its kind.
     #[must_use]
     pub fn over(&self, base: &Self) -> Self {
+        #[allow(clippy::float_cmp, reason = "a slice left unset, not one measured")]
         let slice = if self.slice == [0.0; 4] {
             base.slice
         } else {

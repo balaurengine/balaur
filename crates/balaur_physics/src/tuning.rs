@@ -76,7 +76,7 @@ macro_rules! write_parameters {
 /// Applied once, after the project has loaded, from `[physics]` in
 /// `project.toml`. A game with no such section keeps rapier's defaults.
 pub(crate) fn build(reg: &mut Registry<'_>) {
-    set_threads(default_threads());
+    reg.insert_resource(SolverThreads::default());
     reg.insert_resource(ManifestTuning { applied: false });
     reg.add_system(Stage::First, manifest_tuning_system);
 }
@@ -99,14 +99,27 @@ fn manifest_tuning_system(eng: &Engine, _dt: f32) {
             return;
         };
         flag.borrow_mut().applied = true;
-        let Ok(manifest) = source.parse::<toml::Value>() else {
-            return;
-        };
-        let Some(section) = manifest.get("physics") else {
-            return;
-        };
-        write_tuning_from_toml(eng, section);
+        if let Ok(manifest) = source.parse::<toml::Value>()
+            && let Some(section) = manifest.get("physics")
+        {
+            read_manifest_threads(eng, section);
+            write_tuning_from_toml(eng, section);
+        }
     }
+    // Last thing before the first step: everything that had a say has had it.
+    build_pool(eng);
+}
+
+/// `[physics] threads`, which a script's own `set_threads` outranks: the
+/// manifest is what a project usually wants and the call is what this run does.
+fn read_manifest_threads(eng: &Engine, section: &toml::Value) {
+    let Some(count) = section.get(k::THREADS).and_then(toml::Value::as_integer) else {
+        return;
+    };
+    if eng.resource::<SolverThreads>().borrow().asked {
+        return;
+    }
+    want_threads(eng, count.max(1) as usize, false);
 }
 
 /// The `[physics]` table, onto both worlds.
@@ -238,8 +251,14 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
                 .collect(),
         ))
     });
-    m.function("set_threads", |_eng: &Engine, count: i64| {
-        set_threads(count.max(1) as usize);
+    m.function("set_threads", |eng: &Engine, count: i64| {
+        if !want_threads(eng, count.max(1) as usize, true) {
+            tracing::warn!(
+                "physics.set_threads({count}) came after the solver's pool was built; it keeps \
+                 the {} it has. Call it from a script's `init`, or set `[physics] threads`.",
+                threads()
+            );
+        }
         Ok(Value::Nil)
     });
     m.function("threads", |_eng: &Engine, ()| {
@@ -290,30 +309,74 @@ pub(crate) fn warn_about_quarantine(eng: &Engine) {
     }
 }
 
-/// The thread count rapier's solver runs on.
+/// How many threads the solver should take, until the pool is built.
 ///
-/// Rayon's pool is global and sized once per process, so setting it twice is
-/// not an error but does nothing the second time.
-#[cfg(not(target_family = "wasm"))]
-fn set_threads(count: usize) {
-    let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(count.max(1))
-        .build_global();
+/// Rayon's pool is global and sized once per process, so the count has to be
+/// settled before anything steps. It is held here rather than applied at
+/// registration so `[physics] threads` and a script's `init` can still say.
+pub(crate) struct SolverThreads {
+    wanted: usize,
+    /// A script asked, so the manifest does not overrule it.
+    asked: bool,
+    built: bool,
 }
 
-/// The page sizes the pool, by the count it hands `initThreadPool` before the
-/// engine starts. Building one here would race that and poison it, and a
-/// plain wasm build has no pool at all.
-#[cfg(target_family = "wasm")]
-fn set_threads(_count: usize) {}
+impl Default for SolverThreads {
+    fn default() -> Self {
+        Self {
+            wanted: default_threads(),
+            asked: false,
+            built: false,
+        }
+    }
+}
 
-#[cfg(not(target_family = "wasm"))]
+/// Ask for `count` threads, if the pool has not been built yet.
+///
+/// Answers whether the ask landed, so the caller can say why it did not.
+fn want_threads(eng: &Engine, count: usize, asked: bool) -> bool {
+    let held = eng.resource::<SolverThreads>();
+    let mut held = held.borrow_mut();
+    if held.built {
+        return false;
+    }
+    held.wanted = count.max(1);
+    held.asked = held.asked || asked;
+    true
+}
+
+/// Build rayon's pool from what was asked for, once, before the first step.
+///
+/// The page owns the pool in a browser: it hands a count to `initThreadPool`
+/// before the engine starts, and building one here would race that.
+fn build_pool(eng: &Engine) {
+    let held = eng.resource::<SolverThreads>();
+    let count = {
+        let mut held = held.borrow_mut();
+        if held.built {
+            return;
+        }
+        held.built = true;
+        held.wanted
+    };
+    let _ = count;
+    #[cfg(all(feature = "parallel", not(target_family = "wasm")))]
+    if let Err(why) = rayon::ThreadPoolBuilder::new()
+        .num_threads(count)
+        .build_global()
+    {
+        tracing::warn!("the solver keeps the pool it already had: {why}");
+    }
+}
+
+/// How many threads the solver is running on.
+#[cfg(feature = "parallel")]
 fn threads() -> usize {
     rayon::current_num_threads()
 }
 
-/// The one thread a wasm build runs the solver on.
-#[cfg(target_family = "wasm")]
+/// The one thread a build without the `parallel` feature runs the solver on.
+#[cfg(not(feature = "parallel"))]
 fn threads() -> usize {
     1
 }

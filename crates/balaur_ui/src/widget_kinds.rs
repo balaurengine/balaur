@@ -836,7 +836,7 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let mut cell = egui::Vec2::ZERO;
     {
         let mut measure = Measure::new(at.eng, at.arena, ui, scale);
-        for child in children.iter() {
+        for child in &children {
             cell = cell.max(measure.of(*child, &at.theme));
         }
     }

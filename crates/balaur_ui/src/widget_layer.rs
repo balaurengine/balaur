@@ -584,12 +584,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
 /// Draw one root into the area its surface gives it, and record where it
 /// landed. Split from [`draw`] under `MAX_FN_LINES`; the seam is one root's
 /// own placement and pass, which needs nothing from the loop around it.
-fn draw_root(
-    ctx: &egui::Context,
-    painting: &mut Painting<'_>,
-    root: usize,
-    area: egui::Rect,
-) {
+fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area: egui::Rect) {
     let (eng, placed, scale) = (painting.eng, painting.arena, painting.scale);
     let entity = placed[root].entity;
     let widget = &placed[root].widget;

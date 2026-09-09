@@ -16,12 +16,12 @@ thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —
     /// everything else the layer draws it can also measure, and a rect a
     /// script fills is the one thing it can only remember.
-    static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
-    static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
+    static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// Where each widget was drawn, for a script that has to place something
     /// against it — the editor's own chrome reads its shell back this way.
-    static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
-    static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher));
+    static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.

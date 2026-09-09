@@ -173,7 +173,7 @@ impl<'a> Measure<'a> {
         let mut along = 0.0f32;
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
-        for child in children.iter() {
+        for child in &children {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -196,7 +196,7 @@ impl<'a> Measure<'a> {
         };
         let pad = padding_of(
             widget,
-            &crate::widget_layer::styled(theme, &widget),
+            &crate::widget_layer::styled(theme, widget),
             self.scale,
         );
         inner + egui::Vec2::splat(pad * 2.0)
@@ -211,7 +211,7 @@ impl<'a> Measure<'a> {
         let gap = widget.gap * self.scale;
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
-        for child in children.iter() {
+        for child in &children {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -255,7 +255,7 @@ impl<'a> Measure<'a> {
         let mut cursor = egui::Vec2::ZERO;
         let mut line = 0.0f32;
         let mut extent = egui::Vec2::ZERO;
-        for child in children.iter() {
+        for child in &children {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -289,7 +289,7 @@ impl<'a> Measure<'a> {
             } else {
                 page.widget.text.as_str()
             };
-            let size = self.galley(*child, &label, &widget, theme) + padding;
+            let size = self.galley(*child, label, &widget, theme) + padding;
             width += size.x + if slot > 0 { gap } else { 0.0 };
             height = height.max(size.y);
         }
@@ -300,7 +300,7 @@ impl<'a> Measure<'a> {
     fn widest_child(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let children = self.arena[index].children.clone();
         let mut size = egui::Vec2::ZERO;
-        for child in children.iter() {
+        for child in &children {
             size = size.max(self.of(*child, theme));
         }
         size
