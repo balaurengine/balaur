@@ -26,7 +26,20 @@ pub(crate) struct Opts(
     pub(crate) Option<Value>,
     /// The named role's own options, read where the caller said nothing.
     Option<std::rc::Rc<Vec<(String, Value)>>>,
+    /// Which of the role's state tables paints over the rest: `hover` while
+    /// the pointer is on the control, `active` while it is held.
+    &'static str,
 );
+
+/// What a role's `hover` or `active` table may set. Paint only: a control
+/// that resized under the pointer would move whatever sits beside it.
+const STATE_KEYS: &[&str] = &[
+    k::COLOR,
+    k::FILL,
+    k::ICON_COLOR,
+    k::STROKE,
+    k::TRAILING_COLOR,
+];
 
 /// Every key any widget reads, `role` included.
 ///
@@ -151,23 +164,54 @@ impl Opts {
     /// what it changes, and the look lives in the theme asset.
     pub(crate) fn with_roles(opts: Option<Value>) -> Self {
         let Some(Value::Map(given)) = opts.as_ref() else {
-            return Self(opts, None);
+            return Self(opts, None, "");
         };
         warn_unknown(given);
         let role = match given.iter().find(|(k, _)| k == k::ROLE).map(|(_, v)| v) {
             Some(Value::Str(name)) => crate::bridge::role(name),
             _ => None,
         };
-        Self(opts, role)
+        Self(opts, role, "")
     }
 
     /// Options as given, with no role behind them.
     pub(crate) fn plain(opts: Option<Value>) -> Self {
-        Self(opts, None)
+        Self(opts, None, "")
     }
 
-    /// What the caller said, or failing that what the role it named says.
+    /// The same options with the role's `hover` or `active` table painting
+    /// over them. Held falls back to hovered, the way a theme's own styles do.
+    pub(crate) fn in_state(&self, hovered: bool, held: bool) -> Self {
+        let state = if held {
+            "active"
+        } else if hovered {
+            "hover"
+        } else {
+            ""
+        };
+        Self(self.0.clone(), self.1.clone(), state)
+    }
+
+    /// What the role's state table says about `key`, for the paint keys a
+    /// state may set. `active` falls through to `hover` for what it leaves out.
+    fn state(&self, key: &str) -> Option<&Value> {
+        if self.2.is_empty() || !STATE_KEYS.contains(&key) {
+            return None;
+        }
+        let role = self.1.as_ref()?;
+        let table = |name: &str| match role.iter().find(|(k, _)| k == name).map(|(_, v)| v) {
+            Some(Value::Map(entries)) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        };
+        table(self.2).or_else(|| (self.2 == "active").then(|| table("hover")).flatten())
+    }
+
+    /// The state table if one paints this key, then what the caller said, and
+    /// failing both what the role it named says.
     fn get(&self, key: &str) -> Option<&Value> {
+        if let Some(found) = self.state(key) {
+            return Some(found);
+        }
         let given = match self.0.as_ref() {
             Some(Value::Map(entries)) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
@@ -1059,10 +1103,12 @@ pub(crate) fn left_pill(
         }
     };
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
-    let hovered = response.hovered();
+    // The box is measured before the state is known and painted after: a row
+    // that grew under the pointer would push the rows below it down.
+    let opts = &opts.in_state(response.hovered(), response.is_pointer_button_down_on());
     let mut fill = opts.color(k::FILL, Color32::TRANSPARENT);
-    if hovered
-        && fill == Color32::TRANSPARENT
+    if fill == Color32::TRANSPARENT
+        && response.hovered()
         && let Some(hover) = opts.opt_color(k::HOVER_FILL)
     {
         fill = hover;

@@ -271,6 +271,7 @@ fn viewport(S, k) {
     // chip too many painted its last over the inspector beside it.
     // Clear of the folded left dock's handle, which shares this row.
     let inset = crate::docks::fold_inset(S);
+    log::warn(format!("PROBE stage {} {} {} {} inset {} canvas {}", vp.x, vp.y, vp.w, vp.h, inset, S.layout.hooks.w));
     ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: HUD_H }, || {
         ui::horizontal(#{ height: HUD_H }, || {
             ui::spacing(6, 0);

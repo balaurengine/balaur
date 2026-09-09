@@ -54,19 +54,7 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
                 };
                 for (name, body) in roles {
                     let Value::Map(fields) = body else { continue };
-                    let resolved = fields
-                        .iter()
-                        .map(|(k, v)| {
-                            let v = match v {
-                                Value::Str(text) => match hex.get(text) {
-                                    Some(found) => Value::Str(found.clone()),
-                                    None => v.clone(),
-                                },
-                                other => other.clone(),
-                            };
-                            (k.clone(), v)
-                        })
-                        .collect();
+                    let resolved = fields.iter().map(|(k, v)| (k.clone(), spelled(v, &hex))).collect();
                     config
                         .theme
                         .roles
@@ -76,6 +64,24 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
             config.changed = true;
             Ok(())
         });
+    }
+}
+
+/// A role's value with colour tokens spelled out. Recurses one map deep, so
+/// the `hover` and `active` tables inside a role name colours the same way.
+fn spelled(value: &Value, hex: &std::collections::HashMap<String, String>) -> Value {
+    match value {
+        Value::Str(text) => match hex.get(text) {
+            Some(found) => Value::Str(found.clone()),
+            None => value.clone(),
+        },
+        Value::Map(fields) => Value::Map(
+            fields
+                .iter()
+                .map(|(k, v)| (k.clone(), spelled(v, hex)))
+                .collect(),
+        ),
+        other => other.clone(),
     }
 }
 

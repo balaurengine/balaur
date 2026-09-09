@@ -192,6 +192,37 @@ fn a_list_row_splits_into_icon_label_and_note() {
 }
 
 #[test]
+fn picking_a_row_leaves_the_rows_under_it_where_they_were() {
+    let ctx = egui::Context::default();
+    // The theme a shell brings: a resting stroke is what egui takes out of a
+    // button's margin and, on the hovered or picked one, puts back.
+    ctx.all_styles_mut(|style| {
+        style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::GRAY);
+    });
+    let rows = |chosen: &str| {
+        let (_dir, app) = app();
+        let params = toml::toml! {
+            kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
+            text = chosen
+            options = ["One", "Two", "Three", "Four", "Five", "Six"]
+        };
+        add_widget(&app, &params.into());
+        settle(&app, &ctx);
+        texts(&pass(&app, &ctx, vec![]))
+    };
+    let resting = rows("");
+    assert!(
+        resting.iter().any(|(t, _)| t == "Six"),
+        "every row drew: {resting:?}"
+    );
+    assert_eq!(
+        resting,
+        rows("Two"),
+        "a picked row must not move itself or the rows under it"
+    );
+}
+
+#[test]
 fn a_tree_caret_folds_the_branch_under_it() {
     let (_dir, app) = app();
     let params = toml::toml! {
@@ -559,4 +590,147 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
         after < before - 20.0,
         "the contents did not follow the finger: {before} -> {after}"
     );
+}
+
+use balaur_script::BindingsExt as _;
+
+struct StubPlugin {
+    manifest: balaur_plugin::Manifest,
+    name: &'static str,
+}
+
+impl balaur_plugin::Plugin for StubPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
+    }
+
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> anyhow::Result<()> {
+        let mut m = reg.script_module(self.name)?;
+        let m = &mut *m;
+        m.function("targets", |_: &balaur::Engine, ()| {
+            Ok(balaur_script::Value::List(vec![]))
+        });
+        m.function(
+            "listen",
+            |_: &balaur::Engine, (_a, _b): (balaur_script::Value, Option<balaur_script::Value>)| {
+                Ok(balaur_script::Value::Nil)
+            },
+        );
+        m.function(
+            "start",
+            |_: &balaur::Engine, (_a, _b): (String, Option<balaur_script::Value>)| Ok(false),
+        );
+        m.function("output", |_: &balaur::Engine, _t: String| {
+            Ok(balaur_script::Value::Str(String::new()))
+        });
+        m.function("running", |_: &balaur::Engine, ()| Ok(0i64));
+        m.function("file", |_: &balaur::Engine, _p: String| {
+            Ok(balaur_script::Value::Nil)
+        });
+        m.function("kind_of", |_: &balaur::Engine, _p: String| {
+            Ok(balaur_script::Value::Nil)
+        });
+        Ok(())
+    }
+}
+
+fn stub(name: &'static str) -> StubPlugin {
+    StubPlugin {
+        manifest: balaur_plugin::Manifest::new(name, "0.0.0"),
+        name,
+    }
+}
+
+fn shell_pass(
+    app: &balaur_core::App,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+) -> egui::FullOutput {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            pos2(0.0, 0.0),
+            egui::vec2(1000.0, 470.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    ctx.begin_pass(input);
+    balaur_ui::run_pass(&app.engine, ctx);
+    let mut out = ctx.end_pass();
+    out.textures_delta.clear();
+    out
+}
+
+fn editor() -> (balaur_core::App, egui::Context) {
+    balaur_core::logbuf::capture_for_test();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor");
+    let game = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
+    let mut config = balaur::AppConfig::dev(root.to_string_lossy().as_ref());
+    config.watch = false;
+    config.script_args = vec![game.to_string_lossy().into_owned()];
+    let mut app = balaur::standard_app(config).unwrap();
+    balaur_plugin::load(&mut app, &mut stub("export")).unwrap();
+    balaur_plugin::load(&mut app, &mut stub("import")).unwrap();
+    balaur::file_api::add_root(&app.engine, &game);
+    app.load_project().unwrap();
+    let ctx = egui::Context::default();
+    for _ in 0..24 {
+        app.tick(1.0 / 60.0);
+        shell_pass(&app, &ctx, vec![]);
+    }
+    (app, ctx)
+}
+
+#[test]
+fn zz_probe_shell() {
+    let (mut app, ctx) = editor();
+    let fingerprint = |out: &egui::FullOutput| {
+        let mut rows: Vec<String> = out
+            .shapes
+            .iter()
+            .filter_map(|s| {
+                let b = s.shape.visual_bounding_rect();
+                b.is_finite().then(|| {
+                    let paint = match &s.shape {
+                        egui::epaint::Shape::Rect(r) => format!("{:?}/{:?}", r.fill, r.stroke.color),
+                        egui::epaint::Shape::Text(t) => format!("{:?}", t.fallback_color),
+                        _ => String::new(),
+                    };
+                    format!("{:.0},{:.0},{:.0},{:.0} {paint}", b.min.x, b.min.y, b.width(), b.height())
+                })
+            })
+            .collect();
+        rows.sort();
+        rows
+    };
+    let shot = |app: &mut balaur_core::App, at: egui::Pos2| {
+        for _ in 0..3 {
+            app.tick(1.0 / 60.0);
+            shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]);
+        }
+        app.tick(1.0 / 60.0);
+        fingerprint(&shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]))
+    };
+    let at = pos2(748.0, 90.0);
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+        shell_pass(&app, &ctx, vec![egui::Event::PointerMoved(at)]);
+    }
+    app.tick(1.0 / 60.0);
+    shell_pass(&app, &ctx, vec![egui::Event::PointerMoved(at)]);
+    for entry in balaur_core::logbuf::recent(600) {
+        if entry.message.contains("PROBE stage") {
+            println!("LOG {}", entry.message);
+        }
+    }
+    ctx.memory(|m| {
+        for layer in m.layer_ids() {
+            if let Some(r) = m.area_rect(layer.id)
+                && r.contains(at)
+            {
+                println!("AREA {:?} {:?} {:.0}..{:.0} y{:.0}..{:.0}", layer.order, layer.id, r.min.x, r.max.x, r.min.y, r.max.y);
+            }
+        }
+    });
+    panic!("probe");
 }

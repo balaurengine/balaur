@@ -123,6 +123,7 @@ fn rows(
     } else {
         ui.text_style_height(&egui::TextStyle::Body).max(1.0)
     };
+    steady_height(ui);
     let items: Vec<String> = widget
         .options
         .iter()
@@ -213,6 +214,21 @@ fn rows(
         at.clicked.push(entity);
         at.edits.push((entity, Edit::Choice(item)));
     }
+}
+
+/// Take the resting stroke off the rows, and its width off their padding.
+///
+/// egui takes a button's frame margin as its padding less the stroke it would
+/// draw, but draws a resting button without that frame and never adds the
+/// stroke back: a row would grow 2 px the moment it is hovered or picked, and
+/// push every row under it down.
+fn steady_height(ui: &mut egui::Ui) {
+    let edge = ui.visuals().widgets.inactive.bg_stroke.width;
+    if edge <= 0.0 {
+        return;
+    }
+    ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+    ui.spacing_mut().button_padding -= egui::Vec2::splat(edge);
 }
 
 /// One row of a list or tree, and what a click on it meant.
