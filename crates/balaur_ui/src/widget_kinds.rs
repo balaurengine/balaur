@@ -179,49 +179,27 @@ fn rows(
             let item = &items[i];
             let depth = depth_of(item);
             let parent = indent && items.get(i + 1).is_some_and(|next| depth_of(next) > depth);
-            ui.horizontal(|ui| {
-                if depth > 0 {
-                    let head = ui.cursor().min;
-                    ui.add_space(row_h * depth as f32);
-                    guides(
-                        ui,
-                        head,
-                        row_h,
-                        trails.get(slot).map_or(&[][..], Vec::as_slice),
-                    );
-                }
-                if parent {
-                    let caret = if shut.contains(item) { "▸" } else { "▾" };
-                    let mark = egui::RichText::new(caret).font(font.clone()).color(color);
-                    if ui.selectable_label(false, mark).clicked() {
-                        toggled = Some(item.clone());
-                    }
-                } else if indent {
-                    ui.add_space(row_h);
-                }
-                let (icon, label, trailing, tint) = fields(item);
-                let color = tint.unwrap_or(color);
-                if !icon.is_empty() {
-                    // The icon field is a glyph from the project's icon face,
-                    // not a character in the UI one.
-                    let mark = egui::FontId::new(font.size, crate::theme::family("icon"));
-                    ui.label(egui::RichText::new(icon).font(mark).color(color));
-                }
-                let text = egui::RichText::new(label).font(font.clone()).color(color);
-                let hit = ui.selectable_label(*item == chosen, text);
-                if !trailing.is_empty() {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            egui::RichText::new(trailing)
-                                .font(font.clone())
-                                .color(color),
-                        );
-                    });
-                }
-                if hit.clicked() {
-                    picked = Some(item.clone());
-                }
-            });
+            let hit = row(
+                ui,
+                &Row {
+                    item,
+                    depth,
+                    parent,
+                    indent,
+                    row_h,
+                    trail: trails.get(slot).map_or(&[][..], Vec::as_slice),
+                    shut: shut.contains(item),
+                    chosen: &chosen,
+                    font,
+                    color,
+                },
+            );
+            if hit.folded {
+                toggled = Some(item.clone());
+            }
+            if hit.picked {
+                picked = Some(item.clone());
+            }
         }
     });
     if let Some(item) = toggled {
@@ -235,6 +213,73 @@ fn rows(
         at.clicked.push(entity);
         at.edits.push((entity, Edit::Choice(item)));
     }
+}
+
+/// One row of a list or tree, and what a click on it meant.
+struct Row<'a> {
+    item: &'a str,
+    depth: usize,
+    /// Whether a caret is drawn, because the next row is deeper than this one.
+    parent: bool,
+    indent: bool,
+    row_h: f32,
+    /// Where each level above this row still carries on, for the guides.
+    trail: &'a [bool],
+    shut: bool,
+    chosen: &'a str,
+    font: &'a egui::FontId,
+    color: Color32,
+}
+
+struct Hit {
+    picked: bool,
+    folded: bool,
+}
+
+/// Draw one row: the guides down its indent, its caret, its icon field, its
+/// label, and whatever it trails on the right.
+fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
+    let mut hit = Hit {
+        picked: false,
+        folded: false,
+    };
+    ui.horizontal(|ui| {
+        if r.depth > 0 {
+            let head = ui.cursor().min;
+            ui.add_space(r.row_h * r.depth as f32);
+            guides(ui, head, r.row_h, r.trail);
+        }
+        if r.parent {
+            let caret = if r.shut { "\u{25b8}" } else { "\u{25be}" };
+            let mark = egui::RichText::new(caret)
+                .font(r.font.clone())
+                .color(r.color);
+            hit.folded = ui.selectable_label(false, mark).clicked();
+        } else if r.indent {
+            ui.add_space(r.row_h);
+        }
+        let (icon, label, trailing, tint) = fields(r.item);
+        let color = tint.unwrap_or(r.color);
+        if !icon.is_empty() {
+            // The icon field is a glyph from the project's icon face, not a
+            // character in the UI one.
+            let mark = egui::FontId::new(r.font.size, crate::theme::family("icon"));
+            ui.label(egui::RichText::new(icon).font(mark).color(color));
+        }
+        let text = egui::RichText::new(label).font(r.font.clone()).color(color);
+        let picked = ui.selectable_label(r.item == r.chosen, text);
+        if !trailing.is_empty() {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(trailing)
+                        .font(r.font.clone())
+                        .color(color),
+                );
+            });
+        }
+        hit.picked = picked.clicked();
+    });
+    hit
 }
 
 /// A file being edited, with the gutter and the colouring `ui::code_editor`
@@ -393,13 +438,13 @@ fn card(
     // picture's own pixels, which is how an atlas picker shows its tiles.
     let region = sheet.and_then(|sheet| region_uv(sheet.size_vec2(), icon));
     if let (Some(sheet), Some(uv)) = (sheet, region) {
-        let side = (size.y * 0.6).min(size.x * 0.6).max(1.0);
+        let edge = (size.y * 0.6).min(size.x * 0.6).max(1.0);
         let face = egui::Rect::from_center_size(
-            pos2(rect.center().x, head + side / 2.0),
-            egui::Vec2::splat(side),
+            pos2(rect.center().x, head + edge / 2.0),
+            egui::Vec2::splat(edge),
         );
         ui.painter().image(sheet.id(), face, uv, Color32::WHITE);
-        head += side + 4.0;
+        head += edge + 4.0;
     } else if !icon.is_empty() {
         // The project's icon face, at the card's own size rather than the
         // label's: an icon mode that drew the glyph at line height is a list.

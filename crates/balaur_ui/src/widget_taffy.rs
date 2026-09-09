@@ -293,7 +293,7 @@ pub(crate) fn solve(
     ui: &egui::Ui,
     scale: f32,
     theme: &Rc<WidgetTheme>,
-    room: &Room,
+    space: &Room,
     fresh: bool,
     touched: &[usize],
 ) -> Rects {
@@ -309,7 +309,7 @@ pub(crate) fn solve(
             theme,
             scale,
             &mut measure,
-            room.fill,
+            space.fill,
             true,
             fresh,
         );
@@ -331,7 +331,7 @@ pub(crate) fn solve(
         }
         let solved = held.tree.compute_layout_with_measure(
             node,
-            room.space,
+            space.space,
             |inputs, _node, context, style| {
                 let index = context.copied();
                 compute_leaf_layout(
@@ -347,7 +347,7 @@ pub(crate) fn solve(
             return Rects::default();
         }
         let mut rects = Rects::default();
-        gather(&held, arena, root, node, room.origin, &mut rects);
+        gather(&held, arena, root, node, space.origin, &mut rects);
         rects
     })
 }
@@ -364,12 +364,12 @@ pub(crate) fn solve_subtree(
     ui: &egui::Ui,
     scale: f32,
     theme: &Rc<WidgetTheme>,
-    room: &Room,
+    space: &Room,
     fresh: bool,
 ) -> Rects {
     // No touched slots: the pass's first solve pushed them, and the tree they
     // went into is the same one this subtree is solved in.
-    solve(eng, arena, root, ui, scale, theme, room, fresh, &[])
+    solve(eng, arena, root, ui, scale, theme, space, fresh, &[])
 }
 
 /// What one leaf needs, asked of the fonts rather than of last frame's draw.

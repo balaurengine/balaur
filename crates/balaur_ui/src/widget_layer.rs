@@ -635,7 +635,7 @@ fn place_root(
 ) -> crate::widget_taffy::Rects {
     let (pos, align, assigned) = frame;
     let hugs = assigned == egui::Vec2::ZERO;
-    let room = if hugs {
+    let space = if hugs {
         crate::widget_taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, area.size()))
     } else {
         crate::widget_taffy::Room::fixed(egui::Rect::from_min_size(pos, assigned))
@@ -649,7 +649,7 @@ fn place_root(
         &probe,
         painting.scale,
         &theme_root(),
-        &room,
+        &space,
         painting.fresh,
         &touched,
     );
