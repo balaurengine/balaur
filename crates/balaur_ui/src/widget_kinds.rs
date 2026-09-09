@@ -54,14 +54,19 @@ pub(crate) fn dropdown(
     let entity = placed.entity;
     let want = box_of(widget, at.assigned, at.scale);
     let mut chosen = widget.text.clone();
-    let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity))
-        .selected_text(egui::RichText::new(chosen.as_str()).font(font.clone()).color(color));
+    let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity)).selected_text(
+        egui::RichText::new(chosen.as_str())
+            .font(font.clone())
+            .color(color),
+    );
     if want.x > 0.0 {
         combo = combo.width(want.x);
     }
     combo.show_ui(ui, |ui| {
         for option in &widget.options {
-            let label = egui::RichText::new(option.as_str()).font(font.clone()).color(color);
+            let label = egui::RichText::new(option.as_str())
+                .font(font.clone())
+                .color(color);
             ui.selectable_value(&mut chosen, option.clone(), label);
         }
     });
@@ -118,7 +123,11 @@ fn rows(
     } else {
         ui.text_style_height(&egui::TextStyle::Body).max(1.0)
     };
-    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
     let chosen = widget.text.to_string();
     let id = egui::Id::new(("balaur-list", entity));
 
@@ -463,7 +472,11 @@ fn cards(
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = box_of(&widget, at.assigned, at.scale);
     let columns = widget.columns.max(1) as usize;
-    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
     let chosen = widget.text.to_string();
     let gap = 6.0 * at.scale;
     let room = if want.x > 0.0 {
@@ -545,7 +558,11 @@ pub(crate) fn table(
         .filter(|head| !head.is_empty())
         .collect();
     let columns = heads.len().max(1);
-    let items: Vec<String> = widget.options.iter().map(smol_str::SmolStr::to_string).collect();
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
     let chosen = widget.text.to_string();
     let row_h = if widget.row_height > 0.0 {
         widget.row_height * at.scale
@@ -612,7 +629,9 @@ pub(crate) fn menu(
     let label = egui::RichText::new(caption).font(font.clone()).color(color);
     ui.menu_button(label, |ui| {
         for option in &widget.options {
-            let item = egui::RichText::new(option.as_str()).font(font.clone()).color(color);
+            let item = egui::RichText::new(option.as_str())
+                .font(font.clone())
+                .color(color);
             if ui.button(item).clicked() {
                 picked = Some(option.to_string());
                 ui.close();
@@ -774,7 +793,15 @@ pub(crate) fn fold(
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget_taffy::Room::scrolling(body);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, index, ui, at.scale, &at.theme, &space, at.deep(index));
+        at.eng,
+        at.arena,
+        index,
+        ui,
+        at.scale,
+        &at.theme,
+        &space,
+        at.deep(index),
+    );
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(body));
     let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);

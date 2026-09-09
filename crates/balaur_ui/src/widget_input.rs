@@ -154,7 +154,7 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
         };
         // Written straight onto the component, so the arena's copy of this one
         // is stale until the next pass re-reads it.
-        crate::widget_layer::widget_changed(entity);
+        crate::widget_arena::widget_changed(entity);
         match edit {
             Edit::Width(w) => widget.width = *w,
             Edit::Height(h) => widget.height = *h,
@@ -162,13 +162,21 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             Edit::Text(text) => {
                 widget.text = text.as_str().into();
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.to_string(), Value::Str(text.clone())));
+                    signals.push((
+                        entity,
+                        widget.on_change.to_string(),
+                        Value::Str(text.clone()),
+                    ));
                 }
             }
             Edit::Submit(text) => {
                 widget.text = text.as_str().into();
                 if !widget.on_submit.is_empty() {
-                    signals.push((entity, widget.on_submit.to_string(), Value::Str(text.clone())));
+                    signals.push((
+                        entity,
+                        widget.on_submit.to_string(),
+                        Value::Str(text.clone()),
+                    ));
                 }
             }
             Edit::Value(value) => {
@@ -190,7 +198,11 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             Edit::Choice(choice) => {
                 widget.text = choice.as_str().into();
                 if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.to_string(), Value::Str(choice.clone())));
+                    signals.push((
+                        entity,
+                        widget.on_change.to_string(),
+                        Value::Str(choice.clone()),
+                    ));
                 }
             }
             Edit::Color(rgba) => {
@@ -222,7 +234,7 @@ fn settle_clicks(
         // write that put the same `false` back would rebuild the whole arena.
         if widget.clicked != struck {
             widget.clicked = struck;
-            crate::widget_layer::widget_changed(entity);
+            crate::widget_arena::widget_changed(entity);
         }
         if !struck {
             continue;
@@ -230,7 +242,7 @@ fn settle_clicks(
         // A click on a check is the tick itself, by mouse or by `accept`.
         if widget.kind == w::CHECK {
             widget.checked = !widget.checked;
-            crate::widget_layer::widget_changed(entity);
+            crate::widget_arena::widget_changed(entity);
             if !widget.on_change.is_empty() {
                 changes.push((
                     entity,

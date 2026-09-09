@@ -26,6 +26,7 @@ mod splash;
 pub mod text;
 mod theme;
 mod vocabulary;
+mod widget_arena;
 mod widget_arrange;
 mod widget_bindings;
 mod widget_button;

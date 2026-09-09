@@ -115,33 +115,34 @@ fn widgets(c: &mut Criterion) {
                 one_pass(&app, &ctx);
             }
             // One printed breakdown a size, so a run says where the frame went
-        // rather than only how long it was.
-        {
-            let (mut begin, mut run, mut end) = (Duration::ZERO, Duration::ZERO, Duration::ZERO);
-            let rounds = 30;
-            let _ = balaur_ui::pass_phases();
-            for _ in 0..rounds {
-                let (a, b, c) = split(&app, &ctx);
-                begin += a;
-                run += b;
-                end += c;
+            // rather than only how long it was.
+            {
+                let (mut begin, mut run, mut end) =
+                    (Duration::ZERO, Duration::ZERO, Duration::ZERO);
+                let rounds = 30;
+                let _ = balaur_ui::pass_phases();
+                for _ in 0..rounds {
+                    let (a, b, c) = split(&app, &ctx);
+                    begin += a;
+                    run += b;
+                    end += c;
+                }
+                let ms = |d: Duration| d.as_secs_f64() * 1000.0 / f64::from(rounds);
+                let p = balaur_ui::pass_phases();
+                let each = f64::from(rounds);
+                println!(
+                    "BREAKDOWN {shape} {count}: widgets {:.3} | arena {:.3} solve {:.3} (sync {:.3} taffy {:.3}) draw {:.3} input {:.3} | tessellate {:.3}",
+                    ms(run),
+                    p[0] / each,
+                    p[1] / each,
+                    p[4] / each,
+                    p[5] / each,
+                    p[2] / each,
+                    p[3] / each,
+                    ms(end)
+                );
             }
-            let ms = |d: Duration| d.as_secs_f64() * 1000.0 / f64::from(rounds);
-            let p = balaur_ui::pass_phases();
-            let each = f64::from(rounds);
-            println!(
-                "BREAKDOWN {shape} {count}: widgets {:.3} | arena {:.3} solve {:.3} (sync {:.3} taffy {:.3}) draw {:.3} input {:.3} | tessellate {:.3}",
-                ms(run),
-                p[0] / each,
-                p[1] / each,
-                p[4] / each,
-                p[5] / each,
-                p[2] / each,
-                p[3] / each,
-                ms(end)
-            );
-        }
-        group.throughput(Throughput::Elements(count as u64));
+            group.throughput(Throughput::Elements(count as u64));
             group.bench_function(BenchmarkId::new(format!("idle_{shape}"), count), |b| {
                 b.iter(|| one_pass(&app, &ctx));
             });

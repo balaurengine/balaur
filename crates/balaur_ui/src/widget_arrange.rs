@@ -6,11 +6,11 @@
 
 use crate::vocabulary::words as w;
 use crate::widget_layer::{Edit, Painting, Widget, draw_one};
-use smol_str::SmolStr;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
-use std::cell::RefCell;
 use rustc_hash::FxHashMap;
+use smol_str::SmolStr;
+use std::cell::RefCell;
 
 thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —
@@ -54,7 +54,7 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     // A `draw` node's size comes from the script that filled it, not from any
     // property, so this is the one layout input no component write announces.
     if measured_of(entity) != size {
-        crate::widget_layer::widget_changed(entity);
+        crate::widget_arena::widget_changed(entity);
     }
 }
 
@@ -180,7 +180,15 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 vec2(inner.x, inner.y),
             ));
             let solved = crate::widget_taffy::solve_subtree(
-                at.eng, at.arena, index, ui, at.scale, &at.theme, &room, at.deep(index));
+                at.eng,
+                at.arena,
+                index,
+                ui,
+                at.scale,
+                &at.theme,
+                &room,
+                at.deep(index),
+            );
             let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
@@ -252,15 +260,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
-                let mut button =
-                    egui::Button::new(
-                        egui::RichText::new(label.as_str())
-                            .font(font.clone())
-                            .color(color),
-                    )
-                        .corner_radius(egui::CornerRadius::same(
-                            (style.radius.unwrap_or(5.0) * scale) as u8,
-                        ));
+                let mut button = egui::Button::new(
+                    egui::RichText::new(label.as_str())
+                        .font(font.clone())
+                        .color(color),
+                )
+                .corner_radius(egui::CornerRadius::same(
+                    (style.radius.unwrap_or(5.0) * scale) as u8,
+                ));
                 button = match (on, style.fill) {
                     (true, Some(fill)) => button.fill(fill),
                     (true, None) => button.fill(Color32::from_black_alpha(96)),
@@ -287,7 +294,15 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let showing = pages[showing].0;
     let room = crate::widget_taffy::Room::fixed(page);
     let solved = crate::widget_taffy::solve_subtree(
-        at.eng, at.arena, showing, ui, at.scale, &at.theme, &room, at.deep(index));
+        at.eng,
+        at.arena,
+        showing,
+        ui,
+        at.scale,
+        &at.theme,
+        &room,
+        at.deep(index),
+    );
     let restore = at.assigned;
     at.assigned = page.size();
     let held = std::mem::replace(&mut at.rects, solved);

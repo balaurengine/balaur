@@ -289,7 +289,9 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     // row is hard left of the space a floor made.
                     let face = FontId::new(opts.px(k::SIZE, 12.0), theme::family(fam));
                     let ink = ui.fonts_mut(|f| {
-                        f.layout_no_wrap(display.clone(), face, Color32::WHITE).size().x
+                        f.layout_no_wrap(display.clone(), face, Color32::WHITE)
+                            .size()
+                            .x
                     });
                     pad = pad.max((floor - ink) / 2.0);
                 }

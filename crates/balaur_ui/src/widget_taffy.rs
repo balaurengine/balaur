@@ -7,8 +7,8 @@
 //! gaps, padding, alignment, wrapping and the minimum sizes — and the only
 //! thing asked of this crate is what a leaf measures, which is a font query.
 
-use std::cell::RefCell;
 use rustc_hash::FxHashMap;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::Engine;
@@ -152,7 +152,9 @@ fn style_key(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<e
     pad.to_bits().hash(&mut hasher);
     scale.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
-    fills.map(|f| (f.x.to_bits(), f.y.to_bits())).hash(&mut hasher);
+    fills
+        .map(|f| (f.x.to_bits(), f.y.to_bits()))
+        .hash(&mut hasher);
     hasher.finish()
 }
 
@@ -296,9 +298,7 @@ pub(crate) fn solve(
         let mut held = held.borrow_mut();
         let mark = std::time::Instant::now();
         // Only the root when the arena is the one taffy was last given: the
-        // walk exists to notice changes, and nothing it could notice moved.
-        // The root still restyles, because the box it fills is the room's and
-        // a window resize changes that without touching a widget.
+        // walk exists to notice changes, and a resize is the one it could not.
         let node = sync(
             &mut held,
             arena,
@@ -326,8 +326,9 @@ pub(crate) fn solve(
                 true,
             );
         }
-        crate::widget_layer::PHASES
-            .with(|p| p.borrow_mut()[4] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0);
+        crate::widget_layer::PHASES.with(|p| {
+            p.borrow_mut()[4] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0
+        });
         let mark = std::time::Instant::now();
         let solved = held.tree.compute_layout_with_measure(
             node,
@@ -342,8 +343,9 @@ pub(crate) fn solve(
                 )
             },
         );
-        crate::widget_layer::PHASES
-            .with(|p| p.borrow_mut()[5] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0);
+        crate::widget_layer::PHASES.with(|p| {
+            p.borrow_mut()[5] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0
+        });
         if let Err(err) = solved {
             tracing::warn!("widget layout: {err:?}");
             return Rects::default();
@@ -407,18 +409,16 @@ fn sync(
     let drawn = crate::widget_arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
     let key = placed.entity.to_bits().get();
     let stamp = style_key(widget, pad, scale, drawn, fills);
-    // Whether taffy lays this widget's children out, and whether it is
-    // measured as a leaf: a kind that places its own children is, and so is a
-    // container with nothing in it. Neither recurses, which is what lets the
-    // measure happen here with the record already in hand.
+    // A kind that places its own children is measured as a leaf, and so is an
+    // empty container. Neither recurses, so the measure can happen here.
     let owns = is_root || owns_children(&widget.kind);
     let leaf = !owns || placed.children.is_empty();
     let node = {
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
-        let kept = nodes
-            .entry(key)
-            .or_insert_with(|| kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp));
+        let kept = nodes.entry(key).or_insert_with(|| {
+            kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp)
+        });
         // A record can outlive the node it names, when the tree dropped it.
         if tree.style(kept.id).is_err() {
             *kept = kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp);
@@ -458,7 +458,11 @@ fn sync(
         placed
             .children
             .iter()
-            .map(|child| sync(held, arena, *child, &theme, scale, measure, None, false, true))
+            .map(|child| {
+                sync(
+                    held, arena, *child, &theme, scale, measure, None, false, true,
+                )
+            })
             .collect()
     } else {
         Vec::new()
@@ -526,4 +530,3 @@ pub(crate) fn sweep(eng: &Engine) {
         }
     });
 }
-

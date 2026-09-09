@@ -90,13 +90,13 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                crate::widget_layer::widget_changed(entity);
+                crate::widget_arena::widget_changed(entity);
                 eng.world_mut()
                     .insert_one(entity, widget_from(params))
                     .map_err(|_| anyhow::anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
-                crate::widget_layer::widget_changed(entity);
+                crate::widget_arena::widget_changed(entity);
                 let _ = eng.world_mut().remove_one::<Widget>(entity);
                 Ok(())
             }),

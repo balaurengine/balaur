@@ -162,8 +162,12 @@ fn edit(
     let mut buffer = {
         let mut state = state.borrow_mut();
         if state.text_seeds.get(&key).map(String::as_str) != Some(widget.text.as_str()) {
-            state.text_seeds.insert(key.clone(), widget.text.to_string());
-            state.text_buffers.insert(key.clone(), widget.text.to_string());
+            state
+                .text_seeds
+                .insert(key.clone(), widget.text.to_string());
+            state
+                .text_buffers
+                .insert(key.clone(), widget.text.to_string());
         }
         state.text_buffers.get(&key).cloned().unwrap_or_default()
     };

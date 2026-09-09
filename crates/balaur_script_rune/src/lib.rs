@@ -19,6 +19,7 @@ mod inspect;
 mod packed;
 mod pause;
 mod profile;
+mod script;
 mod script_module;
 mod shared;
 mod task;
@@ -112,101 +113,7 @@ enum Purpose {
 /// returning.
 const VM_POOL: usize = 4;
 
-/// A resolved script function.
-#[derive(Clone)]
-struct Method {
-    /// Kept for the paths that hand a callable back to Rune. Behind an `Rc`
-    /// because `Function` is not `Clone` and this is cached, not consumed.
-    function: Rc<Function>,
-    /// Precomputed, for the profiled path that calls a VM by hash.
-    hash: rune::Hash,
-    /// Whether the function runs to completion on the VM that called it. An
-    /// async, generator or stream function's return value holds on to its VM,
-    /// so it cannot use a pooled one.
-    immediate: bool,
-}
-
-struct Script {
-    /// The one `Rc` every instance of this file holds, so a tick can tell two
-    /// instances of the same script apart by pointer rather than by string.
-    key: Rc<str>,
-    unit: Arc<Unit>,
-    source: String,
-    /// The sources the unit was compiled from, kept so a runtime error can be
-    /// rendered against them. `VmError` carries instruction pointers; only
-    /// the sources turn those into a file, a line and a caret. `None` for a
-    /// packed script, which ships without them.
-    sources: Option<Rc<Sources>>,
-    /// Resolved lifecycle and signal handlers. A miss is cached too: most
-    /// scripts define none of `on_free`, and asking every frame is not free.
-    methods: FxHashMap<String, Option<Method>>,
-    /// VMs to reuse: a tick borrows one per script and hands it back at the
-    /// end, which keeps `Function::call`'s per-call `Vm::new` off every node.
-    vms: Vec<Vm>,
-    lines: Rc<debugger::Lines>,
-    functions: Vec<PublicSignature>,
-    /// Every file the unit was compiled from, as watcher keys, this one
-    /// included: a `mod` submodule is folded in here and is a key nowhere
-    /// else, so a save of one has to be mapped back to this root.
-    deps: Vec<String>,
-    /// `exports()` evaluated once, since it is the same table for every node
-    /// running this file. The failure is cached too — a broken `exports` that
-    /// re-ran per attach would fail once per node. A reload replaces the whole
-    /// `Script`, so a changed default reaches the next attach without an
-    /// invalidation step.
-    exports: Option<Result<Vec<(String, balaur_script::Value)>, String>>,
-}
-
-impl Script {
-    fn new(
-        key: Rc<str>,
-        unit: Arc<Unit>,
-        source: String,
-        sources: Sources,
-        deps: Vec<String>,
-    ) -> Self {
-        let lines = Rc::new(debugger::Lines::of(&unit, &source));
-        let functions = public_functions(&source);
-        Self {
-            key,
-            unit,
-            source,
-            sources: Some(Rc::new(sources)),
-            methods: FxHashMap::default(),
-            vms: Vec::new(),
-            lines,
-            functions,
-            deps,
-            exports: None,
-        }
-    }
-
-    /// A script read back from a pack: the unit is already built, and there is
-    /// no source behind it to render a span against or to hot reload from.
-    fn compiled(key: Rc<str>, unit: Arc<Unit>, functions: Vec<PublicSignature>) -> Self {
-        let lines = Rc::new(debugger::Lines::of(&unit, ""));
-        Self {
-            key,
-            unit,
-            source: String::new(),
-            sources: None,
-            methods: FxHashMap::default(),
-            vms: Vec::new(),
-            lines,
-            functions,
-            deps: Vec::new(),
-            exports: None,
-        }
-    }
-}
-
-struct Instance {
-    /// Shared with every other record naming this script: a tick collects one
-    /// key per instance per frame, and a `String` there is an allocation per
-    /// node per frame for a name that never changes.
-    key: Rc<str>,
-    state: rune::Value,
-}
+use crate::script::{Instance, Method, Script};
 
 /// One suspended async method: a VM future parked until `task::wait` finds
 /// its wake, polled again on every wake.
