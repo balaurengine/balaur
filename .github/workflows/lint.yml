@@ -42,6 +42,9 @@ jobs:
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
+          # The image's Chrome and Microsoft repos, which nothing here installs
+          # from: a hash mismatch in one fails the whole `apt-get update`.
+          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
           sudo apt-get update
           sudo apt-get install -y \
             libasound2-dev libudev-dev \

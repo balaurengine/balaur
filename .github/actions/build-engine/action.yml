@@ -87,6 +87,9 @@ runs:
     - if: inputs.build-deps == 'true' && runner.os == 'Linux'
       shell: bash
       run: |
+        # The image's Chrome and Microsoft repos, which nothing here installs
+        # from: a hash mismatch in one fails the whole `apt-get update`.
+        sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
         sudo apt-get update
         sudo apt-get install -y \
           libasound2-dev libudev-dev \
@@ -131,7 +134,11 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        sudo apt-get update && sudo apt-get install -y binaryen brotli bc
+        # The image's Chrome and Microsoft repos, which nothing here installs
+        # from: a hash mismatch in one fails the whole `apt-get update`.
+        sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
+        sudo apt-get update
+        sudo apt-get install -y binaryen brotli bc
         want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
         cargo install wasm-bindgen-cli --version "$want" --locked
 

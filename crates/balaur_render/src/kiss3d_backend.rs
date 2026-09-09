@@ -250,7 +250,7 @@ impl Frontend {
         crate::debug_lines::flush_debug_lines_2d(app, window);
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
-        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
+        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen, idle_motion) {
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
         }
         // On-screen keyboard follows ui keyboard focus, edge-detected after

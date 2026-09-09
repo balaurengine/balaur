@@ -27,7 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Linux build deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+        run: |
+          # The image's Chrome and Microsoft repos, which nothing here installs
+          # from: a hash mismatch in one fails the whole `apt-get update`.
+          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -44,7 +49,12 @@ jobs:
       # gen_docs boots the engine to read the script API out of it rather than
       # parsing source, so it needs whatever balaur_cli needs to build.
       - name: Linux build deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+        run: |
+          # The image's Chrome and Microsoft repos, which nothing here installs
+          # from: a hash mismatch in one fails the whole `apt-get update`.
+          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}

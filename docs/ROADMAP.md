@@ -84,6 +84,7 @@ keeps its history and the tag's notes are the rows themselves.
 | **More importers** — Spine and DragonBones for 2D skeletal animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
+| **Faster transcendentals** — `sin`, `cos`, `exp`, `log` and `pow` on polynomial approximations rather than `libm`, deterministic either way, chosen per project. | 0.7 | [PLAN-fast-math.md](PLAN-fast-math.md) |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
 | **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
@@ -153,6 +154,7 @@ can do today, in the batches it would be built in.
 | **Voxels and terrain** — block types in a `voxel_set`, a greedy chunk mesher, a chunked grid file, a Voxels tool, `.vox` import, and heightfield meshing. | 0.3 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture, and picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus, render-side only. | 0.3 | no plan |
+| **WebGL2 beside WebGPU** — a browser without WebGPU falls back to a GL backend picked at boot, minus the compute passes it cannot serve. | 0.6 | [PLAN-web-backends.md](PLAN-web-backends.md) |
 | **Post-process materials** — a name in `camera.post` the engine does not know is a `material` drawn over the whole frame, with `tonemap` the boundary. | 0.1 | no plan |
 | **Terrain sculpting and foliage** — brushes over the `heightfield` asset, splat maps for the textures between them, and grass and trees scattered by painting. | 0.9 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **Occlusion culling** — what stands behind a wall skipped, over a software depth rasteriser. | 0.9 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
