@@ -217,7 +217,7 @@ fn system_cache() -> &'static [FontFace] {
         SYSTEM_FACES
             .iter()
             .filter_map(|path| {
-                let bytes = std::fs::read(path).ok()?;
+                let bytes = std::fs::read(path).ok()?; // os files: the system's own faces
                 Some(FontFace {
                     name: format!("system:{path}"),
                     chain: "system",
@@ -275,10 +275,31 @@ pub(crate) fn font_faces(eng: &Engine) -> Vec<FontFace> {
             tracing::info!("ui: loaded font {stem}");
         }
     }
+    let ships_own = !faces.is_empty();
     if wants_system_fonts(eng) {
         faces.extend(system_faces());
     }
+    // Behind the OS faces, and only for a project carrying none of its own:
+    // wasm reads no system face, and an empty face list aborts the shaper.
+    if !ships_own {
+        faces.push(fallback_face());
+    }
     faces
+}
+
+/// The face every build carries, so the shaper is never handed nothing.
+fn fallback_face() -> FontFace {
+    static LOADED: std::sync::OnceLock<std::sync::Arc<Vec<u8>>> = std::sync::OnceLock::new();
+    let bytes = LOADED.get_or_init(|| {
+        std::sync::Arc::new(
+            include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
+        )
+    });
+    FontFace {
+        name: "ui-SourceSans3-Regular".into(),
+        chain: "ui",
+        bytes: std::sync::Arc::clone(bytes),
+    }
 }
 
 /// Whether this project wants the operating system's faces appended, from
@@ -334,9 +355,13 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         heading_chain.clone_from(&ui_chain);
     }
     // Icons resolve wherever a glyph is written, so they join every chain.
+    let text_faces = ui_chain.clone();
     for chain in [&mut heading_chain, &mut ui_chain, &mut mono_chain] {
         chain.extend(icon_chain.iter().cloned());
     }
+    // And the other way: an icon table names letters where a Fill face draws
+    // a tile — `×` closes a tab — and no icon face has those glyphs.
+    icon_chain.extend(text_faces);
     for chain in [
         &mut heading_chain,
         &mut ui_chain,
@@ -351,7 +376,8 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         }
     }
     heading_chain.extend(default_prop.clone());
-    ui_chain.extend(default_prop);
+    ui_chain.extend(default_prop.clone());
+    icon_chain.extend(default_prop);
     mono_chain.extend(default_mono);
 
     fonts
@@ -367,4 +393,34 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         .families
         .insert(FontFamily::Name("icon".into()), icon_chain);
     ctx.set_fonts(fonts);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A measurement shapes over the project's own faces alone, and wasm reads
+    /// no OS face: with no `fonts/` of its own that set was empty and aborted.
+    #[test]
+    fn a_project_with_no_fonts_of_its_own_still_measures() {
+        let faces = font_faces(&Engine::new());
+        assert!(
+            faces.iter().any(|face| face.chain != "system"),
+            "nothing outside the system's faces to shape with"
+        );
+        let size = crate::text::TextState::new(&faces, "en-US").measure(&crate::text::Request {
+            text: "measure me".into(),
+            size: 24.0,
+            weight: 400,
+            italic: false,
+            width: None,
+            align: crate::text::Align::Start,
+            markup: false,
+            font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
+        });
+        assert!(size.x > 0.0, "measured no width");
+    }
 }

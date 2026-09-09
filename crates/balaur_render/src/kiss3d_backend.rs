@@ -533,6 +533,14 @@ fn apply_window_config(app: &App, window: &Window) {
     crate::device::keep_awake(config.keep_awake);
 }
 
+/// The snapped frame as PNG bytes, so the backend writes them wherever it
+/// keeps files.
+fn encoded_png(image: &image::RgbImage) -> std::result::Result<Vec<u8>, image::ImageError> {
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, image::ImageFormat::Png)?;
+    Ok(bytes.into_inner())
+}
+
 fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     let Some(request) = app.engine.try_resource::<ScreenshotRequest>() else {
         return;
@@ -555,14 +563,20 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
         }
     }
     let image = window.snap_image();
-    // The path is the caller's and may name a directory that is not there
-    // yet: a run capturing a frame per tick writes them all into one.
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    match image.save(&path) {
-        Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
-        Err(err) => tracing::error!("screenshot failed: {err}"),
+    // Encoded here and handed to the backend: a browser has no disk to save
+    // to, and the path may name a directory that is not there yet.
+    match encoded_png(&image) {
+        Ok(bytes) => {
+            let fs = balaur_core::files::backend(&app.engine);
+            if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+                let _ = fs.mkdir(dir);
+            }
+            match fs.write(&path, &bytes) {
+                Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
+                Err(err) => tracing::error!("screenshot failed: {err:#}"),
+            }
+        }
+        Err(err) => tracing::error!("screenshot failed: {err:#}"),
     }
     app.engine.remove_resource::<ScreenshotRequest>();
 }

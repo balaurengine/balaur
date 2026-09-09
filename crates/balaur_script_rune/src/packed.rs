@@ -129,7 +129,10 @@ pub(crate) fn module_files(root: &Path) -> BTreeSet<String> {
     collect_scripts(root, root, &mut files);
     let mut found = BTreeSet::new();
     for rel in &files {
-        let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+        let Ok(bytes) = balaur_core::files::default_backend().read(&root.join(rel)) else {
+            continue;
+        };
+        let Ok(text) = String::from_utf8(bytes) else {
             continue;
         };
         let dir = Path::new(rel)
@@ -174,21 +177,16 @@ fn declared_mods(source: &str) -> Vec<String> {
 
 /// Every `.rn` under `dir`, as project-relative keys, in a fixed order.
 fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(std::result::Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            !path
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
-        })
+    let fs = balaur_core::files::default_backend();
+    let mut paths: Vec<(PathBuf, bool)> = fs
+        .list(dir)
+        .into_iter()
+        .filter(|(name, _)| !name.starts_with('.'))
+        .map(|(name, is_dir)| (dir.join(name), is_dir))
         .collect();
     paths.sort();
-    for path in paths {
-        if path.is_dir() {
+    for (path, is_dir) in paths {
+        if is_dir {
             collect_scripts(root, &path, out);
         } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
             && let Ok(rel) = path.strip_prefix(root)

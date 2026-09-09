@@ -23,12 +23,13 @@ pub const MATERIAL_ASSET_TYPE: &str = "material";
 pub(crate) fn shader_text(eng: &Engine, reference: &str, shader: &str) -> Result<String> {
     let material = std::path::Path::new(reference);
     if balaur_core::files::rooted(material) {
+        let fs = balaur_core::files::backend(eng);
         let mut dir = material.parent();
         while let Some(d) = dir {
-            if d.join("project.toml").exists() {
+            if fs.exists(&d.join("project.toml")) {
                 let full = d.join(shader);
-                if full.exists() {
-                    return Ok(std::fs::read_to_string(full)?);
+                if let Ok(bytes) = fs.read(&full) {
+                    return Ok(String::from_utf8(bytes)?);
                 }
                 break;
             }

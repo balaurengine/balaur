@@ -75,12 +75,18 @@ modules! {
 /// The project's manifest, read the way `standard_app` needs it: before the
 /// app exists, so it cannot come from `App::manifest`.
 ///
+/// A file as text through the backend in force, or `None`: the browser's
+/// project is a store rather than a disk, and every reader here takes it.
+fn text_of(path: &std::path::Path) -> Option<String> {
+    String::from_utf8(balaur_core::files::default_backend().read(path).ok()?).ok()
+}
+
 /// A manifest that will not parse reads as absent. `App::load_project` is
 /// where that becomes the error a person can act on.
 fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManifest> {
     let text = match &config.pack {
         Some(pack) => pack.manifest.clone(),
-        None => std::fs::read_to_string(config.project_root.join("project.toml")).ok()?,
+        None => text_of(&config.project_root.join("project.toml"))?,
     };
     balaur_core::project::ProjectManifest::parse(&text).ok()
 }
@@ -173,7 +179,7 @@ pub fn check_project_using(
         let mut found = Vec::new();
         for rel in scene_scripts(project_root) {
             let path = project_root.join(&rel);
-            let Ok(source) = std::fs::read_to_string(&path) else {
+            let Some(source) = text_of(&path) else {
                 found.push(balaur_script_rune::Finding {
                     file: rel.clone(),
                     line: 0,
@@ -203,19 +209,17 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
     let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut dirs = vec![project_root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
+        let fs = balaur_core::files::default_backend();
+        for (name, is_dir) in fs.list(&dir) {
+            let path = dir.join(&name);
+            if is_dir {
                 dirs.push(path);
                 continue;
             }
             if path.extension().and_then(|e| e.to_str()) != Some("toml") {
                 continue;
             }
-            let Ok(text) = std::fs::read_to_string(&path) else {
+            let Some(text) = text_of(&path) else {
                 continue;
             };
             let Ok(document) = text.parse::<toml::Table>() else {

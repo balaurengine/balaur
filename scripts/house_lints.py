@@ -361,6 +361,18 @@ def item_rules(rel, i, line) -> list[Finding]:
         out.append(Finding(rel, i, "pub-inner",
                            f"`{m.group(2)}`: no `pub` item is named *Inner — it publishes what "
                            "the outer type's accessors exist to mediate (N12)", "ERROR"))
+    # Crates the browser runs: their files come from the backend in force,
+    # which is a store in a tab and the disk on a desktop.
+    if (re.search(r"\bstd::fs::", line)
+            and str(rel).startswith(("crates/balaur_core/", "crates/balaur_render/",
+                                     "crates/balaur_ui/", "crates/balaur_script_rune/",
+                                     "crates/balaur/"))
+            and not is_test_file(rel)
+            and "// os files:" not in line
+            and not str(rel).endswith(("files.rs", "standalone.rs"))):
+        out.append(Finding(rel, i, "std-fs",
+                           "`std::fs` reaches a disk the web build has none of: read and write "
+                           "through `files::backend`", "ERROR"))
     if (re.search(r"\.is_absolute\(\)", line)
             and not str(rel).endswith("files.rs")
             and not is_test_file(rel)):

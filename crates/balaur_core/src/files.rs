@@ -29,6 +29,14 @@ use crate::engine::Engine;
 pub trait FileBackend {
     fn read(&self, path: &Path) -> Result<Vec<u8>>;
     fn write(&self, path: &Path, bytes: &[u8]) -> Result<()>;
+    /// Add to the end of a file, making it when it is not there yet. The
+    /// default rewrites the whole file; a backend that can do better says so,
+    /// because a session recorder appends a line per frame.
+    fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        let mut all = self.read(path).unwrap_or_default();
+        all.extend_from_slice(bytes);
+        self.write(path, &all)
+    }
     fn exists(&self, path: &Path) -> bool;
     fn is_dir(&self, path: &Path) -> bool;
     /// Delete a file, or a directory and everything under it. Answers whether
@@ -131,6 +139,23 @@ impl FileBackend for DiskFs {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, bytes).with_context(|| format!("writing '{}'", path.display()))
+    }
+
+    /// A real append, and flushed: a recorder writes a line per frame, and a
+    /// run that crashes keeps every frame it had written.
+    fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        use std::io::Write as _;
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .with_context(|| format!("appending to '{}'", path.display()))?;
+        file.write_all(bytes)?;
+        file.flush()?;
+        Ok(())
     }
 
     fn exists(&self, path: &Path) -> bool {
@@ -368,6 +393,19 @@ impl FileBackend for MemoryFs {
         let mut inner = self.inner.borrow_mut();
         let full = key(path);
         inner.files.insert(full.clone(), bytes.to_vec());
+        inner.touch(full, now);
+        Ok(())
+    }
+
+    fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        let now = self.now();
+        let mut inner = self.inner.borrow_mut();
+        let full = key(path);
+        inner
+            .files
+            .entry(full.clone())
+            .or_default()
+            .extend_from_slice(bytes);
         inner.touch(full, now);
         Ok(())
     }

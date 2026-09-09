@@ -66,7 +66,14 @@ fn a_recording_round_trips_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("s.blr");
 
-    let mut recorder = Recorder::create(&path, header(), true, 0).unwrap();
+    let mut recorder = Recorder::create(
+        balaur_core::files::default_backend(),
+        &path,
+        header(),
+        true,
+        0,
+    )
+    .unwrap();
     for tick in 1..=3u64 {
         recorder
             .write(&Frame {
@@ -104,7 +111,14 @@ fn a_recording_from_a_future_format_is_refused_by_name() {
     let path = dir.path().join("s.blr");
     let mut future = header();
     future.format = replay::FORMAT + 1;
-    let mut recorder = Recorder::create(&path, future, false, 0).unwrap();
+    let mut recorder = Recorder::create(
+        balaur_core::files::default_backend(),
+        &path,
+        future,
+        false,
+        0,
+    )
+    .unwrap();
     recorder.write(&Frame::default()).unwrap();
     drop(recorder);
 
@@ -547,4 +561,44 @@ fn a_frame_recorded_while_the_debugger_froze_the_root_replays_frozen() {
         "a --verify session with one breakpoint hit must not part from itself"
     );
     assert!(!app.engine.is_frozen(), "and the freeze did not leak out");
+}
+
+/// The browser records into the store its project lives in: no disk, and the
+/// path the editor names is the one the session comes back from.
+///
+/// On a thread of its own: the default backend is thread-local, and no other
+/// test in this binary may find a memory filesystem where the disk should be.
+#[test]
+fn a_session_records_into_the_backend_rather_than_the_disk() {
+    std::thread::spawn(|| {
+        let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
+        balaur_core::files::set_default(fs.clone());
+        let path = std::path::Path::new("/project/user_data/sessions/s.blr");
+
+        let mut recorder = Recorder::create(fs.clone(), path, header(), false, 0).unwrap();
+        recorder
+            .write(&Frame {
+                tick: 1,
+                dt: (1.0f32 / 60.0).to_bits(),
+                ..Frame::default()
+            })
+            .unwrap();
+        recorder
+            .finish(&Trailer {
+                reason: String::from("stop"),
+                tick: 1,
+                digest: None,
+            })
+            .unwrap();
+
+        let session = Session::read(path).expect("the session reads back");
+        assert_eq!(session.frames.len(), 1, "the frame was recorded");
+        assert_eq!(
+            session.trailer.map(|t| t.reason).as_deref(),
+            Some("stop"),
+            "the session closed",
+        );
+    })
+    .join()
+    .unwrap();
 }
