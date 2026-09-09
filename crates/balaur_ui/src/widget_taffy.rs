@@ -296,7 +296,6 @@ pub(crate) fn solve(
     let mut measure = Measure::new(eng, arena, ui, scale);
     TREE.with(|held| {
         let mut held = held.borrow_mut();
-        let mark = std::time::Instant::now();
         // Only the root when the arena is the one taffy was last given: the
         // walk exists to notice changes, and a resize is the one it could not.
         let node = sync(
@@ -326,10 +325,6 @@ pub(crate) fn solve(
                 true,
             );
         }
-        crate::widget_layer::PHASES.with(|p| {
-            p.borrow_mut()[4] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0
-        });
-        let mark = std::time::Instant::now();
         let solved = held.tree.compute_layout_with_measure(
             node,
             room.space,
@@ -343,9 +338,6 @@ pub(crate) fn solve(
                 )
             },
         );
-        crate::widget_layer::PHASES.with(|p| {
-            p.borrow_mut()[5] += (std::time::Instant::now() - mark).as_secs_f64() * 1000.0
-        });
         if let Err(err) = solved {
             tracing::warn!("widget layout: {err:?}");
             return Rects::default();

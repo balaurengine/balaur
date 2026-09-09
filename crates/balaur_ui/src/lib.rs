@@ -57,15 +57,6 @@ pub use widget_theme::WidgetTheme;
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget_arrange::drawn_at(entity)
 }
-/// Temporary: milliseconds a pass spent in arena, solve, draw and input.
-#[must_use]
-pub fn pass_phases() -> [f64; 6] {
-    widget_layer::PHASES.with(|p| {
-        let held = *p.borrow();
-        *p.borrow_mut() = [0.0; 6];
-        held
-    })
-}
 
 pub use widgets::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 

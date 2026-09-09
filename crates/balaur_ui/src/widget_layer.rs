@@ -478,21 +478,9 @@ fn root_frame(
     (pos, align, egui::Vec2::ZERO, egui::Order::Middle)
 }
 
-thread_local! {
-    /// Temporary: where a pass's time went, for the optimisation work.
-    pub(crate) static PHASES: RefCell<[f64; 6]> = const { RefCell::new([0.0; 6]) };
-}
-
-fn phase(slot: usize, at: std::time::Instant) -> std::time::Instant {
-    let now = std::time::Instant::now();
-    PHASES.with(|p| p.borrow_mut()[slot] += (now - at).as_secs_f64() * 1000.0);
-    now
-}
-
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
-    let mut clock = std::time::Instant::now();
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
@@ -516,7 +504,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         fresh,
         touched,
     } = begin(eng, stamp);
-    clock = phase(0, clock);
     // Nothing to draw and nothing to focus: a scene with no widgets pays for
     // the resource lookup and no more.
     if placed.is_empty() {
@@ -576,7 +563,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             }
             None => screen,
         };
-        draw_root(ctx, &mut painting, root, area, &mut clock);
+        draw_root(ctx, &mut painting, root, area);
     }
     // Published at the end of the draw, not the start of the next one: a
     // script's `draw_ui` runs after this and reads this frame's rects.
@@ -592,7 +579,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
     // would be a different event, and not a useful one.
     let arrived = (focused != was_focused).then_some(focused).flatten();
     crate::widget_input::record(eng, &clicked, edits, arrived);
-    phase(3, clock);
 }
 
 /// Draw one root into the area its surface gives it, and record where it
@@ -603,7 +589,6 @@ fn draw_root(
     painting: &mut Painting<'_>,
     root: usize,
     area: egui::Rect,
-    clock: &mut std::time::Instant,
 ) {
     let (eng, placed, scale) = (painting.eng, painting.arena, painting.scale);
     let entity = placed[root].entity;
@@ -614,7 +599,6 @@ fn draw_root(
     let (pos, align, assigned, order) = root_frame(widget, area, scale);
     painting.assigned = assigned;
     painting.rects = place_root(eng, ctx, painting, root, area, (pos, align, assigned));
-    *clock = phase(1, *clock);
     let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
         .order(order)
         .pivot(align)
@@ -632,7 +616,6 @@ fn draw_root(
             }
             draw_one(ui, painting, root);
         });
-    *clock = phase(2, *clock);
     painting.assigned = egui::Vec2::ZERO;
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
