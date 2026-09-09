@@ -281,9 +281,11 @@ fn row_spot(S, i) {
 // row per line at the editor's line height.
 fn gutter_spot(S, line) {
     let doc = S.layout.doc;
-    log::info(format!("PROBE gutter line={} doc_y={} doc_h={} spot_y={} bottom={}",
-        line, doc.y, doc.h, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H, doc.y + doc.h));
-    (doc.x + 17.0, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H)
+    // The pane does not scroll, so a line past its foot answers with the last
+    // one it shows rather than a pointer drawn below the pane.
+    let last = util::i((doc.h - CODE_TOP - LINE_H) / LINE_H) + 1;
+    let n = if line > last { last } else { line };
+    (doc.x + 17.0, doc.y + CODE_TOP + ((n - 1) as f64) * LINE_H)
 }
 
 // A click a viewer can follow: the cursor walks in, presses where the control
@@ -421,15 +423,18 @@ fn scripting(S, q) {
     click(S, q, 30, || spot(S, "script_tab"), || shell::set_persona(S, "script"));
     click_row(S, q, 110, "Spinner");
     click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
-    // The edit lands on the line the cursor is resting on.
+    // The cursor rests on the edited line, or on the last one the pane can
+    // show when the edit is below its foot.
     glide(S, q, 300 - GLIDE, 300, || {
         let (x, y) = gutter_spot(S, line_of(S, rel, "this.angle += dt"));
         (x + 220.0, y)
     });
     act(q, 320, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
     chord(S, q, 400, ["LWin", "S"], || shell::save_active(S));
-    click(S, q, 520, || gutter_spot(S, line_of(S, rel, "let nudge")),
-        || shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge")));
+    // A line the pane shows: the marker, the stop and the stepped line all
+    // have to land where the click was drawn.
+    click(S, q, 520, || gutter_spot(S, line_of(S, rel, "action_just_pressed")),
+        || shell::toggle_breakpoint(S, rel, line_of(S, rel, "action_just_pressed")));
     chord(S, q, 640, ["F10"], || {
         if S.debug.paused is Object {
             shell::resume(S, debugger::STEP_OVER);
@@ -460,7 +465,9 @@ fn completion(S, q) {
     // Re-opened every frame: `center::code_pane` runs after this and would
     // otherwise close it from the widget's own caret, which offscreen is none.
     over_ui(q, 20, 400, |_| {
-        let line = line_of(S, rel, "this.angle += dt");
+        // `init`, not `update`: the pane does not scroll to a caret the
+        // showcase places, so the popup has to open where it already looks.
+        let line = line_of(S, rel, "pub fn init");
         open_at(S, rel, line, "    physics2d::a");
     });
     act(q, 420, || restore_source(S, rel, q));
