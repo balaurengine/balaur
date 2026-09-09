@@ -7,7 +7,7 @@
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
-use egui::{Align, Color32, FontId, Layout, Margin, Sense, Stroke, pos2, vec2};
+use egui::{Align, Color32, CursorIcon, FontId, Layout, Margin, Sense, Stroke, pos2, vec2};
 
 use crate::bridge::{scoped, with_ui};
 use crate::theme::{self, parse_hex};
@@ -20,7 +20,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
         ("horizontal", &[], "", "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels."),
         ("vertical", &[], "", "Lay the callback's widgets out in a column."),
         ("right", &[], "", "Lay the callback's widgets out against the right edge, still declared left to right."),
-        ("frame", &[], "", "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does."),
+        ("frame", &[], "", "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does, and `hover_fill` is the colour it takes while the pointer is over it."),
     ]);
     m.function(
         "horizontal",
@@ -81,35 +81,48 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
+                let corner = pill_radius(opts.px(k::RADIUS, 0.0) * 2.0);
                 let mut frame = egui::Frame::new()
                     .inner_margin(Margin::symmetric(
                         opts.px(k::PADDING_X, 0.0) as i8,
                         opts.px(k::PADDING_Y, 0.0) as i8,
                     ))
-                    .corner_radius(pill_radius(opts.px(k::RADIUS, 0.0) * 2.0));
-                if let Some(fill) = opts.opt_color(k::FILL) {
-                    frame = frame.fill(fill);
-                }
+                    .corner_radius(corner);
                 if let Some(stroke) = opts.opt_color(k::STROKE) {
                     frame = frame.stroke(Stroke::new(1.0, stroke));
                 }
+                // Our fill, booked before the content: a hover is only known
+                // once the box is laid out, and it has to land under it.
+                let plate = ui.painter().add(egui::Shape::Noop);
                 let framed = frame.show(ui, |ui| {
                     result = scoped(eng, ui, cb);
                 });
+                let rect = framed.response.rect;
+                let mut fill = opts.opt_color(k::FILL);
                 // A frame that carries a menu or a tooltip answers the pointer
                 // over all of itself, so a mark and the name beside it are one
                 // control rather than a picture with dead text next to it.
                 let tip = opts.string(k::TOOLTIP);
-                let hot = tip.is_some()
-                    || opts.callback(k::MENU).is_some()
-                    || opts.callback(k::MENU_CLICK).is_some();
-                if hot {
-                    let response =
-                        ui.interact(framed.response.rect, framed.response.id, Sense::click());
+                let menued = opts.callback(k::MENU).is_some();
+                let clicked = opts.callback(k::MENU_CLICK).is_some();
+                if tip.is_some() || menued || clicked {
+                    let mut response = ui.interact(rect, framed.response.id, Sense::click());
+                    if response.hovered() {
+                        fill = opts.opt_color(k::HOVER_FILL).or(fill);
+                    }
+                    // Only what a left click opens says "press me"; a frame
+                    // with a right-click menu is not a button.
+                    if clicked {
+                        response = response.on_hover_cursor(CursorIcon::PointingHand);
+                    }
                     if let Some(tip) = tip {
                         response.clone().on_hover_text(tip);
                     }
                     attach_menus(eng, &response, &opts);
+                }
+                if let Some(fill) = fill {
+                    ui.painter()
+                        .set(plate, egui::epaint::RectShape::filled(rect, corner, fill));
                 }
                 result
             })
@@ -272,6 +285,15 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     }
                 }
                 display.push_str(&s);
+                // Read before the button is built, the way egui reads its own:
+                // the paint has to know the state, and the state is what the
+                // pointer did to this control on the pass before.
+                let was = ui.ctx().read_response(ui.next_auto_id());
+                let opts = opts.in_state(
+                    was.as_ref().is_some_and(egui::Response::hovered),
+                    was.as_ref()
+                        .is_some_and(egui::Response::is_pointer_button_down_on),
+                );
                 let rt = text(
                     &display,
                     opts.px(k::SIZE, 12.0),
@@ -343,9 +365,14 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
     let h = opts.px(k::HEIGHT, 26.0);
     let (rect, response) =
         ui.allocate_exact_size(vec2(opts.px(k::WIDTH, 180.0), h), Sense::click());
+    let opts = &opts.in_state(response.hovered(), response.is_pointer_button_down_on());
+    // The theme's fill where its role names one, and a wash where it does not:
+    // a menu row has always lit up, and no theme should have to say so.
+    let lit = opts
+        .opt_color(k::FILL)
+        .unwrap_or(Color32::from_white_alpha(10));
     if response.hovered() {
-        ui.painter()
-            .rect_filled(rect, pill_radius(h), Color32::from_white_alpha(10));
+        ui.painter().rect_filled(rect, pill_radius(h), lit);
     }
     let color = opts.color(k::COLOR, Color32::WHITE);
     let font = FontId::new(opts.px(k::SIZE, 12.5), theme::family("ui"));
@@ -400,13 +427,16 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                     egui::Sense::click()
                 };
                 let (rect, response) = ui.allocate_exact_size(vec2(d, d), sense);
+                let hovered = !off && response.hovered();
+                let opts = &opts.in_state(hovered, response.is_pointer_button_down_on());
                 let ink = opts
                     .opt_color(k::COLOR)
                     .unwrap_or_else(|| ui.visuals().text_color());
                 let ink = if off { ink.gamma_multiply(0.4) } else { ink };
                 let fill = opts.color(k::FILL, Color32::TRANSPARENT);
-                let hovered = !off && response.hovered();
-                let fill = if hovered {
+                // A theme that leaves the state unsaid still lights the button
+                // up, so a rail of glyphs answers the pointer out of the box.
+                let fill = if hovered && fill == Color32::TRANSPARENT {
                     ui.visuals().widgets.hovered.bg_fill
                 } else {
                     fill

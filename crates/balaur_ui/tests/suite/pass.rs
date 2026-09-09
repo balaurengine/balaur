@@ -354,7 +354,7 @@ fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
 }
 
 /// One pass over the same context, with the events the caller feeds it.
-fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) {
+fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::pos2(0.0, 0.0),
@@ -367,6 +367,18 @@ fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) {
     balaur_ui::run_pass(&app.engine, ctx);
     let mut out = ctx.end_pass();
     out.textures_delta.clear();
+    out
+}
+
+/// The colours of the filled boxes a pass painted.
+fn fills(out: &egui::FullOutput) -> Vec<egui::Color32> {
+    out.shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Rect(rect) => Some(rect.fill),
+            _ => None,
+        })
+        .collect()
 }
 
 fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
@@ -407,6 +419,49 @@ fn a_frame_menu_opens_from_a_click_on_its_caption() {
     feed(&app, &ctx, vec![]);
     let drawn = field(&app, "rows").unwrap_or(0.0);
     assert!(drawn > 0.0, "a click on the caption opened no menu");
+}
+
+/// The same frame takes `hover_fill` while the pointer is over it, painted
+/// under the callback's own widgets rather than over them.
+#[test]
+fn a_frame_menu_lights_up_under_the_pointer() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        ui::central_panel(#{}, || {
+            ui::frame(#{
+                padding_x: 8, fill: "#101215", hover_fill: "#2b3037",
+                menu_click: || { ui::menu_item("Open", #{ width: 120 }); },
+            }, || {
+                ui::label("Balaur", #{});
+            });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let cold = egui::Color32::from_rgb(0x10, 0x12, 0x15);
+    let warm = egui::Color32::from_rgb(0x2b, 0x30, 0x37);
+    let away = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))],
+    );
+    assert!(
+        fills(&away).contains(&cold),
+        "the resting fill went missing"
+    );
+    assert!(
+        !fills(&away).contains(&warm),
+        "it lit up with the pointer away"
+    );
+    let over = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(30.0, 14.0))],
+    );
+    assert!(
+        fills(&over).contains(&warm),
+        "the pointer over it lit nothing"
+    );
 }
 
 /// `menu_click` hangs a menu off a left click. The rows are the callback's,

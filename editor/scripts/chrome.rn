@@ -147,7 +147,7 @@ pub fn top_bar(S) {
     // The menu hangs off the whole brand, mark and name and caret alike: the
     // name beside a picture reads as part of the same control.
     ui::frame(#{
-        fill: k.sunken, radius: 6, padding_x: 3,
+        fill: k.sunken, hover_fill: k.raised, radius: 6, padding_x: 3,
         tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
     }, || {
         ui::horizontal(#{ height: h - 4.0, tight: true }, || {
