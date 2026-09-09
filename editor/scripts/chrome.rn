@@ -48,7 +48,7 @@ fn brand(S) {
     if !(found is Object) {
         let logo = brand_logo(S);
         found = if logo == "" {
-            #{ logo: "assets/balaur-logo.png", name: "balaur" }
+            #{ logo: "assets/balaur-logo.png", name: "Balaur" }
         } else {
             #{ logo: logo, name: S.game_name }
         };
@@ -138,18 +138,22 @@ fn strip_spot(S, slot) {
 // The strip beside the brand, which every control past it lives on.
 const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadStrip";
 
-/// The brand, drawn into the rect its node hands over: it is a picture with a
-/// menu hanging off it, which is the one control here a node cannot yet be.
+/// The brand, drawn into the rect its node hands over: a picture and a name
+/// under one menu, which is the one control here a node cannot yet be.
 pub fn top_bar(S) {
     let k = S.theme;
     let h = row_h(S);
     let mark = brand(S);
-    ui::frame(#{ fill: k.sunken, radius: 6, padding_x: 3 }, || {
+    // The menu hangs off the whole brand, mark and name and caret alike: the
+    // name beside a picture reads as part of the same control.
+    ui::frame(#{
+        fill: k.sunken, radius: 6, padding_x: 3,
+        tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
+    }, || {
         ui::horizontal(#{ height: h - 4.0, tight: true }, || {
             ui::spacing(3, 0);
-            ui::image_button(mark.logo, #{
-                height: h - 12.0, radius: 9, fill: "#ffffff", padding: 2,
-                tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
+            ui::image(mark.logo, #{
+                height: h - 12.0, radius: 9, bg: "#ffffff", padding: 2,
             });
             ui::label(mark.name, #{ role: "title", color: k.text });
             ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });

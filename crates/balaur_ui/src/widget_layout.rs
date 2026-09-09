@@ -20,7 +20,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
         ("horizontal", &[], "", "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels."),
         ("vertical", &[], "", "Lay the callback's widgets out in a column."),
         ("right", &[], "", "Lay the callback's widgets out against the right edge, still declared left to right."),
-        ("frame", &[], "", "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels."),
+        ("frame", &[], "", "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does."),
     ]);
     m.function(
         "horizontal",
@@ -93,9 +93,24 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
                 if let Some(stroke) = opts.opt_color(k::STROKE) {
                     frame = frame.stroke(Stroke::new(1.0, stroke));
                 }
-                frame.show(ui, |ui| {
+                let framed = frame.show(ui, |ui| {
                     result = scoped(eng, ui, cb);
                 });
+                // A frame that carries a menu or a tooltip answers the pointer
+                // over all of itself, so a mark and the name beside it are one
+                // control rather than a picture with dead text next to it.
+                let tip = opts.string(k::TOOLTIP);
+                let hot = tip.is_some()
+                    || opts.callback(k::MENU).is_some()
+                    || opts.callback(k::MENU_CLICK).is_some();
+                if hot {
+                    let response =
+                        ui.interact(framed.response.rect, framed.response.id, Sense::click());
+                    if let Some(tip) = tip {
+                        response.clone().on_hover_text(tip);
+                    }
+                    attach_menus(eng, &response, &opts);
+                }
                 result
             })
         },

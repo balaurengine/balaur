@@ -381,6 +381,34 @@ fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
     ]
 }
 
+/// A frame with `menu_click` answers the pointer over all of itself, so a
+/// mark and the name beside it read as one control: a click on the caption
+/// used to fall through to nothing.
+#[test]
+fn a_frame_menu_opens_from_a_click_on_its_caption() {
+    let (app, ctx, errors) = draw_with(
+        r#"
+        this.rows = 0.0;
+        ui::central_panel(#{}, || {
+            ui::frame(#{ padding_x: 8, menu_click: || {
+                this.rows = this.rows + 1.0;
+                ui::menu_item("Open", #{ width: 120 });
+            } }, || {
+                ui::label("Balaur", #{});
+            });
+        });
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert_eq!(field(&app, "rows"), Some(0.0), "the menu drew unopened");
+    let at = egui::pos2(30.0, 14.0);
+    feed(&app, &ctx, tap(at, true));
+    feed(&app, &ctx, tap(at, false));
+    feed(&app, &ctx, vec![]);
+    let drawn = field(&app, "rows").unwrap_or(0.0);
+    assert!(drawn > 0.0, "a click on the caption opened no menu");
+}
+
 /// `menu_click` hangs a menu off a left click. The rows are the callback's,
 /// so nothing inside it draws until the menu is open — which is the whole
 /// difference from `menu`, whose menu waits for the other button.

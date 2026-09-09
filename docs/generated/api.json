@@ -8710,7 +8710,7 @@
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
         "focused": "The widget node focus is on, or nil.",
-        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
+        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time.",
         "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
