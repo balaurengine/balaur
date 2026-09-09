@@ -271,8 +271,10 @@ pub async fn save_project() -> Result<(), JsValue> {
 
 /// The name a manifest gives its project, for the record a store keeps.
 fn manifest_name(manifest: &str) -> Option<String> {
+    // `toml::Table`, not `toml::Value`: `Value`'s `FromStr` reads a value, and
+    // a manifest's first `[table]` header ends it.
     manifest
-        .parse::<toml::Value>()
+        .parse::<toml::Table>()
         .ok()?
         .get("application")?
         .get("name")?

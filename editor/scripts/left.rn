@@ -12,6 +12,9 @@ use crate::util;
 const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
 const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
 const ROW_H = 23.0;
+// The pitch the `tree` node itself draws at, measured off a take: that widget
+// sizes a row from the body text, which no binding reports.
+const TREE_ROW = 23.2;
 const INDENT = 14.0;
 // Where the first guide sits, measured from the sheet's inner edge.
 const GUIDE_X = 9.0;
@@ -390,6 +393,22 @@ fn show_tree(S, k, rows) {
     params["visible"] = true;
     params["text"] = if S.sel < rows.len() { items[selected_row(rows, S.sel)] } else { "" };
     found.set_component("widget", params);
+}
+
+/// Where the tree drew the row for document index `i`, in design px; `None`
+/// before it has drawn. The node's own rect, so no caller counts the chrome
+/// above it, and the walk's row, so a folded branch cannot shift it.
+pub fn row_spot(S, i) {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return None;
+    }
+    let box = ui::widget_rect(found);
+    if util::is_nil(box) {
+        return None;
+    }
+    let n = selected_row(open_rows(S), i) as f64;
+    Some((box.x + box.w * 0.4, box.y + (n + 0.5) * TREE_ROW))
 }
 
 // Which drawn row is the selection, so the node can mark it.

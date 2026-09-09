@@ -92,7 +92,7 @@ fn widgets(c: &mut Criterion) {
     for (shape, cell) in [("text", &captioned), ("boxes", &bare)] {
         for count in [100usize, 1_000, 10_000] {
             let (_dir, app) = app();
-            let (column, leaf) = screen(&app, count, &cell);
+            let (column, leaf) = screen(&app, count, cell);
             let ctx = egui::Context::default();
             // Three passes to settle: the first installs fonts and an area is
             // invisible until it has been sized once.

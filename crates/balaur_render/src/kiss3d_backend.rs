@@ -555,6 +555,11 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
         }
     }
     let image = window.snap_image();
+    // The path is the caller's and may name a directory that is not there
+    // yet: a run capturing a frame per tick writes them all into one.
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
     match image.save(&path) {
         Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
         Err(err) => tracing::error!("screenshot failed: {err}"),

@@ -193,6 +193,9 @@ def gen_features(crates):
         f"The web template (`scripts/package_template.sh web`) is built with\n"
         f"`--no-default-features --features {','.join(template)}` and links {len(linked)} crates.\n"
         "Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.\n\n"
+        "`WEB_THREADS=1` builds the second template, which adds `parallel` to that\n"
+        "set: rapier's solver threads on rayon, which needs the shared memory and\n"
+        "atomics only that build has.\n\n"
         "| Feature | Default | Web template | What it is | Adds to a web build |\n"
         "| --- | --- | --- | --- | --- |\n"
     )

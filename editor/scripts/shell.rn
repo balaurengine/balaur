@@ -700,7 +700,8 @@ fn state_view(S, id) {
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.
 fn state_frames(S, dir) {
-    fs::mkdir(dir);
+    // No `fs::mkdir` here: the directory is the caller's, outside every root
+    // `fs` may reach, and the screenshot makes it on the way past.
     S.capture = #{ dir: dir, from: 30, every: 2, n: 0 };
 }
 fn state_input(S) {

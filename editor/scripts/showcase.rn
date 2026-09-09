@@ -6,23 +6,21 @@ use crate::anim;
 use crate::chrome;
 use crate::defs;
 use crate::history;
+use crate::left;
 use crate::model;
 use crate::session;
 use crate::shell;
 use crate::util;
 
-// Where the node tree's first row sits inside the left dock, and the pitch of
-// a row: the sheet's tab row and search field, then `left::ROW_H` plus its
-// spacing.
-const TREE_TOP = 65.0;
-const ROW = 24.0;
 // The tool rail's first button below the sheet's own padding, and the pitch of
 // the buttons under it.
-const TOOL_TOP = 21.0;
-const TOOL_PITCH = 31.0;
-// The code pane's own top padding, and one line of the editor's gutter.
-const CODE_TOP = 12.0;
-const LINE_H = 12.44;
+const TOOL_TOP = 22.0;
+const TOOL_PITCH = 32.0;
+// The code pane's first line, from the pane's own top, the pitch of the lines
+// under it, and one column of its monospaced face.
+const CODE_TOP = 21.6;
+const LINE_H = 16.0;
+const CHAR_W = 7.3;
 
 // How long the pointer takes to walk to a control, in frames. Long enough to
 // read as a hand moving, short enough that a clip is not mostly travel.
@@ -269,15 +267,22 @@ fn tool_spot(S, tool) {
     return (rail.x + rail.w / 2.0, rail.y + TOOL_TOP + (slot as f64) * TOOL_PITCH);
 }
 
+// A row of the node tree, by document index: the tree answers where it drew
+// it, and the dock's middle is only reached before it has drawn once.
 fn row_spot(S, i) {
-    let left = S.layout.left;
-    (left.x + left.w * 0.4, left.y + TREE_TOP + ((i as f64) + 0.5) * ROW)
+    let box = S.layout.left;
+    match left::row_spot(S, i) {
+        Some(spot) => spot,
+        None => (box.x + box.w * 0.4, box.y + box.h / 2.0),
+    }
 }
 
 // The gutter of the code editor, by line: the pane's own padding, then one
 // row per line at the editor's line height.
 fn gutter_spot(S, line) {
     let doc = S.layout.doc;
+    log::info(format!("PROBE gutter line={} doc_y={} doc_h={} spot_y={} bottom={}",
+        line, doc.y, doc.h, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H, doc.y + doc.h));
     (doc.x + 17.0, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H)
 }
 
@@ -481,7 +486,7 @@ fn open_at(S, rel, line, text) {
     S.script_buffers[S.game_root + "/" + rel] = joined;
     let (x, y) = gutter_spot(S, line + 1);
     crate::complete::update(S, rel, joined, #{
-        x: x + 34.0 + (text.chars().count() as f64) * 6.6, y: y + LINE_H, index: at,
+        x: x + 34.0 + (text.chars().count() as f64) * CHAR_W, y: y + LINE_H, index: at,
     });
 }
 

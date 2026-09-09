@@ -83,11 +83,14 @@ fn a_density_a_patch_writes_reaches_the_collider() {
             .and_then(|c| c.get(key).and_then(balaur_core::components::as_f64))
             .unwrap_or_default()
     };
-    assert_eq!(
-        read("mass"),
-        0.0,
-        "a collider on its density reports no mass"
-    );
+    #[allow(clippy::float_cmp, reason = "no mass is exactly none, not nearly")]
+    {
+        assert_eq!(
+            read("mass"),
+            0.0,
+            "a collider on its density reports no mass"
+        );
+    }
 
     let patch: toml::Value = toml::from_str("density = 15.0").unwrap();
     components::patch(&app.engine, e, "collider3d", &patch).unwrap();

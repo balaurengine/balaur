@@ -262,7 +262,9 @@ fn name_of(project: &Path) -> String {
         .read(&project.join("project.toml"))
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
-        .and_then(|text| text.parse::<toml::Value>().ok());
+        // `toml::Table`, not `toml::Value`: `Value`'s `FromStr` reads a value,
+        // and `[application]` ends it.
+        .and_then(|text| text.parse::<toml::Table>().ok());
     let name = manifest
         .as_ref()
         .and_then(|value| value.get("application")?.get("name")?.as_str())

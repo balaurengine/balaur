@@ -30,10 +30,8 @@ rayon = { version = "1", optional = true }
 
 [features]
 default = ["parallel"]
-# rapier's solver on rayon. A native build takes it and nothing has to ask.
-# A browser needs shared memory and atomics before rayon can spawn a worker,
-# which only the threaded web template has -- hence a feature rather than a
-# target: cargo cannot gate a dependency on `target_feature`.
+# rapier's solver on rayon. A browser needs the shared memory and atomics only
+# the threaded web template has, and cargo cannot gate a dependency on those.
 parallel = ["dep:rayon", "rapier2d/parallel", "rapier3d/parallel"]
 
 [dev-dependencies]

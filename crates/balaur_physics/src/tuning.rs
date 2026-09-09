@@ -99,7 +99,9 @@ fn manifest_tuning_system(eng: &Engine, _dt: f32) {
             return;
         };
         flag.borrow_mut().applied = true;
-        if let Ok(manifest) = source.parse::<toml::Value>()
+        // `toml::Table`, not `toml::Value`: `Value`'s `FromStr` in toml 1 reads
+        // a value, and a document's first `[table]` header ends it.
+        if let Ok(manifest) = source.parse::<toml::Table>()
             && let Some(section) = manifest.get("physics")
         {
             read_manifest_threads(eng, section);
@@ -203,8 +205,8 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ("tuning", &[], "()", "The solver settings both worlds are running with."),
         ("quarantined", &[], "()", "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer."),
         ("counters", &[], "()", "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it."),
-        ("set_threads", &[], "(count: int)", "How many threads the solver may use. The default is one less than the machine reports, capped at eight; rayon's pool is set once per process, so a later call does nothing."),
-        ("threads", &[], "()", "How many threads the solver is using."),
+        ("set_threads", &[], "(count: int)", "How many threads the solver may use, from a script's `init`: rayon's pool is built once, before the first step, and a call after that says so and changes nothing. `[physics] threads` in `project.toml` does the same and outranks nothing -- an `init` that asks wins. The default is one less than the machine reports, capped at eight."),
+        ("threads", &[], "()", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
     ]);
     m.function("set_tuning", |eng: &Engine, opts: Value| {
         let opts = Opts(Some(&opts));
@@ -252,13 +254,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ))
     });
     m.function("set_threads", |eng: &Engine, count: i64| {
-        if !want_threads(eng, count.max(1) as usize, true) {
-            tracing::warn!(
-                "physics.set_threads({count}) came after the solver's pool was built; it keeps \
-                 the {} it has. Call it from a script's `init`, or set `[physics] threads`.",
-                threads()
-            );
-        }
+        ask_for_threads(eng, count);
         Ok(Value::Nil)
     });
     m.function("threads", |_eng: &Engine, ()| {
@@ -331,6 +327,27 @@ impl Default for SolverThreads {
     }
 }
 
+/// A script asking for `count` threads, and the reason it did not get them.
+#[cfg(not(target_family = "wasm"))]
+fn ask_for_threads(eng: &Engine, count: i64) {
+    if !want_threads(eng, count.max(1) as usize, true) {
+        tracing::warn!(
+            "physics.set_threads({count}) came after the solver's pool was built; it keeps the \
+             {} it has. Call it from a script's `init`, or set `[physics] threads`.",
+            threads()
+        );
+    }
+}
+
+/// The page owns the pool in a browser, and it is sized before the engine runs.
+#[cfg(target_family = "wasm")]
+fn ask_for_threads(_eng: &Engine, count: i64) {
+    tracing::warn!(
+        "physics.set_threads({count}) is the page's to make: hand the count to `initThreadPool` \
+         before starting the engine, on the threaded template."
+    );
+}
+
 /// Ask for `count` threads, if the pool has not been built yet.
 ///
 /// Answers whether the ask landed, so the caller can say why it did not.
@@ -388,9 +405,8 @@ fn threads() -> usize {
 /// before a large machine runs out of cores. `available_parallelism` answers 1
 /// on wasm and follows a container's CPU limit, so both come out right.
 ///
-/// Safe to vary per machine: rapier's solver is coloured, and
-/// `tests/threads.rs` holds the digest to being the same at one thread and at
-/// eight.
+/// Safe to vary per machine: rapier's solver is coloured, so the digest is the
+/// same at one thread and at eight.
 fn default_threads() -> usize {
     std::thread::available_parallelism()
         .map_or(1, std::num::NonZeroUsize::get)
