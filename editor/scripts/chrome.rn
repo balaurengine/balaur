@@ -78,6 +78,10 @@ pub fn persona_spot(S, id) {
             slot = i;
         }
     }
+    let found = strip_spot(S, slot);
+    if let Some(spot) = found {
+        return spot;
+    }
     // `return`: a bare tuple after a block parses as a call on the block.
     return (personas_x(S) + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
 }
@@ -88,15 +92,47 @@ pub fn doc_spot(S, id) {
     let per = crate::layout::persona_w(S);
     let first = personas_x(S) + (defs::personas().len() as f64) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
-    (first + slot * (TAB_W + 4.0) + TAB_W / 2.0, bar.y + bar.h / 2.0)
+    let found = strip_spot(S, defs::personas().len() + (slot as i64));
+    if let Some(spot) = found {
+        return spot;
+    }
+    return (first + slot * (TAB_W + 4.0) + TAB_W / 2.0, bar.y + bar.h / 2.0);
 }
 
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(S, n) {
     let bar = S.layout.bar;
+    let found = strip_spot(S, transport_slot(S) + n);
+    if let Some(spot) = found {
+        return spot;
+    }
     let cmd = if S.compact { CMD_W_COMPACT } else { CMD_W };
     let block = bar.x + bar.w - PAD_X - THEME_W - 4.0 - cmd - 6.0 - BLOCK_W;
-    (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0)
+    return (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0);
+}
+
+// The transport comes after the personas, the open documents, the split and
+// the spring that pushes the right end over.
+fn transport_slot(S) {
+    defs::personas().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 2
+}
+
+/// The centre of the strip's `slot`-th control, in design px, from the node it
+/// was drawn on; `None` until it has drawn, when a caller estimates instead.
+fn strip_spot(S, slot) {
+    let strip = scene::get_node(STRIP_NODE);
+    if util::is_nil(strip) {
+        return None;
+    }
+    let kids = strip.children();
+    if slot < 0 || slot >= kids.len() {
+        return None;
+    }
+    let box = ui::widget_rect(kids[slot]);
+    if util::is_nil(box) {
+        return None;
+    }
+    Some((box.x + box.w / 2.0, box.y + box.h / 2.0))
 }
 
 // The strip beside the brand, which every control past it lives on.

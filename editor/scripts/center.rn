@@ -415,9 +415,11 @@ fn code_pane(S, k) {
         }
         S.hooks_live = parsed;
     }
-        // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
-    // and hot reloads the game code).
-    ui::scroll("code", (), || {
+    // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
+    // and hot reloads the game code). An offset asked for lasts one frame.
+    let scroll_to = S.code_scroll;
+    S.code_scroll = -1.0;
+    ui::scroll("code", #{ offset: scroll_to }, || {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
         let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{

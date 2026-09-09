@@ -8727,7 +8727,7 @@
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "scale": "The global UI scale: real pixels per design pixel.",
         "screen_size": "The window's width and height, in design pixels.",
-        "scroll": "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content.",
+        "scroll": "Put the callback in a vertical scroll area; `max_height` caps it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels down.",
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",

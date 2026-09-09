@@ -89,6 +89,9 @@ pub fn init(this) {
         collapsed: #{},
         // The panel `view:<id>` asked for, reported once the shot is taken.
         view_shot: "",
+        // Where the code pane is asked to scroll to, in design px; below zero
+        // leaves it where the reader left it, and one frame is all it takes.
+        code_scroll: -1.0,
         // The stage width the layout self-test last saw, so it asserts on a
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,

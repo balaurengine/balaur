@@ -720,9 +720,15 @@ fn start_debugger(_app: &mut App, port: Option<u16>, _wait: bool) -> Result<Opti
     Ok(None)
 }
 
-/// The offscreen framebuffer, matching the windowed default's aspect so a
-/// screenshot frames the scene the way the window would.
-const OFFSCREEN_SIZE: (u32, u32) = (1600, 1000);
+/// The offscreen framebuffer: 16:9, which is what every screen a showcase
+/// image or clip is watched on happens to be, and what a video site expects
+/// uploaded to it.
+///
+/// This no longer matches `WindowSettings::default`, which is 1600x1000. A
+/// screenshot of a *game* is therefore framed a little wider than the window
+/// a player would get by default; the editor, which is what almost every
+/// showcase take is of, has no such default to disagree with.
+const OFFSCREEN_SIZE: (u32, u32) = (1920, 1080);
 
 /// A canonical path the rest of the engine can join to with `/`.
 ///

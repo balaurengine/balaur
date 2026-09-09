@@ -105,7 +105,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 /// `ui.scroll`, spacing and separators.
 pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("scroll", &[], "", "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content."),
+        ("scroll", &[], "", "Put the callback in a vertical scroll area; `max_height` caps it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels down."),
         ("list", &[], "(id, opts, count, |i|)", "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels."),
         ("add_space", &[], "", "Insert blank space along the current layout, in design pixels."),
         ("separator", &[], "", "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
@@ -128,6 +128,12 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 // away from the end, which egui tracks for us.
                 if opts.boolean(k::STICK_TO_BOTTOM, false) {
                     area = area.stick_to_bottom(true);
+                }
+                // Below zero is the caller saying nothing, which leaves the
+                // offset where the reader last left it.
+                let offset = opts.px(k::OFFSET, -1.0);
+                if offset >= 0.0 {
+                    area = area.vertical_scroll_offset(offset);
                 }
                 area.show(ui, |ui| {
                     result = scoped(eng, ui, cb);

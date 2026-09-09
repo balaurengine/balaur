@@ -147,6 +147,7 @@ pub(crate) mod keys {
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const NUMERIC: &str = "numeric";
+    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const OFF_FILL: &str = "off_fill";
     pub(crate) const OFF_KNOB: &str = "off_knob";
     pub(crate) const ON_CHANGE: &str = "on_change";

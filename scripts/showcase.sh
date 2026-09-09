@@ -165,7 +165,7 @@ shot example_c_counter  examples/extension_c_counter "scene"
 
 clip scenes_inspect    examples/hello      800  "show:scenes"
 clip scripting_live    examples/hello      950  "show:scripting"
-clip animation_key     examples/rig        1000 "show:animation"
+clip animation_key     examples/rig        880  "show:animation"
 clip physics_collapse  examples/angrynerds 700  "show:physics"
 clip input_overlay     examples/hello      800  "show:input"
 # Its own recording should be the only row in the list it shows, and every
@@ -175,8 +175,8 @@ case "$(uname -s)" in
   *) data="${XDG_DATA_HOME:-$HOME/.local/share}/balaur/balaur-editor" ;;
 esac
 wanted determinism_replay && rm -rf "$data/sessions/angrynerds"
-clip determinism_replay examples/angrynerds 1560 "show:determinism"
-clip shader_preview    examples/shaders    1700 "show:shaders"
+clip determinism_replay examples/angrynerds 1120 "show:determinism"
+clip shader_preview    examples/shaders    1160 "show:shaders"
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed: ${failed[*]}" >&2
