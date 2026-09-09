@@ -4,9 +4,6 @@
 
 use crate::util;
 
-// A minimised dock is one control: a square this big at the top of a side
-// column, this tall across the bottom, and keeping less padding than an
-// open sheet does.
 // What a timeline, a debugger or a session list needs over the bottom dock's
 // resting height, which the scene states.
 const TALL_EXTRA = 62.0;

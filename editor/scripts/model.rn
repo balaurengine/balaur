@@ -1322,6 +1322,19 @@ pub fn remove_component(S, name) {
         Some(found) => found,
         None => return,
     };
+    // Whatever else on the node declares it needs this one goes first: taking
+    // the transform out from under a body leaves the body driving nothing.
+    let needed_by = [];
+    for other in util::vec(found.component_names()) {
+        if other != name && util::contains(expects(S, other), name) {
+            needed_by.push(other);
+        }
+    }
+    if !needed_by.is_empty() {
+        let list = util::join(needed_by, " and ");
+        log::warn(format!("cannot remove {}: {} needs it; remove {} first", name, list, list));
+        return;
+    }
     history::record(S, format!("remove {}", name), None);
     found.remove_component(name);
     S.doc[S.sel].remove(name);

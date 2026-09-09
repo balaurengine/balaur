@@ -281,17 +281,20 @@
       "angular_damping": {
         "default": 0.0,
         "description": "Drag on spin, in the same terms as linear_damping",
+        "group": "damping",
         "min": 0.0,
         "type": "float"
       },
       "can_sleep": {
         "default": true,
         "description": "Let the body stop being simulated once it has held still",
+        "group": "sleep",
         "type": "bool"
       },
       "ccd": {
         "default": false,
         "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "group": "fast motion",
         "type": "bool"
       },
       "center_of_mass": {
@@ -300,11 +303,13 @@
           0.0
         ],
         "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
+        "group": "mass",
         "type": "vec2"
       },
       "dominance": {
         "default": 0.0,
         "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
+        "group": "solver",
         "max": 127.0,
         "min": -127.0,
         "type": "float"
@@ -317,6 +322,7 @@
       "fast_rotation": {
         "default": false,
         "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "group": "fast motion",
         "type": "bool"
       },
       "gravity_scale": {
@@ -327,6 +333,7 @@
       "inertia": {
         "default": 0.0,
         "description": "Resistance to spin; 0 lets rapier derive it from the mass",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
@@ -345,17 +352,20 @@
       "linear_damping": {
         "default": 0.0,
         "description": "Drag on travel: how fast the body loses speed with nothing touching it",
+        "group": "damping",
         "min": 0.0,
         "type": "float"
       },
       "lock_rotation": {
         "default": false,
         "description": "Stop the body turning; how a 2D character stays upright",
+        "group": "locks",
         "type": "bool"
       },
       "lock_translation": {
         "default": [],
         "description": "Axes the body may not move along",
+        "group": "locks",
         "options": [
           "x",
           "y"
@@ -365,24 +375,28 @@
       "mass": {
         "default": 0.0,
         "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
       "sleep_time": {
         "default": 0.5,
         "description": "Seconds of stillness before the body sleeps",
+        "group": "sleep",
         "min": 0.0,
         "type": "float"
       },
       "soft_ccd": {
         "default": 0.0,
         "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
+        "group": "fast motion",
         "min": 0.0,
         "type": "float"
       },
       "solver_iterations": {
         "default": 0.0,
         "description": "Extra solver iterations for this body alone, for the one stack that jitters",
+        "group": "solver",
         "min": 0.0,
         "type": "float"
       }
@@ -391,17 +405,20 @@
       "angular_damping": {
         "default": 0.0,
         "description": "Drag on spin, in the same terms as linear_damping",
+        "group": "damping",
         "min": 0.0,
         "type": "float"
       },
       "can_sleep": {
         "default": true,
         "description": "Let the body stop being simulated once it has held still",
+        "group": "sleep",
         "type": "bool"
       },
       "ccd": {
         "default": false,
         "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "group": "fast motion",
         "type": "bool"
       },
       "center_of_mass": {
@@ -411,11 +428,13 @@
           0.0
         ],
         "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
+        "group": "mass",
         "type": "vec3"
       },
       "dominance": {
         "default": 0.0,
         "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
+        "group": "solver",
         "max": 127.0,
         "min": -127.0,
         "type": "float"
@@ -428,6 +447,7 @@
       "fast_rotation": {
         "default": false,
         "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "group": "fast motion",
         "type": "bool"
       },
       "gravity_scale": {
@@ -438,6 +458,7 @@
       "gyroscopic": {
         "default": false,
         "description": "Model the wobble a spinning body's own inertia gives it, as a thrown American football has",
+        "group": "solver",
         "type": "bool"
       },
       "inertia": {
@@ -447,6 +468,7 @@
           0.0
         ],
         "description": "Resistance to spin about each axis; 0 lets rapier derive it from the mass",
+        "group": "mass",
         "type": "vec3"
       },
       "kind": {
@@ -464,12 +486,14 @@
       "linear_damping": {
         "default": 0.0,
         "description": "Drag on travel: how fast the body loses speed with nothing touching it",
+        "group": "damping",
         "min": 0.0,
         "type": "float"
       },
       "lock_rotation": {
         "default": [],
         "description": "World axes the body may not turn about; locking all three keeps a character upright",
+        "group": "locks",
         "options": [
           "x",
           "y",
@@ -480,6 +504,7 @@
       "lock_translation": {
         "default": [],
         "description": "World axes the body may not move along",
+        "group": "locks",
         "options": [
           "x",
           "y",
@@ -490,24 +515,28 @@
       "mass": {
         "default": 0.0,
         "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
       "sleep_time": {
         "default": 0.5,
         "description": "Seconds of stillness before the body sleeps",
+        "group": "sleep",
         "min": 0.0,
         "type": "float"
       },
       "soft_ccd": {
         "default": 0.0,
         "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
+        "group": "fast motion",
         "min": 0.0,
         "type": "float"
       },
       "solver_iterations": {
         "default": 0.0,
         "description": "Extra solver iterations for this body alone, for the one stack that jitters",
+        "group": "solver",
         "min": 0.0,
         "type": "float"
       }
@@ -878,6 +907,7 @@
           0.0
         ],
         "description": "First corner, when kind is triangle or segment",
+        "group": "shape",
         "type": "vec2"
       },
       "active_collisions": {
@@ -887,6 +917,7 @@
           "dynamic_static"
         ],
         "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
         "options": [
           "dynamic_dynamic",
           "dynamic_kinematic",
@@ -903,11 +934,13 @@
           0.0
         ],
         "description": "Second corner, when kind is triangle or segment",
+        "group": "shape",
         "type": "vec2"
       },
       "border": {
         "default": 0.0,
         "description": "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them",
+        "group": "shape",
         "min": 0.0,
         "type": "float"
       },
@@ -917,28 +950,33 @@
           1.0
         ],
         "description": "Third corner, when kind is triangle",
+        "group": "shape",
         "type": "vec2"
       },
       "clean": {
         "default": false,
         "description": "Merge duplicate vertices and drop degenerate triangles when building a trimesh",
+        "group": "shape",
         "type": "bool"
       },
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "contact_skin": {
         "default": 0.0,
         "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "density": {
         "default": 1.0,
         "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
         "min": 0.001,
         "type": "float"
       },
@@ -950,6 +988,7 @@
       "events": {
         "default": [],
         "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
+        "group": "filtering",
         "options": [
           "collision",
           "contact_force"
@@ -959,17 +998,20 @@
       "fix_internal_edges": {
         "default": true,
         "description": "Take neighbouring triangles into account for a trimesh's contacts, so a body does not catch on the seam between two of them",
+        "group": "contacts",
         "type": "bool"
       },
       "friction": {
         "default": 0.5,
         "description": "Surface friction; 0 is ice",
+        "group": "surface",
         "min": 0.0,
         "type": "float"
       },
       "friction_combine": {
         "default": "average",
         "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -998,6 +1040,7 @@
         "asset": "heightfield",
         "default": "",
         "description": "A row of heights, when kind is heightfield: a side-scroller's ground",
+        "group": "shape",
         "type": "asset"
       },
       "kind": {
@@ -1023,6 +1066,7 @@
           "0"
         ],
         "description": "The layers this collider is on",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1062,6 +1106,7 @@
       "mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1101,6 +1146,7 @@
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
@@ -1108,6 +1154,7 @@
         "asset": "mesh",
         "default": "",
         "description": "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws",
+        "group": "shape",
         "type": "asset"
       },
       "normal": {
@@ -1116,6 +1163,7 @@
           1.0
         ],
         "description": "Which way the infinite line faces, when kind is halfspace",
+        "group": "shape",
         "type": "vec2"
       },
       "offset": {
@@ -1124,16 +1172,19 @@
           0.0
         ],
         "description": "Where the shape sits relative to the node",
+        "group": "shape",
         "type": "vec2"
       },
       "offset_rotation": {
         "default": 0.0,
         "description": "How the shape is turned relative to the node, in radians",
+        "group": "shape",
         "type": "float"
       },
       "one_way": {
         "default": false,
         "description": "A platform bodies pass through from below and land on from above",
+        "group": "contacts",
         "type": "bool"
       },
       "one_way_axis": {
@@ -1142,11 +1193,13 @@
           1.0
         ],
         "description": "The direction a one-way platform lets bodies through from",
+        "group": "contacts",
         "type": "vec2"
       },
       "oriented": {
         "default": false,
         "description": "Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid",
+        "group": "shape",
         "type": "bool"
       },
       "radius": {
@@ -1158,6 +1211,7 @@
       "restitution": {
         "default": 0.0,
         "description": "Bounciness: 0 is a dead stop, 1 a full rebound",
+        "group": "surface",
         "max": 1.0,
         "min": 0.0,
         "type": "float"
@@ -1165,6 +1219,7 @@
       "restitution_combine": {
         "default": "average",
         "description": "How this surface's bounciness combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -1181,6 +1236,7 @@
           1.0
         ],
         "description": "Width and height scale of a heightfield",
+        "group": "shape",
         "type": "vec2"
       },
       "sensor": {
@@ -1193,6 +1249,7 @@
           "0"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1232,6 +1289,7 @@
       "solver_mask": {
         "default": [],
         "description": "Which solver layers this one pushes against; empty means all of them",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1272,6 +1330,7 @@
         "asset": "voxels",
         "default": "",
         "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
+        "group": "shape",
         "type": "asset"
       }
     },
@@ -1283,6 +1342,7 @@
           0.0
         ],
         "description": "First corner, when kind is triangle or segment",
+        "group": "shape",
         "type": "vec3"
       },
       "active_collisions": {
@@ -1292,6 +1352,7 @@
           "dynamic_static"
         ],
         "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
         "options": [
           "dynamic_dynamic",
           "dynamic_kinematic",
@@ -1309,11 +1370,13 @@
           0.0
         ],
         "description": "Second corner, when kind is triangle or segment",
+        "group": "shape",
         "type": "vec3"
       },
       "border": {
         "default": 0.0,
         "description": "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them",
+        "group": "shape",
         "min": 0.0,
         "type": "float"
       },
@@ -1324,28 +1387,33 @@
           0.0
         ],
         "description": "Third corner, when kind is triangle",
+        "group": "shape",
         "type": "vec3"
       },
       "clean": {
         "default": false,
         "description": "Drop duplicate vertices and degenerate triangles when building a trimesh",
+        "group": "shape",
         "type": "bool"
       },
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "contact_skin": {
         "default": 0.0,
         "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "density": {
         "default": 1.0,
         "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
         "min": 0.001,
         "type": "float"
       },
@@ -1357,6 +1425,7 @@
       "events": {
         "default": [],
         "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
+        "group": "filtering",
         "options": [
           "collision",
           "contact_force"
@@ -1366,6 +1435,7 @@
       "fill": {
         "default": "solid",
         "description": "Whether voxelizing a mesh fills its inside or only its shell",
+        "group": "shape",
         "options": [
           "solid",
           "surface"
@@ -1375,6 +1445,7 @@
       "fit": {
         "default": "convex_hull",
         "description": "The shape fitted to the mesh, when kind is fit",
+        "group": "shape",
         "options": [
           "convex_hull",
           "aabb",
@@ -1386,17 +1457,20 @@
       "fix_internal_edges": {
         "default": true,
         "description": "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground",
+        "group": "contacts",
         "type": "bool"
       },
       "friction": {
         "default": 0.5,
         "description": "Surface friction; 0 is ice",
+        "group": "surface",
         "min": 0.0,
         "type": "float"
       },
       "friction_combine": {
         "default": "average",
         "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -1426,6 +1500,7 @@
         "asset": "heightfield",
         "default": "",
         "description": "Terrain grid, when kind is heightfield",
+        "group": "shape",
         "type": "asset"
       },
       "kind": {
@@ -1456,6 +1531,7 @@
           "0"
         ],
         "description": "The layers this collider is on",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1495,6 +1571,7 @@
       "mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1534,6 +1611,7 @@
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
@@ -1541,6 +1619,7 @@
         "asset": "mesh",
         "default": "",
         "description": "Geometry for a trimesh, convex_hull or polyline collider",
+        "group": "shape",
         "type": "asset"
       },
       "normal": {
@@ -1550,6 +1629,7 @@
           0.0
         ],
         "description": "Which way the infinite plane faces, when kind is halfspace",
+        "group": "shape",
         "type": "vec3"
       },
       "offset": {
@@ -1559,6 +1639,7 @@
           0.0
         ],
         "description": "Where the shape sits relative to the node",
+        "group": "shape",
         "type": "vec3"
       },
       "offset_rotation": {
@@ -1568,11 +1649,13 @@
           0.0
         ],
         "description": "How the shape is turned relative to the node, in radians",
+        "group": "shape",
         "type": "vec3"
       },
       "one_way": {
         "default": false,
         "description": "A platform bodies pass through from below and land on from above",
+        "group": "contacts",
         "type": "bool"
       },
       "one_way_axis": {
@@ -1582,11 +1665,13 @@
           0.0
         ],
         "description": "The direction a one-way platform lets bodies through from",
+        "group": "contacts",
         "type": "vec3"
       },
       "oriented": {
         "default": false,
         "description": "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful",
+        "group": "shape",
         "type": "bool"
       },
       "radius": {
@@ -1598,6 +1683,7 @@
       "restitution": {
         "default": 0.0,
         "description": "Bounciness: 0 is a dead stop, 1 a full rebound",
+        "group": "surface",
         "max": 1.0,
         "min": 0.0,
         "type": "float"
@@ -1605,6 +1691,7 @@
       "restitution_combine": {
         "default": "average",
         "description": "How this surface's bounciness combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -1622,6 +1709,7 @@
           1.0
         ],
         "description": "Cell size and height scale of a heightfield",
+        "group": "shape",
         "type": "vec3"
       },
       "sensor": {
@@ -1634,6 +1722,7 @@
           "0"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1673,6 +1762,7 @@
       "solver_mask": {
         "default": [],
         "description": "Which solver layers this one pushes against; empty means all of them",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -1712,6 +1802,7 @@
       "voxel_size": {
         "default": 0.25,
         "description": "How big one cell is, when kind is voxelized_mesh",
+        "group": "shape",
         "min": 0.001,
         "type": "float"
       },
@@ -1719,6 +1810,7 @@
         "asset": "voxels",
         "default": "",
         "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
+        "group": "shape",
         "type": "asset"
       }
     },
@@ -3294,6 +3386,7 @@
           "dynamic_static"
         ],
         "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
         "options": [
           "dynamic_dynamic",
           "dynamic_kinematic",
@@ -3307,18 +3400,21 @@
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "contact_skin": {
         "default": 0.0,
         "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
         "min": 0.0,
         "type": "float"
       },
       "density": {
         "default": 1.0,
         "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
         "min": 0.001,
         "type": "float"
       },
@@ -3330,6 +3426,7 @@
       "events": {
         "default": [],
         "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
+        "group": "filtering",
         "options": [
           "collision",
           "contact_force"
@@ -3339,12 +3436,14 @@
       "friction": {
         "default": 0.5,
         "description": "Surface friction; 0 is ice",
+        "group": "surface",
         "min": 0.0,
         "type": "float"
       },
       "friction_combine": {
         "default": "average",
         "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -3360,6 +3459,7 @@
           "0"
         ],
         "description": "The layers this collider is on",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -3399,6 +3499,7 @@
       "mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -3438,17 +3539,20 @@
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
+        "group": "mass",
         "min": 0.0,
         "type": "float"
       },
       "one_way": {
         "default": false,
         "description": "A platform bodies pass through from below and land on from above",
+        "group": "contacts",
         "type": "bool"
       },
       "restitution": {
         "default": 0.0,
         "description": "Bounciness: 0 is a dead stop, 1 a full rebound",
+        "group": "surface",
         "max": 1.0,
         "min": 0.0,
         "type": "float"
@@ -3456,6 +3560,7 @@
       "restitution_combine": {
         "default": "average",
         "description": "How this surface's bounciness combines with the other one's",
+        "group": "surface",
         "options": [
           "average",
           "min",
@@ -3476,6 +3581,7 @@
           "0"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -3515,6 +3621,7 @@
       "solver_mask": {
         "default": [],
         "description": "Which solver layers this one pushes against; empty means all of them",
+        "group": "filtering",
         "options": [
           "0",
           "1",
@@ -3618,7 +3725,6 @@
           0.0
         ],
         "description": "Local rotation as euler angles in radians, x then y then z",
-        "step": 0.5,
         "type": "vec3",
         "unit": "degrees"
       },
@@ -3726,11 +3832,13 @@
       "active": {
         "default": "",
         "description": "Which child a `tab` shows, by node name; empty shows the first",
+        "group": "events",
         "type": "string"
       },
       "align": {
         "default": "start",
         "description": "Where a container puts its children across its own direction",
+        "group": "layout",
         "options": [
           "start",
           "center",
@@ -3759,6 +3867,7 @@
       "clicked": {
         "default": false,
         "description": "True on the frame the button was clicked",
+        "group": "events",
         "readonly": true,
         "type": "bool"
       },
@@ -3770,17 +3879,20 @@
           1.0
         ],
         "description": "What a `color` swatch holds; `on_change` hears the new one",
+        "group": "paint",
         "type": "color"
       },
       "columns": {
         "default": 0,
         "description": "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list",
+        "group": "layout",
         "min": 0,
         "type": "int"
       },
       "deadzone": {
         "default": 0.0,
         "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
+        "group": "value",
         "min": 0.0,
         "type": "float"
       },
@@ -3792,21 +3904,25 @@
       "draw": {
         "default": "",
         "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
+        "group": "paint",
         "type": "string"
       },
       "fill": {
         "default": "",
         "description": "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
+        "group": "paint",
         "type": "string"
       },
       "focusable": {
         "default": true,
         "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",
+        "group": "events",
         "type": "bool"
       },
       "font": {
         "default": "ui",
         "description": "Which of the theme's families the widget draws in",
+        "group": "type",
         "options": [
           "ui",
           "mono",
@@ -3818,12 +3934,14 @@
       "font_size": {
         "default": 16.0,
         "description": "Text size in design pixels",
+        "group": "type",
         "min": 6.0,
         "type": "float"
       },
       "font_style": {
         "default": "normal",
         "description": "Slant, from an italic face the project ships",
+        "group": "type",
         "options": [
           "normal",
           "italic"
@@ -3833,6 +3951,7 @@
       "font_weight": {
         "default": 400.0,
         "description": "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold",
+        "group": "type",
         "max": 900.0,
         "min": 100.0,
         "type": "float"
@@ -3840,30 +3959,35 @@
       "gap": {
         "default": 8.0,
         "description": "Space between a container's children, in design pixels",
+        "group": "layout",
         "min": 0.0,
         "type": "float"
       },
       "grow": {
         "default": 0.0,
         "description": "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for",
+        "group": "placement",
         "min": 0.0,
         "type": "float"
       },
       "handle": {
         "default": 0.0,
         "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one",
+        "group": "value",
         "min": 0.0,
         "type": "float"
       },
       "height": {
         "default": 0.0,
         "description": "Panel height in design pixels; 0 sizes to content",
+        "group": "placement",
         "min": 0.0,
         "type": "float"
       },
       "icon": {
         "default": "",
         "description": "A glyph from the theme's icon family, drawn before `text`",
+        "group": "paint",
         "type": "string"
       },
       "inset": {
@@ -3874,11 +3998,13 @@
           0.0
         ],
         "description": "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels",
+        "group": "placement",
         "type": "vec4"
       },
       "justify": {
         "default": "start",
         "description": "How a container spreads its children along its own direction once they have their sizes",
+        "group": "layout",
         "options": [
           "start",
           "center",
@@ -3926,111 +4052,132 @@
       "layer": {
         "default": "",
         "description": "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface",
+        "group": "placement",
         "type": "string"
       },
       "markup": {
         "default": false,
         "description": "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text",
+        "group": "type",
         "type": "bool"
       },
       "max": {
         "default": 1.0,
         "description": "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
+        "group": "value",
         "type": "float"
       },
       "max_length": {
         "default": 0.0,
         "description": "The most characters a `field` takes; 0 is no limit",
+        "group": "value",
         "min": 0.0,
         "type": "float"
       },
       "min": {
         "default": 0.0,
         "description": "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
+        "group": "value",
         "type": "float"
       },
       "min_height": {
         "default": 0.0,
         "description": "Smallest height a container may give this widget, in design pixels",
+        "group": "placement",
         "min": 0.0,
         "type": "float"
       },
       "min_width": {
         "default": 0.0,
         "description": "Smallest width a container may give this widget, in design pixels",
+        "group": "placement",
         "min": 0.0,
         "type": "float"
       },
       "numeric": {
         "default": false,
         "description": "Keep a `field` to digits, a sign and a point",
+        "group": "value",
         "type": "bool"
       },
       "on_change": {
         "default": "",
         "description": "Script method called on this node with a `field`'s text after every edit",
+        "group": "events",
         "type": "string"
       },
       "on_click": {
         "default": "",
         "description": "Script method called on this node when the button is clicked",
+        "group": "events",
         "type": "string"
       },
       "on_focus": {
         "default": "",
         "description": "Script method called on this node when focus arrives",
+        "group": "events",
         "type": "string"
       },
       "on_submit": {
         "default": "",
         "description": "Script method called on this node with a `field`'s text on Enter, or when focus leaves it",
+        "group": "events",
         "type": "string"
       },
       "open": {
         "default": true,
         "description": "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state",
+        "group": "events",
         "type": "bool"
       },
       "options": {
         "default": [],
         "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
+        "group": "value",
         "type": "strings"
       },
       "padding": {
         "default": 0.0,
         "description": "Space inside a container's edge, in design pixels",
+        "group": "layout",
         "min": 0.0,
         "type": "float"
       },
       "padding_x": {
         "default": -1.0,
         "description": "The air either side of a caption, in design pixels; below zero takes the theme's own",
+        "group": "layout",
         "type": "float"
       },
       "placeholder": {
         "default": "",
         "description": "What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`'s column names split on U+001F",
+        "group": "value",
         "type": "string"
       },
       "radius": {
         "default": -1.0,
         "description": "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall",
+        "group": "paint",
         "type": "float"
       },
       "role": {
         "default": "",
         "description": "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled",
+        "group": "paint",
         "type": "string"
       },
       "row_height": {
         "default": 0.0,
         "description": "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height",
+        "group": "layout",
         "min": 0.0,
         "type": "float"
       },
       "secret": {
         "default": false,
         "description": "Draw a `field`'s text as dots, for a password",
+        "group": "value",
         "type": "bool"
       },
       "slice": {
@@ -4041,6 +4188,7 @@
           0.0
         ],
         "description": "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture",
+        "group": "paint",
         "type": "vec4"
       },
       "source": {
@@ -4051,12 +4199,14 @@
       "step": {
         "default": 0.0,
         "description": "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous",
+        "group": "value",
         "min": 0.0,
         "type": "float"
       },
       "stroke": {
         "default": "",
         "description": "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
+        "group": "paint",
         "type": "string"
       },
       "text": {
@@ -4067,6 +4217,7 @@
       "text_align": {
         "default": "start",
         "description": "Where text sits in the width the widget was given",
+        "group": "type",
         "options": [
           "start",
           "center",
@@ -4082,22 +4233,26 @@
           0.0
         ],
         "description": "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white",
+        "group": "paint",
         "type": "color"
       },
       "text_key": {
         "default": "",
         "description": "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once",
+        "group": "type",
         "type": "string"
       },
       "theme": {
         "asset": "widget_theme",
         "default": "",
         "description": "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one",
+        "group": "paint",
         "type": "asset"
       },
       "tooltip": {
         "default": "",
         "description": "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why",
+        "group": "type",
         "type": "string"
       },
       "value": {
@@ -4113,22 +4268,26 @@
       "width": {
         "default": 0.0,
         "description": "Panel width in design pixels; 0 sizes to content",
+        "group": "placement",
         "min": 0.0,
         "type": "float"
       },
       "wrap": {
         "default": false,
         "description": "Break text to the width the widget was given instead of running past it on one line",
+        "group": "type",
         "type": "bool"
       },
       "x": {
         "default": 16.0,
         "description": "Horizontal offset from the anchor, in design pixels",
+        "group": "placement",
         "type": "float"
       },
       "y": {
         "default": 16.0,
         "description": "Vertical offset from the anchor, in design pixels",
+        "group": "placement",
         "type": "float"
       }
     }
@@ -8064,6 +8223,7 @@
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
         "bindable_events": "Every event a `[[nodes.bindings]]` row may answer, in the order an editor offers them.",
         "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
+        "component_expects": "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component.",
         "component_schema": "A component type's property schema as a table; nil for a name nothing registered.",
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
@@ -8088,6 +8248,7 @@
         "apply_preset",
         "bindable_events",
         "binding_actions",
+        "component_expects",
         "component_properties",
         "component_schema",
         "component_tags",
@@ -8113,6 +8274,7 @@
         "apply_preset": "(node: node, name: string)",
         "bindable_events": "()",
         "binding_actions": "()",
+        "component_expects": "(name: string)",
         "component_properties": "(name: string, params: any)",
         "component_schema": "(name: string)",
         "component_tags": "(name: string)",

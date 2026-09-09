@@ -38,7 +38,7 @@ cannot drift from what scripts actually see.
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 5 | 0 | the engine |
-| [`scene`](#scene) | 22 | 0 | the engine |
+| [`scene`](#scene) | 23 | 0 | the engine |
 | [`script`](#script) | 17 | 0 | the engine |
 | [`settings`](#settings) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
@@ -321,7 +321,7 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `spawn`, `switch`, `tagged`, `unmet_expectations`, `variable`, `variables`, `with_component`
+**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `spawn`, `switch`, `tagged`, `unmet_expectations`, `variable`, `variables`, `with_component`
 
 ## `script`
 

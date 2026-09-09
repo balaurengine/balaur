@@ -532,14 +532,7 @@ pub fn draw_bottom_body(S, k) {
 /// The strip along the foot of the bottom dock: what is playing, and the
 /// control that minimises the dock when it is open.
 pub fn draw_status(S, k) {
-    let d = S.docks.bottom;
-    chrome::status_strip(S, k, S.layout.bottom.w, || {
-        if d.shut && ui::pill(icons::ui(open_icon("bottom")), #{
-            role: "icon_button", height: 24, size: style::MD, tooltip: "Open the dock",
-        }) {
-            S.docks.bottom.shut = false;
-        }
-    });
+    chrome::status_strip(S, k, S.layout.bottom.w, || {});
 }
 
 /// A dock's contents, drawn into the rect the scene's `draw` node hands over.
@@ -551,9 +544,6 @@ pub fn draw_body(S, k, side) {
     hide_unused(S, side, d);
     if d.tabs.len() == 0 || d.shut {
         hide_tabs(side);
-        if d.tabs.len() > 0 && side == "bottom" {
-            handle_body(S, k, side);
-        }
         return;
     }
     tab_row(S, k, side, d);
@@ -566,21 +556,6 @@ pub fn draw_body(S, k, side) {
     });
     ui::separator(k.line);
     chrome::status_strip(S, k, S.layout[side].w, || {});
-}
-
-// Minimised, the bottom dock keeps its status strip, and the control that
-// reopens it sits in that strip. A side dock keeps nothing: its handle is in
-// the top strip, which `fold_strip` draws.
-fn handle_body(S, k, side) {
-    ui::add_space(2);
-    chrome::status_strip(S, k, S.layout[side].w, || {
-        if ui::pill(icons::ui(open_icon(side)), #{
-            role: "icon_button", height: 22, size: style::LG, padding_x: 5,
-            tooltip: "Open the dock",
-        }) {
-            S.docks[side].shut = false;
-        }
-    });
 }
 
 /// Whether a side dock is folded with something to go back to.
