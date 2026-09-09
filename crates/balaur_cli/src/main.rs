@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod export_api;
+mod export_shared;
 mod fmt;
 mod import_api;
 mod lsp;
@@ -222,6 +223,10 @@ enum Command {
         /// "light", "play"), mirroring the design prototype's startPersona.
         #[arg(long)]
         state: Option<String>,
+        /// Print what each frame cost when the editor closes. The editor's
+        /// own shell is most of a frame, so this is how a slow one is read.
+        #[arg(long)]
+        timings: bool,
     },
     /// Play back a session recorded with `run --record`.
     ///
@@ -283,6 +288,16 @@ mod web;
 mod web_export;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_store;
+
+// Rayon's pool, built from Web Workers because `std::thread` spawns none on
+// this target. The page awaits `initThreadPool` before `start`; only the
+// shared-memory template has it, and rapier's solver is what uses it.
+#[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
@@ -379,7 +394,8 @@ fn dispatch(command: Command) -> Result<()> {
             frames,
             offscreen,
             state,
-        } => edit_project(&path, editor, frames, offscreen, state),
+            timings,
+        } => edit_project(&path, editor, frames, offscreen, state, timings),
         Command::Export {
             path,
             output,
@@ -704,9 +720,15 @@ fn start_debugger(_app: &mut App, port: Option<u16>, _wait: bool) -> Result<Opti
     Ok(None)
 }
 
-/// The offscreen framebuffer, matching the windowed default's aspect so a
-/// screenshot frames the scene the way the window would.
-const OFFSCREEN_SIZE: (u32, u32) = (1600, 1000);
+/// The offscreen framebuffer: 16:9, which is what every screen a showcase
+/// image or clip is watched on happens to be, and what a video site expects
+/// uploaded to it.
+///
+/// This no longer matches `WindowSettings::default`, which is 1600x1000. A
+/// screenshot of a *game* is therefore framed a little wider than the window
+/// a player would get by default; the editor, which is what almost every
+/// showcase take is of, has no such default to disagree with.
+const OFFSCREEN_SIZE: (u32, u32) = (1920, 1080);
 
 /// A canonical path the rest of the engine can join to with `/`.
 ///
@@ -727,6 +749,7 @@ fn edit_project(
     frames: Option<u64>,
     offscreen: bool,
     state: Option<String>,
+    timings: bool,
 ) -> Result<()> {
     let game = joinable(
         &path
@@ -776,10 +799,17 @@ fn edit_project(
             }
         });
     }
-    if offscreen {
-        return balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1);
+    // Registered last, so the frame it folds in is the whole frame.
+    let log = timings.then(|| log_timings(&mut app));
+    let ran = if offscreen {
+        balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+    } else {
+        balaur::run(app, "balaur editor")
+    };
+    if let Some(log) = &log {
+        print!("{}", log.borrow().report());
     }
-    balaur::run(app, "balaur editor")
+    ran
 }
 
 /// Boot a standard app in a scratch project and print what scripts can reach.

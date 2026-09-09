@@ -12,7 +12,9 @@ on:
 
 concurrency:
   group: all-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseding a branch is free; superseding `main` is not. A cancelled run
+  # saves no build cache and leaves no verdict on the commit that made it.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:

@@ -47,6 +47,7 @@ web-sys = { version = "0.3", features = [
 cc = "1"
 
 [dev-dependencies]
+balaur_testkit.workspace = true
 tempfile = "3"
 balaur = { workspace = true, features = ["websocket"] }
 # The loopback echo servers the tests speak to, and the compression the

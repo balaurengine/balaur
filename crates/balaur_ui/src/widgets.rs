@@ -8,9 +8,11 @@ use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, CallbackId, Value};
 use egui::{Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind, pos2, vec2};
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 
 use crate::UiState;
-use crate::bridge::{scale, scoped, with_ui};
+use crate::bridge::{scale, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
 
@@ -20,7 +22,11 @@ use crate::vocabulary::{keys as k, words as w};
 /// name no language.
 /// A missing or wrong-typed key falls back to the default: a typo in an options
 /// table should not stop the frame.
-pub(crate) struct Opts(pub(crate) Option<Value>);
+pub(crate) struct Opts(
+    pub(crate) Option<Value>,
+    /// The named role's own options, read where the caller said nothing.
+    Option<std::rc::Rc<Vec<(String, Value)>>>,
+);
 
 /// Every key any widget reads, `role` included.
 ///
@@ -61,12 +67,14 @@ const KNOWN_KEYS: &[&str] = &[
     k::K_PUNC,
     k::K_STR,
     k::K_TYPE,
+    k::KEEP_OPEN,
     k::KNOB,
     k::LANGUAGE,
     k::LINE_HEIGHT,
     k::MAX,
     k::MAX_HEIGHT,
     k::MENU,
+    k::MENU_CLICK,
     k::MIN,
     k::MIN_WIDTH,
     k::OFF_FILL,
@@ -85,6 +93,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::RESIZABLE,
     k::ROLE,
     k::ROUND,
+    k::ROW_HEIGHT,
     k::SCRIM,
     k::SEPARATOR,
     k::SIZE,
@@ -116,19 +125,23 @@ const KNOWN_KEYS: &[&str] = &[
 ///
 /// A typo used to do nothing at all: the value fell back to its default and
 /// the call looked as though it had been honoured.
+///
+/// Runs on every options table of every widget of every frame, so the hit
+/// path is a binary search and nothing else: `KNOWN_KEYS` is sorted, checked
+/// by the test below, and the miss path is the only one that allocates.
 fn warn_unknown(entries: &[(String, Value)]) {
-    static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
-        std::sync::Mutex::new(None);
+    thread_local! {
+        static WARNED: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
     for (key, _) in entries {
-        if KNOWN_KEYS.contains(&key.as_str()) {
+        if KNOWN_KEYS.binary_search(&key.as_str()).is_ok() {
             continue;
         }
-        if let Ok(mut seen) = WARNED.lock() {
-            let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
-            if seen.insert(key.clone()) {
+        WARNED.with(|warned| {
+            if warned.borrow_mut().insert(key.clone()) {
                 tracing::warn!("ui: no widget reads the option `{key}`");
             }
-        }
+        });
     }
 }
 
@@ -137,31 +150,31 @@ impl Opts {
     /// what it changes, and the look lives in the theme asset.
     pub(crate) fn with_roles(opts: Option<Value>) -> Self {
         let Some(Value::Map(given)) = opts.as_ref() else {
-            return Self(opts);
+            return Self(opts, None);
         };
         warn_unknown(given);
-        let Some(Value::Str(name)) = given.iter().find(|(k, _)| k == "role").map(|(_, v)| v) else {
-            return Self(opts);
+        let role = match given.iter().find(|(k, _)| k == k::ROLE).map(|(_, v)| v) {
+            Some(Value::Str(name)) => crate::bridge::role(name),
+            _ => None,
         };
-        let defaults = crate::bridge::role(name);
-        if defaults.is_empty() {
-            return Self(opts);
-        }
-        // The caller's entries first: `get` takes the first match.
-        let mut merged = given.clone();
-        for (key, value) in defaults {
-            if !merged.iter().any(|(k, _)| *k == key) {
-                merged.push((key, value));
-            }
-        }
-        Self(Some(Value::Map(merged)))
+        Self(opts, role)
     }
 
+    /// Options as given, with no role behind them.
+    pub(crate) fn plain(opts: Option<Value>) -> Self {
+        Self(opts, None)
+    }
+
+    /// What the caller said, or failing that what the role it named says.
     fn get(&self, key: &str) -> Option<&Value> {
-        match self.0.as_ref()? {
-            Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+        let given = match self.0.as_ref() {
+            Some(Value::Map(entries)) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
-        }
+        };
+        given.or_else(|| {
+            let role = self.1.as_ref()?;
+            role.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+        })
     }
     pub(crate) fn f32(&self, key: &str, default: f32) -> f32 {
         match self.get(key) {
@@ -184,19 +197,25 @@ impl Opts {
             !matches!(self.get(key), Some(Value::Bool(_))) && default
         }
     }
-    pub(crate) fn string(&self, key: &str) -> Option<String> {
+    /// The value as it sits in the options table. What every reader that only
+    /// looks at the text should take: a widget reads a handful of colours a
+    /// call, and copying each one to parse six hex digits off it was most of
+    /// what a pass allocated.
+    pub(crate) fn str(&self, key: &str) -> Option<&str> {
         match self.get(key) {
-            Some(Value::Str(s)) => Some(s.clone()),
+            Some(Value::Str(s)) => Some(s.as_str()),
             _ => None,
         }
     }
+    /// An owned copy, for the callers that keep the text past the call.
+    pub(crate) fn string(&self, key: &str) -> Option<String> {
+        self.str(key).map(ToOwned::to_owned)
+    }
     pub(crate) fn color(&self, key: &str, default: Color32) -> Color32 {
-        self.string(key)
-            .and_then(|s| parse_hex(&s))
-            .unwrap_or(default)
+        self.opt_color(key).unwrap_or(default)
     }
     pub(crate) fn opt_color(&self, key: &str) -> Option<Color32> {
-        self.string(key).and_then(|s| parse_hex(&s))
+        parse_hex(self.str(key)?)
     }
     /// A dimension in design pixels, multiplied by the global UI scale.
     pub(crate) fn px(&self, key: &str, default: f32) -> f32 {
@@ -331,15 +350,23 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_DRAW", "draw"),
     ("WIDGET_IMAGE", w::IMAGE),
     ("WIDGET_FIELD", w::FIELD),
+    ("WIDGET_TEXT_AREA", w::TEXT_AREA),
     ("WIDGET_CHECK", w::CHECK),
+    ("WIDGET_COLOR", w::COLOR),
     ("WIDGET_DROPDOWN", w::DROPDOWN),
+    ("WIDGET_MENU", w::MENU),
+    ("WIDGET_LIST", w::LIST),
+    ("WIDGET_TREE", w::TREE),
+    ("WIDGET_TABLE", w::TABLE),
     ("WIDGET_SLIDER", w::SLIDER),
+    ("WIDGET_DRAG_VALUE", w::DRAG_VALUE),
     ("WIDGET_PROGRESS", w::PROGRESS),
     ("WIDGET_GRID", w::GRID),
     ("WIDGET_FLOW", w::FLOW),
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),
     ("WIDGET_SEPARATOR", "separator"),
+    ("WIDGET_CODE", w::CODE),
 ];
 
 /// Where a container puts its children, and where text sits in its width.
@@ -443,14 +470,16 @@ pub(crate) fn text_field(
     let id_owned = id.to_string();
     let result = with_ui(|ui| {
         let size = opts.px(k::SIZE, 13.0);
-        let family = opts
-            .string(k::FONT)
-            .map_or_else(|| theme::family("ui"), |name| theme::family(&name));
+        let family = theme::family(opts.str(k::FONT).unwrap_or(w::UI));
+        // The hint carries the field's own font: a bare string is laid out in
+        // egui's default body style, at neither this size nor this scale.
+        let font = FontId::new(size, family);
+        let font_for_margin = font.clone();
         let mut edit = egui::TextEdit::singleline(&mut buffer)
             .id(egui::Id::new(id_owned.clone()))
             .frame(egui::Frame::NONE)
-            .hint_text(placeholder)
-            .font(FontId::new(size, family));
+            .hint_text(egui::RichText::new(placeholder).font(font.clone()))
+            .font(font);
         if let Some(color) = opts.opt_color(k::COLOR) {
             edit = edit.text_color(color);
         }
@@ -463,6 +492,10 @@ pub(crate) fn text_field(
             edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
         }
         let response = if h > 0.0 {
+            // Centred by the margin, not by a centring layout: a layout that
+            // centres also fills, and the field then took the whole panel.
+            let line = ui.fonts_mut(|f| f.row_height(&font_for_margin));
+            let vpad = ((h - line) / 2.0).max(0.0);
             let radius = opts.px(k::RADIUS, 0.0);
             let corner = if radius > 0.0 {
                 pill_radius(radius * 2.0)
@@ -476,11 +509,8 @@ pub(crate) fn text_field(
                     opts.color(k::STROKE, Color32::TRANSPARENT),
                 ))
                 .corner_radius(corner)
-                .inner_margin(Margin::symmetric(pad as i8, 0))
-                .show(ui, |ui| {
-                    ui.set_min_height(h);
-                    ui.add(edit)
-                })
+                .inner_margin(Margin::symmetric(pad as i8, vpad as i8))
+                .show(ui, |ui| ui.add(edit))
                 .inner
         } else {
             ui.add(edit)
@@ -869,6 +899,20 @@ pub(crate) struct Caret {
 /// Returns the buffer, whether it changed, the gutter line clicked this frame
 /// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
 /// one.
+/// A `code` widget's values as the options `code_editor` reads, so the node
+/// and the script call reach the same editor.
+pub(crate) fn code_opts(widget: &crate::widget_layer::Widget, scale: f32) -> Opts {
+    let size = if widget.font_size > 0.0 {
+        widget.font_size
+    } else {
+        12.5
+    };
+    Opts::plain(Some(Value::Map(vec![
+        (k::SIZE.into(), Value::Num(f64::from(size * scale))),
+        (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
+    ])))
+}
+
 pub(crate) fn code_editor(
     eng: &Engine,
     id: &str,
@@ -883,18 +927,13 @@ pub(crate) fn code_editor(
     });
     let syntax = syntax_for(&language);
     let state = eng.resource::<UiState>();
-    let mut buffer = {
-        let cached = state.borrow().text_buffers.get(id).cloned();
-        if let Some(b) = cached {
-            b
-        } else {
-            state
-                .borrow_mut()
-                .text_buffers
-                .insert(id.to_string(), source.to_string());
-            source.to_string()
-        }
-    };
+    // Taken rather than copied: the buffer holds the whole open file, and it
+    // goes back below whether or not the pass drew.
+    let mut buffer = state
+        .borrow_mut()
+        .text_buffers
+        .remove(id)
+        .unwrap_or_else(|| source.to_string());
     let size = opts.px(k::SIZE, 12.5);
     let gutter = Gutter::from_opts(opts, size);
     let colors = SyntaxColors::from_opts(opts);
@@ -915,10 +954,27 @@ pub(crate) fn code_editor(
             let n_lines = buffer.split('\n').count().max(1);
             clicked = gutter.paint(ui, n_lines, row_h);
             ui.add_space(sc(12.0));
+            // Tokenising a whole file into a `LayoutJob` and hashing every
+            // section of it, once a frame, was the dearest thing the editor
+            // did; the galley only changes when the text or the look does.
             let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
+                let want = look_key(buf.as_str(), &font, &colors, &marks, &language);
+                if let Some(hit) = state
+                    .borrow()
+                    .code_galleys
+                    .get(id)
+                    .and_then(|(had, galley)| (*had == want).then(|| std::sync::Arc::clone(galley)))
+                {
+                    return hit;
+                }
                 let mut job = highlight(buf.as_str(), syntax, &font, &colors, &marks);
                 job.wrap.max_width = f32::INFINITY;
-                ui.fonts_mut(|f| f.layout_job(job))
+                let galley = ui.fonts_mut(|f| f.layout_job(job));
+                state
+                    .borrow_mut()
+                    .code_galleys
+                    .insert(id.to_string(), (want, std::sync::Arc::clone(&galley)));
+                galley
             };
             // `show` rather than `add`: a popup has to open under the caret,
             // and only the output carries the galley it sits in.
@@ -946,6 +1002,38 @@ pub(crate) fn code_editor(
         .text_buffers
         .insert(id.to_string(), buffer.clone());
     Ok((buffer, changed, clicked, caret))
+}
+
+/// What the code editor's galley was laid out from: the text and everything
+/// about its look. A hit means re-highlighting would produce the same picture.
+fn look_key(
+    text: &str,
+    font: &FontId,
+    colors: &SyntaxColors,
+    marks: &Marks,
+    language: &str,
+) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut hasher);
+    language.hash(&mut hasher);
+    font.size.to_bits().hash(&mut hasher);
+    for color in [
+        colors.key,
+        colors.string,
+        colors.number,
+        colors.comment,
+        colors.ident,
+        colors.builtin,
+        colors.punct,
+        marks.error_color,
+        marks.warning_color,
+    ] {
+        color.to_array().hash(&mut hasher);
+    }
+    marks.errors.hash(&mut hasher);
+    marks.warnings.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// A left-aligned pill row (tree rows, list rows, menu items): custom paint
@@ -999,7 +1087,7 @@ pub(crate) fn left_pill(
             StrokeKind::Inside,
         );
     }
-    let fam = opts.string(k::FONT).unwrap_or_else(|| "ui".into());
+    let fam = opts.str(k::FONT).unwrap_or(w::UI);
     let size = opts.px(k::SIZE, 12.0);
     let color = opts.color(k::COLOR, Color32::WHITE);
     let mut x = rect.min.x + sc(10.0);
@@ -1007,18 +1095,18 @@ pub(crate) fn left_pill(
         let icon_color = opts.opt_color(k::ICON_COLOR).unwrap_or(color);
         let galley = ui.painter().layout_no_wrap(
             icon,
-            FontId::new(opts.px(k::ICON_SIZE, 12.0), theme::family(&fam)),
+            FontId::new(opts.px(k::ICON_SIZE, 12.0), theme::family(fam)),
             icon_color,
         );
         let y = rect.center().y - galley.size().y / 2.0;
         ui.painter().galley(pos2(x, y), galley, icon_color);
         x += sc(7.0) + opts.px(k::ICON_SIZE, 12.0);
     }
-    let mut font = FontId::new(size, theme::family(&fam));
+    let mut font = FontId::new(size, theme::family(fam));
     if opts.boolean(k::STRONG, false) {
         font = FontId::new(
             size,
-            theme::family(if fam == "ui" { w::HEADING } else { &fam }),
+            theme::family(if fam == w::UI { w::HEADING } else { fam }),
         );
     }
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
@@ -1028,7 +1116,7 @@ pub(crate) fn left_pill(
         let t_color = opts.opt_color(k::TRAILING_COLOR).unwrap_or(color);
         let galley = ui.painter().layout_no_wrap(
             trailing,
-            FontId::new(opts.px(k::TRAILING_SIZE, 11.0), theme::family(&fam)),
+            FontId::new(opts.px(k::TRAILING_SIZE, 11.0), theme::family(fam)),
             t_color,
         );
         let ty = rect.center().y - galley.size().y / 2.0;
@@ -1041,17 +1129,20 @@ pub(crate) fn left_pill(
     if let Some(tip) = opts.string(k::TOOLTIP) {
         response = response.on_hover_text(tip);
     }
-    if let Some(menu) = opts.callback(k::MENU) {
-        response.context_menu(|ui| {
-            let _ = scoped(eng, ui, menu);
-        });
-    }
+    crate::widget_layout::attach_menus(eng, &response, opts);
     Ok(response.clicked())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RUNE, syntax_for};
+    use super::{KNOWN_KEYS, RUNE, syntax_for};
+
+    #[test]
+    fn known_keys_stay_sorted_for_the_binary_search() {
+        let mut sorted = KNOWN_KEYS.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(KNOWN_KEYS, sorted.as_slice());
+    }
 
     #[test]
     fn rune_selects_its_own_tokens() {

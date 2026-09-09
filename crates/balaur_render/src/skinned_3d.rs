@@ -27,7 +27,8 @@ use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture};
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
 
-use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms, uniform_entry};
+use crate::bind_layout::uniform_entry;
+use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms};
 use crate::shaders;
 
 /// The most bones one mesh may name. 128 `mat4` is 8 KB, which keeps the
@@ -303,21 +304,19 @@ impl SkinnedMaterial3d {
         );
     }
 
+    /// Group 2, the same six slots every shader importing `package::mesh`
+    /// reads: the mesh's own image as albedo, and the slot's stand-in for the
+    /// five a skinned mesh names no texture for.
     fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
-        Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("skinned3d_texture_bind_group"),
-            layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-        })
+        let fallbacks = crate::shader_material_3d::slot_fallbacks();
+        let mut bound: Vec<&Texture> = vec![texture];
+        bound.extend(fallbacks.iter().skip(1).map(std::convert::AsRef::as_ref));
+        crate::bind_layout::sampled_slots_group(
+            &Context::get(),
+            "skinned3d_texture_bind_group",
+            &self.texture_layout,
+            &bound,
+        )
     }
 }
 

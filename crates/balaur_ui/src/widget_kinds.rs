@@ -7,8 +7,10 @@ use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
-use crate::widget_arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
-use crate::widget_layer::{Edit, Painting, draw_one, rgba_color};
+use crate::widget_arrange::{
+    Axis, box_of, hold_to, lay_out, padding_of, record_measure, record_rect,
+};
+use crate::widget_layer::{Edit, Painting, draw_one};
 use crate::widget_measure::Measure;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
@@ -52,19 +54,24 @@ pub(crate) fn dropdown(
     let entity = placed.entity;
     let want = box_of(widget, at.assigned, at.scale);
     let mut chosen = widget.text.clone();
-    let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity))
-        .selected_text(egui::RichText::new(&chosen).font(font.clone()).color(color));
+    let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity)).selected_text(
+        egui::RichText::new(chosen.as_str())
+            .font(font.clone())
+            .color(color),
+    );
     if want.x > 0.0 {
         combo = combo.width(want.x);
     }
     combo.show_ui(ui, |ui| {
         for option in &widget.options {
-            let label = egui::RichText::new(option).font(font.clone()).color(color);
+            let label = egui::RichText::new(option.as_str())
+                .font(font.clone())
+                .color(color);
             ui.selectable_value(&mut chosen, option.clone(), label);
         }
     });
     if chosen != widget.text {
-        at.edits.push((entity, Edit::Choice(chosen)));
+        at.edits.push((entity, Edit::Choice(chosen.to_string())));
     }
 }
 
@@ -93,6 +100,661 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
 }
 
+/// A scrolling list of `options`, one row each: Godot's `ItemList`. `text` is
+/// the row picked, and `row_height` is the pitch.
+///
+/// Only the rows on screen are built, so a list of the whole document costs
+/// its viewport rather than its length. A `tree` is this with a depth read off
+/// each row, so both go through here.
+fn rows(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+    indent: bool,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let want = box_of(widget, at.assigned, at.scale);
+    let row_h = if widget.height > 0.0 && !indent {
+        widget.height * at.scale
+    } else {
+        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
+    };
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
+    let chosen = widget.text.to_string();
+    let id = egui::Id::new(("balaur-list", entity));
+
+    // A tab a row starts with is one level in, which is how an outline is
+    // written down and what keeps a tree inside a list of strings.
+    let depth_of = |item: &String| {
+        if indent {
+            item.len() - item.trim_start_matches('\t').len()
+        } else {
+            0
+        }
+    };
+    // Folded branches are the tree's own business, so a script hands over the
+    // whole outline and never hears about a caret.
+    let shut: std::collections::BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
+    let mut open_rows: Vec<usize> = Vec::new();
+    let mut hidden_under: Option<usize> = None;
+    for (i, item) in items.iter().enumerate() {
+        let depth = depth_of(item);
+        if hidden_under.is_some_and(|under| depth > under) {
+            continue;
+        }
+        hidden_under = None;
+        open_rows.push(i);
+        if shut.contains(item) {
+            hidden_under = Some(depth);
+        }
+    }
+
+    // Where each open row's branch still continues, so a guide is drawn only
+    // down a level that has another row below this one.
+    let trails = branches(&items, &open_rows, &depth_of);
+    let mut picked = None;
+    let mut toggled = None;
+    // Both ways: a row wider than the list is a log line or a long node
+    // name, and a bar to reach the end of it is better than the end being
+    // painted over whatever sits beside the list.
+    let mut area = egui::ScrollArea::both()
+        .id_salt(id)
+        .auto_shrink([false, false]);
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
+        for slot in range {
+            let Some(&i) = open_rows.get(slot) else {
+                continue;
+            };
+            let item = &items[i];
+            let depth = depth_of(item);
+            let parent = indent && items.get(i + 1).is_some_and(|next| depth_of(next) > depth);
+            let hit = row(
+                ui,
+                &Row {
+                    item,
+                    depth,
+                    parent,
+                    indent,
+                    row_h,
+                    trail: trails.get(slot).map_or(&[][..], Vec::as_slice),
+                    shut: shut.contains(item),
+                    chosen: &chosen,
+                    font,
+                    color,
+                },
+            );
+            if hit.folded {
+                toggled = Some(item.clone());
+            }
+            if hit.picked {
+                picked = Some(item.clone());
+            }
+        }
+    });
+    if let Some(item) = toggled {
+        let mut next = shut;
+        if !next.remove(&item) {
+            next.insert(item);
+        }
+        ui.data_mut(|d| d.insert_temp(id, next));
+    }
+    if let Some(item) = picked {
+        at.clicked.push(entity);
+        at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
+/// One row of a list or tree, and what a click on it meant.
+struct Row<'a> {
+    item: &'a str,
+    depth: usize,
+    /// Whether a caret is drawn, because the next row is deeper than this one.
+    parent: bool,
+    indent: bool,
+    row_h: f32,
+    /// Where each level above this row still carries on, for the guides.
+    trail: &'a [bool],
+    shut: bool,
+    chosen: &'a str,
+    font: &'a egui::FontId,
+    color: Color32,
+}
+
+struct Hit {
+    picked: bool,
+    folded: bool,
+}
+
+/// Draw one row: the guides down its indent, its caret, its icon field, its
+/// label, and whatever it trails on the right.
+fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
+    let mut hit = Hit {
+        picked: false,
+        folded: false,
+    };
+    ui.horizontal(|ui| {
+        if r.depth > 0 {
+            let head = ui.cursor().min;
+            ui.add_space(r.row_h * r.depth as f32);
+            guides(ui, head, r.row_h, r.trail);
+        }
+        if r.parent {
+            let caret = if r.shut { "\u{25b8}" } else { "\u{25be}" };
+            let mark = egui::RichText::new(caret)
+                .font(r.font.clone())
+                .color(r.color);
+            hit.folded = ui.selectable_label(false, mark).clicked();
+        } else if r.indent {
+            ui.add_space(r.row_h);
+        }
+        let (icon, label, trailing, tint) = fields(r.item);
+        let color = tint.unwrap_or(r.color);
+        if !icon.is_empty() {
+            // The icon field is a glyph from the project's icon face, not a
+            // character in the UI one.
+            let mark = egui::FontId::new(r.font.size, crate::theme::family("icon"));
+            ui.label(egui::RichText::new(icon).font(mark).color(color));
+        }
+        let text = egui::RichText::new(label).font(r.font.clone()).color(color);
+        let picked = ui.selectable_label(r.item == r.chosen, text);
+        if !trailing.is_empty() {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(trailing)
+                        .font(r.font.clone())
+                        .color(color),
+                );
+            });
+        }
+        hit.picked = picked.clicked();
+    });
+    hit
+}
+
+/// A file being edited, with the gutter and the colouring `ui::code_editor`
+/// draws: Godot's `CodeEdit` as a node.
+///
+/// The kind is the same call a script makes, given the widget's own values
+/// instead of an options table, so there is one editor and one highlighter.
+pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let id = format!("balaur-code-{}", entity.to_bits());
+    let opts = crate::widgets::code_opts(&widget, at.scale);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
+        ui.max_rect().min,
+        egui::vec2(
+            if want.x > 0.0 {
+                want.x
+            } else {
+                ui.available_width()
+            },
+            if want.y > 0.0 {
+                want.y
+            } else {
+                ui.available_height()
+            },
+        ),
+    )));
+    crate::bridge::push(&mut inner);
+    let edited = crate::widgets::code_editor(at.eng, &id, &widget.text, &opts);
+    crate::bridge::pop();
+    match edited {
+        Ok((text, changed, _, _)) if changed => at.edits.push((entity, Edit::Text(text))),
+        Ok(_) => {}
+        Err(err) => warn_code(&err),
+    }
+    let used = inner.min_rect().size();
+    record_measure(entity, used);
+    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
+}
+
+fn warn_code(err: &anyhow::Error) {
+    tracing::warn!("code widget: {err:#}");
+}
+
+/// Whether each level above a row still has a row below it, and whether the
+/// row itself has a later sibling. One entry a level, plus the row's own.
+fn branches(
+    items: &[String],
+    open: &[usize],
+    depth_of: &impl Fn(&String) -> usize,
+) -> Vec<Vec<bool>> {
+    let depths: Vec<usize> = open.iter().map(|&i| depth_of(&items[i])).collect();
+    depths
+        .iter()
+        .enumerate()
+        .map(|(n, &own)| {
+            (0..=own)
+                .map(|level| {
+                    depths[n + 1..]
+                        .iter()
+                        .find(|later| **later <= level)
+                        .is_some_and(|later| *later == level)
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// The lines down an outline: a vertical while a branch still has rows below
+/// it, and a dash into the row itself. The last child of a branch gets the
+/// dash alone, so a run of corners does not read as a ladder.
+fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool]) {
+    let Some(own) = trail.len().checked_sub(1) else {
+        return;
+    };
+    let ink = ui.visuals().weak_text_color().gamma_multiply(0.55);
+    let stroke = Stroke::new(1.0, ink);
+    let middle = head.y + step / 2.0;
+    // One vertical at most: the shallowest level whose branch carries on.
+    // Everything inside it is a dash, so a deep row reads `| - -` rather than
+    // a wall of pipes.
+    let pipe = trail.iter().position(|carries| *carries);
+    for level in 0..own {
+        let x = head.x + (level as f32 + 0.5) * step;
+        if pipe == Some(level) {
+            ui.painter()
+                .line_segment([pos2(x, head.y), pos2(x, head.y + step)], stroke);
+        }
+        // The dash leads in: from the pipe, or from where one would be.
+        ui.painter()
+            .line_segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
+    }
+}
+
+/// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
+/// separated by U+001F. `ItemList` carries an icon and a per-item colour the
+/// same way, without a second array to keep in step with the first. Leading
+/// tabs are the tree's depth and are not a field.
+fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
+    let body = item.trim_start_matches('\t');
+    let mut parts = body.split('\u{1f}');
+    let (a, b, c, d) = (parts.next(), parts.next(), parts.next(), parts.next());
+    let tint = d.and_then(crate::theme::parse_hex);
+    match (a, b, c) {
+        (Some(icon), Some(label), Some(trailing)) => (icon, label, trailing, tint),
+        (Some(icon), Some(label), None) => (icon, label, "", tint),
+        (Some(label), None, None) => ("", label, "", tint),
+        _ => ("", body, "", tint),
+    }
+}
+
+/// Godot's `ItemList`, in its line mode and its icon mode: above one
+/// `columns` the rows flow into a grid of cards instead of a column of lines.
+pub(crate) fn list(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    if at.arena[index].widget.columns > 1 {
+        cards(ui, at, index, font, color);
+        return;
+    }
+    rows(ui, at, index, font, color, false);
+}
+
+/// One card: the icon over the label, in a box the caller sized.
+///
+/// The same U+001F fields a row splits on, so a view moves between the two
+/// modes by setting `columns` and changing nothing else.
+fn card(
+    ui: &mut egui::Ui,
+    item: &str,
+    size: egui::Vec2,
+    font: &egui::FontId,
+    color: Color32,
+    on: bool,
+    sheet: Option<&egui::TextureHandle>,
+) -> bool {
+    let (icon, label, trailing, tint) = fields(item);
+    let color = tint.unwrap_or(color);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = if on {
+        ui.visuals().selection.bg_fill
+    } else if response.hovered() {
+        ui.visuals().widgets.hovered.bg_fill
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(5), fill);
+    let mut head = rect.top() + 6.0;
+    // A list that names a `source` reads the icon field as `x,y,w,h` in that
+    // picture's own pixels, which is how an atlas picker shows its tiles.
+    let region = sheet.and_then(|sheet| region_uv(sheet.size_vec2(), icon));
+    if let (Some(sheet), Some(uv)) = (sheet, region) {
+        let edge = (size.y * 0.6).min(size.x * 0.6).max(1.0);
+        let face = egui::Rect::from_center_size(
+            pos2(rect.center().x, head + edge / 2.0),
+            egui::Vec2::splat(edge),
+        );
+        ui.painter().image(sheet.id(), face, uv, Color32::WHITE);
+        head += edge + 4.0;
+    } else if !icon.is_empty() {
+        // The project's icon face, at the card's own size rather than the
+        // label's: an icon mode that drew the glyph at line height is a list.
+        let mark = egui::FontId::new(
+            (size.y * 0.44).min(size.x * 0.42),
+            crate::theme::family("icon"),
+        );
+        let galley = ui.painter().layout_no_wrap(icon.to_owned(), mark, color);
+        ui.painter().galley(
+            pos2(rect.center().x - galley.size().x / 2.0, head),
+            galley.clone(),
+            color,
+        );
+        head += galley.size().y + 4.0;
+    }
+    let text = ui.painter().layout(
+        label.to_owned(),
+        font.clone(),
+        color,
+        (size.x - 8.0).max(8.0),
+    );
+    ui.painter().galley(
+        pos2(rect.center().x - text.size().x / 2.0, head),
+        text,
+        color,
+    );
+    if !trailing.is_empty() {
+        response.clone().on_hover_text(trailing);
+    }
+    response.clicked()
+}
+
+/// A row's `x,y,w,h` in the sheet's own pixels, as egui's unit coordinates.
+/// `None` for anything that is not four numbers, which is a glyph instead.
+fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
+    if native.x <= 0.0 || native.y <= 0.0 {
+        return None;
+    }
+    let mut parts = field.split(',').map(|n| n.trim().parse::<f32>());
+    let (x, y, w, h) = (
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+        parts.next()?.ok()?,
+    );
+    if w <= 0.0 || h <= 0.0 || parts.next().is_some() {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        pos2(
+            (x / native.x).clamp(0.0, 1.0),
+            (y / native.y).clamp(0.0, 1.0),
+        ),
+        pos2(
+            ((x + w) / native.x).clamp(0.0, 1.0),
+            ((y + h) / native.y).clamp(0.0, 1.0),
+        ),
+    ))
+}
+
+/// The cards, wrapped into rows of `columns` and scrolled a row at a time.
+fn cards(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let columns = widget.columns.max(1) as usize;
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
+    let chosen = widget.text.to_string();
+    let gap = 6.0 * at.scale;
+    let room = if want.x > 0.0 {
+        want.x
+    } else {
+        ui.available_width()
+    };
+    let side = ((room - gap * (columns as f32 - 1.0)) / columns as f32).max(24.0);
+    // `row_height` is the pitch of a row, so for a card it is the card's own
+    // height; without one a card is a little shorter than it is wide, the
+    // icon taking the square and the label sitting under it.
+    let tall = if widget.row_height > 0.0 {
+        widget.row_height * at.scale
+    } else {
+        side * 0.86
+    };
+    let cell = egui::vec2(side, tall);
+    let lines = items.len().div_ceil(columns);
+    let sheet = (!widget.source.is_empty())
+        .then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
+        .flatten();
+    let mut picked = None;
+    let mut area = egui::ScrollArea::vertical()
+        .id_salt(egui::Id::new(("balaur-cards", entity)))
+        .auto_shrink([false, false]);
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area.show_rows(ui, cell.y + gap, lines, |ui, range| {
+        for line in range {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+                for slot in 0..columns {
+                    let Some(item) = items.get(line * columns + slot) else {
+                        break;
+                    };
+                    if card(ui, item, cell, font, color, *item == chosen, sheet.as_ref()) {
+                        picked = Some(item.clone());
+                    }
+                }
+            });
+        }
+    });
+    if let Some(item) = picked {
+        at.clicked.push(entity);
+        at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
+/// Godot's `Tree`, as an outline: a row's leading tabs are its depth.
+pub(crate) fn tree(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    rows(ui, at, index, font, color, true);
+}
+
+/// Godot's `Tree` with named columns: `options` holds the rows, each split on
+/// U+001F into one cell a column, and `text` is the row picked.
+///
+/// The header comes from the widget's own `text` when it names the columns the
+/// same way; without one the first row is drawn as the header.
+pub(crate) fn table(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let want = box_of(&widget, at.assigned, at.scale);
+    let heads: Vec<&str> = widget
+        .placeholder
+        .split('\u{1f}')
+        .filter(|head| !head.is_empty())
+        .collect();
+    let columns = heads.len().max(1);
+    let items: Vec<String> = widget
+        .options
+        .iter()
+        .map(smol_str::SmolStr::to_string)
+        .collect();
+    let chosen = widget.text.to_string();
+    let row_h = if widget.row_height > 0.0 {
+        widget.row_height * at.scale
+    } else {
+        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
+    };
+    let mut picked = None;
+    egui::Grid::new(("balaur-table", entity))
+        .num_columns(columns)
+        .striped(true)
+        .min_row_height(row_h)
+        .show(ui, |ui| {
+            for head in &heads {
+                ui.label(
+                    egui::RichText::new(*head)
+                        .font(font.clone())
+                        .color(color)
+                        .strong(),
+                );
+            }
+            if !heads.is_empty() {
+                ui.end_row();
+            }
+            for item in &items {
+                for cell in item.split('\u{1f}').take(columns) {
+                    if ui
+                        .selectable_label(
+                            *item == chosen,
+                            egui::RichText::new(cell).font(font.clone()).color(color),
+                        )
+                        .clicked()
+                    {
+                        picked = Some(item.clone());
+                    }
+                }
+                ui.end_row();
+            }
+        });
+    if want.y > 0.0 {
+        hold_to(ui, egui::vec2(want.x, want.y));
+    }
+    if let Some(item) = picked {
+        at.clicked.push(entity);
+        at.edits.push((entity, Edit::Choice(item)));
+    }
+}
+
+/// A button that drops a list of items: Godot's `MenuButton`, and the same
+/// list a `PopupMenu` shows. `options` are the entries and `text` is the
+/// button; picking one reports it the way a dropdown reports a choice, so a
+/// script hears it through `on_change`.
+pub(crate) fn menu(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let mut picked = None;
+    let label = egui::RichText::new(caption).font(font.clone()).color(color);
+    ui.menu_button(label, |ui| {
+        for option in &widget.options {
+            let item = egui::RichText::new(option.as_str())
+                .font(font.clone())
+                .color(color);
+            if ui.button(item).clicked() {
+                picked = Some(option.to_string());
+                ui.close();
+            }
+        }
+    });
+    if let Some(choice) = picked {
+        at.edits.push((entity, Edit::Choice(choice)));
+    }
+}
+
+/// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is
+/// the widget's own `color`, not the ink its caption is drawn in.
+pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let entity = placed.entity;
+    let [r, g, b, a] = widget.color;
+    let mut rgba = egui::Rgba::from_rgba_unmultiplied(r, g, b, a);
+    let want = box_of(widget, at.assigned, at.scale);
+    if want.x > 0.0 {
+        ui.spacing_mut().interact_size.x = want.x;
+    }
+    if egui::color_picker::color_edit_button_rgba(
+        ui,
+        &mut rgba,
+        egui::color_picker::Alpha::OnlyBlend,
+    )
+    .changed()
+    {
+        let [r, g, b, a] = rgba.to_rgba_unmultiplied();
+        at.edits.push((entity, Edit::Color([r, g, b, a])));
+    }
+}
+
+/// A number dragged sideways, or typed into after a click. `SpinBox` in a
+/// Godot scene; the control an inspector row is mostly made of.
+///
+/// `min` and `max` are the slider's, and so default to 0 and 1. A position or
+/// a scale is neither, and most of what an inspector shows runs free, so that
+/// default pair reads here as no bounds at all: any other pair binds.
+pub(crate) fn drag_value(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let mut value = widget.value;
+    let mut drag = egui::DragValue::new(&mut value);
+    // The letter a vector row puts before each number, which is the one thing
+    // a drag value shows that is not the number itself.
+    if !widget.placeholder.is_empty() {
+        drag = drag.prefix(format!("{} ", widget.placeholder));
+    }
+    let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
+    if bounded {
+        drag = drag.range(widget.min..=widget.max);
+    }
+    if widget.step > 0.0 {
+        drag = drag.speed(widget.step);
+    }
+    let want = box_of(widget, at.assigned, at.scale);
+    if want.x > 0.0 {
+        ui.spacing_mut().interact_size.x = want.x;
+    }
+    let response = ui.scope(|ui| {
+        ui.style_mut().override_font_id = Some(font.clone());
+        ui.visuals_mut().override_text_color = Some(color);
+        ui.add(drag)
+    });
+    if response.inner.changed() {
+        at.edits.push((placed.entity, Edit::Value(value)));
+    }
+}
+
 /// A bar filled to `value`, with the caption over it.
 pub(crate) fn progress(
     ui: &mut egui::Ui,
@@ -114,7 +776,7 @@ pub(crate) fn progress(
     if want.y > 0.0 {
         bar = bar.desired_height(want.y);
     }
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     if let Some(fill) = style.fill {
         bar = bar.fill(fill);
     }
@@ -127,9 +789,9 @@ pub(crate) fn progress(
 /// A line across the parent's direction, in the theme's stroke.
 pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &at.arena[index].widget;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     if let Some(color) = style.stroke {
-        ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_width, color);
+        ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
     ui.add(egui::Separator::default().spacing(6.0 * at.scale));
 }
@@ -148,7 +810,7 @@ pub(crate) fn fold(
     let placed = &at.arena[index];
     let (entity, open) = (placed.entity, placed.widget.open);
     let widget = placed.widget.clone();
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let scale = at.scale;
     let pad = padding_of(&widget, &style, scale);
     let mark = if open { "▾" } else { "▸" };
@@ -172,11 +834,33 @@ pub(crate) fn fold(
     }
     let room = ui.available_rect_before_wrap();
     let body = Rect::from_min_max(pos2(room.min.x + pad, room.min.y), room.max);
+    // Solved on its own: the header is drawn here rather than authored, so
+    // what is under it is a subtree of its own from the layout's side.
+    let space = crate::widget_taffy::Room::scrolling(body);
+    let solved = crate::widget_taffy::solve_subtree(
+        at.eng,
+        at.arena,
+        index,
+        ui,
+        at.scale,
+        &at.theme,
+        &space,
+        at.deep(index),
+    );
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(body));
-    let held = std::mem::replace(&mut at.bounds, egui::Vec2::ZERO);
+    let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);
-    at.bounds = held;
+    at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
+}
+
+/// How many across a `grid` puts its children: what it states, or the two
+/// it has always drawn when it states nothing.
+pub(crate) fn grid_columns(widget: &crate::widget_layer::Widget) -> usize {
+    if widget.columns == 0 {
+        return 2;
+    }
+    widget.columns as usize
 }
 
 /// Children in rows of `columns`, every cell as big as the biggest child
@@ -189,9 +873,9 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
     let widget = placed.widget.clone();
     let scale = at.scale;
-    let columns = (widget.columns.max(1)) as usize;
+    let columns = grid_columns(&widget);
     let gap = widget.gap * scale;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, scale);
     let box_size = box_of(&widget, at.assigned, scale);
     let mut cell = egui::Vec2::ZERO;
@@ -232,7 +916,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = placed.widget.clone();
     let scale = at.scale;
     let gap = widget.gap * scale;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, scale);
     let box_size = box_of(&widget, at.assigned, scale);
     let room = ui.available_rect_before_wrap();
@@ -414,10 +1098,4 @@ pub(crate) fn deadzone_drag(
         return None;
     }
     Some((base - travelled).max(egui::Vec2::ZERO))
-}
-
-/// The colour a kind's text is drawn in, for a control egui paints itself.
-#[allow(dead_code, reason = "kept beside the kinds that will take a tint")]
-pub(crate) fn tint_of(widget: &crate::widget_layer::Widget) -> Color32 {
-    rgba_color(widget.text_color)
 }

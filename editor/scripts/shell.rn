@@ -77,7 +77,9 @@ pub fn set_persona(S, id) {
     } else {
         S.doctab = "scene";
     }
-    crate::docks::show(S, if id == "anim" { "timeline" } else { "output" });
+    // A persona is a set of open panels and nothing more: what it opens can
+    // be closed again from a tab, and what it leaves out opened from the menu.
+    crate::docks::apply_persona(S, id);
 }
 
 /// Show a document tab, opening it when it was closed.
@@ -578,6 +580,7 @@ fn states() {
         "animdemo": state_animdemo,
         "layoutdemo": crate::selftest::layout,
         "fontdemo": state_fontdemo,
+        "menudemo": state_menudemo,
         "undodemo": crate::selftest::undo,
         "breakdemo": break_demo,
         "rigdemo": crate::selftest::rigging,
@@ -600,6 +603,7 @@ fn states() {
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
+        "paneldemo": crate::selftest::menu_panels,
         "seldemo": crate::selftest::selecting,
         "dropdemo": crate::selftest::dropping,
         "eventsdemo": crate::selftest::eventviews,
@@ -624,6 +628,7 @@ fn prefixed_states() {
         ("show:", state_show),
         ("tool:", state_tool),
         ("dock:", state_dock),
+        ("view:", state_view),
         ("asset:", state_asset),
         ("tab:", state_tab),
         ("shut:", state_shut),
@@ -682,10 +687,21 @@ pub fn apply_start_state(S, start) {
 fn state_shot(S, path) {
     S.shot = Some(path);
 }
+
+/// `view:<panel>` brings one panel up and reports the rect it was drawn in,
+/// so a design pass can cut it out of the shot and look at it on its own.
+///
+/// The rect is logged rather than cropped here: the renderer saves whole
+/// frames, and one line a run is all a script needs to cut them up.
+fn state_view(S, id) {
+    crate::docks::show(S, id);
+    S.view_shot = id;
+}
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.
 fn state_frames(S, dir) {
-    fs::mkdir(dir);
+    // No `fs::mkdir` here: the directory is the caller's, outside every root
+    // `fs` may reach, and the screenshot makes it on the way past.
     S.capture = #{ dir: dir, from: 30, every: 2, n: 0 };
 }
 fn state_input(S) {
@@ -700,7 +716,7 @@ fn state_show(S, name) {
 pub fn set_tool(S, tool) {
     S.tool = tool;
     if tool == "tiles" {
-        crate::docks::reveal(S, "tiles");
+        crate::docks::show(S, "tiles");
     }
 }
 
@@ -720,6 +736,10 @@ fn state_tab(S, tab) {
 
 fn state_fontdemo(S) {
     S.fontdemo = true;
+}
+
+fn state_menudemo(S) {
+    S.menu_open = true;
 }
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the

@@ -171,6 +171,8 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::COLLIDER_2D],
             apply: Box::new(|eng, entity, params| {
+                // Moving a character writes the node's transform.
+                balaur_core::transform::ensure(eng, entity);
                 let _ = eng
                     .world_mut()
                     .insert_one(entity, Character2d(params.clone()));

@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  What a frame of the editor costs in a browser, in milliseconds of CPU.
+
+  Copy this beside a web build's `balaur.js`, `balaur_bg.wasm`, `editor.bpak`
+  and a project pack, serve the directory over HTTP, and open it in a real
+  browser tab — a hidden or embedded one suspends requestAnimationFrame and
+  reads zero. Then, in the console:
+
+      __stats()          what has been drawn so far
+      __reset()          start counting again
+      await __wiggle(4000)   move the pointer over the canvas for 4s
+
+  An idle editor asks for no repaint, so `frames` stays at 0 and a frame costs
+  nothing; `__wiggle` is what makes it draw.
+-->
+<meta charset="utf-8">
+<title>editor frame cost</title>
+<style>
+  html, body { margin: 0; background: #12161c; color: #e6e9ee; font: 12px monospace; }
+  #out { padding: 4px; }
+  /* The engine sizes its surface from the canvas's own box, so the box has
+     to be a real one: a stage with a size, and the canvas filling it. */
+  #stage { width: 760px; height: 400px; position: relative; }
+  #c { display: block; width: 100%; height: 100%; outline: none; }
+</style>
+<div id="out">booting…</div>
+<div id="stage"><canvas id="c" width="1280" height="800" tabindex="0"></canvas></div>
+<script type="module">
+  // The engine drives its frame from requestAnimationFrame, so wrapping rAF
+  // before it boots times the callback itself: the CPU a frame costs, which a
+  // plain frame-interval reading hides behind vsync.
+  const raf = window.requestAnimationFrame.bind(window);
+  window.__cpu = [];
+  window.requestAnimationFrame = (cb) => raf((t) => {
+    const a = performance.now();
+    cb(t);
+    window.__cpu.push(performance.now() - a);
+    if (window.__cpu.length > 4000) window.__cpu.shift();
+  });
+  window.__stats = () => {
+    const s = window.__cpu.slice().sort((x, y) => x - y);
+    if (!s.length) return { frames: 0 };
+    const at = (p) => s[Math.min(s.length - 1, Math.floor(s.length * p))];
+    return {
+      frames: s.length,
+      mean: +(s.reduce((a, b) => a + b, 0) / s.length).toFixed(2),
+      p50: +at(0.5).toFixed(2), p90: +at(0.9).toFixed(2), max: +s[s.length - 1].toFixed(2),
+    };
+  };
+  window.__reset = () => { window.__cpu.length = 0; return true; };
+
+  // Pointer moves over the canvas are what make the editor redraw; a game
+  // loop it is not, so a measurement has to give it something to react to.
+  const c = document.getElementById('c');
+  window.__wiggle = (ms) => new Promise((done) => {
+    let n = 0;
+    const step = () => {
+      n += 1;
+      const x = 300 + (n % 200), y = 300 + ((n * 7) % 120);
+      for (const type of ['pointermove', 'mousemove']) {
+        c.dispatchEvent(new PointerEvent(type, {
+          clientX: x, clientY: y, bubbles: true, pointerId: 1, pointerType: 'mouse',
+        }));
+      }
+      if (n * 8 < ms) setTimeout(step, 8); else done(window.__stats());
+    };
+    step();
+  });
+
+  const out = document.getElementById('out');
+  try {
+    const glue = await import('./balaur.js');
+    await glue.default({ module_or_path: './balaur_bg.wasm' });
+    out.textContent = 'editor on hello';
+    window.__ready = true;
+    glue.start_editor('c', 'editor.bpak', 'hello.bpak');
+  } catch (e) {
+    out.textContent = 'failed: ' + e;
+    window.__error = String(e);
+  }
+</script>

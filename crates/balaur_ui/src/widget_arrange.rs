@@ -4,25 +4,24 @@
 //! Split from `widget_layer` because that file is the component and the walk
 //! over the world, and this is the arithmetic between them.
 
-use crate::theme::family;
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Edit, Painting, Widget, draw_one, rgba_color};
-use crate::widget_measure::Measure;
+use crate::widget_layer::{Edit, Painting, Widget, draw_one};
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
+use rustc_hash::FxHashMap;
+use smol_str::SmolStr;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —
     /// everything else the layer draws it can also measure, and a rect a
     /// script fills is the one thing it can only remember.
-    static MEASURED: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
-    static MEASURING: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
+    static MEASURED: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    static MEASURING: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// Where each widget was drawn, for a script that has to place something
     /// against it — the editor's own chrome reads its shell back this way.
-    static PLACED: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
-    static PLACING: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
+    static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.
@@ -36,7 +35,10 @@ pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     });
 }
 
-fn measured_of(entity: Entity) -> egui::Vec2 {
+/// What a widget drew last frame. Only a `draw` node needs it: everything
+/// else the layer draws it can also measure ahead, and a rect a script fills
+/// is the one thing that can only be remembered.
+pub(crate) fn measured_of(entity: Entity) -> egui::Vec2 {
     MEASURED.with(|m| {
         m.borrow()
             .get(&entity.to_bits().get())
@@ -49,14 +51,21 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
+    // A `draw` node's size comes from the script that filled it, not from any
+    // property, so this is the one layout input no component write announces.
+    if measured_of(entity) != size {
+        crate::widget_arena::widget_changed(entity);
+    }
 }
 
 /// Last frame's measurements become this frame's; a widget that stopped
 /// drawing drops out rather than accumulating.
 pub(crate) fn roll_measurements() {
+    // Swapped rather than copied: the map holds an entry a widget, and
+    // copying it was an O(n) walk on top of the one that filled it.
     MEASURING.with(|next| {
         MEASURED.with(|now| {
-            now.borrow_mut().clone_from(&next.borrow());
+            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
         });
         next.borrow_mut().clear();
     });
@@ -68,7 +77,7 @@ pub(crate) fn roll_measurements() {
 pub(crate) fn settle_rects() {
     PLACING.with(|next| {
         PLACED.with(|now| {
-            now.borrow_mut().clone_from(&next.borrow());
+            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
         });
         next.borrow_mut().clear();
     });
@@ -108,7 +117,7 @@ fn themed_frame(
         .stroke(
             style
                 .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
         )
 }
 
@@ -132,7 +141,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             room.height()
         },
     );
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, at.scale);
     let frame = themed_frame(&style, at.scale, None);
     let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
@@ -164,11 +173,25 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             area = area.scroll_offset(offset);
         }
         area.show(ui, |ui| {
-            // Along the scroll the room is unbounded: children take what
-            // they measure and the bar makes up the difference.
-            let held = std::mem::replace(&mut at.bounds, vec2(inner.x, 0.0));
+            // Solved on its own, with the scroll's axis free: the contents
+            // take what they measure and the bar makes up the difference.
+            let room = crate::widget_taffy::Room::scrolling(egui::Rect::from_min_size(
+                ui.max_rect().min,
+                vec2(inner.x, inner.y),
+            ));
+            let solved = crate::widget_taffy::solve_subtree(
+                at.eng,
+                at.arena,
+                index,
+                ui,
+                at.scale,
+                &at.theme,
+                &room,
+                at.deep(index),
+            );
+            let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
-            at.bounds = held;
+            at.rects = held;
         });
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
@@ -192,7 +215,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let entity = placed.entity;
     // Each page as (index, the name `active` holds, the strip's label). Two
     // pages showing the same text are told apart by their node names.
-    let pages: Vec<(usize, String, String)> = children
+    let pages: Vec<(usize, SmolStr, SmolStr)> = children
         .iter()
         .map(|child| {
             let page = &at.arena[*child];
@@ -221,11 +244,13 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         })
         .unwrap_or(0);
 
-    let box_size = box_of(&widget, at.assigned, scale);
-    let rect = room_of(ui, box_size);
-    let style = at.theme.style(&widget.kind);
-    let font = egui::FontId::new(widget.font_size * scale, family("ui"));
-    let color = rgba_color(widget.text_color);
+    // The rect the layout pass gave this tab, which is the whole of it: the
+    // strip takes the top and the page takes what is left.
+    let rect = ui.max_rect();
+    let style = at.style_of(&widget);
+    // The face the theme resolves, not the raw properties: a widget that
+    // states no size or colour is asking the theme for them.
+    let (color, font) = crate::widget_layer::face(&style, &widget, scale);
     let gap = widget.gap * scale;
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
@@ -235,11 +260,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
-                let mut button =
-                    egui::Button::new(egui::RichText::new(label).font(font.clone()).color(color))
-                        .corner_radius(egui::CornerRadius::same(
-                            (style.radius.unwrap_or(5.0) * scale) as u8,
-                        ));
+                let mut button = egui::Button::new(
+                    egui::RichText::new(label.as_str())
+                        .font(font.clone())
+                        .color(color),
+                )
+                .corner_radius(egui::CornerRadius::same(
+                    (style.radius.unwrap_or(5.0) * scale) as u8,
+                ));
                 button = match (on, style.fill) {
                     (true, Some(fill)) => button.fill(fill),
                     (true, None) => button.fill(Color32::from_black_alpha(96)),
@@ -253,7 +281,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         })
         .inner;
     if let Some(name) = chosen {
-        at.edits.push((entity, Edit::Active(name)));
+        at.edits.push((entity, Edit::Active(name.to_string())));
     }
     let strip_h = strip.min_rect().height();
 
@@ -261,11 +289,27 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         pos2(rect.min.x, rect.min.y + strip_h + gap),
         vec2(rect.width(), (rect.height() - strip_h - gap).max(0.0)),
     );
+    // The page is solved on its own: only one of them is on screen, so the
+    // strip's siblings never take part in the same flex line.
+    let showing = pages[showing].0;
+    let room = crate::widget_taffy::Room::fixed(page);
+    let solved = crate::widget_taffy::solve_subtree(
+        at.eng,
+        at.arena,
+        showing,
+        ui,
+        at.scale,
+        &at.theme,
+        &room,
+        at.deep(index),
+    );
     let restore = at.assigned;
     at.assigned = page.size();
+    let held = std::mem::replace(&mut at.rects, solved);
     let mut body = ui.new_child(egui::UiBuilder::new().max_rect(page));
     body.set_clip_rect(page.intersect(ui.clip_rect()));
-    draw_one(&mut body, at, pages[showing].0);
+    draw_one(&mut body, at, showing);
+    at.rects = held;
     at.assigned = restore;
     ui.advance_cursor_after_rect(rect);
 }
@@ -312,164 +356,47 @@ impl Axis {
             Axis::Column => v.y,
         }
     }
-
-    fn across(self, v: egui::Vec2) -> f32 {
-        match self {
-            Axis::Row => v.y,
-            Axis::Column => v.x,
-        }
-    }
-
-    /// A vector from its two components, along first.
-    fn vec(self, along: f32, across: f32) -> egui::Vec2 {
-        match self {
-            Axis::Row => vec2(along, across),
-            Axis::Column => vec2(across, along),
-        }
-    }
 }
 
-/// The size a widget states, in device pixels; 0 on an axis it leaves free.
-fn stated_of(widget: &Widget, scale: f32) -> egui::Vec2 {
+/// A box's own stated size, in device pixels: what a seam drag writes back.
+pub(crate) fn stated_of(widget: &Widget, scale: f32) -> egui::Vec2 {
     vec2(widget.width, widget.height) * scale
 }
 
-/// What a child asks for along the axis, and the floor it may not go under.
-fn asked_of(widget: &Widget, axis: Axis, scale: f32) -> (f32, f32) {
-    let stated = axis.along(vec2(widget.width, widget.height)) * scale;
-    let floor = axis.along(vec2(widget.min_width, widget.min_height)) * scale;
-    (stated, floor)
-}
-
-/// The box a widget draws in: its stated size on each axis, else the room
-/// the parent left it.
-fn room_of(ui: &egui::Ui, box_size: egui::Vec2) -> egui::Rect {
-    let room = ui.max_rect();
-    egui::Rect::from_min_size(
-        room.min,
-        vec2(
-            if box_size.x > 0.0 {
-                box_size.x
-            } else {
-                room.width()
-            },
-            if box_size.y > 0.0 {
-                box_size.y
-            } else {
-                room.height()
-            },
-        ),
-    )
-}
-
-/// A bare container: padding, then the children along `axis`.
-pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
-    let widget = &at.arena[index].widget;
-    let scale = at.scale;
-    // The padding comes off in floats rather than through a `Margin`, which
-    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
-    // the truncation moved every sheet in the editor's shell by 0.4 px.
-    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
-    let box_size = box_of(widget, at.assigned, scale);
-    let outer = room_of(ui, box_size).shrink(pad);
-    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
-    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(outer));
-    hold_to(&mut inner, min);
-    let held = std::mem::replace(&mut at.bounds, min);
-    lay_out(&mut inner, at, index, axis);
-    at.bounds = held;
-    // What the children took, with the padding back on: a container that
-    // states no size is still as big as what is inside it.
-    ui.advance_cursor_after_rect(inner.min_rect().expand(pad));
-}
-
-/// What one child asks for along the container's axis.
-#[derive(Clone, Copy)]
-enum Ask {
-    /// This many pixels, 0 included: a box with nothing in it is not a box
-    /// that wants everything.
-    Fixed(f32),
-    /// A share of the leftover, once the fixed ones are in.
-    Grows,
-    /// Whatever is left here. Only for what cannot be measured ahead — a
-    /// script's rect, a scroll's contents — and only until it has drawn once.
-    Rest,
-}
-
-/// What each child asks for, the total the fixed ones spend (gaps included)
-/// and the sum of the `grow` shares waiting on the leftover.
-fn share_out(
-    at: &Painting<'_>,
-    ui: &egui::Ui,
-    children: &[usize],
-    axis: Axis,
-    gap: f32,
-) -> (Vec<Ask>, f32, f32) {
-    let scale = at.scale;
-    let mut asked = Vec::with_capacity(children.len());
-    let mut spent = 0.0f32;
-    let mut shares = 0.0f32;
-    let mut seams = 0.0f32;
-    let mut measure = Measure::new(at.eng, at.arena, ui, scale);
-    for child in children {
-        let widget = &at.arena[*child].widget;
-        let (stated, floor) = asked_of(widget, axis, scale);
-        let ask = if widget.grow > 0.0 {
-            shares += widget.grow;
-            spent += floor;
-            Ask::Grows
-        } else if stated > 0.0 {
-            let size = stated.max(floor);
-            spent += size;
-            Ask::Fixed(size)
-        } else {
-            // What it will need, asked of the fonts rather than remembered
-            // from last frame. What the measure cannot answer for falls back
-            // to what it drew, and to the leftover before even that.
-            let wanted = axis.along(measure.of(*child, &at.theme)).max(floor);
-            let known = if wanted > 0.0 || can_measure(&widget.kind) {
-                wanted
-            } else {
-                axis.along(measured_of(at.arena[*child].entity)).max(floor)
-            };
-            if known <= 0.0 && !can_measure(&widget.kind) {
-                Ask::Rest
-            } else {
-                spent += known;
-                Ask::Fixed(known)
-            }
-        };
-        // A box with no size takes no seam either: a hidden rail must not
-        // leave a gap where it would have been.
-        if !matches!(ask, Ask::Fixed(size) if size <= 0.0) {
-            seams += gap;
-        }
-        asked.push(ask);
-    }
-    (asked, spent + (seams - gap).max(0.0), shares)
-}
-
-/// Whether the measure pass can answer for a kind, or only the last frame can.
-fn can_measure(kind: &str) -> bool {
-    !matches!(kind, w::DRAW | w::SCROLL)
-}
-
-/// The children themselves: each given a rect along the container's axis,
-/// with the leftover divided between those that grow.
+/// A bare container: its own frame where the theme gives it one, then the
+/// children at the rects the layout pass decided.
 ///
-/// The container places every child; a child that overflows the rect it was
-/// given does not move its siblings, which is what kept a 2 px frame stroke
-/// compounding down a column. A child that states neither a size nor a `grow`
-/// takes what it needs and is measured, which is what keeps every scene
-/// written before `grow` existed laying out the way it did.
+/// A `row` or a `column` paints nothing unless asked, which is what keeps a
+/// box that only lays out invisible; a `fill` or a `stroke` makes it a tile,
+/// and that is how a pair of buttons reads as one control.
+pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
+    let widget = at.arena[index].widget.clone();
+    let style = at.style_of(&widget);
+    if style.fill.is_some() || style.stroke.is_some() {
+        let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0) * at.scale) as u8);
+        ui.painter().rect(
+            ui.max_rect(),
+            radius,
+            style.fill.unwrap_or(Color32::TRANSPARENT),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+            egui::StrokeKind::Inside,
+        );
+    }
+    lay_out(ui, at, index, axis);
+}
+
+/// The children themselves, each drawn into the rect the layout pass gave it.
+///
+/// Nothing is divided here any more: `widget_taffy` solved the whole subtree
+/// before the first pixel, so this walks the answers and pins a `Ui` to each.
 pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     let placed = &at.arena[index];
     if placed.children.is_empty() {
         return;
     }
-    let scale = at.scale;
-    let gap = placed.widget.gap * scale;
-    let grab = placed.widget.handle * scale;
+    let grab = placed.widget.handle * at.scale;
     let cross = match placed.widget.align.as_str() {
         w::CENTER => egui::Align::Center,
         w::END => egui::Align::Max,
@@ -479,99 +406,59 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         Axis::Row => egui::Layout::left_to_right(cross),
         Axis::Column => egui::Layout::top_down(cross),
     };
-    // Copied out: the closure needs `at` mutably, and `placed` borrows it.
     let children = placed.children.clone();
-    let (asked, spent, shares) = share_out(at, ui, &children, axis, gap);
-    // What is left here, not the whole box: a panel that drew a caption first
-    // has that much less to hand out, and dividing the box instead pushed its
-    // children past their own frame.
-    let outer = ui.available_rect_before_wrap();
-    // A container free to grow has no leftover to divide, so `grow` there is
-    // the floor and nothing more.
-    let bounded = at.bounds;
-    let free = if axis.along(bounded) > 0.0 {
-        (axis.along(outer.size()) - spent).max(0.0)
-    } else {
-        0.0
-    };
-    let mut head = axis.along(outer.min.to_vec2());
-    let far = head + axis.along(outer.size());
-    let mut laid = 0usize;
     for (slot, child) in children.iter().enumerate() {
         let entity = at.arena[*child].entity;
-        let (size, hug) = match asked[slot] {
-            Ask::Fixed(size) => (size, false),
-            Ask::Grows => {
-                let widget = &at.arena[*child].widget;
-                let (_, floor) = asked_of(widget, axis, scale);
-                (floor + free * (widget.grow / shares), false)
-            }
-            Ask::Rest => ((far - head).max(0.0), true),
+        let Some(rect) = at.rects.get(child).copied() else {
+            continue;
         };
-        let breadth = axis.across(outer.size());
-        if size <= 0.0 && !hug {
-            // Nothing to place, and no seam either. The rect is still
-            // recorded, flat along the axis, so a script asking where it went
-            // gets an empty box in the right place rather than nothing.
-            record_rect(
-                entity,
-                egui::Rect::from_min_size(rect_head(outer, head, axis), axis.vec(0.0, breadth)),
-            );
+        record_rect(entity, rect);
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
             continue;
         }
-        if laid > 0 {
-            head += gap;
+        // Off the clip nothing is seen or reached, so the subtree is skipped
+        // and its measurement carries over. Only once it has one, though, or
+        // a bootstrap frame settles the layout at zero.
+        let measured = measured_of(entity);
+        if measured != egui::Vec2::ZERO && !ui.clip_rect().intersects(rect) {
+            record_measure(entity, measured);
+            ui.advance_cursor_after_rect(rect);
+            continue;
         }
-        laid += 1;
-        let extent = size;
-        // Filling the cross is the container's default, and it is what `align`
-        // opts out of: a centred child that filled its box would have nothing
-        // left to centre in. A container free to grow fills nothing.
-        let fills = cross == egui::Align::Min && axis.across(bounded) > 0.0;
-        let rect =
-            egui::Rect::from_min_size(rect_head(outer, head, axis), axis.vec(extent, breadth));
-        let restore = at.assigned;
-        at.assigned = axis.vec(
-            if hug { 0.0 } else { extent },
-            if fills { breadth } else { 0.0 },
-        );
         let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+        // The box the solve gave this child, so a kind that sizes itself from
+        // what it was handed — a slider's track, a dropdown's width — reads
+        // the same number the layout decided.
+        let restore = at.assigned;
+        at.assigned = rect.size();
         draw_one(&mut child_ui, at, *child);
-        let used = child_ui.min_rect().size();
         at.assigned = restore;
-        record_measure(entity, used);
-        record_rect(entity, rect);
-        let taken = if hug { axis.along(used) } else { extent };
-        ui.allocate_rect(
-            egui::Rect::from_min_size(rect.min, axis.vec(taken, axis.across(used))),
-            egui::Sense::hover(),
-        );
-        head += taken;
+        // A `draw` node records what its script painted, from inside the
+        // draw; everything else is measured ahead and needs no record.
+        if at.arena[*child].widget.kind != w::DRAW {
+            record_measure(entity, child_ui.min_rect().size());
+        }
+        ui.advance_cursor_after_rect(rect);
         if grab > 0.0 && slot + 1 < children.len() {
-            // Centred on the seam, so a grab wider than the gap reaches into
-            // both children rather than only the one after it.
-            let middle = head + gap / 2.0;
-            let seam = egui::Rect::from_min_size(
-                match axis {
-                    Axis::Row => pos2(middle - grab / 2.0, rect.min.y),
-                    Axis::Column => pos2(rect.min.x, middle - grab / 2.0),
-                },
-                axis.vec(grab, breadth),
-            );
+            // Centred on the seam between this child and the next, so a grab
+            // wider than the gap reaches into both rather than only one.
+            let next = at.rects.get(&children[slot + 1]).copied().unwrap_or(rect);
+            let seam = match axis {
+                Axis::Row => egui::Rect::from_min_size(
+                    pos2((rect.max.x + next.min.x - grab) / 2.0, rect.min.y),
+                    vec2(grab, rect.height()),
+                ),
+                Axis::Column => egui::Rect::from_min_size(
+                    pos2(rect.min.x, (rect.max.y + next.min.y - grab) / 2.0),
+                    vec2(rect.width(), grab),
+                ),
+            };
             drag_seam(ui, at, &children, slot, axis, seam);
         }
     }
 }
 
 /// Where a child starts, given how far along the axis the container has got.
-fn rect_head(outer: egui::Rect, head: f32, axis: Axis) -> egui::Pos2 {
-    match axis {
-        Axis::Row => pos2(head, outer.min.y),
-        Axis::Column => pos2(outer.min.x, head),
-    }
-}
-
-/// The grab between two children: dragging it resizes whichever of the pair
 /// states a size, so the other keeps growing into what is left.
 fn drag_seam(
     ui: &mut egui::Ui,

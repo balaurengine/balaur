@@ -625,7 +625,7 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     let found = found.unwrap();
     let p = found.position();
     let s = found.scale();
-    let rot = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+    let rot = model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]);
     let (cx, cy) = project(cam, geo.center).unwrap_or((0.0, 0.0));
     let axis = part.get("axis").unwrap_or(0);
     let drag = #{

@@ -545,7 +545,29 @@ pub struct Renderable2d {
     /// from its image: a derived one re-derives when the sheet or
     /// `pixels_per_unit` moves, and an authored one is left alone.
     pub sized: bool,
+    /// The scale a sprite's size was derived at. Kept so `get` reports it and
+    /// a patch of anything else does not re-derive the quad at the default.
+    pub pixels_per_unit: f32,
     pub version: u64,
+}
+
+impl Renderable2d {
+    /// A renderable of `shape` for a node that had none: white, unsized, no
+    /// material. Each setter fills in the one field it owns over the top.
+    fn fresh(shape: Shape2d) -> Self {
+        Self {
+            shape,
+            color: [1.0, 1.0, 1.0, 1.0],
+            sprite: None,
+            polyline: None,
+            line: None,
+            polygon: None,
+            material: String::new(),
+            sized: false,
+            pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
+            version: 0,
+        }
+    }
 }
 
 /// Point `entity` at a polygon, rebuilding the backend's node only when the
@@ -569,15 +591,8 @@ pub(crate) fn set_polygon(
         .insert_one(
             entity,
             Renderable2d {
-                shape: Shape2d::Polygon,
-                color: [1.0, 1.0, 1.0, 1.0],
-                sprite: None,
-                polyline: None,
-                line: None,
                 polygon: Some(polygon),
-                material: String::new(),
-                sized: false,
-                version: 0,
+                ..Renderable2d::fresh(Shape2d::Polygon)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -737,15 +752,9 @@ pub(crate) fn set_polyline(
         .insert_one(
             entity,
             Renderable2d {
-                shape,
-                color: [1.0, 1.0, 1.0, 1.0],
-                sprite: None,
                 polyline: Some(source),
                 line: Some(style),
-                polygon: None,
-                material: String::new(),
-                sized: false,
-                version: 0,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -764,15 +773,8 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
         .insert_one(
             entity,
             Renderable2d {
-                shape,
                 color: [0.8, 0.8, 0.8, 1.0],
-                sprite: None,
-                polyline: None,
-                line: None,
-                polygon: None,
-                material: String::new(),
-                sized: false,
-                version: 0,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -783,7 +785,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
 /// Not behind the windowed feature: the size lands in a component a script can
 /// read, so a headless run has to compute the same number a windowed one does.
 fn natural_half_extents(
-    bytes: &[u8],
+    eng: &Engine,
     name: &str,
     sheet: Option<SpriteSheet2d>,
     region: Option<[u32; 4]>,
@@ -798,7 +800,7 @@ fn natural_half_extents(
     if let Some([_, _, w, h]) = region {
         return Ok((w as f32 / ppu / 2.0, h as f32 / ppu / 2.0));
     }
-    let (w, h) = texture::image_size(bytes, name)?;
+    let (w, h) = texture::size_of(eng, name)?;
     let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     Ok((
         (w as f32 / cols as f32) / ppu / 2.0,
@@ -822,11 +824,7 @@ pub(crate) fn set_sprite(
         // refusing to exist, at the same default size as a `rect`.
         (0.5, 0.5)
     } else {
-        let bytes = eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&texture.path)?;
-        natural_half_extents(&bytes, &texture.path, texture.sheet, texture.region, ppu)?
+        natural_half_extents(eng, &texture.path, texture.sheet, texture.region, ppu)?
     };
     let shape = Shape2d::Sprite {
         hx: hx.max(f32::EPSILON),
@@ -846,6 +844,7 @@ pub(crate) fn set_sprite(
         r.shape = shape;
         r.sprite = Some(texture);
         r.sized = sized;
+        r.pixels_per_unit = ppu;
         if rebuild {
             r.version += 1;
         }
@@ -855,15 +854,10 @@ pub(crate) fn set_sprite(
         .insert_one(
             entity,
             Renderable2d {
-                shape,
-                color: [1.0, 1.0, 1.0, 1.0],
                 sprite: Some(texture),
-                polyline: None,
-                line: None,
-                polygon: None,
-                material: String::new(),
                 sized,
-                version: 0,
+                pixels_per_unit: ppu,
+                ..Renderable2d::fresh(shape)
             },
         )
         .map_err(|_| anyhow!("node is dead"))
@@ -966,6 +960,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot::default());
         reg.insert_resource(stats::Stats::default());
+        reg.insert_resource(stats::Measured::default());
         reg.insert_resource(CameraInputConfig { enabled: true });
         let mut m = reg.script_module("render")?;
         m.module_doc(

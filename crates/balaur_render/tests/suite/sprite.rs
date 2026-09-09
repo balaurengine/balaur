@@ -273,6 +273,30 @@ fn patching_a_sheet_field_leaves_an_authored_size_alone() {
     assert_close(hy, 7.0);
 }
 
+/// `pixels_per_unit` is not derived from anything, so `get` reports it and a
+/// patch of another property leaves the quad the size it already was.
+#[test]
+fn patching_another_field_keeps_the_scale_the_sprite_was_built_at() {
+    let app = app();
+    let entity = node(&app);
+    apply(&app, entity, "pixels_per_unit = 50.0\n");
+    let (before, _) = half_extents(&app, entity);
+    assert_close(before, 200.0 / 50.0 / 2.0);
+    let read_back = components::get(&app.engine, entity, "sprite").unwrap();
+    assert_eq!(
+        read_back
+            .get("pixels_per_unit")
+            .and_then(toml::Value::as_float),
+        Some(50.0),
+        "the scale has to round-trip: {read_back:?}"
+    );
+
+    let patch: toml::Value = toml::from_str("flip_x = true").unwrap();
+    components::patch(&app.engine, entity, "sprite", &patch).unwrap();
+    let (after, _) = half_extents(&app, entity);
+    assert_close(after, before);
+}
+
 /// An atlas cell states its own size: the quad is the cell, not the sheet.
 #[test]
 fn a_region_sizes_the_quad_from_the_cell_not_the_image() {

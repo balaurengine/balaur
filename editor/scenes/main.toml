@@ -12,7 +12,7 @@ id = "shell"
 name = "Shell"
 parent = "n_editor"
 [nodes.widget]
-theme = "themes/shell-dark.toml"
+theme = "themes/dark.toml"
 kind = "column"
 layer = "shell"
 anchor = "top_left"
@@ -31,19 +31,47 @@ parent = "shell"
 [nodes.widget]
 kind = "panel"
 text = ""
-# The bar's own row is 36; a panel keeps 8 inside each edge, so the box that
-# holds it is that much taller.
-height = 52
+# The bar's own row is 30, and this sheet keeps 5 inside each edge: the one
+# strip that is chrome from edge to edge takes less than a panel would.
+height = 40
+padding = 5
 gap = 0
 
+# A panel stacks what is in it, so the bar's own direction is this row.
+[[nodes]]
+id = "head_row"
+name = "HeadRow"
+parent = "head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 8
+align = "center"
+
+# The brand, which is the shell's one menu, and then everything else as a
+# strip `chrome.rn` fills: how many personas and documents there are changes
+# with the persona and with what is open, so the bar cannot be authored.
 [[nodes]]
 id = "head_body"
 name = "HeadBody"
-parent = "head"
+parent = "head_row"
 [nodes.widget]
 kind = "draw"
 draw = "draw_top_bar"
+# Stated, both ways: a `draw` node is measured by what it drew, so one that
+# is handed a zero box never draws and never gets a size.
+width = 118
+height = 26
+
+[[nodes]]
+id = "head_strip"
+name = "HeadStrip"
+parent = "head_row"
+[nodes.widget]
+kind = "row"
 grow = 1
+gap = 4
+align = "center"
 
 [[nodes]]
 id = "body"
@@ -55,24 +83,76 @@ grow = 1
 gap = 12
 handle = 12
 
+# The column a side dock owns, and the sheet inside it. Two boxes rather than
+# one: folded, the sheet is a square at the top and the rest of the column is
+# the scene's, which a painted panel of the full height could not be.
 [[nodes]]
 id = "left"
 name = "Left"
 parent = "body"
 [nodes.widget]
+kind = "column"
+width = 236
+
+[[nodes]]
+id = "left_sheet"
+name = "LeftSheet"
+parent = "left"
+[nodes.widget]
 kind = "panel"
 text = ""
-width = 236
+grow = 1
+# What a sheet keeps inside its edge. Stated rather than left to the widget
+# theme because a folded dock writes a smaller one and needs this back.
+padding = 8
+
+# The dock's tab row: one control a tab, and the mark that closes it.
+[[nodes]]
+id = "left_head"
+name = "LeftHead"
+parent = "left_sheet"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "left_tabs"
+name = "LeftTabs"
+parent = "left_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
 
 [[nodes]]
 id = "left_body"
 name = "LeftBody"
-parent = "left"
+parent = "left_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_left"
+
+[[nodes]]
+id = "left_tree"
+name = "LeftTree"
+parent = "left_sheet"
+[nodes.widget]
+kind = "tree"
 grow = 1
 
+[[nodes]]
+id = "left_outline"
+name = "LeftOutline"
+parent = "left_sheet"
+[nodes.widget]
+kind = "list"
+visible = false
+grow = 1
+
+# The tool rail down one side, and everything else beside it. The rail is a
+# column of the whole height so the dock below starts clear of it too.
 [[nodes]]
 id = "centre"
 name = "Centre"
@@ -81,31 +161,142 @@ parent = "body"
 kind = "column"
 grow = 1
 gap = 12
+handle = 12
+
+# The rail and the scene share this row; the dock below is the centre's own
+# child, so it runs the full width rather than starting clear of the rail.
+[[nodes]]
+id = "upper_row"
+name = "UpperRow"
+parent = "centre"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 12
 
 [[nodes]]
 id = "right"
 name = "Right"
 parent = "body"
 [nodes.widget]
+kind = "column"
+width = 288
+
+[[nodes]]
+id = "right_sheet"
+name = "RightSheet"
+parent = "right"
+[nodes.widget]
 kind = "panel"
 text = ""
-width = 288
+grow = 1
+padding = 8
+
+# The right sheet in three: the header and the search the panel draws, the
+# rows the pool makes, and the footer that must stay under a long form.
+# The dock's tab row: one control a tab, and the mark that closes it.
+[[nodes]]
+id = "right_head"
+name = "RightHead"
+parent = "right_sheet"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "right_tabs"
+name = "RightTabs"
+parent = "right_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
 
 [[nodes]]
 id = "right_body"
 name = "RightBody"
-parent = "right"
+parent = "right_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_right"
+# Stated, not measured: a `draw` node with neither a size nor a `grow` takes
+# whatever is left, which is the whole sheet. `layout.rn` writes the real one.
+height = 96
+
+[[nodes]]
+id = "right_scroll"
+name = "RightScroll"
+parent = "right_sheet"
+[nodes.widget]
+kind = "scroll"
 grow = 1
 
-# Everything above the bottom dock. The tool rail sits in its own column so
-# the scene starts clear of it, while the dock below does not.
+[[nodes]]
+id = "right_foot"
+name = "RightFoot"
+parent = "right_sheet"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_right_foot"
+height = 36
+
+# The Inspector's and Import's rows: a form whose fields change with the
+# selection, so `pool.rn` makes them and hides the spares.
+[[nodes]]
+id = "right_form"
+name = "RightForm"
+parent = "right_scroll"
+[nodes.widget]
+kind = "column"
+visible = false
+# No `grow`: inside a scroll there is no leftover to divide, so the column
+# takes what its rows measure and the bar makes up the difference.
+gap = 2
+
+[[nodes]]
+id = "railslot"
+name = "RailSlot"
+parent = "upper_row"
+[nodes.widget]
+kind = "column"
+width = 44
+
+# Where a folded left dock's handle goes, above the tools rather than beside
+# them; `layout.rn` gives it a height only when there is one to draw.
+[[nodes]]
+id = "railtop"
+name = "RailTop"
+parent = "railslot"
+[nodes.widget]
+kind = "row"
+height = 0
+
+# The rail is only as tall as its tools, so it takes the top of the slot
+# rather than the whole of it; `layout.rn` states the height.
+[[nodes]]
+id = "rail"
+name = "Rail"
+parent = "railslot"
+[nodes.widget]
+kind = "row"
+height = 42
+
+# The scene and the dock, stacked beside the rail.
+[[nodes]]
+id = "stack"
+name = "Stack"
+parent = "upper_row"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 12
+
 [[nodes]]
 id = "upper"
 name = "Upper"
-parent = "centre"
+parent = "stack"
 [nodes.widget]
 kind = "row"
 grow = 1
@@ -124,12 +315,110 @@ gap = 0
 # What a dock panel may scroll, and the status strip sharing the same sheet so
 # a tall panel cannot push it off the bottom.
 [[nodes]]
+id = "bottom_head"
+name = "BottomHead"
+parent = "bottom"
+[nodes.widget]
+kind = "row"
+height = 24
+gap = 3
+
+[[nodes]]
+id = "bottom_tabs"
+name = "BottomTabs"
+parent = "bottom_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 3
+align = "center"
+
+[[nodes]]
 id = "dockbody"
 name = "DockBody"
 parent = "bottom"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_bottom"
+grow = 1
+
+# The log-shaped panels, as one node. `dock.rn` fills whichever is up and hides
+# it for the rest; the hatch above draws the tab row, so this sits under it.
+[[nodes]]
+id = "bottom_log"
+name = "BottomLog"
+parent = "bottom"
+[nodes.widget]
+kind = "list"
+visible = false
+grow = 1
+row_height = 18
+font = "mono"
+
+# The Debugger's call stack: frames, with each frame's locals a level in.
+[[nodes]]
+id = "bottom_tree"
+name = "BottomTree"
+parent = "bottom"
+[nodes.widget]
+kind = "tree"
+visible = false
+grow = 1
+font = "mono"
+
+# Assets, Library and Tiles: three card grids, one node. Only one of them is
+# the bottom dock's active panel, so they take turns filling it.
+[[nodes]]
+id = "bottom_cards"
+name = "BottomCards"
+parent = "bottom"
+[nodes.widget]
+kind = "list"
+visible = false
+grow = 1
+columns = 6
+
+# The four views that genuinely paint: lanes with a transport, and two
+# painting tools where the pointer is the input. A node each, so the scene
+# names every view and a reader can see which of them draw.
+[[nodes]]
+id = "bottom_timeline"
+name = "BottomTimeline"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_timeline"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_session"
+name = "BottomSession"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_session"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_weights"
+name = "BottomWeights"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_weights"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_bonemap"
+name = "BottomBonemap"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_bonemap"
+visible = false
 grow = 1
 
 [[nodes]]
@@ -140,24 +429,6 @@ parent = "bottom"
 kind = "draw"
 draw = "draw_status"
 height = 24
-
-[[nodes]]
-id = "railslot"
-name = "RailSlot"
-parent = "upper"
-[nodes.widget]
-kind = "column"
-width = 44
-
-# The rail is only as tall as its tools, so it takes the top of the slot
-# rather than the whole of it; `layout.rn` states the height.
-[[nodes]]
-id = "rail"
-name = "Rail"
-parent = "railslot"
-[nodes.widget]
-kind = "row"
-height = 42
 
 [[nodes]]
 id = "work"

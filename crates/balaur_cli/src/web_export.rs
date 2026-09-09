@@ -18,11 +18,10 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, anyhow};
-use balaur::replay::ExternalIo;
 use balaur::{Engine, Stage};
-use balaur_core::handler::{Handler, handler_of};
 use balaur_script::{Bindings, BindingsExt, Value};
-use serde::{Deserialize, Serialize};
+
+use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, install_listen, pump};
 
 /// The file a web bundle keeps its pack under, as the shell page loads it.
 use balaur::standalone::BUNDLED_PACK;
@@ -36,54 +35,17 @@ thread_local! {
     static RUNNING: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-/// One step of an export, crossing from a spawned task back to a tick.
-#[derive(Clone, Serialize, Deserialize)]
-enum ExportEvent {
-    Started { target: String },
-    Done { target: String, path: String },
-    Failed { target: String, message: String },
-}
-
-impl ExportEvent {
-    fn kind(&self) -> &'static str {
-        match self {
-            Self::Started { .. } => "started",
-            Self::Done { .. } => "done",
-            Self::Failed { .. } => "failed",
-        }
-    }
-
-    fn target(&self) -> &str {
-        match self {
-            Self::Started { target } | Self::Done { target, .. } | Self::Failed { target, .. } => {
-                target
-            }
-        }
-    }
-
-    fn value(&self) -> Value {
-        let mut pairs = vec![
-            ("kind".into(), Value::Str(self.kind().into())),
-            ("target".into(), Value::Str(self.target().into())),
-        ];
-        match self {
-            Self::Started { .. } => {}
-            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(path.clone()))),
-            Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
-            }
-        }
-        Value::Map(pairs)
-    }
-}
-
-/// The project being edited, where the module it would ship is served from,
-/// and who listens for what an export did.
+/// The project being edited plus what only a tab has: where the module it
+/// would ship is served from.
 struct ExportState {
-    io: ExternalIo<ExportEvent>,
-    listeners: Vec<Handler>,
-    project: PathBuf,
+    core: ExportCore,
     template: String,
+}
+
+impl AsMut<ExportCore> for ExportState {
+    fn as_mut(&mut self) -> &mut ExportCore {
+        &mut self.core
+    }
 }
 
 /// The editor's export verb in a browser, registered by the web entry point.
@@ -112,36 +74,13 @@ impl balaur_plugin::Plugin for WebExportPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(ExportState {
-            io: ExternalIo::default(),
-            listeners: Vec::new(),
-            project: self.project.clone(),
+            core: ExportCore::new(self.project.clone()),
             template: self.template.clone(),
         });
-        reg.add_system(Stage::First, pump_export_system);
+        reg.add_system(Stage::First, pump::<ExportState>);
         let mut m = reg.script_module("export")?;
         install_export_api(&mut *m);
         Ok(())
-    }
-}
-
-/// Deliver what the spawned exports reported, to whoever asked to hear it.
-fn pump_export_system(eng: &Engine, _: f32) {
-    let mut dispatches = Vec::new();
-    {
-        let state = eng.resource::<ExportState>();
-        let mut state = state.borrow_mut();
-        let events = state.io.drain();
-        for event in events {
-            let value = event.value();
-            for handler in &state.listeners {
-                dispatches.push((handler.clone(), value.clone()));
-            }
-        }
-    }
-    if let Some(host) = eng.script_host() {
-        for (handler, value) in dispatches {
-            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-        }
     }
 }
 
@@ -154,24 +93,13 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     );
     m.describe(&[
         ("targets", &[], "()", "Every target this tab can build, each `{ name, bundle, installed, fetchable, note }`."),
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails."),
+        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "The file name an export for this target produces."),
         ("running", &[], "()", "How many exports are in flight."),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
-    m.function(
-        "listen",
-        |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<Value>)| {
-            let handler = handler_of(&Value::Node(node.0), opts.as_ref(), "on_event", "on_export")?
-                .ok_or_else(|| anyhow!("export.listen needs a node"))?;
-            eng.resource::<ExportState>()
-                .borrow_mut()
-                .listeners
-                .push(handler);
-            Ok(())
-        },
-    );
+    install_listen::<ExportState>(m);
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -181,7 +109,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("output", |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
-        let project = state.borrow().project.clone();
+        let project = state.borrow().core.project.clone();
         let name = name_of(&project);
         Ok(Value::Str(match target.as_str() {
             "web" => format!("{name}-web.zip"),
@@ -220,10 +148,10 @@ fn start(eng: &Engine, target: &str) -> bool {
     let state = eng.resource::<ExportState>();
     let (project, template) = {
         let state = state.borrow();
-        (state.project.clone(), state.template.clone())
+        (state.core.project.clone(), state.template.clone())
     };
     let target = target.to_string();
-    state.borrow().io.start(eng, |report| {
+    state.borrow().core.io.start(eng, |report| {
         let report = report.clone();
         RUNNING.with(|running| running.set(running.get() + 1));
         wasm_bindgen_futures::spawn_local(async move {
@@ -334,7 +262,9 @@ fn name_of(project: &Path) -> String {
         .read(&project.join("project.toml"))
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
-        .and_then(|text| text.parse::<toml::Value>().ok());
+        // `toml::Table`, not `toml::Value`: `Value`'s `FromStr` reads a value,
+        // and `[application]` ends it.
+        .and_then(|text| text.parse::<toml::Table>().ok());
     let name = manifest
         .as_ref()
         .and_then(|value| value.get("application")?.get("name")?.as_str())

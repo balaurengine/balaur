@@ -15,8 +15,10 @@ lag = 0.15
 id = "rig_orbit_camera"
 name = "Camera"
 parent = "rig_orbit"
-position = [0, 2, 8]
 script = "scripts/orbit_camera.rn"
+
+[nodes.transform]
+position = [0, 2, 8]
 
 [nodes.camera]
 kind = "3d"

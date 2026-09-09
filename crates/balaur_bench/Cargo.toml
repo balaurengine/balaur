@@ -13,6 +13,8 @@ balaur_core.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true
 balaur_physics.workspace = true
+balaur_ui.workspace = true
+egui.workspace = true
 hecs.workspace = true
 anyhow.workspace = true
 tempfile = "3"
@@ -31,6 +33,10 @@ harness = false
 
 [[bench]]
 name = "nodes"
+harness = false
+
+[[bench]]
+name = "widgets"
 harness = false
 
 [lints]

@@ -15,6 +15,13 @@ static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Build a project whose `draw_ui` runs `body`, then run two egui passes.
 fn draw(body: &str) -> (App, Vec<String>) {
+    let (app, _, errors) = draw_with(body);
+    (app, errors)
+}
+
+/// The same, keeping the context the passes ran in: fonts are bound to that
+/// one, so a test running further passes has to use it.
+fn draw_with(body: &str) -> (App, egui::Context, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -56,7 +63,7 @@ fn draw(body: &str) -> (App, Vec<String>) {
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
         .collect();
-    (app, errors)
+    (app, ctx, errors)
 }
 
 fn draw_clean(body: &str) {
@@ -311,4 +318,178 @@ fn shortcuts_report_no_press_without_input() {
         });
         "#,
     );
+}
+
+/// The names the profiler files a frame's passes under, in order.
+fn pass_names(app: &App) -> Vec<String> {
+    app.engine
+        .resource::<balaur_core::timings::Timings>()
+        .borrow()
+        .spans
+        .iter()
+        .map(|(name, _)| name.to_string())
+        .filter(|name| name.starts_with("ui"))
+        .collect()
+}
+
+/// egui reruns the whole closure when a pass only learned a size, so the
+/// shell is built twice; a profiler that filed both under one name would
+/// read as one expensive pass instead of two ordinary ones.
+#[test]
+fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
+    let (mut app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
+    // Publish the passes the helper ran, so the table below holds this frame.
+    app.tick(balaur_core::FIXED_DT);
+    // What the windowed loop calls once a frame, which is what starts one.
+    balaur_ui::wants_pass(&app.engine, &ctx, true);
+    for _ in 0..2 {
+        ctx.begin_pass(egui::RawInput::default());
+        balaur_ui::run_pass(&app.engine, &ctx);
+        let mut out = ctx.end_pass();
+        out.textures_delta.clear();
+    }
+    // The spans of a frame are published when it ends, never mid-frame.
+    app.tick(balaur_core::FIXED_DT);
+    assert_eq!(pass_names(&app), ["ui", "ui rerun"]);
+}
+
+/// One pass over the same context, with the events the caller feeds it.
+fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(640.0, 480.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    ctx.begin_pass(input);
+    balaur_ui::run_pass(&app.engine, ctx);
+    let mut out = ctx.end_pass();
+    out.textures_delta.clear();
+}
+
+fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
+    vec![
+        egui::Event::PointerMoved(pos),
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]
+}
+
+/// `menu_click` hangs a menu off a left click. The rows are the callback's,
+/// so nothing inside it draws until the menu is open — which is the whole
+/// difference from `menu`, whose menu waits for the other button.
+#[test]
+fn a_pill_menu_opens_on_a_left_click() {
+    let (app, ctx, errors) = draw_with(
+        r#"
+        this.rows = 0.0;
+        ui::central_panel(#{}, || {
+            ui::pill("Menu", #{ menu_click: || {
+                this.rows = this.rows + 1.0;
+                ui::menu_item("Open", #{ width: 120, trailing: "⌘O" });
+            } });
+        });
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert_eq!(field(&app, "rows"), Some(0.0), "the menu drew unopened");
+    let at = egui::pos2(24.0, 20.0);
+    feed(&app, &ctx, tap(at, true));
+    feed(&app, &ctx, tap(at, false));
+    feed(&app, &ctx, vec![]);
+    let drawn = field(&app, "rows").unwrap_or(0.0);
+    assert!(drawn > 0.0, "a click on the pill opened no menu");
+    // Away from the pill and the menu: the popup closes and stops drawing.
+    // `rows` counts one pass, since the body zeroes it on every one.
+    let away = egui::pos2(500.0, 400.0);
+    feed(&app, &ctx, tap(away, true));
+    feed(&app, &ctx, tap(away, false));
+    feed(&app, &ctx, vec![]);
+    assert_eq!(
+        field(&app, "rows"),
+        Some(0.0),
+        "the menu kept drawing after it was dismissed"
+    );
+}
+
+/// A pointer button held outside every widget belongs to whatever the scene
+/// is doing with it — orbiting a camera — and the shell cannot change until
+/// it comes up, so the frames between are the scene's alone.
+#[test]
+fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
+    let (app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
+    let away = egui::pos2(500.0, 400.0);
+    feed(&app, &ctx, tap(away, true));
+    assert!(
+        balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
+        "the press took no widget, so the drag is the scene's"
+    );
+    assert!(
+        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, false),
+        "a camera with no drag buttons is dragging nothing"
+    );
+    feed(&app, &ctx, tap(away, false));
+    assert!(
+        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
+        "the button came up, so the pointer answers the shell again"
+    );
+}
+
+/// A press egui took a candidate from is the UI's drag: a button held, a
+/// scroll dragged, a field selecting text all move the picture as the
+/// pointer does.
+#[test]
+fn a_drag_that_began_on_a_widget_still_wants_its_passes() {
+    let (app, ctx, errors) = draw_with(r#"ui::central_panel(#{}, || { ui::pill("Go", #{}); });"#);
+    assert!(errors.is_empty(), "{errors:#?}");
+    feed(&app, &ctx, tap(egui::pos2(24.0, 20.0), true));
+    assert!(!balaur_ui::pointer_is_dragging_elsewhere(&ctx, true));
+}
+
+/// Laying a file out costs its length, and the editor draws the same file on
+/// every frame of a session. Nothing about the picture changes until the text
+/// or its colours do, and the galley must be the same one until then.
+#[test]
+fn the_code_editor_lays_its_text_out_once_until_its_look_changes() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        this.n = this.get("n").unwrap_or(0) + 1;
+        let comment = if this.n > 2 { "#ff0000" } else { "#808080" };
+        ui::central_panel(#{}, || {
+            ui::code_editor("ed", "// a\nlet x = 1;", #{ k_com: comment });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let first = laid_out(&app);
+    feed(&app, &ctx, Vec::new());
+    let again = laid_out(&app);
+    assert!(
+        std::sync::Arc::ptr_eq(&first, &again),
+        "a pass that changed nothing laid the file out a second time"
+    );
+    feed(&app, &ctx, Vec::new());
+    let recoloured = laid_out(&app);
+    assert!(
+        !std::sync::Arc::ptr_eq(&again, &recoloured),
+        "the comment colour changed and the editor kept the old picture"
+    );
+}
+
+/// The galley the code editor last laid out, whatever its id.
+fn laid_out(app: &App) -> std::sync::Arc<egui::Galley> {
+    let state = app.engine.resource::<balaur_ui::UiState>();
+    let state = state.borrow();
+    let (_, galley) = state
+        .code_galleys
+        .values()
+        .next()
+        .expect("the code editor laid nothing out");
+    std::sync::Arc::clone(galley)
 }

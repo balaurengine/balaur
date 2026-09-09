@@ -9,67 +9,8 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-use balaur::{AppConfig, standard_app};
+use balaur_testkit::{e2e_enabled, run_until};
 use serde_json::{Value, json};
-
-/// The log buffer is global and tests run in parallel, so one test's lines
-/// would surface in another's assertions.
-static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-/// These tests boot full apps and speak real sockets: CI's job. A plain
-/// local `cargo test` skips them so iteration stays fast; `BALAUR_E2E=1`
-/// (what `scripts/e2e_tests.sh` and CI set) runs them.
-fn e2e_enabled() -> bool {
-    if std::env::var_os("BALAUR_E2E").is_some() {
-        return true;
-    }
-    eprintln!("skipped: e2e suite; run scripts/e2e_tests.sh or set BALAUR_E2E=1");
-    false
-}
-
-/// Boot a one-node project whose script is `source`, then tick until the log
-/// contains `marker`. Panics on any logged error or on timeout.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "a test's timeout, not simulation"
-)]
-fn run_until(source: &str, marker: &str) {
-    let _guard = LOG
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/s.rn\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("scripts/s.rn"), source).unwrap();
-
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
-    app.load_project().unwrap();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while std::time::Instant::now() < deadline {
-        app.tick(1.0 / 60.0);
-        let recent = balaur_core::logbuf::recent(50);
-        let errors: Vec<_> = recent
-            .iter()
-            .filter(|e| e.level.eq_ignore_ascii_case("error"))
-            .collect();
-        assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-        if recent.iter().any(|e| e.message.contains(marker)) {
-            return;
-        }
-    }
-    panic!("the script never logged `{marker}`");
-}
 
 /// A one-port Gamend stand-in: device login and a generic GET over HTTP,
 /// joins and an echoing `call_hook` over the websocket.
@@ -207,7 +148,7 @@ pub async fn on_gamend_event(this, e) {{
 }}
 "#
     );
-    run_until(&source, "gamend-hook ok hi");
+    run_until(&source, &["gamend-hook ok hi"]);
 }
 
 #[test]
@@ -233,7 +174,7 @@ pub async fn on_gamend_event(this, e) {{
 }}
 "#
     );
-    run_until(&source, "gamend-hook ok hi");
+    run_until(&source, &["gamend-hook ok hi"]);
 }
 
 #[test]
@@ -260,5 +201,5 @@ pub async fn on_gamend_event(this, e) {
 "#;
     // The hook has no plugin behind it on a stock server, so its reply is an
     // error — which still proves the whole path.
-    run_until(source, "gamend-live 200 error");
+    run_until(source, &["gamend-live 200 error"]);
 }

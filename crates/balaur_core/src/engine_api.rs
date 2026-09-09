@@ -156,6 +156,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
+        name: "component_expects",
+        call: component_expects,
+    },
+    EngineOp {
+        module: "scene",
         name: "presets",
         call: presets,
     },
@@ -218,6 +223,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "engine",
         name: "timings",
         call: timings,
+    },
+    EngineOp {
+        module: "engine",
+        name: "profile_scripts",
+        call: profile_scripts,
+    },
+    EngineOp {
+        module: "engine",
+        name: "script_costs",
+        call: script_costs,
     },
     EngineOp {
         module: "save",
@@ -805,6 +820,22 @@ fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
     }))
 }
 
+/// What a component declares it needs something from, for a tool ordering or
+/// grouping its sections. `unmet_expectations` answers the same question about
+/// one node; this answers it about the type.
+fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
+        Value::List(
+            def.expects
+                .iter()
+                .map(|t| Value::Str((*t).to_string()))
+                .collect(),
+        )
+    }))
+}
+
 fn presets(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::presets::names(eng)
@@ -947,6 +978,42 @@ fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// branch the simulation on wall time, which no two machines agree about.
 fn timings(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::timings::table(eng))
+}
+
+/// `engine.profile_scripts(on)`: start or stop counting what each script
+/// costs. Turning it on clears the tally.
+fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let on = matches!(args.first(), Some(Value::Bool(true)));
+    if let Some(host) = eng.script_host() {
+        host.set_profiling(on);
+    }
+    Ok(Value::Nil)
+}
+
+/// `engine.script_costs()`: what each script has cost since profiling
+/// started, dearest first.
+///
+/// Counted in instructions, not seconds: the same run executes the same
+/// instructions on every machine, so a number that moved is a real change.
+fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
+    let rows = eng
+        .script_host()
+        .map(|h| h.script_costs())
+        .unwrap_or_default();
+    Ok(Value::List(
+        rows.into_iter()
+            .map(|(path, calls, instructions)| {
+                Value::Map(vec![
+                    ("path".to_string(), Value::Str(path)),
+                    ("calls".to_string(), Value::Int(calls.cast_signed())),
+                    (
+                        "instructions".to_string(),
+                        Value::Int(instructions.cast_signed()),
+                    ),
+                ])
+            })
+            .collect(),
+    ))
 }
 
 /// The whole property table a scene key's value stands for.

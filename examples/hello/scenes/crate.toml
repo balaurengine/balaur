@@ -23,6 +23,8 @@ color = [0.72, 0.52, 0.28, 1]
 id = "n_lid"
 name = "Lid"
 parent = "n_crate"
+
+[nodes.transform]
 position = [0, 0.4, 0]
 
 [nodes.shape3d]

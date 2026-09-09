@@ -24,9 +24,10 @@ every pull request — and calls four reusable workflows, so a red X names itsel
 scripts/precommit.sh
 ```
 
-Everything below that one machine can run, in three streams, each feature shape
-in its own target directory. `AGENTS.md` holds the tiers and what each covers.
-Install the lints as a pre-push hook: `git config core.hooksPath .githooks`.
+Everything below that one machine can run, in parallel streams, each feature
+shape in its own target directory. `AGENTS.md` holds the tiers and what each
+covers, and `CONTRIBUTING.md` what each costs cold and warm. Install the lints
+as a pre-push hook: `git config core.hooksPath .githooks`.
 
 ## The compiler, per platform and per feature
 

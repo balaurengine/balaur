@@ -9,7 +9,7 @@ use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
 /// The `sprite` component's property schema, lifted out so the
 /// registration below stays readable.
-fn sprite_schema() -> toml::Value {
+fn sprite_schema() -> std::rc::Rc<toml::Value> {
     ComponentDef::parse_schema(
         "sprite",
         &balaur_core::components::ComponentDef::schema(&[
@@ -85,12 +85,7 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let num = |key: &str| {
-                    params
-                        .get(key)
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0)
-                };
+                let num = |key: &str| balaur_core::components::prop_f64(params, key);
                 let mut texture = params
                     .get(k::TEXTURE)
                     .and_then(|v| v.as_str())
@@ -264,6 +259,10 @@ fn read_sprite(
             ]),
         );
     }
+    map.insert(
+        k::PIXELS_PER_UNIT.into(),
+        toml::Value::Float(f64::from(renderable.pixels_per_unit)),
+    );
     map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
     map.insert(
         "material".into(),

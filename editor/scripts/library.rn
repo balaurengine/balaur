@@ -2,6 +2,7 @@
 // project templates.
 // Placing one copies its files in and then does what dropping them would.
 
+use crate::dock;
 use crate::dropin;
 use crate::icons;
 use crate::model;
@@ -145,26 +146,18 @@ pub fn apply_material(S, entry) {
     log::info(format!("{} is now {}", node.name, entry.name));
 }
 
-const CARD_W = 132.0;
-const CARD_H = 62.0;
-
-fn card(S, k, title, note, on_click) {
-    ui::frame(#{ fill: k.sunken, radius: 8, padding_x: 8, padding_y: 6 }, || {
-        ui::vertical(|| {
-            ui::spacing(2, 2);
-            ui::horizontal(#{ height: 20, width: CARD_W }, || {
-                if ui::pill(title, #{
-                    height: 20, size: 11.5, strong: true, align: ui::ALIGN_LEFT,
-                    min_width: CARD_W, color: k.text,
-                }) {
-                    on_click();
-                }
-            });
-            ui::horizontal(#{ height: 24, width: CARD_W }, || {
-                ui::label(note, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
-            });
-        });
-    });
+/// A mark per kind, so a card says what it places before its name is read.
+fn kind_icon(kind) {
+    if kind == "material" {
+        return icons::persona("ui");
+    }
+    if kind == "sky" {
+        return icons::ui("viewmode");
+    }
+    if kind == "rig" {
+        return icons::panel("bonemap");
+    }
+    return icons::panel("scene");
 }
 
 /// The dock. One chip row, then a grid of cards for the chosen kind.
@@ -178,7 +171,7 @@ pub fn panel(S, k) {
             let id = chip[0];
             let on = S.library.kind == id;
             if ui::pill(chip[1], #{
-                height: 20, size: 10.5, radius: 4,
+                height: 20, size: style::SM, radius: 4,
                 fill: if on { k.accent_soft } else { k.sunken },
                 color: if on { k.accent } else { k.faint },
             }) {
@@ -188,6 +181,7 @@ pub fn panel(S, k) {
     });
     ui::add_space(6);
     if S.library.kind == "template" {
+        dock::hide_cards();
         templates(S, k, known);
         return;
     }
@@ -198,25 +192,35 @@ pub fn panel(S, k) {
         }
     }
     if shown.len() == 0 {
+        dock::hide_cards();
         style::empty(k, "nothing of that kind in the library");
         return;
     }
-    ui::scroll("library", (), || {
-        ui::horizontal(#{ height: CARD_H + 8.0 }, || {
-            ui::add_space(8);
-            ui::spacing(8, 0);
-            for entry in shown {
-                let held = entry;
-                card(S, k, held.name, held.get("note").unwrap_or(""), || {
-                    if held.kind == "material" {
-                        apply_material(S, held);
-                    } else {
-                        place(S, held);
-                    }
-                });
-            }
-        });
+    show_cards(S, k, shown);
+}
+
+// The entries as cards on the bottom dock's `list` node: the kind's mark, the
+// entry's name, and its note as the hover.
+fn show_cards(S, k, shown) {
+    let items = [];
+    for entry in shown {
+        items.push(util::row(kind_icon(entry.kind), entry.name,
+            entry.get("note").unwrap_or(""), k.text));
+    }
+    let params = util::fill(dock::CARDS_NODE, #{
+        options: items, visible: true, columns: 5, text: "",
     });
+    let picked = util::taken(dock::CARDS_NODE, params);
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            let held = shown[n];
+            if held.kind == "material" {
+                apply_material(S, held);
+            } else {
+                place(S, held);
+            }
+        }
+    }
 }
 
 /// The templates a new project starts from. Listed rather than placed: a
@@ -238,7 +242,7 @@ fn templates(S, k, known) {
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill(icons::ui("copy") + "  copy command", #{
-                        height: 20, size: 10.5, fill: k.sunken, color: k.sage,
+                        height: 20, size: style::SM, fill: k.sunken, color: k.sage,
                     }) {
                         let command = format!("balaur new my-game --template {}", entry.id);
                         ui::set_clipboard(command);

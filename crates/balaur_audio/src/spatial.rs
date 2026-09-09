@@ -318,10 +318,7 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
             tags: &[balaur_core::components::tag::AUDIO],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let current = params
-                    .get(k::CURRENT)
-                    .and_then(toml::Value::as_bool)
-                    .unwrap_or(true);
+                let current = balaur_core::components::prop_bool(params, k::CURRENT);
                 // Composed and placed as the component is applied: a sound
                 // started before the first scene sync would hear the origin.
                 let pose = current.then(|| scene::composed_global(&eng.world(), entity));

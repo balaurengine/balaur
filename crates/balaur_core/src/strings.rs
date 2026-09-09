@@ -63,8 +63,10 @@ impl LocaleConfig {
 /// The loaded catalogues and which one is current.
 #[derive(Default)]
 pub struct Strings {
-    current: String,
-    fallback: String,
+    /// Inline strings: `tr` copies both on every call, and a locale name is
+    /// short enough to sit in the value rather than on the heap.
+    current: smol_str::SmolStr,
+    fallback: smol_str::SmolStr,
     /// Locale name to its catalogue, read once and kept.
     loaded: RefCell<BTreeMap<String, Catalogue>>,
     /// Where the catalogues are read from, when that is not the project root.
@@ -193,21 +195,21 @@ fn ensure_ready(eng: &Engine) {
     }
     let config = LocaleConfig::load(eng);
     let mut strings = strings.borrow_mut();
-    strings.current.clone_from(&config.default);
-    strings.fallback = config.fallback;
+    strings.current = config.default.as_str().into();
+    strings.fallback = config.fallback.as_str().into();
     strings.ready = true;
 }
 
 pub fn locale(eng: &Engine) -> String {
     ensure_ready(eng);
-    eng.resource::<Strings>().borrow().current.clone()
+    eng.resource::<Strings>().borrow().current.to_string()
 }
 
 /// Switch locale. Takes effect on the next `tr`, which for a widget showing a
 /// key means the next frame.
 pub fn set_locale(eng: &Engine, locale: &str) {
     ensure_ready(eng);
-    eng.resource::<Strings>().borrow_mut().current = locale.to_string();
+    eng.resource::<Strings>().borrow_mut().current = locale.into();
 }
 
 /// Read the catalogues from `root` instead of the project root, and forget

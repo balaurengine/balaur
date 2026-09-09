@@ -9,8 +9,12 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 378 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 379 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
+
+`WEB_THREADS=1` builds the second template, which adds `parallel` to that
+set: rapier's solver threads on rayon, which needs the shared memory and
+atomics only that build has.
 
 | Feature | Default | Web template | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
@@ -19,6 +23,7 @@ Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
+| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web template alone. | nothing |
 | `web` | on | on | `web.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_web` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec. | `balaur_websocket` |
 | `webtransport` | on | off | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
@@ -36,7 +41,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `avif`, `bmp`, `dds`, `default-formats`, `exr`, `ff`, `gif`, `hdr`, `ico`, `jpeg`, `png`, `pnm`, `qoi`, `tga`, `tiff`, `webp` |
 | `rodio` | 0.22.2 | `cpal`, `flac`, `mp3`, `mp4`, `playback`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
-| `rapier3d` | 0.35.3 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `parallel`, `serde-serialize`, `std` |
-| `parry3d` | 0.30.2 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `parallel`, `rayon`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
+| `rapier3d` | 0.35.3 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `serde-serialize`, `std` |
+| `parry3d` | 0.30.2 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `shape-run-cache`, `std`, `swash`, `sys-locale` |
 | `wesl` | 0.4.4 | `eval` |

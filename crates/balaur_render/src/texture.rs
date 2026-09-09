@@ -16,6 +16,44 @@ pub(crate) fn image_size(bytes: &[u8], name: &str) -> Result<(u32, u32)> {
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
+/// What [`size_of`] has already read, so a caller asking every frame reads
+/// the file once.
+#[derive(Default)]
+pub(crate) struct Sizes {
+    generation: u64,
+    by_path: balaur_core::collections::DetHashMap<String, (u32, u32)>,
+}
+
+/// An image's pixel size, kept until the asset reloads.
+///
+/// The header is cheap; reaching it is not, because the whole file is read to
+/// get at it. Setting a sprite property re-sizes the quad, so this is asked
+/// once a frame for every sprite an animation drives.
+pub(crate) fn size_of(eng: &crate::Engine, path: &str) -> Result<(u32, u32)> {
+    let generation = balaur_core::assets::generation(eng);
+    if eng.try_resource::<Sizes>().is_none() {
+        eng.insert_resource(Sizes::default());
+    }
+    let cache = eng.resource::<Sizes>();
+    {
+        let mut cache = cache.borrow_mut();
+        if cache.generation != generation {
+            cache.generation = generation;
+            cache.by_path.clear();
+        }
+        if let Some(size) = cache.by_path.get(path) {
+            return Ok(*size);
+        }
+    }
+    let bytes = eng
+        .resource::<balaur_core::project::ProjectFiles>()
+        .borrow()
+        .read(path)?;
+    let size = image_size(&bytes, path)?;
+    cache.borrow_mut().by_path.insert(path.to_string(), size);
+    Ok(size)
+}
+
 /// The name an image is uploaded under: its path, when the file was last
 /// written, and the import settings it was read with.
 ///

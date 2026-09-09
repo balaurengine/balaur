@@ -178,6 +178,22 @@ pub trait ScriptHost<C: ?Sized> {
         Vec::new()
     }
 
+    /// Start or stop counting what each script costs; turning it on clears
+    /// the tally. A backend that cannot count says so by staying empty.
+    fn set_profiling(&self, on: bool) {
+        let _ = on;
+    }
+
+    /// What each script has cost since profiling started, dearest first, as
+    /// `(path, calls, instructions)`.
+    ///
+    /// Instructions rather than nanoseconds: two runs of a deterministic
+    /// simulation execute the same instructions, so a number that moved is a
+    /// real change in what a script does and not noise from the machine.
+    fn script_costs(&self) -> Vec<(String, u64, u64)> {
+        Vec::new()
+    }
+
     /// Stop at the instruction that threw, rather than logging and moving
     /// on. Off by default: it puts every call through the stepping executor.
     fn set_break_on_error(&self, on: bool) {

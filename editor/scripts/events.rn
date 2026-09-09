@@ -104,7 +104,7 @@ fn field(S, k, at, key, current, choices, width) {
         format!("bind:{}:{}:{}", S.sel, at, key),
         current,
         choices,
-        #{ width: width, size: 11, height: 24, color: k.text },
+        #{ width: width, size: style::SM, height: 24, color: k.text },
     );
     if changed {
         set_field(S, at, key, picked);
@@ -115,7 +115,7 @@ fn text_field(S, k, at, key, current, placeholder, width) {
     let (text, _, submitted) = ui::text_field(
         format!("bindtext:{}:{}:{}", S.sel, at, key),
         placeholder,
-        util::merge(style::field(k, width), #{ value: current, size: 11, height: 24 }),
+        util::merge(style::field(k, width), #{ value: current, size: style::SM, height: 24 }),
     );
     if submitted && text != current {
         set_field(S, at, key, text);
@@ -146,14 +146,14 @@ fn draw_row(S, k, at, row) {
             let (picked, changed) = ui::dropdown(
                 format!("bind:{}:{}:target", S.sel, at),
                 shown, target_paths(S),
-                #{ width: 140, size: 11, height: 24, color: k.text },
+                #{ width: 140, size: style::SM, height: 24, color: k.text },
             );
             if changed {
                 set_field(S, at, "target", if picked == "(this node)" { "" } else { picked });
             }
         }
         text_field(S, k, at, "value", as_text(row.get("value")), "value", 110.0);
-        if ui::pill("✕", #{ height: 20, size: 11, min_width: 22, color: k.accent }) {
+        if ui::pill(icons::ui("close"), #{ height: 20, size: style::SM, min_width: 22, color: k.accent }) {
             remove_row(S, at);
         }
     });
@@ -323,13 +323,13 @@ pub fn view(S, k) {
             style::section_label(k, format!("event bindings · {}", node.name));
             ui::right(|| {
                 if ui::pill("‹›  Convert to script", #{
-                    height: 24, size: 11, fill: k.sage_soft, color: k.sage,
+                    height: 24, size: style::SM, fill: k.sage_soft, color: k.sage,
                 }) {
                     convert_to_script(S);
                 }
                 ui::add_space(6);
                 if ui::pill(icons::ui("add") + "  Add row", #{
-                    height: 24, size: 11, fill: k.accent_soft, color: k.accent,
+                    height: 24, size: style::SM, fill: k.accent_soft, color: k.accent,
                 }) {
                     add_row(S);
                 }

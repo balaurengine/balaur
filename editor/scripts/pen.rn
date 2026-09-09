@@ -298,7 +298,7 @@ pub fn new_path(S) {
         id: model::fresh_id(S.doc, name),
         name: name,
         parent: "",
-        position: [0.0, 0.0, 0.0],
+        transform: #{ position: [0.0, 0.0, 0.0] },
         shape2d: #{ kind: render::SHAPE_POLYLINE, mesh: rel, width: 0.06 },
     });
     model::forget(S, None);

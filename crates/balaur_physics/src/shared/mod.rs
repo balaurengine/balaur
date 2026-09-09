@@ -11,6 +11,7 @@
 pub(crate) mod body;
 pub(crate) mod character;
 pub(crate) mod collider;
+pub(crate) mod events;
 pub(crate) mod joint;
 pub(crate) mod query;
 pub(crate) mod world;

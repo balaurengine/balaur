@@ -4,6 +4,8 @@
 //! below. Plugins attach their own components to the same entity, so the
 //! node abstraction costs nothing on the data plane.
 
+use std::cell::RefCell;
+
 use glamx::{Quat, Vec3};
 use hecs::{Entity, World};
 use smol_str::SmolStr;
@@ -13,6 +15,26 @@ use crate::engine::Engine;
 pub struct Name(pub String);
 pub struct Parent(pub Entity);
 pub struct Children(pub Vec<Entity>);
+
+/// Bumped whenever the tree's shape changes: a node attached, detached, moved
+/// among its siblings, or renamed.
+///
+/// Presentation reads it to skip rebuilding what it walked last frame.
+/// Nothing in the simulation branches on it, so it is outside the digest —
+/// and being process-wide, a second engine in the same test only makes the
+/// number move more often, which costs a rebuild and never a wrong picture.
+static SHAPE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What the tree's shape is at now. A reader that sees the same number twice
+/// saw no node added, freed, moved or renamed in between.
+#[must_use]
+pub fn shape_revision() -> u64 {
+    SHAPE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn shape_changed() {
+    SHAPE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// A parent's children by name, so a path segment is one lookup rather than
 /// a scan of every sibling.
@@ -238,49 +260,60 @@ impl GlobalTransform {
     }
 }
 
+/// The components every node has, whatever else it carries, plus whatever the
+/// caller adds after them.
+///
+/// One tuple rather than a spawn and then an insert: adding a component
+/// afterwards moves the entity to another archetype, and that move was the
+/// single hottest function of a script adding children. A local `Transform` is
+/// one of the extras rather than one of these, because a node may have none;
+/// its `GlobalTransform` is here either way, so a bare node still has a world
+/// position and every reader of one is untouched.
+macro_rules! node_bundle {
+    ($name:expr $(, $extra:expr)* $(,)?) => {
+        (
+            Name($name.to_string()),
+            GlobalTransform::identity(),
+            Appearance::identity(),
+            GlobalAppearance::identity(),
+            Children(Vec::new()),
+            NameIndex::default(),
+            $($extra,)*
+        )
+    };
+}
+
 pub(crate) fn spawn_root(world: &mut World) -> Entity {
-    world.spawn((
-        Name("Root".to_string()),
-        Transform::identity(),
-        GlobalTransform::identity(),
-        Appearance::identity(),
-        GlobalAppearance::identity(),
-        Children(Vec::new()),
-        NameIndex::default(),
-    ))
+    world.spawn(node_bundle!("Root", Transform::identity()))
 }
 
 /// Spawn a new node under `parent`.
 pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
-    let entity = world.spawn((
-        Name(name.to_string()),
-        Transform::identity(),
-        GlobalTransform::identity(),
-        Appearance::identity(),
-        GlobalAppearance::identity(),
-        Children(Vec::new()),
-        NameIndex::default(),
-        Parent(parent),
-    ));
+    let entity = world.spawn(node_bundle!(name, Parent(parent), Transform::identity()));
+    attach(world, parent, name, entity);
+    entity
+}
+
+/// [`spawn_node`] without a local `Transform`, for a node that only groups or
+/// only draws.
+///
+/// What a scene file naming no `[nodes.transform]` gets: the component is
+/// absent rather than at its defaults, the same way an absent `[nodes.sprite]`
+/// means no sprite. Spawning it bare rather than removing one afterwards is
+/// what keeps the archetype move out of loading a scene.
+pub fn spawn_node_bare(world: &mut World, name: &str, parent: Entity) -> Entity {
+    let entity = world.spawn(node_bundle!(name, Parent(parent)));
     attach(world, parent, name, entity);
     entity
 }
 
 /// [`spawn_node`] with a stable id, in one spawn.
-///
-/// Adding the id afterwards moved the entity to another archetype, and that
-/// move was the single hottest function of a script adding children.
 pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: String) -> Entity {
-    let entity = world.spawn((
-        Name(name.to_string()),
-        Transform::identity(),
-        GlobalTransform::identity(),
-        Appearance::identity(),
-        GlobalAppearance::identity(),
-        Children(Vec::new()),
-        NameIndex::default(),
+    let entity = world.spawn(node_bundle!(
+        name,
         Parent(parent),
-        crate::components::StableId(id),
+        Transform::identity(),
+        crate::components::StableId(id)
     ));
     attach(world, parent, name, entity);
     entity
@@ -302,6 +335,7 @@ pub fn spawn_node_at(world: &mut World, name: &str, parent: Entity, index: usize
 /// What makes a snapshot restore reproduce the tree order the digest walks
 /// rather than only the set.
 pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize) {
+    shape_changed();
     {
         let Ok(mut children) = world.get::<&mut Children>(parent) else {
             return;
@@ -329,6 +363,7 @@ pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize
 
 /// Rename a node, keeping its parent's [`NameIndex`] right.
 pub fn rename(world: &World, entity: Entity, name: &str) {
+    shape_changed();
     let old = {
         let Ok(mut current) = world.get::<&mut Name>(entity) else {
             return;
@@ -347,6 +382,7 @@ pub fn rename(world: &World, entity: Entity, name: &str) {
 
 /// Append `child`, named `name`, to `parent`'s children and index it.
 fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
+    shape_changed();
     if let Ok(mut children) = world.get::<&mut Children>(parent) {
         children.0.push(child);
     }
@@ -367,6 +403,7 @@ fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
 
 /// Take `child` out of `parent`'s children and its name out of the index.
 fn detach(world: &World, parent: Entity, child: Entity) {
+    shape_changed();
     if let Ok(mut children) = world.get::<&mut Children>(parent) {
         children.0.retain(|&c| c != child);
     }
@@ -490,40 +527,45 @@ pub fn node_path(world: &World, entity: Entity) -> String {
     segments.join("/")
 }
 
-/// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
-pub fn propagate_transforms(world: &mut World, root: Entity) {
-    let identity = GlobalTransform::identity();
-    let visible = GlobalAppearance::identity();
-    propagate_recursive(world, root, &identity, visible);
+thread_local! {
+    /// The frontier [`propagate_transforms`] walks, kept between frames: the
+    /// pass runs every frame over every node, and a fresh stack per node was
+    /// an allocation per node.
+    static PROPAGATE_STACK: RefCell<Vec<(Entity, GlobalTransform, GlobalAppearance)>> =
+        const { RefCell::new(Vec::new()) };
 }
 
-fn propagate_recursive(
-    world: &mut World,
-    entity: Entity,
-    parent_global: &GlobalTransform,
-    parent_appearance: GlobalAppearance,
-) {
-    let global = match world.get::<&Transform>(entity) {
-        Ok(local) => parent_global.mul(&local),
-        Err(_) => *parent_global,
-    };
-    if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
-        *slot = global;
-    }
-    let appearance = match world.get::<&Appearance>(entity) {
-        Ok(local) => parent_appearance.mul(*local),
-        Err(_) => parent_appearance,
-    };
-    if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
-        *slot = appearance;
-    }
-    let children: Vec<Entity> = match world.get::<&Children>(entity) {
-        Ok(children) => children.0.clone(),
-        Err(_) => return,
-    };
-    for child in children {
-        propagate_recursive(world, child, &global, appearance);
-    }
+/// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
+pub fn propagate_transforms(world: &mut World, root: Entity) {
+    PROPAGATE_STACK.with_borrow_mut(|stack| {
+        stack.clear();
+        stack.push((
+            root,
+            GlobalTransform::identity(),
+            GlobalAppearance::identity(),
+        ));
+        while let Some((entity, parent_global, parent_appearance)) = stack.pop() {
+            let global = match world.get::<&Transform>(entity) {
+                Ok(local) => parent_global.mul(&local),
+                Err(_) => parent_global,
+            };
+            if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
+                *slot = global;
+            }
+            let appearance = match world.get::<&Appearance>(entity) {
+                Ok(local) => parent_appearance.mul(*local),
+                Err(_) => parent_appearance,
+            };
+            if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+                *slot = appearance;
+            }
+            if let Ok(children) = world.get::<&Children>(entity) {
+                // Reversed, so popping visits siblings in the order they are
+                // listed. A subtree's answer does not depend on it; a log does.
+                stack.extend(children.0.iter().rev().map(|&c| (c, global, appearance)));
+            }
+        }
+    });
 }
 
 /// A node's world appearance composed from local ones, current this instant
@@ -676,6 +718,9 @@ pub fn free_node(eng: &Engine, entity: Entity) {
 /// a fifty-thousand-entry list, and a frame that frees a whole container of
 /// them is ordinary.
 pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
+    // Said here rather than left to `detach`: this unlinks the children by
+    // rewriting each parent's list itself, so `detach` never runs.
+    shape_changed();
     let mut subtree = Vec::with_capacity(entities.len());
     {
         let world = eng.world();

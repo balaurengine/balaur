@@ -6,6 +6,8 @@
 id = "n_camera"
 name = "Camera"
 parent = ""
+
+[nodes.transform]
 position = [0, 0, 0]
 
 [nodes.camera]
@@ -16,6 +18,8 @@ zoom = 110
 id = "n_ground"
 name = "Ground"
 parent = ""
+
+[nodes.transform]
 position = [0, -1.5, 0]
 
 [nodes.shape2d]
@@ -33,8 +37,10 @@ friction = 0.9
 id = "n_hero"
 name = "Hero"
 parent = ""
-position = [0, -1.25, 0]
 script = "scripts/fall.rn"
+
+[nodes.transform]
+position = [0, -1.25, 0]
 
 [nodes.animation]
 autoplay = "wave"
@@ -99,27 +105,35 @@ target = "Target"
 id = "n_hip"
 name = "Hip"
 parent = "n_hero"
-position = [0, 0, 0]
 bone2d = { rest_position = [0, 0], rest_rotation = 0.0, length = 0.85 }
+
+[nodes.transform]
+position = [0, 0, 0]
 
 [[nodes]]
 id = "n_thigh"
 name = "Thigh"
 parent = "n_hip"
-position = [0, 0.85, 0]
 bone2d = { rest_position = [0, 0.85], rest_rotation = 0.0, length = 0.85 }
+
+[nodes.transform]
+position = [0, 0.85, 0]
 
 [[nodes]]
 id = "n_shin"
 name = "Shin"
 parent = "n_thigh"
-position = [0, 0.85, 0]
 bone2d = { rest_position = [0, 0.85], rest_rotation = 0.0, length = 0.86, angle = 1.5708 }
+
+[nodes.transform]
+position = [0, 0.85, 0]
 
 [[nodes]]
 id = "n_limb"
 name = "Limb"
 parent = "n_hero"
+
+[nodes.transform]
 position = [0, 0, 0]
 
 [nodes.polygon]
@@ -158,27 +172,35 @@ weights = [0, 0, 0, 0.5, 1, 1, 0.5, 0]
 id = "n_shoulder"
 name = "Shoulder"
 parent = "n_shin"
-position = [0.4, 0.4, 0]
 bone2d = { rest_position = [0.4, 0.4], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0.4, 0.4, 0]
 
 [[nodes]]
 id = "n_elbow"
 name = "Elbow"
 parent = "n_shoulder"
-position = [0.7, 0, 0]
 bone2d = { rest_position = [0.7, 0], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0.7, 0, 0]
 
 [[nodes]]
 id = "n_hand"
 name = "Hand"
 parent = "n_elbow"
-position = [0.7, 0, 0]
 bone2d = { rest_position = [0.7, 0], rest_rotation = 0.0, length = 0.25 }
+
+[nodes.transform]
+position = [0.7, 0, 0]
 
 [[nodes]]
 id = "n_target"
 name = "Target"
 parent = "n_hero"
+
+[nodes.transform]
 position = [2.0, 1.4, 0]
 
 [nodes.shape2d]
@@ -190,6 +212,8 @@ color = [0.9, 0.35, 0.3, 1.0]
 id = "n_sleeve"
 name = "Sleeve"
 parent = "n_shin"
+
+[nodes.transform]
 position = [0.4, 0.4, 0]
 
 [nodes.polygon]
@@ -227,22 +251,28 @@ weights = [0, 0, 0.5, 1, 1, 0.5, 0, 0]
 id = "n_plume"
 name = "Plume"
 parent = "n_shin"
-position = [0, 0.86, 0]
 bone2d = { rest_position = [0, 0.86], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0, 0.86, 0]
 
 [[nodes]]
 id = "n_plume2"
 name = "Plume2"
 parent = "n_plume"
-position = [0, 0.3, 0]
 bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0, 0.3, 0]
 
 [[nodes]]
 id = "n_plume3"
 name = "Plume3"
 parent = "n_plume2"
-position = [0, 0.3, 0]
 bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0, length = 0.3, angle = 1.5708 }
+
+[nodes.transform]
+position = [0, 0.3, 0]
 
 [[nodes]]
 id = "n_jiggle"
@@ -262,6 +292,8 @@ use_gravity = true
 id = "n_plumeskin"
 name = "Plumeskin"
 parent = "n_shin"
+
+[nodes.transform]
 position = [0, 0.86, 0]
 
 [nodes.polygon]

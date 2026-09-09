@@ -11,6 +11,7 @@ import json
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -176,8 +177,12 @@ def gen_features(crates):
     docs.update({k: v for k, v in feature_docs(cli["manifest"]).items() if k not in docs})
     names = sorted(f for f in cli["features"] if f != "default")
     default = set(cli["features"]["default"])
-    everything = web_crates(names)
-    linked = web_crates(template)
+    # One `cargo tree` per feature, plus one per heavy crate: each resolves the
+    # graph again, and they only read, so they run at once.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        everything, linked = pool.map(web_crates, (names, template))
+        without = dict(zip(names, pool.map(
+            lambda n: web_crates([m for m in names if m != n]), names)))
     body = (
         "# Features and the web build\n\n"
         "The cargo features of `balaur_cli`, the binary every runtime template is built\n"
@@ -188,12 +193,14 @@ def gen_features(crates):
         f"The web template (`scripts/package_template.sh web`) is built with\n"
         f"`--no-default-features --features {','.join(template)}` and links {len(linked)} crates.\n"
         "Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.\n\n"
+        "`WEB_THREADS=1` builds the second template, which adds `parallel` to that\n"
+        "set: rapier's solver threads on rayon, which needs the shared memory and\n"
+        "atomics only that build has.\n\n"
         "| Feature | Default | Web template | What it is | Adds to a web build |\n"
         "| --- | --- | --- | --- | --- |\n"
     )
     for name in names:
-        without = web_crates([n for n in names if n != name])
-        added = sorted(set(everything) - set(without))
+        added = sorted(set(everything) - set(without[name]))
         added.sort(key=lambda c: (c not in NOTABLE, c))
         shown = ", ".join(f"`{c}`" for c in added[:6]) + (f", … ({len(added)} crates)" if len(added) > 6 else "")
         body += (
@@ -207,13 +214,16 @@ def gen_features(crates):
         "gates (`winit`'s X11 is on and compiles nothing in a browser).\n\n"
         "| Crate | Version | Features on |\n| --- | --- | --- |\n"
     )
+    heavy = [c for c in WEB_HEAVY if c in linked]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        resolved = dict(zip(heavy, pool.map(
+            lambda c: resolved_features(template, c, linked[c]), heavy)))
     for crate in WEB_HEAVY:
         if crate not in linked:
             body += f"| `{crate}` | — | not in the template |\n"
             continue
-        version = linked[crate]
-        on = resolved_features(template, crate, version)
-        body += f"| `{crate}` | {version} | {', '.join(f'`{f}`' for f in on) or 'none'} |\n"
+        on = resolved[crate]
+        body += f"| `{crate}` | {linked[crate]} | {', '.join(f'`{f}`' for f in on) or 'none'} |\n"
     return body
 
 
@@ -359,6 +369,12 @@ def gen_components(components, tags, docs=None, methods=None):
         "below are the functions that declared they act on it. Every handle also\n"
         "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
         "with no methods of its own is still reachable that way.\n\n"
+        "**Properties.** Every property in the tables below is also a field on\n"
+        "that handle, so `node.collider3d.density = 15.0` writes one property\n"
+        "and leaves the rest where they were, and `node.collider3d.density`\n"
+        "reads it back off the running component rather than off the scene.\n"
+        "A name the component does not declare is an error, not a silent\n"
+        "no-op: `node.body3d.density` fails both ways.\n\n"
         "Components are grouped by the first of their facet tags; one with\n"
         "several (`collider2d` is both `2d` and `physics`) lists them all under\n"
         "its heading.\n\n",

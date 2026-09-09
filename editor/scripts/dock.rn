@@ -49,7 +49,7 @@ pub fn output_tools(S, k, room) {
     }
     ui::add_space(6);
     if ui::pill("clear", #{
-        height: 24, size: 11, strong: true, tooltip: "Empty the log buffer",
+        height: 24, size: style::SM, strong: true, tooltip: "Empty the log buffer",
         fill: k.sunken, color: k.dim,
     }) {
         log::clear();
@@ -60,7 +60,7 @@ pub fn output_tools(S, k, room) {
     for level in ["error", "warn", "all"] {
         let active = S.log_level == level;
         if ui::pill(level, #{
-            height: 24, size: 11, strong: true,
+            height: 24, size: style::SM, strong: true,
             tooltip: format!("Show {} and above", level),
             fill: if active { k.accent_soft } else { k.sunken },
             color: if active { k.accent } else { k.dim },
@@ -72,9 +72,9 @@ pub fn output_tools(S, k, room) {
         // No field on screen, so no invisible filter hiding rows.
         S.log_query = "";
     } else {
-        let (query, _, _) = ui::text_field("log-search", "filter…", #{
-            size: 11, font: ui::FONT_MONO, width: 130, height: 24,
-            fill: k.sunken, stroke: k.line_soft, color: k.text,
+        let (query, _, _) = ui::text_field("log-search", "Search", #{
+            size: style::SM, font: ui::FONT_MONO, width: 130, height: 24,
+            fill: k.sunken, stroke: k.line, color: k.text,
         });
         S.log_query = query;
     }
@@ -133,8 +133,68 @@ fn filtered(S) {
     built
 }
 
+// The bottom dock's `list` node, which the log-shaped panels fill instead of
+// drawing a row at a time.
+const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
+
+// Put `items` on the node and show it. A row is icon, label, note and colour,
+// separated by U+001F, which is what a `list` row splits on.
+pub fn show_log(items) {
+    util::fill(LOG_NODE, #{ options: items, visible: true });
+    true
+}
+
+// What the node reports as picked, and clearing it once acted on.
+fn picked_log() {
+    util::taken(LOG_NODE, util::fill(LOG_NODE, #{}))
+}
+
+// Hidden while a panel that is not a list is up.
+pub fn hide_log() {
+    util::hide(LOG_NODE);
+}
+
+// The bottom dock's card grid, which Assets, Library and Tiles take turns
+// filling. Six across is the widest the dock ever wants; a view that wants
+// fewer writes its own `columns`.
+pub const CARDS_NODE = "Editor/Shell/Body/Centre/Bottom/BottomCards";
+
+pub fn hide_cards() {
+    util::hide(CARDS_NODE);
+}
+
+// The bottom dock's `tree` node: the Debugger's call stack, and the locals
+// each frame opens onto.
+pub const TREE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTree";
+
+pub fn hide_tree() {
+    util::hide(TREE_NODE);
+}
+
 pub fn output(S, k) {
     let shown = filtered(S);
+    let items = [];
+    for entry in shown.rows {
+        let tint = k.dim;
+        let marker = " ";
+        if entry.level == "error" {
+            tint = k.accent;
+            marker = "\u{d7}";
+        } else if entry.level == "warn" {
+            tint = k.accent;
+            marker = "!";
+        } else if entry.tag == "env" {
+            tint = k.sage;
+        }
+        let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
+        let line = marker + "\u{1f}";
+        line += format!("{:6.1}s  {}  {}", util::f(entry.time), tag, entry.message);
+        line += "\u{1f}\u{1f}" + tint;
+        items.push(line);
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("output", #{ stick_to_bottom: true, max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
         for entry in shown.rows {
@@ -144,7 +204,7 @@ pub fn output(S, k) {
                 let marker = " ";
                 if entry.level == "error" {
                     color = k.accent;
-                    marker = "✕";
+                    marker = icons::ui("close");
                 } else if entry.level == "warn" {
                     color = k.accent;
                     marker = "!";
@@ -240,14 +300,14 @@ pub fn assets_state() {
 fn asset_verbs(S, k) {
     let chosen = S.assets.sel != "";
     if ui::pill(icons::ui("add") + " folder", #{
-        height: 20, size: 10.5, strong: true, tooltip: "Make a folder here",
+        height: 20, size: style::SM, strong: true, tooltip: "Make a folder here",
         fill: k.sunken, color: k.dim,
     }) {
         new_folder(S);
     }
     ui::add_space(6);
     if ui::pill("rename", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
         fill: k.sunken, color: if chosen { k.dim } else { k.line },
     }) {
@@ -257,7 +317,7 @@ fn asset_verbs(S, k) {
     }
     ui::add_space(6);
     if ui::pill("delete", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
         fill: k.sunken, color: if chosen { k.accent } else { k.line },
     }) {
@@ -330,7 +390,7 @@ pub fn assets(S, k) {
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(12);
         if dir != "" {
-            if ui::pill("↑", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
+            if ui::pill("↑", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
                 S.assets.dir = parent_dir(dir);
             }
             ui::add_space(6);
@@ -350,67 +410,56 @@ pub fn assets(S, k) {
             ui::add_space(12);
             asset_verbs(S, k);
             ui::add_space(8);
-            crate::search::field(S, k, "assets", "filter…", 140.0);
+            crate::search::field(S, k, "assets", "Search", 140.0);
         });
     });
-    // Cards wrap into rows: the row count is what the dock's height scrolls.
-    let per_row = util::max(1, ((ui::available_width() - 24.0) / (CARD_W + 12.0)) as i64);
-    ui::scroll("assets", #{ max_height: S.layout.body_h - 24.0 }, || {
-        ui::add_space(6);
-        let index = 0;
-        while index < files.len() {
-            let start = index;
-            ui::horizontal((), || {
-                ui::spacing(12, 0);
-                ui::add_space(12);
-                for n in 0..per_row {
-                    let f = match files.get(start + n) {
-                        Some(f) => f,
-                        None => break,
-                    };
-                    let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
-                    let (icon, ink) = asset_look(f.name, f.is_dir);
-                    let chosen = S.assets.sel == rel;
-                    ui::vertical(|| {
-                        ui::spacing(0, 0);
-                        if ui::pill(icon, #{
-                            height: CARD_H, min_width: CARD_W, size: 20, radius: 6,
-                            fill: if chosen { k.accent_soft } else { k.sunken },
-                            color: if chosen { k.accent } else { k[ink] },
-                            tooltip: rel,
-                        }) {
-                            // A second click on the selected card opens it,
-                            // so one click can mean "act on this one".
-                            if S.assets.sel == rel {
-                                if f.is_dir {
-                                    S.assets.dir = rel;
-                                    S.assets.sel = "";
-                                } else {
-                                    open_asset(S, rel);
-                                }
-                            } else {
-                                S.assets.sel = rel;
-                                S.assets.renaming = false;
-                            }
-                        }
-                        // The name belongs to the card, not to the gap under it.
-                        let short = if f.name.len() > 13 { f.name[..12] + "…" } else { f.name };
-                        ui::pill(short, #{
-                            height: 20, min_width: CARD_W, size: 10.5, radius: 6, align: ui::ALIGN_CENTER,
-                            font: ui::FONT_MONO,
-                            fill: if chosen { k.accent_soft } else { k.sunken },
-                            color: if chosen { k.accent } else { k.dim },
-                        });
-                    });
-                }
-            });
-            index += per_row;
-            ui::add_space(8);
+    show_cards(S, k, dir, files);
+}
+
+// The cards themselves, on the bottom dock's `list` node in its icon mode.
+// One string a card: the mark, the name, the path it opens and its own ink.
+fn show_cards(S, k, dir, files) {
+    let items = [];
+    let paths = [];
+    for f in files {
+        let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
+        let (icon, ink) = asset_look(f.name, f.is_dir);
+        items.push(util::row(icon, f.name, rel, k[ink]));
+        paths.push(rel);
+    }
+    let chosen = "";
+    for (n, rel) in paths.iter().enumerate() {
+        if rel == S.assets.sel {
+            chosen = items[n];
         }
-        if files.len() == 0 {
-            style::empty(k, "empty folder");
-        }
+    }
+    let params = util::fill(CARDS_NODE, #{
+        options: items, visible: true, columns: 6, text: chosen,
     });
+    // `clicked` rather than a changed `text`: a second click on the selected
+    // card reports the same string, and that is the one that opens it.
+    if !params["clicked"] {
+        return;
+    }
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item != picked {
+            continue;
+        }
+        // A second click on the selected card opens it, so one click can
+        // still mean "act on this one".
+        if item == chosen {
+            if files[n].is_dir {
+                S.assets.dir = paths[n];
+                S.assets.sel = "";
+            } else {
+                open_asset(S, paths[n]);
+            }
+            return;
+        }
+        S.assets.sel = paths[n];
+        S.assets.renaming = false;
+    }
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
@@ -431,7 +480,7 @@ pub fn timeline(S, k) {
                 ui::label(missing, style::mono_lg(k.faint));
                 ui::add_space(12);
                 if ui::pill(icons::ui("add") + " Create clip", #{
-                    height: 24, size: 11.5, strong: true,
+                    height: 24, size: style::MD, strong: true,
                     fill: k.accent_fill, color: k.on_accent,
                 }) {
                     anim::ensure_clip(S);
@@ -572,7 +621,7 @@ fn value_text(v) {
 fn break_on_error_pill(k) {
     let on = debugger::break_on_error();
     if ui::pill("break on error", #{
-        height: 20, size: 10.5, strong: true,
+        height: 20, size: style::SM, strong: true,
         tooltip: "Stop at the line a script throws on, instead of logging it",
         fill: if on { k.accent_fill } else { k.sunken },
         color: if on { k.on_accent } else { k.faint },
@@ -588,7 +637,7 @@ pub fn debugger_view(S, k) {
             ui::add_space(8);
             // Nothing stops on the click: the next line a script runs is where.
             if S.playing && ui::pill("⏸ Pause", #{
-                height: 24, size: 11.5, strong: true, tooltip: "F6",
+                height: 24, size: style::MD, strong: true, tooltip: "F6",
                 fill: k.accent_soft, color: k.accent,
             }) {
                 debugger::request_break();
@@ -617,7 +666,7 @@ pub fn debugger_view(S, k) {
         ];
         for step in steps {
             if ui::pill(step[0], #{
-                height: 24, size: 11.5, strong: true, tooltip: step[2],
+                height: 24, size: style::MD, strong: true, tooltip: step[2],
                 fill: k.accent_soft, color: k.accent,
             }) {
                 shell::resume(S, step[1]);
@@ -635,38 +684,36 @@ pub fn debugger_view(S, k) {
             break_on_error_pill(k);
         });
     });
-    ui::scroll("debug-frames", #{ max_height: S.layout.body_h - 30.0 }, || {
-        ui::spacing(4, 2);
-        for (i, frame) in p.frames.iter().enumerate() {
-            let chosen = i == S.debug.frame;
-            ui::horizontal(#{ height: 24 }, || {
-                ui::add_space(6);
-                if ui::pill(frame["function"], #{
-                    height: 20, size: 11, strong: true,
-                    fill: if chosen { k.accent_fill } else { k.sunken },
-                    color: if chosen { k.on_accent } else { k.dim },
-                }) {
-                    S.debug.frame = i;
-                }
-                ui::add_space(6);
-                ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), style::mono(k.faint));
-            });
-            if chosen {
-                let names = util::keys_sorted(frame.locals);
-                for name in names {
-                    ui::horizontal((), || {
-                        ui::add_space(24);
-                        ui::label(name, util::merge(style::mono(k.text), #{ strong: true }));
-                        ui::add_space(6);
-                        ui::label(value_text(frame.locals[name]), style::mono(k.dim));
-                    });
-                }
-                if names.len() == 0 {
-                    style::empty(k, "no locals");
-                }
-            }
+    show_frames(S, k, p);
+}
+
+// The call stack on the `tree` node: a frame is a row, and its locals are
+// rows a tab deeper. The caret is the tree's own, so nothing here folds.
+fn show_frames(S, k, p) {
+    let items = [];
+    let owners = [];
+    for (i, frame) in p.frames.iter().enumerate() {
+        let site = format!("{}:{}", shell::script_rel(S, frame.path), frame.line);
+        items.push(util::row(icons::ui("step-into"), frame["function"], site, k.text));
+        owners.push(i);
+        for name in util::keys_sorted(frame.locals) {
+            items.push("\t" + util::row("", name, value_text(frame.locals[name]), k.dim));
+            owners.push(i);
         }
-    });
+    }
+    let chosen = "";
+    for (n, owner) in owners.iter().enumerate() {
+        if owner == S.debug.frame && chosen == "" {
+            chosen = items[n];
+        }
+    }
+    let params = util::fill(TREE_NODE, #{ options: items, visible: true, text: chosen });
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            S.debug.frame = owners[n];
+        }
+    }
 }
 
 // Problems: every finding the last sweep produced, worst first, each row a
@@ -682,6 +729,25 @@ pub fn problems(S, k) {
         if f.severity != "error" {
             rows.push(f);
         }
+    }
+    let items = [];
+    for f in rows {
+        let bad = f.severity == "error";
+        let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
+        let line = if bad { "\u{d7}" } else { "!" };
+        line += "\u{1f}" + format!("{}  {}", at, f.message);
+        line += "\u{1f}\u{1f}" + if bad { k.accent } else { k.sage };
+        items.push(line);
+    }
+    if rows.len() > 0 && show_log(items) {
+        // The pick is the row, so the click opens the file it names.
+        let picked = picked_log();
+        for (n, item) in items.iter().enumerate() {
+            if item == picked {
+                open_at(S, rows[n]);
+            }
+        }
+        return;
     }
     ui::scroll("problems", #{ max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
@@ -699,7 +765,7 @@ pub fn problems(S, k) {
                 ui::add_space(6);
                 let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
                 if ui::pill(at, #{
-                    height: 20, size: 11, font: ui::FONT_MONO,
+                    height: 20, size: style::SM, font: ui::FONT_MONO,
                     fill: k.sunken, color: k.dim,
                     tooltip: "Open the file at this line",
                 }) {
@@ -747,19 +813,19 @@ pub fn session_view(S, k) {
         ui::horizontal(#{ height: 24, width: name_w - 12.0 }, || {
             let playing = replay::state() == replay::STATE_PLAYING;
             if ui::pill(if playing { "⏸ Pause" } else { "▶ Play" }, #{
-                height: 24, size: 11, strong: true,
+                height: 24, size: style::SM, strong: true,
                 fill: k.accent_soft, color: k.accent,
             }) {
                 session::toggle_pause(S);
             }
             if ui::pill("⇥", #{
-                height: 24, size: 11, strong: true, tooltip: "One recorded tick forward",
+                height: 24, size: style::SM, strong: true, tooltip: "One recorded tick forward",
                 fill: k.sunken, color: k.dim,
             }) {
                 session::step(S);
             }
             if ui::pill("■", #{
-                height: 24, size: 11, strong: true, tooltip: "Back to the edited scene",
+                height: 24, size: style::SM, strong: true, tooltip: "Back to the edited scene",
                 fill: k.sunken, color: k.dim,
             }) {
                 session::close(S);
@@ -826,7 +892,7 @@ fn lane_marks(S, k, lane, first, span, lane_w) {
                 if ui::pill("", #{
                     height: 8, min_width: util::max(4.0, w - 2.0),
                     tooltip: format!("{}: {}", hit.tick, hit.label),
-                    fill: if behind { k.accent } else { k.line_soft }, color: k.dim,
+                    fill: if behind { k.accent } else { k.line }, color: k.dim,
                 }) {
                     session::seek(S, hit.tick);
                 }
@@ -865,7 +931,7 @@ fn session_list(S, k) {
             ui::add_space(8);
             let on = S.session.verify;
             if ui::pill("verify", #{
-                height: 20, size: 10.5, strong: true,
+                height: 20, size: style::SM, strong: true,
                 tooltip: "Hash the world every tick, so a replay can name where it parted",
                 fill: if on { k.accent_fill } else { k.sunken },
                 color: if on { k.on_accent } else { k.faint },
@@ -885,7 +951,7 @@ fn session_list(S, k) {
             ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(8);
                 if ui::pill("▶", #{
-                    height: 20, size: 11, strong: true, tooltip: "Replay this session",
+                    height: 20, size: style::SM, strong: true, tooltip: "Replay this session",
                     fill: k.accent_soft, color: k.accent,
                 }) {
                     session::open(S, r.name);
@@ -904,20 +970,20 @@ fn session_list(S, k) {
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill("delete", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         fill: k.sunken, color: k.faint,
                     }) {
                         session::remove(S, r.name);
                     }
                     if ui::pill("export", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         tooltip: "Copy into the project, for a bug report or `balaur replay`",
                         fill: k.sunken, color: k.dim,
                     }) {
                         session::export(S, r.name);
                     }
                     if !r.name.starts_with("kept-") && ui::pill("keep", #{
-                        height: 20, size: 10.5, strong: true,
+                        height: 20, size: style::SM, strong: true,
                         tooltip: "Never prune this one",
                         fill: k.sunken, color: k.dim,
                     }) {
@@ -952,7 +1018,11 @@ pub fn profiler(S, k) {
         style::empty(k, "no timings yet");
         return;
     }
-    let frame_ms = util::f(timings.frame) * 1000.0;
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render are named spans, and `wall` is what the loop took.
+    let stage_ms = util::f(timings.frame) * 1000.0;
+    let wall_ms = util::f(timings.wall) * 1000.0;
+    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
     ui::add_space(8);
     ui::horizontal((), || {
         ui::add_space(12);
@@ -965,10 +1035,33 @@ pub fn profiler(S, k) {
         );
         if over {
             ui::add_space(8);
-            ui::label("over budget", style::mono_sm(k.accent));
+            ui::label(format!("{} fps", fixed(1000.0 / frame_ms, 1)), style::mono_sm(k.accent));
         }
     });
     ui::add_space(6);
+    ui::horizontal((), || {
+        ui::add_space(12);
+        let on = S.get("script_profiling").unwrap_or(false);
+        if ui::pill("scripts", #{
+            height: 24, size: style::SM, strong: true,
+            tooltip: "Count what each script costs, in VM instructions",
+            fill: if on { k.accent } else { k.sunken },
+            color: if on { k.sunken } else { k.dim },
+        }) {
+            S.script_profiling = !on;
+            engine::profile_scripts(!on);
+        }
+    });
+    ui::add_space(6);
+    let items = [];
+    log_rows(items, k, util::obj(timings.stages), "stage");
+    let spans = util::obj(timings.spans);
+    if !spans.is_empty() {
+        log_rows(items, k, spans, "span");
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("profiler", (), || {
         rows(k, util::obj(timings.stages), "stage");
         let spans = util::obj(timings.spans);
@@ -976,7 +1069,48 @@ pub fn profiler(S, k) {
             style::section_label(k, "named");
             rows(k, spans, "span");
         }
+        if S.get("script_profiling").unwrap_or(false) {
+            style::section_label(k, "scripts");
+            script_rows(k);
+        }
     });
+}
+
+/// What each script cost the last frame, dearest first.
+///
+/// Instructions rather than milliseconds: the same frame runs the same
+/// instructions on every machine, so a number that moved is a change in what
+/// a script does. Re-armed after reading, so a row is one frame's work.
+fn script_rows(k) {
+    let costs = engine::script_costs();
+    if costs.is_empty() {
+        ui::add_space(4);
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(12);
+            ui::label("nothing ran this frame", style::mono_sm(k.dim));
+        });
+        engine::profile_scripts(true);
+        return;
+    }
+    let worst = util::f(costs[0].instructions);
+    for row in costs {
+        let count = util::f(row.instructions);
+        let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(12);
+            ui::horizontal(#{ height: 20, width: 132 }, || {
+                ui::label(row.path, style::mono_sm(k.sage));
+            });
+            ui::horizontal(#{ height: 20, width: 68 }, || {
+                ui::label(format!("{}", row.instructions), style::mono_sm(k.dim));
+            });
+            let width = util::max(1.0, share * 180.0);
+            ui::frame(#{ fill: k.sage, radius: 3, padding_x: 0 }, || {
+                ui::horizontal(#{ height: 8, width: width }, || {});
+            });
+        });
+    }
+    engine::profile_scripts(true);
 }
 
 // Worst first. A hand-written pass rather than a comparator: a float
@@ -1004,6 +1138,21 @@ fn by_cost(table) {
 }
 
 // One row per entry, worst first, with a bar as its share of the budget.
+// The same rows as `rows`, as strings for the `list` node: a name, its cost
+// and a bar drawn in blocks rather than a filled rect.
+fn log_rows(items, k, table, kind) {
+    for row in by_cost(table) {
+        let share = util::clamp(row.ms / BUDGET_MS, 0.0, 1.0);
+        let filled = util::i(share * 20.0);
+        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 20 - filled);
+        let line = "\u{1f}";
+        line += format!("{:<26}{:>9} ms  {}", row.name, fixed(row.ms, 3), bar);
+        line += "\u{1f}\u{1f}";
+        line += if row.ms > BUDGET_MS * 0.5 { k.accent } else if kind == "span" { k.sage } else { k.dim };
+        items.push(line);
+    }
+}
+
 fn rows(k, table, kind) {
     for row in by_cost(table) {
         let name = row.name;
@@ -1094,6 +1243,23 @@ pub fn cost(S, k) {
         return;
     }
     let worst = util::f(by_key(nodes, "triangles")[0].triangles);
+    let items = [];
+    for row in by_key(nodes, "triangles") {
+        let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);
+        let filled = util::i(share * 16.0);
+        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 16 - filled);
+        let copies = util::i(row.copies);
+        let mark = if copies > 1 { format!("x{}", copies) } else { "" };
+        let line = "\u{1f}";
+        line += format!("{:<22}{:>10} tri {:>9}  {}  {}",
+            util::leaf(row.node), util::i(row.triangles),
+            bytes(util::f(row.texture_bytes)), bar, mark);
+        line += "\u{1f}\u{1f}" + k.dim;
+        items.push(line);
+    }
+    if show_log(items) {
+        return;
+    }
     ui::scroll("cost", (), || {
         for row in by_key(nodes, "triangles") {
             let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);

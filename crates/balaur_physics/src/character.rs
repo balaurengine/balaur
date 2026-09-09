@@ -250,6 +250,8 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
             // Every property is read at move time, so applying one is
             // remembering it and nothing else.
             apply: Box::new(|eng, entity, params| {
+                // Moving a character writes the node's transform.
+                balaur_core::transform::ensure(eng, entity);
                 let _ = eng.world_mut().insert_one(entity, Character3d(params.clone()));
                 Ok(())
             }),

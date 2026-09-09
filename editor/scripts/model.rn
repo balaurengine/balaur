@@ -421,6 +421,7 @@ pub fn expand_instances(S) {
         }
     }
     S.doc = out;
+    S.doc_rev += 1;
 }
 
 fn expand_one(S, out, owner, rel, id_prefix, at_prefix, depth) {
@@ -645,6 +646,7 @@ pub fn load(S) {
     // mirror, or a `#id` reference resolves to nothing inside the editor.
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    S.doc_rev += 1;
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -841,14 +843,32 @@ pub fn schema(S, name) {
     }
 }
 
+/// What a component declares it needs something from, cached beside the
+/// schemas: the inspector asks once per component per frame otherwise.
+pub fn expects(S, name) {
+    match S.expects.get(name) {
+        Some(cached) => cached,
+        None => {
+            let fresh = util::vec(scene::component_expects(name));
+            S.expects[name] = fresh;
+            fresh
+        }
+    }
+}
+
 pub fn set_transform(S, i, parts) {
     let node = S.doc[i];
     let target = live(S, i);
-    for key in ["position", "rotation_euler", "scale"] {
+    // Moving a node is what gives it a transform: one the file left out is
+    // written the first time something places it.
+    if !node.contains_key(TRANSFORM) {
+        node[TRANSFORM] = #{};
+    }
+    let held = node[TRANSFORM];
+    for key in TRANSFORM_KEYS {
         match parts.get(key) {
             Some(v) => {
-                node[key] = v;
-                record_override(S, node, key);
+                held[key] = v;
                 match target {
                     Some(t) => apply_transform(t, key, v),
                     None => (),
@@ -857,7 +877,26 @@ pub fn set_transform(S, i, parts) {
             None => (),
         }
     }
+    record_override(S, node, TRANSFORM);
 }
+
+/// One of the transform's vectors as the *document* holds it, for a reader
+/// that wants the authored value rather than the live node's.
+pub fn doc_transform(node, key, fallback) {
+    let held = node.get(TRANSFORM);
+    match held {
+        Some(held) => if held is Object {
+            util::vec3(held.get(key).unwrap_or(()), fallback)
+        } else {
+            fallback
+        },
+        None => fallback,
+    }
+}
+
+/// The transform component's name, and the properties it holds.
+pub const TRANSFORM = "transform";
+const TRANSFORM_KEYS = ["position", "rotation_euler", "scale"];
 
 fn apply_transform(t, key, v) {
     if key == "position" {
@@ -981,7 +1020,7 @@ pub fn instance_scene(S, rel) {
         name: name,
         parent: S.doc[S.sel].get("id").unwrap_or(""),
         instance: rel,
-        position: [0.0, 0.0, 0.0],
+        transform: #{ position: [0.0, 0.0, 0.0] },
     });
     // The engine builds the prefab, so the mirror has to be rebuilt rather
     // than grown a node: `expand_instances` reads the file again with it.
@@ -1032,6 +1071,50 @@ pub fn open_prefab(S) {
     }
 }
 
+// Move the selection among its siblings by `delta`: a scene edit, since order
+// is what a `row` or a `column` lays out in.
+pub fn move_sibling(S, delta) {
+    if refuse_structure(S, "reorder nodes") {
+        return;
+    }
+    let i = S.sel;
+    if i >= S.doc.len() {
+        return;
+    }
+    let parent = S.doc[i].get("parent").unwrap_or("");
+    let sibs = [];
+    for (j, node) in S.doc.iter().enumerate() {
+        if node.get("parent").unwrap_or("") == parent {
+            sibs.push(j);
+        }
+    }
+    let at = 0;
+    for (n, j) in sibs.iter().enumerate() {
+        if j == i {
+            at = n;
+        }
+    }
+    let to = at + delta;
+    if to < 0 || to >= sibs.len() {
+        return;
+    }
+    history::record(S, "move node", None);
+    let j = sibs[to];
+    // The two arrays are parallel, so a swap has to move both.
+    let entry = S.doc[i];
+    S.doc[i] = S.doc[j];
+    S.doc[j] = entry;
+    let held = S.refs[i];
+    S.refs[i] = S.refs[j];
+    S.refs[j] = held;
+    // And the live tree, so the viewport draws the order the file will hold.
+    if let Some(found) = live(S, j) {
+        found.set_sibling_index(to);
+    }
+    S.doc_rev += 1;
+    selection::only(S, j);
+}
+
 // Add a node under the selected one, in both document and mirror, optionally
 // applying a preset. A preset is a recipe: the components land on the node and
 // nothing records which one put them there.
@@ -1046,7 +1129,7 @@ pub fn add_child(S, preset) {
         id: fresh_id(S.doc, name),
         name: name,
         parent: parent.get("id").unwrap_or(""),
-        position: [0.0, 0.0, 0.0],
+        transform: #{ position: [0.0, 0.0, 0.0] },
     };
     S.doc.push(entry);
     if let Some(found) = live(S, S.sel) {
@@ -1136,6 +1219,7 @@ pub fn open_scene(S, rel) {
     let doc = util::obj(toml::parse(fs::read(S.scene_path)));
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    S.doc_rev += 1;
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -1238,6 +1322,19 @@ pub fn remove_component(S, name) {
         Some(found) => found,
         None => return,
     };
+    // Whatever else on the node declares it needs this one goes first: taking
+    // the transform out from under a body leaves the body driving nothing.
+    let needed_by = [];
+    for other in util::vec(found.component_names()) {
+        if other != name && util::contains(expects(S, other), name) {
+            needed_by.push(other);
+        }
+    }
+    if !needed_by.is_empty() {
+        let list = util::join(needed_by, " and ");
+        log::warn(format!("cannot remove {}: {} needs it; remove {} first", name, list, list));
+        return;
+    }
     history::record(S, format!("remove {}", name), None);
     found.remove_component(name);
     S.doc[S.sel].remove(name);
@@ -1417,6 +1514,7 @@ pub fn delete_selected(S) {
         }
     }
     S.doc = kept;
+    S.doc_rev += 1;
     selection::only(S, util::clamp(S.sel, 0, S.doc.len() - 1));
     build_mirror(S);
     log::info(label);

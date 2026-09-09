@@ -104,7 +104,7 @@ fn commands(S) {
         command("Close or open the selected path", icons::ui("path"), "", || crate::pen::toggle_closed(S)),
         command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
         command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
-        command("Delete selected node", "✕", "", || model::delete_selected(S)),
+        command("Delete selected node", icons::ui("close"), "", || model::delete_selected(S)),
         command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
         command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim.time)),
         command("Save clip as file", "◷", "", || anim::promote(S)),
@@ -158,7 +158,7 @@ fn commands(S) {
         for known_comp in known.components {
             let name = known_comp.name;
             if present.contains_key(name) {
-                list.push(command(format!("Remove {} component", name), "✕", "", || model::remove_component(S, name)));
+                list.push(command(format!("Remove {} component", name), icons::ui("close"), "", || model::remove_component(S, name)));
             } else {
                 let entry = command(format!("Add {} component", name), icons::ui("add"), "", || model::add_component(S, name));
                 // Facets, so typing "physics" or "2d" narrows the list.
@@ -181,21 +181,21 @@ pub fn draw(S) {
     }, || {
         ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
             ui::horizontal(#{ height: 24 }, || {
-                ui::label(icons::ui("search"), #{ size: 16, color: k.accent });
+                ui::label(icons::ui("search"), #{ size: style::XL, color: k.accent });
                 ui::add_space(4);
                 let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
-                    size: 16, width: 440, autofocus: true, color: k.text,
+                    size: style::XL, width: 440, autofocus: true, color: k.text,
                 });
                 S.palette_query = text;
                 ui::right(|| {
-                    ui::pill("esc", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.faint });
+                    ui::pill("esc", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.faint });
                 });
                 if submitted {
                     S.palette_submit = true;
                 }
             });
         });
-        ui::separator(k.line_soft);
+        ui::separator(k.line);
         ui::scroll("palette-results", #{ max_height: 326 }, || {
             ui::spacing(4, 4);
             ui::add_space(8);
@@ -213,9 +213,9 @@ pub fn draw(S) {
                     ui::horizontal(#{ height: 30 }, || {
                         ui::add_space(8);
                         if ui::pill(cmd.label, #{
-                            height: 30, size: 13.5, align: ui::ALIGN_LEFT,
+                            height: 30, size: style::MD, align: ui::ALIGN_LEFT,
                             min_width: 430,
-                            icon: cmd.icon, icon_size: 14, icon_color: k.accent,
+                            icon: cmd.icon, icon_size: style::LG, icon_color: k.accent,
                             fill: if highlighted { k.sunken } else { "#00000000" },
                             hover_fill: k.sunken,
                             color: k.text,

@@ -4,8 +4,10 @@
 [[nodes]]
 id = "rig_click_to_move"
 name = "Click to move"
-position = [0, 1, 0]
 script = "scripts/click_to_move.rn"
+
+[nodes.transform]
+position = [0, 1, 0]
 
 [nodes.character3d]
 snap_to_ground = 0.3

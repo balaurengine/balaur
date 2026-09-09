@@ -9,19 +9,50 @@ use crate::left;
 use crate::style;
 use crate::util;
 
+// One folded dock's handle, and the sheet's own air: the zoom reading's
+// numbers, so the pair match across the viewport.
+const TILE = 20.0;
+const PAD_X = 6.0;
+const PAD_Y = 3.0;
+
 pub fn sides() {
     ["left", "bottom", "right"]
 }
 
 pub fn state() {
-    #{
-        left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
-        bottom: #{
-            tabs: ["output", "problems", "assets", "docs", "timeline", "debugger", "session", "profiler", "cost", "library", "tiles", "weights", "bonemap"],
-            active: "output", shut: false,
-        },
-        right: #{ tabs: ["inspector", "import"], active: "inspector", shut: false },
+    crate::defs::persona_docks("scene")
+}
+
+/// Swap the open panels for the ones a persona works with. What is open is
+/// the persona's; what may be opened is not, so a panel closed here comes
+/// back from the logo menu without changing persona.
+pub fn apply_persona(S, id) {
+    let want = crate::defs::persona_docks(id);
+    for side in sides() {
+        // A dock the reader folded away stays folded: the persona says which
+        // panels, not whether the sheet is up.
+        want[side].shut = S.docks[side].shut;
     }
+    S.docks = want;
+    // A plugin's dock is in no persona's set: it was adopted when the plugin
+    // loaded, and a persona must not unregister it.
+    for entry in S.registry.docks {
+        adopt(S, entry.id);
+    }
+}
+
+/// Every panel the menu can open, in the order it lists them.
+pub fn known(S) {
+    util::keys_sorted(panels(S))
+}
+
+// Where a panel lands when it is opened from the menu rather than moved.
+fn homes() {
+    #{ scene: "left", outline: "left", inspector: "right", import: "right" }
+}
+
+pub fn home(id) {
+    homes().get(id).unwrap_or("bottom")
 }
 
 /// Name and icon per panel; `tall` asks the bottom dock for its taller size.
@@ -67,27 +98,44 @@ pub fn adopt(S, id) {
     if side_of(S, id).is_some() {
         return;
     }
-    S.docks.bottom.tabs.push(id);
+    S.docks[home(id)].tabs.push(id);
 }
 
-/// Bring a panel forward wherever it lives, opening its dock if it is shut.
-///
-/// A tool that cannot be used without its dock says so, rather than leaving
-/// the tab to be hunted for.
-pub fn reveal(S, id) {
-    if side_of(S, id).is_none() {
-        adopt(S, id);
-    }
+/// Take a panel out of its dock. Nothing is destroyed: the logo menu lists
+/// every panel whether it is open or not, and puts this one back.
+pub fn close(S, id) {
     let side = match side_of(S, id) {
         Some(side) => side,
         None => return,
     };
-    S.docks[side].active = id;
-    S.docks[side].shut = false;
+    let kept = [];
+    for t in S.docks[side].tabs {
+        if t != id {
+            kept.push(t);
+        }
+    }
+    S.docks[side].tabs = kept;
+    if S.docks[side].active == id {
+        S.docks[side].active = kept.get(0).unwrap_or("");
+    }
+}
+
+/// Open a closed panel, or close an open one: what the logo menu's rows do.
+pub fn toggle(S, id) {
+    if side_of(S, id).is_some() {
+        close(S, id);
+    } else {
+        show(S, id);
+    }
 }
 
 fn panel(S, id) {
     panels(S).get(id).unwrap_or(#{ name: id, icon: icons::panel(id), tall: false })
+}
+
+/// What a panel is called, for a menu row outside this module.
+pub fn name(S, id) {
+    panel(S, id).name
 }
 
 /// Which dock holds `id`, or `None` when a plugin has been unloaded.
@@ -109,8 +157,12 @@ pub fn showing(S, id) {
     }
 }
 
-/// Bring `id` up wherever it lives, opening its dock.
+/// Bring `id` up wherever it lives, opening it and its dock.
+///
+/// A closed panel is opened first: a tool that cannot be used without its
+/// dock says so, rather than leaving the tab to be hunted for.
 pub fn show(S, id) {
+    adopt(S, id);
     let found = side_of(S, id);
     if let Some(side) = found {
         S.docks[side].active = id;
@@ -150,6 +202,15 @@ pub fn bottom_tall(S) {
     panel(S, d.active).tall
 }
 
+/// What sits under the right sheet's scroll, whichever panel is up.
+pub fn draw_right_foot(S, k) {
+    let d = S.docks.right;
+    if d.shut || d.active != "inspector" {
+        return;
+    }
+    inspector::foot(S, k);
+}
+
 fn body(S, k, id) {
     match id {
         "scene" => left::tree_body(S, k),
@@ -160,15 +221,15 @@ fn body(S, k, id) {
         "problems" => dock::problems(S, k),
         "assets" => dock::assets(S, k),
         "docs" => crate::docs::draw(S, k),
-        "timeline" => dock::timeline(S, k),
+
         "debugger" => dock::debugger_view(S, k),
-        "session" => dock::session_view(S, k),
+
         "profiler" => dock::profiler(S, k),
         "cost" => dock::cost(S, k),
         "library" => crate::library::panel(S, k),
         "tiles" => crate::tiles::palette(S, k),
-        "weights" => crate::weights::body(S, k),
-        "bonemap" => crate::bonemap::body(S, k),
+
+
         _ => match crate::plugins::dock(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
@@ -179,57 +240,224 @@ fn body(S, k, id) {
     }
 }
 
-fn tab_row(S, k, side, d) {
-    ui::horizontal(#{ height: 30 }, || {
-        ui::spacing(4, 0);
-        ui::add_space(2);
-        for id in d.tabs {
-            let p = panel(S, id);
-            let active = d.active == id;
-            let label = p.name;
-            if id == "problems" {
-                let (errors, warnings) = crate::lint::counts(S);
-                if errors + warnings > 0 {
-                    label += format!(" {}", errors + warnings);
-                }
-            }
-            if ui::pill(label, #{
-                role: if active { "tab_on" } else { "tab" },
-                menu: || {
-                    ui::menu_item(format!("Move {} to", p.name), #{ color: k.faint });
-                    for other in sides() {
-                        if other != side {
-                            if ui::menu_item(format!("   {}", other), #{ color: k.text }) {
-                                move_to(S, id, other);
-                            }
-                        }
-                    }
-                },
-            }) {
-                S.docks[side].active = id;
-            }
-        }
-        ui::right(|| {
-            ui::add_space(4);
-            if ui::pill(icons::ui(shut_icon(side)), #{
-                role: "icon_button", height: 24, size: 11.5, tooltip: "Minimise",
-            }) {
-                S.docks[side].shut = true;
-            }
-            tools(S, k, d.active, S.layout[side].w);
-        });
-    });
-    ui::separator(k.line_soft);
+// Which panels fill which node. A node keeps drawing until told not to, and
+// only the dock owning one may say so: every dock draws each frame, so a
+// global hide has one dock turning off another's node.
+/// The bottom dock's four painting views, a `draw` node each: whichever is
+/// the active panel is shown and the rest are hidden.
+fn canvas_views() {
+    #{
+        timeline: "BottomTimeline",
+        session: "BottomSession",
+        weights: "BottomWeights",
+        bonemap: "BottomBonemap",
+    }
 }
 
-// How wide the tab row's own pills are, from the names: a flat width per tab
+const BOTTOM = "Editor/Shell/Body/Centre/Bottom/";
+
+fn sync_canvas(S, d) {
+    let painting = false;
+    for (id, name) in canvas_views() {
+        let on = !d.shut && d.active == id;
+        if on {
+            painting = true;
+        }
+        util::fill(BOTTOM + name, #{ visible: on });
+    }
+    // The shared hatch draws the tab row and whatever panel has no node of
+    // its own; it must not also claim half the sheet when one does.
+    util::fill(BOTTOM + "DockBody", #{ grow: if painting { 0.0 } else { 1.0 } });
+}
+
+fn node_owners() {
+    #{
+        bottom: [
+            #{ hide: "log", panels: ["output", "problems", "cost", "profiler", "docs"] },
+            #{ hide: "cards", panels: ["assets", "library", "tiles"] },
+            #{ hide: "stack", panels: ["debugger"] },
+        ],
+        left: [
+            #{ hide: "tree", panels: ["scene"] },
+            #{ hide: "outline", panels: ["outline"] },
+        ],
+        right: [
+            #{ hide: "form", panels: ["inspector", "import"] },
+        ],
+    }
+}
+
+fn hide_node(which) {
+    if which == "log" {
+        dock::hide_log();
+    } else if which == "cards" {
+        dock::hide_cards();
+    } else if which == "stack" {
+        dock::hide_tree();
+    } else if which == "tree" {
+        left::hide_tree();
+    } else if which == "outline" {
+        left::hide_outline();
+    } else if which == "form" {
+        inspector::hide_form();
+    }
+}
+
+fn hide_unused(S, side, d) {
+    if side == "bottom" {
+        sync_canvas(S, d);
+    }
+    for entry in node_owners()[side] {
+        let wanted = false;
+        for id in entry.panels {
+            if id == d.active {
+                wanted = true;
+            }
+        }
+        if d.shut || !wanted {
+            hide_node(entry.hide);
+        }
+    }
+}
+
+// The tab row, and the tiles in it. A small window gets a step less of both:
+// the row is chrome, and chrome is what a short window has least room for.
+pub fn row_h(S) {
+    if S.compact { 24.0 } else { 28.0 }
+}
+
+fn tab_h(S) {
+    if S.compact { 20.0 } else { 22.0 }
+}
+
+// Where each dock's tab strip and its tools hatch live.
+fn head_of(side) {
+    let sheet = if side == "bottom" {
+        "Editor/Shell/Body/Centre/Bottom"
+    } else if side == "left" {
+        "Editor/Shell/Body/Left/LeftSheet"
+    } else {
+        "Editor/Shell/Body/Right/RightSheet"
+    };
+    let name = if side == "bottom" { "Bottom" } else if side == "left" { "Left" } else { "Right" };
+    sheet + "/" + name + "Head/" + name + "Tabs"
+}
+
+fn tab_row(S, k, side, d) {
+    crate::pool::strip(S, head_of(side), tab_controls(S, k, side, d));
+}
+
+// One control a tab, the mark that closes it, and the fold at the end. The
+// panel's own tools are the hatch beside this strip.
+fn tab_controls(S, k, side, d) {
+    let h = tab_h(S);
+    let out = [];
+    // How many characters a name may keep. The fold and the panel's own
+    // controls are at the end of this strip, and nothing shrinks a button,
+    // so a row of long names would push them off the sheet.
+    let room = S.layout[side].w - 16.0 - 22.0 - 30.0;
+    let cap = name_cap(S, d, room);
+    for id in d.tabs {
+        let held = id;
+        let p = panel(S, held);
+        let active = d.active == held;
+        let label = clipped(p.name, cap);
+        if held == "problems" {
+            let (errors, warnings) = crate::lint::counts(S);
+            if errors + warnings > 0 {
+                label += format!(" {}", errors + warnings);
+            }
+        }
+        // One tile: the row carries the fill and the corners, and the two
+        // halves inside it paint nothing, so the pair reads as one control.
+        let inner = [];
+        inner.push(#{
+            kind: "button", height: h, text: label, padding_x: 6, radius: 0, fill: "none",
+            role: if active { "tab_on" } else { "tab" },
+            on: |_| { S.docks[side].active = held; },
+        });
+        inner.push(#{
+            kind: "button", height: h, width: 13, padding_x: 0, text: "", radius: 0, fill: "none",
+            icon: icons::ui("close"),
+            role: if active { "tab_on" } else { "tab" },
+            tooltip: format!("Close {}", p.name),
+            on: |_| { close(S, held); },
+        });
+        inner.push(#{ kind: "row", width: 5 });
+        out.push(#{
+            height: h, radius: 5, controls: inner,
+            fill: if active { "accent_soft" } else { "none" },
+        });
+    }
+    // The panel's own controls sit between the names and the fold, which is
+    // where they have always been; a `draw` control is a node like the rest.
+    out.push(#{
+        kind: "draw", grow: 1,
+        draw: format!("draw_dock_tools_{}", side),
+    });
+    out.push(#{
+        kind: "button", height: h, width: 22, text: "",
+        icon: icons::ui(shut_icon(side)), role: "icon_button",
+        tooltip: "Minimise",
+        on: |_| { S.docks[side].shut = true; },
+    });
+    out
+}
+
+// The longest name the strip can carry, from the room and how many tabs share
+// it. About 6.4 px a character at 11 px semibold, plus the tile's own air.
+fn name_cap(S, d, room) {
+    let n = util::f(d.tabs.len());
+    if n < 1.0 {
+        return 99;
+    }
+    let each = room / n - 34.0;
+    util::i(util::clamp(math::floor(each / 6.4), 3.0, 99.0))
+}
+
+fn clipped(name, cap) {
+    if name.len() <= cap {
+        return name;
+    }
+    name[..util::max(1, cap - 1)] + "…"
+}
+
+/// The panel's own controls, in the slot beside its dock's tabs.
+pub fn draw_tools(S, k, side) {
+    let d = S.docks[side];
+    if d.shut || d.tabs.len() == 0 {
+        return;
+    }
+    tools(S, k, d.active, S.layout[side].w);
+}
+
+/// Stop drawing a dock's tab strip, for a dock that is folded or empty.
+fn hide_tabs(side) {
+    util::hide(head_of(side));
+}
+
+fn tab_menu(S, k, side, id, name) {
+    if ui::menu_item(format!("Close {}", name), #{ color: k.text, width: 150 }) {
+        close(S, id);
+    }
+    ui::menu_item("Move to", #{ color: k.faint, width: 150 });
+    for other in sides() {
+        if other != side {
+            if ui::menu_item(format!("   {}", other), #{ color: k.text, width: 150 }) {
+                move_to(S, id, other);
+            }
+        }
+    }
+}
+
+// How wide the tab row's own tiles are, from the names: a flat width per tab
 // ran the hint over the row as soon as `Bone map` joined.
 fn tabs_width(S, id) {
     let total = 0.0;
     for tab in S.docks[side_for(S, id)].tabs {
-        // 11 px, semibold: about 6.4 px a character, plus the pill's padding
-        // and the gap to the next one.
-        total += 18.0 + 6.4 * util::f(panel(S, tab).name.len());
+        // 11 px, semibold: about 6.4 px a character, plus the pill's padding,
+        // the close mark and the gap to the next one.
+        total += 30.0 + 6.4 * util::f(panel(S, tab).name.len());
     }
     total
 }
@@ -281,10 +509,18 @@ fn open_icon(side) {
     }
 }
 
-// Minimised: one handle that opens the dock back. A side dock's is a square
+/// Whether a dock is down to its rail: folded away, or emptied of every tab.
+/// An emptied dock is not a blank sheet — it gives its width back.
+pub fn folded(S, side) {
+    let d = S.docks[side];
+    d.shut || d.tabs.len() == 0
+}
+
 pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
-    if d.shut || d.tabs.len() == 0 {
+    hide_unused(S, "bottom", d);
+    if d.tabs.len() == 0 || d.shut {
+        hide_tabs("bottom");
         return;
     }
     tab_row(S, k, "bottom", d);
@@ -296,14 +532,7 @@ pub fn draw_bottom_body(S, k) {
 /// The strip along the foot of the bottom dock: what is playing, and the
 /// control that minimises the dock when it is open.
 pub fn draw_status(S, k) {
-    let d = S.docks.bottom;
-    chrome::status_strip(S, k, S.layout.bottom.w, || {
-        if d.shut && ui::pill(icons::ui(open_icon("bottom")), #{
-            role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
-        }) {
-            S.docks.bottom.shut = false;
-        }
-    });
+    chrome::status_strip(S, k, S.layout.bottom.w, || {});
 }
 
 /// A dock's contents, drawn into the rect the scene's `draw` node hands over.
@@ -312,11 +541,9 @@ pub fn draw_status(S, k) {
 /// the tab row, the panel, and for the bottom dock the status strip.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
-    if d.shut {
-        handle_body(S, k, side);
-        return;
-    }
-    if d.tabs.len() == 0 {
+    hide_unused(S, side, d);
+    if d.tabs.len() == 0 || d.shut {
+        hide_tabs(side);
         return;
     }
     tab_row(S, k, side, d);
@@ -327,28 +554,76 @@ pub fn draw_body(S, k, side) {
     ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
         body(S, k, d.active);
     });
-    ui::separator(k.line_soft);
+    ui::separator(k.line);
     chrome::status_strip(S, k, S.layout[side].w, || {});
 }
 
-// Minimised, without the sheet: one control that opens the dock back.
-fn handle_body(S, k, side) {
-    let p = panel(S, S.docks[side].active);
-    if side == "bottom" {
-        ui::add_space(2);
-        chrome::status_strip(S, k, S.layout[side].w, || {
-            if ui::pill(icons::ui(open_icon(side)), #{
-                role: "icon_button", height: 24, size: 11.5, tooltip: "Open the dock",
-            }) {
-                S.docks[side].shut = false;
-            }
-        });
+/// Whether a side dock is folded with something to go back to.
+fn has_handle(S, side) {
+    folded(S, side) && S.docks[side].tabs.len() > 0
+}
+
+/// The room the left dock's handle takes above the tool rail, which is where
+/// it goes when there is a rail to sit over.
+pub fn rail_top_h(S) {
+    if S.rail_visible && has_handle(S, "left") {
+        return TILE + 2.0 * PAD_Y + 6.0;
+    }
+    0.0
+}
+
+/// The room that handle takes at the head of the top strip instead, for a
+/// centre with no rail to put it over.
+pub fn fold_inset(S) {
+    if !S.rail_visible && has_handle(S, "left") {
+        return TILE + 2.0 * PAD_X + 6.0;
+    }
+    0.0
+}
+
+/// The handle a folded dock leaves behind, at the edge it folded towards: the
+/// left one above the tools, the right one opposite it, the bottom one beside
+/// the zoom reading. A folded dock gives its space back, so this is the way
+/// back to it.
+pub fn fold_strip(S, k, vp) {
+    let top = S.layout.railtop;
+    if top.h > 0.0 {
+        handle_tile(S, k, "left", top.x, top.y - 1.0);
+    } else {
+        handle_tile(S, k, "left", vp.x, vp.y);
+    }
+    handle_tile(S, k, "right", vp.x + vp.w - TILE - 2.0 * PAD_X, vp.y);
+}
+
+/// The bottom dock's handle, drawn into the row the zoom reading is in so it
+/// lands just after it.
+pub fn fold_foot(S, k) {
+    if !has_handle(S, "bottom") {
         return;
     }
-    ui::horizontal(#{ height: 30 }, || {
-        ui::add_space(2);
-        if ui::circle_button(icons::ui(open_icon(side)), #{
-            role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
+    if ui::pill(icons::ui(open_icon("bottom")), #{
+        height: TILE + 2.0 * PAD_Y, min_width: TILE + 2.0 * PAD_X, size: style::MD,
+        padding_x: 0, radius: 8, fill: k.panel, color: k.dim,
+        tooltip: "Open the dock",
+    }) {
+        S.docks.bottom.shut = false;
+    }
+}
+
+// The zoom reading's own geometry, because the two are the same thing at
+// opposite corners: same height, same edge, centred on the row it shares.
+fn handle_tile(S, k, side, x, y) {
+    if !has_handle(S, side) {
+        return;
+    }
+    let p = panel(S, S.docks[side].active);
+    ui::overlay("fold-" + side, #{
+        x: x, y: y + 1.0, w: TILE + 2.0 * PAD_X, h: TILE + 2.0 * PAD_Y,
+        fill: k.panel, radius: 8, padding_x: PAD_X, padding_y: PAD_Y,
+    }, || {
+        if ui::pill(icons::ui(open_icon(side)), #{
+            height: TILE, min_width: TILE, size: style::MD, padding_x: 0,
+            color: k.dim, tooltip: format!("Open the {}", p.name.to_lowercase()),
         }) {
             S.docks[side].shut = false;
         }

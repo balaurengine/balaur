@@ -25,8 +25,10 @@ fn run(body: &str) -> Vec<String> {
         r#"[[nodes]]
 id = "n_near"
 name = "Near"
-position = [0.0, 6.0, 0.0]
 script = "scripts/s.rn"
+
+[nodes.transform]
+position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -35,6 +37,8 @@ radius = 0.5
 [[nodes]]
 id = "n_far"
 name = "Far"
+
+[nodes.transform]
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]

@@ -19,8 +19,10 @@ friction = 0.6
 [[nodes]]
 id = "n_crate"
 name = "Crate"
-position = [3.5, 1.0, 0.0]
 script = "scripts/drop.rn"
+
+[nodes.transform]
+position = [3.5, 1.0, 0.0]
 
 [nodes.body2d]
 kind = "dynamic"

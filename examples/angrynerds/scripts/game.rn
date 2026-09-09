@@ -42,8 +42,8 @@ fn capture(this, node, owner) {
             None => child.name(),
         };
         if child.has_component("shape2d") {
-            let p = child.position();
-            let r = child.rotation_euler();
+            let p = child.transform.position;
+            let r = child.transform.rotation_euler;
             this.level.push(#{
                 node: child,
                 name: child.name(),
@@ -86,8 +86,8 @@ fn pop(entry) {
 pub fn restart(this) {
     for entry in this.level {
         let node = entry.node;
-        node.set_position(entry.pos[0], entry.pos[1], entry.pos[2]);
-        node.set_rotation_euler(entry.rot[0], entry.rot[1], entry.rot[2]);
+        node.transform.position = [entry.pos[0], entry.pos[1], entry.pos[2]];
+        node.transform.rotation_euler = [entry.rot[0], entry.rot[1], entry.rot[2]];
         node.set_component("shape2d", entry.shape2d);
         if entry.body2d is Object {
             node.set_component("body2d", entry.body2d);
@@ -122,8 +122,8 @@ fn pigs_alive(this) {
 
 // Park the bird back on the sling as a kinematic body, ready to aim.
 fn rearm_bird(this) {
-    this.bird.set_position(ANCHOR_X, ANCHOR_Y, 0.0);
-    this.bird.set_rotation_euler(0.0, 0.0, 0.0);
+    this.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
+    this.bird.transform.rotation_euler = [0.0, 0.0, 0.0];
     this.bird.set_component("body2d", #{ kind: physics2d::BODY_KINEMATIC });
     this.launched = false;
     this.rest_timer = 0.0;
@@ -144,7 +144,7 @@ pub fn update(this, dt) {
     }
 
     let (mx, my) = render::mouse_world_2d();
-    let b = this.bird.position();
+    let b = this.bird.transform.position;
 
     // Slingshot: grab the parked bird, pull, release to launch.
     if !this.launched {
@@ -162,10 +162,10 @@ pub fn update(this, dt) {
                 dx = dx / len * MAX_PULL;
                 dy = dy / len * MAX_PULL;
             }
-            this.bird.set_position(ANCHOR_X + dx, ANCHOR_Y + dy, 0.0);
+            this.bird.transform.position = [ANCHOR_X + dx, ANCHOR_Y + dy, 0.0];
             if input::mouse_just_released(input::MOUSE_LEFT) {
                 this.aiming = false;
-                let p = this.bird.position();
+                let p = this.bird.transform.position;
                 let ix = (ANCHOR_X - p.x) * POWER;
                 let iy = (ANCHOR_Y - p.y) * POWER;
                 if math::sqrt(ix * ix + iy * iy) > 1.0 {
@@ -175,12 +175,12 @@ pub fn update(this, dt) {
                     this.birds_left -= 1;
                     set_widget_text(this, "Birds", format!("Birds {}", this.birds_left));
                 } else {
-                    this.bird.set_position(ANCHOR_X, ANCHOR_Y, 0.0);
+                    this.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
                 }
             }
         }
         // Sling bands, drawn from the post to the bird.
-        let p = this.bird.position();
+        let p = this.bird.transform.position;
         render::draw_line_2d(ANCHOR_X - 0.14, ANCHOR_Y - 0.5, p.x, p.y, 0.35, 0.2, 0.12, 4.0);
         render::draw_line_2d(ANCHOR_X + 0.14, ANCHOR_Y - 0.45, p.x, p.y, 0.3, 0.16, 0.1, 4.0);
     }
@@ -196,7 +196,7 @@ pub fn update(this, dt) {
             this.pigs[name] = false;
             continue;
         }
-        let p = pig.position();
+        let p = pig.transform.position;
         let impulse = physics2d::max_contact_impulse(pig);
         if impulse > KILL_IMPULSE || p.y < -3.0 {
             for entry in this.level {
@@ -222,7 +222,7 @@ pub fn update(this, dt) {
     if this.launched {
         let (vx, vy) = physics2d::linear_velocity(this.bird);
         let speed = math::sqrt(vx * vx + vy * vy);
-        let p = this.bird.position();
+        let p = this.bird.transform.position;
         let gone = p.y < -3.0 || math::abs(p.x) > 20.0;
         if speed < 0.25 {
             this.rest_timer += dt;

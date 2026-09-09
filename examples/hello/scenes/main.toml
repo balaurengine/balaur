@@ -24,6 +24,8 @@ body3d = "static"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, -1, 0]
 
 [nodes.collider3d]
@@ -39,8 +41,10 @@ color = [0.3, 0.55, 0.3, 1]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
-position = [0, 6, 0]
 script = "scripts/ball.rn"
+
+[nodes.transform]
+position = [0, 6, 0]
 
 [nodes.shape3d]
 kind = "ball"
@@ -65,6 +69,8 @@ value = "open"
 id = "n_spinner"
 name = "Spinner"
 parent = "n_world"
+
+[nodes.transform]
 position = [2.5, 0.5, 0]
 
 [nodes.script]
@@ -83,8 +89,10 @@ body3d = "kinematic"
 id = "n_platform"
 name = "Platform"
 parent = "n_world"
-position = [-2.5, 0.25, -2]
 script = "scripts/platform.rn"
+
+[nodes.transform]
+position = [-2.5, 0.25, -2]
 
 [nodes.animation]
 autoplay = "patrol"
@@ -106,6 +114,8 @@ id = "n_crate_a"
 name = "CrateA"
 parent = "n_world"
 instance = "scenes/crate.toml"
+
+[nodes.transform]
 position = [-1.5, 3, 1.5]
 
 [[nodes]]
@@ -113,6 +123,8 @@ id = "n_crate_b"
 name = "CrateB"
 parent = "n_world"
 instance = "scenes/crate.toml"
+
+[nodes.transform]
 position = [-0.5, 5, 1.5]
 
 [nodes.overrides."Crate/Lid".shape3d]
@@ -125,8 +137,10 @@ body3d = "static"
 id = "n_ring"
 name = "Ring"
 parent = "n_world"
+
+[nodes.transform]
 position = [2.5, 1.6, -2.5]
-rotation_euler = [90, 0, 0]
+rotation_euler = [1.5708, 0, 0]
 
 [nodes.mesh]
 source = "#ring"
@@ -142,6 +156,8 @@ mesh = "#ring"
 id = "n_door"
 name = "Door"
 parent = "n_world"
+
+[nodes.transform]
 position = [-4.5, 0.75, 0]
 
 [nodes.shape3d]
@@ -165,8 +181,10 @@ shape3d = { color = [0.3, 0.75, 0.4, 1] }
 id = "n_key"
 name = "KeyLight"
 parent = "n_world"
+
+[nodes.transform]
 position = [4, 7, 4]
-rotation_euler = [-50, 40, 0]
+rotation_euler = [-0.87266, 0.69813, 0]
 
 [nodes.light3d]
 kind = "spot"

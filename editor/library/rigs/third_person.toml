@@ -15,8 +15,10 @@ lag = 0.2
 id = "rig_third_person_camera"
 name = "Camera"
 parent = "rig_third_person"
+
+[nodes.transform]
 position = [0, 3.5, 8]
-rotation_euler = [-18, 0, 0]
+rotation_euler = [-0.31416, 0, 0]
 
 [nodes.camera]
 kind = "3d"

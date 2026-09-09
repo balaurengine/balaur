@@ -12,6 +12,8 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
         ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
+        ("profile_scripts", &[], "(on)", "Start or stop counting what each script costs. Turning it on clears the tally."),
+        ("script_costs", &[], "()", "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "()", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
         ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),
@@ -74,6 +76,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
+        ("component_expects", &[], "(name: string)", "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered."),
         ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "()", "The names of every registered preset."),

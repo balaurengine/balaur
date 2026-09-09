@@ -7,22 +7,27 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
+// A widget's words are short and cloned once a node a frame; inline they are
+// a copy, and as `String` they were an allocation each.
 use egui::{Align2, Color32, Stroke, pos2, vec2};
+use smol_str::SmolStr;
 
 use crate::theme::family;
 use crate::vocabulary::words as w;
+use crate::widget_arena::{Begun, begin, keep, stamp_now};
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs,
+    Axis, box_of, contain, hold_to, lay_out, padding_of, record_measure, record_rect,
+    roll_measurements, scroller, settle_rects, tabs,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
-use crate::widget_theme::WidgetTheme;
+use crate::widget_theme::{Style, WidgetTheme};
 
 /// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
 pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
@@ -41,11 +46,11 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
     reason = "one flag per scene property, and a scene sets them independently"
 )]
 pub struct Widget {
-    pub kind: String,
-    pub text: String,
+    pub kind: SmolStr,
+    pub text: SmolStr,
     /// Hidden widgets draw nothing and take no clicks, but keep their state.
     pub visible: bool,
-    pub anchor: String,
+    pub anchor: SmolStr,
     pub x: f32,
     pub y: f32,
     /// Panel size in design pixels; 0 sizes to content. A minimum on buttons.
@@ -59,22 +64,22 @@ pub struct Widget {
     /// Method on this node's script, called when the widget is clicked.
     /// Empty means nothing is connected. A name rather than a function value:
     /// scene files cannot hold closures, and a name works on any backend.
-    pub on_click: String,
+    pub on_click: SmolStr,
     pub clicked: bool,
     /// Space inside a container's edge, in design pixels.
     pub padding: f32,
     /// Space between a container's children.
     pub gap: f32,
     /// Cross-axis placement of a container's children.
-    pub align: String,
+    pub align: SmolStr,
     /// Whether focus may land here, for a widget that could take it.
     pub focusable: bool,
     /// Method on this node's script, called when focus arrives.
-    pub on_focus: String,
+    pub on_focus: SmolStr,
     /// A `widget_theme` reference, or empty to take the one above.
-    pub theme: String,
+    pub theme: SmolStr,
     /// A localization key drawn instead of `text` when it is set.
-    pub text_key: String,
+    pub text_key: SmolStr,
     /// Share of a container's leftover space along its axis; 0 takes only
     /// what `width`/`height` or the content asks for.
     pub grow: f32,
@@ -84,32 +89,32 @@ pub struct Widget {
     /// What fills a `draw` widget's rect: a method on this node's script or
     /// the nearest scripted ancestor's, or `file.rn:function` for a free
     /// function that needs no instance.
-    pub draw: String,
+    pub draw: SmolStr,
     /// How wide a grab the seams between this container's children get, in
     /// design pixels; 0 leaves them fixed.
     pub handle: f32,
     /// Which child a `tab` shows, by node name; empty shows the first.
-    pub active: String,
+    pub active: SmolStr,
     /// The drawing surface a *root* widget belongs to; empty is the default
     /// one. Ignored on a child, which is placed by its parent.
-    pub layer: String,
+    pub layer: SmolStr,
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
 
     /// Where text sits in the width the widget was given.
-    pub text_align: String,
+    pub text_align: SmolStr,
     /// A project-relative image for an `image` widget.
-    pub source: String,
+    pub source: SmolStr,
     /// Whether the text carries inline marks: `[b]`, `[i]`, `[color=#hex]`,
     /// `[center]`, `[wave]`, `[img=path width=N]`.
     pub markup: bool,
     /// Weight on the CSS scale, 100 to 900; 400 is regular, 700 bold.
     pub font_weight: f32,
     /// `normal` or `italic`.
-    pub font_style: String,
+    pub font_style: SmolStr,
     /// What a `field` shows while empty.
-    pub placeholder: String,
+    pub placeholder: SmolStr,
     /// The most characters a `field` takes; 0 is no limit.
     pub max_length: f32,
     /// Draw a `field`'s text as dots.
@@ -117,10 +122,19 @@ pub struct Widget {
     /// Keep a `field` to digits, a sign and a point.
     pub numeric: bool,
     /// Method on this node's script, called with the text after every edit.
-    pub on_change: String,
+    pub on_change: SmolStr,
     /// Method on this node's script, called with the text on Enter or when
     /// focus leaves the field.
-    pub on_submit: String,
+    pub on_submit: SmolStr,
+    /// What a `color` swatch holds, as `[r, g, b, a]` in 0..=1. Separate from
+    /// `text_color`, which is the ink a widget draws its caption in.
+    pub color: [f32; 4],
+    /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the
+    /// font's own line height. Separate from `height`, which is the widget's.
+    pub row_height: f32,
+    /// Which of the theme's families the widget draws in: `ui`, `mono`,
+    /// `heading` or `icon`.
+    pub font: SmolStr,
     /// Whether a `check` is ticked.
     pub checked: bool,
     /// Where a `slider` or `progress` stands, between `min` and `max`.
@@ -130,7 +144,7 @@ pub struct Widget {
     /// The grid a `slider` snaps to; 0 is continuous.
     pub step: f32,
     /// What a `dropdown` offers; `text` is the one chosen.
-    pub options: Vec<String>,
+    pub options: Vec<SmolStr>,
     /// How many children a `grid` puts on each row.
     pub columns: u32,
     /// Whether a `fold` shows its children.
@@ -142,6 +156,24 @@ pub struct Widget {
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
     pub deadzone: f32,
+    /// A `[roles.<name>]` entry of the theme, taken over the kind's own style.
+    pub role: SmolStr,
+    /// Text shown after the pointer rests on the widget.
+    pub tooltip: SmolStr,
+    /// A glyph from the theme's icon family, drawn before `text`.
+    pub icon: SmolStr,
+    /// Greyed out, and deaf to clicks.
+    pub disabled: bool,
+    /// A fill and an outline this one widget states, as `#rrggbb` or a name
+    /// from the theme's `[colors]`; empty takes the theme's own.
+    pub fill: SmolStr,
+    pub stroke: SmolStr,
+    /// Corner radius in design pixels; below zero takes the theme's own.
+    pub radius: f32,
+    /// How a container spreads its children along its own direction.
+    pub justify: SmolStr,
+    /// The air either side of a caption; below zero takes the theme's.
+    pub padding_x: f32,
 }
 
 /// Whether focus can land on this widget.
@@ -247,56 +279,60 @@ pub enum Move {
 /// recurse without holding a borrow of the world.
 pub(crate) struct Placed {
     pub(crate) entity: Entity,
+    /// The arena index of the widget that lays this one out, or `None` for a
+    /// root. What lets a patched node work out the theme it inherits without
+    /// the walk from the root that put it there.
+    pub(crate) parent: Option<usize>,
     /// The node's name: what a tab strip labels a page with when the page
     /// says nothing itself.
-    pub(crate) name: String,
+    pub(crate) name: SmolStr,
     pub(crate) widget: Widget,
     pub(crate) children: Vec<usize>,
+    /// The look resolved for this widget, worked out once a frame.
+    ///
+    /// Both the measure and the draw ask for it, and each of them more than
+    /// once: without this the theme was walked, the role merged and the face
+    /// built five times a widget a frame.
+    pub(crate) look: RefCell<Option<Rc<Look>>>,
 }
 
-/// The widget forest, in scene-tree order.
-///
-/// A widget's parent is its nearest *widget* ancestor, not its parent node:
-/// a menu is usually a panel with an empty grouping node or two inside it,
-/// and the layout should not care. Tree order is sibling order, which is what
-/// makes a row read left to right the way the scene reads top to bottom.
-fn forest(eng: &Engine) -> (Vec<Placed>, Vec<usize>) {
-    use balaur_core::scene::Children;
-    let world = eng.world();
-    let mut arena: Vec<Placed> = Vec::new();
-    let mut roots: Vec<usize> = Vec::new();
-    // (node, the arena index of the widget laying it out, if any)
-    let mut stack: Vec<(Entity, Option<usize>)> = vec![(eng.root(), None)];
-    while let Some((entity, owner)) = stack.pop() {
-        let mut next_owner = owner;
-        if let Ok(widget) = world.get::<&Widget>(entity) {
-            let index = arena.len();
-            let widget = Widget::clone(&widget);
-            let name = world
-                .get::<&balaur_core::scene::Name>(entity)
-                .map_or_else(|_| String::new(), |n| n.0.clone());
-            arena.push(Placed {
-                entity,
-                name,
-                widget: widget.clone(),
-                children: Vec::new(),
-            });
-            match owner {
-                Some(parent) => arena[parent].children.push(index),
-                None => roots.push(index),
-            }
-            // Only a container adopts what is under it; a label with nodes
-            // beneath it leaves them to be anchored on their own.
-            next_owner = lays_out(&widget.kind).then_some(index);
-        }
-        if let Ok(children) = world.get::<&Children>(entity) {
-            // Pushed in reverse so the stack pops them in declaration order.
-            for child in children.0.iter().rev() {
-                stack.push((*child, next_owner));
-            }
-        }
+/// A widget's resolved look: what to paint it with and what face to draw its
+/// caption in, with the theme's roles and its own overrides already applied.
+pub(crate) struct Look {
+    pub(crate) style: Rc<Style>,
+    pub(crate) font: egui::FontId,
+    pub(crate) ink: Color32,
+}
+
+/// The look of one widget, resolved once and kept for the rest of the frame.
+pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme, scale: f32) -> Rc<Look> {
+    let placed = &arena[index];
+    if let Some(held) = placed.look.borrow().as_ref() {
+        return Rc::clone(held);
     }
-    (arena, roots)
+    let style = styled(theme, &placed.widget);
+    let (ink, font) = face(&style, &placed.widget, scale);
+    let made = Rc::new(Look { style, font, ink });
+    *placed.look.borrow_mut() = Some(Rc::clone(&made));
+    made
+}
+
+/// The theme in force at one node, folded down its ancestors.
+///
+/// The walk from the root does this on the way past; a node patched on its
+/// own has to climb to it instead.
+pub(crate) fn theme_at(arena: &[Placed], index: usize, base: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+    let mut chain = Vec::new();
+    let mut at = Some(index);
+    while let Some(i) = at {
+        chain.push(i);
+        at = arena[i].parent;
+    }
+    let mut theme = base.clone();
+    for i in chain.into_iter().rev() {
+        theme = theme_of_owned(&arena[i].widget.theme, &theme);
+    }
+    theme
 }
 
 /// What the keyboard asked this frame, if the game has not asked already.
@@ -460,7 +496,14 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         )
     };
     let screen = ctx.viewport_rect();
-    let (placed, roots) = forest(eng);
+    let stamp = stamp_now(eng);
+    let Begun {
+        placed,
+        roots,
+        index_of,
+        fresh,
+        touched,
+    } = begin(eng, stamp);
     // Nothing to draw and nothing to focus: a scene with no widgets pays for
     // the resource lookup and no more.
     if placed.is_empty() {
@@ -492,10 +535,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         arena: &placed,
         scale,
         focused,
-        theme: Rc::new(WidgetTheme::default()),
+        theme: theme_root(),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
         edits: Vec::new(),
+        rects: crate::widget_taffy::Rects::default(),
+        fresh,
+        touched,
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
@@ -517,43 +563,126 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             }
             None => screen,
         };
-        let entity = placed[root].entity;
-        if widget.kind == w::DIALOG {
-            crate::widget_kinds::dialog_backdrop(ctx, entity, area);
-        }
-        let (pos, align, assigned, order) = root_frame(widget, area, scale);
-        painting.assigned = assigned;
-        let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
-            .order(order)
-            .pivot(align)
-            .fixed_pos(pos)
-            // A widget appears when the scene says so, at the alpha its own
-            // theme sets; egui's fade would override both.
-            .fade_in(false)
-            .show(ctx, |ui| {
-                if assigned != egui::Vec2::ZERO {
-                    ui.set_max_size(assigned);
-                }
-                draw_one(ui, &mut painting, root);
-            });
-        painting.assigned = egui::Vec2::ZERO;
-        // A root is placed by nobody, so it records its own rect, from egui's
-        // memory: the response's rect can lag it by a frame.
-        let drawn = ctx
-            .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
-            .unwrap_or(shown.response.rect);
-        record_rect(entity, drawn);
+        draw_root(ctx, &mut painting, root, area);
     }
     // Published at the end of the draw, not the start of the next one: a
     // script's `draw_ui` runs after this and reads this frame's rects.
     settle_rects();
     roll_measurements();
+    crate::widget_taffy::sweep(eng);
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
+    // Dropped before the arena moves: `Painting` borrows it for the draw.
+    drop(painting);
+    keep(placed, roots, index_of, stamp);
     // Only on the change: a handler firing every frame focus merely *stayed*
     // would be a different event, and not a useful one.
     let arrived = (focused != was_focused).then_some(focused).flatten();
     crate::widget_input::record(eng, &clicked, edits, arrived);
+}
+
+/// Draw one root into the area its surface gives it, and record where it
+/// landed. Split from [`draw`] under `MAX_FN_LINES`; the seam is one root's
+/// own placement and pass, which needs nothing from the loop around it.
+fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area: egui::Rect) {
+    let (eng, placed, scale) = (painting.eng, painting.arena, painting.scale);
+    let entity = placed[root].entity;
+    let widget = &placed[root].widget;
+    if widget.kind == w::DIALOG {
+        crate::widget_kinds::dialog_backdrop(ctx, entity, area);
+    }
+    let (pos, align, assigned, order) = root_frame(widget, area, scale);
+    painting.assigned = assigned;
+    painting.rects = place_root(eng, ctx, painting, root, area, (pos, align, assigned));
+    let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
+        .order(order)
+        .pivot(align)
+        .fixed_pos(pos)
+        // A widget appears when the scene says so, at the alpha its own
+        // theme sets; egui's fade would override both.
+        .fade_in(false)
+        .show(ctx, |ui| {
+            // A root handed a box reserves it before anything draws: its
+            // children are placed at absolute rects and report nothing
+            // back, so the area would otherwise hug the first of them.
+            if assigned != egui::Vec2::ZERO {
+                ui.set_max_size(assigned);
+                ui.advance_cursor_after_rect(egui::Rect::from_min_size(pos, assigned));
+            }
+            draw_one(ui, painting, root);
+        });
+    painting.assigned = egui::Vec2::ZERO;
+    // A root is placed by nobody, so it records its own rect, from egui's
+    // memory: the response's rect can lag it by a frame.
+    let drawn = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .unwrap_or(shown.response.rect);
+    record_rect(entity, drawn);
+}
+
+/// Where everything in one root goes, decided before a pixel is drawn.
+///
+/// A root that fills is solved against its own box. One on a corner takes
+/// what it measures, and only then is it known where its corner puts it, so
+/// it is solved at the origin and moved once the size is out.
+fn place_root(
+    eng: &Engine,
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    root: usize,
+    area: egui::Rect,
+    frame: (egui::Pos2, Align2, egui::Vec2),
+) -> crate::widget_taffy::Rects {
+    let (pos, align, assigned) = frame;
+    let hugs = assigned == egui::Vec2::ZERO;
+    let space = if hugs {
+        crate::widget_taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, area.size()))
+    } else {
+        crate::widget_taffy::Room::fixed(egui::Rect::from_min_size(pos, assigned))
+    };
+    let probe = root_ui(ctx);
+    let touched = painting.touched.clone();
+    let mut rects = crate::widget_taffy::solve(
+        eng,
+        painting.arena,
+        root,
+        &probe,
+        painting.scale,
+        &theme_root(),
+        &space,
+        painting.fresh,
+        &touched,
+    );
+    if hugs {
+        let size = rects.get(&root).map_or(egui::Vec2::ZERO, egui::Rect::size);
+        let shift = align.anchor_size(pos, size).min.to_vec2();
+        for rect in rects.values_mut() {
+            *rect = rect.translate(shift);
+        }
+    }
+    rects
+}
+
+/// A `Ui` over the viewport, for a pass that has to measure before it draws.
+fn root_ui(ctx: &egui::Context) -> egui::Ui {
+    egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("balaur-layout-probe"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.viewport_rect()),
+    )
+}
+
+thread_local! {
+    /// The empty theme, made once. A theme remembers the styles it has
+    /// resolved, so one built fresh every frame remembers nothing.
+    static BARE: Rc<WidgetTheme> = Rc::new(WidgetTheme::default());
+}
+
+/// The theme a root starts from, before it names one of its own.
+fn theme_root() -> Rc<WidgetTheme> {
+    BARE.with(Rc::clone)
 }
 
 /// What one draw pass carries down the widget tree.
@@ -575,6 +704,111 @@ pub(crate) struct Painting<'a> {
     pub(crate) bounds: egui::Vec2,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
+    /// Where the layout pass put every widget in the subtree being drawn.
+    pub(crate) rects: crate::widget_taffy::Rects,
+    /// Whether the arena was rebuilt this pass. False means the tree taffy
+    /// holds already describes it, so a solve restyles the root and no more.
+    pub(crate) fresh: bool,
+    /// The slots re-read this pass, for a solve to push into taffy. Taken by
+    /// the first solve: the tree is shared, so once is enough.
+    pub(crate) touched: Vec<usize>,
+}
+
+impl Painting<'_> {
+    /// Whether a subtree has to be walked again rather than taken as taffy
+    /// already holds it: because the whole arena was rebuilt, or because one
+    /// of this pass's writes landed inside this subtree. A kind that places
+    /// its own children solves them apart from the root, so it has to ask.
+    pub(crate) fn deep(&self, root: usize) -> bool {
+        self.fresh
+            || self.touched.iter().any(|&at| {
+                let mut node = Some(at);
+                while let Some(index) = node {
+                    if index == root {
+                        return true;
+                    }
+                    node = self.arena[index].parent;
+                }
+                false
+            })
+    }
+
+    /// The style a widget is drawn with, in the theme in force here.
+    pub(crate) fn style_of(&self, widget: &Widget) -> Rc<Style> {
+        styled(&self.theme, widget)
+    }
+
+    /// The look of the widget at `index`, resolved once a frame.
+    pub(crate) fn look(&self, index: usize) -> Rc<Look> {
+        look_of(self.arena, index, &self.theme, self.scale)
+    }
+}
+
+/// The style a widget is drawn with: its kind's, the `role` it names over
+/// that, and the `fill`, `stroke` and `radius` it states over both.
+///
+/// The measure pass calls this too, so a row is sized at the face it draws at.
+pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
+    let settled = theme.resolved(&widget.kind, &widget.role);
+    // The theme's own answer, shared, unless this widget overrides part of
+    // it — which most do not, and a screen of widgets is mostly one of a few
+    // styles repeated.
+    if widget.fill.is_empty()
+        && widget.stroke.is_empty()
+        && widget.radius < 0.0
+        && widget.padding_x < 0.0
+    {
+        return settled;
+    }
+    let mut style = (*settled).clone();
+    if !widget.fill.is_empty() {
+        style.fill = theme.token(&widget.fill);
+    }
+    if !widget.stroke.is_empty() {
+        style.stroke = theme.token(&widget.stroke);
+    }
+    if widget.radius >= 0.0 {
+        style.radius = Some(widget.radius);
+    }
+    if widget.padding_x >= 0.0 {
+        style.padding_x = Some(widget.padding_x);
+    }
+    Rc::new(style)
+}
+
+/// The near-white a caption takes when neither the widget nor its theme says.
+pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
+
+/// The ink and the face a widget draws its caption in.
+///
+/// A property left at its default is the widget saying nothing, so the theme
+/// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
+/// and a weight of 400 each take what the role or the kind carries.
+pub(crate) fn face(style: &Style, widget: &Widget, scale: f32) -> (Color32, egui::FontId) {
+    let ink = if widget.text_color[3] > 0.0 {
+        rgba_color(widget.text_color)
+    } else {
+        style.text_color.unwrap_or(DEFAULT_INK)
+    };
+    let size = if widget.font_size > 0.0 {
+        widget.font_size
+    } else {
+        style.font_size.unwrap_or(16.0)
+    };
+    let named = if widget.font == w::UI {
+        style.font.as_deref().unwrap_or(w::UI)
+    } else {
+        widget.font.as_str()
+    };
+    (ink, egui::FontId::new(size * scale, family(named)))
+}
+
+/// The weight a widget draws at, the theme answering for one left at 400.
+pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
+    if (widget.font_weight - 400.0).abs() > f32::EPSILON {
+        return widget.font_weight;
+    }
+    style.weight.unwrap_or(400.0)
 }
 
 /// A change a container made while drawing — a dragged seam, a chosen tab.
@@ -597,6 +831,28 @@ pub(crate) enum Edit {
     Open(bool),
     /// A dropdown's pick.
     Choice(String),
+    /// A swatch's colour.
+    Color([f32; 4]),
+}
+
+/// The theme a widget's own subtree is drawn with, for a caller that holds no
+/// `Engine` handy — the layout pass, which walks the same tree the draw does.
+pub(crate) fn theme_of_owned(reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+    if reference.is_empty() {
+        return inherited.clone();
+    }
+    THEMES.with(|held| {
+        held.borrow()
+            .get(reference)
+            .cloned()
+            .unwrap_or_else(|| inherited.clone())
+    })
+}
+
+thread_local! {
+    /// Every theme the draw has resolved this session, by asset path, so the
+    /// layout pass can reach one without an `Engine`.
+    static THEMES: RefCell<HashMap<String, Rc<WidgetTheme>>> = RefCell::new(HashMap::new());
 }
 
 /// The theme in force for a widget: its own, or the nearest ancestor's.
@@ -613,7 +869,13 @@ pub(crate) fn theme_of(
         return inherited.clone();
     }
     match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
-        Ok(theme) => theme,
+        Ok(theme) => {
+            THEMES.with(|held| {
+                held.borrow_mut()
+                    .insert(reference.to_string(), theme.clone());
+            });
+            theme
+        }
         Err(err) => {
             // Once per reference: a missing theme is a typo in a scene file,
             // and repeating it sixty times a second buries everything else.
@@ -651,11 +913,11 @@ pub(crate) fn draw_one(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// What a widget shows: its key, translated in the locale in force, or its
 /// literal text. Resolved every frame, which is why a locale switch shows on
 /// the next one without anything having to be told.
-pub(crate) fn caption(eng: &Engine, widget: &Widget) -> String {
+pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
     if widget.text_key.is_empty() {
         return widget.text.clone();
     }
-    balaur_core::strings::tr(eng, &widget.text_key, &[])
+    balaur_core::strings::tr(eng, &widget.text_key, &[]).into()
 }
 
 /// Everything a widget kind draws, with the theme already resolved.
@@ -664,19 +926,33 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let caption = caption(at.eng, widget);
     let scale = at.scale;
-    let color = rgba_color(widget.text_color);
-    let font = egui::FontId::new(widget.font_size * scale, family(w::UI));
+    let look = at.look(index);
+    let (color, font) = (look.ink, look.font.clone());
+    let (tooltip, entity) = (widget.tooltip.clone(), placed.entity);
+    if widget.disabled {
+        ui.disable();
+    }
     match widget.kind.as_str() {
-        w::BUTTON => button(ui, at, index, &caption, &font, color),
+        w::BUTTON => crate::widget_button::button(ui, at, index, &caption, &font, color),
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
         w::FIELD => crate::widget_text::field(ui, at, index, &font, color),
+        w::TEXT_AREA => crate::widget_text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
+        w::COLOR => crate::widget_kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),
+        w::MENU => crate::widget_kinds::menu(ui, at, index, &caption, &font, color),
+        w::LIST => crate::widget_kinds::list(ui, at, index, &font, color),
+        w::TREE => crate::widget_kinds::tree(ui, at, index, &font, color),
+        w::TABLE => crate::widget_kinds::table(ui, at, index, &font, color),
+        // The file being edited, with the gutter and the colouring the script
+        // call has always had.
+        w::CODE => crate::widget_kinds::code(ui, at, index),
         w::SLIDER => crate::widget_kinds::slider(ui, at, index),
+        w::DRAG_VALUE => crate::widget_kinds::drag_value(ui, at, index, &font, color),
         w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget_kinds::separator(ui, at, index),
         w::GRID => crate::widget_kinds::grid(ui, at, index),
@@ -714,9 +990,10 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 balaur_core::node_id_of(entity),
                 &target,
             );
-            // What it takes is its box, or what the script drew where it has
-            // none: a `draw` node with no size still has to measure.
+            // What the script painted, not the box it was handed: a hatch
+            // given the whole sheet would ask for it ever after.
             let used = inner.min_rect().size();
+            record_measure(entity, used);
             ui.advance_cursor_after_rect(egui::Rect::from_min_size(
                 rect.min,
                 vec2(
@@ -726,12 +1003,19 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            if !crate::widget_text::shaped_label(ui, at, widget, &caption, color) {
-                let mut label =
-                    egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
-                // `extend` is the old behaviour: one line, however wide it runs.
+            if !crate::widget_text::shaped_label(ui, at, index, widget, &caption, color, &font) {
+                let mut label = egui::Label::new(
+                    egui::RichText::new(caption.as_str())
+                        .font(font)
+                        .color(color),
+                );
+                // A stated width is a column, so the text is cut to it rather
+                // than run past into whatever sits beside it. Without one,
+                // `extend` is the old behaviour: one line, however wide.
                 label = if widget.wrap {
                     label.wrap()
+                } else if widget.width > 0.0 {
+                    label.truncate()
                 } else {
                     label.extend()
                 };
@@ -741,82 +1025,28 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             }
         }
     }
+    tip(ui, entity, &tooltip);
 }
 
-/// A pill that reports its click.
-fn button(
-    ui: &mut egui::Ui,
-    at: &mut Painting<'_>,
-    index: usize,
-    caption: &str,
-    font: &egui::FontId,
-    color: egui::Color32,
-) {
-    let placed = &at.arena[index];
-    let widget = &placed.widget;
-    let style = at.theme.style(&widget.kind);
-    let (scale, focused) = (at.scale, at.focused);
-    // Without a theme a button is as round as its text is tall,
-    // which is the pill the layer has always drawn.
-    let radius = egui::CornerRadius::same(
-        (style.radius.unwrap_or(widget.font_size) * scale).min(120.0) as u8,
-    );
-    // The caption is shaped and painted over an empty button, so a button
-    // says in Arabic what it says in English.
-    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption);
-    let mut button = match &shaped {
-        Some((shaped, _)) => egui::Button::new("").min_size(
-            (shaped.size + 2.0 * ui.spacing().button_padding)
-                .max(vec2(widget.width, widget.height) * scale),
-        ),
-        None => egui::Button::new(egui::RichText::new(caption).font(font.clone()).color(color))
-            .min_size(vec2(widget.width, widget.height) * scale),
+/// Hover text over whatever the kind just drew, from the rect it took.
+///
+/// Applied here rather than inside twenty draws: every kind ends up with a
+/// rect, and a disabled widget keeps its tooltip because that is where it
+/// says why it is off.
+fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
+    if tooltip.is_empty() {
+        return;
     }
-    .corner_radius(radius)
-    .stroke(Stroke::new(
-        style.stroke_width,
-        style.stroke.unwrap_or(color),
-    ));
-    if let Some(fill) = style.fill {
-        button = button.fill(fill);
+    let rect = ui.min_rect();
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
     }
-    // A themed picture goes under the button, which then paints nothing of
-    // its own; the plate is reserved first so the picture sits below the text.
-    let plate = style
-        .image
-        .as_ref()
-        .map(|_| ui.painter().add(egui::Shape::Noop));
-    if plate.is_some() {
-        button = button.fill(Color32::TRANSPARENT).stroke(Stroke::NONE);
-    }
-    let response = ui.add(button);
-    if let (Some(plate), Some(path)) = (plate, style.image.as_ref()) {
-        crate::widget_kinds::nine_patch_plate(
-            ui,
-            at.eng,
-            plate,
-            path,
-            style.slice,
-            response.rect,
-            scale,
-        );
-    }
-    if let Some((shaped, texture)) = &shaped {
-        let origin = response.rect.center() - shaped.size / 2.0;
-        crate::text::paint(ui.painter(), *texture, shaped, origin, color, at.eng.time());
-    }
-    if response.clicked() {
-        at.clicked.push(placed.entity);
-    }
-    if focused == Some(placed.entity) {
-        // Drawn rather than egui's own focus ring: the ring follows
-        // egui's keyboard focus, and this follows the scene's.
-        ui.painter().rect_stroke(
-            response.rect.expand(2.0),
-            radius,
-            Stroke::new(2.0, style.stroke.unwrap_or(color)),
-            egui::StrokeKind::Outside,
-        );
+    let id = egui::Id::new(("balaur-tip", entity));
+    let response = ui.interact(rect, id, egui::Sense::hover());
+    if ui.is_enabled() {
+        response.on_hover_text(tooltip);
+    } else {
+        response.on_disabled_hover_text(tooltip);
     }
 }
 
@@ -861,7 +1091,7 @@ fn panel(
 ) {
     let scale = at.scale;
     let widget = &at.arena[index].widget;
-    let style = at.theme.style(&widget.kind);
+    let style = at.style_of(widget);
     let pad = padding_of(widget, &style, scale);
     let box_size = box_of(widget, at.assigned, scale);
     let plate = ui.painter().add(egui::Shape::Noop);
@@ -895,7 +1125,7 @@ fn panel(
                 style.fill.unwrap_or(Color32::from_black_alpha(96)),
                 style
                     .stroke
-                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
                 egui::StrokeKind::Inside,
             ),
         );

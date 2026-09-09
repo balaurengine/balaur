@@ -288,8 +288,10 @@ name = "Rig"
 id = "n_hip"
 name = "Hip"
 parent = "n_rig"
-position = [0, 1, 0]
 bone2d = { rest_position = [0, 1], rest_rotation = 0.25, length = 0.5 }
+
+[nodes.transform]
+position = [0, 1, 0]
 "#,
     )
     .unwrap();

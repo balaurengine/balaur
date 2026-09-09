@@ -1,0 +1,82 @@
+# One theme for the whole screen: the colours it is built from, the look of
+# each widget kind, and the roles a node names instead of spelling a look.
+type = "widget_theme"
+
+[colors]
+ink = "#0e1116"
+sheet = "#161b23"
+sunken = "#0a0d12"
+line = "#232b36"
+text = "#e6e9ee"
+dim = "#98a3ae"
+faint = "#69737f"
+accent = "#6fa4d8"
+accent_soft = "#1a2c40"
+on_accent = "#f6f8fb"
+warm = "#d5814e"
+
+[panel]
+fill = "sheet"
+radius = 10
+padding = 12
+
+[button]
+fill = "sunken"
+color = "dim"
+radius = 6
+padding_x = 10
+size = 13
+
+[button.hover]
+fill = "line"
+color = "text"
+
+[button.active]
+fill = "accent_soft"
+color = "accent"
+
+[field]
+fill = "sunken"
+color = "text"
+radius = 6
+
+[list]
+fill = "sunken"
+radius = 8
+
+[tree]
+fill = "sunken"
+radius = 8
+
+[roles.title]
+font = "heading"
+size = 22
+strong = true
+color = "text"
+
+[roles.caption]
+font = "mono"
+size = 12
+color = "faint"
+
+[roles.primary]
+fill = "accent"
+color = "on_accent"
+strong = true
+
+[roles.primary.hover]
+fill = "warm"
+
+# A group heading: the one role a whole section wears.
+[roles.group]
+font = "heading"
+size = 11
+strong = true
+color = "faint"
+
+[roles.chip]
+fill = "sunken"
+color = "dim"
+size = 12
+radius = 12
+padding_x = 12

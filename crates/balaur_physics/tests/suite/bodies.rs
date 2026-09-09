@@ -88,6 +88,39 @@ sleep_time = 1.5"#,
     assert_eq!(flags("lock_rotation"), ["x", "z"]);
 }
 
+/// Sleeping is held off by the thresholds, not by the timer, so the number
+/// the author wrote survives being unable to sleep and comes back on.
+#[test]
+fn sleep_time_survives_a_body_that_cannot_sleep() {
+    let app = app();
+    let e = body_with(
+        &app,
+        "Awake",
+        "kind = \"dynamic\"\ncan_sleep = false\nsleep_time = 1.5",
+    );
+    let read = |app: &App| {
+        components::get(&app.engine, e, "body3d")
+            .and_then(|b| {
+                b.get("sleep_time")
+                    .and_then(balaur_core::components::as_f64)
+            })
+            .unwrap_or_default()
+    };
+    assert!(
+        (read(&app) - 1.5).abs() < 1e-6,
+        "a body that cannot sleep reported {}",
+        read(&app)
+    );
+
+    let patch: toml::Value = toml::from_str("can_sleep = true").unwrap();
+    components::patch(&app.engine, e, "body3d", &patch).unwrap();
+    assert!(
+        (read(&app) - 1.5).abs() < 1e-6,
+        "turning sleeping back on lost the time: {}",
+        read(&app)
+    );
+}
+
 /// The point of `lock_*`: a locked axis does not move, and its neighbours do.
 #[test]
 fn a_locked_axis_holds_still() {

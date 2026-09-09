@@ -315,8 +315,8 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
             let params = balaur_core::node_api::to_toml(&params)?;
             let entity = entity_of(node)?;
-            let full =
-                balaur_core::components::properties(eng, &joint_schema_value(eng)?, Some(&params))?;
+            let schema = joint_schema_value(eng)?;
+            let full = balaur_core::components::properties(eng, &schema, Some(&params))?;
             apply_joint(eng, entity, &full)
         },
     );
@@ -430,7 +430,7 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector) -> Result<()> {
 }
 
 /// The registered schema, for `add_joint`'s table to be merged over.
-fn joint_schema_value(eng: &Engine) -> Result<toml::Value> {
+fn joint_schema_value(eng: &Engine) -> Result<std::rc::Rc<toml::Value>> {
     let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
     let registry = registry.borrow();
     Ok(registry

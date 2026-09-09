@@ -296,6 +296,8 @@ pub(crate) mod keys {
     pub(crate) const SOLVER_MASK: &str = "solver_mask";
     pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
     pub(crate) const STATIC_CONTACT_DAMPING: &str = "static_contact_damping";
+    /// `[physics] threads`: how many the solver may take.
+    pub(crate) const THREADS: &str = "threads";
     pub(crate) const STATIC_CONTACT_FREQUENCY: &str = "static_contact_frequency";
     pub(crate) const STEERING: &str = "steering";
     pub(crate) const STEP_MS: &str = "step_ms";

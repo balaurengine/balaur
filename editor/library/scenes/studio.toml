@@ -11,8 +11,10 @@ exposure = 1.0
 [[nodes]]
 name = "Key"
 parent = "Studio"
+
+[nodes.transform]
 position = [4, 6, 4]
-rotation_euler = [-45, 40, 0]
+rotation_euler = [-0.7854, 0.69813, 0]
 
 [nodes.light3d]
 kind = "spot"
@@ -25,8 +27,10 @@ outer = 50
 [[nodes]]
 name = "Fill"
 parent = "Studio"
+
+[nodes.transform]
 position = [-5, 3, 3]
-rotation_euler = [-25, -50, 0]
+rotation_euler = [-0.43633, -0.87266, 0]
 
 [nodes.light3d]
 kind = "point"
@@ -38,8 +42,10 @@ shadows = false
 [[nodes]]
 name = "Rim"
 parent = "Studio"
+
+[nodes.transform]
 position = [0, 4, -6]
-rotation_euler = [-25, 180, 0]
+rotation_euler = [-0.43633, 3.14159, 0]
 
 [nodes.light3d]
 kind = "directional"

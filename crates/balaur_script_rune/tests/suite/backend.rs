@@ -664,3 +664,131 @@ fn a_change_of_focus_or_dark_mode_reaches_every_script_once() {
     app.tick(1.0 / 60.0);
     assert_eq!(rune.number_field(node, "focus"), Some(11.0));
 }
+
+/// A tick borrows one VM per script and hands it back at the end. Two nodes
+/// on one file therefore share a VM across the batch, and a script that
+/// reaches back into the host mid-`update` has to get a different one.
+#[test]
+fn two_nodes_on_one_script_reach_another_unit_from_update() {
+    let dir = project(&[
+        ("lib.rn", "pub fn double(n) { n * 2.0 }\n"),
+        (
+            "caller.rn",
+            "pub fn init(this) { this.out = 0.0; }\n\
+             pub fn update(this, dt) {\n\
+                 let lib = script::require(\"lib.rn\");\n\
+                 let double = lib[\"double\"];\n\
+                 this.out = double(this.seed);\n\
+             }\n",
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let first = spawn(&app, "First");
+    let second = spawn(&app, "Second");
+    let host = app.engine.script_host().unwrap();
+    for (node, seed) in [(first, 21.0), (second, 1.5)] {
+        host.attach_with_props(
+            balaur_core::node_id_of(node),
+            "caller.rn",
+            &[("seed".to_string(), balaur_script::Value::Num(seed))],
+        )
+        .unwrap();
+    }
+
+    host.update(1.0 / 60.0);
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(first, "out"), Some(42.0));
+    assert_eq!(rune.number_field(second, "out"), Some(3.0));
+}
+
+/// Profiling prices a call by the instructions it ran, read either side of
+/// it on the VM the tick is holding.
+#[test]
+fn profiling_prices_each_script_in_instructions() {
+    let dir = project(&[
+        ("cheap.rn", "pub fn update(this, dt) {}\n"),
+        (
+            "busy.rn",
+            "pub fn update(this, dt) {\n\
+                 let n = 0;\n\
+                 while n < 50 { n += 1; }\n\
+             }\n",
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let cheap = spawn(&app, "Cheap");
+    let busy = spawn(&app, "Busy");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(cheap), "cheap.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(busy), "busy.rn")
+        .unwrap();
+
+    host.set_profiling(true);
+    for _ in 0..3 {
+        host.update(1.0 / 60.0);
+    }
+    let costs = host.script_costs();
+    let of = |name: &str| {
+        let (_, calls, instructions) = costs
+            .iter()
+            .find(|(path, _, _)| path == name)
+            .unwrap_or_else(|| panic!("{name} went unpriced; got {costs:?}"));
+        (*calls, *instructions)
+    };
+
+    let (calls, cheap_cost) = of("cheap.rn");
+    let (_, busy_cost) = of("busy.rn");
+    assert_eq!(calls, 3, "one `update` per tick");
+    assert!(cheap_cost > 0, "a call that ran costs instructions");
+    assert!(
+        busy_cost > cheap_cost,
+        "the looping script should cost more: {busy_cost} against {cheap_cost}"
+    );
+}
+
+/// `call_all` reaches every instance that declares the method and passes over
+/// the rest, which is most of them for most handlers.
+#[test]
+fn call_all_reaches_only_the_scripts_that_declare_the_method() {
+    let dir = project(&[
+        (
+            "listener.rn",
+            "pub fn init(this) { this.hits = 0.0; }\n\
+             pub fn on_ping(this, by) { this.hits = this.hits + by; }\n\
+             pub fn on_bare(this) { this.hits = this.hits + 1.0; }\n",
+        ),
+        ("deaf.rn", "pub fn init(this) { this.hits = 0.0; }\n"),
+    ]);
+    let app = app_in(dir.path());
+    let first = spawn(&app, "First");
+    let second = spawn(&app, "Second");
+    let deaf = spawn(&app, "Deaf");
+    let host = app.engine.script_host().unwrap();
+    for node in [first, second] {
+        host.attach(balaur_core::node_id_of(node), "listener.rn")
+            .unwrap();
+    }
+    host.attach(balaur_core::node_id_of(deaf), "deaf.rn")
+        .unwrap();
+
+    host.call_all_with("on_ping", &[balaur_script::Value::Num(2.0)]);
+    host.call_all_with("on_ping", &[balaur_script::Value::Num(3.0)]);
+    host.call_all("on_bare");
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(first, "hits"), Some(6.0));
+    assert_eq!(rune.number_field(second, "hits"), Some(6.0));
+    assert_eq!(
+        rune.number_field(deaf, "hits"),
+        Some(0.0),
+        "a script that declares no handler is passed over"
+    );
+}

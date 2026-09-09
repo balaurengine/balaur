@@ -11,6 +11,27 @@ pub fn personas() {
     ]
 }
 
+/// The panels a persona opens, per dock, and which of them it brings
+/// forward. A persona says what to have open, not what may be opened: the
+/// logo menu adds and the tab marks close whatever the work needs after that.
+pub fn persona_docks(id) {
+    match id {
+        "script" => docks(["scene", "outline"], ["output", "problems", "docs", "debugger"], ["inspector"]),
+        "anim" => docks(["scene", "outline"], ["timeline", "output", "library"], ["inspector"]),
+        "phys" => docks(["scene"], ["output", "problems", "profiler"], ["inspector"]),
+        "ui" => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),
+        _ => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),
+    }
+}
+
+fn docks(left, bottom, right) {
+    #{
+        left: #{ tabs: left, active: left[0], shut: false },
+        bottom: #{ tabs: bottom, active: bottom[0], shut: false },
+        right: #{ tabs: right, active: right[0], shut: false },
+    }
+}
+
 pub fn persona_name(id) {
     for p in personas() {
         if p.id == id {

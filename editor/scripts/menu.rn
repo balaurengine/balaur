@@ -1,0 +1,99 @@
+// The one menu the shell has, under the mark at the head of the bar: the
+// screens that are not panels, and a tick beside every panel there is, open
+// or not. A tab's close mark takes one away; this is where it comes back.
+
+use crate::style;
+use crate::defs;
+use crate::docks;
+use crate::icons;
+use crate::shell;
+
+// A row, and the two columns the panel list runs in: seventeen panels down
+// one column is taller than the window the editor is asked to fit.
+const ROW_W = 216.0;
+const CELL_W = 108.0;
+const ROW_H = 22.0;
+
+/// The same rows, drawn as a sheet under the mark. A popup is egui's, and no
+/// offscreen run can click one open, so `--state menudemo` shows this instead.
+pub fn preview(S) {
+    let k = S.theme;
+    let bar = S.layout.bar;
+    let r = #{ x: bar.x + 8.0, y: bar.y + bar.h + 4.0, w: ROW_W + 16.0, h: sheet_h(S) };
+    crate::style::sheet(k, "menu-preview", r, 6, 6, || {
+        ui::spacing(0, 0);
+        draw(S, k);
+    });
+}
+
+// The rows, the two rules, and one line per pair of panels.
+fn sheet_h(S) {
+    let pairs = ((docks::known(S).len() + 1) / 2) as f64;
+    4.0 * ROW_H + 2.0 * 5.0 + 18.0 + pairs * ROW_H + 20.0
+}
+
+/// The menu's rows. Called back by the mark's `menu_click`, inside the popup.
+pub fn draw(S, k) {
+    if row(S, k, icons::ui("search"), "Command palette", "⌘K") {
+        shell::open_palette(S, "");
+    }
+    if row(S, k, icons::ui("settings"), "Settings", "⌘,") {
+        crate::settings::open(S);
+    }
+    if row(S, k, icons::ui("export"), "Export", "⌘E") {
+        crate::exporter::open(S);
+    }
+    rule(k);
+    ui::menu_item("PANELS", #{ color: k.faint, width: ROW_W, size: style::SM, height: 18 });
+    panel_grid(S, k);
+    rule(k);
+    if row(S, k, icons::ui("reset"), format!("Reset to {}", defs::persona_name(S.persona)), "") {
+        docks::apply_persona(S, S.persona);
+    }
+}
+
+// A rule the width of the menu. A bare separator takes the width it is
+// offered, and inside a popup that is the screen.
+fn rule(k) {
+    ui::horizontal(#{ width: ROW_W, height: 5 }, || {
+        ui::separator(k.line);
+    });
+}
+
+fn row(S, k, icon, label, key) {
+    ui::menu_item(format!("{}   {}", icon, label), #{
+        color: k.text, width: ROW_W, height: ROW_H, trailing: key,
+        trailing_color: k.faint,
+    })
+}
+
+// Every panel, ticked where it is open, two to a line. Clicking one closes it
+// or puts it back in the dock it belongs to.
+fn panel_grid(S, k) {
+    let ids = docks::known(S);
+    let n = 0;
+    while n < ids.len() {
+        let pair = [ids[n]];
+        if n + 1 < ids.len() {
+            pair.push(ids[n + 1]);
+        }
+        ui::horizontal(#{ height: ROW_H, width: ROW_W }, || {
+            ui::spacing(0, 0);
+            for id in pair {
+                cell(S, k, id);
+            }
+        });
+        n += 2;
+    }
+}
+
+fn cell(S, k, id) {
+    let open = docks::side_of(S, id).is_some();
+    let tick = if open { icons::ui("check") } else { " " };
+    if ui::menu_item(format!("{}  {}", tick, docks::name(S, id)), #{
+        color: if open { k.text } else { k.faint }, width: CELL_W, height: ROW_H,
+        keep_open: true,
+    }) {
+        docks::toggle(S, id);
+    }
+}

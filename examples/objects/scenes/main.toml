@@ -101,6 +101,8 @@ script = "scripts/tour.rn"
 id = "n_camera"
 name = "Camera"
 parent = ""
+
+[nodes.transform]
 position = [0.0, 3.0, 7.0]
 
 [nodes.camera]
@@ -111,6 +113,8 @@ look_at = [0.0, 1.0, 0.0]
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, -0.02, -24]
 
 [nodes.shape3d]
@@ -123,6 +127,8 @@ color = [0.22, 0.24, 0.27, 1]
 id = "n_torus"
 name = "Torus"
 parent = "n_world"
+
+[nodes.transform]
 position = [-4, 1, 0]
 
 # The physically based contract: `shaders/metal.wesl` imports `package::pbr`
@@ -138,6 +144,8 @@ material = "materials/metal.toml"
 id = "n_pyramid"
 name = "Pyramid"
 parent = "n_world"
+
+[nodes.transform]
 position = [-2, 0.8, 0]
 
 [nodes.shape3d]
@@ -150,6 +158,8 @@ color = [0.8, 0.45, 0.35, 1]
 id = "n_prism"
 name = "Prism"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, 0.8, 0]
 
 [nodes.shape3d]
@@ -163,6 +173,8 @@ color = [0.45, 0.7, 0.55, 1]
 id = "n_tube"
 name = "Tube"
 parent = "n_world"
+
+[nodes.transform]
 position = [2, 0.8, 0]
 
 [nodes.shape3d]
@@ -176,6 +188,8 @@ color = [0.55, 0.6, 0.8, 1]
 id = "n_rounded"
 name = "RoundedCuboid"
 parent = "n_world"
+
+[nodes.transform]
 position = [4, 0.8, 0]
 
 [nodes.shape3d]
@@ -189,6 +203,8 @@ color = [0.75, 0.75, 0.78, 1]
 id = "n_arch"
 name = "Arch"
 parent = "n_world"
+
+[nodes.transform]
 position = [-3.2, 0, -12]
 
 [nodes.mesh]
@@ -198,6 +214,8 @@ source = "#arch"
 id = "n_goblet"
 name = "Goblet"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, 0, -12]
 
 [nodes.mesh]
@@ -207,6 +225,8 @@ source = "#goblet"
 id = "n_handrail"
 name = "Handrail"
 parent = "n_world"
+
+[nodes.transform]
 position = [3.4, 0, -12]
 
 [nodes.mesh]
@@ -216,6 +236,8 @@ source = "#handrail"
 id = "n_union"
 name = "Union"
 parent = "n_world"
+
+[nodes.transform]
 position = [-3.5, 1, -24]
 
 [nodes.boolean3d]
@@ -234,6 +256,8 @@ half_extents = [0.7, 0.7, 0.7]
 id = "n_union_b"
 name = "B"
 parent = "n_union"
+
+[nodes.transform]
 position = [0.55, 0.55, 0.55]
 
 [nodes.shape3d]
@@ -244,6 +268,8 @@ radius = 0.5
 id = "n_difference"
 name = "Difference"
 parent = "n_world"
+
+[nodes.transform]
 position = [0, 1, -24]
 
 [nodes.boolean3d]
@@ -262,6 +288,8 @@ half_extents = [0.7, 0.7, 0.7]
 id = "n_difference_b"
 name = "B"
 parent = "n_difference"
+
+[nodes.transform]
 position = [0.6, 0.6, 0.6]
 
 [nodes.shape3d]
@@ -272,6 +300,8 @@ radius = 0.55
 id = "n_intersection"
 name = "Intersection"
 parent = "n_world"
+
+[nodes.transform]
 position = [3.5, 1, -24]
 
 [nodes.boolean3d]
@@ -299,6 +329,8 @@ radius = 0.9
 id = "n_row"
 name = "Row"
 parent = "n_world"
+
+[nodes.transform]
 position = [-5.6, 0.4, -36]
 
 [nodes.cloner]
@@ -322,6 +354,8 @@ color = [0.7, 0.6, 0.4, 1]
 id = "n_ring_of"
 name = "Ring"
 parent = "n_world"
+
+[nodes.transform]
 position = [0.6, 0.4, -36]
 
 [nodes.cloner]
@@ -345,6 +379,8 @@ color = [0.5, 0.65, 0.75, 1]
 id = "n_field"
 name = "Field"
 parent = "n_world"
+
+[nodes.transform]
 position = [4.0, 0.3, -37]
 
 [nodes.cloner]
@@ -369,6 +405,8 @@ color = [0.45, 0.7, 0.4, 1]
 id = "n_title"
 name = "Title"
 parent = "n_world"
+
+[nodes.transform]
 position = [-2.6, 0.9, -48]
 
 [nodes.mesh]
@@ -378,8 +416,10 @@ source = "#title"
 id = "n_painted"
 name = "Painted"
 parent = "n_world"
-position = [2.4, 0.2, -48]
 script = "scripts/breathe.rn"
+
+[nodes.transform]
+position = [2.4, 0.2, -48]
 
 [nodes.mesh]
 source = "#painted"

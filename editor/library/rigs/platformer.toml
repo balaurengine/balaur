@@ -9,8 +9,10 @@ name = "Platformer rig"
 id = "rig_platformer_player"
 name = "Player"
 parent = "rig_platformer"
-position = [0, 0, 0]
 script = "scripts/platformer_rig.rn"
+
+[nodes.transform]
+position = [0, 0, 0]
 
 [nodes.shape2d]
 kind = "capsule"
@@ -31,6 +33,8 @@ height = 1.2
 id = "rig_platformer_camera"
 name = "Camera"
 parent = "rig_platformer"
+
+[nodes.transform]
 position = [0, 0, 10]
 
 [nodes.camera]

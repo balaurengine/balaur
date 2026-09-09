@@ -22,6 +22,16 @@
 //!   asset = "clip_type"    (asset only, and required there)
 //!   min/max/step/decimals  (float and int, optional)
 //!   shorthand/readonly     (bool, optional)
+//!   description = "..."    (optional, one line, for the reference and the
+//!                           inspector row's tooltip)
+//!   unit = "degrees"       (optional; what an editor draws the property in,
+//!                           and the unit `min`, `max` and `step` are written
+//!                           in. Nothing stores it: the file and a script both
+//!                           read what the property declares)
+//!   group = "damping"      (optional; the fold an editor files the property
+//!                           under. A property with no group is one the
+//!                           inspector always shows, so grouping one is the
+//!                           decision to put it away by default)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
 //! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
@@ -55,6 +65,8 @@
 //! defaults, which is what a scene file means; [`patch`] writes over what the
 //! component currently reports, which is what anything driving one property
 //! over time means.
+
+use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow};
 use hecs::Entity;
@@ -94,6 +106,60 @@ fn is_readonly(spec: Option<&toml::Value>) -> bool {
     spec.and_then(|s| s.get("readonly"))
         .and_then(toml::Value::as_bool)
         == Some(true)
+}
+
+/// The readers an `apply` uses on the table it was handed.
+///
+/// Every declared property carries a `default` — [`validate_property`] refuses
+/// one without — and [`add`] and [`patch`] merge those in before `apply` runs,
+/// so the key is always there and holds its declared type. These take no
+/// fallback of their own on purpose: a second default written beside the
+/// reader is a copy of the schema's that nothing would notice going stale.
+pub fn prop_f32(params: &toml::Value, key: &str) -> f32 {
+    prop_f64(params, key) as f32
+}
+
+/// [`prop_f32`] at full width, for a property compared against `f64` data.
+pub fn prop_f64(params: &toml::Value, key: &str) -> f64 {
+    params.get(key).and_then(as_f64).unwrap_or_default()
+}
+
+/// The three numbers a `vec3`-typed property holds.
+pub fn prop_vec3(params: &toml::Value, key: &str) -> [f32; 3] {
+    let axis = |i: usize| {
+        params
+            .get(key)
+            .and_then(toml::Value::as_array)
+            .and_then(|a| a.get(i))
+            .and_then(as_f64)
+            .map(|v| v as f32)
+            .unwrap_or_default()
+    };
+    [axis(0), axis(1), axis(2)]
+}
+
+/// The whole number an `int`-typed property holds.
+pub fn prop_i64(params: &toml::Value, key: &str) -> i64 {
+    params
+        .get(key)
+        .and_then(toml::Value::as_integer)
+        .unwrap_or_default()
+}
+
+/// Whether a `bool`-typed property is set.
+pub fn prop_bool(params: &toml::Value, key: &str) -> bool {
+    params
+        .get(key)
+        .and_then(toml::Value::as_bool)
+        .unwrap_or_default()
+}
+
+/// The text a `string`, `enum`, `asset` or `node` property holds.
+pub fn prop_str<'a>(params: &'a toml::Value, key: &str) -> &'a str {
+    params
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
 }
 
 /// The names a `flags`-typed property holds, in the order they were written.
@@ -142,8 +208,10 @@ pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
 pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 
 pub struct ComponentDef {
-    /// TOML table of property specs (see module docs).
-    pub schema: toml::Value,
+    /// TOML table of property specs (see module docs). Shared, because a
+    /// patch reads it every time a property is written and a copy per write
+    /// is the whole table.
+    pub schema: Rc<toml::Value>,
     /// What the component gives a node, in one or two sentences, for the
     /// generated reference. `scripts/api_lints.py` fails an empty one.
     pub doc: &'static str,
@@ -218,7 +286,7 @@ impl ComponentDef {
     /// are compile-time constants written by plugin authors, so a bad one is a
     /// bug in the plugin rather than bad user input, and failing at
     /// registration beats an inspector row that silently never appears.
-    pub fn parse_schema(component: &str, text: &str) -> toml::Value {
+    pub fn parse_schema(component: &str, text: &str) -> Rc<toml::Value> {
         let schema: toml::Value = toml::from_str(text)
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
         let table = schema.as_table().unwrap_or_else(|| {
@@ -229,9 +297,14 @@ impl ComponentDef {
                 panic!("component '{component}', property '{prop}': {why}");
             }
         }
-        schema
+        Rc::new(schema)
     }
 }
+
+/// The units a property may be drawn in. Closed like [`PROPERTY_TYPES`]: an
+/// editor has to know how to convert one, so a name it has never seen would
+/// draw the number unconverted and say nothing.
+pub const UNITS: &[&str] = &["degrees"];
 
 /// The closed set as prose, for a panic message.
 fn type_list() -> String {
@@ -303,6 +376,25 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
             "`description` is {}, not a string",
             description.type_str()
         ));
+    }
+    if let Some(group) = spec.get("group") {
+        match group.as_str() {
+            Some(name) if !name.trim().is_empty() => {}
+            Some(_) => return Err("`group` is empty; leave it out to show the property".into()),
+            None => return Err(format!("`group` is {}, not a name", group.type_str())),
+        }
+    }
+    if let Some(unit) = spec.get("unit") {
+        match unit.as_str() {
+            Some(name) if UNITS.contains(&name) => {}
+            Some(name) => {
+                return Err(format!(
+                    "`unit = \"{name}\"` is not one of {}",
+                    UNITS.join(", ")
+                ));
+            }
+            None => return Err(format!("`unit` is {}, not a unit name", unit.type_str())),
+        }
     }
     let default = spec
         .get("default")
@@ -731,8 +823,8 @@ pub fn is_registered(eng: &Engine, name: &str) -> bool {
         .is_some_and(|registry| registry.borrow().def(name).is_some())
 }
 
-/// A registered component's schema, cloned so the registry borrow ends here.
-fn schema_of(eng: &Engine, name: &str) -> Result<toml::Value> {
+/// A registered component's schema, shared so the registry borrow ends here.
+fn schema_of(eng: &Engine, name: &str) -> Result<Rc<toml::Value>> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
@@ -828,10 +920,15 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
     let registry = registry.borrow();
     let mut extra = 0u128;
     for (i, (name, def)) in registry.0.iter().enumerate() {
-        if bits & (1u128 << i) == 0 && (def.get)(eng, entity).is_some() {
-            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
-            extra |= 1u128 << i;
+        if bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_none() {
+            continue;
         }
+        // The node bundle attaches a `Transform` in the one spawn, so a node
+        // that never went through `add` carries one; freeing takes it off.
+        if name != crate::transform::COMPONENT {
+            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
+        }
+        extra |= 1u128 << i;
     }
     extra
 }
@@ -849,7 +946,7 @@ pub fn names(eng: &Engine) -> Vec<String> {
 }
 
 /// Every registered component's name and schema, for tooling and docs.
-pub fn schemas(eng: &Engine) -> Vec<(String, toml::Value)> {
+pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
     eng.try_resource::<ComponentRegistry>()
         .map(|r| {
             r.borrow()

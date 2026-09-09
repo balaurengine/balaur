@@ -15,10 +15,19 @@ rustflags = [
 # /usr/lib/swift and sits on no default search path. Here rather than in the
 # Apple crate's build.rs because a link arg does not propagate out of a lib.
 [target.aarch64-apple-darwin]
-rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+rustflags = [
+    "-Clink-arg=-Wl,-rpath,/usr/lib/swift",
+    # `unpacked`, the macOS default, keeps one object file per codegen unit in
+    # `deps/` for good; the directory reached 331k entries, and every macOS
+    # API that identifies the executable reads it before it answers.
+    "-Csplit-debuginfo=packed",
+]
 
 [target.x86_64-apple-darwin]
-rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+rustflags = [
+    "-Clink-arg=-Wl,-rpath,/usr/lib/swift",
+    "-Csplit-debuginfo=packed",
+]
 
 [target.aarch64-apple-ios]
 rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
@@ -33,6 +42,18 @@ rustflags = ["-Clink-arg=-Wl,-z,max-page-size=16384"]
 
 [target.x86_64-linux-android]
 rustflags = ["-Clink-arg=-Wl,-z,max-page-size=16384"]
+
+# Windows carries no Visual C++ runtime until someone installs the
+# redistributable, so a binary linking it dynamically fails on a clean machine.
+# The editor and the template every exported game is fused onto both import it.
+
+# Safe because nothing the CRT owns crosses the extension boundary:
+# balaur_plugin's C API allocates and frees on one side of it.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-Ctarget-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-Ctarget-feature=+crt-static"]
 
 # HarfBuzz's subsetter is one translation unit, and a debug build of it holds
 # more sections than a COFF object takes without /bigobj. cc reads this per

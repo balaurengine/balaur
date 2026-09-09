@@ -70,7 +70,7 @@ pub(crate) fn save_timers(eng: &Engine) -> serde_json::Value {
 }
 
 pub(crate) fn load_timers(eng: &Engine, value: &serde_json::Value) {
-    if let Ok(timers) = serde_json::from_value::<Timers>(value.clone()) {
+    if let Ok(timers) = Timers::deserialize(value) {
         *eng.resource::<Timers>().borrow_mut() = timers;
     }
 }

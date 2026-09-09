@@ -12,12 +12,18 @@ pub(crate) mod words {
     pub(crate) const ROW: &str = "row";
     pub(crate) const COLUMN: &str = "column";
     pub(crate) const SCROLL: &str = "scroll";
+    pub(crate) const TEXT_AREA: &str = "text_area";
     pub(crate) const TAB: &str = "tab";
     pub(crate) const DRAW: &str = "draw";
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const FIELD: &str = "field";
     pub(crate) const CHECK: &str = "check";
+    pub(crate) const COLOR: &str = "color";
     pub(crate) const DROPDOWN: &str = "dropdown";
+    pub(crate) const MENU: &str = "menu";
+    pub(crate) const LIST: &str = "list";
+    pub(crate) const TREE: &str = "tree";
+    pub(crate) const DRAG_VALUE: &str = "drag_value";
     pub(crate) const SLIDER: &str = "slider";
     pub(crate) const PROGRESS: &str = "progress";
     pub(crate) const GRID: &str = "grid";
@@ -25,10 +31,13 @@ pub(crate) mod words {
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
     pub(crate) const SEPARATOR: &str = "separator";
+    pub(crate) const CODE: &str = "code";
+    pub(crate) const TABLE: &str = "table";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
-        LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, CHECK, DROPDOWN,
-        SLIDER, PROGRESS, GRID, FLOW, FOLD, DIALOG, SEPARATOR,
+        LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
+        COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
+        DIALOG, SEPARATOR, CODE,
     ];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
@@ -47,6 +56,12 @@ pub(crate) mod words {
     /// Where a container puts its children, and where text sits.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
 
+    pub(crate) const BETWEEN: &str = "between";
+    pub(crate) const AROUND: &str = "around";
+    pub(crate) const EVENLY: &str = "evenly";
+    /// How a container spreads its children along its own direction.
+    pub(crate) const JUSTIFYS: &[&str] = &[START, CENTER, END, BETWEEN, AROUND, EVENLY];
+
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
     /// Slant.
@@ -56,6 +71,8 @@ pub(crate) mod words {
     pub(crate) const HEADING: &str = "heading";
     pub(crate) const ICON: &str = "icon";
     pub(crate) const UI: &str = "ui";
+    /// The families a widget may draw in, as the picker offers them.
+    pub(crate) const WIDGET_FONTS: &[&str] = &[UI, MONO, HEADING, ICON];
 
     pub(crate) const CMD: &str = "cmd";
     pub(crate) const CTRL: &str = "ctrl";
@@ -113,6 +130,8 @@ pub(crate) mod keys {
     pub(crate) const K_PUNC: &str = "k_punc";
     pub(crate) const K_STR: &str = "k_str";
     pub(crate) const K_TYPE: &str = "k_type";
+    pub(crate) const KEEP_OPEN: &str = "keep_open";
+    pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const KNOB: &str = "knob";
     pub(crate) const LANGUAGE: &str = "language";
@@ -123,10 +142,12 @@ pub(crate) mod keys {
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MENU: &str = "menu";
+    pub(crate) const MENU_CLICK: &str = "menu_click";
     pub(crate) const MIN: &str = "min";
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const NUMERIC: &str = "numeric";
+    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const OFF_FILL: &str = "off_fill";
     pub(crate) const OFF_KNOB: &str = "off_knob";
     pub(crate) const ON_CHANGE: &str = "on_change";
@@ -152,6 +173,7 @@ pub(crate) mod keys {
     pub(crate) const ROLE: &str = "role";
     pub(crate) const ROUND: &str = "round";
     pub(crate) const SCRIM: &str = "scrim";
+    pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";

@@ -19,12 +19,16 @@ record() {
   mkdir -p "$outdir"
   local combined="$outdir/traces.txt"
   : >"$combined"
+  # One build, then the binary: `cargo run` takes the build lock on every call,
+  # which serialises this against anything else compiling in the same tree.
+  cargo build -q -p balaur_cli --bin balaur
+  local bin=${CARGO_TARGET_DIR:-target}/debug/balaur
   for project in "${PROJECTS[@]}"; do
     local name trace
     name=$(basename "$project")
     trace="$outdir/$name.trace"
     printf 'tracing %s for %s frames\n' "$project" "$FRAMES"
-    cargo run -q -p balaur_cli --bin balaur -- run "$project" \
+    "$bin" run "$project" \
       --headless --fixed-tick --frames "$FRAMES" --trace-digest "$trace"
     printf '== %s\n' "$name" >>"$combined"
     cat "$trace" >>"$combined"

@@ -8,9 +8,13 @@ use crate::style;
 use crate::util;
 
 
-// One row: depth guides, collapse arrow, typed mark, name, trailing badge;
-// right-click opens the node's context menu.
+// The `tree` node this file fills; the hatch still draws the search above it.
+const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
+const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
 const ROW_H = 23.0;
+// The pitch the `tree` node itself draws at, measured off a take: that widget
+// sizes a row from the body text, which no binding reports.
+const TREE_ROW = 23.2;
 const INDENT = 14.0;
 // Where the first guide sits, measured from the sheet's inner edge.
 const GUIDE_X = 9.0;
@@ -35,6 +39,8 @@ fn guides(S, k, depth, is_last) {
     }
 }
 
+// One row: depth guides, collapse arrow, typed mark, name, trailing badge;
+// right-click opens the node's context menu.
 fn tree_row(S, k, row) {
     let i = row.index;
     let depth = row.depth;
@@ -51,7 +57,7 @@ fn tree_row(S, k, row) {
             let id = node.get("id").unwrap_or("");
             let open = !S.collapsed.contains_key(id);
             if ui::pill(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, #{
-                height: 20, size: 10.5, radius: 3, min_width: 13,
+                height: 20, size: style::SM, radius: 3, min_width: 13,
                 color: k.faint, tooltip: "Collapse",
             }) {
                 if open {
@@ -69,7 +75,7 @@ fn tree_row(S, k, row) {
             role: if selected { "row_on" } else { "row" },
             strong: depth == 0 || (selected && !active),
             min_width: ui::available_width(),
-            icon: icon, icon_size: 12,
+            icon: icon, icon_size: style::MD,
             icon_color: if selected { k.on_accent } else { icon_color },
             // A row from a prefab reads as one level quieter: it is real, and
             // it is not this file's to restructure.
@@ -99,6 +105,14 @@ fn tree_row(S, k, row) {
                     shell::choose(S, i);
                     model::add_child(S, None);
                 }
+                if ui::menu_item(icons::ui("caret-open") + "  Move up", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::move_sibling(S, -1);
+                }
+                if ui::menu_item(icons::ui("caret-shut") + "  Move down", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::move_sibling(S, 1);
+                }
                 if ui::menu_item("‹›  Attach script", #{ color: k.text }) {
                     shell::choose(S, i);
                     shell::attach_script(S);
@@ -126,21 +140,44 @@ fn tree_row(S, k, row) {
     });
 }
 
+// Rebuilt only when the document or a fold changed; both loops below are
+// linear in the document, which the drawing no longer is.
+fn open_rows(S) {
+    let key = format!("{}:{}:{}", S.doc_rev, S.doc.len(), S.collapsed.len());
+    if S.tree_cache.get("key") == Some(key) {
+        return S.tree_cache["rows"];
+    }
+    let kids = #{};
+    for (i, node) in S.doc.iter().enumerate() {
+        let parent = node.get("parent").unwrap_or("");
+        if !kids.contains_key(parent) {
+            kids[parent] = [];
+        }
+        kids[parent].push(i);
+    }
+    let rows = flatten(S, kids, "", 0);
+    S.tree_cache = #{ key: key, rows: rows };
+    rows
+}
+
 // `kids` is bucketed by the parent's **id**, so the recursion carries an id
-// too. Descending by name path is what used to make every nested node
-// invisible: no bucket is ever keyed by a path.
-fn walk(S, k, kids, parent_id, depth) {
+// too: no bucket is ever keyed by a path.
+fn flatten(S, kids, parent_id, depth) {
+    let out = [];
     let children = kids.get(parent_id).unwrap_or([]);
     for (j, i) in children.iter().enumerate() {
         let node = S.doc[i];
         let id = node.get("id").unwrap_or("");
         let is_last = j == children.len() - 1;
         let has_kids = kids.contains_key(id);
-        tree_row(S, k, #{ index: i, depth: depth, is_last: is_last, has_kids: has_kids });
+        out.push(#{ index: i, depth: depth, is_last: is_last, has_kids: has_kids });
         if has_kids && !S.collapsed.contains_key(id) {
-            walk(S, k, kids, id, depth + 1);
+            for row in flatten(S, kids, id, depth + 1) {
+                out.push(row);
+            }
         }
     }
+    out
 }
 
 
@@ -283,21 +320,34 @@ fn tagged(S, i, tag) {
     false
 }
 
+// Six chips need about 300 px and the column is 236 at its widest, so this is
+// one picker at every size: the row of them was clipped in the resting layout,
+// not only in a small window.
 fn facet_row(S, k) {
+    let chips = facets();
+    chips.push(["script", "Script"]);
+    facet_picker(S, k, chips);
+}
+
+fn facet_picker(S, k, chips) {
+    let names = ["All nodes"];
+    let current = names[0];
+    for chip in chips {
+        names.push(chip[1]);
+        if chip[0] == S.tree_facet {
+            current = chip[1];
+        }
+    }
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(2);
-        ui::spacing(3, 0);
-        let chips = facets();
-        chips.push(["script", "Script"]);
-        for chip in chips {
-            let tag = chip[0];
-            let on = S.tree_facet == tag;
-            if ui::pill(chip[1], #{
-                height: 20, size: 10.5, radius: 4,
-                fill: if on { k.accent_soft } else { k.sunken },
-                color: if on { k.accent } else { k.faint },
-            }) {
-                S.tree_facet = if on { "" } else { tag };
+        let (pick, changed) = ui::dropdown("tree-facet", current, names,
+            #{ width: S.layout.left.w - 40.0, size: style::SM, color: k.dim });
+        if changed {
+            S.tree_facet = "";
+            for chip in chips {
+                if chip[1] == pick {
+                    S.tree_facet = chip[0];
+                }
             }
         }
     });
@@ -305,7 +355,7 @@ fn facet_row(S, k) {
 
 pub fn tree_body(S, k) {
     ui::add_space(4);
-    let query = crate::search::field(S, k, "tree", "Find a node…", S.layout.left.w - 24.0);
+    let query = crate::search::field(S, k, "tree", "Search", S.layout.left.w - 24.0);
     ui::add_space(4);
     facet_row(S, k);
     ui::add_space(4);
@@ -313,18 +363,73 @@ pub fn tree_body(S, k) {
         filtered_tree(S, k, query);
         return;
     }
-    let kids = #{};
-    for (i, node) in S.doc.iter().enumerate() {
-        let parent = node.get("parent").unwrap_or("");
-        if !kids.contains_key(parent) {
-            kids[parent] = [];
-        }
-        kids[parent].push(i);
+    show_tree(S, k, open_rows(S));
+}
+
+// The outliner's rows on the `tree` node beside this hatch. One string a row:
+// a tab a level, then the icon and the name either side of a unit separator.
+fn show_tree(S, k, rows) {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return;
     }
-    ui::scroll("tree", #{ max_height: S.layout.left.h - 98.0 }, || {
-        ui::spacing(4, 1);
-        walk(S, k, kids, "", 0);
-    });
+    let items = [];
+    for row in rows {
+        let node = S.doc[row.index];
+        let line = "";
+        let at = 0;
+        while at < row.depth {
+            line += "\t";
+            at += 1;
+        }
+        let (mark, token) = model::node_icon(node);
+        // The type's own colour on the row, which is what a mark alone
+        // cannot say: 2D, 3D, UI and physics each read at a glance.
+        line += util::row(mark, node.name, "", k.get(token).unwrap_or(k.text));
+        items.push(line);
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["options"] = items;
+    params["visible"] = true;
+    params["text"] = if S.sel < rows.len() { items[selected_row(rows, S.sel)] } else { "" };
+    found.set_component("widget", params);
+}
+
+/// Where the tree drew the row for document index `i`, in design px; `None`
+/// before it has drawn. The node's own rect, so no caller counts the chrome
+/// above it, and the walk's row, so a folded branch cannot shift it.
+pub fn row_spot(S, i) {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return None;
+    }
+    let box = ui::widget_rect(found);
+    if util::is_nil(box) {
+        return None;
+    }
+    let n = selected_row(open_rows(S), i) as f64;
+    Some((box.x + box.w * 0.4, box.y + (n + 0.5) * TREE_ROW))
+}
+
+// Which drawn row is the selection, so the node can mark it.
+fn selected_row(rows, sel) {
+    for (n, row) in rows.iter().enumerate() {
+        if row.index == sel {
+            return n;
+        }
+    }
+    0
+}
+
+// Hidden while another panel is up, so its rows do not outlive the tree.
+pub fn hide_tree() {
+    let found = scene::get_node(TREE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["visible"] = false;
+    found.set_component("widget", params);
 }
 
 // Every node the query and the facet chip both allow, as a flat list.
@@ -353,19 +458,37 @@ fn filtered_tree(S, k, query) {
 
 pub fn outline_body(S, k) {
     let (_, rows) = secondary_content(S);
-    ui::add_space(4);
-    ui::scroll("outline", #{ max_height: S.layout.left.h - 44.0 }, || {
-        ui::spacing(4, 4);
-        for row in rows {
-            ui::horizontal(#{ height: 27 }, || {
-                ui::add_space(2);
-                if ui::pill(row.name, util::merge(style::list_row(k, 27), #{
-                    icon: row.icon, icon_size: 12, icon_color: k.dim,
-                    trailing: row.meta, trailing_color: k.faint,
-                })) {
-                    (row.run)();
-                }
-            });
+    let found = scene::get_node(OUTLINE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let items = [];
+    for row in rows {
+        items.push(row.icon + "\u{1f}" + row.name + "\u{1f}" + row.meta);
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["options"] = items;
+    params["visible"] = true;
+    found.set_component("widget", params);
+    // The pick is the row's own action, looked up by the string the node
+    // reports rather than held as a closure on the node.
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            (rows[n].run)();
+            params["text"] = "";
+            found.set_component("widget", params);
         }
-    });
+    }
+}
+
+// Hidden while another panel is up, the way the tree is.
+pub fn hide_outline() {
+    let found = scene::get_node(OUTLINE_NODE);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params["visible"] = false;
+    found.set_component("widget", params);
 }

@@ -98,8 +98,19 @@ macro_rules! functions {
             let f = |value: Real| toml::Value::Float(f64::from(value));
             map.insert(k::RESTITUTION.into(), f(collider.restitution()));
             map.insert(k::FRICTION.into(), f(collider.friction()));
-            map.insert(k::DENSITY.into(), f(collider.density()));
-            map.insert(k::MASS.into(), f(collider.mass()));
+            // Each of `mass` and `density` is derived from the other, so
+            // reporting both would pin one on the next patch or re-save.
+            if map
+                .get(k::MASS)
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(0.0)
+                > 0.0
+            {
+                map.insert(k::MASS.into(), f(collider.mass()));
+            } else {
+                map.insert(k::MASS.into(), f(0.0));
+                map.insert(k::DENSITY.into(), f(collider.density()));
+            }
             map.insert(k::CONTACT_SKIN.into(), f(collider.contact_skin()));
             map.insert(
                 k::CONTACT_FORCE_THRESHOLD.into(),

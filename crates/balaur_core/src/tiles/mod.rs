@@ -390,6 +390,15 @@ pub struct TileGrid {
     pub version: u64,
 }
 
+/// One cell out of rows a caller already holds, for a reader with no whole
+/// [`TileGrid`] to hand: building one copies every row.
+#[must_use]
+pub fn cell_in(rows: &[Vec<Option<u32>>], origin: [i32; 2], column: i32, row: i32) -> Option<u32> {
+    let column = usize::try_from(column - origin[0]).ok()?;
+    let row = usize::try_from(row - origin[1]).ok()?;
+    rows.get(row)?.get(column).copied().flatten()
+}
+
 /// How many cells a count of stored rows or columns spans, as a coordinate.
 /// A map past two billion cells on an edge is not one this counts wrong.
 fn span(count: usize) -> i32 {
@@ -453,8 +462,7 @@ impl TileGrid {
     /// the grid.
     #[must_use]
     pub fn cell(&self, column: i32, row: i32) -> Option<u32> {
-        let (column, row) = self.index_of(column, row)?;
-        self.rows.get(row)?.get(column).copied().flatten()
+        cell_in(&self.rows, self.origin, column, row)
     }
 
     /// How the cell at a coordinate is turned.

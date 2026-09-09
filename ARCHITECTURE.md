@@ -463,9 +463,12 @@ scenes and manifest into a `.bpak`. Packed runs build no compiler and no watcher
   pure interpretation, so it ships where JIT is banned, iOS included. CI
   cross-compiles to iOS, Android and wasm on every push to main.
 - The web target is wasm-bindgen's, not emscripten's: kiss3d declares its web
-  dependencies there and wgpu reaches WebGPU through `web-sys`. Audio is a stub
-  on wasm (no cpal host compiles there), and `balaur_webtransport` is left out
-  until it grows the same stub.
+  dependencies there and wgpu reaches WebGPU through `web-sys`. Audio plays
+  through cpal's WebAudio host, its device opened on the first `UserActivation`
+  rather than at startup, since a browser refuses to start audio before a
+  gesture. `balaur_webtransport` has a browser backend, but no plugin registers
+  it and nothing outside its own tests opens a link, so it stays out of the
+  default web feature set.
 - A pack is written in sorted key order, so two exports of one source tree give
   the same bytes anywhere. CI exports every example twice per platform and diffs
   the digests across the matrix — hashed maps once gave five files from ten

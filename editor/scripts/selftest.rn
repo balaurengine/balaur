@@ -152,7 +152,7 @@ pub fn undo(S) {
         history::commit(S);
         model::set_transform(S, S.sel, #{ position: [p.x + 5.0, p.y, p.z] });
         shell::undo(S);
-        let restored = util::vec3(model::selected_node(S).get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+        let restored = model::doc_transform(model::selected_node(S), "position", [0.0, 0.0, 0.0]);
         check(util::abs(restored[0] - p.x) < 1e-6, format!("undo restores the position ({} vs {})", restored[0], p.x));
     }
 
@@ -204,7 +204,7 @@ pub fn rigging(S) {
     rig::apply_rest(S);
     let bx = model::live(S, first).unwrap().position().x;
     check(util::abs(bx - p.x) < 1e-5, format!("reset to rest pose puts {} back ({} vs {})", bone_name, bx, p.x));
-    let doc_pos = util::vec3(S.doc[first].get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    let doc_pos = model::doc_transform(S.doc[first], "position", [0.0, 0.0, 0.0]);
     check(util::abs(doc_pos[0] - p.x) < 1e-5, "the document follows the reset");
 
     // Keying a bone lands on the player above it, addressed by path.
@@ -569,11 +569,11 @@ pub fn tiles_tool(S) {
 
     // Growing leaves the node where it is: a cell's place is its coordinate,
     // so the map may reach in any direction without sliding.
-    let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    let was_x = util::f(model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);
     check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
-    let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    let now_x = util::f(model::doc_transform(S.doc[S.sel], "position", [0.0, 0.0, 0.0])[0]);
     check(util::abs(now_x - was_x) < 1e-4, format!("the node stayed where it was ({} to {})", was_x, now_x));
 
     // And reaching up and to the left, which the centred map could not do.
@@ -1058,10 +1058,13 @@ pub fn layout(S) {
 
 pub fn layout_step(S) {
     S.layout_demo = S.layout_demo + 1;
-    // The shell is laid out by the engine and read back a frame later, so
-    // this waits for a rect rather than for a frame number. The count is the
-    // fallback: a headless run never gets one, and still has to report.
-    if S.layout.stage.w <= 0.0 && S.layout_demo < 10 {
+    // A settled rect, not the first: the frame the shell first draws it has
+    // no size stated yet and its containers divide an unbounded box.
+    // Two frames that agree is the signal that the layout has taken.
+    let now = S.layout.stage.w;
+    let settled = now > 0.0 && util::abs(now - S.layout_seen) < 0.51;
+    S.layout_seen = now;
+    if !settled && S.layout_demo < 10 {
         return;
     }
     S.layout_demo = -1;
@@ -1145,14 +1148,14 @@ pub fn font_sheet(S) {
                 ui::horizontal(#{ height: 24, width: 92 }, || {
                     ui::label(name, style::mono_sm(k.faint));
                 });
-                ui::label(sample, #{ size: 16, color: k.text });
+                ui::label(sample, #{ size: style::XL, color: k.text });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: 16, font: ui::FONT_HEADING, color: k.text });
-        ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: style::XL, font: ui::FONT_HEADING, color: k.text });
+        ui::label("ui  Source Sans 3 Regular", #{ size: style::LG, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
@@ -1160,19 +1163,19 @@ pub fn font_sheet(S) {
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-                ui::label(crate::icons::tool(id), #{ size: 16, color: k.text });
+                ui::label(crate::icons::tool(id), #{ size: style::XL, color: k.text });
             }
             for id in ["scene", "script", "anim", "phys", "ui"] {
-                ui::label(crate::icons::persona(id), #{ size: 16, color: k.accent });
+                ui::label(crate::icons::persona(id), #{ size: style::XL, color: k.accent });
             }
         });
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
-                ui::label(crate::icons::panel(id), #{ size: 16, color: k.text });
+                ui::label(crate::icons::panel(id), #{ size: style::XL, color: k.text });
             }
             for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-                ui::label(crate::icons::ui(id), #{ size: 16, color: k.sage });
+                ui::label(crate::icons::ui(id), #{ size: style::XL, color: k.sage });
             }
         });
     });
@@ -1304,6 +1307,16 @@ pub fn timings(S) {
     // something else.
     check(util::f(t.frame) >= total - 1e-9,
         format!("the frame ({}) covers its stages ({})", util::f(t.frame), total));
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render land outside them, and `wall` is what the loop took.
+    if !check(t.contains_key("wall"), "the loop's own frame period is there") {
+        return;
+    }
+    let wall = util::f(t.wall);
+    if wall > 0.0 {
+        check(wall >= util::f(t.frame) - 1e-9,
+            format!("the loop's frame ({}) covers its stages ({})", wall, util::f(t.frame)));
+    }
     log::info("selftest timings: done");
 }
 
@@ -1367,6 +1380,26 @@ pub fn plugin_docks(S) {
         check(crate::docks::showing(S, entry.id), format!("showing {} brings it up", entry.id));
     }
     log::info("selftest plugin docks: done");
+}
+
+/// `--state paneldemo`: every row of the mark's menu opens the panel it names
+/// and closes it again. A panel something else reopens on the same frame, or
+/// one no dock will take, reads as a row that does nothing.
+pub fn menu_panels(S) {
+    let ids = crate::docks::known(S);
+    check(ids.len() > 10, format!("the menu lists every panel ({})", ids.len()));
+    for id in ids {
+        let was = crate::docks::side_of(S, id).is_some();
+        crate::docks::toggle(S, id);
+        let now = crate::docks::side_of(S, id).is_some();
+        if !check(now != was, format!("{} toggles ({} to {})", id, was, now)) {
+            continue;
+        }
+        crate::docks::toggle(S, id);
+        check(crate::docks::side_of(S, id).is_some() == was,
+            format!("and {} toggles back", id));
+    }
+    log::info("selftest menu panels: done");
 }
 
 /// `--state settingsdemo`: the settings screen's search field and the query it

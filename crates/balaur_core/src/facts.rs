@@ -82,7 +82,7 @@ fn device_id(eng: &Engine) -> String {
         .map_or(0, |d| d.as_nanos());
     let mut h = crate::digest::Hasher::new();
     h.write(&nanos.to_le_bytes());
-    h.write_u64(u64::from(std::process::id()));
+    h.write_u64(device_salt());
     h.write_u64(eng.tick());
     let id = format!("{}", h.finish());
     if let Some(parent) = path.parent() {
@@ -92,6 +92,18 @@ fn device_id(eng: &Engine) -> String {
         tracing::warn!("the device id could not be kept: {err}");
     }
     id
+}
+
+/// What tells two installs made in the same nanosecond apart. The browser has
+/// no processes and `std::process::id` panics there, so the page draws instead.
+#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+fn device_salt() -> u64 {
+    u64::from(std::process::id())
+}
+
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+fn device_salt() -> u64 {
+    js_sys::Math::random().to_bits()
 }
 
 #[allow(

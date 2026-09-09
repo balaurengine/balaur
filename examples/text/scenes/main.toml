@@ -11,7 +11,10 @@ script = "scripts/tour.rn"
 id = "title"
 name = "Title"
 parent = "n_tour"
+
+[nodes.transform]
 position = [0.0, 3.2, 0.0]
+
 [nodes.text3d]
 text = "Text in the world"
 family = "heading"
@@ -26,7 +29,10 @@ outline_color = [0.12, 0.09, 0.05, 1.0]
 id = "sign"
 name = "Sign"
 parent = "n_tour"
+
+[nodes.transform]
 position = [-3.4, 1.7, 0.0]
+
 [nodes.text3d]
 text = "a sign\nstays put"
 font_size = 52
@@ -40,7 +46,10 @@ line_height = 1.15
 id = "nameplate"
 name = "Nameplate"
 parent = "n_tour"
+
+[nodes.transform]
 position = [3.4, 1.7, 0.0]
+
 [nodes.text3d]
 text = "a name\nfollows you"
 font_size = 52
@@ -52,7 +61,10 @@ line_height = 1.15
 id = "shadowed"
 name = "Shadowed"
 parent = "n_tour"
+
+[nodes.transform]
 position = [0.0, 0.55, 0.0]
+
 [nodes.text3d]
 text = "a shadow behind it"
 font_size = 60
@@ -67,7 +79,10 @@ shadow_color = [0.0, 0.0, 0.0, 0.55]
 id = "marked"
 name = "Marked"
 parent = "n_tour"
+
+[nodes.transform]
 position = [0.0, -0.6, 0.0]
+
 [nodes.text3d]
 text = "[b]bold[/b], [i]italic[/i] and [color=#7fd4ff]colour[/color]"
 font_size = 46
@@ -80,7 +95,10 @@ pixels_per_unit = 110
 id = "paragraph"
 name = "Paragraph"
 parent = "n_tour"
+
+[nodes.transform]
 position = [0.0, -2.1, 0.0]
+
 [nodes.text3d]
 text = "A block wraps at the width it is given, and the lines sit where the shaper put them."
 family = "mono"
@@ -95,7 +113,10 @@ pixels_per_unit = 110
 id = "flat"
 name = "Flat"
 parent = "n_tour"
+
+[nodes.transform]
 position = [0.0, -3.4, 0.0]
+
 [nodes.text2d]
 text = "text2d, in the 2D pass"
 font_size = 44

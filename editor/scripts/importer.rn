@@ -128,46 +128,31 @@ fn row(S, k, rel, kind, spec) {
     if let Some(value) = own {
         effective = value;
     }
-    ui::horizontal(#{ height: 24 }, || {
-        ui::add_space(10);
-        ui::horizontal(#{ height: 24, width: label_w(S) }, || {
-            ui::label(key, #{ size: 11.5, color: k.dim });
-        });
-        ui::horizontal(#{ height: 24, width: control_w(S) }, || {
-            if spec.kind == "bool" {
-                let (on, changed) = ui::toggle(effective == true, #{ role: "toggle",
-                    tooltip: spec.help,
-                    on_fill: k.accent_fill, off_fill: k.sunken,
-                    on_knob: k.on_accent, off_knob: k.faint,
-                });
-                if changed {
-                    write(S, rel, key, on);
-                }
-            } else {
-                let now = if effective is String { effective } else { spec.fallback };
-                let (picked, changed) = ui::dropdown(
-                    format!("import:{}:{}", rel, key), now, spec.options,
-                    #{ width: control_w(S) - 6.0, size: 11.5, height: 24, color: k.text,
-                       tooltip: spec.help },
-                );
-                if changed {
-                    write(S, rel, key, picked);
-                }
-            }
-        });
-        ui::horizontal(#{ height: 24, width: note_w(S) }, || {
-            if has_own {
-                if ui::pill("clear", #{ height: 20, size: 10.5, strong: true,
-                    tooltip: "Drop this key and follow the project again",
-                    fill: k.sunken, color: k.dim }) {
-                    write(S, rel, key, ());
-                }
-            } else {
-                ui::label(source, style::mono_sm(k.faint));
-            }
-        });
-    });
-    ui::add_space(2);
+    let control = if spec.kind == "bool" {
+        #{
+            kind: "check", text: "", tooltip: spec.help,
+            checked: effective == true,
+            on: |on| { write(S, rel, key, on); },
+        }
+    } else {
+        #{
+            kind: "dropdown", grow: 1, tooltip: spec.help,
+            text: if effective is String { effective } else { spec.fallback },
+            options: spec.options,
+            on: |picked| { write(S, rel, key, picked); },
+        }
+    };
+    // What the value is following, or the way back to following it.
+    let note = if has_own {
+        #{
+            kind: "button", text: "clear", role: "chip", width: 52,
+            tooltip: "Drop this key and follow the project again",
+            on: |_| { write(S, rel, key, ()); },
+        }
+    } else {
+        #{ kind: "label", text: source, role: "meta", width: 52 }
+    };
+    crate::inspector::form_row(S, key, [control, note]);
 }
 
 // The rows the selected file offers, empty when nothing is selected or the
@@ -191,6 +176,7 @@ pub fn panel(S, k) {
     let specs = specs_for(S);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
+        crate::inspector::hide_form();
         style::empty(k, why);
         return;
     }
@@ -198,15 +184,18 @@ pub fn panel(S, k) {
     ui::add_space(6);
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(10);
-        ui::label(util::last_segment(rel), #{ size: 11.5, strong: true, color: k.text });
+        ui::label(util::last_segment(rel), #{ size: style::MD, strong: true, color: k.text });
     });
     ui::horizontal(#{ height: 20 }, || {
         ui::add_space(10);
-        let where_from = if fs::exists(full(S, sidecar_of(rel))) { sidecar_of(util::last_segment(rel)) } else { "no settings file yet" };
-        ui::label(format!("{}  ·  {}", kind, where_from), style::mono_sm(k.faint));
+        let from = if fs::exists(full(S, sidecar_of(rel))) { sidecar_of(util::last_segment(rel)) } else { "no settings file yet" };
+        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.faint));
     });
-    ui::add_space(4);
+    // The same pool the inspector fills: one form under the right sheet, and
+    // whichever panel is up describes its rows.
+    crate::inspector::open_pool(S);
     for spec in specs {
         row(S, k, rel, kind, spec);
     }
+    crate::inspector::close_pool(S);
 }

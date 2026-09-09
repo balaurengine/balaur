@@ -23,12 +23,16 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
-# Sizes the pool rapier's solver runs on.
-rayon = "1"
 # A ragdoll aims a tip bone along its gizmo angle, and that angle has to
 # resolve the same way on every platform.
 libm.workspace = true
+rayon = { version = "1", optional = true }
 
+[features]
+default = ["parallel"]
+# rapier's solver on rayon. A browser needs the shared memory and atomics only
+# the threaded web template has, and cargo cannot gate a dependency on those.
+parallel = ["dep:rayon", "rapier2d/parallel", "rapier3d/parallel"]
 
 [dev-dependencies]
 balaur.workspace = true

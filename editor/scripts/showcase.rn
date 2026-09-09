@@ -6,23 +6,21 @@ use crate::anim;
 use crate::chrome;
 use crate::defs;
 use crate::history;
+use crate::left;
 use crate::model;
 use crate::session;
 use crate::shell;
 use crate::util;
 
-// Where the node tree's first row sits inside the left dock, and the pitch of
-// a row: the sheet's tab row and search field, then `left::ROW_H` plus its
-// spacing.
-const TREE_TOP = 65.0;
-const ROW = 24.0;
 // The tool rail's first button below the sheet's own padding, and the pitch of
 // the buttons under it.
-const TOOL_TOP = 21.0;
-const TOOL_PITCH = 31.0;
-// The code pane's own top padding, and one line of the editor's gutter.
-const CODE_TOP = 12.0;
-const LINE_H = 12.44;
+const TOOL_TOP = 22.0;
+const TOOL_PITCH = 32.0;
+// The code pane's first line, from the pane's own top, the pitch of the lines
+// under it, and one column of its monospaced face.
+const CODE_TOP = 21.6;
+const LINE_H = 16.0;
+const CHAR_W = 7.3;
 
 // How long the pointer takes to walk to a control, in frames. Long enough to
 // read as a hand moving, short enough that a clip is not mostly travel.
@@ -239,9 +237,6 @@ fn spot(S, name) {
         "ui_tab" => chrome::persona_spot(S, "ui"),
         "play" => chrome::transport_spot(S, 0),
         "stop" => chrome::transport_spot(S, 2),
-        // The dock, when a session is loaded: its transport, and its ruler.
-        "transport" => (bottom.x + 34.0, bottom.y + 69.0),
-        "ruler" => (bottom.x + 158.0, bottom.y + 69.0),
         // The newest recording's play button in the session list.
         "session" => (bottom.x + 21.0, bottom.y + 94.0),
         "key" => (bottom.x + 32.0, bottom.y + 68.0),
@@ -251,7 +246,10 @@ fn spot(S, name) {
         // Two rows deep in the inspector, whose sections are the scene's; the
         // column is the published one, the offset down it is the clip's.
         "shader_field" => (right.x + right.w * 0.53, right.y + 539.0),
-        "scale_x" => (right.x + 127.0, right.y + 169.0),
+        "scale_x" => match form_spot(S, "Scale") {
+            Some(spot) => spot,
+            None => (right.x + 127.0, right.y + 169.0),
+        },
         _ => (S.screen_w / 2.0, S.screen_h / 2.0),
     }
 }
@@ -269,16 +267,65 @@ fn tool_spot(S, tool) {
     return (rail.x + rail.w / 2.0, rail.y + TOOL_TOP + (slot as f64) * TOOL_PITCH);
 }
 
+// Where an inspector row's first control sits, by the label the form gave it:
+// the pool answers where it drew the row, so a section moving does not move
+// the pointer off it. `None` before the form has drawn.
+fn form_spot(S, label) {
+    let host = scene::get_node("Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm");
+    if util::is_nil(host) {
+        return None;
+    }
+    for (i, row) in S.form.iter().enumerate() {
+        if row.get("label").unwrap_or("") == label {
+            let node = host.get_node(format!("R{}/C/C0", i));
+            if util::is_nil(node) {
+                return None;
+            }
+            let box = ui::widget_rect(node);
+            if util::is_nil(box) {
+                return None;
+            }
+            return Some((box.x + box.w / 2.0, box.y + box.h / 2.0));
+        }
+    }
+    None
+}
+
+// A row of the node tree, by document index: the tree answers where it drew
+// it, and the dock's middle is only reached before it has drawn once.
 fn row_spot(S, i) {
-    let left = S.layout.left;
-    (left.x + left.w * 0.4, left.y + TREE_TOP + ((i as f64) + 0.5) * ROW)
+    let box = S.layout.left;
+    match left::row_spot(S, i) {
+        Some(spot) => spot,
+        None => (box.x + box.w * 0.4, box.y + box.h / 2.0),
+    }
 }
 
 // The gutter of the code editor, by line: the pane's own padding, then one
 // row per line at the editor's line height.
 fn gutter_spot(S, line) {
     let doc = S.layout.doc;
-    (doc.x + 17.0, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H)
+    // The pane does not scroll, so a line past its foot answers with the last
+    // one it shows rather than a pointer drawn below the pane.
+    let last = util::i((doc.h - CODE_TOP - LINE_H) / LINE_H) + 1;
+    let n = if line > last { last } else { line };
+    (doc.x + 17.0, doc.y + CODE_TOP + ((n - 1) as f64) * LINE_H)
+}
+
+// Scroll the code pane so `line` sits `row` lines down it, and answer where its
+// gutter mark then is. Offscreen the pane takes no wheel from a fed pointer, so
+// the clip asks for the offset outright.
+fn scrolled_gutter_spot(S, rel, line, row) {
+    let doc = S.layout.doc;
+    let text = model::source(S, rel).unwrap_or("");
+    let lines = text.split('\n').collect::<Vec>().len();
+    // The pane stops scrolling at its last line, and the cursor has to stop
+    // with it: past that the mark is drawn where the line is not.
+    let last = util::max(0.0, CODE_TOP + ((lines + 2) as f64) * LINE_H - doc.h);
+    let want = if line > row { ((line - row) as f64) * LINE_H } else { 0.0 };
+    let off = if want > last { last } else { want };
+    S.code_scroll = off;
+    return (doc.x + 17.0, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H - off);
 }
 
 // A click a viewer can follow: the cursor walks in, presses where the control
@@ -416,15 +463,18 @@ fn scripting(S, q) {
     click(S, q, 30, || spot(S, "script_tab"), || shell::set_persona(S, "script"));
     click_row(S, q, 110, "Spinner");
     click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
-    // The edit lands on the line the cursor is resting on.
+    // The cursor rests on the edited line, or on the last one the pane can
+    // show when the edit is below its foot.
     glide(S, q, 300 - GLIDE, 300, || {
         let (x, y) = gutter_spot(S, line_of(S, rel, "this.angle += dt"));
         (x + 220.0, y)
     });
     act(q, 320, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
     chord(S, q, 400, ["LWin", "S"], || shell::save_active(S));
-    click(S, q, 520, || gutter_spot(S, line_of(S, rel, "let nudge")),
-        || shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge")));
+    // Scrolled to first: the line the breakpoint goes on is the file's last,
+    // and a mark on a line half off the pane's foot reads as nothing happening.
+    click(S, q, 520, || scrolled_gutter_spot(S, rel, line_of(S, rel, "action_just_pressed"), 8),
+        || shell::toggle_breakpoint(S, rel, line_of(S, rel, "action_just_pressed")));
     chord(S, q, 640, ["F10"], || {
         if S.debug.paused is Object {
             shell::resume(S, debugger::STEP_OVER);
@@ -455,7 +505,9 @@ fn completion(S, q) {
     // Re-opened every frame: `center::code_pane` runs after this and would
     // otherwise close it from the widget's own caret, which offscreen is none.
     over_ui(q, 20, 400, |_| {
-        let line = line_of(S, rel, "this.angle += dt");
+        // `init`, not `update`: the pane does not scroll to a caret the
+        // showcase places, so the popup has to open where it already looks.
+        let line = line_of(S, rel, "pub fn init");
         open_at(S, rel, line, "    physics2d::a");
     });
     act(q, 420, || restore_source(S, rel, q));
@@ -481,7 +533,7 @@ fn open_at(S, rel, line, text) {
     S.script_buffers[S.game_root + "/" + rel] = joined;
     let (x, y) = gutter_spot(S, line + 1);
     crate::complete::update(S, rel, joined, #{
-        x: x + 34.0 + (text.chars().count() as f64) * 6.6, y: y + LINE_H, index: at,
+        x: x + 34.0 + (text.chars().count() as f64) * CHAR_W, y: y + LINE_H, index: at,
     });
 }
 
@@ -521,6 +573,9 @@ fn animation(S, q) {
     at(q, 530, || release(S));
     click(S, q, 600, || spot(S, "key"), || anim::add_key(S, S.anim.time));
     click(S, q, 700, || spot(S, "play"), || shell::toggle_play(S));
+    // Stopped while the figure is still on its feet: the rig's own script
+    // ragdolls it a few seconds in, which reads as the clip breaking.
+    click(S, q, 800, || spot(S, "stop"), || shell::stop_play(S));
 }
 
 // Physics, `examples/angrynerds`: the collider overlays, then play and a
@@ -593,46 +648,6 @@ fn determinism(S, q) {
     });
     click(S, q, 640, || spot(S, "session"), || open_newest(S));
     act(q, 650, || fit_level(S));
-    // Scrub the ruler back: the cursor walks it, and the seek lands on release.
-    glide(S, q, 1000 - GLIDE, 1000, || {
-        let (x, y) = spot(S, "ruler");
-        (x + 420.0, y)
-    });
-    at(q, 1000, || press(S));
-    over(q, 1000, 1080, |p| {
-        let (x, y) = spot(S, "ruler");
-        feed_pointer(S, x + 420.0 - 400.0 * ease(p), y);
-    });
-    act(q, 1080, || {
-        session::seek(S, S.session.first + 10);
-        fit_level(S);
-    });
-    at(q, 1090, || release(S));
-    click(S, q, 1300, || spot(S, "transport"), || session::toggle_pause(S));
-    click(S, q, 1420, || spot(S, "transport"), || session::toggle_pause(S));
-}
-
-// On until the 2D material pipeline binds the preview's probe.
-const PREVIEW = true;
-
-fn preview(S, rel, needle) {
-    let line = line_of(S, rel, needle);
-    if PREVIEW && line > 0 {
-        shell::toggle_shader_preview(S, rel, line);
-    }
-}
-
-// One value preview: click the line in the gutter, hold on the marked line,
-// then show the viewport drawing it.
-fn preview_step(S, q, frame, rel, needle) {
-    click(S, q, frame, || gutter_spot(S, line_of(S, rel, needle)),
-        || preview(S, rel, needle));
-    click(S, q, frame + 90, || spot(S, "doc_scene"), || {
-        S.doctab = "scene";
-    });
-    click(S, q, frame + 220, || spot(S, "doc_code"), || {
-        S.doctab = "script";
-    });
 }
 
 // Shaders, `examples/shaders`: the material in the inspector, its shader in
@@ -651,26 +666,24 @@ fn shaders(S, q) {
         S.shader_rel = rel;
         S.doctab = "script";
     });
-    preview_step(S, q, 260, rel, "let uv");
-    preview_step(S, q, 560, rel, "let wave");
-    preview_step(S, q, 860, rel, "let ramp");
-    act(q, 1150, || {
-        if S.preview_line > 0 {
-            shell::toggle_shader_preview(S, rel, S.preview_line);
-        }
+    // No per-line value preview: `render::set_shader_preview` relinks the
+    // material in a run and not in the editor, so the viewport would show the
+    // same picture whichever line was asked for.
+    click(S, q, 320, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
-        render::set_channel("uv");
     });
-    act(q, 1260, || render::set_channel(""));
-    act(q, 1300, || {
+    act(q, 400, || render::set_channel("uv"));
+    act(q, 520, || render::set_channel("normals"));
+    act(q, 640, || render::set_channel(""));
+    click(S, q, 700, || spot(S, "doc_code"), || {
         S.doctab = "script";
-        edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0");
     });
-    chord(S, q, 1360, ["LWin", "S"], || shell::save_active(S));
-    click(S, q, 1420, || spot(S, "doc_scene"), || {
+    act(q, 780, || edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0"));
+    chord(S, q, 840, ["LWin", "S"], || shell::save_active(S));
+    click(S, q, 900, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
     });
-    act(q, 1600, || {
+    act(q, 1080, || {
         S.doctab = "script";
         restore_source(S, rel, q);
     });

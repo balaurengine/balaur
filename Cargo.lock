@@ -512,7 +512,9 @@ dependencies = [
  "balaur_physics",
  "balaur_script",
  "balaur_script_rune",
+ "balaur_ui",
  "criterion",
+ "egui",
  "hecs",
  "tempfile",
  "toml",
@@ -547,6 +549,7 @@ dependencies = [
  "ureq",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-bindgen-rayon",
  "web-sys",
  "zip",
 ]
@@ -565,6 +568,7 @@ dependencies = [
  "i_overlay",
  "i_triangle",
  "indexmap",
+ "js-sys",
  "libm",
  "rustc-hash 2.1.3",
  "serde",
@@ -614,6 +618,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "balaur_testkit",
  "js-sys",
  "serde",
  "serde_json",
@@ -635,6 +640,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "balaur_testkit",
  "cc",
  "js-sys",
  "serde",
@@ -698,6 +704,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "balaur_testkit",
  "serde",
  "serde_json",
  "tempfile",
@@ -774,12 +781,22 @@ dependencies = [
  "libm",
  "notify",
  "rune",
+ "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "smallvec",
  "tempfile",
  "toml",
  "tracing",
+]
+
+[[package]]
+name = "balaur_testkit"
+version = "0.1.0"
+dependencies = [
+ "balaur",
+ "balaur_core",
+ "tempfile",
 ]
 
 [[package]]
@@ -795,8 +812,11 @@ dependencies = [
  "egui",
  "image",
  "libm",
+ "rustc-hash 2.1.3",
  "serde",
+ "smol_str 0.3.6",
  "swash",
+ "taffy",
  "tempfile",
  "toml",
  "tracing",
@@ -830,6 +850,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "balaur_testkit",
  "cc",
  "flate2",
  "httparse",
@@ -1226,7 +1247,7 @@ checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -1503,6 +1524,15 @@ name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98b0cc327b5bc766e7fda9c9260cc0fa81b43a8e240440422dff70788e3f9ef1"
+dependencies = [
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "crossbeam-deque"
@@ -5194,6 +5224,7 @@ checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
 dependencies = [
  "either",
  "rayon-core",
+ "wasm_sync",
 ]
 
 [[package]]
@@ -5204,6 +5235,7 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+ "wasm_sync",
 ]
 
 [[package]]
@@ -6129,7 +6161,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
 dependencies = [
- "skrifa 0.40.0",
+ "skrifa 0.44.0",
  "yazi",
  "zeno",
 ]
@@ -6338,6 +6370,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "taffy"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "639627c87f43b9181c811f40a6296409e093a17bc761214cba3c15df74f86b99"
+dependencies = [
+ "arrayvec",
+ "serde",
+ "slotmap",
 ]
 
 [[package]]
@@ -7068,12 +7111,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-bindgen-rayon"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a16c60a56c81e4dc3b9c43d76ba5633e1c0278211d59a9cb07d61b6cd1c6583"
+dependencies = [
+ "crossbeam-channel",
+ "js-sys",
+ "rayon",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wasm_sync"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cff360cade7fec41ff0e9d2cda57fe58258c5f16def0e21302394659e6bbb0ea"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

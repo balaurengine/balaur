@@ -4,6 +4,13 @@ Every surface the editor draws: an ASCII mockup, the code that draws it, and the
 screenshot that proves what it looks like. The review sheet — read a mockup, open
 the PNG, write the complaint in §8.
 
+`scripts/uiaudit.sh` shoots whole shells, one a state. `scripts/views.sh` shoots
+one **view** at a time — each dock panel, cut out of the shell to its own PNG in
+`target/views/`, plus two contact sheets: `_sides.png` puts the side panels in a
+row and `_bottoms.png` stacks the bottom ones, which is the shape each is seen
+in. Design a panel against its own picture rather than hunting for it in a
+screenshot of everything.
+
 The shell is **Stage**: the scene runs edge to edge and every panel is a sheet at
 a rect `editor/scripts/layout.rn` computes. The rects that matter are the table
 in [PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1; §1 below is the docked
@@ -20,9 +27,10 @@ the 1240 px compact threshold. The screenshots are regenerated; the prose is not
 
 ## 1. The skeleton
 
-Fixed: nothing docks, floats or re-arranges. A persona re-fills four regions and
-may re-order the dock. Drawn by `editor.rn:draw_ui` in this order: persona bar,
-status bar, tree, inspector, dock, centre.
+Fixed: nothing floats. A persona re-fills four regions and states which panels
+are open in each dock; a tab's close mark takes one away and the mark menu at
+the head of the bar puts it back. Drawn by `editor.rn:draw_ui` in this order:
+persona bar, status bar, tree, inspector, dock, centre.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -53,7 +61,7 @@ status bar, tree, inspector, dock, centre.
 
 | Region | Size | Code | Resizable |
 |---|---|---|---|
-| persona bar | 56 px | `chrome::persona_bar` | no |
+| persona bar | 40 px | `chrome::top_bar` | no |
 | status bar | 28 px | `chrome::status_bar` | no |
 | tree + secondary | 262 px | `left::draw` | no |
 | inspector | 308 px | `inspector::draw` | no |
@@ -67,16 +75,19 @@ status bar, tree, inspector, dock, centre.
 
 ## 2. Personas
 
-Five, `defs::personas()`. Switching resets the tool to Select and points the
-document tab and dock at that persona's defaults. Selection is persona-independent.
+Five, `defs::personas()`. Switching resets the tool to Select, points the
+document tab at that persona's default and opens the panels `defs::persona_docks`
+names, in the docks it names them for. That is all a persona does to the docks:
+what it opens closes again from the tab, and what it leaves out opens from the
+mark menu without changing persona. Selection is persona-independent.
 
 | | Scene | Script | Animate | Physics | Interface |
 |---|---|---|---|---|---|
 | tool rail | select move rotate scale tiles zoom | *(none — rail hides)* | select move bone polygon key zoom | select move polygon zoom | select move zoom |
 | secondary panel | Scenes | Rune modules | Clips | Collision | Interface |
 | viewport chips | 3D·Perspective, Snap 8 px, Guides | — | Motion path, Snap 8 px | Show colliders, Sleep bodies | Safe area, 1920×1080 |
-| inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |
-| default dock | output | output | timeline | output | output |
+| inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, animation/bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |
+| panels open | scene outline · output problems assets · inspector import | scene outline · output problems docs debugger · inspector | scene outline · timeline output library · inspector | scene · output problems profiler · inspector | scene outline · output problems assets · inspector import |
 | screenshot | `01-scene-3d`, `02-scene-2d` | `03-script` | `04-animate` | `05-physics` | `06-interface` |
 
 ---
@@ -170,8 +181,10 @@ region in the shell.
 
 ## 5. Bottom dock — `dock::draw`
 
-Eleven built-in tabs plus one per registered plugin. 150 px; 212 px for
-timeline, debugger, session, profiler and cost.
+Seventeen panels exist; the persona says which of them are open, and a
+registered plugin's joins the bottom dock. 150 px; 212 px for timeline,
+debugger, session, profiler and cost. Every tab carries a close mark, and a
+dock emptied of tabs gives its column back to the scene.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -205,14 +218,14 @@ timeline, debugger, session, profiler and cost.
 ┌────────────────────────────────┐
 │ ◉  Spinner                     │ 34  heading 16
 │    MeshInstance3D              │     mono 11 type
-│ ▾ TRANSFORM ────────────────── │ 10 caps + rule
+│ ▾ TRANSFORM ─────────────── ×  │ 10 caps + rule
 │ Position   [x 0.00][y 0.00][z] │ 28  84 px label column
-│ Rotation   [x 0.00][y 0.00][z] │
+│ Rotation eu[x 0.00][y 0.00][z] │
 │ ▾ SCRIPT ───────────────────── │
 │ Script     [ scripts/x.rn open]│     sage chip
 │ PROPERTIES                     │
-│ clockwise  (●———)              │ 42×24 toggle
-│ speed      [ 3.50            ] │
+│ Clockwise  (●———)              │ 42×24 toggle
+│ Speed      [ 3.50            ] │
 │ ▾ EVENTS ───────────────────── │
 │ ● init()              → engine │ 30
 │ ● update()            → engine │
@@ -224,7 +237,22 @@ timeline, debugger, session, profiler and cost.
 
 Six control shapes: numeric field, select, toggle, slider, script chip, asset row.
 Component sections are generated from `scene::component_schema`, so a plugin's
-component gets a section — and its label width — for free.
+component gets a section — and its label width — for free. The transform is one
+of them: `[nodes.transform]` in the file, `node.transform.position` in a script,
+and a node that names none has none. A row is labelled
+from its property name (`half_extents` reads "Half extents") and its label
+carries the schema's `description` as a tooltip.
+
+---
+
+### 5a. The mark menu — `menu::draw`
+
+The mark at the head of the bar is the shell's one menu, opened with a left
+click: the command palette, Settings and Export, then every panel there is with
+a tick beside the open ones, two to a line, then the row that puts the current
+persona's panels back. A folded side dock is a rail of the same marks: the one
+that opens it, then one per panel it holds. Shot `36-menu`, whose `menudemo`
+state draws the rows as a sheet: no offscreen run can click a popup open.
 
 ---
 
@@ -247,7 +275,7 @@ dropped as they are fixed; git holds them.
 
 | # | Defect | Where | Seen in |
 | --- | --- | --- | --- |
-| D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `angular_damping`, `center_of_mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
+| D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `Angular damping`, `Center of mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
 | D10 | **The Script persona's inspector is ~500 px of nothing** between Events and Add component. | `inspector::draw` | `03`, `12` |
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
@@ -260,7 +288,12 @@ dropped as they are fixed; git holds them.
 
 ### Where the measurements live
 
-The token set is the website's ink-and-blue palette, in `editor/scripts/theme.rn`.
+The token set is the website's ink-and-blue palette, in `editor/themes/*.toml`:
+four surfaces, one seam, three levels of text, one accent and one second
+colour. Type is four sizes — `style::SM` 11, `MD` 12, `LG` 14, `XL` 17 — and a
+call site names one of those or takes the size its `role` carries. Nothing in
+the shell spells a size or a colour of its own.
+
 The measurements — dock heights, the 84 px label column, the 999 px radii, the
 1 px seams — live in the code that draws them. This file is the state of the
 world; the plan is where it is going.

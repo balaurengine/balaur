@@ -6,6 +6,8 @@ name = "Table"
 [[nodes]]
 name = "Top"
 parent = "Table"
+
+[nodes.transform]
 position = [0, 0.74, 0]
 
 [nodes.shape3d]
@@ -17,6 +19,8 @@ color = "#8a6a48"
 [[nodes]]
 name = "LegFrontLeft"
 parent = "Table"
+
+[nodes.transform]
 position = [-0.62, 0.355, -0.37]
 
 [nodes.shape3d]
@@ -28,6 +32,8 @@ color = "#6d5236"
 [[nodes]]
 name = "LegFrontRight"
 parent = "Table"
+
+[nodes.transform]
 position = [0.62, 0.355, -0.37]
 
 [nodes.shape3d]
@@ -39,6 +45,8 @@ color = "#6d5236"
 [[nodes]]
 name = "LegBackLeft"
 parent = "Table"
+
+[nodes.transform]
 position = [-0.62, 0.355, 0.37]
 
 [nodes.shape3d]
@@ -50,6 +58,8 @@ color = "#6d5236"
 [[nodes]]
 name = "LegBackRight"
 parent = "Table"
+
+[nodes.transform]
 position = [0.62, 0.355, 0.37]
 
 [nodes.shape3d]

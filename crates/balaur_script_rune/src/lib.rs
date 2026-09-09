@@ -19,6 +19,7 @@ mod inspect;
 mod packed;
 mod pause;
 mod profile;
+mod script;
 mod script_module;
 mod shared;
 mod task;
@@ -38,6 +39,7 @@ use balaur_core::{Engine, Pack};
 use balaur_script::{Pause, StepMode};
 use hecs::Entity;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use rustc_hash::FxHashMap;
 
 use rune::alloc::clone::TryClone as _;
 use rune::runtime::{Function, RuntimeContext, Unit, VmExecution};
@@ -46,7 +48,7 @@ use rune::{Diagnostics, Source, Sources, Vm};
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
-use inspect::{PublicSignature, public_functions, render};
+use inspect::{public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
 use script_module::script_module;
@@ -111,93 +113,7 @@ enum Purpose {
 /// returning.
 const VM_POOL: usize = 4;
 
-/// A resolved script function.
-#[derive(Clone)]
-struct Method {
-    /// Kept for the paths that hand a callable back to Rune. Behind an `Rc`
-    /// because `Function` is not `Clone` and this is cached, not consumed.
-    function: Rc<Function>,
-    /// Precomputed, for the profiled path that calls a VM by hash.
-    hash: rune::Hash,
-    /// Whether the function runs to completion on the VM that called it. An
-    /// async, generator or stream function's return value holds on to its VM,
-    /// so it cannot use a pooled one.
-    immediate: bool,
-}
-
-struct Script {
-    unit: Arc<Unit>,
-    source: String,
-    /// The sources the unit was compiled from, kept so a runtime error can be
-    /// rendered against them. `VmError` carries instruction pointers; only
-    /// the sources turn those into a file, a line and a caret. `None` for a
-    /// packed script, which ships without them.
-    sources: Option<Rc<Sources>>,
-    /// Resolved lifecycle and signal handlers. A miss is cached too: most
-    /// scripts define none of `on_free`, and asking every frame is not free.
-    methods: HashMap<String, Option<Method>>,
-    /// VMs to reuse, used only while profiling — reading the instruction
-    /// counter needs a VM of our own, and `Function::call` keeps its inside.
-    /// Not a fast path: measured against `Function::call` on the scripting
-    /// benchmarks, borrowing one back out of the host and returning it costs
-    /// about 12% more per call than letting it build its own.
-    vms: Vec<Vm>,
-    lines: Rc<debugger::Lines>,
-    functions: Vec<PublicSignature>,
-    /// Every file the unit was compiled from, as watcher keys, this one
-    /// included: a `mod` submodule is folded in here and is a key nowhere
-    /// else, so a save of one has to be mapped back to this root.
-    deps: Vec<String>,
-    /// `exports()` evaluated once, since it is the same table for every node
-    /// running this file. The failure is cached too — a broken `exports` that
-    /// re-ran per attach would fail once per node. A reload replaces the whole
-    /// `Script`, so a changed default reaches the next attach without an
-    /// invalidation step.
-    exports: Option<Result<Vec<(String, balaur_script::Value)>, String>>,
-}
-
-impl Script {
-    fn new(unit: Arc<Unit>, source: String, sources: Sources, deps: Vec<String>) -> Self {
-        let lines = Rc::new(debugger::Lines::of(&unit, &source));
-        let functions = public_functions(&source);
-        Self {
-            unit,
-            source,
-            sources: Some(Rc::new(sources)),
-            methods: HashMap::new(),
-            vms: Vec::new(),
-            lines,
-            functions,
-            deps,
-            exports: None,
-        }
-    }
-
-    /// A script read back from a pack: the unit is already built, and there is
-    /// no source behind it to render a span against or to hot reload from.
-    fn compiled(unit: Arc<Unit>, functions: Vec<PublicSignature>) -> Self {
-        let lines = Rc::new(debugger::Lines::of(&unit, ""));
-        Self {
-            unit,
-            source: String::new(),
-            sources: None,
-            methods: HashMap::new(),
-            vms: Vec::new(),
-            lines,
-            functions,
-            deps: Vec::new(),
-            exports: None,
-        }
-    }
-}
-
-struct Instance {
-    /// Shared with every other record naming this script: a tick collects one
-    /// key per instance per frame, and a `String` there is an allocation per
-    /// node per frame for a name that never changes.
-    key: Rc<str>,
-    state: rune::Value,
-}
+use crate::script::{Instance, Method, Script};
 
 /// One suspended async method: a VM future parked until `task::wait` finds
 /// its wake, polled again on every wake.
@@ -265,7 +181,7 @@ struct State {
     /// Built once. Compiling needs the full context; running needs only the
     /// runtime half.
     context: Option<(Rc<rune::Context>, Arc<RuntimeContext>)>,
-    scripts: HashMap<String, Script>,
+    scripts: FxHashMap<String, Script>,
     /// `script::require` results: an object of the script's public functions
     /// per key. The object's contents swap in place on hot reload, so every
     /// requirer sees the new code.
@@ -280,7 +196,7 @@ struct State {
     tasks: Vec<RuneTask>,
     events: Option<Receiver<notify::Result<notify::Event>>>,
     _watcher: Option<RecommendedWatcher>,
-    breakpoints: HashMap<String, Breakpoints>,
+    breakpoints: FxHashMap<String, Breakpoints>,
     paused: Option<Paused>,
 }
 
@@ -324,14 +240,14 @@ impl RuneHost {
                 pack,
                 pending: Rc::new(RefCell::new(Vec::new())),
                 context: None,
-                scripts: HashMap::new(),
+                scripts: FxHashMap::default(),
                 modules: HashMap::new(),
                 module_slots: HashMap::new(),
                 instances: indexmap::IndexMap::new(),
                 tasks: Vec::new(),
                 events,
                 _watcher: watcher,
-                breakpoints: HashMap::new(),
+                breakpoints: FxHashMap::default(),
                 paused: None,
             })),
         })
@@ -480,7 +396,7 @@ impl RuneHost {
             let source = self.source_of(key)?;
             let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
             let deps = self.source_keys(&sources);
-            Script::new(unit, source, sources, deps)
+            Script::new(Rc::from(key), unit, source, sources, deps)
         };
         let unit = script.unit.clone();
         self.state
@@ -506,7 +422,11 @@ impl RuneHost {
         };
         let (unit, functions) =
             packed::decode(&bytes).with_context(|| format!("reading {key} from the pack"))?;
-        Ok(Some(Script::compiled(Arc::new(unit), functions)))
+        Ok(Some(Script::compiled(
+            Rc::from(key),
+            Arc::new(unit),
+            functions,
+        )))
     }
 
     /// Look up a script function, returning `None` when it is not defined.
@@ -543,9 +463,19 @@ impl RuneHost {
         found
     }
 
+    /// The one `Rc` this file's instances share. Loaded scripts always have
+    /// one; a key with no script yet gets a fresh one, which is correct and
+    /// only costs the tick an extra group.
+    fn shared_key(&self, key: &str) -> Rc<str> {
+        self.state
+            .borrow()
+            .scripts
+            .get(key)
+            .map_or_else(|| Rc::from(key), |s| s.key.clone())
+    }
+
     /// A VM to run `key`'s code on: a pooled one, or a new one when the pool
     /// is empty because this script is already running further up the stack.
-    /// Only the profiler takes this path.
     fn take_vm(&self, key: &str) -> Option<Vm> {
         if let Some(vm) = self
             .state
@@ -561,7 +491,7 @@ impl RuneHost {
         Some(Vm::new(runtime, unit))
     }
 
-    /// Put a VM back for the next profiled call.
+    /// Put a VM back for the next call that wants one.
     ///
     /// Dropped rather than pooled once the pool is full, and dropped when the
     /// script has been reloaded out from under it — its unit is stale.
@@ -612,7 +542,7 @@ impl RuneHost {
             )?;
         }
         let state = rune::to_value(obj)?;
-        let shared: Rc<str> = Rc::from(key.as_str());
+        let shared = self.shared_key(&key);
         self.state.borrow_mut().instances.insert(
             entity,
             Instance {
@@ -624,7 +554,7 @@ impl RuneHost {
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
-        self.invoke(entity, &key, "init", vec![state], true);
+        self.invoke(entity, &key, "init", (state,), true);
         Ok(())
     }
 
@@ -787,9 +717,25 @@ impl RuneHost {
     }
 
     pub fn call_all(&self, method: &str) {
+        // Resolved per script, like a tick: `draw_ui` runs over every node
+        // every frame and most scripts do not declare it.
+        let mut prepared = Vec::new();
+        let profiling = self.profiling();
         for (entity, key, state) in self.live_batch() {
-            self.invoke(entity, &key, method, vec![state], true);
+            let slot = self.slot_for(&mut prepared, &key, method);
+            if !prepared[slot].declares() {
+                continue;
+            }
+            self.invoke_prepared(
+                entity,
+                &mut prepared[slot],
+                method,
+                (state,),
+                profiling,
+                true,
+            );
         }
+        self.release(prepared);
     }
 
     /// As [`Self::call_all`], with `args` after the instance.
@@ -804,11 +750,25 @@ impl RuneHost {
                 }
             }
         }
+        let mut prepared = Vec::new();
+        let profiling = self.profiling();
         for (entity, key, state) in self.live_batch() {
+            let slot = self.slot_for(&mut prepared, &key, method);
+            if !prepared[slot].declares() {
+                continue;
+            }
             let mut call_args = vec![state];
             call_args.extend(extra.iter().cloned());
-            self.invoke(entity, &key, method, call_args, true);
+            self.invoke_prepared(
+                entity,
+                &mut prepared[slot],
+                method,
+                call_args,
+                profiling,
+                true,
+            );
         }
+        self.release(prepared);
     }
 
     /// Recompile a script and rebind its live instances.
@@ -836,9 +796,16 @@ impl RuneHost {
             let mut state = self.state.borrow_mut();
             // A task suspended in the old unit must not resume into it.
             state.tasks.retain(|t| &*t.key != key);
-            state
+            // Carried across the swap: instances attached before the save
+            // hold this `Rc`, and a tick groups them by its address.
+            let shared = state
                 .scripts
-                .insert(key.to_string(), Script::new(unit, source, sources, deps));
+                .get(key)
+                .map_or_else(|| Rc::from(key), |s| s.key.clone());
+            state.scripts.insert(
+                key.to_string(),
+                Script::new(shared, unit, source, sources, deps),
+            );
             state.paused.take_if(|p| &*p.key == key)
         };
         if let Some(paused) = paused {
@@ -865,7 +832,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, "hot_reload", vec![state], false);
+            self.invoke(entity, key, "hot_reload", (state,), false);
         }
     }
 
@@ -1094,6 +1061,17 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn instance_count(&self) -> usize {
         RuneHost::instance_count(self)
+    }
+
+    fn set_profiling(&self, on: bool) {
+        RuneHost::set_profiling(self, on);
+    }
+
+    fn script_costs(&self) -> Vec<(String, u64, u64)> {
+        RuneHost::script_costs(self)
+            .into_iter()
+            .map(|(key, cost)| (key, cost.calls, cost.instructions))
+            .collect()
     }
 
     fn invoke(

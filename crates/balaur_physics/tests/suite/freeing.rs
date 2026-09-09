@@ -266,6 +266,8 @@ script = "scripts/s.rn"
 [[nodes]]
 id = "n_target"
 name = "Target"
+
+[nodes.transform]
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]

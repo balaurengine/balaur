@@ -143,16 +143,34 @@ web)
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
   # what each feature costs, and gen_docs.py reads the default off this line.
   features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
+  # The solver threads only where the module can: `parallel` pulls rayon in,
+  # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
+  # is not cross-origin isolated. The plain template must not have it.
+  if [ -n "$threads" ]; then
+    features="$features,parallel"
+  fi
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
-  # webtransport is left out until it grows the wasm stub http and websocket have.
+  # webtransport is out: a browser backend exists, but no plugin registers it.
   if [ -n "$threads" ]; then
     # std itself has to be rebuilt with atomics, and `-Z build-std` is nightly
     # only. The pinned stable in rust-toolchain.toml stays the default; this
     # names its own toolchain so the two never fight.
     toolchain=${WEB_THREADS_TOOLCHAIN:-nightly}
     rustup component add rust-src --toolchain "$toolchain"
-    RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+atomics,+bulk-memory,+mutable-globals" \
+    # Shared, imported memory is what a worker attaches to: `+atomics` alone
+    # links a private one, and posting it to a worker fails to clone. A shared
+    # memory must declare a maximum, so the flags name one.
+    flags="-C target-feature=+atomics,+bulk-memory,+mutable-globals"
+    flags="$flags -C link-arg=--shared-memory -C link-arg=--import-memory"
+    flags="$flags -C link-arg=--max-memory=4294967296"
+    # wasm-bindgen's threading pass rewrites TLS per worker and looks these up
+    # by name. wasm-ld keeps them internal unless asked, and the pass then
+    # fails with `failed to find __wasm_init_tls`.
+    for sym in __wasm_init_tls __tls_size __tls_align __tls_base; do
+      flags="$flags -C link-arg=--export=$sym"
+    done
+    RUSTFLAGS="${RUSTFLAGS:-} $flags" \
       cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
       --no-default-features --features "$features" \
       -Z build-std=std,panic_abort
@@ -218,6 +236,11 @@ web)
   rm -rf "$skeleton"
   mkdir -p "$skeleton"
   cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
+  # The shared-memory build's worker helper: wasm-bindgen emits it beside the
+  # glue, which imports it by relative path, so it travels with them.
+  if [ -d "$dist/snippets" ]; then
+    cp -R "$dist/snippets" "$skeleton/"
+  fi
   (cd "$dist" && tar -czf "$name.tar.gz" "$name")
   # Staged, not shipped: dist is uploaded whole, and a directory is not an
   # asset a release can carry.

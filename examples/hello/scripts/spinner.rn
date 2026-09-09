@@ -31,5 +31,5 @@ pub fn update(this, dt) {
     // `spin` is an axis: A/D or the left stick nudge the speed either way.
     let nudge = input::action_value("spin");
     this.angle += dt * (this.speed + nudge * 3.0) * this.direction;
-    this.node.set_rotation_euler(0.0, this.angle, 0.0);
+    this.node.transform.rotation_euler = [0.0, this.angle, 0.0];
 }

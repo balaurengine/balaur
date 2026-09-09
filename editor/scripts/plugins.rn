@@ -1,6 +1,7 @@
 // Editor plugins: unsandboxed Rune modules adding docks, windows, commands,
 // inspector sections, property editors, overlays and start-up states.
 
+use crate::style;
 use crate::util;
 
 /// The registries, before any plugin has been seen.
@@ -188,14 +189,14 @@ pub fn draw_windows(S, k) {
         let draw = entry.draw;
         crate::style::sheet(k, entry.id, r, 12, 0, || {
             ui::horizontal(#{ height: 30 }, || {
-                ui::label(entry.title, #{ size: 11.5, font: ui::FONT_HEADING, strong: true, color: k.text });
+                ui::label(entry.title, #{ size: style::MD, font: ui::FONT_HEADING, strong: true, color: k.text });
                 ui::right(|| {
-                    if ui::circle_button("✕", #{ d: 20, size: 10.5, color: k.dim, tooltip: "Close" }) {
+                    if ui::circle_button(crate::icons::ui("close"), #{ d: 20, size: style::SM, color: k.dim, tooltip: "Close" }) {
                         S.registry.open[entry.id] = false;
                     }
                 });
             });
-            ui::separator(k.line_soft);
+            ui::separator(k.line);
             ui::add_space(6);
             draw(S, k);
         });

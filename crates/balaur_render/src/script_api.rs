@@ -279,6 +279,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("set_grid_colors", &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
         ("draw_line", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
         ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels."),
+        ("draw_lines", &[], "(flat)", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
         ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes `size`, `weight`, `italic`, `color`, `align`, `markup`, `max_width` and `pixels_per_unit`."),
         ("draw_text", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
@@ -352,6 +353,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+    m.function("draw_lines", push_lines);
     // A block of text for one frame, in either pass. `pixels_per_unit` is
     // the only key the shaper does not read, so it is taken out separately.
     m.function(
@@ -517,11 +519,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     m.function("texture_size", |eng: &Engine, path: String| {
-        let bytes = eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&path)?;
-        crate::texture::image_size(&bytes, &path)
+        crate::texture::size_of(eng, &path)
     });
     m.function(
         "trace_texture",
@@ -679,4 +677,41 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
         };
         Ok(result)
     });
+}
+
+/// Eleven numbers a segment: both ends, an rgb, a width and an on-top flag.
+/// One call for a frame's worth of lines, so a tool drawing hundreds of them
+/// crosses the script boundary once rather than once a segment.
+fn push_lines(eng: &Engine, flat: Value) -> anyhow::Result<()> {
+    const STRIDE: usize = 11;
+    let Value::List(items) = flat else {
+        anyhow::bail!("draw_lines takes a flat list of numbers");
+    };
+    if items.len() % STRIDE != 0 {
+        anyhow::bail!(
+            "draw_lines wants {STRIDE} numbers a segment, got {}",
+            items.len()
+        );
+    }
+    let number = |v: &Value| -> f32 {
+        match v {
+            Value::Num(n) => *n as f32,
+            Value::Int(n) => *n as f32,
+            _ => 0.0,
+        }
+    };
+    let lines = eng.resource::<DebugLineBuffer>();
+    let mut buffer = lines.borrow_mut();
+    for segment in items.as_chunks::<STRIDE>().0 {
+        let n: Vec<f32> = segment.iter().map(number).collect();
+        buffer.lines.push((
+            [n[0], n[1], n[2]],
+            [n[3], n[4], n[5]],
+            [n[6], n[7], n[8]],
+            n[9],
+            false,
+            n[10] != 0.0,
+        ));
+    }
+    Ok(())
 }

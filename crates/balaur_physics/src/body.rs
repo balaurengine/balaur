@@ -28,11 +28,11 @@ pub(crate) fn shared_body_schema() -> String {
     v::schema(&[
         (
             k::LINEAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it", group = "damping" }"#,
         ),
         (
             k::ANGULAR_DAMPING,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping", group = "damping" }"#,
         ),
         (
             k::GRAVITY_SCALE,
@@ -40,35 +40,35 @@ pub(crate) fn shared_body_schema() -> String {
         ),
         (
             k::MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass", group = "mass" }"#,
         ),
         (
             k::DOMINANCE,
-            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }"#,
+            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all", group = "solver" }"#,
         ),
         (
             k::SOLVER_ITERATIONS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters", group = "solver" }"#,
         ),
         (
             k::CCD,
-            r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }"#,
+            r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall", group = "fast motion" }"#,
         ),
         (
             k::SOFT_CCD,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies", group = "fast motion" }"#,
         ),
         (
             k::FAST_ROTATION,
-            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }"#,
+            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it", group = "fast motion" }"#,
         ),
         (
             k::CAN_SLEEP,
-            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }"#,
+            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still", group = "sleep" }"#,
         ),
         (
             k::SLEEP_TIME,
-            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }"#,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps", group = "sleep" }"#,
         ),
         (
             k::ENABLED,
@@ -138,14 +138,16 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     // is what an editor's "Sleep bodies" switch writes, and a per-body opinion
     // must not quietly re-enable sleeping under it.
     let may_sleep = world_may_sleep && v::boolean(params, k::CAN_SLEEP, true);
-    *body.activation_mut() = if may_sleep {
-        let mut activation = RigidBodyActivation::default();
-        activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
-        activation
+    let mut activation = if may_sleep {
+        RigidBodyActivation::default()
     } else {
         body.wake_up(true);
         RigidBodyActivation::cannot_sleep()
     };
+    // A body that cannot sleep keeps its `sleep_time` anyway: the negative
+    // thresholds are what hold it awake, so the number survives a re-save.
+    activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
+    *body.activation_mut() = activation;
 }
 
 /// `mass` is *additional* mass, so 0 means "whatever the colliders weigh" —
@@ -501,10 +503,10 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
             "How fast a world point on the body is moving, spin included.",
         ),
         (
-            k::MASS,
+            "total_mass",
             &[c::BODY_3D],
             "",
-            "The body's total mass, colliders included.",
+            "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         ),
         (
             "kinetic_energy",
@@ -556,7 +558,7 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
 /// What a body weighs and how it is moving, read-only: the numbers a script
 /// asks about rather than the ones it sets.
 fn install_body_readers(m: &mut dyn Bindings<Engine>) {
-    m.function("mass", |eng: &Engine, node: NodeId| {
+    m.function("total_mass", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::mass)
     });
     m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
@@ -893,11 +895,11 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not move along" }}"#)),
-            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
-            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
-            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
-            (k::GYROSCOPIC, r#"{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
+            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not move along" }}"#)),
+            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
+            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
+            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
+            (k::GYROSCOPIC, r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
         ]),
         shared_body_schema(),
     ]
@@ -908,7 +910,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
             doc: "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
             schema: ComponentDef::parse_schema(c::BODY_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            expects: &[],
+            expects: &[balaur_core::transform::COMPONENT],
             apply: Box::new(apply_body),
             remove: Box::new(|eng, entity| {
                 // Removing the body keeps the collider, as static geometry.

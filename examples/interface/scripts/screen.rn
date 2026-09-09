@@ -1,0 +1,141 @@
+// The one script this screen has. It writes no layout and draws no pixel:
+// the scene holds the boxes, and this puts rows in the three views that hold
+// a list. A row is `icon`, `label`, `note` and an `#rrggbb`, joined by U+001F.
+
+const SEP = "\u{1f}";
+
+/// Where a picture of the screen goes, for the manual's shot. Empty is a
+/// normal run, which is what a reader gets.
+pub fn exports() {
+    #{ shot: "" }
+}
+
+// What a card, an outline row and a table row are made of. One table, three
+// shapes, so the same data reaches all three views. The marks are glyphs from
+// the Phosphor face the theme names as its icon family.
+fn entries() {
+    [
+        #{ icon: "\u{e67c}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e67c}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e67c}", name: "Torus", kind: "mesh", size: "3.8 kB", tint: "#6fa4d8" },
+        #{ icon: "\u{e6c8}", name: "Brass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        #{ icon: "\u{e6c8}", name: "Glass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        #{ icon: "\u{e468}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
+        #{ icon: "\u{e792}", name: "Walk", kind: "clip", size: "6.0 kB", tint: "#a98fd0" },
+        #{ icon: "\u{e792}", name: "Idle", kind: "clip", size: "2.2 kB", tint: "#a98fd0" },
+        #{ icon: "\u{e2c6}", name: "Hero", kind: "prefab", size: "9.7 kB", tint: "#e6e9ee" },
+        #{ icon: "\u{e2c6}", name: "Crate", kind: "prefab", size: "1.1 kB", tint: "#e6e9ee" },
+        #{ icon: "\u{e464}", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
+        #{ icon: "\u{e2e2}", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
+    ]
+}
+
+fn row(icon, label, note, tint) {
+    icon + SEP + label + SEP + note + SEP + tint
+}
+
+fn fill(this, name, options) {
+    let found = this.node.get_node(name);
+    if found is balaur::Node {
+        found.patch_component("widget", #{ options: options });
+    }
+}
+
+// The cards, in whatever order `shuffle` last left them.
+fn cards(this) {
+    let out = [];
+    for e in this.order {
+        let held = entries()[e];
+        out.push(row(held.icon, held.name, held.kind, held.tint));
+    }
+    out
+}
+
+// The same entries as an outline: a kind, then its members a tab deeper.
+fn outline() {
+    let out = [];
+    let seen = [];
+    for e in entries() {
+        let first = true;
+        for had in seen {
+            if had == e.kind {
+                first = false;
+            }
+        }
+        if first {
+            seen.push(e.kind);
+            out.push(row("", e.kind, "", "#98a3ae"));
+        }
+        out.push("\t" + row(e.icon, e.name, e.size, e.tint));
+    }
+    out
+}
+
+// And as a table: one cell a column, split on the separator the header is.
+fn table() {
+    let out = [];
+    for e in entries() {
+        out.push(e.name + SEP + e.kind + SEP + e.size);
+    }
+    out
+}
+
+pub fn init(this) {
+    this.frame = 0;
+    this.order = [];
+    let n = 0;
+    while n < entries().len() {
+        this.order.push(n);
+        n += 1;
+    }
+}
+
+/// The header button's `on_click`. A deterministic shuffle: the example is a
+/// screenshot as often as it is a screen, and a random one never matches.
+pub fn shuffle(this) {
+    let held = this.order;
+    let out = [];
+    let at = 0;
+    while at < held.len() {
+        out.push(held[(at * 7 + 3) % held.len()]);
+        at += 1;
+    }
+    let seen = [];
+    let kept = [];
+    for e in out {
+        let had = false;
+        for s in seen {
+            if s == e {
+                had = true;
+            }
+        }
+        if !had {
+            seen.push(e);
+            kept.push(e);
+        }
+    }
+    for e in held {
+        let had = false;
+        for s in seen {
+            if s == e {
+                had = true;
+            }
+        }
+        if !had {
+            kept.push(e);
+        }
+    }
+    this.order = kept;
+}
+
+pub fn update(this, dt) {
+    fill(this, "Sheet/Body/Right/Pages/Cards", cards(this));
+    fill(this, "Sheet/Body/Right/Pages/Outline", outline());
+    fill(this, "Sheet/Body/Right/Pages/Table", table());
+    // One picture per run, for the showcase: taken late enough that the
+    // layout has settled and the rows are in.
+    this.frame += 1;
+    if this.frame == 30 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+}

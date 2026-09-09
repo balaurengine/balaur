@@ -81,7 +81,7 @@ use std::rc::Rc;
 
 use crate::keys as k;
 use anyhow::Result;
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 
@@ -213,7 +213,7 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
             .to_string()
     };
     let autoplay = text(k::AUTOPLAY);
-    let speed = params.get(k::SPEED).and_then(as_f64).unwrap_or(1.0) as f32;
+    let speed = balaur_core::components::prop_f32(params, k::SPEED);
     let running = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();

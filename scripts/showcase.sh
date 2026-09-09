@@ -66,6 +66,24 @@ shot() { # shot <name> <project> <state>
   echo ok
 }
 
+# A running project's own window, for an example whose subject is its screen
+# rather than the editor around it.
+screen() { # screen <name> <project>
+  wanted "$1" || return 0
+  printf '%-22s image  ' "$1"
+  rm -f "$work/$1.png"
+  local scene=$2/scenes/main.toml
+  local held
+  held=$(cat "$scene")
+  # The scene's own `shot` prop is where the picture goes; put it back after.
+  printf '%s' "${held//shot = \"\"/shot = \"$PWD/$work/$1.png\"}" >"$scene"
+  balaur run "$2" --offscreen --frames 60 >"$work/$1.log" 2>&1 || true
+  printf '%s' "$held" >"$scene"
+  [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
+  cp "$work/$1.png" "$img/$1.png"
+  echo ok
+}
+
 clip() { # clip <name> <project> <frames> <state>
   wanted "$1" || return 0
   printf '%-22s clip   ' "$1"
@@ -86,6 +104,9 @@ clip() { # clip <name> <project> <frames> <state>
 
 backup_examples
 shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:45"
+# A screen made only of widget nodes: the card grid, the controls and the
+# theme's roles. Run rather than edited, so the picture is the screen itself.
+screen ui_kinds        examples/interface
 shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:tiles,zoom:60"
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
@@ -144,7 +165,7 @@ shot example_c_counter  examples/extension_c_counter "scene"
 
 clip scenes_inspect    examples/hello      800  "show:scenes"
 clip scripting_live    examples/hello      950  "show:scripting"
-clip animation_key     examples/rig        1000 "show:animation"
+clip animation_key     examples/rig        880  "show:animation"
 clip physics_collapse  examples/angrynerds 700  "show:physics"
 clip input_overlay     examples/hello      800  "show:input"
 # Its own recording should be the only row in the list it shows, and every
@@ -154,8 +175,8 @@ case "$(uname -s)" in
   *) data="${XDG_DATA_HOME:-$HOME/.local/share}/balaur/balaur-editor" ;;
 esac
 wanted determinism_replay && rm -rf "$data/sessions/angrynerds"
-clip determinism_replay examples/angrynerds 1560 "show:determinism"
-clip shader_preview    examples/shaders    1700 "show:shaders"
+clip determinism_replay examples/angrynerds 1120 "show:determinism"
+clip shader_preview    examples/shaders    1160 "show:shaders"
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed: ${failed[*]}" >&2

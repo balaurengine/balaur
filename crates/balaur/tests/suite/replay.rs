@@ -18,7 +18,7 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = \"scripts/s.rn\"\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
     )
     .unwrap();
     std::fs::write(dir.join("scripts").join("s.rn"), SCRIPT).unwrap();

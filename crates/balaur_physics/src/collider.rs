@@ -675,35 +675,35 @@ pub(crate) fn shared_collider_schema() -> String {
     v::schema(&[
         (
             k::RESTITUTION,
-            r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound", group = "surface" }"#,
         ),
         (
             k::FRICTION,
-            r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }"#,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice", group = "surface" }"#,
         ),
         (
             k::DENSITY,
-            r#"{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }"#,
+            r#"{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass", group = "mass" }"#,
         ),
         (
             k::MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density", group = "mass" }"#,
         ),
         (
             k::FRICTION_COMBINE,
             &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's friction combines with the other one's" }}"#
+                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's friction combines with the other one's", group = "surface" }}"#
             ),
         ),
         (
             k::RESTITUTION_COMBINE,
             &format!(
-                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's bounciness combines with the other one's" }}"#
+                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's bounciness combines with the other one's", group = "surface" }}"#
             ),
         ),
         (
             k::CONTACT_SKIN,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering", group = "contacts" }"#,
         ),
         (
             k::SENSOR,
@@ -716,46 +716,46 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::LAYERS,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on" }}"#
+                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on", group = "filtering" }}"#
             ),
         ),
         (
             k::MASK,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer" }}"#
+                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
             ),
         ),
         (
             k::SOLVER_LAYERS,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}"#
+                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved", group = "filtering" }}"#
             ),
         ),
         (
             k::SOLVER_MASK,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them" }}"#
+                r#"{{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them", group = "filtering" }}"#
             ),
         ),
         (
             k::EVENTS,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}"#
+                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force", group = "filtering" }}"#
             ),
         ),
         (
             k::CONTACT_FORCE_THRESHOLD,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }"#,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "contacts" }"#,
         ),
         (
             k::ACTIVE_COLLISIONS,
             &format!(
-                r#"{{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}"#
+                r#"{{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default", group = "filtering" }}"#
             ),
         ),
         (
             k::ONE_WAY,
-            r#"{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }"#,
+            r#"{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above", group = "contacts" }"#,
         ),
     ])
 }
@@ -775,24 +775,24 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }"#),
             (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#),
-            (k::BORDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them" }"#),
-            (k::A, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment" }"#),
-            (k::B, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment" }"#),
-            (k::C, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle" }"#),
-            (k::NORMAL, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is halfspace" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
-            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
-            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh" }"#),
-            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell" }}"#)),
-            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit" }}"#)),
-            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground" }"#),
-            (k::CLEAN, r#"{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh" }"#),
-            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful" }"#),
-            (k::SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield" }"#),
-            (k::ONE_WAY_AXIS, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction a one-way platform lets bodies through from" }"#),
-            (k::OFFSET, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node" }"#),
-            (k::OFFSET_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "How the shape is turned relative to the node, in radians" }"#),
+            (k::BORDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them", group = "shape" }"#),
+            (k::A, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment", group = "shape" }"#),
+            (k::B, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),
+            (k::C, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
+            (k::NORMAL, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is halfspace", group = "shape" }"#),
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
+            (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
+            (k::VOXEL_SIZE, r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh", group = "shape" }"#),
+            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell", group = "shape" }}"#)),
+            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit", group = "shape" }}"#)),
+            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground", group = "contacts" }"#),
+            (k::CLEAN, r#"{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh", group = "shape" }"#),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful", group = "shape" }"#),
+            (k::SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield", group = "shape" }"#),
+            (k::ONE_WAY_AXIS, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction a one-way platform lets bodies through from", group = "contacts" }"#),
+            (k::OFFSET, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
+            (k::OFFSET_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "How the shape is turned relative to the node, in radians", group = "shape" }"#),
         ]),
         shared_collider_schema(),
     ]

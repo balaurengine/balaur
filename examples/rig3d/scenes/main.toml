@@ -14,6 +14,8 @@ library = "animations/column.toml"
 id = "n_column_root"
 name = "Root"
 parent = "n_column"
+
+[nodes.transform]
 position = [0.0, 0.0, 0.0]
 rotation_euler = [0.0, 0.0, 0.0]
 scale = [1.0, 1.0, 1.0]
@@ -27,6 +29,8 @@ rest_scale = [1.0, 1.0, 1.0]
 id = "n_column_mid"
 name = "Mid"
 parent = "n_column_root"
+
+[nodes.transform]
 position = [0.0, 1.0, 0.0]
 rotation_euler = [0.0, 0.0, 0.0]
 scale = [1.0, 1.0, 1.0]
@@ -40,6 +44,8 @@ rest_scale = [1.0, 1.0, 1.0]
 id = "n_column_top"
 name = "Top"
 parent = "n_column_mid"
+
+[nodes.transform]
 position = [0.0, 1.0, 0.0]
 rotation_euler = [0.0, 0.0, 0.0]
 scale = [1.0, 1.0, 1.0]
@@ -64,6 +70,8 @@ source = "models/column.glb"
 id = "n_camera"
 name = "Camera"
 parent = ""
+
+[nodes.transform]
 position = [4.0, 3.2, 5.5]
 
 [nodes.camera]
@@ -74,6 +82,8 @@ look_at = [0.0, 1.5, 0.0]
 id = "n_floor"
 name = "Floor"
 parent = ""
+
+[nodes.transform]
 position = [0.0, 0.0, 0.0]
 
 [nodes.shape3d]

@@ -2,20 +2,15 @@
 // and resting size are the `widget` tree under `Editor/Shell` in
 // `scenes/main.toml`; this states the sizes that move and reads back the rest.
 
-use crate::defs;
 use crate::util;
 
-// A minimised dock is a handle and nothing else: a square this big at the top
-// of a side, the status strip this tall across the bottom, and this wide for
-// the tool rail.
-const SHUT_W = 32.0;
-const SHUT_H = 28.0;
-const SHUT_RAIL_W = 34.0;
 // What a timeline, a debugger or a session list needs over the bottom dock's
 // resting height, which the scene states.
 const TALL_EXTRA = 62.0;
-// The dock's own tab row, drawn above whatever the panel scrolls.
-const TAB_ROW_H = 30.0;
+// What a small window takes off the shell's own gutter and the seams between
+// its sheets. The scene states the resting pair; this is the tighter one.
+const TIGHT_GUTTER = 8.0;
+const TIGHT_GAP = 6.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
 const EASE_S = 0.16;
@@ -28,15 +23,22 @@ pub fn state() {
     #{
         bar: rect(0.0, 0.0, 0.0, 0.0),
         left: rect(0.0, 0.0, 0.0, 0.0), rail: rect(0.0, 0.0, 0.0, 0.0),
+        railtop: rect(0.0, 0.0, 0.0, 0.0),
         right: rect(0.0, 0.0, 0.0, 0.0), bottom: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
+        // How tall the tool rail's column is, read back a frame late; the
+        // rail flows into a second column rather than overrun it.
+        rail_room: 400.0,
         // The scene's own numbers, adopted before anything writes over them.
         // Zero until `adopt` has run, which is what `asked` says.
         asked: false,
-        gutter: 0.0, gap: 0.0,
-        tree_w: 0.0, insp_w: 0.0, dock_h: 0.0, rail_w: 0.0, hooks_w: 0.0,
-        status_h: 0.0, rail_shut_h: 0.0,
+        // What each open dock last measured, so folding one at its floor can
+        // put the size it had back when it opens again.
+        reopen: #{},
+        gutter: 0.0, gap: 0.0, pad: 0.0,
+        tree_w: 0.0, insp_w: 0.0, dock_h: 0.0, hooks_w: 0.0,
+        status_h: 0.0,
         // The shell's nodes, resolved once: the tree is the editor's own and
         // does not change under a running editor.
         nodes: #{},
@@ -60,16 +62,24 @@ fn node(S, id) {
         "head" => SHELL + "/Head",
         "body" => SHELL + "/Body",
         "left" => SHELL + "/Body/Left",
+        "leftsheet" => SHELL + "/Body/Left/LeftSheet",
         "right" => SHELL + "/Body/Right",
+        "rightsheet" => SHELL + "/Body/Right/RightSheet",
+        "centre" => SHELL + "/Body/Centre",
+        "upperrow" => SHELL + "/Body/Centre/UpperRow",
+        "stack" => SHELL + "/Body/Centre/UpperRow/Stack",
+        "upper" => SHELL + "/Body/Centre/UpperRow/Stack/Upper",
         "bottom" => SHELL + "/Body/Centre/Bottom",
         "dockbody" => SHELL + "/Body/Centre/Bottom/DockBody",
         "status" => SHELL + "/Body/Centre/Bottom/Status",
-        "railslot" => SHELL + "/Body/Centre/Upper/RailSlot",
-        "rail" => SHELL + "/Body/Centre/Upper/RailSlot/Rail",
-        "work" => SHELL + "/Body/Centre/Upper/Work",
-        "canvas" => SHELL + "/Body/Centre/Upper/Work/Canvas",
-        "stage" => SHELL + "/Body/Centre/Upper/Work/Canvas/Stage",
-        "hooks" => SHELL + "/Body/Centre/Upper/Work/Canvas/Hooks",
+        "rightbody" => SHELL + "/Body/Right/RightSheet/RightBody",
+        "railslot" => SHELL + "/Body/Centre/UpperRow/RailSlot",
+        "rail" => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
+        "railtop" => SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop",
+        "work" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work",
+        "canvas" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas",
+        "stage" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage",
+        "hooks" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks",
         _ => "",
     };
     let found = scene::get_node(path);
@@ -108,12 +118,11 @@ fn adopt(S) {
     }
     m.gutter = util::f(shell.get("padding").unwrap_or(0.0));
     m.gap = util::f(widget_of(S, "body").get("gap").unwrap_or(0.0));
+    m.pad = stated(S, "leftsheet", "padding");
     m.tree_w = stated(S, "left", "width");
     m.insp_w = stated(S, "right", "width");
     m.status_h = stated(S, "status", "height");
     m.dock_h = stated(S, "bottom", "height") - m.status_h;
-    m.rail_w = stated(S, "railslot", "width");
-    m.rail_shut_h = stated(S, "rail", "height");
     m.hooks_w = stated(S, "hooks", "width");
     m.asked = true;
 }
@@ -126,6 +135,17 @@ fn eased(mark) {
     ["left:width", "right:width", "bottom:height", "railslot:width", "hooks:width"]
         .iter()
         .any(|m| m == mark)
+}
+
+/// Whether an eased box is still travelling. A tween moves the widget from
+/// the animation stage, which no UI pass follows: the shell asks for one.
+pub fn animating(S) {
+    for (_, handle) in S.layout.tweens.iter() {
+        if animation::is_tween_running(handle) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Take back a size the pointer changed, so the next write agrees with it.
@@ -143,6 +163,28 @@ fn dragged(S, id, key, into) {
         m[into] = now;
         m.sent[mark] = now;
     }
+}
+
+// What each open dock measured, so folding one at its floor can put the size
+// it had back when it opens again.
+fn remember_open(S) {
+    let m = S.layout;
+    for (side, key) in #{ left: "tree_w", right: "insp_w", bottom: "dock_h" } {
+        if !S.docks[side].shut && m[key] > 0.0 {
+            m.reopen[side] = m[key];
+        }
+    }
+}
+
+// A dock dragged down to the size it cannot go under is folded instead, and
+// the size it had is kept so opening it again lands where it was.
+fn fold_at_floor(S, side, key, floor) {
+    let m = S.layout;
+    if S.docks[side].shut || m[key] > floor + 1.0 {
+        return;
+    }
+    m[key] = m.reopen.get(side).unwrap_or(floor * 1.4);
+    S.docks[side].shut = true;
 }
 
 fn size(S, id, key, value) {
@@ -170,6 +212,23 @@ fn size(S, id, key, value) {
     let params = util::obj(found.get_component("widget"));
     params[key] = value;
     found.set_component("widget", params);
+}
+
+/// Draw a box, or stop drawing it. Memoised like `size`, because a component
+/// written every frame is a widget tree rebuilt every frame.
+fn show(S, id, on) {
+    let m = S.layout;
+    let mark = id + ":visible";
+    let want = if on { 1.0 } else { 0.0 };
+    if m.sent.get(mark) == Some(want) {
+        return;
+    }
+    let found = node(S, id);
+    if util::is_nil(found) {
+        return;
+    }
+    m.sent[mark] = want;
+    found.patch_component("widget", #{ visible: on });
 }
 
 /// Where a box was laid out, in design pixels; a zero rect until it has
@@ -219,26 +278,59 @@ pub fn compute(S) {
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
+    remember_open(S);
     dragged(S, "left", "width", "tree_w");
     dragged(S, "right", "width", "insp_w");
+    dragged(S, "bottom", "height", "dock_h");
+    // Dragged to its floor, a dock folds: the gesture that makes it smallest
+    // is the one that means "put it away".
+    fold_at_floor(S, "left", "tree_w", 180.0);
+    fold_at_floor(S, "right", "insp_w", 220.0);
+    fold_at_floor(S, "bottom", "dock_h", 84.0);
 
     // A narrow window would leave no scene at all, so the sheets give way
-    // before the stage does.
-    let tree_w = if S.docks.left.shut { SHUT_W } else { util::clamp(m.tree_w, 180.0, w * 0.28) };
-    let insp_w = if S.docks.right.shut { SHUT_W } else { util::clamp(m.insp_w, 220.0, w * 0.32) };
+    // before the stage does. A dock with every tab closed gives its column
+    // back to the scene; the logo menu is what puts a panel in it again.
+    let tree_w = side_w(S, "left", util::clamp(m.tree_w, 180.0, w * 0.28));
+    let insp_w = side_w(S, "right", util::clamp(m.insp_w, 220.0, w * 0.32));
     let tall = if crate::docks::bottom_tall(S) { TALL_EXTRA } else { 0.0 };
-    // Minimised, the dock is its status strip and the handle that reopens it.
-    let dock_h = if S.docks.bottom.shut { SHUT_H } else { m.dock_h + tall + m.status_h };
-    let rail_w = if S.rail_visible { (if S.rail_shut { SHUT_RAIL_W } else { m.rail_w }) } else { 0.0 };
+    // Minimised, the dock is gone: its handle sits beside the zoom reading,
+    // the way each side dock's sits at the edge it folded towards.
+    let dock_h = if crate::docks::folded(S, "bottom") {
+        0.0
+    } else {
+        m.dock_h + tall + m.status_h
+    };
+    let grid = crate::center::rail_grid(S, m.rail_room);
+    let rail_w = if S.rail_visible { crate::center::rail_span(grid, grid.cols) } else { 0.0 };
     let hooks_w = if S.hooks_open { m.hooks_w } else { 0.0 };
 
+    // The gutter round the shell and the seams between its sheets: a step
+    // tighter in a small window, where they are most of what is on screen.
+    let tight = S.compact;
+    size(S, "shell", "padding", if tight { TIGHT_GUTTER } else { m.gutter });
+    for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
+        size(S, id, "gap", if tight { TIGHT_GAP } else { m.gap });
+    }
     size(S, "shell", "width", w);
     size(S, "shell", "height", S.screen_h);
     size(S, "left", "width", tree_w);
     size(S, "right", "width", insp_w);
+    // Folded, a side dock's whole column goes. Not the sheet inside it: a
+    // box left at zero width still takes the row's gap either side of it,
+    // which is what stopped the centre reaching the window's own edge.
+    for side in ["left", "right", "bottom"] {
+        show(S, side, !crate::docks::folded(S, side));
+    }
     size(S, "bottom", "height", dock_h);
+    // The right sheet's header, above the rows the pool makes: a `draw` node
+    // with no size takes whatever is left, which would be the whole sheet.
+    size(S, "rightbody", "height", right_head_h(S));
     size(S, "railslot", "width", rail_w);
-    size(S, "rail", "height", rail_h(S));
+    size(S, "rail", "height", crate::center::rail_span(grid, grid.rows));
+    // The folded left dock's handle sits above the tools, so the rail starts
+    // below it rather than beside it.
+    size(S, "railtop", "height", crate::docks::rail_top_h(S));
     size(S, "hooks", "width", hooks_w);
 
     // The widget layer draws after `draw_ui`, so these are a frame behind.
@@ -246,26 +338,30 @@ pub fn compute(S) {
     // always worked.
     let r = #{
         head: box_of(S, "head"),
-        left: box_of(S, "left"),
-        right: box_of(S, "right"),
+        left: box_of(S, "leftsheet"),
+        right: box_of(S, "rightsheet"),
         bottom: box_of(S, "bottom"),
         dockbody: box_of(S, "dockbody"),
         rail: box_of(S, "rail"),
+        railtop: box_of(S, "railtop"),
+        centre: box_of(S, "centre"),
         canvas: box_of(S, "canvas"),
         stage: box_of(S, "stage"),
         hooks: box_of(S, "hooks"),
     };
 
-    // A minimised side dock is its handle: the rest of its column is the
-    // scene's, pointer included.
-    m.left = if S.docks.left.shut { handle(r.left) } else { r.left };
-    m.right = if S.docks.right.shut { handle(r.right) } else { r.right };
+    // The sheet is its own box now, so a folded dock's rect is the square the
+    // widget layer placed rather than one this module has to work out.
+    m.left = r.left;
+    m.right = r.right;
     m.bottom = r.bottom;
     m.hooks = r.hooks;
     m.rail = r.rail;
+    m.railtop = r.railtop;
+    m.rail_room = util::max(120.0, r.centre.h);
     // What a dock panel may scroll: its share of the sheet, less the tab row
     // and the status strip at the foot.
-    m.body_h = util::max(0.0, r.dockbody.h - TAB_ROW_H);
+    m.body_h = util::max(0.0, r.dockbody.h - crate::docks::row_h(S));
     m.bar = r.head;
 
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
@@ -291,8 +387,30 @@ pub fn compute(S) {
     }
 }
 
-fn handle(column) {
-    rect(column.x, column.y, SHUT_W, SHUT_W)
+// What the right sheet draws above its form: the tab row every panel has, and
+// then whatever the panel puts before its rows.
+fn right_head_h(S) {
+    let d = S.docks.right;
+    if d.shut {
+        return 0.0;
+    }
+    let rows = crate::docks::row_h(S) + 8.0;
+    if d.active == "inspector" {
+        return rows + 44.0;
+    }
+    if d.active == "import" {
+        return rows + 52.0;
+    }
+    rows
+}
+
+// A side dock's width: nothing when it holds no panel, its rail when it is
+// folded, and what the seam was dragged to otherwise.
+fn side_w(S, side, open_w) {
+    if S.docks[side].tabs.len() == 0 || S.docks[side].shut {
+        return 0.0;
+    }
+    open_w
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on
@@ -305,16 +423,6 @@ pub fn window_rect(S, n) {
 /// What one persona pill is estimated at, for the showcase's pointer.
 pub fn persona_w(S) {
     if S.compact { 40.0 } else { 76.0 }
-}
-
-fn rail_h(S) {
-    let m = S.layout;
-    if S.rail_shut {
-        return m.rail_shut_h;
-    }
-    let tools = defs::tools(S.persona).len() as f64;
-    // The tools, then the button that hides them.
-    14.0 + tools * 33.0 + 26.0
 }
 
 /// Whether `x`,`y` in design px is over a sheet. Under Stage the scene is the

@@ -26,14 +26,17 @@ mod splash;
 pub mod text;
 mod theme;
 mod vocabulary;
+mod widget_arena;
 mod widget_arrange;
 mod widget_bindings;
+mod widget_button;
 mod widget_input;
 mod widget_kinds;
 mod widget_layer;
 mod widget_layout;
 mod widget_measure;
 mod widget_schema;
+mod widget_taffy;
 mod widget_text;
 mod widget_theme;
 mod widgets;
@@ -42,7 +45,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
-pub use pacing::{Pacing, honour_lazy, wants_pass};
+pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
 pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
 pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
@@ -54,6 +57,7 @@ pub use widget_theme::WidgetTheme;
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget_arrange::drawn_at(entity)
 }
+
 pub use widgets::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
@@ -93,6 +97,11 @@ pub struct UiState {
     /// The value each seeded field was last filled from, so a field re-seeds
     /// when its source changes but not while someone is typing into it.
     pub text_seeds: HashMap<String, String>,
+    /// Per `ui.code_editor`, the galley it last laid out and the hash of the
+    /// text and colours behind it. Highlighting a file is proportional to its
+    /// length, and nothing about it changes on a frame that only moved a
+    /// pointer.
+    pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
     pub focused_once: HashSet<String>,
     /// A finger down on a `scroll` with a deadzone: where it landed and the
     /// offset the scroll had then, until it lifts.
@@ -120,6 +129,7 @@ pub fn forget_scene(eng: &Engine) {
     state.textures.clear();
     state.text_buffers.clear();
     state.text_seeds.clear();
+    state.code_galleys.clear();
     state.focused_once.clear();
     state.forget_egui = true;
 }
@@ -168,6 +178,15 @@ impl balaur_plugin::Plugin for UiPlugin {
 /// Called by a windowed backend once per frame with the frame's egui
 /// context. Does nothing when the `UiPlugin` is not installed.
 pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
+    // What a pass cost, for `pacing` to decide the next one by. Presentation,
+    // outside the simulation, so it reads a clock the digest never sees.
+    #[allow(clippy::disallowed_methods)]
+    let started = balaur_core::time::Instant::now();
+    pass(eng, ctx);
+    pacing::note_pass(eng, started.elapsed());
+}
+
+fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };

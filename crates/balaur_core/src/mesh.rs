@@ -883,6 +883,47 @@ fn path_mesh(eng: &crate::Engine, shape: &PathShape) -> Result<MeshData> {
     }
 }
 
+/// What [`resolved`] has already read, so a caller asking every frame reads
+/// the file once.
+#[derive(Default)]
+struct MeshCache {
+    generation: u64,
+    by_reference: crate::collections::DetHashMap<String, std::rc::Rc<MeshData>>,
+}
+
+/// A mesh reference resolved to its geometry, kept until the asset reloads.
+///
+/// [`load_from`] follows a `source` by reading and parsing the whole file, so
+/// a per-frame caller — picking, counting triangles — wants this instead.
+///
+/// # Errors
+/// If the reference does not resolve, or the file it names does not parse.
+pub fn resolved(eng: &crate::Engine, reference: &str) -> Result<std::rc::Rc<MeshData>> {
+    let generation = crate::assets::generation(eng);
+    if eng.try_resource::<MeshCache>().is_none() {
+        eng.insert_resource(MeshCache::default());
+    }
+    let cache = eng.resource::<MeshCache>();
+    {
+        let mut cache = cache.borrow_mut();
+        if cache.generation != generation {
+            cache.generation = generation;
+            cache.by_reference.clear();
+        }
+        if let Some(held) = cache.by_reference.get(reference) {
+            return Ok(std::rc::Rc::clone(held));
+        }
+    }
+    // Resolved outside the borrow: parsing reaches back into the asset cache.
+    let definition = crate::assets::load_typed::<MeshData>(eng, reference)?;
+    let data = std::rc::Rc::new(load_from(eng, &definition)?);
+    cache
+        .borrow_mut()
+        .by_reference
+        .insert(reference.to_string(), std::rc::Rc::clone(&data));
+    Ok(data)
+}
+
 /// A mesh asset's geometry, with a `source` reference followed to the file it
 /// names. This is the half `parse_definition` cannot do: an asset parser
 /// sees only the definition, and reading a file needs the project reader.

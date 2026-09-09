@@ -105,6 +105,41 @@ Each sheet hides outright: the tree and the inspector minimise to a 32 px
 handle at the top of their column (done, at every width), and the bottom dock
 to its status strip.
 
+### 5.7 Focus, for a script
+
+The Script persona leaves the code about half the window: the tree's 236 px
+and the inspector's 288 px take their columns, the hooks list another 172,
+and the bottom dock 174 of the height, of which the status strip keeps 24.
+Every one of those already folds (§5.6), so a focus mode is not machinery —
+it is one verb that folds them together and puts back what was open.
+
+**Focus is a remembered layout, not a mode.** `shell::toggle_focus` records
+the three docks' `shut` flags and `S.split` into `S.focus_was`, shuts all
+three, turns the split off and points the centre at the `script` tab; a
+second call reads that record back and clears it. One flag is new, `S.focus`,
+and only because the hooks list is derived per frame rather than stored:
+`center::modes` reads it where it already reads `code && !split`. Nothing
+else in the shell learns a state, because `layout.rn` hands a folded sheet's
+width back to the centre today, so the code pane widens by the rects it
+already computes. The tool rail needs no rule at all: it is hidden whenever a
+document owns the centre.
+
+| Piece | Decision |
+|---|---|
+| The verb | `⇧⌘\` beside `⌘\` for the split, a palette command, and a chip next to Split in the top bar |
+| Entering with nothing open | The verb opens the selected node's script first; a node with none says so in the status strip rather than folding the shell around an empty pane |
+| The status strip | Stays. The bottom dock folds to it already, so the problem count and the save state are still readable |
+| Opening a panel while focused | Clears `S.focus_was` rather than fighting it. `⌘K`, a diagnostic's gutter click and the dock tabs all set `shut = false`, and a restore must not shut a panel that was deliberately asked for |
+| The top bar | Stays: the document tabs and the persona bar are how the code is left again |
+| OS full screen | Not this verb. `render.set_fullscreen` is the game's, and a borderless editor loses the tabs |
+| Persisting it | Nowhere, like isolate and lock |
+| A focus layout per persona | Not planned. A persona already says what to have open; this is that answer minus everything |
+
+`focusdemo` is the `--state` that proves it: open a script, focus, assert the
+three docks are shut and the code pane holds the work area, unfocus, assert
+the rects came back. It joins `scripts/uiaudit.sh` and
+[EDITOR-SCREENS.md](EDITOR-SCREENS.md) like every other surface.
+
 ## 6. The other two switches
 
 The mockup carried two more axes that are independent of Stage and cost a
@@ -138,7 +173,7 @@ The numbering is the original plan's; phases 1 and 2 are done.
 |---|---|---|
 | 3 | §4 composites, density, icon font | Every later change is written in this vocabulary |
 | 5 | §5.4 timeline, §5.5 assets and palette | Wrong rather than merely plain |
-| 6 | §5.6 widths and compact, §6 switches | Recovers the work area Stage costs |
+| 6 | §5.6 widths and compact, §5.7 focus, §6 switches | Recovers the work area Stage costs |
 | 7 | §7 golden screens | Locks the result |
 
 ## 9. Not in scope

@@ -25,12 +25,14 @@ mod layout;
 mod library;
 mod left;
 mod lint;
+mod menu;
 mod model;
 mod overlays;
 mod palette;
 mod pen;
 mod plugins;
 mod polygon;
+mod pool;
 mod refactor;
 mod rig;
 mod selftest;
@@ -81,8 +83,24 @@ pub fn init(this) {
         ui_scale: 1.25,
         script_buffers: #{},
         schemas: #{},
+        expects: #{},
+        opened: #{},
         script_dirty: #{},
         collapsed: #{},
+        // The panel `view:<id>` asked for, reported once the shot is taken.
+        view_shot: "",
+        // Where the code pane is asked to scroll to, in design px; below zero
+        // leaves it where the reader left it, and one frame is all it takes.
+        code_scroll: -1.0,
+        // The stage width the layout self-test last saw, so it asserts on a
+        // settled shell rather than on the frame it was still bootstrapping.
+        layout_seen: -1.0,
+        // The inspector's rows, described each frame and made by `pool.rn`.
+        form: [], form_draws: [], form_cursor: 0, pool: #{},
+        // Bumped whenever `S.doc` is replaced, so the outliner can keep a
+        // flattened tree across frames instead of rebuilding one each pass.
+        doc_rev: 0,
+        tree_cache: #{},
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
         sels: [0],
@@ -106,6 +124,7 @@ pub fn init(this) {
         rail_visible: false,
         rail_shut: false,
         fontdemo: false,
+        menu_open: false,
         // A document is over the scene; the hooks list is beside it.
         doc_open: false,
         hooks_open: false,
@@ -215,6 +234,7 @@ pub fn update(this, dt) {
     if let Some(shot) = shot_some {
         if S.frame == 60 {
             render::screenshot(shot);
+            report_view(S);
         }
     }
     let cap = S.capture;
@@ -314,8 +334,11 @@ pub fn update(this, dt) {
         }
     }
     // What moves without input asks for the next pass; the rest waits for one.
+    // A dock folding away and a gizmo drag both move the picture while the
+    // pointer holds still, so both are in the list.
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+        || layout::animating(S) || S.gizmo.drag is Object
     {
         ui::request_repaint();
     }
@@ -476,6 +499,9 @@ pub fn draw_ui(this) {
     if S.fontdemo {
         selftest::font_sheet(S);
     }
+    if S.menu_open {
+        menu::preview(S);
+    }
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
     exporter::draw(S);
@@ -503,6 +529,62 @@ pub fn draw_dock_left(this) {
 
 pub fn draw_dock_right(this) {
     docks::draw_body(this.S, this.S.theme, "right");
+}
+
+// One hatch per painting view, so the scene names each rather than four of
+// them sharing the dock's body.
+/// Where the panel `view:<id>` asked for was drawn, in device pixels, so a
+/// design pass can cut it out of the shot.
+fn report_view(S) {
+    if S.view_shot == "" {
+        return;
+    }
+    let side = match docks::side_of(S, S.view_shot) {
+        Some(side) => side,
+        None => return,
+    };
+    let r = S.layout[side];
+    let f = S.ui_scale;
+    log::info(format!("viewrect {} {} {} {} {}", S.view_shot,
+        r.x * f, r.y * f, r.w * f, r.h * f));
+}
+
+pub fn draw_view_timeline(this) {
+    dock::timeline(this.S, this.S.theme);
+}
+
+pub fn draw_view_session(this) {
+    dock::session_view(this.S, this.S.theme);
+}
+
+pub fn draw_view_weights(this) {
+    weights::body(this.S, this.S.theme);
+}
+
+pub fn draw_view_bonemap(this) {
+    bonemap::body(this.S, this.S.theme);
+}
+
+pub fn draw_dock_tools_left(this) {
+    docks::draw_tools(this.S, this.S.theme, "left");
+}
+
+pub fn draw_dock_tools_right(this) {
+    docks::draw_tools(this.S, this.S.theme, "right");
+}
+
+pub fn draw_dock_tools_bottom(this) {
+    docks::draw_tools(this.S, this.S.theme, "bottom");
+}
+
+pub fn draw_dock_right_foot(this) {
+    docks::draw_right_foot(this.S, this.S.theme);
+}
+
+// One hatch for every row the inspector's pool draws itself; the cursor in
+// `inspector` keeps the calls in step with the rows that pushed them.
+pub fn draw_form_row(this) {
+    inspector::draw_row(this.S);
 }
 
 pub fn draw_dock_bottom(this) {

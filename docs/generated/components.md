@@ -27,6 +27,13 @@ below are the functions that declared they act on it. Every handle also
 carries `get()`, `set(table)`, `has()` and `remove()`, so a component
 with no methods of its own is still reachable that way.
 
+**Properties.** Every property in the tables below is also a field on
+that handle, so `node.collider3d.density = 15.0` writes one property
+and leaves the rest where they were, and `node.collider3d.density`
+reads it back off the running component rather than off the scene.
+A name the component does not declare is an error, not a silent
+no-op: `node.body3d.density` fails both ways.
+
 Components are grouped by the first of their facet tags; one with
 several (`collider2d` is both `2d` and `physics`) lists them all under
 its heading.
@@ -85,7 +92,6 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>kinetic_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>linear_velocityNodeId</code></td><td><code>(f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>locked_axesNodeId</code></td><td><code>(bool, bool, bool)</code></td><td>Whether x, y and rotation are frozen.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>max_contact_impulseNodeId</code></td><td><code>f32</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>next_positionNodeId</code></td><td><code>(f32, f32)</code></td><td>The position a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
@@ -103,6 +109,7 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>set_lock_translation(bool, bool)</code></td><td>—</td><td>Freeze the body&#x27;s movement along x and y.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>sleepNodeId</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>teleport(f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>total_massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included. The `mass` property is the extra on top of them.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>user_forceNodeId</code></td><td><code>(f32, f32)</code></td><td>The force the next step will integrate.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>user_torqueNodeId</code></td><td><code>f32</code></td><td>The torque the next step will integrate.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32)</code></td><td><code>(f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics2d</code></td></tr>
@@ -568,6 +575,21 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 </tbody>
 </table>
 
+### `transform`
+
+`2d` · `3d` · 3 properties
+
+Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the node sits in its parent&#x27;s space</td></tr>
+<tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
+<tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Size relative to the parent&#x27;s</td></tr>
+</tbody>
+</table>
+
 ## 3D
 
 ### `body3d`
@@ -625,7 +647,6 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>kinetic_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>linear_velocityNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>locked_axesNodeId</code></td><td><code>(bool, bool, bool, bool, bool, bool)</code></td><td>Which translation and rotation axes are frozen.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>next_positionNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>potential_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics3d</code></td></tr>
@@ -644,6 +665,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>set_lock_translation(bool, bool, bool)</code></td><td>—</td><td>Freeze the body&#x27;s movement along each world axis.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>sleepNodeId</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>teleport(f32, f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included. The `mass` property is the extra on top of them.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>user_forceNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The force the next step will integrate.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>user_torqueNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The torque the next step will integrate.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32, f32)</code></td><td><code>(f32, f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
@@ -1292,7 +1314,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 49 properties
+`ui` · 61 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1304,10 +1326,14 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>fill</code>.</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked; every click flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
-<tr><td><code>columns</code></td><td>int</td><td><code>2</code></td><td>How many children a `grid` puts on each row At least 1.</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
+<tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list At least 0.</td></tr>
 <tr><td><code>deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
+<tr><td><code>disabled</code></td><td>bool</td><td><code>false</code></td><td>Grey the widget out and swallow its clicks</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
+<tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
+<tr><td><code>font</code></td><td>enum</td><td><code>ui</code></td><td>Which of the theme&#x27;s families the widget draws in One of <code>ui</code>, <code>mono</code>, <code>heading</code>, <code>icon</code>.</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
@@ -1315,13 +1341,15 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>check</code>, <code>dropdown</code>, <code>slider</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>.</td></tr>
+<tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes One of <code>start</code>, <code>center</code>, <code>end</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>color</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>, <code>code</code>.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
-<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`</td></tr>
+<tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `field` takes; 0 is no limit At least 0.0.</td></tr>
-<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress`</td></tr>
+<tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
 <tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `field` to digits, a sign and a point</td></tr>
@@ -1330,19 +1358,25 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text on Enter, or when focus leaves it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
-<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>What a `dropdown` offers; `text` is the one chosen, and `on_change` hears the new one</td></tr>
+<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>
-<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty</td></tr>
+<tr><td><code>padding_x</code></td><td>float</td><td><code>-1.0</code></td><td>The air either side of a caption, in design pixels; below zero takes the theme&#x27;s own</td></tr>
+<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`&#x27;s column names split on U+001F</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
+<tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
+<tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
-<tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws</td></tr>
-<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to; 0 is continuous At least 0.0.</td></tr>
+<tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>
+<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
+<tr><td><code>stroke</code></td><td>string</td><td>—</td><td>The outline around this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
 <tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
-<tr><td><code>text_color</code></td><td>color</td><td><code>[0.933, 0.945, 0.957, 1.0]</code></td><td>Text color</td></tr>
+<tr><td><code>text_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Text color; fully transparent takes the theme&#x27;s colour for this widget&#x27;s role or kind, and failing that a near-white</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
-<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider` or `progress` stands, between `min` and `max`; a slider writes it and calls `on_change` with it</td></tr>
+<tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why</td></tr>
+<tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line</td></tr>

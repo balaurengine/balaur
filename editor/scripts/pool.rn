@@ -1,0 +1,261 @@
+//! A pool of widget nodes under one host: a form whose fields change with the
+//! selection cannot be authored, so a script makes the rows it needs.
+//!
+//! Spare rows are hidden rather than freed, so scrolling a long component
+//! list does not churn the scene tree.
+
+use crate::util;
+
+// What carries a control's value, per kind. A control the table does not
+// name reports nothing, which is what a label and a separator do.
+fn carrier(kind) {
+    if kind == "drag_value" || kind == "slider" || kind == "progress" {
+        return "value";
+    }
+    if kind == "check" {
+        return "checked";
+    }
+    if kind == "field" || kind == "dropdown" || kind == "text_area" || kind == "list" {
+        return "text";
+    }
+    if kind == "color" {
+        return "color";
+    }
+    if kind == "button" {
+        return "clicked";
+    }
+    ""
+}
+
+// What the pool wrote to each control last frame, per host. A report that
+// differs from this is the reader's edit; one that matches is our own value
+// coming back, which must not be written again.
+fn memo(S, host) {
+    if !(S.pool is Object) {
+        S.pool = #{};
+    }
+    if !(S.pool.get(host) is Option) {
+        S.pool[host] = #{};
+    }
+    let held = S.pool.get(host);
+    match held {
+        Some(table) => table,
+        None => #{},
+    }
+}
+
+fn remember(S, host, key, value) {
+    let table = memo(S, host);
+    table[key] = value;
+    S.pool[host] = table;
+}
+
+// A row: a label of a fixed width, then the controls sharing what is left.
+// One shape for every property, so the columns line up down the whole panel.
+fn make_row(host, index) {
+    let row = host.add_child(format!("R{}", index));
+    row.set_component("widget", #{ kind: "row", gap: 6, height: 24 });
+    let label = row.add_child("L");
+    label.set_component("widget", #{ kind: "label", role: "label" });
+    let slot = row.add_child("C");
+    slot.set_component("widget", #{ kind: "row", gap: 1, grow: 1 });
+    let hatch = row.add_child("D");
+    hatch.set_component("widget", #{ kind: "draw", visible: false, grow: 1 });
+    row
+}
+
+// Controls are made as a row needs them: a scalar takes one, a vec3 takes
+// three, and a row that never held a vector never grows the other two.
+fn control_at(slot, index) {
+    let held = slot.get_node(format!("C{}", index));
+    if !util::is_nil(held) {
+        return held;
+    }
+    let made = slot.add_child(format!("C{}", index));
+    made.set_component("widget", #{ kind: "label" });
+    made
+}
+
+/// One control: what it reports, then what the row wants it to hold.
+///
+/// Read before write, because a node reports the frame before: the value on
+/// it now is either what this wrote or the reader's edit over the top.
+fn apply_control(S, host, key, node, want) {
+    let kind = want.get("kind").unwrap_or("label");
+    let carries = carrier(kind);
+    // Keyed by what the control carries as well as by where it sits: a pooled
+    // node the next selection gives another kind left a value of another type
+    // under its slot, and comparing across the two is not a comparison.
+    let held = format!("{}:{}", key, carries);
+    let params = util::obj(node.get_component("widget"));
+    let fired = false;
+    // A press is not a value: it is true for one frame and the layer clears
+    // it, so there is nothing to remember and nothing to write back.
+    if carries == "clicked" {
+        if params["clicked"] == true {
+            let found = want.get("on");
+            if let Some(act) = found {
+                act(true);
+            }
+        }
+    } else if carries != "" {
+        let seen = params[carries];
+        let table = memo(S, host);
+        let before = table.get(held);
+        let known = match before {
+            Some(value) => value,
+            None => seen,
+        };
+        if seen != known {
+            let found = want.get("on");
+            if let Some(act) = found {
+                act(seen);
+            }
+            fired = true;
+            // Held at what the reader left it on for one frame: the model
+            // may clamp, and snapping back before it has answered is a jump.
+            remember(S, host, held, seen);
+        }
+    }
+    let set = util::merge(want, #{ visible: true });
+    set.remove("on");
+    set.remove("clicked");
+    if fired {
+        set.remove(carries);
+    }
+    node.patch_component("widget", set);
+    // Remembered as the node holds it, not as it was asked for: a float goes
+    // through the component as an f32, and 0.2 does not come back as 0.2.
+    if carries != "" && carries != "clicked" && !fired {
+        remember(S, host, held, util::obj(node.get_component("widget"))[carries]);
+    }
+}
+
+/// Fill a row of controls, one node each, making and hiding as needed.
+///
+/// The strip the chrome is made of: how many personas, documents and tools
+/// there are changes with the persona and with what is open, so the bar can
+/// no more be authored than the inspector's form can.
+pub fn strip(S, host_path, controls) {
+    let host = scene::get_node(host_path);
+    if util::is_nil(host) {
+        return;
+    }
+    host.patch_component("widget", #{ visible: true });
+    let made = host.children().len();
+    while made < controls.len() {
+        let node = host.add_child(format!("C{}", made));
+        node.set_component("widget", #{ kind: "label" });
+        made += 1;
+    }
+    for (i, node) in host.children().iter().enumerate() {
+        if i >= controls.len() {
+            node.patch_component("widget", #{ visible: false });
+            continue;
+        }
+        // A control that carries its own controls is a group: one box with no
+        // air in it, which is how a tab and the mark that closes it read as a
+        // single tile rather than two.
+        let held = controls[i];
+        let inner = held.get("controls");
+        match inner {
+            Some(inner) => group(S, host_path, i, node, held, inner),
+            None => apply_control(S, host_path, format!("{}", i), node, held),
+        }
+    }
+}
+
+fn group(S, host, i, node, want, inner) {
+    let set = util::merge(want, #{ kind: "row", visible: true, gap: 0 });
+    set.remove("controls");
+    node.patch_component("widget", set);
+    let made = node.children().len();
+    while made < inner.len() {
+        let kid = node.add_child(format!("C{}", made));
+        kid.set_component("widget", #{ kind: "label" });
+        made += 1;
+    }
+    for (n, kid) in node.children().iter().enumerate() {
+        if n >= inner.len() {
+            kid.patch_component("widget", #{ visible: false });
+            continue;
+        }
+        apply_control(S, host, format!("{}:{}", i, n), kid, inner[n]);
+    }
+}
+
+/// Put `specs` on the host's children, making what is missing and hiding what
+/// is spare. A spec is `#{ label, controls }`, and a control is a widget
+/// property table plus an `on` the pool calls with the reader's edit.
+pub fn sync(S, host_path, specs, label_w, control_w) {
+    let host = scene::get_node(host_path);
+    if util::is_nil(host) {
+        return;
+    }
+    host.patch_component("widget", #{ visible: true });
+    let made = host.children().len();
+    while made < specs.len() {
+        make_row(host, made);
+        made += 1;
+    }
+    for (i, row) in host.children().iter().enumerate() {
+        if i >= specs.len() {
+            row.patch_component("widget", #{ visible: false });
+            continue;
+        }
+        let spec = specs[i];
+        row.patch_component("widget", #{ visible: true, height: spec.get("height").unwrap_or(24) });
+        // A row the caller draws itself: the bespoke ones no control table
+        // describes. It is still a node, and it still sits in the column.
+        let drawn = spec.get("draw");
+        let hatch = row.get_node("D");
+        if !util::is_nil(hatch) {
+            match drawn {
+                Some(name) => hatch.patch_component("widget", #{ visible: true, draw: name }),
+                None => hatch.patch_component("widget", #{ visible: false }),
+            }
+        }
+        let full = spec.get("full").unwrap_or(false);
+        let label = row.get_node("L");
+        if !util::is_nil(label) {
+            label.patch_component("widget", #{
+                visible: !full,
+                text: spec.get("label").unwrap_or(""),
+                width: label_w,
+                role: spec.get("label_role").unwrap_or("label"),
+                tooltip: spec.get("tooltip").unwrap_or(""),
+            });
+        }
+        let slot = row.get_node("C");
+        if util::is_nil(slot) {
+            continue;
+        }
+        slot.patch_component("widget", #{
+            visible: drawn.is_none(),
+            width: if full { 0.0 } else { control_w },
+            grow: if full { 1.0 } else { 0.0 },
+        });
+        if drawn.is_some() {
+            continue;
+        }
+        let controls = util::vec(spec.get("controls").unwrap_or([]));
+        let n = 0;
+        while n < controls.len() {
+            let node = control_at(slot, n);
+            apply_control(S, host_path, format!("{}:{}", i, n), node, controls[n]);
+            n += 1;
+        }
+        // Whatever a longer row left behind. Hidden, not freed: the next
+        // selection may be a vector again.
+        for (c, node) in slot.children().iter().enumerate() {
+            if c >= controls.len() {
+                node.patch_component("widget", #{ visible: false });
+            }
+        }
+    }
+}
+
+/// Stop drawing the whole pool, for a panel that has nothing to show.
+pub fn hide(host_path) {
+    util::hide(host_path);
+}

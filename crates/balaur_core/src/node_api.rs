@@ -112,6 +112,14 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_parent,
     },
     NodeOp {
+        name: "sibling_index",
+        call: sibling_index,
+    },
+    NodeOp {
+        name: "set_sibling_index",
+        call: set_sibling_index,
+    },
+    NodeOp {
         name: "set_component",
         call: set_component,
     },
@@ -251,6 +259,8 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("parent", &[], "()", "The node's parent, nil at the root."),
         ("children", &[], "()", "The node's direct children, an empty list when it has none."),
         ("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent."),
+        ("sibling_index", &[], "()", "Where the node sits among its parent's children, counting from zero; 0 at the root."),
+        ("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest."),
         ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
         ("go", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
@@ -440,12 +450,43 @@ fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {
+/// Read the node's local transform, answering identity when it has none.
+///
+/// A node without the `transform` component sits where its parent does, which
+/// is what `propagate_transforms` already does with one, so a reader gets that
+/// answer rather than an error about a component nothing said it needed.
+fn read_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&Transform) -> R) -> Result<R> {
     let world = eng.world();
-    let mut transform = world
-        .get::<&mut Transform>(e)
-        .map_err(|_| anyhow!("node is dead or has no transform"))?;
-    Ok(f(&mut transform))
+    if !world.contains(e) {
+        return Err(anyhow!("node is dead"));
+    }
+    match world.get::<&Transform>(e) {
+        Ok(transform) => Ok(f(&transform)),
+        Err(_) => Ok(f(&Transform::identity())),
+    }
+}
+
+/// Write the node's local transform, giving it one when it has none.
+///
+/// Moving a node is what says it has a transform, so a script never has to add
+/// the component before setting a position. The node changes archetype the once
+/// -- which is why a scene file naming a transform is spawned with one.
+fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {
+    {
+        let world = eng.world();
+        if let Ok(mut transform) = world.get::<&mut Transform>(e) {
+            return Ok(f(&mut transform));
+        }
+        if !world.contains(e) {
+            return Err(anyhow!("node is dead"));
+        }
+    }
+    let mut transform = Transform::identity();
+    let out = f(&mut transform);
+    eng.world_mut()
+        .insert_one(e, transform)
+        .map_err(|_| anyhow!("node is dead"))?;
+    Ok(out)
 }
 
 fn is_valid(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -478,7 +519,7 @@ fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn position(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| vec3(t.position))
+    read_transform(eng, node(args)?, |t| vec3(t.position))
 }
 
 fn set_position(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -494,7 +535,7 @@ fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| {
+    read_transform(eng, node(args)?, |t| {
         let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
         Value::Vec3([roll, pitch, yaw])
     })
@@ -514,7 +555,7 @@ fn set_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// person authors, so the pair exists rather than every caller carrying its
 /// own `math.deg` conversion the way the editor's inspector used to.
 fn rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| {
+    read_transform(eng, node(args)?, |t| {
         let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
         Value::Vec3([roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees()])
     })
@@ -534,7 +575,7 @@ fn set_rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 fn scale(eng: &Engine, args: &[Value]) -> Result<Value> {
-    with_transform(eng, node(args)?, |t| vec3(t.scale))
+    read_transform(eng, node(args)?, |t| vec3(t.scale))
 }
 
 fn set_scale(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -604,6 +645,40 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
     };
     scene::reparent(&mut eng.world_mut(), e, parent)?;
+    Ok(Value::Nil)
+}
+
+/// `node:sibling_index()`: where it sits among its parent's children.
+fn sibling_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    let Ok(parent) = world.get::<&Parent>(e) else {
+        return Ok(Value::Int(0));
+    };
+    let at = world
+        .get::<&Children>(parent.0)
+        .ok()
+        .and_then(|kids| kids.0.iter().position(|&c| c == e));
+    Ok(Value::Int(
+        at.and_then(|at| i64::try_from(at).ok()).unwrap_or(0),
+    ))
+}
+
+/// `node:set_sibling_index(i)`: move it among its siblings. Order is what a
+/// container lays out in and what the digest walks, so this is a scene edit
+/// rather than a view setting.
+fn set_sibling_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let index = match args.get(1) {
+        Some(Value::Int(i)) => usize::try_from(*i).unwrap_or(0),
+        Some(Value::Num(n)) => *n as usize,
+        other => return Err(anyhow!("argument 1 should be an index, got {other:?}")),
+    };
+    let world = eng.world_mut();
+    let Ok(parent) = world.get::<&Parent>(e).map(|p| p.0) else {
+        return Ok(Value::Nil);
+    };
+    scene::move_child_to(&world, parent, e, index);
     Ok(Value::Nil)
 }
 

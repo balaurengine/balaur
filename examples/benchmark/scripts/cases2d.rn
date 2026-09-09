@@ -77,7 +77,7 @@ fn mixed_pile() {
         ("place", |w, i| {
             let at = world::lattice_2d(i, [30.0, 30.0], 88, [-1305.0, 930.0], 0.05);
             let node = world::body(w, [at[0], -at[1]], pile_shape(i % 4));
-            node.set_rotation_euler(0.0, 0.0, rng::range(-3.14159, 3.14159));
+            node.transform.rotation_euler = [0.0, 0.0, rng::range(-3.14159, 3.14159)];
         }),
     ])
 }
@@ -127,7 +127,7 @@ fn joint_grid() {
         ("extra", |w| {
             let worst = 0.0;
             for (i, body) in w.bodies.iter().enumerate() {
-                let p = body.position();
+                let p = body.transform.position;
                 let moved = world::distance([p.x, p.y, 0.0], lattice_at(i));
                 if moved > worst {
                     worst = moved;
@@ -179,7 +179,7 @@ fn spread(w) {
     let centre = [0.0, 0.0];
     let counted = 0;
     for body in w.bodies {
-        let p = body.position();
+        let p = body.transform.position;
         if stats::finite(p.x) && stats::finite(p.y) {
             centre = [centre[0] + p.x, centre[1] + p.y];
             counted = counted + 1;
@@ -191,7 +191,7 @@ fn spread(w) {
     let worst = 0.0;
     let non_finite = 0;
     for body in w.bodies {
-        let p = body.position();
+        let p = body.transform.position;
         if stats::finite(p.x) && stats::finite(p.y) {
             let far = world::distance([p.x, p.y, 0.0], [centre[0], centre[1], 0.0]);
             if far > worst {
@@ -221,7 +221,7 @@ fn query_storm() {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
                     rect(rng::range(20.0, 60.0), rng::range(20.0, 60.0)));
-                node.set_rotation_euler(0.0, 0.0, rng::range(-3.14159, 3.14159));
+                node.transform.rotation_euler = [0.0, 0.0, rng::range(-3.14159, 3.14159)];
             } else {
                 let node = world::body(w, scatter(), #{ kind: "circle", radius: rng::range(10.0, 24.0) });
                 node.patch_component("body2d", #{ gravity_scale: 0.0 });

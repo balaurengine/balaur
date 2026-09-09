@@ -69,6 +69,44 @@ active_collisions = ["dynamic_dynamic", "static_static"]"#,
     );
 }
 
+/// `mass` and `density` are each derived from the other, so reporting both
+/// would let the first patch pin the mass and freeze the density for good.
+#[test]
+fn a_density_a_patch_writes_reaches_the_collider() {
+    let app = app();
+    let root = app.engine.root();
+    let e = child_of(&app, root, "Box");
+    let params: toml::Value = toml::from_str("kind = \"cuboid\"\ndensity = 1.0").unwrap();
+    components::add(&app.engine, e, "collider3d", Some(&params)).unwrap();
+    let read = |key: &str| {
+        components::get(&app.engine, e, "collider3d")
+            .and_then(|c| c.get(key).and_then(balaur_core::components::as_f64))
+            .unwrap_or_default()
+    };
+    #[allow(clippy::float_cmp, reason = "no mass is exactly none, not nearly")]
+    {
+        assert_eq!(
+            read("mass"),
+            0.0,
+            "a collider on its density reports no mass"
+        );
+    }
+
+    let patch: toml::Value = toml::from_str("density = 15.0").unwrap();
+    components::patch(&app.engine, e, "collider3d", &patch).unwrap();
+    assert!(
+        (read("density") - 15.0).abs() < 1e-5,
+        "density came back as {}",
+        read("density")
+    );
+
+    let state = app.engine.resource::<balaur_physics::PhysicsState>();
+    let state = state.borrow();
+    let handle = state.colliders[&e][0];
+    let mass = state.world.colliders[handle].mass();
+    assert!((mass - 15.0).abs() < 1e-4, "rapier weighs it {mass}");
+}
+
 /// The compound-shape story: a collider on a child node belongs to the body
 /// above it, at the child's own offset from that body.
 #[test]

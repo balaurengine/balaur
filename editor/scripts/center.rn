@@ -45,43 +45,101 @@ pub fn modes(S) {
     S.hooks_open = hooks_on;
 }
 
+/// One mark's size, the gap to the next and the sheet's own inset. Public so
+/// `layout.rn` can state a rail exactly as tall as what this draws into it:
+/// the two disagreed by 18 px, which showed as padding only at the foot.
+pub fn rail_metrics(S) {
+    // The pad is a pixel wider than the gap: with none to spare the sheet's
+    // own rounded corner cut into the selected tool's tile.
+    if S.compact {
+        return #{ d: 24.0, gap: 3.0, pad: 6.0 };
+    }
+    #{ d: 28.0, gap: 4.0, pad: 8.0 }
+}
+
+/// The marks the rail carries: the persona's tools, then the one that folds
+/// them away. Folded, only the one that brings them back.
+pub fn rail_marks(S) {
+    if S.rail_shut {
+        return ["restore"];
+    }
+    let marks = [];
+    for tool in defs::tools(S.persona) {
+        marks.push(tool);
+    }
+    marks.push("collapse");
+    marks
+}
+
+/// How the marks are laid out in a column `room` design pixels tall: as many
+/// rows as fit, then as many columns as that takes. A rail that cannot fit
+/// goes wider rather than running past the foot of the window.
+pub fn rail_grid(S, room) {
+    let m = rail_metrics(S);
+    let n = util::f(rail_marks(S).len());
+    let fits = util::max(1.0, math::floor((room - 2.0 * m.pad + m.gap) / (m.d + m.gap)));
+    let cols = math::ceil(n / util::min(n, fits));
+    #{ rows: math::ceil(n / cols), cols: cols, d: m.d, gap: m.gap, pad: m.pad }
+}
+
+/// What a rail of that grid measures, inset included.
+pub fn rail_span(g, n) {
+    2.0 * g.pad + n * g.d + (n - 1.0) * g.gap
+}
+
 fn rail(S, k) {
-    style::sheet(k, "rail", S.layout.rail, 0, 7, || {
-        ui::vertical(|| {
-            ui::spacing(4, 3);
-            if S.rail_shut {
-                ui::horizontal((), || {
-                    ui::add_space(6);
-                    if ui::circle_button(icons::ui("restore"), #{
-                        role: "tool", d: 28, size: 11.5, tooltip: "Show the tools",
-                    }) {
-                        S.rail_shut = false;
-                    }
-                });
-                return;
-            }
-            for tool in defs::tools(S.persona) {
-                ui::horizontal((), || {
-                    ui::add_space(6);
-                    let active = S.tool == tool;
-                    if ui::circle_button(defs::tool_icon(tool), #{
-                        role: if active { "tool_on" } else { "tool" },
-                        tooltip: defs::tool_name(tool),
-                    }) {
-                        crate::shell::set_tool(S, tool);
+    let g = rail_grid(S, S.layout.rail_room);
+    let columns = [];
+    let column = [];
+    for mark in rail_marks(S) {
+        column.push(mark);
+        if util::f(column.len()) >= g.rows {
+            columns.push(column);
+            column = [];
+        }
+    }
+    if column.len() > 0 {
+        columns.push(column);
+    }
+    style::sheet(k, "rail", S.layout.rail, g.pad, g.pad, || {
+        ui::horizontal(#{ tight: true }, || {
+            ui::spacing(g.gap, 0);
+            for marks in columns {
+                ui::vertical(|| {
+                    ui::spacing(0, g.gap);
+                    for mark in marks {
+                        rail_mark(S, k, mark, g.d);
                     }
                 });
             }
-            ui::horizontal((), || {
-                ui::add_space(6);
-                if ui::circle_button(icons::ui("collapse"), #{
-                    role: "tool", d: 22, size: 11, tooltip: "Hide the tools",
-                }) {
-                    S.rail_shut = true;
-                }
-            });
         });
     });
+}
+
+fn rail_mark(S, k, mark, d) {
+    if mark == "restore" {
+        if ui::circle_button(icons::ui("restore"), #{
+            role: "tool", d: d, tooltip: "Show the tools",
+        }) {
+            S.rail_shut = false;
+        }
+        return;
+    }
+    if mark == "collapse" {
+        if ui::circle_button(icons::ui("collapse"), #{
+            role: "tool", d: d, size: style::MD, tooltip: "Hide the tools",
+        }) {
+            S.rail_shut = true;
+        }
+        return;
+    }
+    let active = S.tool == mark;
+    if ui::circle_button(defs::tool_icon(mark), #{
+        role: if active { "tool_on" } else { "tool" }, d: d,
+        tooltip: defs::tool_name(mark),
+    }) {
+        crate::shell::set_tool(S, mark);
+    }
 }
 
 fn chip(S, k, key, label, default_on, near) {
@@ -155,7 +213,7 @@ fn bookmark_chips(S, k) {
         let key = format!("{}", slot);
         let held = S.bookmarks.get(key);
         if ui::pill(key, #{
-            height: 20, size: 10.5, min_width: 20, radius: 4,
+            height: 20, size: style::SM, min_width: 20, radius: 4,
             fill: if held.is_some() { k.accent_soft } else { k.sunken },
             color: if held.is_some() { k.accent } else { k.faint },
             tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
@@ -209,8 +267,12 @@ fn viewport(S, k) {
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
-    ui::overlay("vp-chips", #{ x: vp.x, y: vp.y }, || {
-        ui::horizontal((), || {
+    // Sized, so the row is clipped to the scene: unsized, a persona with one
+    // chip too many painted its last over the inspector beside it.
+    // Clear of the folded left dock's handle, which shares this row.
+    let inset = crate::docks::fold_inset(S);
+    ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: HUD_H }, || {
+        ui::horizontal(#{ height: HUD_H }, || {
             ui::spacing(6, 0);
             for c in defs::chips(S.persona) {
                 let label = c[1];
@@ -228,7 +290,11 @@ fn viewport(S, k) {
             if S.persona == "scene" {
                 ui::add_space(8);
                 view_chip(S, k);
-                bookmark_chips(S, k);
+                // The camera slots are the first thing a small window drops:
+                // four numbered pills for what ⌥1-4 already does.
+                if !S.compact {
+                    bookmark_chips(S, k);
+                }
             }
         });
     });
@@ -244,16 +310,21 @@ fn viewport(S, k) {
                 });
             });
             ui::right(|| {
+                // First in a right-aligned row is right-most, so the dock's
+                // handle lands after the reading rather than before it.
+                crate::docks::fold_foot(S, k);
+                let text = format!("{} %", S.zoom as i64);
                 ui::frame(#{ fill: k.panel, radius: 8, padding_x: 6, padding_y: 3 }, || {
                     // A width, not `tight`: a hugging row measures zero here
-                    // and `ui::right` then pushes it off the stage's edge.
-                    ui::horizontal(#{ height: 20, width: 94 }, || {
+                    // and `ui::right` then pushes it off the stage's edge. It
+                    // is the reading's own width, so no gap trails the plus.
+                    ui::horizontal(#{ height: 20, width: 50.0 + 6.6 * util::f(text.len()) }, || {
                         ui::spacing(2, 0);
-                        if ui::pill("−", #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
+                        if ui::pill("−", #{ height: 20, size: style::MD, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
-                        ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
-                        if ui::pill(icons::ui("add"), #{ height: 20, size: 11.5, min_width: 20, color: k.dim }) {
+                        ui::label(text, style::mono_sm(k.text));
+                        if ui::pill(icons::ui("add"), #{ height: 20, size: style::MD, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });
@@ -263,7 +334,7 @@ fn viewport(S, k) {
     });
 }
 
-// A document sheet: `code_bg` rather than `panel`, and never full-bleed —
+// A document sheet: the sunken surface rather than `panel`, never full-bleed —
 // text under a floating sheet cannot be read.
 fn document_sheet(S, k, id) {
     let r = S.layout.doc;
@@ -272,7 +343,7 @@ fn document_sheet(S, k, id) {
     }
     ui::overlay(id, #{
         x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.code_bg, stroke: k.line, radius: 11,
+        fill: k.sunken, stroke: k.line, radius: 11,
     }, || code_pane(S, k));
 }
 
@@ -289,7 +360,7 @@ fn hooks_sheet(S, k) {
         }
         if S.script_dirty.contains_key(S.game_root + "/" + rel) {
             ui::add_space(8);
-            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10.5 }));
+            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: style::SM }));
         }
     });
 }
@@ -344,13 +415,15 @@ fn code_pane(S, k) {
         }
         S.hooks_live = parsed;
     }
-        // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
-    // and hot reloads the game code).
-    ui::scroll("code", (), || {
+    // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
+    // and hot reloads the game code). An offset asked for lasts one frame.
+    let scroll_to = S.code_scroll;
+    S.code_scroll = -1.0;
+    ui::scroll("code", #{ offset: scroll_to }, || {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
         let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
-            size: 11.5, gutter_width: 34, gutter_color: k.faint,
+            size: style::MD, gutter_width: 34, gutter_color: k.faint,
             k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
             k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
             k_punc: k.k_punc,
@@ -402,6 +475,10 @@ pub fn draw(S) {
     }
     if S.viewport_live {
         viewport(S, k);
+    }
+    let vp = S.layout.stage;
+    if style::placed(vp) {
+        crate::docks::fold_strip(S, k, vp);
     }
     if S.doc_open {
         if S.doctab == "events" {

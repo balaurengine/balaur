@@ -222,7 +222,7 @@ fn capture(eng: &Engine) -> Value {
 }
 
 fn restore(eng: &Engine, value: &Value) {
-    let frame: AnimationFrame = match serde_json::from_value(value.clone()) {
+    let frame: AnimationFrame = match AnimationFrame::deserialize(value) {
         Ok(frame) => frame,
         Err(why) => {
             tracing::warn!("animation snapshot: {why}");

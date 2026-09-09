@@ -159,7 +159,7 @@ impl<E: Clone + Serialize + DeserializeOwned> ExternalIo<E> {
     /// Push a recorded tick's arrivals back down the same channel the workers
     /// use, so the subsystem's own dispatch runs unchanged.
     pub fn restore(&self, value: &serde_json::Value) {
-        match serde_json::from_value::<Vec<E>>(value.clone()) {
+        match Vec::<E>::deserialize(value) {
             Ok(events) => {
                 for event in events {
                     let _ = self.report.send(event);

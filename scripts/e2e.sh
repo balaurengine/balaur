@@ -11,11 +11,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 out_dir=${1:-target/e2e}
+shift || true
+# Named examples only, the way showcase.sh and uiaudit.sh take theirs, so one
+# broken example is a thirty-second loop rather than the whole pipeline.
+only=("$@")
 mkdir -p "$out_dir"
 digests="$out_dir/digests.txt"
 : >"$digests"
 
-balaur() { cargo run -q -p balaur_cli --bin balaur -- "$@"; }
+# Built once, then run directly. `cargo run` re-resolves the workspace and takes
+# the build lock on every call, and the loop below calls once per step.
+cargo build -q -p balaur_cli --bin balaur
+bin=${CARGO_TARGET_DIR:-target}/debug/balaur
+balaur() { "$bin" "$@"; }
 
 # Linux has sha256sum, macOS has shasum, Git Bash on Windows has both.
 sha() {
@@ -78,6 +86,11 @@ edit_step() { # edit_step <label> <project> [state]
 
 for ex in examples/*/; do
   name=$(basename "$ex")
+  if [ ${#only[@]} -gt 0 ]; then
+    want=0
+    for pick in "${only[@]}"; do [ "$pick" = "$name" ] && want=1; done
+    [ $want -eq 1 ] || continue
+  fi
   printf '\n== %s\n' "$name"
 
   # A directory under examples/ that is not a Balaur project is a scaffold in

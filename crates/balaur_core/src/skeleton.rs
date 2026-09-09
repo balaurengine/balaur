@@ -468,7 +468,7 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
                 crate::components::tag::DIM_2D,
                 crate::components::tag::ANIMATION,
             ],
-            expects: &[],
+            expects: &[crate::transform::COMPONENT],
             apply: Box::new(apply_bone2d),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Bone>(entity);
@@ -480,6 +480,7 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
 }
 
 fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    crate::transform::ensure(eng, entity);
     let number =
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
     let rest = |i: usize| {
@@ -537,7 +538,7 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
                 crate::components::tag::DIM_3D,
                 crate::components::tag::ANIMATION,
             ],
-            expects: &[],
+            expects: &[crate::transform::COMPONENT],
             apply: Box::new(apply_bone3d),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Bone>(entity);
@@ -574,15 +575,12 @@ fn vec3_value(v: Vec3) -> toml::Value {
 }
 
 fn apply_bone3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    crate::transform::ensure(eng, entity);
     let bone = Bone {
         rest_position: vec3_param(params, k::REST_POSITION, Vec3::ZERO),
         rest_rotation: vec3_param(params, k::REST_ROTATION, Vec3::ZERO),
         rest_scale: vec3_param(params, k::REST_SCALE, Vec3::ONE),
-        length: params
-            .get(k::LENGTH)
-            .and_then(as_f64)
-            .unwrap_or(0.0)
-            .max(0.0) as f32,
+        length: crate::components::prop_f32(params, k::LENGTH).max(0.0),
         angle: 0.0,
         planar: false,
     };

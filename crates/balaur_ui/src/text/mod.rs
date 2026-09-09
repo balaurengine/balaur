@@ -73,20 +73,88 @@ pub struct Request {
     pub letter_spacing: f32,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct Key {
-    text: String,
-    size: u32,
-    weight: u16,
-    italic: bool,
-    width: Option<u32>,
-    align: u8,
-    markup: bool,
-    font: String,
-    family: String,
-    line_height: u32,
-    letter_spacing: u32,
-    generation: u64,
+/// The same request with its strings borrowed: what a lookup needs, since a
+/// hit answers from the cache and keeps none of them. A widget builds one of
+/// these twice a frame, and owning the strings allocated three times on each.
+#[derive(Clone, Copy)]
+pub struct RequestRef<'a> {
+    pub text: &'a str,
+    pub size: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub width: Option<f32>,
+    pub align: Align,
+    pub markup: bool,
+    pub font: &'a str,
+    pub family: &'a str,
+    pub line_height: f32,
+    pub letter_spacing: f32,
+}
+
+impl RequestRef<'_> {
+    /// The owned request, built only where one is kept: a cache miss.
+    #[must_use]
+    pub fn to_owned(&self) -> Request {
+        Request {
+            text: self.text.to_string(),
+            size: self.size,
+            weight: self.weight,
+            italic: self.italic,
+            width: self.width,
+            align: self.align,
+            markup: self.markup,
+            font: self.font.to_string(),
+            family: self.family.to_string(),
+            line_height: self.line_height,
+            letter_spacing: self.letter_spacing,
+        }
+    }
+}
+
+impl Request {
+    /// This request, borrowed, so an owned one takes the same cache path.
+    #[must_use]
+    pub fn as_ref(&self) -> RequestRef<'_> {
+        RequestRef {
+            text: &self.text,
+            size: self.size,
+            weight: self.weight,
+            italic: self.italic,
+            width: self.width,
+            align: self.align,
+            markup: self.markup,
+            font: &self.font,
+            family: &self.family,
+            line_height: self.line_height,
+            letter_spacing: self.letter_spacing,
+        }
+    }
+}
+
+/// What a shaped block is filed under: everything about the request that
+/// changes the picture, hashed into one number.
+///
+/// A number rather than the request itself, because the lookup happens twice
+/// a widget a frame — once to measure it and once to draw it — and a key that
+/// owned its strings allocated three times on every one of them.
+type Key = u64;
+
+fn key_of(request: &RequestRef<'_>, generation: u64) -> Key {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    request.text.hash(&mut hasher);
+    request.size.to_bits().hash(&mut hasher);
+    request.weight.hash(&mut hasher);
+    request.italic.hash(&mut hasher);
+    request.width.map(f32::to_bits).hash(&mut hasher);
+    (request.align as u8).hash(&mut hasher);
+    request.markup.hash(&mut hasher);
+    request.font.hash(&mut hasher);
+    request.family.hash(&mut hasher);
+    request.line_height.to_bits().hash(&mut hasher);
+    request.letter_spacing.to_bits().hash(&mut hasher);
+    generation.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// One glyph, positioned relative to the block's top-left corner.
@@ -218,8 +286,12 @@ impl TextState {
 
     /// Shape for the widget layer: lays out, then hands egui whatever the
     /// atlas gained, so the texture behind `texture` holds these glyphs.
-    pub(crate) fn shape_for_egui(&mut self, ctx: &egui::Context, request: &Request) -> Rc<Shaped> {
-        let shaped = self.shape(request);
+    pub(crate) fn shape_for_egui(
+        &mut self,
+        ctx: &egui::Context,
+        request: &RequestRef<'_>,
+    ) -> Rc<Shaped> {
+        let shaped = self.shape_ref(request);
         self.atlas.flush_egui(ctx);
         shaped
     }
@@ -247,6 +319,11 @@ impl TextState {
     /// Never the system's: a machine's fonts differ, and a width that reaches
     /// a script must not. Nothing is rasterised, so this costs no atlas.
     pub fn measure(&mut self, request: &Request) -> Vec2 {
+        self.measure_ref(&request.as_ref())
+    }
+
+    /// [`Self::measure`], for a caller holding the text rather than owning it.
+    pub fn measure_ref(&mut self, request: &RequestRef<'_>) -> Vec2 {
         if self.strict.is_none() {
             self.strict = Some(Self::system_of(&self.own, &self.locale));
         }
@@ -272,20 +349,13 @@ impl TextState {
     /// pixels itself, which is what lets the world draw the same glyphs as
     /// the widgets.
     pub fn shape(&mut self, request: &Request) -> Rc<Shaped> {
-        let key = Key {
-            text: request.text.clone(),
-            size: request.size.to_bits(),
-            weight: request.weight,
-            italic: request.italic,
-            width: request.width.map(f32::to_bits),
-            align: request.align as u8,
-            markup: request.markup,
-            font: request.font.clone(),
-            family: request.family.clone(),
-            line_height: request.line_height.to_bits(),
-            letter_spacing: request.letter_spacing.to_bits(),
-            generation: self.atlas.generation,
-        };
+        self.shape_ref(&request.as_ref())
+    }
+
+    /// [`Self::shape`], for a caller holding the text rather than owning it:
+    /// a hit costs the hash and no allocation at all.
+    pub fn shape_ref(&mut self, request: &RequestRef<'_>) -> Rc<Shaped> {
+        let key = key_of(request, self.atlas.generation);
         if let Some(found) = self.layouts.get(&key) {
             return Rc::clone(found);
         }
@@ -300,11 +370,11 @@ impl TextState {
     }
 
     /// The face family a request shapes with: the chain it named, or `ui`.
-    fn family_for(&self, request: &Request) -> Option<String> {
+    fn family_for(&self, request: &RequestRef<'_>) -> Option<String> {
         let chain = if request.family.is_empty() {
             "ui"
         } else {
-            request.family.as_str()
+            request.family
         };
         self.families
             .get(chain)
@@ -337,7 +407,7 @@ impl TextState {
         )
     }
 
-    fn layout(&mut self, request: &Request) -> Shaped {
+    fn layout(&mut self, request: &RequestRef<'_>) -> Shaped {
         // A bitmap font has one glyph per character and no contextual forms,
         // so it lays out rather than shapes.
         if !request.font.is_empty()
@@ -353,10 +423,10 @@ impl TextState {
 
     /// Lay a run out in a bitmap font, placing its page in the atlas the
     /// first time. `None` when no such font is loaded.
-    fn layout_bitmap(&mut self, request: &Request) -> Option<Shaped> {
-        let page = self.pages.get(&request.font)?;
+    fn layout_bitmap(&mut self, request: &RequestRef<'_>) -> Option<Shaped> {
+        let page = self.pages.get(request.font)?;
         let (font, region, size) = (page.font.clone(), page.region, page.page_size);
-        Some(font.layout(&request.text, request.size, region, size))
+        Some(font.layout(request.text, request.size, region, size))
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
@@ -449,7 +519,7 @@ impl TextState {
 
 /// Shape `request` into a buffer on `fonts`. One place, so a measurement and
 /// a drawing can never lay the same text out differently.
-fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &Request) -> Buffer {
+fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &RequestRef<'_>) -> Buffer {
     let parsed = spans_of(request);
     let align = parsed.align.unwrap_or(request.align);
     let size = request.size.max(1.0);
@@ -499,13 +569,13 @@ fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &Request) -
 }
 
 /// The runs a request breaks into: its marks, or the whole text as one.
-fn spans_of(request: &Request) -> markup::Markup {
+fn spans_of(request: &RequestRef<'_>) -> markup::Markup {
     if request.markup {
-        return markup::parse(&request.text);
+        return markup::parse(request.text);
     }
     markup::Markup {
         spans: vec![markup::Span {
-            text: request.text.clone(),
+            text: request.text.to_string(),
             bold: false,
             italic: false,
             color: None,
@@ -591,16 +661,16 @@ mod tests {
 
     fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
         let mut state = TextState::new(&faces(), "en-US");
-        let shaped = state.layout(&Request {
-            text: text.into(),
+        let shaped = state.layout(&RequestRef {
+            text,
             size: 20.0,
             weight: 400,
             italic: false,
             width,
             align: Align::Start,
             markup: true,
-            font: String::new(),
-            family: String::new(),
+            font: "",
+            family: "",
             line_height: 0.0,
             letter_spacing: 0.0,
         });

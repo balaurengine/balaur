@@ -6,6 +6,8 @@
 id = "n_camera"
 name = "Camera"
 parent = ""
+
+[nodes.transform]
 position = [0, 0, 0]
 
 [nodes.camera]
@@ -16,6 +18,8 @@ zoom = 90
 id = "n_logo"
 name = "Logo"
 parent = ""
+
+[nodes.transform]
 position = [-2.2, 0, 0]
 
 [nodes.sprite]
@@ -27,6 +31,8 @@ pixels_per_unit = 128
 id = "n_plain"
 name = "Plain"
 parent = ""
+
+[nodes.transform]
 position = [2.2, 0, 0]
 
 [nodes.sprite]

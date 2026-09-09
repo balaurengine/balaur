@@ -7,7 +7,10 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "web"]
+default = ["audio", "http", "websocket", "webtransport", "gamend", "web", "parallel"]
+# rapier's solver on rayon. Native builds want it; a browser can only take it
+# with shared memory and atomics, which is the threaded web template alone.
+parallel = ["balaur_physics/parallel"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/kiss3d"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.

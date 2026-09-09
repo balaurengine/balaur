@@ -32,10 +32,14 @@
    `modify_contacts` is gone outright. One-way platforms stay: their axis
    rides in the collider's `user_data`.
 
-   Threading is not a feature — it is how the solver runs. The thread count is
-   one less than `available_parallelism` reports, capped at eight, and
-   `physics.set_threads` overrides it. Varying it is safe because the digest
-   does not depend on it, which `tests/threads.rs` asserts.
+   Threading *is* a feature, `balaur_physics/parallel`, because a browser is
+   the one target that cannot always take it: rayon blocks on `Atomics.wait`,
+   which needs the shared memory the threaded web template alone is built with.
+   Native builds have it on by default and nothing has to ask. The count is one
+   less than `available_parallelism` reports, capped at eight; `[physics]
+   threads` and `physics.set_threads` from a script's `init` override it, and
+   the pool is built at the first tick so both are heard. Varying it is safe
+   because the digest does not depend on it.
 
    Still open: the event collector takes a `Mutex` per event now that handlers
    run on rapier's threads. Events are opt-in per collider and a step raises

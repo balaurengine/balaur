@@ -172,12 +172,30 @@ impl Frontend {
         // After `apply_post`, which is what reads the camera's list.
         self.post
             .sync(app, window.canvas().surface_format(), self.asset_generation);
-        let input_seen = crate::kiss3d_input::pump_input(app, window);
+        let seen = crate::kiss3d_input::pump_input(app, window);
+        // A pointer the camera is dragging with cannot change the shell, and
+        // on the web rebuilding it is most of the frame — so an orbit that
+        // crosses the toolbar costs the scene's redraw and nothing else.
+        let camera_enabled = app
+            .engine
+            .try_resource::<crate::CameraInputConfig>()
+            .is_none_or(|c| c.borrow().enabled);
+        let idle_motion = !seen.beyond_motion
+            && balaur_ui::pointer_is_dragging_elsewhere(window.egui_context(), camera_enabled);
+        let input_seen = seen.any && !idle_motion;
         self.device.publish(app, window, dt);
         app.advance(dt);
+        // What the window last spent, filed before this frame's own spans so
+        // a dock reads the frame in the order it ran.
+        report_render_cost(app, window);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
         let reloaded = self.assets_reloaded(app);
+        // The `scene mirror` row in `--timings`: how long the backend spent
+        // copying the scene. Presentation, so it reads a clock the tick never
+        // sees.
+        #[allow(clippy::disallowed_methods)]
+        let sync_started = Instant::now();
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
         sync(
@@ -230,6 +248,7 @@ impl Frontend {
         draw_grid(app, window);
         crate::debug_lines::flush_debug_lines(app, window);
         crate::debug_lines::flush_debug_lines_2d(app, window);
+        balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
@@ -244,6 +263,20 @@ impl Frontend {
         self.frame += 1;
         take_screenshot_if_due(app, window, self.frame);
         !app.engine.quit_requested()
+    }
+}
+
+/// File what the window reported for the frame it last drew: the true frame
+/// period, the CPU time inside `render`, and the GPU's, which is the half of
+/// a frame no stage covers.
+fn report_render_cost(app: &App, window: &Window) {
+    let Some(timings) = window.render_timings() else {
+        return;
+    };
+    balaur_core::timings::note_wall(&app.engine, timings.frame_wall);
+    balaur_core::timings::record(&app.engine, "render cpu", timings.total);
+    if let Some(gpu) = timings.gpu_total() {
+        balaur_core::timings::record(&app.engine, "render gpu", gpu);
     }
 }
 
@@ -522,6 +555,11 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
         }
     }
     let image = window.snap_image();
+    // The path is the caller's and may name a directory that is not there
+    // yet: a run capturing a frame per tick writes them all into one.
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
     match image.save(&path) {
         Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
         Err(err) => tracing::error!("screenshot failed: {err}"),

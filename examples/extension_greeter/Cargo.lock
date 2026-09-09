@@ -46,6 +46,7 @@ dependencies = [
  "i_overlay",
  "i_triangle",
  "indexmap",
+ "js-sys",
  "libm",
  "rustc-hash",
  "serde",

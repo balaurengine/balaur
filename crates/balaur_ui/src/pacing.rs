@@ -18,6 +18,12 @@ use crate::{UiConfig, UiState};
 /// How long a lazy UI goes without a pass when nothing asks for one.
 const IDLE: Duration = Duration::from_millis(250);
 
+/// What a pass is filed under in the profiler, and what the passes after it
+/// in the same frame are: egui reruns the whole closure when a pass only
+/// learned a size, so the shell is built twice and the rows say so.
+const PASS: &str = "ui";
+const RERUN: &str = "ui rerun";
+
 /// Whether the next frame runs the UI pass.
 #[derive(Default)]
 pub struct Pacing {
@@ -26,6 +32,9 @@ pub struct Pacing {
     /// never shows a stale shell.
     honoured: bool,
     requested: bool,
+    /// Passes this frame, counted by [`note_pass`] and zeroed by
+    /// [`wants_pass`], which the loop calls once a frame.
+    passes: u32,
     /// When the last pass drew; `None` until one has.
     last_pass: Option<Instant>,
     logs_seen: u64,
@@ -40,13 +49,27 @@ pub fn honour_lazy(eng: &Engine) {
     }
 }
 
+/// Whether the pointer belongs to a drag the UI is no part of — a camera
+/// being orbited over the scene, with `camera_enabled` saying the camera
+/// still has its drag buttons.
+///
+/// A button is down and egui took no candidate from the press, so the press
+/// missed every widget: nothing in the shell can change until it comes up,
+/// and a pass would rebuild the same picture. The press ran one, which is
+/// where both facts come from.
+#[must_use]
+pub fn pointer_is_dragging_elsewhere(ctx: &egui::Context, camera_enabled: bool) -> bool {
+    camera_enabled && ctx.input(|i| i.pointer.any_down()) && !ctx.egui_is_using_pointer()
+}
+
 /// Whether this frame runs the UI pass; `input_seen` is whether the window
-/// delivered any event since the last one.
+/// delivered an event the UI could act on since the last one.
 pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     let Some(pacing) = eng.try_resource::<Pacing>() else {
         return true;
     };
     let mut pacing = pacing.borrow_mut();
+    pacing.passes = 0;
     if !(pacing.lazy && pacing.honoured) {
         return true;
     }
@@ -69,6 +92,20 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
         || settling
         || idle
         || ctx.has_requested_repaint()
+}
+
+/// File what a pass cost, under a name that says whether egui had already
+/// built the same shell this frame.
+pub(crate) fn note_pass(eng: &Engine, elapsed: std::time::Duration) {
+    let first = match eng.try_resource::<Pacing>() {
+        Some(pacing) => {
+            let mut pacing = pacing.borrow_mut();
+            pacing.passes += 1;
+            pacing.passes <= 1
+        }
+        None => true,
+    };
+    balaur_core::timings::record(eng, if first { PASS } else { RERUN }, elapsed);
 }
 
 /// Note that a pass drew, for the idle tick.

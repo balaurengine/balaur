@@ -1,6 +1,6 @@
-// Every glyph the shell draws, named for what it means. Phosphor Regular, in
-// the icons chain each font family falls back to; swapping the set is this
-// file and nothing else.
+// Every glyph the shell draws, named for what it means. Phosphor Fill, in the
+// icons chain each font family falls back to; every weight of the set shares
+// its codepoints, so a solid shell is the font file and nothing else.
 
 /// A viewport tool, by `defs::tools` id.
 pub fn tool(id) {
@@ -32,6 +32,55 @@ pub fn persona(id) {
 }
 
 /// A dock panel, by its tab id.
+/// The mark an inspector section wears, by component. A component with none
+/// of its own takes the plain node mark, so every heading is marked.
+/// A component's glyph, and the theme token it is drawn in -- the same pair
+/// `model::node_icon` gives the tree, so a `body2d` section and a node holding
+/// one read as the same thing in both panels.
+pub fn component(name) {
+    if name == "transform" {
+        return (tool("move"), "node_plain");
+    }
+    if name == "widget" {
+        return (persona("ui"), "node_ui");
+    }
+    if name == "script" {
+        return (ui("scriptfile"), "node_plain");
+    }
+    if name == "bone2d" || name == "bone3d" || name == "skeleton" {
+        return (tool("bone"), "node_bone");
+    }
+    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" {
+        return (tool("polygon"), "node_2d");
+    }
+    if name == "shape3d" || name == "mesh" || name == "text3d" {
+        return (persona("scene"), "node_3d");
+    }
+    if name.starts_with("body") || name.starts_with("collider")
+        || name.starts_with("character") || name.starts_with("joint")
+        || name == "ragdoll" || name == "vehicle" {
+        return (persona("phys"), "node_phys");
+    }
+    if name == "camera" || name == "camera2d" || name == "light" || name == "environment" {
+        return (ui("viewmode"), "node_plain");
+    }
+    if name == "animation" || name == "animation_player" {
+        return (panel("timeline"), "node_plain");
+    }
+    if name == "tilemap" || name == "tileset" {
+        return (panel("tiles"), "node_2d");
+    }
+    if name == "audio" || name == "audio_player" {
+        return (panel("session"), "node_plain");
+    }
+    if name == "bindings" || name == "events" {
+        return (ui("events"), "node_plain");
+    }
+    // `return`, not a bare tuple: a `}` with a `(` under it is a call in Rune,
+    // and the error it raises names a tuple rather than this line.
+    return (node("world"), "node_plain");
+}
+
 pub fn panel(id) {
     match id {
         "scene" => "\u{e67c}",
@@ -60,8 +109,14 @@ pub fn panel(id) {
 /// The shell's own controls.
 pub fn ui(name) {
     match name {
-        "add" => "\u{e3d4}",
-        "close" => "\u{e4f6}",
+        // Fill draws a stroke-only glyph as a solid tile, which is too heavy
+        // for a mark this small: these two are letters, not icons.
+        "add" => "+",
+        "close" => "\u{00d7}",
+        "check" => "\u{e182}",
+        "reset" => "\u{e038}",
+        "settings" => "\u{e270}",
+        "export" => "\u{eaf0}",
         "minimise" => "\u{e32a}",
         "open" => "\u{e13c}",
         "shut" => "\u{e136}",
