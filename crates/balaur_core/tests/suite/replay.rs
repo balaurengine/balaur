@@ -66,7 +66,7 @@ fn a_recording_round_trips_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("s.blr");
 
-    let mut recorder = Recorder::create(&path, header(), true, 0).unwrap();
+    let mut recorder = Recorder::create(balaur_core::files::default_backend(), &path, header(), true, 0).unwrap();
     for tick in 1..=3u64 {
         recorder
             .write(&Frame {
@@ -104,7 +104,7 @@ fn a_recording_from_a_future_format_is_refused_by_name() {
     let path = dir.path().join("s.blr");
     let mut future = header();
     future.format = replay::FORMAT + 1;
-    let mut recorder = Recorder::create(&path, future, false, 0).unwrap();
+    let mut recorder = Recorder::create(balaur_core::files::default_backend(), &path, future, false, 0).unwrap();
     recorder.write(&Frame::default()).unwrap();
     drop(recorder);
 

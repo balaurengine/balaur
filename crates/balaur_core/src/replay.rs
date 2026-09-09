@@ -19,7 +19,6 @@
 //! [`Recorder::create`] are called by the CLI, by the editor through the
 //! `replay` script module, or by a test.
 
-use std::io::{BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -383,7 +382,9 @@ pub fn restore(eng: &Engine, sources: &serde_json::Map<String, serde_json::Value
     reason = "four independent recording flags, not a state enum"
 )]
 pub struct Recorder {
-    out: BufWriter<std::fs::File>,
+    /// Through the backend, not the disk: a browser's editor records into the
+    /// store its project lives in, and a desktop run appends to a file.
+    fs: std::rc::Rc<dyn crate::files::FileBackend>,
     /// Held back until the first frame settles its origin, so the file's one
     /// header is written once and correct.
     header: Option<Header>,
@@ -407,14 +408,23 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn create(path: &Path, header: Header, per_tick_digest: bool, born: u64) -> Result<Self> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    pub fn create(
+        fs: std::rc::Rc<dyn crate::files::FileBackend>,
+        path: &Path,
+        header: Header,
+        per_tick_digest: bool,
+        born: u64,
+    ) -> Result<Self> {
+        if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs.mkdir(dir)
+                .with_context(|| format!("creating {}", dir.display()))?;
         }
-        let file =
-            std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
+        // Emptied rather than opened: the path may be a session recorded
+        // before, and a recording is the lines this run writes.
+        fs.write(path, b"")
+            .with_context(|| format!("creating {}", path.display()))?;
         Ok(Self {
-            out: BufWriter::new(file),
+            fs,
             header: Some(header),
             path: path.to_path_buf(),
             per_tick_digest,
@@ -447,9 +457,9 @@ impl Recorder {
     }
 
     fn write_line(&mut self, line: &impl Serialize) -> Result<()> {
-        serde_json::to_writer(&mut self.out, line)?;
-        self.out.write_all(b"\n")?;
-        self.out.flush()?;
+        let mut bytes = serde_json::to_vec(line)?;
+        bytes.push(b'\n');
+        self.fs.append(&self.path, &bytes)?;
         Ok(())
     }
 
@@ -591,7 +601,13 @@ pub fn start_recording(
         started: timestamp(),
         setup: capture_setup(eng),
     };
-    let recorder = Recorder::create(path, header, per_tick_digest, eng.tick())?;
+    let recorder = Recorder::create(
+        crate::files::backend(eng),
+        path,
+        header,
+        per_tick_digest,
+        eng.tick(),
+    )?;
     *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
     Ok(())
@@ -676,9 +692,12 @@ pub struct Session {
 
 impl Session {
     pub fn read(path: &Path) -> Result<Self> {
-        let file =
-            std::fs::File::open(path).with_context(|| format!("reading {}", path.display()))?;
-        let mut lines = std::io::BufReader::new(file).lines();
+        let bytes = crate::files::default_backend()
+            .read(path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let text = String::from_utf8(bytes)
+            .with_context(|| format!("{} is not text", path.display()))?;
+        let mut lines = text.lines().map(|line| Ok::<_, anyhow::Error>(line.to_string()));
         let first = lines
             .next()
             .transpose()?
