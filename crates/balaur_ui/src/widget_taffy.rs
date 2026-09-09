@@ -369,7 +369,17 @@ pub(crate) fn solve_subtree(
 ) -> Rects {
     // No touched slots: the pass's first solve pushed them, and the tree they
     // went into is the same one this subtree is solved in.
-    solve(eng, arena, root, ui, scale, theme, space, fresh, &[])
+    let rects = solve(eng, arena, root, ui, scale, theme, space, fresh, &[]);
+    // Solving a node as a root leaves taffy holding a location of zero for
+    // it, which a later solve that changes nothing would hand the draw.
+    let key = arena[root].entity.to_bits().get();
+    TREE.with(|held| {
+        let Held { tree, nodes } = &mut *held.borrow_mut();
+        if let Some(kept) = nodes.get(&key) {
+            let _ = tree.mark_dirty(kept.id);
+        }
+    });
+    rects
 }
 
 /// What one leaf needs, asked of the fonts rather than of last frame's draw.

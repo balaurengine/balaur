@@ -83,6 +83,10 @@ fn control_at(slot, index) {
 fn apply_control(S, host, key, node, want) {
     let kind = want.get("kind").unwrap_or("label");
     let carries = carrier(kind);
+    // Keyed by what the control carries as well as by where it sits: a pooled
+    // node the next selection gives another kind left a value of another type
+    // under its slot, and comparing across the two is not a comparison.
+    let held = format!("{}:{}", key, carries);
     let params = util::obj(node.get_component("widget"));
     let fired = false;
     // A press is not a value: it is true for one frame and the layer clears
@@ -97,7 +101,7 @@ fn apply_control(S, host, key, node, want) {
     } else if carries != "" {
         let seen = params[carries];
         let table = memo(S, host);
-        let before = table.get(key);
+        let before = table.get(held);
         let known = match before {
             Some(value) => value,
             None => seen,
@@ -110,7 +114,7 @@ fn apply_control(S, host, key, node, want) {
             fired = true;
             // Held at what the reader left it on for one frame: the model
             // may clamp, and snapping back before it has answered is a jump.
-            remember(S, host, key, seen);
+            remember(S, host, held, seen);
         }
     }
     let set = util::merge(want, #{ visible: true });
@@ -123,7 +127,7 @@ fn apply_control(S, host, key, node, want) {
     // Remembered as the node holds it, not as it was asked for: a float goes
     // through the component as an f32, and 0.2 does not come back as 0.2.
     if carries != "" && carries != "clicked" && !fired {
-        remember(S, host, key, util::obj(node.get_component("widget"))[carries]);
+        remember(S, host, held, util::obj(node.get_component("widget"))[carries]);
     }
 }
 
