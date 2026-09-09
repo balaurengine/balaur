@@ -246,7 +246,7 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
             doc: "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
             schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            expects: &[c::COLLIDER_3D, balaur_core::transform::COMPONENT],
+            expects: &[c::COLLIDER_3D],
             // Every property is read at move time, so applying one is
             // remembering it and nothing else.
             apply: Box::new(|eng, entity, params| {

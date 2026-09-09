@@ -6,6 +6,7 @@
 //! than copied into each.
 
 use kiss3d::context::Context;
+use kiss3d::resource::Texture;
 
 use crate::probe::Probe;
 
@@ -115,6 +116,38 @@ pub(crate) fn sampled_slots_layout(
         .collect();
     ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some(label),
+        entries: &entries,
+    })
+}
+
+/// A group binding one texture and sampler per slot, in slot order: what
+/// every shader that imports `package::mesh` reads from group 2.
+pub(crate) fn sampled_slots_group(
+    ctxt: &Context,
+    label: &str,
+    layout: &wgpu::BindGroupLayout,
+    bound: &[&Texture],
+) -> wgpu::BindGroup {
+    let entries: Vec<wgpu::BindGroupEntry<'_>> = bound
+        .iter()
+        .enumerate()
+        .flat_map(|(slot, texture)| {
+            let first = slot as u32 * 2;
+            [
+                wgpu::BindGroupEntry {
+                    binding: first,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: first + 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ]
+        })
+        .collect();
+    ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some(label),
+        layout,
         entries: &entries,
     })
 }

@@ -384,28 +384,12 @@ impl ShaderMaterial3d {
                 None => fallbacks[slot].as_ref(),
             })
             .collect();
-        let entries: Vec<wgpu::BindGroupEntry<'_>> = bound
-            .iter()
-            .enumerate()
-            .flat_map(|(slot, texture)| {
-                let first = slot as u32 * 2;
-                [
-                    wgpu::BindGroupEntry {
-                        binding: first,
-                        resource: wgpu::BindingResource::TextureView(&texture.view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: first + 1,
-                        resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                    },
-                ]
-            })
-            .collect();
-        Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("material3d_texture_bind_group"),
-            layout: &self.texture_layout,
-            entries: &entries,
-        })
+        crate::bind_layout::sampled_slots_group(
+            &Context::get(),
+            "material3d_texture_bind_group",
+            &self.texture_layout,
+            &bound,
+        )
     }
 }
 
@@ -609,7 +593,7 @@ crate::material_cache::define!(
 /// The one-pixel stand-in for each slot, in slot order: white albedo, a flat
 /// normal, non-metallic mid-roughness, no occlusion, black emissive, mid
 /// height. The fork owns the pixel values.
-fn slot_fallbacks() -> Vec<Arc<Texture>> {
+pub(crate) fn slot_fallbacks() -> Vec<Arc<Texture>> {
     vec![
         Texture::new_default(),
         Texture::new_default_normal_map(),

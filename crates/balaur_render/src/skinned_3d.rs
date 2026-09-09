@@ -304,21 +304,19 @@ impl SkinnedMaterial3d {
         );
     }
 
+    /// Group 2, the same six slots every shader importing `package::mesh`
+    /// reads: the mesh's own image as albedo, and the slot's stand-in for the
+    /// five a skinned mesh names no texture for.
     fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
-        Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("skinned3d_texture_bind_group"),
-            layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-        })
+        let fallbacks = crate::shader_material_3d::slot_fallbacks();
+        let mut bound: Vec<&Texture> = vec![texture];
+        bound.extend(fallbacks.iter().skip(1).map(std::convert::AsRef::as_ref));
+        crate::bind_layout::sampled_slots_group(
+            &Context::get(),
+            "skinned3d_texture_bind_group",
+            &self.texture_layout,
+            &bound,
+        )
     }
 }
 

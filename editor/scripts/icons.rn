@@ -76,7 +76,9 @@ pub fn component(name) {
     if name == "bindings" || name == "events" {
         return (ui("events"), "node_plain");
     }
-    (node("world"), "node_plain")
+    // `return`, not a bare tuple: a `}` with a `(` under it is a call in Rune,
+    // and the error it raises names a tuple rather than this line.
+    return (node("world"), "node_plain");
 }
 
 pub fn panel(id) {
