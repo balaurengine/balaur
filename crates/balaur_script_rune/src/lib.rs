@@ -48,7 +48,7 @@ use rune::{Diagnostics, Source, Sources, Vm};
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
-use inspect::{PublicSignature, public_functions, render};
+use inspect::{public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
 use script_module::script_module;
