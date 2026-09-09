@@ -322,10 +322,10 @@ impl RuneHost {
 
     fn source_of(&self, key: &str) -> Result<String> {
         let state = self.state.borrow();
-        if let Some(pack) = &state.pack {
-            if let Some(bytes) = pack.scripts.get(key) {
-                return Ok(String::from_utf8(bytes.clone())?);
-            }
+        if let Some(pack) = &state.pack
+            && let Some(bytes) = pack.scripts.get(key)
+        {
+            return Ok(String::from_utf8(bytes.clone())?);
         }
         // A key the pack does not hold is a file: the editor runs from its
         // own pack and the project it edits is mounted beside it.

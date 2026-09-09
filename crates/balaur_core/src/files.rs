@@ -401,7 +401,11 @@ impl FileBackend for MemoryFs {
         let now = self.now();
         let mut inner = self.inner.borrow_mut();
         let full = key(path);
-        inner.files.entry(full.clone()).or_default().extend_from_slice(bytes);
+        inner
+            .files
+            .entry(full.clone())
+            .or_default()
+            .extend_from_slice(bytes);
         inner.touch(full, now);
         Ok(())
     }

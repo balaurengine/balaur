@@ -695,9 +695,11 @@ impl Session {
         let bytes = crate::files::default_backend()
             .read(path)
             .with_context(|| format!("reading {}", path.display()))?;
-        let text = String::from_utf8(bytes)
-            .with_context(|| format!("{} is not text", path.display()))?;
-        let mut lines = text.lines().map(|line| Ok::<_, anyhow::Error>(line.to_string()));
+        let text =
+            String::from_utf8(bytes).with_context(|| format!("{} is not text", path.display()))?;
+        let mut lines = text
+            .lines()
+            .map(|line| Ok::<_, anyhow::Error>(line.to_string()));
         let first = lines
             .next()
             .transpose()?

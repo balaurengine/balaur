@@ -535,9 +535,7 @@ fn apply_window_config(app: &App, window: &Window) {
 
 /// The snapped frame as PNG bytes, so the backend writes them wherever it
 /// keeps files.
-fn encoded_png(
-    image: &image::RgbImage,
-) -> std::result::Result<Vec<u8>, image::ImageError> {
+fn encoded_png(image: &image::RgbImage) -> std::result::Result<Vec<u8>, image::ImageError> {
     let mut bytes = std::io::Cursor::new(Vec::new());
     image.write_to(&mut bytes, image::ImageFormat::Png)?;
     Ok(bytes.into_inner())
