@@ -57,7 +57,7 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets, with undo, prefabs, ray picking and the Rig, Polygon and Tiles tools. | 0.1 done | no plan |
+| **The editor** — The base, built from the engine's own widgets, with undo, prefabs, ray picking and a few tools. | 0.1 done | no plan |
 | **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 done | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
