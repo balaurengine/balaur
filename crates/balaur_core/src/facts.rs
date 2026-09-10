@@ -145,6 +145,15 @@ pub struct DeviceFacts {
     /// placed against the screen replays through it.
     #[serde(default = "one")]
     pub ui_scale: f32,
+    /// How much of the screen the on-screen keyboard covers, in physical
+    /// pixels from the bottom: what a form moves up by. Zero with no keyboard
+    /// up, and always zero on a desktop.
+    ///
+    /// Here rather than in the input snapshot, where it started, because it
+    /// is a fact about the display rather than a thing a player did, and
+    /// because a layout reading the safe area has to read this beside it.
+    #[serde(default)]
+    pub keyboard_height: f32,
 }
 
 /// A missing scale is 1, not 0: a recording made before the field existed had
@@ -162,6 +171,7 @@ impl Default for DeviceFacts {
             refresh_rate: 60.0,
             screen_size: [0.0; 2],
             ui_scale: 1.0,
+            keyboard_height: 0.0,
         }
     }
 }

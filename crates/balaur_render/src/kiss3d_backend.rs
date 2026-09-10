@@ -251,7 +251,12 @@ impl Frontend {
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen, idle_motion) {
-            window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+            window.draw_ui(|ctx| {
+                balaur_ui::run_pass(&app.engine, ctx);
+                // After the widget pass and on the layer below it: the pass
+                // owns the context, and a control belongs under a menu.
+                crate::touch_draw::draw(&app.engine, ctx);
+            });
         }
         // On-screen keyboard follows ui keyboard focus, edge-detected after
         // the ui pass has settled focus. A no-op on desktop.

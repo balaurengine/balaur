@@ -112,10 +112,6 @@ pub struct InputSnapshot {
     /// fed nothing at all, which is a divergence with no message.
     #[serde(default)]
     typed: String,
-    /// How much of the window the on-screen keyboard covers, in pixels from
-    /// the bottom; 0 with no keyboard up, and always 0 on a desktop.
-    #[serde(default)]
-    keyboard_height: f32,
     /// Uncommitted input-method text, kept until the editor commits or lets go.
     #[serde(default)]
     composing: String,
@@ -250,16 +246,6 @@ impl InputSnapshot {
     /// backend's to filter: what reaches here is what was typed.
     pub fn char_event(&mut self, c: char) {
         self.typed.push(c);
-    }
-
-    /// What was typed this frame, in order, or empty.
-    /// Published by a backend that can see the on-screen keyboard.
-    pub fn set_keyboard_height(&mut self, pixels: f32) {
-        self.keyboard_height = pixels.max(0.0);
-    }
-
-    pub fn keyboard_height(&self) -> f32 {
-        self.keyboard_height
     }
 
     pub fn set_composing(&mut self, text: &str) {
@@ -931,9 +917,11 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         let typed = state.borrow().typed().to_string();
         Ok(Value::Str(typed))
     });
+    // A display fact rather than a frame of input, so it comes off the
+    // device facts; the verb keeps its place here because a form asking for
+    // it is asking about the keyboard.
     m.function("keyboard_height", |eng: &Engine, ()| {
-        let state = eng.resource::<InputSnapshot>();
-        let height = state.borrow().keyboard_height();
+        let height = balaur_core::facts::device(eng).keyboard_height;
         Ok(Value::Num(f64::from(height)))
     });
     // Files dropped onto the window this frame, absolute paths in drop order.

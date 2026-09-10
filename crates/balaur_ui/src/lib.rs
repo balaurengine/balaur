@@ -103,9 +103,11 @@ pub struct UiState {
     /// pointer.
     pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
     pub focused_once: HashSet<String>,
-    /// A finger down on a `scroll` with a deadzone: where it landed and the
-    /// offset the scroll had then, until it lifts.
-    pub scroll_drags: HashMap<u64, (egui::Pos2, egui::Vec2)>,
+    /// A finger down on a `scroll` with a deadzone, until it lifts.
+    pub scroll_drags: HashMap<u64, ScrollDrag>,
+    /// A `scroll` still moving after the finger lifted: how fast, in points
+    /// per second, and where the offset has got to. Dropped once it stops.
+    pub scroll_flings: HashMap<u64, (egui::Vec2, egui::Vec2)>,
     pub textures: HashMap<String, egui::TextureHandle>,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
@@ -113,6 +115,17 @@ pub struct UiState {
     /// Set by [`forget_scene`], consumed by the next [`run_pass`]: egui's own
     /// memory is keyed by entity, and dropping it needs the context.
     pub forget_egui: bool,
+}
+
+/// A finger dragging a `scroll`: where it started, what the offset was then,
+/// and how fast it is moving now, so a lift can carry on at that speed.
+pub struct ScrollDrag {
+    pub from: egui::Pos2,
+    pub base: egui::Vec2,
+    pub last: egui::Pos2,
+    /// Points per second, smoothed: one jittery frame should not decide how
+    /// far a flick throws the list.
+    pub velocity: egui::Vec2,
 }
 
 /// Drop everything the plugin cached against a scene that is being rebuilt.

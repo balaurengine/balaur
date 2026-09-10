@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use crate::engine::Engine;
 
 /// Bumped when a change makes an older file unplayable.
-pub const FORMAT: u32 = 2;
+pub const FORMAT: u32 = 3;
 
 /// How many log entries a frame scans for lines to record. The buffer holds
 /// 500 and a frame that produced more than this has other problems.

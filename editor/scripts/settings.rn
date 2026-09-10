@@ -361,6 +361,38 @@ fn edit(S, k, def, path) {
         if changed {
             write(S, path, v);
         }
+    } else if datatype == "strings" {
+        // Comma-separated: a list of globs or ranges is short, and a row of
+        // its own per entry would be a page per setting.
+        let (text, _, submitted) = ui::text_field("set:" + path, "",
+            util::merge(style::field(k, 220.0), #{ value: commas(value) }));
+        if submitted {
+            write(S, path, split_commas(text));
+        }
+    } else if datatype == "flags" {
+        let held = util::vec(value);
+        ui::horizontal(#{ height: 22 }, || {
+            for option in util::vec(spec.get("options").unwrap_or([])) {
+                let on = held.iter().any(|h| h == option);
+                if ui::pill(option, #{
+                    height: 20, size: style::SM, radius: 6,
+                    fill: if on { k.accent_fill } else { k.panel },
+                    color: if on { k.on_accent } else { k.dim },
+                }) {
+                    let next = [];
+                    for name in held {
+                        if name != option {
+                            next.push(name);
+                        }
+                    }
+                    if !on {
+                        next.push(option);
+                    }
+                    write(S, path, next);
+                }
+                ui::add_space(4);
+            }
+        });
     } else {
         // Committed on submit rather than per keystroke: a settings file
         // rewritten on every character is noise in a diff.
@@ -372,6 +404,30 @@ fn edit(S, k, def, path) {
             write(S, path, text);
         }
     }
+}
+
+// A list as one line, and back. `Vec` has no join, so the separator is put
+// in by hand.
+fn commas(value) {
+    let out = "";
+    for item in util::vec(value) {
+        if out != "" {
+            out += ", ";
+        }
+        out += `${item}`;
+    }
+    out
+}
+
+fn split_commas(text) {
+    let out = [];
+    for part in text.split(',') {
+        let item = part.trim();
+        if item != "" {
+            out.push(item);
+        }
+    }
+    out
 }
 
 pub fn write(S, path, value) {

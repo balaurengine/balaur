@@ -94,7 +94,6 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
             ImeEvent::Enabled | ImeEvent::Disabled => input.set_composing(""),
         }
     }
-    input.set_keyboard_height(keyboard_height());
     // Dragging a file onto the window needs a desktop with a file manager;
     // kiss3d has no such event on mobile.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
@@ -136,31 +135,6 @@ fn key_name(key: kiss3d::event::Key) -> String {
         }
     }
     name
-}
-
-/// What the on-screen keyboard covers: the part of the window the visual
-/// viewport no longer reaches. Only a page can say; nothing else reports it.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn keyboard_height() -> f32 {
-    let Some(window) = web_sys::window() else {
-        return 0.0;
-    };
-    let inner = window
-        .inner_height()
-        .ok()
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let Some(viewport) = window.visual_viewport() else {
-        return 0.0;
-    };
-    let covered = inner - viewport.height() - viewport.offset_top();
-    let ratio = window.device_pixel_ratio();
-    (covered.max(0.0) * ratio) as f32
-}
-
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
-fn keyboard_height() -> f32 {
-    0.0
 }
 
 #[cfg(test)]

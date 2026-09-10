@@ -27,6 +27,7 @@ impl Probe {
         let refresh_rate = self.refresh_rate();
         let dark_mode = dark_mode();
         let safe_area = safe_area(window);
+        let keyboard = keyboard_height();
         let screen_size = [window.width() as f32, window.height() as f32];
         // The UI scale is a script's to set and this crate's to publish:
         // anything placed in design pixels multiplies by it, and a touch
@@ -42,6 +43,7 @@ impl Probe {
             facts.safe_area = safe_area;
             facts.screen_size = screen_size;
             facts.ui_scale = ui_scale;
+            facts.keyboard_height = keyboard;
             if let Some(rate) = refresh_rate {
                 facts.refresh_rate = rate;
             }
@@ -100,6 +102,31 @@ fn dark_mode() -> bool {
 )))]
 fn dark_mode() -> bool {
     false
+}
+
+/// What the on-screen keyboard covers: the part of the window the visual
+/// viewport no longer reaches. Only a page can say; nothing else reports it.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+fn keyboard_height() -> f32 {
+    let Some(window) = web_sys::window() else {
+        return 0.0;
+    };
+    let inner = window
+        .inner_height()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let Some(viewport) = window.visual_viewport() else {
+        return 0.0;
+    };
+    let covered = inner - viewport.height() - viewport.offset_top();
+    let ratio = window.device_pixel_ratio();
+    (covered.max(0.0) * ratio) as f32
+}
+
+#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+fn keyboard_height() -> f32 {
+    0.0
 }
 
 /// The page reads its insets off the shell's CSS; a window asks kiss3d.

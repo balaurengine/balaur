@@ -186,6 +186,38 @@ pub struct TouchStick {
     pub finger: Option<u64>,
 }
 
+impl TouchButton {
+    /// Where this button sits, in the physical pixels the touches use, as a
+    /// centre and a half-size. `None` where nothing draws or the platform
+    /// hides it, which is also when it takes no fingers.
+    ///
+    /// The drawing side is another crate, and this is what it asks rather
+    /// than repeating the placement arithmetic and drifting from it.
+    pub fn placement(&self, eng: &Engine) -> Option<((f32, f32), (f32, f32))> {
+        let area = area(eng).filter(|_| self.visibility.live(has_touchscreen(eng)))?;
+        let scale = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
+        let center = center_of(self.anchor, self.offset, area, scale);
+        Some((center, (self.width * scale / 2.0, self.height * scale / 2.0)))
+    }
+}
+
+impl TouchStick {
+    /// The base circle and the knob, in physical pixels, as two centres and
+    /// two radii. `None` where nothing draws or the platform hides it.
+    ///
+    /// The centres come off the component rather than being recomputed: a
+    /// recentring stick moved where the thumb put it, and only the hit-test
+    /// knows where that was.
+    pub fn placement(&self, eng: &Engine) -> Option<(((f32, f32), f32), ((f32, f32), f32))> {
+        area(eng).filter(|_| self.visibility.live(has_touchscreen(eng)))?;
+        let scale = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
+        Some((
+            ((self.center[0], self.center[1]), self.radius * scale),
+            ((self.knob[0], self.knob[1]), self.knob_radius * scale),
+        ))
+    }
+}
+
 /// The area a control is placed inside: the screen less what a notch covers.
 /// `None` where nothing draws, which is what keeps a headless run neutral
 /// rather than placing every control at the origin.
