@@ -157,7 +157,7 @@ pub fn top_bar(S) {
                 height: h - 12.0, radius: 9, bg: "#ffffff", padding: 2,
             });
             ui::label(mark.name, #{ role: "title", color: k.text });
-            ui::label(icons::ui("caret-down"), #{ size: style::SM, color: k.faint });
+            ui::label(icons::ui("caret-down"), #{ size: style::SM, text_color: k.faint });
         });
     });
     crate::pool::strip(S, STRIP_NODE, bar_controls(S, k));
@@ -363,25 +363,25 @@ fn status_controls(S, k, room) {
         #{ kind: "row", width: 6 },
         #{ kind: "row", width: 5, height: 5, radius: 3, fill: lamp },
         #{ kind: "label", text: status_mode(S), role: "meta",
-          font: "mono", font_size: style::SM, color: k.dim },
+          text_color: k.dim },
     ];
     // Narrow: the columns go one at a time rather than running together.
     if room > 300.0 {
         let (nodes, scripts) = model::stats(S);
         out.push(#{
-            kind: "label", role: "meta", font: "mono", font_size: style::SM, color: k.faint,
+            kind: "label", role: "meta", text_color: k.faint,
             text: format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts,
                 plural(scripts, "script")),
         });
     }
     if room > 560.0 {
         out.push(#{ kind: "label", text: "kiss3d · wgpu", role: "meta",
-            font: "mono", font_size: style::SM, color: k.faint });
+            text_color: k.faint });
     }
     out.push(#{ kind: "row", grow: 1 });
     if room > 420.0 {
         out.push(#{
-            kind: "label", role: "meta", font: "mono", font_size: style::SM, color: k.faint,
+            kind: "label", role: "meta", text_color: k.faint,
             text: format!("{} · {}", defs::persona_name(S.persona), defs::tool_name(S.tool)),
         });
     }

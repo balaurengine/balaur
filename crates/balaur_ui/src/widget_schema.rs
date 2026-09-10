@@ -32,7 +32,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::Y, r#"{ type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels", group = "placement" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel width in design pixels; 0 sizes to content", group = "placement" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content", group = "placement" }"#),
-                    (k::FONT_SIZE, r#"{ type = "float", default = 16.0, min = 6.0, description = "Text size in design pixels", group = "type" }"#),
+                    (k::FONT_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Text size in design pixels; 0 takes the size the role or the kind carries", group = "type" }"#),
                     (k::TEXT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white", group = "paint" }"#),
                     (k::PADDING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Space inside a container's edge, in design pixels", group = "layout" }"#),
                     (k::GAP, r#"{ type = "float", default = 8.0, min = 0.0, description = "Space between a container's children, in design pixels", group = "layout" }"#),
@@ -518,4 +518,52 @@ fn four(values: [f32; 4]) -> toml::Value {
             .map(|v| toml::Value::Float(f64::from(*v)))
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::widget_theme::Style;
+
+    fn widget(params: toml::Value) -> Widget {
+        widget_from(&params)
+    }
+
+    /// A widget that states no size reads as 0, which is what tells `face`
+    /// to take the size its role or its kind carries. A default of 16 here
+    /// made that sentinel unreachable, so no role ever set a text size.
+    #[test]
+    fn an_unstated_size_leaves_the_role_to_answer() {
+        let bare = widget(toml::toml! { kind = "label" role = "meta" }.into());
+        assert_eq!(bare.font_size, 0.0, "the default shadowed the role");
+        let stated = widget(toml::toml! { kind = "label" font_size = 13.0 }.into());
+        assert_eq!(stated.font_size, 13.0, "a stated size must still win");
+    }
+
+    /// The shaper is told which family to use. It shaped everything in `ui`
+    /// before, so a node label could not be mono however it asked.
+    #[test]
+    fn the_shaper_is_told_the_role_s_family() {
+        let widget = widget(toml::toml! { kind = "label" role = "meta" }.into());
+        let style = Style {
+            font: Some("mono".to_string()),
+            ..Style::default()
+        };
+        let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
+        let request = crate::widget_text::text_request(&widget, "editing", None, &font, &style);
+        assert_eq!(request.family, "mono");
+    }
+
+    /// A widget naming its own family keeps it over the role's.
+    #[test]
+    fn a_widget_s_own_family_wins() {
+        let widget = widget(toml::toml! { kind = "label" font = "heading" }.into());
+        let style = Style {
+            font: Some("mono".to_string()),
+            ..Style::default()
+        };
+        let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
+        let request = crate::widget_text::text_request(&widget, "x", None, &font, &style);
+        assert_eq!(request.family, "heading");
+    }
 }

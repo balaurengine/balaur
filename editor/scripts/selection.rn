@@ -149,11 +149,6 @@ pub fn unlock_all(S) {
     S.locks = #{};
 }
 
-/// Whether a row may be grabbed in the viewport at all.
-pub fn pickable(S, i) {
-    !is_locked(S, i)
-}
-
 /// Every selected root's transform, taken once when a drag starts so each
 /// frame applies a delta to the pose the drag began from.
 pub fn snapshot(S) {
@@ -176,18 +171,6 @@ pub fn snapshot(S) {
         });
     }
     out
-}
-
-/// The centroid of a snapshot's world positions, which a rotation turns about.
-pub fn centroid(snap) {
-    let sum = [0.0, 0.0, 0.0];
-    if snap.len() == 0 {
-        return sum;
-    }
-    for entry in snap {
-        sum = util::vadd(sum, entry.world);
-    }
-    util::vscale(sum, 1.0 / (snap.len() as f64))
 }
 
 /// Offset every row in a snapshot by one world delta. `snap_to` rounds the

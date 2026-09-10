@@ -5,6 +5,7 @@
 //! Nothing here runs during a frame — the editor's inspector, the script
 //! checker and `script::functions` are the callers.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
@@ -102,6 +103,55 @@ pub struct Finding {
     /// `"error"` or `"warning"`.
     pub severity: &'static str,
     pub message: String,
+}
+
+/// The text the compiler read a source from: the caller's own buffer for the
+/// root, and the file for a `mod` submodule, which the loader read from disk.
+///
+/// `Source` keeps its text to itself, so a pass that has to look at the code
+/// under a diagnostic reads it back. `None` where there is no file to read —
+/// a packed run — and the caller then keeps the diagnostic rather than
+/// judging it blind.
+fn read_source(
+    sources: &Sources,
+    id: rune::SourceId,
+    root: rune::SourceId,
+    buffer: &str,
+) -> Option<String> {
+    if id == root {
+        return Some(buffer.to_string());
+    }
+    std::fs::read_to_string(sources.get(id)?.path()?).ok()
+}
+
+/// Whether a "Pattern might panic" is a tuple of names being unpacked.
+///
+/// Rune warns for every refutable pattern in a `let` or a `for`, and a tuple
+/// is refutable: nothing proves a value's arity before it arrives. That is
+/// every multiple return the language has — `let (x, y) = input::mouse_position()`,
+/// `for (i, node) in nodes.iter().enumerate()` — so reporting it says nothing
+/// and drowns the warnings that do. A pattern that tests a value rather than
+/// spreading it (`Some(x)`, a list, an object) is still reported.
+///
+/// The warning's span is the pattern itself. Without the text — a packed run
+/// has no file to read — the diagnostic is kept rather than judged blind.
+fn unpacking_a_tuple(message: &str, text: Option<&str>, span: rune::ast::Span) -> bool {
+    if message != "Pattern might panic" {
+        return false;
+    }
+    let Some(pattern) = text.and_then(|text| text.get(span.range())) else {
+        return false;
+    };
+    let Some(names) = pattern
+        .strip_prefix('(')
+        .and_then(|inner| inner.strip_suffix(')'))
+    else {
+        return false;
+    };
+    !names.is_empty()
+        && names
+            .split(',')
+            .all(|name| handles::is_identifier(name.trim()))
 }
 
 /// Resolve a diagnostic's source and span into a [`Finding`]. A span-less
@@ -318,7 +368,7 @@ impl RuneHost {
         };
         let mut findings = self.handle_findings(key, source);
         let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
+        let root = sources.insert(Source::with_path(key, source, path)?)?;
         // The one place warnings are wanted: an error report should be the
         // error, but a check is exactly the language server's business.
         let mut diagnostics = Diagnostics::new();
@@ -332,6 +382,9 @@ impl RuneHost {
             prepared = prepared.with_source_loader(&mut loader);
         }
         drop(prepared.build());
+        // Each warned-about source, read once: what a diagnostic means can
+        // depend on the code under it, and `Source` does not hand its text out.
+        let mut texts: BTreeMap<rune::SourceId, Option<String>> = BTreeMap::new();
         for diagnostic in diagnostics.diagnostics() {
             findings.push(match diagnostic {
                 rune::diagnostics::Diagnostic::Fatal(fatal) => {
@@ -351,13 +404,22 @@ impl RuneHost {
                         &fatal.to_string(),
                     )
                 }
-                rune::diagnostics::Diagnostic::Warning(warning) => finding(
-                    &sources,
-                    warning.source_id(),
-                    Some(warning.span()),
-                    "warning",
-                    &warning.to_string(),
-                ),
+                rune::diagnostics::Diagnostic::Warning(warning) => {
+                    let id = warning.source_id();
+                    let text = texts
+                        .entry(id)
+                        .or_insert_with(|| read_source(&sources, id, root, source));
+                    if unpacking_a_tuple(&warning.to_string(), text.as_deref(), warning.span()) {
+                        continue;
+                    }
+                    finding(
+                        &sources,
+                        id,
+                        Some(warning.span()),
+                        "warning",
+                        &warning.to_string(),
+                    )
+                }
                 _ => continue,
             });
         }

@@ -23,6 +23,14 @@
 //! game declares its own from a script with `settings.define`. Nothing
 //! distinguishes them afterwards, which is what makes the screen a complete
 //! list rather than a curated one.
+//!
+//! **One key may hold more than one answer.** A setting's path under
+//! `override/<tag>/` is what that platform reads instead:
+//! `[override.android.window] fullscreen = true` is `window/fullscreen` on a
+//! phone and nowhere else. The storage rule needs no exception for it, since
+//! the override is a path like any other. [`get`] resolves against the tags
+//! this run answers to, narrowest first; [`base`] answers what the file says,
+//! which is what the editor edits. See [`crate::tags`].
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,6 +38,7 @@ use std::rc::Rc;
 use anyhow::{Context, Result};
 
 use crate::engine::Engine;
+use crate::tags::{OVERRIDE, Tags};
 
 /// Whose setting this is, and therefore where it is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,9 +150,45 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
     Some((parts, key))
 }
 
-/// One setting's value: what was set, else what its definition defaults to.
+/// One setting's value here: the narrowest override this run answers to,
+/// else what the file set, else what its definition defaults to.
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
+    stated(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+}
+
+/// What this run was told, and nothing more: the narrowest override, else what
+/// the file set, else `None`.
+///
+/// The read for a subsystem whose own default is not a number a schema can
+/// hold — rapier's solver, say, where absent means "leave it alone" and a
+/// declared default would quietly become an instruction.
+#[must_use]
+pub fn stated(eng: &Engine, path: &str) -> Option<toml::Value> {
+    if let Some(tags) = eng.try_resource::<Tags>() {
+        let tags = tags.borrow();
+        for tag in tags.narrowest_first() {
+            if let Some(found) = stored(eng, &format!("{OVERRIDE}/{tag}/{path}")) {
+                return Some(found);
+            }
+        }
+    }
+    stored(eng, path)
+}
+
+/// What the file says, whatever platform is reading it.
+///
+/// The editor's own read: a settings screen showing the override its machine
+/// happened to match would write that value back onto the base key.
+#[must_use]
+pub fn base(eng: &Engine, path: &str) -> Option<toml::Value> {
+    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+}
+
+/// One path's value as loaded, with no definition behind it: what an override
+/// has, and what an undeclared table of the game's own has.
+#[must_use]
+fn stored(eng: &Engine, path: &str) -> Option<toml::Value> {
     if let Some(values) = eng.try_resource::<SettingsValues>()
         && let Some((tables, key)) = split(path)
     {
@@ -162,7 +207,7 @@ pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
             return Some(found.clone());
         }
     }
-    def(eng, path).and_then(|d| d.spec.get("default").cloned())
+    None
 }
 
 /// Change one setting. Not written to disk until a caller asks for the text.
@@ -205,6 +250,87 @@ pub fn load(eng: &Engine, text: &str) -> Result<()> {
     Ok(())
 }
 
+/// Keys a manifest holds that nothing declares, inside tables that something
+/// does.
+///
+/// The rule a typo has to fall foul of: `[window] fullscren` is an error
+/// because `[window]` is a table the engine describes, while `[mygame]
+/// local_server_url` is not, because the table is the game's own space. An
+/// override is checked against the setting it overrides, so
+/// `[override.android.window] fullscren` is caught too.
+#[must_use]
+pub fn unknown(eng: &Engine, text: &str) -> Vec<String> {
+    let Ok(doc) = toml::from_str::<toml::value::Table>(text) else {
+        return Vec::new();
+    };
+    let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
+        return Vec::new();
+    };
+    let declared: Vec<String> = registry.borrow().0.iter().map(|d| d.path.clone()).collect();
+    let mut found = Vec::new();
+    walk(&doc, String::new(), &mut |path: &str| {
+        let named = without_tag(path);
+        if declared.iter().any(|d| d == named) {
+            return;
+        }
+        let Some((table, _)) = named.rsplit_once('/') else {
+            return;
+        };
+        // A table nothing describes is the game's own, and a key in it is
+        // whatever the game meant by it.
+        if declared.iter().any(|d| d.starts_with(&format!("{table}/"))) {
+            found.push(path.to_string());
+        }
+    });
+    found
+}
+
+/// An override's path without the `override/<tag>/` it is stored under, so it
+/// is checked against the setting it answers for.
+fn without_tag(path: &str) -> &str {
+    path.strip_prefix(&format!("{OVERRIDE}/"))
+        .and_then(|rest| rest.split_once('/'))
+        .map_or(path, |(_, rest)| rest)
+}
+
+/// Every leaf key in a document, as the path it is stored at.
+fn walk(table: &toml::value::Table, prefix: String, found: &mut impl FnMut(&str)) {
+    for (key, value) in table {
+        let path = if prefix.is_empty() {
+            key.clone()
+        } else {
+            format!("{prefix}/{key}")
+        };
+        match value {
+            toml::Value::Table(inner) => walk(inner, path, found),
+            _ => found(&path),
+        }
+    }
+}
+
+/// A manifest's tables with `tags`' overrides folded onto the keys they
+/// override, and `[override]` itself dropped.
+///
+/// What an export reads. The engine resolves per read, against the tags the
+/// machine running it holds; a build resolves for a machine it is not, so it
+/// asks for the whole document at once. The precedence is the same one: the
+/// narrowest tag the target answers to wins.
+///
+/// # Errors
+/// When the text is not valid TOML.
+pub fn resolve(text: &str, tags: &Tags) -> Result<toml::value::Table> {
+    let mut doc: toml::value::Table = toml::from_str(text).context("parsing settings")?;
+    let Some(toml::Value::Table(overrides)) = doc.remove(OVERRIDE) else {
+        return Ok(doc);
+    };
+    for tag in tags.0.iter() {
+        if let Some(toml::Value::Table(layer)) = overrides.get(tag.as_str()) {
+            merge(&mut doc, layer.clone());
+        }
+    }
+    Ok(doc)
+}
+
 /// Fold one table into another, table by table rather than wholesale, so
 /// loading the editor's file after the project's does not drop the project's.
 fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
@@ -245,7 +371,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .map(|d| d.path.clone())
         .collect();
     for path in paths {
-        let Some(value) = get(eng, &path) else {
+        let Some(value) = base(eng, &path) else {
             continue;
         };
         let Some((tables, key)) = split(&path) else {
@@ -269,6 +395,36 @@ pub(crate) fn build_core_settings(eng: &Engine) {
 name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
 language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
+assets = { type = "enum", default = "files", options = ["files", "embedded", "embeddedthenfiles"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
+splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
+splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "window",
+        Scope::Project,
+        &parse(
+            "settings.window",
+            r#"
+width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
+height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
+fullscreen = { type = "bool", default = false, order = 3, applies = "restart", help = "Open filling the screen. A script toggles the same state later, so starting fullscreen and switching into it take one path." }
+orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
+vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
+msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "ui",
+        Scope::Project,
+        &parse(
+            "settings.ui",
+            r#"
+system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
 "#,
         ),
     );

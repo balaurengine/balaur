@@ -317,6 +317,10 @@ pub fn compute(S) {
     // below it rather than beside it.
     size(S, "railtop", "height", crate::docks::rail_top_h(S));
     size(S, "hooks", "width", hooks_w);
+    // The side docks' rule again: a zero-width box still takes its row's gap,
+    // so the rail slot and the hooks list go rather than shrink.
+    show(S, "railslot", rail_w > 0.0);
+    show(S, "hooks", hooks_w > 0.0);
 
     // The widget layer draws after `draw_ui`, so these are a frame behind.
     // A size that just changed shows on the next one, the way `bar_fit` has

@@ -694,7 +694,11 @@ fn a_pill_in_a_sized_overlay_still_lights_up() {
         "##,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    let away = feed(&app, &ctx, vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))]);
+    let away = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))],
+    );
     let cold = fills(&away).len();
     let on = egui::pos2(20.0, 15.0);
     feed(&app, &ctx, vec![egui::Event::PointerMoved(on)]);

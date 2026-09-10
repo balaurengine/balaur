@@ -49,7 +49,9 @@ links to, and for a built row the posts the site pairs with it.
 The engine is at **0.2.0**, one version for the workspace; `v0.1.0` is tagged
 and published. A release is a `v*` tag: bump `[workspace.package] version`, and
 rewrite that milestone's rows as what landed rather than striking them, so a
-shipped tab keeps its history and the tag's notes are the rows themselves.
+shipped tab keeps its history and the tag's notes are the rows themselves. A
+tagged milestone is closed: something built after it lands in the milestone
+being built, marked `done`, never back in the shipped one.
 
 ## Editor
 
@@ -59,7 +61,7 @@ shipped tab keeps its history and the tag's notes are the rows themselves.
 | **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 done | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
-| **Focused script editing** — the code pane takes the whole window, with the docks and the hooks list folded away and put back exactly as they were. | 0.1 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
+| **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -125,7 +127,7 @@ shipped tab keeps its history and the tag's notes are the rows themselves.
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.8 | [PLAN-input.md](PLAN-input.md) |
 | **Behaviour trees** — a tree asset ticked on the fixed step and in the digest, with the navigation agents and the script API as its leaves. | 1.0 | no plan |
 | **Dialogue** — a `dialogue` plugin over an ink-shaped script, its lines addressed by key so `strings.tr` translates them. | 1.0 | no plan |
-| **Touch controls a phone needs** — `touch_button` and `touch_stick` widget kinds, pinch, swipe and long-press recognisers, and a keyboard height a layout can read. | 0.8 | [PLAN-input.md](PLAN-input.md) |
+| **Touch controls a phone needs** — `touch_button` and `touch_stick` components that feed the action table, pinch, swipe and long-press recognisers, and a keyboard height a layout can read. | 0.8 | [PLAN-touch.md](PLAN-touch.md) |
 | **Sound that fills a room** — effects on a bus: reverb, EQ, a compressor and a limiter, ducking, HRTF, and long music streamed rather than decoded whole. | 0.9 | no plan |
 | **Translations as a pipeline** — import from `.csv` and gettext `.po`, an asset remapped per locale, a dock naming every missing key, and pseudolocalisation. | 1.0 | no plan |
 

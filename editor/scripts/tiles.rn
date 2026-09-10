@@ -954,7 +954,6 @@ pub fn set_panel(S, k) {
     }
 }
 
-const SWATCH = 34.0;
 
 /// The palette dock: the tile set's texture cut into tiles to pick from, the
 /// two modes, and the layers of the map beside it.

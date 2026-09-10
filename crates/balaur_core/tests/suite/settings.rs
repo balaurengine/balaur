@@ -170,3 +170,83 @@ fn the_netcode_page_produces_the_faults_it_describes() {
     let faults = settings::faults(&app.engine).expect("turned on");
     assert_eq!(faults.delay, 9);
 }
+
+/// `[override.android.window] fullscreen` is what `window/fullscreen` reads
+/// on a phone, and nothing at all anywhere else.
+#[test]
+fn an_override_answers_only_where_its_tag_is_in_force() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[window]\nfullscreen = false\n\n[override.android.window]\nfullscreen = true\n",
+    )
+    .unwrap();
+
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["desktop".into(), "linux".into()]));
+    assert_eq!(
+        settings::get(&app.engine, "window/fullscreen"),
+        Some(toml::Value::Boolean(false))
+    );
+
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+    assert_eq!(
+        settings::get(&app.engine, "window/fullscreen"),
+        Some(toml::Value::Boolean(true))
+    );
+}
+
+/// The narrow tag wins wherever the file wrote it: precedence is the tag
+/// order this run holds, not the order two tables happen to appear in.
+#[test]
+fn the_narrower_tag_outranks_the_broader_one() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[override.android.physics]\nsolver_iterations = 3.0\n\n\
+         [override.mobile.physics]\nsolver_iterations = 2.0\n",
+    )
+    .unwrap();
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+    assert_eq!(
+        settings::get(&app.engine, "physics/solver_iterations"),
+        Some(toml::Value::Float(3.0))
+    );
+}
+
+/// What the editor edits is the file's own value, not the one this machine
+/// resolves: a screen showing the override would write it onto the base key.
+#[test]
+fn the_base_read_ignores_every_override() {
+    let app = app();
+    let source = "[window]\nfullscreen = false\n\n[override.android.window]\nfullscreen = true\n";
+    settings::load(&app.engine, source).unwrap();
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["android".into()]));
+
+    assert_eq!(
+        settings::base(&app.engine, "window/fullscreen"),
+        Some(toml::Value::Boolean(false))
+    );
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    let parsed: toml::Value = toml::from_str(&written).unwrap();
+    assert_eq!(
+        parsed["override"]["android"]["window"]["fullscreen"].as_bool(),
+        Some(true),
+        "an override no page declares survives a write: {written}"
+    );
+}
+
+/// A table core knows nothing about is the game's own space, readable by the
+/// same call as everything else.
+#[test]
+fn an_undeclared_table_is_readable_by_path() {
+    let app = app();
+    settings::load(&app.engine, "[mygame]\nlocal_server_url = \"http://localhost:8080\"\n").unwrap();
+    assert_eq!(
+        settings::get(&app.engine, "mygame/local_server_url"),
+        Some(toml::Value::String(String::from("http://localhost:8080")))
+    );
+}

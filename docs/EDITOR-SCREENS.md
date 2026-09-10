@@ -180,9 +180,10 @@ region in the shell.
 ### 4e. Focus — `shell::toggle_focus` (`37`)
 
 The code pane with the window to itself: `⇧⌘\`, or the chip beside Split. The
-three docks fold, the split goes off and the hooks list with them, and leaving
-puts back the layout focus folded. A panel opened under it — from `⌘K`, the
-mark menu or a diagnostic — ends focus rather than being shut again.
+three docks fold and the split goes off; the file's hooks list stays, and the
+pair fill the shell's gutter edge to edge, as the top bar does. Leaving puts
+back the layout focus folded. A panel opened under it — from `⌘K`, the mark
+menu or a diagnostic — ends focus rather than being shut again.
 
 ---
 

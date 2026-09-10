@@ -821,6 +821,18 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
 /// The near-white a caption takes when neither the widget nor its theme says.
 pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
 
+/// The theme family a widget draws in: the one it names, else its role's,
+/// else `ui`. The shaper needs the name as well as the face.
+pub(crate) fn family_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
+    // Unset is empty before the schema's default lands and `ui` after it, and
+    // both mean the same: whatever the role or the kind asked for.
+    if widget.font.is_empty() || widget.font == w::UI {
+        style.font.as_deref().unwrap_or(w::UI)
+    } else {
+        widget.font.as_str()
+    }
+}
+
 /// The ink and the face a widget draws its caption in.
 ///
 /// A property left at its default is the widget saying nothing, so the theme
@@ -847,12 +859,7 @@ pub(crate) fn face(
     } else {
         style.font_size.unwrap_or(16.0)
     };
-    let named = if widget.font == w::UI {
-        style.font.as_deref().unwrap_or(w::UI)
-    } else {
-        widget.font.as_str()
-    };
-    (ink, egui::FontId::new(size * scale, family(named)))
+    (ink, egui::FontId::new(size * scale, family(family_of(style, widget))))
 }
 
 /// The weight a widget draws at, the theme answering for one left at 400.

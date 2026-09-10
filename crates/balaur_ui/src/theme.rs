@@ -306,8 +306,7 @@ fn fallback_face() -> FontFace {
 /// `[ui] system_fonts`. A project that says nothing gets them, so text in a
 /// script balaur does not vendor keeps drawing.
 fn wants_system_fonts(eng: &Engine) -> bool {
-    eng.try_resource::<balaur_core::project::ProjectManifest>()
-        .is_none_or(|manifest| manifest.borrow().ui.system_fonts)
+    balaur_core::project::UiSettings::from_settings(eng).system_fonts
 }
 
 /// Load the four named families into `ctx`. A project's own `fonts/*.ttf`

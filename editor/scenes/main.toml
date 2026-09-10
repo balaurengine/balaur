@@ -237,9 +237,10 @@ grow = 1
 id = "right_foot"
 name = "RightFoot"
 parent = "right_sheet"
+# One button, so a pooled row rather than a hatch.
 [nodes.widget]
-kind = "draw"
-draw = "draw_dock_right_foot"
+kind = "row"
+align = "center"
 height = 36
 
 # The Inspector's and Import's rows: a form whose fields change with the

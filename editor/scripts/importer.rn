@@ -113,20 +113,6 @@ pub fn write(S, rel, key, value) {
     assets::invalidate();
 }
 
-// The three columns, all derived from the dock's width so the right-hand
-// note is never clipped: at a width nothing fits, the label gives way first.
-fn label_w(S) {
-    util::clamp(S.layout.right.w * 0.28, 40.0, 84.0)
-}
-
-fn note_w(S) {
-    util::clamp(S.layout.right.w * 0.20, 40.0, 60.0)
-}
-
-fn control_w(S) {
-    util::max(64.0, S.layout.right.w - 26.0 - label_w(S) - note_w(S))
-}
-
 // One row: the label, the control, and where the value came from.
 fn row(S, k, rel, kind, spec) {
     let key = spec.key;

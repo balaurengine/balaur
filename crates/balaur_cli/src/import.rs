@@ -36,6 +36,7 @@ pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Res
     match extension.as_str() {
         "aseprite" | "ase" => import_sprite(file, project, layers),
         "tmx" | "ldtk" => import_level(file, project),
+        "godot" | "tscn" | "tres" => import_from_godot(file, project),
         _ if !layers.is_empty() => {
             anyhow::bail!("--layer picks layers of an .aseprite file; {extension} has none")
         }
@@ -73,6 +74,60 @@ fn import_level(file: &Path, project: &Path) -> Result<Imported> {
         file.display(),
         imported.layers,
         if imported.layers == 1 { "" } else { "s" }
+    );
+    Ok(out)
+}
+
+/// `balaur import project.godot --project game`: the settings both engines
+/// have, and a report naming what neither shares.
+///
+/// A `.tscn` or a `.tres` is the same verb over a scene or a resource; those
+/// phases are `docs/PLAN-godot-import.md` and are not written yet, so each is
+/// refused by name rather than half-converted.
+fn import_from_godot(file: &Path, project: &Path) -> Result<Imported> {
+    let extension = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if extension != "godot" {
+        anyhow::bail!(
+            "a .{extension} is a Godot scene or resource, which `balaur import` does not read yet;              `balaur import project.godot` converts the project settings today"
+        );
+    }
+    let text = std::fs::read_to_string(file)
+        .with_context(|| format!("reading {}", file.display()))?;
+    let document = crate::import_godot::parse(&text)
+        .with_context(|| format!("reading {}", file.display()))?;
+    let root = file.parent().unwrap_or(Path::new("."));
+    let uids = crate::import_godot_project::uid_index(root)?;
+    let converted = crate::import_godot_project::convert(&document, &uids)?;
+
+    std::fs::create_dir_all(project)?;
+    std::fs::write(project.join("project.toml"), &converted.project_toml)?;
+    let mut out = Imported {
+        files: vec!["project.toml".to_string()],
+        scene: None,
+        note: String::new(),
+    };
+    if converted.notes.is_empty() {
+        out.note = "everything in the project file carried across".to_string();
+        return Ok(out);
+    }
+    let mut report = String::from("# What did not convert
+
+");
+    for line in &converted.notes {
+        report.push_str("- ");
+        report.push_str(line);
+        report.push('\n');
+    }
+    std::fs::write(project.join("import-report.md"), &report)?;
+    out.files.push("import-report.md".to_string());
+    out.note = format!(
+        "{} thing{} did not carry; see import-report.md",
+        converted.notes.len(),
+        if converted.notes.len() == 1 { "" } else { "s" }
     );
     Ok(out)
 }

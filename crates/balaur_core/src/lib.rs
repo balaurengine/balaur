@@ -66,6 +66,7 @@ pub mod snapshot;
 pub mod standalone;
 pub mod states;
 pub mod strings;
+pub mod tags;
 pub mod tiles;
 pub mod time;
 pub mod timers;

@@ -148,9 +148,21 @@ ccd_substeps = { type = "float", default = 1.0, min = 0.0, max = 16.0, help = "S
 length_unit = { type = "float", default = 1.0, min = 0.000001, max = 1000.0, help = "How many of the game's units make a metre. A pixel game sets this rather than scaling every body." }
 contact_clustering = { type = "bool", default = true, help = "Group contacts before solving them." }
 contact_recycling = { type = "bool", default = true, help = "Reuse contact state between steps." }
-allowed_linear_error = { type = "float", default = 0.001, min = 0.0, max = 1.0, help = "How far a body may sink into another before the solver pushes back." }
-max_corrective_velocity = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "A cap on how fast the solver may push overlapping bodies apart." }
-prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
+allowed_linear_error = { type = "float", default = 0.005, min = 0.0, max = 1.0, help = "How far a body may sink into another before the solver pushes back." }
+max_corrective_velocity = { type = "float", default = 3.0, min = 0.0, max = 1000.0, help = "A cap on how fast the solver may push overlapping bodies apart." }
+prediction_distance = { type = "float", default = 0.02, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
+internal_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Projected Gauss-Seidel iterations inside one solver iteration." }
+stabilization_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Iterations spent pushing overlapping bodies apart rather than solving velocities." }
+min_ccd_dt = { type = "float", default = 0.000167, min = 0.0, max = 1.0, help = "The smallest substep continuous collision detection will take." }
+warmstart = { type = "float", default = 1.0, min = 0.0, max = 1.0, help = "How much of the last step's impulses the solver starts from." }
+warmstart_joints = { type = "bool", default = false, help = "Warm-start joints as well as contacts." }
+friction_in_bias_pass = { type = "bool", default = false, help = "Solve friction in the bias pass, which is stabler at the cost of a little drift." }
+max_linear_velocity = { type = "float", default = 400.0, min = 0.0, max = 100000.0, help = "A cap on how fast a body may travel, in length units per second." }
+contact_frequency = { type = "float", default = 30.0, min = 0.0, max = 1000.0, help = "The frequency of the spring a contact is solved as, in hertz." }
+contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
+static_contact_frequency = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
+static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
+threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
 "#,
             ),
         );

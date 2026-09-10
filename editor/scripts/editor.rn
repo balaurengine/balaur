@@ -501,6 +501,7 @@ pub fn draw_ui(this) {
     // After the layout: the strip drops columns as the dock narrows, so it
     // cannot be filled until the dock's width is known.
     chrome::status_bar(S, S.theme, S.layout.bottom.w);
+    docks::right_foot(S);
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
     // `draw_dock_*` to fill them.
@@ -587,10 +588,6 @@ pub fn draw_dock_tools_right(this) {
 
 pub fn draw_dock_tools_bottom(this) {
     docks::draw_tools(this.S, this.S.theme, "bottom");
-}
-
-pub fn draw_dock_right_foot(this) {
-    docks::draw_right_foot(this.S, this.S.theme);
 }
 
 // One hatch for every row the inspector's pool draws itself; the cursor in

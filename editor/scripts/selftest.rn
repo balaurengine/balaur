@@ -1440,7 +1440,7 @@ pub fn focusing(S) {
     check(S.focus && S.doctab == "script", "focus takes, and the code is what shows");
     check(!S.split, "the split is off under it");
     check(crate::docks::all_folded(S), "every dock is folded away");
-    check(!S.hooks_open, "and the hooks list with them");
+    check(S.hooks_open, "and the file's symbols stay beside the code");
     shell::toggle_focus(S);
     crate::center::modes(S);
     check(!S.focus, "leaving focus clears it");
@@ -1451,7 +1451,6 @@ pub fn focusing(S) {
         }
     }
     check(back, "and every dock comes back to what it was");
-    check(S.hooks_open, "the hooks list beside the code too");
     // Leaving the code is leaving focus: the shell comes back with the tab.
     shell::toggle_focus(S);
     shell::open_doc(S, "scene");

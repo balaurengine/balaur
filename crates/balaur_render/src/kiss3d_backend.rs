@@ -307,13 +307,10 @@ pub async fn run_windowed_async(
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
     balaur_ui::honour_lazy(&app.engine);
-    // `[window]` in project.toml, or its defaults when a project says
-    // nothing. Read before the window exists, so it cannot come from a
+    // `[window]` as this platform resolves it, or its defaults when a project
+    // says nothing. Read before the window exists, so it cannot come from a
     // resource the first frame inserts.
-    let window_settings = app
-        .manifest()
-        .map(|manifest| manifest.window.clone())
-        .unwrap_or_default();
+    let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,

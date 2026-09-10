@@ -135,6 +135,22 @@ pub struct DeviceFacts {
     pub safe_area: [f32; 4],
     /// Frames per second the display refreshes at, as measured.
     pub refresh_rate: f32,
+    /// The drawing surface in physical pixels, the space `safe_area` and the
+    /// touches are measured in. Zero where nothing draws, which is what a
+    /// headless run reads.
+    #[serde(default)]
+    pub screen_size: [f32; 2],
+    /// Physical pixels per design pixel: what a layout authored in design
+    /// pixels multiplies by to reach the screen. Recorded, because anything
+    /// placed against the screen replays through it.
+    #[serde(default = "one")]
+    pub ui_scale: f32,
+}
+
+/// A missing scale is 1, not 0: a recording made before the field existed had
+/// no zoom, and a zero would collapse every layout that reads it.
+const fn one() -> f32 {
+    1.0
 }
 
 impl Default for DeviceFacts {
@@ -144,6 +160,8 @@ impl Default for DeviceFacts {
             dark_mode: false,
             safe_area: [0.0; 4],
             refresh_rate: 60.0,
+            screen_size: [0.0; 2],
+            ui_scale: 1.0,
         }
     }
 }

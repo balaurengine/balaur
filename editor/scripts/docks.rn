@@ -1,7 +1,6 @@
 // The shell's three docks — left, bottom, right — and the panels in them. A
 // panel lives in exactly one dock; its tab menu moves it to another.
 
-use crate::chrome;
 use crate::dock;
 use crate::icons;
 use crate::inspector;
@@ -203,12 +202,16 @@ pub fn bottom_tall(S) {
 }
 
 /// What sits under the right sheet's scroll, whichever panel is up.
-pub fn draw_right_foot(S, k) {
+const RIGHT_FOOT_NODE = "Editor/Shell/Body/Right/RightSheet/RightFoot";
+
+/// The inspector's foot: one button, filled into the row the scene lays out.
+pub fn right_foot(S) {
     let d = S.docks.right;
     if d.shut || d.active != "inspector" {
+        crate::pool::hide(RIGHT_FOOT_NODE);
         return;
     }
-    inspector::foot(S, k);
+    crate::pool::strip(S, RIGHT_FOOT_NODE, inspector::foot_controls(S));
 }
 
 fn body(S, k, id) {
@@ -436,20 +439,6 @@ pub fn draw_tools(S, k, side) {
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
 fn hide_tabs(side) {
     util::hide(head_of(side));
-}
-
-fn tab_menu(S, k, side, id, name) {
-    if ui::menu_item(format!("Close {}", name), #{ color: k.text, width: 150 }) {
-        close(S, id);
-    }
-    ui::menu_item("Move to", #{ color: k.faint, width: 150 });
-    for other in sides() {
-        if other != side {
-            if ui::menu_item(format!("   {}", other), #{ color: k.text, width: 150 }) {
-                move_to(S, id, other);
-            }
-        }
-    }
 }
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab

@@ -1,7 +1,6 @@
 // Inspector (308 px): live node properties, editable, per-persona sections.
 
 use crate::anim;
-use crate::history;
 use crate::icons;
 use crate::model;
 use crate::polygon;
@@ -13,11 +12,6 @@ use crate::util;
 const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 184.0;
-// Above the scroll: the dock's tab row, the node header and the search
-// field. Below it: the Add component button and its margins.
-const HEAD_H = 112.0;
-const FOOT_H = 58.0;
-
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
 // tree's, under an `inspector/` key so the two never collide.
@@ -1535,11 +1529,11 @@ pub fn body(S, k) {
 }
 
 /// The one control under the scroll, so a long form cannot push it away.
-pub fn foot(S, k) {
-    ui::add_space(3);
-    if ui::pill(icons::ui("add") + "  Add component", #{
-        role: "button", height: 30, min_width: S.layout.right.w - 26.0,
-    }) {
-        shell::open_palette(S, "add ");
-    }
+pub fn foot_controls(S) {
+    [#{
+        kind: "button", role: "button", height: 30,
+        width: S.layout.right.w - 26.0,
+        icon: icons::ui("add"), text: "Add component",
+        on: |_| { shell::open_palette(S, "add "); },
+    }]
 }

@@ -841,12 +841,6 @@ pub fn key_deform(S) {
     crate::anim::key_property(S, S.anim.time, "polygon/deform", deform(S));
 }
 
-// Read the offsets back off the clip at the playhead, so scrubbing shows the
-// deform the way scrubbing shows a transform.
-pub fn read_deform(S, value) {
-    S.polygon.deform = util::vec(value);
-}
-
 fn uv_of(S, mesh, i, p) {
     let uvs_some = mesh.get("uvs");
     if let Some(uvs) = uvs_some {

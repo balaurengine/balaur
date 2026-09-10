@@ -16,7 +16,7 @@ pub(crate) fn text_request<'a>(
     caption: &'a str,
     width: Option<f32>,
     font: &egui::FontId,
-    style: &crate::widget_theme::Style,
+    style: &'a crate::widget_theme::Style,
 ) -> crate::text::RequestRef<'a> {
     crate::text::RequestRef {
         text: caption,
@@ -35,8 +35,7 @@ pub(crate) fn text_request<'a>(
         // A widget names no bitmap font yet; the world's text is where a
         // pixel face is asked for.
         font: "",
-        // The scene's widget names no chain yet, so `ui` as before.
-        family: "",
+        family: crate::widget_layer::family_of(style, widget),
         line_height: 0.0,
         letter_spacing: 0.0,
     }

@@ -279,6 +279,10 @@ mod import;
 // Both read a level file through `tiled`, which is a non-wasm dependency:
 // `balaur import` is a command line the browser has not got.
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_project;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_ldtk;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_tiled;

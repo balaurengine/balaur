@@ -49,19 +49,49 @@ pub struct ProjectManifest {
     pub splash: String,
     /// How long the splash stays, in seconds of engine time.
     pub splash_seconds: f32,
-    /// The window a windowed build opens, and how it is drawn.
-    pub window: WindowSettings,
-    /// What the UI layer loads before it draws.
-    pub ui: UiSettings,
     /// `[import.<kind>]`: the default settings for every file of a kind.
     /// See [`crate::import`].
     pub import: BTreeMap<String, toml::Table>,
 }
 
+/// Which way up a phone may hold the game.
+///
+/// A device decides this before the game runs, so it is written into the
+/// export's own manifest rather than read at startup like the rest.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Orientation {
+    #[default]
+    Any,
+    Portrait,
+    Landscape,
+}
+
+impl Orientation {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::Portrait => "portrait",
+            Self::Landscape => "landscape",
+        }
+    }
+
+    #[must_use]
+    pub fn parse(name: &str) -> Self {
+        match name {
+            "portrait" => Self::Portrait,
+            "landscape" => Self::Landscape,
+            _ => Self::Any,
+        }
+    }
+}
+
 /// `[window]`: the window a windowed build opens, and how it is drawn.
 ///
 /// A headless run holds these and opens nothing, so a project states them
-/// once and still ticks identically in CI.
+/// once and still ticks identically in CI. Read through the settings
+/// registry, so `[override.android.window]` answers on a phone.
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct WindowSettings {
@@ -80,6 +110,7 @@ pub struct WindowSettings {
     /// state this seeds, so a game that starts fullscreen and a game that
     /// switches into it take one path.
     pub fullscreen: bool,
+    pub orientation: Orientation,
 }
 
 impl Default for WindowSettings {
@@ -90,11 +121,54 @@ impl Default for WindowSettings {
             msaa: 1,
             vsync: true,
             fullscreen: false,
+            orientation: Orientation::Any,
         }
     }
 }
 
-/// `[ui]`: what the UI layer loads before it draws.
+impl WindowSettings {
+    /// `[window]` as this run resolves it, overrides and all.
+    #[must_use]
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            width: setting_u32(eng, "window/width", fallback.width),
+            height: setting_u32(eng, "window/height", fallback.height),
+            msaa: setting_u32(eng, "window/msaa", fallback.msaa),
+            vsync: setting_bool(eng, "window/vsync", fallback.vsync),
+            fullscreen: setting_bool(eng, "window/fullscreen", fallback.fullscreen),
+            orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
+        }
+    }
+}
+
+/// The settings registry answers in `toml::Value`; these are the three shapes
+/// a manifest key comes back as, each falling back to the schema's own.
+fn setting_u32(eng: &Engine, path: &str, fallback: u32) -> u32 {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(crate::components::as_f64)
+        .filter(|n| *n >= 0.0)
+        .map_or(fallback, |n| n as u32)
+}
+
+fn setting_bool(eng: &Engine, path: &str, fallback: bool) -> bool {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(fallback)
+}
+
+fn setting_string(eng: &Engine, path: &str) -> String {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// `[ui]`: what the UI layer loads before it draws. Read through the settings
+/// registry, so a platform may answer differently.
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct UiSettings {
@@ -111,6 +185,17 @@ pub struct UiSettings {
 impl Default for UiSettings {
     fn default() -> Self {
         Self { system_fonts: true }
+    }
+}
+
+impl UiSettings {
+    /// `[ui]` as this run resolves it.
+    #[must_use]
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
+        }
     }
 }
 
@@ -166,10 +251,6 @@ struct RawManifest {
     #[serde(default)]
     plugins: BTreeMap<String, PluginChoice>,
     #[serde(default)]
-    window: WindowSettings,
-    #[serde(default)]
-    ui: UiSettings,
-    #[serde(default)]
     import: BTreeMap<String, toml::Table>,
 }
 
@@ -201,8 +282,6 @@ impl From<RawManifest> for ProjectManifest {
             plugins: raw.plugins,
             splash: raw.application.splash,
             splash_seconds: raw.application.splash_seconds.max(0.0),
-            window: raw.window,
-            ui: raw.ui,
             import: raw.import,
         }
     }
@@ -1066,7 +1145,9 @@ fn slug(name: &str) -> String {
 ///
 /// One walk rather than two: the checker wants the components beside a
 /// script and the tools that only want the paths read the keys. A scene that
-/// will not parse is skipped — it is the scene loader's error to report.
+/// will not parse is skipped — it is the scene loader's error to report, not
+/// the checker's — and so is a directory carrying a `project.toml` of its
+/// own, which is another project rather than a part of this one.
 ///
 /// A node's components are the keys its table holds that no scene field
 /// claims, which is exactly what the loader dispatches to component handlers;
@@ -1086,7 +1167,13 @@ pub fn scene_attachments(
         for (name, is_dir) in fs.list(&dir) {
             let path = dir.join(&name);
             if is_dir {
-                dirs.push(path);
+                // A directory holding a manifest is another project: its
+                // scenes name scripts from its own root, and it is checked
+                // from there. The editor's library and each of its templates
+                // are exactly this.
+                if fs.read(&path.join("project.toml")).is_err() {
+                    dirs.push(path);
+                }
                 continue;
             }
             if path.extension().and_then(|e| e.to_str()) != Some("toml") {

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::time::Instant;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize as _;
 
 use crate::engine::{Command, Engine};
@@ -176,6 +176,9 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::ids::IdAllocator::default());
     eng.insert_resource(crate::settings::SettingsRegistry::default());
     eng.insert_resource(crate::settings::SettingsValues::default());
+    // Before any setting is read, since the tags in force decide which
+    // `[override.<tag>]` a read answers from.
+    eng.insert_resource(crate::tags::Tags::current());
     eng.insert_resource(crate::netsession::PeerTraffic::default());
     eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
@@ -650,6 +653,16 @@ impl App {
         }
         self.engine
             .insert_resource(project::ManifestSource(manifest_src.clone()));
+        // Every table in the file, as values the settings registry answers
+        // from: one reader for what a project declares, whoever declared it.
+        crate::settings::load(&self.engine, &manifest_src)?;
+        let unknown = crate::settings::unknown(&self.engine, &manifest_src);
+        if !unknown.is_empty() {
+            bail!(
+                "project.toml has {} nothing declares. A misspelled key is a                  setting that silently does not apply; a table of your own                  (`[mygame] url`) is not checked.",
+                unknown.join(", ")
+            );
+        }
         self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;

@@ -41,8 +41,8 @@ pub fn modes(S) {
     let rail_on = S.viewport_live && has_tools;
     S.rail_visible = rail_on;
     // The hooks list only earns its 172 px when the code has the centre to
-    // itself; a split is already two columns, and focus is neither.
-    let hooks_on = code && !split && !S.focus;
+    // itself; a split is already two columns.
+    let hooks_on = code && !split;
     S.hooks_open = hooks_on;
 }
 

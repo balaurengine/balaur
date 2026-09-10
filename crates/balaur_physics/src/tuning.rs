@@ -95,27 +95,33 @@ fn manifest_tuning_system(eng: &Engine, _dt: f32) {
         if flag.borrow().applied {
             return;
         }
-        let Some(source) = balaur_core::project::manifest_source(eng) else {
-            return;
-        };
-        flag.borrow_mut().applied = true;
-        // `toml::Table`, not `toml::Value`: `Value`'s `FromStr` in toml 1 reads
-        // a value, and a document's first `[table]` header ends it.
-        if let Ok(manifest) = source.parse::<toml::Table>()
-            && let Some(section) = manifest.get("physics")
+        if eng
+            .try_resource::<balaur_core::project::ProjectManifest>()
+            .is_none()
         {
-            read_manifest_threads(eng, section);
-            write_tuning_from_toml(eng, section);
+            return;
         }
+        flag.borrow_mut().applied = true;
+        read_manifest_threads(eng);
+        write_tuning_from_settings(eng);
     }
     // Last thing before the first step: everything that had a say has had it.
     build_pool(eng);
 }
 
+/// One `[physics]` key, as this platform resolves it: an override answers
+/// here the same way it answers anywhere else.
+///
+/// `stated`, not `get`: rapier's own default is the fallback, and a schema
+/// default answering for an absent key would overwrite it.
+fn setting(eng: &Engine, key: &str) -> Option<toml::Value> {
+    balaur_core::settings::stated(eng, &format!("physics/{key}"))
+}
+
 /// `[physics] threads`, which a script's own `set_threads` outranks: the
 /// manifest is what a project usually wants and the call is what this run does.
-fn read_manifest_threads(eng: &Engine, section: &toml::Value) {
-    let Some(count) = section.get(k::THREADS).and_then(toml::Value::as_integer) else {
+fn read_manifest_threads(eng: &Engine) {
+    let Some(count) = setting(eng, k::THREADS).as_ref().and_then(toml::Value::as_integer) else {
         return;
     };
     if eng.resource::<SolverThreads>().borrow().asked {
@@ -124,10 +130,20 @@ fn read_manifest_threads(eng: &Engine, section: &toml::Value) {
     want_threads(eng, count.max(1) as usize, false);
 }
 
-/// The `[physics]` table, onto both worlds.
-fn write_tuning_from_toml(eng: &Engine, section: &toml::Value) {
-    let f = |key: &str, default: f32| crate::vocabulary::f(section, key, default);
-    let boolean = |key: &str, default: bool| crate::vocabulary::boolean(section, key, default);
+/// The `[physics]` settings, onto both worlds.
+fn write_tuning_from_settings(eng: &Engine) {
+    let f = |key: &str, default: f32| {
+        setting(eng, key)
+            .as_ref()
+            .and_then(balaur_core::components::as_f64)
+            .map_or(default, |n| n as f32)
+    };
+    let boolean = |key: &str, default: bool| {
+        setting(eng, key)
+            .as_ref()
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(default)
+    };
     {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();

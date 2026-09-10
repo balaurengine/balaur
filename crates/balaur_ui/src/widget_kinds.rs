@@ -319,10 +319,8 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         None
     };
     if let Some(fill) = lit {
-        ui.painter().set(
-            plate,
-            egui::epaint::RectShape::filled(rect, radius, fill),
-        );
+        ui.painter()
+            .set(plate, egui::epaint::RectShape::filled(rect, radius, fill));
     }
     // A picked row still answers the pointer: the wash goes over the fill that
     // says it is picked rather than instead of it.

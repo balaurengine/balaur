@@ -3,7 +3,6 @@
 
 use crate::anim;
 use crate::icons;
-use crate::lint;
 use crate::model;
 use crate::session;
 use crate::shell;
@@ -239,9 +238,6 @@ pub fn output(S, k) {
         }
     });
 }
-
-const CARD_W = 96.0;
-const CARD_H = 58.0;
 
 // Icon and ink by extension, so a directory of assets reads at a glance. The
 // tile is one fill for every card; only the mark is typed.

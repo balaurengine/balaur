@@ -2,7 +2,6 @@
 // under the caret, from the same `script::complete` an editor outside Balaur
 // reaches through `balaur lsp`.
 
-use crate::model;
 use crate::style;
 use crate::util;
 

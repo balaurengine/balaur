@@ -119,11 +119,13 @@ it is one verb that folds them together and puts back what was open.
 the three docks' `shut` flags and `S.split` into `S.focus_was`, shuts all
 three, turns the split off and points the centre at the `script` tab; a
 second call reads that record back and clears it. One flag is new, `S.focus`,
-and only because the hooks list is derived per frame rather than stored:
-`center::modes` reads it where it already reads `code && !split`. Nothing
-else in the shell learns a state, because `layout.rn` hands a folded sheet's
-width back to the centre today, so the code pane widens by the rects it
-already computes. The tool rail needs no rule at all: it is hidden whenever a
+and only so the chip can light and the record can be dropped when a panel is
+opened under it. The hooks list stays: the file's symbols are what a reader
+is in the code for. Nothing else in the shell learns a state, because
+`layout.rn` hands a folded sheet's width back to the centre today, so the
+code pane widens by the rects it already computes. A box at zero width still
+took the row's gap beside it, so `layout.rn` hides the rail slot and the
+hooks list outright and the pair reach the gutter, as the top bar does. The tool rail needs no rule at all: it is hidden whenever a
 document owns the centre.
 
 | Piece | Decision |

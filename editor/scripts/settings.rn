@@ -63,10 +63,6 @@ pub fn load_files(S) {
     apply(S);
 }
 
-pub fn close(S) {
-    crate::window::hide(S);
-}
-
 // The editor's own settings live beside its sessions, not in any project.
 pub fn prefs_path() {
     engine::user_data_dir() + "/settings.toml"
