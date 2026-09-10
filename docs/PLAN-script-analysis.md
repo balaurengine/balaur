@@ -1,5 +1,6 @@
-> **Status:** not started. Written 2026-09-07, after a CI failure raised the
-> question of why a bad script call is only ever found at run time.
+> **Status:** the scene-aware pass is in, as warnings. Written 2026-09-07,
+> after a CI failure raised the question of why a bad script call is only ever
+> found at run time; steps 1, 2 and 6 landed 2026-09-10.
 
 # Plan: static analysis for Rune — what `balaur check` cannot see yet
 
@@ -46,23 +47,29 @@ let Some(&handle) = targets.get(&name) else {
 once the handle has a value, so `this.node.sprite.apply_impulse(1.0, 0.0)`
 compiles clean and fails on the tick that runs it.
 
-Catching that statically means three things the checker does not do:
+Catching that statically means three things, all of them now done:
 
 1. Read the scene beside the script, so a node's components are known.
-2. Constant-fold `this.node.<name>` where `<name>` is a literal field, which
-   is how scripts in `examples/` are written.
-3. Resolve the method against the same `drives` and signature tables the
-   handle is built from, so the checker and the runtime cannot disagree.
+   `balaur_core::project::scene_attachments` is the one walk that answers
+   both this and `scene_scripts`.
+2. Constant-fold `this.node.<name>` where `<name>` is a literal field, and
+   a local the script bound to `this.node`, which is how scripts in
+   `examples/` are written.
+3. Resolve the method against the same `drives` and schema tables the handle
+   is built from, so the checker and the runtime cannot disagree.
 
 Where the component is not a literal (a variable, a loop, a value off a
 table), no analysis answers it and the run-time error stays the answer.
 
 ## 2. Design
 
-**One table, two readers.** The list of which module drives which component,
-and which methods it declares, is built once and read by both the handle
-builder and the checker. A second copy that could drift is the failure this
-whole plan exists to avoid.
+**One table, three readers.** `crates/balaur_script_rune/src/handles.rs`
+holds which module drives which component, the operations every handle
+carries whatever it names, and the schema properties on it. The handle
+builder, the completion list and the checker all read it. A second copy that
+could drift is the failure this whole plan exists to avoid, and there was
+one: the completion list offered `add` and `props`, which no handle has, and
+hid `patch`, which every handle has.
 
 **A finding is a `Finding`.** The scene-aware pass emits the same
 `balaur_script_rune::Finding` the compiler pass does, so `balaur check`, the
@@ -76,8 +83,10 @@ own scripts are clean under `--strict`, and only then is promoted.
 
 1. **Run the checker.** `e2e.sh` runs `balaur check` per example. *Done
    2026-09-07.*
-2. **Test the checker.** `check_project` and `check_source` have no test.
-   One project with a known-bad script, one clean, asserting the findings.
+2. **Test the checker.** *Done 2026-09-10:*
+   `crates/balaur/tests/suite/script_check.rs` checks one project per case,
+   the clean script and each finding, and that the compiler's own diagnostics
+   still arrive beside them.
 3. **Fix the paths.** A finding names its file relative to the project for
    scripts a scene attaches, and absolutely for a `mod` submodule reached
    through one. `benchmark` shows both in one run. They should agree.
@@ -86,8 +95,16 @@ own scripts are clean under `--strict`, and only then is promoted.
 5. **`--strict` in e2e.** Once step 4 lands, so a new warning fails a build.
 6. **The scene-aware pass.** Fold literal `this.node.<component>`, resolve
    the method against the drives table, emit a warning naming both the
-   component and the method.
-7. **Promote to error.** When the tree is clean under it.
+   component and the method. *Done 2026-09-10.* Four findings come out of it:
+   a field that is no component, a component no node attaching the script
+   carries, a method no module drives that component with, and a property
+   called as a method. It runs inside `check_source`, so `balaur check`, the
+   language server and the editor's Problems list all show it.
+7. **Promote to error.** When the tree is clean under it. Two false-positive
+   paths have to close first: a component another script adds to the node
+   (only the script's own string literals suppress it today), and a script a
+   scene attaches that is also attached at run time to a node the scene never
+   describes.
 
 ## 4. What this is not
 

@@ -160,7 +160,13 @@ pub(crate) fn sync_2d(
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
-        let [r, g, b, a] = renderable.color;
+        // Read once: the ancestors' tint and their visibility come off the
+        // same propagated component.
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let inherited = appearance.tint.to_array();
+        let [r, g, b, a] = modulate(renderable.color, inherited);
         // A sprite is the one 2D shape still built at unit size: its extents
         // come from the image and change without rebuilding the node.
         let size = match renderable.shape {
@@ -175,7 +181,7 @@ pub(crate) fn sync_2d(
             slot.deformed =
                 crate::skinned_2d::write_deform(&world, entity, polygon, handle, slot.deformed);
         }
-        tint_pieces(slot, &renderable);
+        tint_pieces(slot, &renderable, inherited);
         // Every sync, not just on rebuild: frames and flips are UV changes, so
         // an animation that flips frames must not rebuild the node.
         if let Some(sprite) = &renderable.sprite {
@@ -186,9 +192,7 @@ pub(crate) fn sync_2d(
             slot.flip = flip;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-        let visible = world
-            .get::<&GlobalAppearance>(entity)
-            .is_ok_and(|a| a.visible);
+        let visible = appearance.visible;
         slot.node
             .set_position(Vec2::new(global.position.x, global.position.y))
             .set_rotation(angle)
@@ -206,15 +210,26 @@ pub(crate) fn sync_2d(
     });
 }
 
+/// A node's own colour with the tint every ancestor contributed multiplied
+/// in, channel by channel, alpha included.
+pub(crate) fn modulate(color: [f32; 4], tint: [f32; 4]) -> [f32; 4] {
+    [
+        color[0] * tint[0],
+        color[1] * tint[1],
+        color[2] * tint[2],
+        color[3] * tint[3],
+    ]
+}
+
 /// A polyline's pieces carry their own colour: the tint blended toward the
 /// gradient by where each sits, since a group's colour stops at the group.
-pub(crate) fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d) {
-    let [r, g, b, a] = renderable.color;
+pub(crate) fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d, inherited: [f32; 4]) {
+    let [r, g, b, a] = modulate(renderable.color, inherited);
     let end = renderable
         .line
         .as_ref()
         .and_then(|style| style.gradient)
-        .unwrap_or(renderable.color);
+        .map_or([r, g, b, a], |gradient| modulate(gradient, inherited));
     for (piece, along) in &mut slot.pieces {
         let t = *along;
         piece.set_color(Color::new(

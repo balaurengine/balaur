@@ -303,6 +303,19 @@ pub(crate) fn write_pose(
             });
             continue;
         }
+        // On `Appearance`, which every node carries, so these are written
+        // before the transform below is asked for and a bare grouping node
+        // fades and hides like any other.
+        if matches!(value, TrackValue::Visible(_) | TrackValue::Tint(_)) {
+            if let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) {
+                match value {
+                    TrackValue::Visible(on) => appearance.visible = on,
+                    TrackValue::Tint(tint) => appearance.tint = tint,
+                    _ => {}
+                }
+            }
+            continue;
+        }
         let Ok(mut transform) = world.get::<&mut Transform>(target) else {
             // A node its scene gave no transform still moves when a clip says
             // so: the patch adds the component, as a component track's does,
@@ -334,6 +347,8 @@ pub(crate) fn write_pose(
                 };
             }
             TrackValue::Scale(scale) => transform.scale = scale,
+            // Written above, on the appearance rather than the transform.
+            TrackValue::Visible(_) | TrackValue::Tint(_) => {}
             TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => {}
         }
     }
@@ -417,6 +432,9 @@ fn transform_patch(value: &TrackValue) -> Option<(String, toml::Value)> {
                 vector(Vec3::new(roll, pitch, yaw)),
             ))
         }
+        // Not transform properties: they are written on the appearance, which
+        // every node has, so they never reach the patch this builds.
+        TrackValue::Visible(_) | TrackValue::Tint(_) => None,
         TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => None,
     }
 }

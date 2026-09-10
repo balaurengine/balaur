@@ -703,6 +703,23 @@ pub fn imports(S) {
     importer::write(S, rel, "filter", ());
     check(!fs::exists(side), "clearing the last key removes the sidecar");
 
+    // A number rather than the text the dropdown handed back, or the engine
+    // reads no anisotropy at all.
+    importer::write(S, rel, "anisotropy", 8);
+    importer::write(S, rel, "mipmaps", true);
+    importer::write(S, rel, "repeat", "mirror");
+    importer::write(S, rel, "premultiply", true);
+    let sampler = importer::sidecar(S, rel);
+    check(sampler.get("anisotropy") == Some(8), "anisotropy is written as a count");
+    check(sampler.get("mipmaps") == Some(true), "and mipmaps as a flag");
+    check(sampler.get("repeat") == Some("mirror"), "and repeat as a word");
+    check(sampler.get("premultiply") == Some(true), "and premultiply as a flag");
+
+    for key in ["anisotropy", "mipmaps", "repeat", "premultiply"] {
+        importer::write(S, rel, key, ());
+    }
+    check(!fs::exists(side), "clearing every key removes the sidecar again");
+
     fs::remove(root + rel);
     log::info("selftest imports: done");
 }
@@ -1400,6 +1417,58 @@ pub fn menu_panels(S) {
             format!("and {} toggles back", id));
     }
     log::info("selftest menu panels: done");
+}
+
+/// `--state focusdemo`: focus folds the shell round the code, and leaving it
+/// puts back exactly the layout it folded.
+pub fn focusing(S) {
+    if !shell::select_scripted(S) {
+        log::info("selftest: no scripted node in this scene; focus skipped");
+        return;
+    }
+    // A panel up on every side, so folding them has something to fold.
+    for id in ["outline", "inspector", "output"] {
+        crate::docks::show(S, id);
+    }
+    let was = #{};
+    for side in crate::docks::sides() {
+        was[side] = S.docks[side].shut;
+    }
+    check(shell::focus_target(S), "the selection has a script to focus");
+    shell::toggle_focus(S);
+    crate::center::modes(S);
+    check(S.focus && S.doctab == "script", "focus takes, and the code is what shows");
+    check(!S.split, "the split is off under it");
+    check(crate::docks::all_folded(S), "every dock is folded away");
+    check(!S.hooks_open, "and the hooks list with them");
+    shell::toggle_focus(S);
+    crate::center::modes(S);
+    check(!S.focus, "leaving focus clears it");
+    let back = true;
+    for side in crate::docks::sides() {
+        if S.docks[side].shut != was[side] {
+            back = false;
+        }
+    }
+    check(back, "and every dock comes back to what it was");
+    check(S.hooks_open, "the hooks list beside the code too");
+    // Leaving the code is leaving focus: the shell comes back with the tab.
+    shell::toggle_focus(S);
+    shell::open_doc(S, "scene");
+    crate::center::modes(S);
+    check(!S.focus, "showing the scene again ends focus");
+    check(!crate::docks::all_folded(S), "and the docks come back with it");
+    // A panel asked for under focus keeps its dock; the record goes instead.
+    shell::open_doc(S, "script");
+    shell::toggle_focus(S);
+    crate::docks::show(S, "output");
+    crate::center::modes(S);
+    check(!S.focus, "a panel opened under focus ends it");
+    check(!crate::docks::folded(S, "bottom"), "and stays open");
+    for side in crate::docks::sides() {
+        S.docks[side].shut = was[side];
+    }
+    log::info("selftest focus: done");
 }
 
 /// `--state settingsdemo`: the settings screen's search field and the query it

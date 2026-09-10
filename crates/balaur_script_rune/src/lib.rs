@@ -15,6 +15,7 @@
 mod api;
 mod bindings;
 mod debugger;
+mod handles;
 mod inspect;
 mod packed;
 mod pause;

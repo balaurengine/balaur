@@ -110,11 +110,13 @@ const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `length` 
 left out to end at the last key; `loop` is `none` (hold the last key),
 `loop` or `pingpong`. Each track names a `target` node path relative to the
 playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
-`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
-an optional `ease`. A track with no `property` is a method track whose keys
-call the node's script. A file holds one clip, or several under
-`[clips.<name>]`, addressed as `file.toml#name`.
+`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
+`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
+`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
+and always stepped; `tint` is the `[r, g, b, a]` every descendant is
+multiplied by, which a renderable's own `color` is not. A track with no
+`property` is a method track whose keys call the node's script. A file holds
+one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
 
 ```toml
 type = "animation_clip"

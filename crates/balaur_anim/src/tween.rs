@@ -692,6 +692,18 @@ fn current_value(
     {
         return component_value(eng, entity, component, property, channels);
     }
+    // Both live on `Appearance`, which a node has even where it has no
+    // transform, so they are read before the transform is asked for.
+    if matches!(property, Property::Visible | Property::Tint) {
+        let world = eng.world();
+        let appearance = world
+            .get::<&balaur_core::scene::Appearance>(entity)
+            .map_err(|_| anyhow!("node is dead"))?;
+        return Ok(match property {
+            Property::Visible => Vec4::new(f32::from(u8::from(appearance.visible)), 0.0, 0.0, 0.0),
+            _ => appearance.tint,
+        });
+    }
     let world = eng.world();
     let transform = world
         .get::<&Transform>(entity)
@@ -703,6 +715,8 @@ fn current_value(
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
         Property::Rotation => Vec4::from(transform.rotation),
+        // Answered above, before the transform this arm needs.
+        Property::Visible | Property::Tint => Vec4::ZERO,
         Property::Component { .. } | Property::Call | Property::Deform => Vec4::ZERO,
     })
 }

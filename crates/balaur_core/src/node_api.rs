@@ -197,6 +197,18 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: global_visible,
     },
     NodeOp {
+        name: "tint",
+        call: tint,
+    },
+    NodeOp {
+        name: "set_tint",
+        call: set_tint,
+    },
+    NodeOp {
+        name: "global_tint",
+        call: global_tint,
+    },
+    NodeOp {
         name: "z_index",
         call: z_index,
     },
@@ -281,6 +293,9 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
         ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides."),
         ("global_visible", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
+        ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
+        ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
+        ("global_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
         ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
         ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
@@ -375,6 +390,33 @@ fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Bool(scene::composed_appearance(&world, e).visible))
+}
+
+fn tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| Value::Color(a.tint.into()))
+}
+
+/// `set_tint(node, r, g, b, a)`, the alpha optional and one when left out.
+/// It multiplies into every descendant's, which is what a renderable's own
+/// `color` does not do.
+fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let alpha = if args.len() > 4 {
+        number(args, 4)?
+    } else {
+        1.0
+    };
+    let colour = glamx::Vec4::new(number(args, 1)?, number(args, 2)?, number(args, 3)?, alpha);
+    with_appearance(eng, node(args)?, |a| a.tint = colour)?;
+    Ok(Value::Nil)
+}
+
+/// What the renderer sees: every ancestor's tint multiplied into this one's.
+fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Color(
+        scene::composed_appearance(&world, e).tint.into(),
+    ))
 }
 
 fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {

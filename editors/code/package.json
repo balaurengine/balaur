@@ -2,7 +2,7 @@
   "name": "balaur",
   "displayName": "Balaur",
   "description": "Rune script support for the Balaur game engine: diagnostics, completion, hover, go-to-definition, symbols, formatting and rename, from the engine's own language server.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "balaurengine",
   "license": "MIT",
   "repository": {

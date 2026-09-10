@@ -137,6 +137,10 @@ pub struct Widget {
     pub font: SmolStr,
     /// Whether a `check` is ticked.
     pub checked: bool,
+    /// The name a `check` shares with the checks it is exclusive with: ticking
+    /// one unticks the rest, and a ticked one clicked again stays ticked.
+    /// Empty leaves the check on its own, flipping with every click.
+    pub group: SmolStr,
     /// Where a `slider` or `progress` stands, between `min` and `max`.
     pub value: f32,
     pub min: f32,
@@ -426,22 +430,29 @@ fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity
 /// Where a root's own `anchor`, `x` and `y` put it inside its surface. Only a
 /// root is placed this way; every other widget is placed by its container.
 fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2, Align2) {
-    let ox = widget.x * scale;
-    let oy = widget.y * scale;
-    let pos = match widget.anchor.as_str() {
-        w::TOP_RIGHT => pos2(area.max.x - ox, area.min.y + oy),
-        w::BOTTOM_LEFT => pos2(area.min.x + ox, area.max.y - oy),
-        w::BOTTOM_RIGHT => pos2(area.max.x - ox, area.max.y - oy),
-        w::CENTER => pos2(area.center().x + ox, area.center().y + oy),
-        _ => pos2(area.min.x + ox, area.min.y + oy),
-    };
     let align = match widget.anchor.as_str() {
         w::TOP_RIGHT => Align2::RIGHT_TOP,
         w::BOTTOM_LEFT => Align2::LEFT_BOTTOM,
         w::BOTTOM_RIGHT => Align2::RIGHT_BOTTOM,
         w::CENTER => Align2::CENTER_CENTER,
+        w::CENTER_LEFT => Align2::LEFT_CENTER,
+        w::CENTER_RIGHT => Align2::RIGHT_CENTER,
+        w::CENTER_TOP => Align2::CENTER_TOP,
+        w::CENTER_BOTTOM => Align2::CENTER_BOTTOM,
         _ => Align2::LEFT_TOP,
     };
+    // The offset runs inward from whichever edge the anchor names, so the
+    // position falls out of the alignment rather than repeating it per anchor.
+    let inward = |edge, min: f32, mid: f32, max: f32, offset: f32| match edge {
+        egui::Align::Min => min + offset,
+        egui::Align::Center => mid + offset,
+        egui::Align::Max => max - offset,
+    };
+    let (centre, ox, oy) = (area.center(), widget.x * scale, widget.y * scale);
+    let pos = pos2(
+        inward(align.x(), area.min.x, centre.x, area.max.x, ox),
+        inward(align.y(), area.min.y, centre.y, area.max.y, oy),
+    );
     (pos, align)
 }
 
@@ -545,6 +556,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
+        state: (false, false),
     };
     for root in &roots {
         let root = *root;
@@ -712,6 +724,10 @@ pub(crate) struct Painting<'a> {
     /// The slots re-read this pass, for a solve to push into taffy. Taken by
     /// the first solve: the tree is shared, so once is enough.
     pub(crate) touched: Vec<usize>,
+    /// Whether the pointer is over the widget being drawn, and whether it is
+    /// held there. Set by the draw and never by the measure: a size that
+    /// followed the pointer would move whatever sits beside it.
+    pub(crate) state: (bool, bool),
 }
 
 impl Painting<'_> {
@@ -735,12 +751,38 @@ impl Painting<'_> {
 
     /// The style a widget is drawn with, in the theme in force here.
     pub(crate) fn style_of(&self, widget: &Widget) -> Rc<Style> {
-        styled(&self.theme, widget)
+        self.in_state(styled(&self.theme, widget))
     }
 
     /// The look of the widget at `index`, resolved once a frame.
     pub(crate) fn look(&self, index: usize) -> Rc<Look> {
+        let look = look_of(self.arena, index, &self.theme, self.scale);
+        let styled = self.in_state(Rc::clone(&look.style));
+        if Rc::ptr_eq(&styled, &look.style) {
+            return look;
+        }
+        let (ink, font) = face(&self.theme, &styled, &self.arena[index].widget, self.scale);
+        Rc::new(Look {
+            style: styled,
+            font,
+            ink,
+        })
+    }
+
+    /// The look with no state on it, for a kind that answers the pointer with
+    /// its own response rather than with the box the layout gave it.
+    pub(crate) fn resting(&self, index: usize) -> Rc<Look> {
         look_of(self.arena, index, &self.theme, self.scale)
+    }
+
+    /// A style with its `hover` or `active` table over it, where the pointer
+    /// put the widget in one. A style with neither answers with itself.
+    fn in_state(&self, style: Rc<Style>) -> Rc<Style> {
+        let (hovered, held) = self.state;
+        if !(hovered || held) || (style.hover.is_none() && style.active.is_none()) {
+            return style;
+        }
+        Rc::new(style.in_state(hovered, held))
     }
 }
 
@@ -932,6 +974,23 @@ pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
 
 /// Everything a widget kind draws, with the theme already resolved.
 fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let disabled = at.arena[index].widget.disabled;
+    let outer = std::mem::replace(&mut at.state, pointer_state(ui, disabled));
+    draw_kind(ui, at, index);
+    at.state = outer;
+}
+
+/// Whether the pointer is over the box this widget was given, and whether it
+/// is held there. The box, not a response: every kind gets the same answer
+/// this way, including the ones egui draws and the ones that only paint.
+fn pointer_state(ui: &egui::Ui, disabled: bool) -> (bool, bool) {
+    if disabled || !ui.rect_contains_pointer(ui.max_rect()) {
+        return (false, false);
+    }
+    (true, ui.ctx().input(|i| i.pointer.primary_down()))
+}
+
+fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let caption = caption(at.eng, widget);
@@ -1146,10 +1205,19 @@ fn panel(
 /// Draw a project image. A source that will not load is reported once and
 /// draws nothing: a missing picture must not take the frame down.
 fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let widget = &at.arena[index].widget;
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
     if widget.source.is_empty() {
         return;
     }
+    // A picture that names a handler is a button made of a picture: it senses
+    // the click and `settle_clicks` calls `on_click` as it does for any other.
+    let entity = placed.entity;
+    let sense = if widget.on_click.is_empty() {
+        egui::Sense::hover()
+    } else {
+        egui::Sense::click()
+    };
     let ctx = ui.ctx().clone();
     match crate::images::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => {
@@ -1157,7 +1225,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             if widget.slice.iter().any(|v| *v > 0.0) {
                 // The borders stay the picture's own size; only the middle
                 // stretches to the box.
-                let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                let (rect, response) = ui.allocate_exact_size(size, sense);
                 let shapes = crate::widget_kinds::nine_patch(
                     texture.id(),
                     texture.size_vec2(),
@@ -1166,8 +1234,14 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                     at.scale,
                 );
                 ui.painter().add(egui::Shape::Vec(shapes));
-            } else {
-                ui.add(egui::Image::new((texture.id(), size)));
+                if response.clicked() {
+                    at.clicked.push(entity);
+                }
+            } else if ui
+                .add(egui::Image::new((texture.id(), size)).sense(sense))
+                .clicked()
+            {
+                at.clicked.push(entity);
             }
         }
         Err(err) => warn_once(&widget.source, &err),

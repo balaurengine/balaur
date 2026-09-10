@@ -145,6 +145,11 @@ for ex in examples/*/; do
   edit_step "$name: layout" "$ex" layoutdemo
   printf 'ok\n'
 
+  # Focus: the shell folds round the code and comes back to what it was.
+  printf '  focus ...  '
+  edit_step "$name: focus" "$ex" focusdemo
+  printf 'ok\n'
+
   # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.
   # A scene with no bones skips itself and says so.
   printf '  rig ...    '

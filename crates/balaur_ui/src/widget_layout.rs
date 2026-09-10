@@ -341,6 +341,15 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 ui.spacing_mut().button_padding.x = pad;
                 let mut response = enabled_add(ui, button, &opts);
                 ui.spacing_mut().button_padding.x = was;
+                // A theme that dresses no state still lights the control up:
+                // everything answers the pointer, and a role refines how.
+                if response.hovered() && !opts.dressed() {
+                    ui.painter().rect_filled(
+                        response.rect,
+                        corner,
+                        crate::widgets::wash(ui, response.is_pointer_button_down_on()),
+                    );
+                }
                 if let Some(tip) = opts.string(k::TOOLTIP) {
                     response = hover_text(response, &opts, tip);
                 }
@@ -366,12 +375,12 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
     let (rect, response) =
         ui.allocate_exact_size(vec2(opts.px(k::WIDTH, 180.0), h), Sense::click());
     let opts = &opts.in_state(response.hovered(), response.is_pointer_button_down_on());
-    // The theme's fill where its role names one, and a wash where it does not:
-    // a menu row has always lit up, and no theme should have to say so.
-    let lit = opts
-        .opt_color(k::FILL)
-        .unwrap_or(Color32::from_white_alpha(10));
+    // The theme's fill where its role dresses the state, and the wash where it
+    // does not: a menu row has always lit up, and no theme should say so.
     if response.hovered() {
+        let lit = opts
+            .opt_color(k::FILL)
+            .unwrap_or_else(|| crate::widgets::wash(ui, false));
         ui.painter().rect_filled(rect, pill_radius(h), lit);
     }
     let color = opts.color(k::COLOR, Color32::WHITE);
@@ -434,14 +443,13 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                     .unwrap_or_else(|| ui.visuals().text_color());
                 let ink = if off { ink.gamma_multiply(0.4) } else { ink };
                 let fill = opts.color(k::FILL, Color32::TRANSPARENT);
-                // A theme that leaves the state unsaid still lights the button
-                // up, so a rail of glyphs answers the pointer out of the box.
-                let fill = if hovered && fill == Color32::TRANSPARENT {
-                    ui.visuals().widgets.hovered.bg_fill
-                } else {
-                    fill
-                };
                 ui.painter().circle_filled(rect.center(), d / 2.0, fill);
+                // A theme that dresses no state still lights the button up, so
+                // a rail of glyphs answers the pointer out of the box.
+                if hovered && !opts.dressed() {
+                    let lit = crate::widgets::wash(ui, response.is_pointer_button_down_on());
+                    ui.painter().circle_filled(rect.center(), d / 2.0, lit);
+                }
                 if let Some(stroke) = opts.opt_color(k::STROKE) {
                     ui.painter()
                         .circle_stroke(rect.center(), d / 2.0, Stroke::new(1.0, stroke));
@@ -459,7 +467,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                 );
                 let clicked = response.clicked();
                 if let Some(tip) = opts.string(k::TOOLTIP) {
-                    hover_text(response, &opts, tip);
+                    hover_text(response, opts, tip);
                 }
                 Ok(clicked)
             })

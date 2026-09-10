@@ -30,6 +30,11 @@ pub enum TrackValue {
         value: Vec4,
         channels: usize,
     },
+    /// Whether the node draws. Sampled off a stepped track, so it is the
+    /// key's own value and never a blend of two.
+    Visible(bool),
+    /// The node's inherited tint, `[r, g, b, a]`.
+    Tint(Vec4),
     /// A method track holds no value. It is a list of moments, and what
     /// happens at them is dispatched rather than posed.
     None,
@@ -206,6 +211,10 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
             value: sample_channels(track, time),
             channels: track.channels,
         },
+        // Non-zero rather than exactly one: a document may key 0 and 1, and a
+        // clip retimed by a tool may land a hair off either.
+        Property::Visible => TrackValue::Visible(sample_channels(track, time).x != 0.0),
+        Property::Tint => TrackValue::Tint(sample_channels(track, time)),
         Property::Deform => TrackValue::Deform(sample_wide(track, time)),
         Property::Call => TrackValue::None,
     }

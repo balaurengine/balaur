@@ -111,10 +111,10 @@ pub fn transport_spot(S, n) {
     return (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0);
 }
 
-// The transport comes after the personas, the open documents, the split and
-// the spring that pushes the right end over.
+// The transport comes after the personas, the open documents, the split, the
+// focus and the spring that pushes the right end over.
 fn transport_slot(S) {
-    defs::personas().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 2
+    defs::personas().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 3
 }
 
 /// The centre of the strip's `slot`-th control, in design px, from the node it
@@ -137,6 +137,7 @@ fn strip_spot(S, slot) {
 
 // The strip beside the brand, which every control past it lives on.
 const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadStrip";
+const STATUS_NODE = "Editor/Shell/Body/Centre/Bottom/Status";
 
 /// The brand, drawn into the rect its node hands over: a picture and a name
 /// under one menu, which is the one control here a node cannot yet be.
@@ -187,19 +188,37 @@ fn bar_controls(S, k) {
         tooltip: "Show the code and the viewport at once (⌘\\)",
         on: |_| { shell::toggle_split(S); },
     });
+    // Beside the split, because the two are the same question: how much of the
+    // window the code is worth.
+    let can_focus = S.focus || shell::focus_target(S);
+    out.push(#{
+        kind: "button", height: h,
+        icon: icons::ui(if S.focus { "unfocus" } else { "focus" }),
+        role: if S.focus { "navtab_on" } else { "navtab" },
+        text: if S.compact { "" } else { "Focus" },
+        disabled: !can_focus,
+        tooltip: if S.focus {
+            "Put the docks back (⇧⌘\\)"
+        } else if can_focus {
+            "Give the code the whole window (⇧⌘\\)"
+        } else {
+            "The selection has no script to focus"
+        },
+        on: |_| { shell::toggle_focus(S); },
+    });
     // The spring: what is after it sits against the bar's right edge.
     out.push(#{ kind: "row", grow: 1 });
     for entry in transport_controls(S) {
         out.push(entry);
     }
     out.push(#{
-        kind: "button", height: row_h(S), width: THEME_W, radius: 8, fill: "sunken",
+        kind: "button", height: row_h(S), width: THEME_W, role: "bar",
         text: "", icon: if k.dark { icons::ui("dark") } else { icons::ui("light") },
         tooltip: "Toggle theme",
         on: |_| { theme::set_dark(S, !k.dark); },
     });
     out.push(#{
-        kind: "button", height: row_h(S), radius: 8, fill: "sunken", role: "meta",
+        kind: "button", height: row_h(S), role: "bar",
         text: if S.compact { "" } else { "Run a command" }, icon: icons::ui("search"),
         tooltip: "⌘K",
         on: |_| { shell::open_palette(S, ""); },
@@ -320,37 +339,52 @@ fn transport_controls(S) {
 /// persona and tool in hand. `room` is the width it has; `trailing` draws
 /// whatever the dock wants at the far right, which minimised is the handle
 /// that reopens it.
-pub fn status_strip(S, k, room, trailing) {
-    ui::horizontal(#{ height: 24 }, || {
-        ui::spacing(14, 0);
-        ui::add_space(4);
-        let stopped = S.debug.paused is Object;
-        ui::dot(if stopped { k.accent } else if S.playing { k.sage } else { k.faint }, 5);
-        let mode = if stopped {
-            format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line)
-        } else if S.playing {
-            let recording = if S.session.recording != "" { "recording · " } else { "" };
-            format!("playing · {}{} fps", recording, S.fps as i64)
-        } else {
-            "editing"
-        };
-        ui::label(mode, style::mono_sm(k.dim));
-        // Narrow: the columns go one at a time rather than running together.
-        if room > 300.0 {
-            let (nodes, scripts) = model::stats(S);
-            ui::label(format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts, plural(scripts, "script")),
-                style::mono_sm(k.faint));
-        }
-        if room > 560.0 {
-            ui::label("kiss3d · wgpu", style::mono_sm(k.faint));
-        }
-        ui::right(|| {
-            ui::add_space(4);
-            trailing();
-            if room > 420.0 {
-                let pname = defs::persona_name(S.persona);
-                ui::label(format!("{} · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.faint));
-            }
+/// The status strip's controls. The scene owns the row; this says what goes
+/// in it, so the theme dresses the labels rather than the call site.
+pub fn status_bar(S, k, room) {
+    crate::pool::strip(S, STATUS_NODE, status_controls(S, k, room));
+}
+
+fn status_mode(S) {
+    if S.debug.paused is Object {
+        return format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line);
+    }
+    if S.playing {
+        let recording = if S.session.recording != "" { "recording · " } else { "" };
+        return format!("playing · {}{} fps", recording, S.fps as i64);
+    }
+    "editing"
+}
+
+fn status_controls(S, k, room) {
+    let stopped = S.debug.paused is Object;
+    let lamp = if stopped { k.accent } else if S.playing { k.sage } else { k.faint };
+    let out = [
+        #{ kind: "row", width: 6 },
+        #{ kind: "row", width: 5, height: 5, radius: 3, fill: lamp },
+        #{ kind: "label", text: status_mode(S), role: "meta",
+          font: "mono", font_size: style::SM, color: k.dim },
+    ];
+    // Narrow: the columns go one at a time rather than running together.
+    if room > 300.0 {
+        let (nodes, scripts) = model::stats(S);
+        out.push(#{
+            kind: "label", role: "meta", font: "mono", font_size: style::SM, color: k.faint,
+            text: format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts,
+                plural(scripts, "script")),
         });
-    });
+    }
+    if room > 560.0 {
+        out.push(#{ kind: "label", text: "kiss3d · wgpu", role: "meta",
+            font: "mono", font_size: style::SM, color: k.faint });
+    }
+    out.push(#{ kind: "row", grow: 1 });
+    if room > 420.0 {
+        out.push(#{
+            kind: "label", role: "meta", font: "mono", font_size: style::SM, color: k.faint,
+            text: format!("{} · {}", defs::persona_name(S.persona), defs::tool_name(S.tool)),
+        });
+    }
+    out.push(#{ kind: "row", width: 6 });
+    out
 }

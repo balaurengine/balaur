@@ -1,32 +1,35 @@
 # Roadmap
 
 What each milestone carries, and the only record of what a version holds. A
-**0.1** row is built and waiting on a tag; every other row does not exist yet,
-and the `docs/PLAN-*.md` it links to is how it gets there.
+row says `0.1 done` when the thing is built, and the version alone when it does
+not exist yet; the `docs/PLAN-*.md` it links to is how it gets there. Nothing
+else records what is built: a milestone is built when every row in it is, and
+the one being built now is the first that is not.
 
 Every row carries a version; nothing waits in a pile without one. A milestone
-in parentheses, `(0.2)`, is in-tree work the public page does not carry. A
-milestone holds about ten rows; past that, split it rather than letting one
-grow.
+in parentheses, `(0.2)`, is in-tree work the public page does not carry, and
+`done` goes after either form. A milestone holds about ten rows; past that,
+split it rather than letting one grow.
 
 ## Milestones
 
-| Milestone | State | Estimate | What it is |
-| --- | --- | :-: | --- |
-| **0.1** | built | September 2026 | The engine as it stands |
-| **0.2** | building | December 2026 | Nothing blocks an ordinary game |
-| **0.3** | planned | March 2027 | Everything you see |
-| **0.4** | planned | July 2027 | Multiplayer, end to end |
-| **0.5** | planned | November 2027 | A game built without writing a script |
-| **0.6** | planned | April 2028 | A game gets out |
-| **0.7** | planned | September 2028 | What a bigger game asks for |
-| **0.8** | planned | March 2029 | The machine a game runs on |
-| **0.9** | planned | September 2029 | A world, not a scene |
-| **1.0** | planned | March 2030 | The editor makes the content |
-| **1.1** | planned | July 2030 | Other people's parts |
+| Milestone | Estimate | What it is |
+| --- | :-: | --- |
+| **0.1** | September 2026 | The engine as it stands |
+| **0.2** | December 2026 | Nothing blocks an ordinary game |
+| **0.3** | March 2027 | Everything you see |
+| **0.4** | July 2027 | Multiplayer, end to end |
+| **0.5** | November 2027 | A game built without writing a script |
+| **0.6** | April 2028 | A game gets out |
+| **0.7** | September 2028 | What a bigger game asks for |
+| **0.8** | March 2029 | The machine a game runs on |
+| **0.9** | September 2029 | A world, not a scene |
+| **1.0** | March 2030 | The editor makes the content |
+| **1.1** | July 2030 | Other people's parts |
 
 The estimate is the month a milestone is aimed at, and every row in it carries
-that date rather than one of its own. It moves when the rows do: an item added
+that date rather than one of its own. A milestone that is done keeps its month
+as the record of when it landed. It moves when the rows do: an item added
 to a milestone pushes the month out rather than crowding it. The gaps widen
 with distance, three months to 0.3 and six across 0.8 and 0.9, which carry
 consoles, XR and light that bounces.
@@ -43,22 +46,22 @@ A row is **one sentence and at most 25 words**, and the site's build fails over
 either. It says what the thing is, not how it is built: that is the plan it
 links to, and for a built row the posts the site pairs with it.
 
-The engine is at **0.1.0**, one version for the workspace, and nothing is tagged
-yet. A release is a `v*` tag: bump `[workspace.package] version`, and rewrite
-that milestone's rows as what landed rather than striking them, so a shipped tab
-keeps its history and the tag's notes are the rows themselves.
+The engine is at **0.2.0**, one version for the workspace; `v0.1.0` is tagged
+and published. A release is a `v*` tag: bump `[workspace.package] version`, and
+rewrite that milestone's rows as what landed rather than striking them, so a
+shipped tab keeps its history and the tag's notes are the rows themselves.
 
 ## Editor
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets, with undo, prefabs, ray picking and the Rig, Polygon and Tiles tools. | 0.1 | no plan |
-| **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
-| **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 | no plan |
+| **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets, with undo, prefabs, ray picking and the Rig, Polygon and Tiles tools. | 0.1 done | no plan |
+| **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 done | [PLAN-tilemap.md](PLAN-tilemap.md) |
+| **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
-| **Focused script editing** — the code pane takes the whole window, with the docks and the hooks list folded away and put back exactly as they were. | 0.2 | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
+| **Focused script editing** — the code pane takes the whole window, with the docks and the hooks list folded away and put back exactly as they were. | 0.1 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
-| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 | no plan |
+| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same bits on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
@@ -73,19 +76,19 @@ keeps its history and the tag's notes are the rows themselves.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. | 0.1 | no plan |
+| **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. | 0.1 done | no plan |
 | **A second scripting language** — Luau, C# or mimas beside Rune, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
-| **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 | no plan |
+| **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export. | 0.2 | [PLAN-textures.md](PLAN-textures.md) |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
+| **Godot import** — `balaur import` over `project.godot`, `.tscn`, `.tres` and `.gdshader`, writing scenes, assets and a report naming what did not convert. | 0.2 | [PLAN-godot-import.md](PLAN-godot-import.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **More importers** — Spine and DragonBones for 2D skeletal animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
-| **Faster transcendentals** — `sin`, `cos`, `exp`, `log` and `pow` on polynomial approximations rather than `libm`, deterministic either way, chosen per project. | 0.7 | [PLAN-fast-math.md](PLAN-fast-math.md) |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
 | **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
@@ -95,8 +98,8 @@ keeps its history and the tag's notes are the rows themselves.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 | no plan |
-| **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls and tweens. | 0.1 | no plan |
+| **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
+| **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls and tweens. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: a deformable mesh with stiffness, damping and pressure, drawn down the skinning path, on the fixed step. | 0.7 | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
 | **Cloth and rope** — a sheet that hangs and a rope of linked segments over the same solver, pinned to a node and cut by a script. | 0.7 | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
 | **Tearing** — a threshold on a soft body: past it the body splits into two bodies and two meshes, mid-step and in the digest. | 0.9 | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
@@ -105,6 +108,7 @@ keeps its history and the tag's notes are the rows themselves.
 | **Gases and smoke** — a buoyant volume that rises, spreads and cools, read by the renderer as a density field rather than as particles. | 1.0 | [PLAN-physics.md#gases-and-smoke](PLAN-physics.md#gases-and-smoke) |
 | **Granular materials** — sand, mud and snow as a fluid with friction and a yield stress, in 2D and 3D, on the fixed step. | 1.0 | [PLAN-physics.md#granular-materials](PLAN-physics.md#granular-materials) |
 | **Animation blending** — blend trees and state machines, so a rig that is otherwise complete can run two clips at once. | 0.2 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
+| **Visibility and tint on a track** — `visible` and `tint` as clip properties, written on the appearance every node carries rather than the transform. | 0.2 | [PLAN-godot-import.md#22-visible-as-an-animation-track](PLAN-godot-import.md#22-visible-as-an-animation-track) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. | 0.3 | no plan |
 | **Root motion** — a clip that moves the character rather than sliding under it, its root delta handed to `character2d` and `character3d` per tick. | 0.7 | no plan |
 | **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, and a tick rate setting. | 0.2 | [PLAN-time.md](PLAN-time.md) |
@@ -115,7 +119,7 @@ keeps its history and the tag's notes are the rows themselves.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 | no plan |
+| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
 | **Navigation** — a `navmesh` asset, paths over it, and `agent2d` and `agent3d` with avoidance, all on the fixed step and in the digest. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk, echo cancellation and positional voice, never entering the simulation or the digest. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.8 | [PLAN-input.md](PLAN-input.md) |
@@ -129,9 +133,10 @@ keeps its history and the tag's notes are the rows themselves.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text in the world, and the batteries: audio buses, input actions, saves, localisation. | 0.1 | no plan |
+| **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text in the world, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
 | **Lists, trees and tables** — `list`, `tree` and `table` kinds with selection, columns, and only the rows in view built, which every dock hand-rolls today. | 0.2 | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
 | **Menus, popups and tooltips** — a menu bar, a context menu, a tooltip and a toast in a scene, over a pass that draws above the widget tree. | 0.2 | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
+| **A picture that clicks, and checks that are exclusive** — an `image` naming an `on_click` senses it, a `group` on a check makes a radio row, and four edge anchors join the corners. | 0.2 | [PLAN-godot-import.md#24-the-widget-kinds](PLAN-godot-import.md#24-the-widget-kinds) |
 | **Text a game can edit** — a multi-line `text` kind, a `code` kind with the gutter and colouring the editor has, a numeric `spin`, and links a label reports. | 0.2 | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
@@ -147,7 +152,8 @@ can do today, in the batches it would be built in.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **What draws today** — sprites, tile maps, 2D lights, `light3d` and an `environment`, PBR, WESL shaders, the finishing passes, sixteen primitives, booleans and particles. | 0.1 | no plan |
+| **An inherited tint** — a colour multiplied down a subtree, so one key fades a whole panel or rig rather than one per node. | 0.2 | [PLAN-godot-import.md#21-an-inherited-tint](PLAN-godot-import.md#21-an-inherited-tint) |
+| **What draws today** — sprites, tile maps, 2D lights, `light3d` and an `environment`, PBR, WESL shaders, the finishing passes, sixteen primitives, booleans and particles. | 0.1 done | no plan |
 | **The 3D look** — image-based lighting and SSAO bound, glTF keeping its factors and maps, glass, mirrors, probes, finishing passes and layer stacks. | 0.2 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Lit normal-mapped sprites** — 2D lights and shadows are built, and the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
@@ -156,7 +162,7 @@ can do today, in the batches it would be built in.
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture, and picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus, render-side only. | 0.3 | no plan |
 | **WebGL2 beside WebGPU** — a browser without WebGPU falls back to a GL backend picked at boot, minus the compute passes it cannot serve. | 0.6 | [PLAN-web-backends.md](PLAN-web-backends.md) |
-| **Post-process materials** — a name in `camera.post` the engine does not know is a `material` drawn over the whole frame, with `tonemap` the boundary. | 0.1 | no plan |
+| **Post-process materials** — a name in `camera.post` the engine does not know is a `material` drawn over the whole frame, with `tonemap` the boundary. | 0.1 done | no plan |
 | **Terrain sculpting and foliage** — brushes over the `heightfield` asset, splat maps for the textures between them, and grass and trees scattered by painting. | 0.9 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **Occlusion culling** — what stands behind a wall skipped, over a software depth rasteriser. | 0.9 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Global illumination** — light that bounces, in real time: a screen-space pass or an SDF probe field, since nothing in the kiss3d fork does it. | 0.9 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
@@ -166,7 +172,7 @@ can do today, in the batches it would be built in.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record and replay, rollback, and three transports behind one trait. | 0.1 | no plan |
+| **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record and replay, rollback, and three transports behind one trait. | 0.1 done | no plan |
 | **WebTransport in the browser** — native QUIC datagrams, binary frames, stable ids and rollback are built, and the browser side is not. | 0.4 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
 | **Sessions from a script** — host, join and leave from Rune, with a roster bound to links and `peer`, `host` and headless `server` roles. | 0.2 | [PLAN-sessions.md](PLAN-sessions.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -193,7 +199,7 @@ side each step belongs to.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Apple and the `platform` module** — sign-in, achievements, leaderboards, cloud saves and purchases behind one module, over Game Center, iCloud and StoreKit, with an export that signs. | 0.1 | no plan |
+| **Apple and the `platform` module** — sign-in, achievements, leaderboards, cloud saves and purchases behind one module, over Game Center, iCloud and StoreKit, with an export that signs. | 0.1 done | no plan |
 | **An MCP server** — `balaur mcp` over stdio, with the project, `check`, a headless run and a screenshot as tools an agent drives. | 0.5 | [PLAN-mcp.md](PLAN-mcp.md) |
 | **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, and comments anchored to nodes. | 0.7 | [PLAN-collaboration.md](PLAN-collaboration.md) |
 | **A crash report that reproduces itself** — the recording, the log and the build id in one file. | 0.5 | no plan |
@@ -209,14 +215,15 @@ waits for its tick to settle.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 | no plan |
+| **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
-| **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
+| **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 done | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
+| **Update channels** — `balaur update --channel alpha` follows a rolling tag per line, and a build tracks the channel its own version names. | 0.2 | [PLAN-release-channels.md](PLAN-release-channels.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics, the clipboard, keep-awake and vibration, behind one `device` module. | 0.8 | [PLAN-2d-games.md](PLAN-2d-games.md) |
 | **A web module that loads in parts** — the wasm split so a game fetches the physics, audio or networking it uses, with a pack arriving in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **A game on a small machine** — `linux-arm64` is an export target that has never run, so a Raspberry Pi wants the GL backend and a measured frame budget. | 0.8 | [PLAN-release.md](PLAN-release.md) |
-| **Per-platform project settings** — `[application.android]` and its siblings over `project.toml`: window mode, tick rate, feature set and asset variant per target. | 0.7 | no plan |
+| **Per-platform project settings** — one settings screen over every table in `project.toml`, with an override per platform, architecture or build. | 0.7 | [PLAN-per-platform.md](PLAN-per-platform.md) |
 | **Suspend and resume** — hooks a script answers on a phone call or a console's suspend, audio released and taken back, and a tick that pauses. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Embedding on a page** — an npm runtime with a `<balaur-viewer>` element and a React wrapper, a typed page API, and a web module sized to the game. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, and a pack sealed with ChaCha20-Poly1305 under a project key, never a DRM wrapper. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |

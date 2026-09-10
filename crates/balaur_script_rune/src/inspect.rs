@@ -12,6 +12,7 @@ use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
+use crate::handles;
 use crate::packed::PackSourceLoader;
 use crate::{RuneHost, value};
 
@@ -315,6 +316,7 @@ impl RuneHost {
                 None => (state.project_root.join(key), None),
             }
         };
+        let mut findings = self.handle_findings(key, source);
         let mut sources = Sources::new();
         sources.insert(Source::with_path(key, source, path)?)?;
         // The one place warnings are wanted: an error report should be the
@@ -330,7 +332,6 @@ impl RuneHost {
             prepared = prepared.with_source_loader(&mut loader);
         }
         drop(prepared.build());
-        let mut findings = Vec::new();
         for diagnostic in diagnostics.diagnostics() {
             findings.push(match diagnostic {
                 rune::diagnostics::Diagnostic::Fatal(fatal) => {
@@ -361,6 +362,25 @@ impl RuneHost {
             });
         }
         Ok(findings)
+    }
+
+    /// What the scene beside the script says about a handle call in it.
+    ///
+    /// The compiler cannot see this: a component handle resolves its method
+    /// by component name at call time, so `this.node.sprite.apply_impulse()`
+    /// compiles clean and fails on the tick that runs it. A packed run has no
+    /// scene tree to read and is checking a game that already shipped.
+    fn handle_findings(&self, key: &str, source: &str) -> Vec<Finding> {
+        let root = {
+            let state = self.state.borrow();
+            if state.pack.is_some() {
+                return Vec::new();
+            }
+            state.project_root.clone()
+        };
+        let attached = balaur_core::project::scene_attachments(&root);
+        let carried = attached.get(key).and_then(Option::as_ref);
+        handles::check(&self.engine, key, source, carried)
     }
 
     /// The defaults `exports()` declares for `key`, evaluated once per file.

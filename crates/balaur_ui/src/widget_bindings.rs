@@ -54,7 +54,10 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
                 };
                 for (name, body) in roles {
                     let Value::Map(fields) = body else { continue };
-                    let resolved = fields.iter().map(|(k, v)| (k.clone(), spelled(v, &hex))).collect();
+                    let resolved = fields
+                        .iter()
+                        .map(|(k, v)| (k.clone(), spelled(v, &hex)))
+                        .collect();
                     config
                         .theme
                         .roles
@@ -177,13 +180,8 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     // Layout, not a popup: a sheet that replaces another, as
                     // a dock collapsing to its rail does, must not fade in.
                     .fade_in(false);
+                let box_rect = egui::Rect::from_min_size(pos2(x, y), vec2(w, h));
                 area.show(ctx, |ui| {
-                    // Clipped as well as capped: egui grows a container to
-                    // its content, and one long row would stretch the fill.
-                    if sized {
-                        ui.set_max_size(vec2(w, h));
-                        ui.shrink_clip_rect(egui::Rect::from_min_size(pos2(x, y), vec2(w, h)));
-                    }
                     let mut frame = egui::Frame::new()
                         .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
                         .corner_radius(pill_radius(opts.px(k::RADIUS, 0.0) * 2.0));
@@ -193,19 +191,28 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     if let Some(stroke) = opts.opt_color(k::STROKE) {
                         frame = frame.stroke(Stroke::new(1.0, stroke));
                     }
-                    frame.show(ui, |ui| {
-                        // Padding comes out of the caller's size, not on
-                        // top of it; the clip stops taller content
-                        // spilling over the sheet below.
-                        if sized {
-                            let inner = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
-                            ui.set_min_size(inner);
-                            ui.set_max_size(inner);
-                            let at = ui.min_rect().min;
-                            ui.shrink_clip_rect(egui::Rect::from_min_size(at, inner));
-                        }
+                    if !sized {
+                        frame.show(ui, |ui| {
+                            result = scoped(eng, ui, cb);
+                        });
+                        return;
+                    }
+                    // A child the parent is told the size of, not one it
+                    // measures: an area grows to its content, and an area is a
+                    // layer that takes the pointer off everything under it.
+                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(box_rect));
+                    inner.shrink_clip_rect(box_rect);
+                    frame.show(&mut inner, |ui| {
+                        // Padding comes out of the caller's size, not on top
+                        // of it; the clip stops taller content spilling over
+                        // the sheet below.
+                        let pad = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
+                        ui.set_min_size(pad);
+                        ui.set_max_size(pad);
+                        ui.shrink_clip_rect(egui::Rect::from_min_size(ui.min_rect().min, pad));
                         result = scoped(eng, ui, cb);
                     });
+                    ui.advance_cursor_after_rect(box_rect);
                 });
                 result
             })

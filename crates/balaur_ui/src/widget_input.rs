@@ -227,6 +227,9 @@ fn settle_clicks(
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
+    // The grouped checks this tick ticked, unticked in a second pass: the loop
+    // below holds one widget at a time and a group's siblings are others.
+    let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
     let world = eng.world();
     for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
         let struck = hit.contains(&entity);
@@ -239,20 +242,47 @@ fn settle_clicks(
         if !struck {
             continue;
         }
-        // A click on a check is the tick itself, by mouse or by `accept`.
+        // A click on a check is the tick itself, by mouse or by `accept`. One
+        // in a group is a radio: it ticks and stays ticked, and the pass below
+        // unticks the rest of its group.
         if widget.kind == w::CHECK {
-            widget.checked = !widget.checked;
-            crate::widget_arena::widget_changed(entity);
-            if !widget.on_change.is_empty() {
-                changes.push((
-                    entity,
-                    widget.on_change.to_string(),
-                    Value::Bool(widget.checked),
-                ));
+            let grouped = !widget.group.is_empty();
+            let was = widget.checked;
+            // Grouped, a click picks: it ticks and a second click leaves it
+            // ticked, because something in the group has to be. On its own, a
+            // click flips.
+            widget.checked = if grouped { true } else { !was };
+            if widget.checked != was {
+                crate::widget_arena::widget_changed(entity);
+                if !widget.on_change.is_empty() {
+                    changes.push((
+                        entity,
+                        widget.on_change.to_string(),
+                        Value::Bool(widget.checked),
+                    ));
+                }
+            }
+            if grouped {
+                ticked.push((entity, widget.group.clone()));
             }
         }
         if !widget.on_click.is_empty() {
             signals.push((entity, widget.on_click.to_string()));
+        }
+    }
+    for (struck, group) in &ticked {
+        for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
+            if entity == *struck || widget.kind != w::CHECK || widget.group != *group {
+                continue;
+            }
+            if !widget.checked {
+                continue;
+            }
+            widget.checked = false;
+            crate::widget_arena::widget_changed(entity);
+            if !widget.on_change.is_empty() {
+                changes.push((entity, widget.on_change.to_string(), Value::Bool(false)));
+            }
         }
     }
     signals

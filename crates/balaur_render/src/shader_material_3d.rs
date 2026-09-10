@@ -623,7 +623,11 @@ fn build(
     let slots = asset
         .textures()
         .into_iter()
-        .map(|path| path.and_then(|path| crate::texture::upload(&app.engine, path)))
+        .map(|path| {
+            path.and_then(|path| {
+                crate::texture::upload(&app.engine, path, crate::texture::PREMULTIPLY_DROPPED)
+            })
+        })
         .collect();
     let material = ShaderMaterial3d::with_textures(&compiled, probe.as_deref(), slots);
     Ok((material, probe))

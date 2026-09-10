@@ -12,6 +12,7 @@
 //! [[tracks]]
 //! target = ""                   # node path relative to the player; "" = self
 //! property = "position"         # position | rotation_euler | rotation | scale
+//!                               # | visible | tint
 //!                               # or <component>/<property>: "color/rgba"
 //! interp = "linear"             # step | linear | cubic
 //! keys = [
@@ -93,6 +94,13 @@ pub enum Property {
     /// like the euler spelling.
     Rotation,
     Scale,
+    /// Whether the node draws, and with it everything under it. One channel,
+    /// non-zero being shown, and always stepped: a half-visible node is not a
+    /// state the tree has, so a linear key between 0 and 1 would invent one.
+    Visible,
+    /// The node's inherited tint, `[r, g, b, a]`, multiplied into what it and
+    /// every descendant draw. The property a whole rig fades on.
+    Tint,
     /// A registered component's property, addressed `component/property`.
     /// Resolved when the pose is written, not here: a clip may be parsed
     /// before the plugin owning the component has registered it.
@@ -118,7 +126,8 @@ impl Property {
     pub(crate) const fn channels(&self) -> Option<usize> {
         match self {
             Self::Position | Self::RotationEuler | Self::Scale => Some(3),
-            Self::Rotation => Some(4),
+            Self::Rotation | Self::Tint => Some(4),
+            Self::Visible => Some(1),
             Self::Component { .. } | Self::Deform => None,
             Self::Call => Some(0),
         }
@@ -130,6 +139,8 @@ impl Property {
             "rotation_euler" => Ok(Self::RotationEuler),
             "rotation" => Ok(Self::Rotation),
             "scale" => Ok(Self::Scale),
+            "visible" => Ok(Self::Visible),
+            "tint" => Ok(Self::Tint),
             DEFORM => Ok(Self::Deform),
             other => match other.split_once('/') {
                 Some((component, property))
@@ -142,7 +153,8 @@ impl Property {
                 }
                 _ => Err(anyhow!(
                     "`property = \"{other}\"` is not \"position\", \"rotation_euler\", \"rotation\", \
-                     \"scale\" or \"{DEFORM}\", and does not read as `component/property`"
+                     \"scale\", \"visible\", \"tint\" or \"{DEFORM}\", and does not read as \
+                     `component/property`"
                 )),
             },
         }
@@ -156,6 +168,8 @@ impl Property {
             Self::RotationEuler => "rotation_euler".to_string(),
             Self::Rotation => "rotation".to_string(),
             Self::Scale => "scale".to_string(),
+            Self::Visible => "visible".to_string(),
+            Self::Tint => "tint".to_string(),
             Self::Component {
                 component,
                 property,
@@ -329,6 +343,13 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
                 .ok_or_else(|| anyhow!("`interp` is {}, not a mode name", v.type_str()))?,
         )?,
         None => Interp::Linear,
+    };
+    // A node is shown or hidden and nothing in between, so a `visible` track
+    // holds its key until the next one whatever the document asked for.
+    let interp = if property == Property::Visible {
+        Interp::Step
+    } else {
+        interp
     };
     let mut channels = property.channels();
     let keys = parse_keys(value, &property, &mut channels)?;

@@ -606,6 +606,27 @@ fn hex_rgba(text: &str) -> Option<[f64; 4]> {
     }
 }
 
+/// A colour written either way: `[r, g, b, a]` floats, or `#rrggbb` /
+/// `#rrggbbaa`. A missing alpha is opaque.
+///
+/// Public because the node-level keys are colours too and are read outside
+/// the schema path, which is where [`expand_colors`] does this.
+#[must_use]
+pub fn rgba(value: &toml::Value) -> Option<[f32; 4]> {
+    if let Some(text) = value.as_str() {
+        return hex_rgba(text).map(|c| c.map(|v| v as f32));
+    }
+    let array = value.as_array()?;
+    let channel =
+        |i: usize, default: f32| array.get(i).and_then(as_f64).map_or(default, |v| v as f32);
+    Some([
+        channel(0, 1.0),
+        channel(1, 1.0),
+        channel(2, 1.0),
+        channel(3, 1.0),
+    ])
+}
+
 /// Expand hex strings on `color`-typed properties into the float array every
 /// `apply` hook reads.
 ///

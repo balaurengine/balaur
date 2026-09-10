@@ -146,6 +146,9 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
         if let Some(a) = appearance {
             let mut h = Hasher::new();
             h.write_u64(u64::from(a.visible));
+            for channel in a.tint.to_array() {
+                h.write(&channel.to_le_bytes());
+            }
             h.write(&a.z_index.to_le_bytes());
             h.write_u64(u64::from(a.z_relative));
             out.push(Entry {

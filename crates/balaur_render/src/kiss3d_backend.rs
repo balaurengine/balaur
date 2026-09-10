@@ -660,13 +660,16 @@ fn sync(
         if let Some(skin) = &slot.skin {
             pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
-        let [r, g, b, a] = renderable.color;
+        // Read once: the ancestors' tint and their visibility come off the
+        // same propagated component.
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
-        let visible = world
-            .get::<&GlobalAppearance>(entity)
-            .is_ok_and(|a| a.visible);
+        let visible = appearance.visible;
         slot.node
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)

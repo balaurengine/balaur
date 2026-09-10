@@ -271,6 +271,26 @@ fn hiding_a_node_hides_everything_under_it() {
 }
 
 #[test]
+fn a_tint_multiplies_down_the_subtree() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        world.get::<&mut scene::Appearance>(a).unwrap().tint = glamx::Vec4::new(1.0, 0.5, 1.0, 0.5);
+        world.get::<&mut scene::Appearance>(b).unwrap().tint = glamx::Vec4::new(1.0, 1.0, 1.0, 0.5);
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    let tint = |e| world.get::<&scene::GlobalAppearance>(e).unwrap().tint;
+    assert_eq!(tint(a), glamx::Vec4::new(1.0, 0.5, 1.0, 0.5));
+    assert_eq!(tint(b), glamx::Vec4::new(1.0, 0.5, 1.0, 0.25));
+    assert_eq!(
+        tint(c),
+        glamx::Vec4::new(1.0, 0.5, 1.0, 0.25),
+        "a node with no tint of its own takes its parent's"
+    );
+}
+
+#[test]
 fn a_relative_z_index_adds_to_its_parents_and_an_absolute_one_does_not() {
     let (engine, a, b, c) = tree();
     {
@@ -304,6 +324,7 @@ fn composed_appearance_matches_what_propagation_wrote() {
         let propagated = *world.get::<&scene::GlobalAppearance>(entity).unwrap();
         let composed = scene::composed_appearance(&world, entity);
         assert_eq!(propagated.visible, composed.visible);
+        assert_eq!(propagated.tint, composed.tint);
         assert_eq!(propagated.z_index, composed.z_index);
     }
 }

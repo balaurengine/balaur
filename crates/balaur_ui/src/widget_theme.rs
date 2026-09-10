@@ -89,6 +89,23 @@ impl Style {
         self.stroke_width.unwrap_or(1.0)
     }
 
+    /// The paint half of a style, for a `hover` or `active` table. A state
+    /// that resized would move whatever sits beside the widget, and the
+    /// layout is solved before anything knows where the pointer is.
+    #[must_use]
+    pub fn paint_only(&self) -> Self {
+        Self {
+            padding: None,
+            padding_x: None,
+            height: None,
+            width: None,
+            font_size: None,
+            font: None,
+            weight: None,
+            ..self.clone()
+        }
+    }
+
     /// `self` over `base`: what `self` states wins and what it leaves out
     /// falls through, so a role says only how it differs from its kind.
     #[must_use]
@@ -227,7 +244,7 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
     let nested = |key: &str| {
         body.get(key)
             .and_then(toml::Value::as_table)
-            .map(|table| Rc::new(style_of(table, colors, what)))
+            .map(|table| Rc::new(style_of(table, colors, what).paint_only()))
     };
     // A role spells its type the way a call site did: `size`, `color` and
     // `strong` rather than the component's longer property names.

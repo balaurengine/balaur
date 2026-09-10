@@ -907,9 +907,16 @@ pub(crate) fn sync_tilemaps(
             slot.frame = frame;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-        let visible = world
+        let appearance = world
             .get::<&GlobalAppearance>(entity)
-            .is_ok_and(|a| a.visible);
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let visible = appearance.visible;
+        // A map has no colour of its own, so the inherited tint is the whole
+        // colour, and untinted is the white that leaves the atlas alone.
+        let [r, g, b, a] = appearance.tint.to_array();
+        for chunk in slot.chunks.values_mut() {
+            chunk.node.set_color(kiss3d::color::Color::new(r, g, b, a));
+        }
         slot.node
             .set_position(glamx::Vec2::new(global.position.x, global.position.y))
             .set_rotation(angle)

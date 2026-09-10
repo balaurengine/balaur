@@ -507,14 +507,20 @@ fn place(
         let Ok(text) = world.get::<&TextRenderable>(*entity) else {
             return true;
         };
-        let visible = world
+        let appearance = world
             .get::<&GlobalAppearance>(*entity)
-            .is_ok_and(|a| a.visible);
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let visible = appearance.visible;
+        // Per frame rather than at build: the block is rebuilt only when the
+        // text or its layout changes, and an ancestor's tint moves every tick.
+        let [r, g, b, a] = crate::sync_2d::modulate(text.style.color, appearance.tint.to_array());
+        let tint = kiss3d::color::Color::new(r, g, b, a);
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         for node in &mut slot.two_d {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
             node.set_rotation(angle);
             node.set_visible(visible);
+            node.set_color(tint);
         }
         // A billboard turns to the eye every frame; otherwise the block sits
         // in the node's own plane, like a sign painted on a wall.
@@ -527,6 +533,7 @@ fn place(
             node.set_position(global.position);
             node.set_visible(visible);
             node.set_rotation(turned);
+            node.set_color(tint);
         }
         true
     });

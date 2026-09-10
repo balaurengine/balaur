@@ -2,7 +2,7 @@
   "asset_types": {
     "animation_clip": {
       "directory": "animations",
-      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an\n`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with\nan optional `ease`. A track with no `property` is a method track whose keys\ncall the node's script. A file holds one clip, or several under\n`[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
+      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or\n`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its\n`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel\nand always stepped; `tint` is the `[r, g, b, a]` every descendant is\nmultiplied by, which a renderable's own `color` is not. A track with no\n`property` is a method track whose keys call the node's script. A file holds\none clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
     },
     "bone_map": {
       "directory": "animations",
@@ -3855,6 +3855,10 @@
           "bottom_left",
           "bottom_right",
           "center",
+          "center_left",
+          "center_right",
+          "center_top",
+          "center_bottom",
           "fill"
         ],
         "type": "enum"
@@ -3962,6 +3966,12 @@
         "group": "layout",
         "min": 0.0,
         "type": "float"
+      },
+      "group": {
+        "default": "",
+        "description": "A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
+        "group": "value",
+        "type": "string"
       },
       "grow": {
         "default": 0.0,
@@ -4108,7 +4118,7 @@
       },
       "on_click": {
         "default": "",
-        "description": "Script method called on this node when the button is clicked",
+        "description": "Script method called on this node when the widget is clicked. An `image` that names one senses clicks too, which is how a picture becomes a button",
         "group": "events",
         "type": "string"
       },
@@ -6066,6 +6076,7 @@
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
+        "global_tint": "What the renderer multiplies by: this node's tint with every ancestor's folded in.",
         "global_visible": "What the renderer sees: false when the node or any ancestor is hidden.",
         "global_z_index": "The layer the node actually draws on, with every ancestor's added in.",
         "go": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
@@ -6093,12 +6104,14 @@
         "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
         "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
+        "set_tint": "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.",
         "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
         "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not.",
         "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
+        "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
         "z_index": "The node's own draw layer, added to its parent's unless set absolute."
@@ -6118,6 +6131,7 @@
         "global_position",
         "global_rotation_euler",
         "global_scale",
+        "global_tint",
         "global_visible",
         "global_z_index",
         "go",
@@ -6145,12 +6159,14 @@
         "set_rotation_euler",
         "set_scale",
         "set_sibling_index",
+        "set_tint",
         "set_visible",
         "set_z_index",
         "sibling_index",
         "stable_id",
         "state",
         "tags",
+        "tint",
         "translate",
         "visible",
         "z_index"
@@ -6171,6 +6187,7 @@
         "global_position": "()",
         "global_rotation_euler": "()",
         "global_scale": "()",
+        "global_tint": "(node)",
         "global_visible": "(node)",
         "global_z_index": "(node)",
         "go": "(state: string)",
@@ -6198,12 +6215,14 @@
         "set_rotation_euler": "(x: float, y: float, z: float)",
         "set_scale": "(x: float, y: float, z: float)",
         "set_sibling_index": "(index: int)",
+        "set_tint": "(node, r: float, g: float, b: float, a: float?)",
         "set_visible": "(node, on: bool)",
         "set_z_index": "(node, z: int, relative: bool)",
         "sibling_index": "()",
         "stable_id": "()",
         "state": "()",
         "tags": "(node)",
+        "tint": "(node)",
         "translate": "(x: float, y: float, z: float)",
         "visible": "(node)",
         "z_index": "(node)"
@@ -8535,6 +8554,22 @@
         {
           "name": "ANCHOR_CENTER",
           "value": "center"
+        },
+        {
+          "name": "ANCHOR_CENTER_BOTTOM",
+          "value": "center_bottom"
+        },
+        {
+          "name": "ANCHOR_CENTER_LEFT",
+          "value": "center_left"
+        },
+        {
+          "name": "ANCHOR_CENTER_RIGHT",
+          "value": "center_right"
+        },
+        {
+          "name": "ANCHOR_CENTER_TOP",
+          "value": "center_top"
         },
         {
           "name": "ANCHOR_FILL",

@@ -206,6 +206,18 @@ impl Opts {
         table(self.2).or_else(|| (self.2 == "active").then(|| table("hover")).flatten())
     }
 
+    /// Whether the role dresses the state the control is in. One that does
+    /// not takes [`wash`] instead, so every control answers the pointer.
+    pub(crate) fn dressed(&self) -> bool {
+        let Some(role) = self.1.as_ref() else {
+            return false;
+        };
+        !self.2.is_empty()
+            && role
+                .iter()
+                .any(|(k, v)| (k == self.2 || k == "hover") && matches!(v, Value::Map(_)))
+    }
+
     /// The state table if one paints this key, then what the caller said, and
     /// failing both what the role it named says.
     fn get(&self, key: &str) -> Option<&Value> {
@@ -380,6 +392,10 @@ pub const ANCHORS: &[(&str, &str)] = &[
     ("ANCHOR_BOTTOM_LEFT", w::BOTTOM_LEFT),
     ("ANCHOR_BOTTOM_RIGHT", w::BOTTOM_RIGHT),
     ("ANCHOR_CENTER", w::CENTER),
+    ("ANCHOR_CENTER_LEFT", w::CENTER_LEFT),
+    ("ANCHOR_CENTER_RIGHT", w::CENTER_RIGHT),
+    ("ANCHOR_CENTER_TOP", w::CENTER_TOP),
+    ("ANCHOR_CENTER_BOTTOM", w::CENTER_BOTTOM),
     ("ANCHOR_FILL", "fill"),
 ];
 
@@ -514,6 +530,10 @@ pub(crate) fn text_field(
     };
     let id_owned = id.to_string();
     let result = with_ui(|ui| {
+        // The field's id is its own, so last pass's response is there to read:
+        // the shell it wears is painted before egui lays the text out.
+        let was = ui.ctx().read_response(egui::Id::new(id_owned.clone()));
+        let opts = &opts.in_state(was.as_ref().is_some_and(egui::Response::hovered), false);
         let size = opts.px(k::SIZE, 13.0);
         let family = theme::family(opts.str(k::FONT).unwrap_or(w::UI));
         // The hint carries the field's own font: a bare string is laid out in
@@ -1081,6 +1101,19 @@ fn look_key(
     hasher.finish()
 }
 
+/// The wash a control takes under the pointer when its theme dresses no state
+/// of its own: painted over whatever is already there, so a fill the caller
+/// chose still reads as the fill it chose. Light on a dark theme, dark on a
+/// light one.
+pub(crate) fn wash(ui: &egui::Ui, held: bool) -> Color32 {
+    let alpha = if held { 30 } else { 18 };
+    if ui.visuals().dark_mode {
+        Color32::from_white_alpha(alpha)
+    } else {
+        Color32::from_black_alpha(alpha)
+    }
+}
+
 /// A left-aligned pill row (tree rows, list rows, menu items): custom paint
 /// so the icon and label hug the left edge instead of egui's centered
 /// button text. Supports fill/stroke, a colored leading icon, an optional
@@ -1113,6 +1146,7 @@ pub(crate) fn left_pill(
     {
         fill = hover;
     }
+    let lit = response.hovered() && !opts.dressed() && opts.opt_color(k::HOVER_FILL).is_none();
     // Tiles by default, like every other pill; `round` opts back in.
     let asked = opts.px(k::RADIUS, 0.0);
     let corner = if asked > 0.0 {
@@ -1124,6 +1158,10 @@ pub(crate) fn left_pill(
     };
     if fill != Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, corner, fill);
+    }
+    if lit {
+        ui.painter()
+            .rect_filled(rect, corner, wash(ui, response.is_pointer_button_down_on()));
     }
     if let Some(stroke) = opts.opt_color(k::STROKE) {
         ui.painter().rect(

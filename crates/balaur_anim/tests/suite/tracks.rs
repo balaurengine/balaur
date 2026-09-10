@@ -577,3 +577,64 @@ keys = [
         "half way to a quarter turn is an eighth, not {angle}"
     );
 }
+
+/// The two node-level tracks Godot spells `visible` and `modulate`: neither is
+/// a component property, and both write the `Appearance` every node carries.
+#[test]
+fn a_clip_hides_a_node_and_fades_its_whole_subtree() {
+    let mut app = app();
+    let parent = spawn(&app, "Ship");
+    let child = scene::spawn_node(&mut app.engine.world_mut(), "Sail", parent);
+    set(
+        &app,
+        parent,
+        "animation",
+        r#"
+[library]
+length = 1.0
+
+[[library.tracks]]
+property = "tint"
+keys = [
+  { t = 0.0, value = [1.0, 1.0, 1.0, 1.0] },
+  { t = 1.0, value = [1.0, 1.0, 1.0, 0.0] },
+]
+
+[[library.tracks]]
+property = "visible"
+interp = "linear"
+keys = [ { t = 0.0, value = 1.0 }, { t = 0.75, value = 0.0 } ]
+"#,
+    );
+    balaur_anim::play(&app.engine, parent, "").unwrap();
+
+    tick(&mut app, 30);
+
+    let world = app.engine.world();
+    let own = world.get::<&scene::Appearance>(parent).unwrap();
+    assert!(
+        (own.tint.w - 0.5).abs() < 0.05,
+        "half a second in, alpha should be halfway: {}",
+        own.tint.w
+    );
+    assert!(own.visible, "the visible track's second key is not due yet");
+    let inherited = scene::composed_appearance(&world, child);
+    assert!(
+        (inherited.tint.w - own.tint.w).abs() < 1e-6,
+        "the child inherits the tint it was never given"
+    );
+    drop(own);
+    drop(world);
+
+    tick(&mut app, 20);
+
+    let world = app.engine.world();
+    assert!(
+        !world.get::<&scene::Appearance>(parent).unwrap().visible,
+        "past its second key the node is hidden, `interp = \"linear\"` and all"
+    );
+    assert!(
+        !scene::composed_appearance(&world, child).visible,
+        "and so is everything under it"
+    );
+}

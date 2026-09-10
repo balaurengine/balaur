@@ -310,6 +310,25 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
 "#,
         ),
     );
+    // The defaults every file of a kind is read with, which a sidecar beside
+    // one file then overrides. The manifest is parsed once while starting, so
+    // a change here reaches the picture on the next run.
+    define_group(
+        eng,
+        "import/texture",
+        Scope::Project,
+        &parse(
+            "settings.import.texture",
+            r#"
+filter = { type = "enum", default = "linear", options = ["linear", "nearest"], order = 1, applies = "restart", help = "Between texels. Nearest is what keeps pixel art crisp when it is magnified." }
+repeat = { type = "enum", default = "clamp", options = ["clamp", "repeat", "mirror"], order = 2, applies = "restart", help = "What a coordinate past the edge reads. Mirror tiles without a seam." }
+mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering." }
+anisotropy = { type = "int", default = 1, min = 1, max = 16, order = 4, applies = "restart", help = "Samples per fetch on a surface seen edge-on. Needs every filter linear." }
+premultiply = { type = "bool", default = false, order = 5, applies = "restart", help = "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only." }
+srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "Off for a normal map or a mask, which carry data rather than colour." }
+"#,
+        ),
+    );
     // A prefix may nest, so a subsystem with many settings declares them a
     // group at a time and the editor shows each group under its own heading.
     define_group(

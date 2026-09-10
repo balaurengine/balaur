@@ -649,7 +649,7 @@ fn shell_pass(
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             pos2(0.0, 0.0),
-            egui::vec2(1000.0, 470.0),
+            egui::vec2(1400.0, 900.0),
         )),
         events,
         ..Default::default()
@@ -661,13 +661,12 @@ fn shell_pass(
     out
 }
 
-fn editor() -> (balaur_core::App, egui::Context) {
-    balaur_core::logbuf::capture_for_test();
+fn editor(state: &str) -> (balaur_core::App, egui::Context) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor");
     let game = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
     let mut config = balaur::AppConfig::dev(root.to_string_lossy().as_ref());
     config.watch = false;
-    config.script_args = vec![game.to_string_lossy().into_owned()];
+    config.script_args = vec![game.to_string_lossy().into_owned(), state.to_string()];
     let mut app = balaur::standard_app(config).unwrap();
     balaur_plugin::load(&mut app, &mut stub("export")).unwrap();
     balaur_plugin::load(&mut app, &mut stub("import")).unwrap();
@@ -681,56 +680,63 @@ fn editor() -> (balaur_core::App, egui::Context) {
     (app, ctx)
 }
 
-#[test]
-fn zz_probe_shell() {
-    let (mut app, ctx) = editor();
-    let fingerprint = |out: &egui::FullOutput| {
-        let mut rows: Vec<String> = out
-            .shapes
-            .iter()
-            .filter_map(|s| {
-                let b = s.shape.visual_bounding_rect();
-                b.is_finite().then(|| {
-                    let paint = match &s.shape {
-                        egui::epaint::Shape::Rect(r) => format!("{:?}/{:?}", r.fill, r.stroke.color),
-                        egui::epaint::Shape::Text(t) => format!("{:?}", t.fallback_color),
-                        _ => String::new(),
-                    };
-                    format!("{:.0},{:.0},{:.0},{:.0} {paint}", b.min.x, b.min.y, b.width(), b.height())
-                })
+fn paint(out: &egui::FullOutput) -> Vec<String> {
+    let mut rows: Vec<String> = out
+        .shapes
+        .iter()
+        .filter_map(|s| {
+            let b = s.shape.visual_bounding_rect();
+            b.is_finite().then(|| {
+                let ink = match &s.shape {
+                    egui::epaint::Shape::Rect(r) => format!("{:?}/{:?}", r.fill, r.stroke.color),
+                    egui::epaint::Shape::Text(t) => format!(
+                        "{:?}/{:?}",
+                        t.fallback_color,
+                        t.galley
+                            .job
+                            .sections
+                            .iter()
+                            .map(|s| s.format.color)
+                            .collect::<Vec<_>>()
+                    ),
+                    _ => String::new(),
+                };
+                format!("{:.0},{:.0},{:.0},{:.0} {ink}", b.min.x, b.min.y, b.width(), b.height())
             })
-            .collect();
-        rows.sort();
-        rows
-    };
-    let shot = |app: &mut balaur_core::App, at: egui::Pos2| {
-        for _ in 0..3 {
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+#[test]
+fn zz_probe_states() {
+    for state in ["scene", "settings"] {
+        let (mut app, ctx) = editor(state);
+        let shot = |app: &mut balaur_core::App, at: egui::Pos2| {
+            for _ in 0..3 {
+                app.tick(1.0 / 60.0);
+                shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]);
+            }
             app.tick(1.0 / 60.0);
-            shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]);
-        }
-        app.tick(1.0 / 60.0);
-        fingerprint(&shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]))
-    };
-    let at = pos2(748.0, 90.0);
-    for _ in 0..3 {
-        app.tick(1.0 / 60.0);
-        shell_pass(&app, &ctx, vec![egui::Event::PointerMoved(at)]);
-    }
-    app.tick(1.0 / 60.0);
-    shell_pass(&app, &ctx, vec![egui::Event::PointerMoved(at)]);
-    for entry in balaur_core::logbuf::recent(600) {
-        if entry.message.contains("PROBE stage") {
-            println!("LOG {}", entry.message);
-        }
-    }
-    ctx.memory(|m| {
-        for layer in m.layer_ids() {
-            if let Some(r) = m.area_rect(layer.id)
-                && r.contains(at)
-            {
-                println!("AREA {:?} {:?} {:.0}..{:.0} y{:.0}..{:.0}", layer.order, layer.id, r.min.x, r.max.x, r.min.y, r.max.y);
+            paint(&shell_pass(app, &ctx, vec![egui::Event::PointerMoved(at)]))
+        };
+        let base = shell_pass(&app, &ctx, vec![]);
+        let spots: Vec<(String, egui::Pos2)> = texts(&base)
+            .into_iter()
+            .filter(|(t, _)| !t.trim().is_empty())
+            .collect();
+        let away = shot(&mut app, pos2(1390.0, 890.0));
+        let mut quiet = Vec::new();
+        let total = spots.len();
+        for (name, p) in spots {
+            let over = shot(&mut app, pos2(p.x + 3.0, p.y + 5.0));
+            if over.iter().filter(|r| !away.contains(r)).count() == 0 {
+                quiet.push(format!("{name:?}@{:.0},{:.0}", p.x, p.y));
             }
         }
-    });
+        println!("STATE {state}: {} of {total} quiet", quiet.len());
+        println!("  {}", quiet.join(" "));
+    }
     panic!("probe");
 }

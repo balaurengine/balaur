@@ -12,4 +12,5 @@ mod fixed_update;
 mod interactivity;
 mod presets;
 mod replay;
+mod script_check;
 mod script_tooling;

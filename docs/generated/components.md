@@ -1314,7 +1314,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 61 properties
+`ui` · 62 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1323,7 +1323,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tbody>
 <tr><td><code>active</code></td><td>string</td><td>—</td><td>Which child a `tab` shows, by node name; empty shows the first</td></tr>
 <tr><td><code>align</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
-<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>fill</code>.</td></tr>
+<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>.</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked; every click flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
@@ -1338,6 +1338,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
 <tr><td><code>gap</code></td><td>float</td><td><code>8.0</code></td><td>Space between a container&#x27;s children, in design pixels At least 0.0.</td></tr>
+<tr><td><code>group</code></td><td>string</td><td>—</td><td>A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
@@ -1354,7 +1355,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `field` to digits, a sign and a point</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text after every edit</td></tr>
-<tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the button is clicked</td></tr>
+<tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the widget is clicked. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text on Enter, or when focus leaves it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>

@@ -206,45 +206,9 @@ pub fn check_project_using(
 /// imports — and its diagnostics arrive through the root that imports it.
 #[must_use]
 pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
-    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut dirs = vec![project_root.to_path_buf()];
-    while let Some(dir) = dirs.pop() {
-        let fs = balaur_core::files::default_backend();
-        for (name, is_dir) in fs.list(&dir) {
-            let path = dir.join(&name);
-            if is_dir {
-                dirs.push(path);
-                continue;
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
-                continue;
-            }
-            let Some(text) = text_of(&path) else {
-                continue;
-            };
-            let Ok(document) = text.parse::<toml::Table>() else {
-                continue;
-            };
-            let Some(nodes) = document.get("nodes").and_then(toml::Value::as_array) else {
-                continue;
-            };
-            for node in nodes {
-                // `script` is a path, or a table whose `source` is one.
-                let script = match node.get("script") {
-                    Some(toml::Value::String(path)) => Some(path.clone()),
-                    Some(toml::Value::Table(table)) => table
-                        .get("source")
-                        .and_then(toml::Value::as_str)
-                        .map(str::to_string),
-                    _ => None,
-                };
-                if let Some(script) = script {
-                    out.insert(script);
-                }
-            }
-        }
-    }
-    out.into_iter().collect()
+    balaur_core::project::scene_attachments(project_root)
+        .into_keys()
+        .collect()
 }
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {

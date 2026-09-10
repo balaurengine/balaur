@@ -271,8 +271,15 @@ struct AppearanceFrame {
     id: Option<String>,
     entity: u64,
     visible: bool,
+    /// Defaulted, so a recording made before the tint existed still loads.
+    #[serde(default = "untinted")]
+    tint: [f32; 4],
     z_index: i32,
     z_relative: bool,
+}
+
+const fn untinted() -> [f32; 4] {
+    [1.0, 1.0, 1.0, 1.0]
 }
 
 fn save_appearance(eng: &Engine) -> serde_json::Value {
@@ -285,6 +292,7 @@ fn save_appearance(eng: &Engine) -> serde_json::Value {
                 id: crate::ids::of(&world, entity),
                 entity: entity.to_bits().get(),
                 visible: a.visible,
+                tint: a.tint.into(),
                 z_index: a.z_index,
                 z_relative: a.z_relative,
             })
@@ -311,6 +319,7 @@ fn load_appearance(eng: &Engine, value: &serde_json::Value) {
             continue;
         };
         a.visible = frame.visible;
+        a.tint = frame.tint.into();
         a.z_index = frame.z_index;
         a.z_relative = frame.z_relative;
     }

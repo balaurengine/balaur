@@ -131,6 +131,8 @@ pub fn ui(name) {
         "instance" => "\u{e1ca}",
         "events" => "\u{e2e2}",
         "split" => "\u{e546}",
+        "focus" => "\u{e1d0}",
+        "unfocus" => "\u{e1ce}",
         "restore" => "\u{e13c}",
         "collapse" => "\u{e136}",
         "caret-left" => "\u{e138}",

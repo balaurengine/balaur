@@ -291,6 +291,19 @@ fn edit(S, k, def) {
         if changed {
             write(S, def.path, v);
         }
+    } else if datatype == "int" {
+        let low = util::f(spec.get("min").unwrap_or(0.0));
+        let high = util::f(spec.get("max").unwrap_or(1000000.0));
+        // A drag rather than the slider a float gets: a count is read as
+        // often as it is changed, and the slider draws no number at all.
+        let now = if value is i64 { util::f(value) } else { low };
+        let (v, changed) = ui::drag_value(now, #{
+            width: 220.0, speed: 0.05, decimals: 0,
+            fill: k.sunken, stroke: k.line, color: k.text,
+        });
+        if changed {
+            write(S, def.path, math::round(util::clamp(v, low, high)) as i64);
+        }
     } else if datatype == "enum" {
         let (v, changed) = ui::dropdown(
             "set:" + def.path,

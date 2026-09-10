@@ -254,6 +254,9 @@ struct SceneNode {
     parent: String,
     /// Hides the node and everything under it. Physics is unaffected.
     visible: Option<bool>,
+    /// A colour multiplied into what this node and its descendants draw,
+    /// as `[r, g, b, a]` or `#rrggbb` / `#rrggbbaa`.
+    tint: Option<toml::Value>,
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
     z_relative: Option<bool>,
@@ -744,6 +747,9 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             if let Some(on) = node.visible {
                 appearance.visible = on;
             }
+            if let Some(colour) = node.tint.as_ref().and_then(crate::components::rgba) {
+                appearance.tint = glamx::Vec4::from(colour);
+            }
             if let Some(z) = node.z_index {
                 appearance.z_index = z;
             }
@@ -908,7 +914,7 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
 }
 
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 4] = ["visible", "z_index", "z_relative", "tags"];
+const NODE_KEYS: [&str; 5] = ["visible", "tint", "z_index", "z_relative", "tags"];
 
 fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
@@ -917,6 +923,9 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     };
     if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
         appearance.visible = on;
+    }
+    if let Some(colour) = table.get("tint").and_then(crate::components::rgba) {
+        appearance.tint = glamx::Vec4::from(colour);
     }
     if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
         appearance.z_index = z as i32;
@@ -1050,4 +1059,88 @@ fn slug(name: &str) -> String {
     } else {
         String::from("n_node")
     }
+}
+
+/// Every script a project's scenes attach, with the components the nodes
+/// attaching it carry.
+///
+/// One walk rather than two: the checker wants the components beside a
+/// script and the tools that only want the paths read the keys. A scene that
+/// will not parse is skipped — it is the scene loader's error to report.
+///
+/// A node's components are the keys its table holds that no scene field
+/// claims, which is exactly what the loader dispatches to component handlers;
+/// whether a name is registered is the caller's question, not this walk's.
+/// The set is the union over every node attaching that script, so a call is
+/// answered by any node that could receive it. `None` is a node this walk
+/// could not read: unknown rather than none, so nothing concludes the node
+/// carries nothing.
+#[must_use]
+pub fn scene_attachments(
+    project_root: &std::path::Path,
+) -> BTreeMap<String, Option<std::collections::BTreeSet<String>>> {
+    let mut out: BTreeMap<String, Option<std::collections::BTreeSet<String>>> = BTreeMap::new();
+    let fs = crate::files::default_backend();
+    let mut dirs = vec![project_root.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        for (name, is_dir) in fs.list(&dir) {
+            let path = dir.join(&name);
+            if is_dir {
+                dirs.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            let Ok(bytes) = fs.read(&path) else {
+                continue;
+            };
+            let Ok(text) = String::from_utf8(bytes) else {
+                continue;
+            };
+            let Ok(document) = text.parse::<toml::Table>() else {
+                continue;
+            };
+            let Some(nodes) = document.get("nodes").and_then(toml::Value::as_array) else {
+                continue;
+            };
+            for node in nodes {
+                let Some((script, carried)) = attachment(node) else {
+                    continue;
+                };
+                let entry = out
+                    .entry(script)
+                    .or_insert_with(|| Some(std::collections::BTreeSet::new()));
+                match (entry.as_mut(), carried) {
+                    (Some(known), Some(more)) => known.extend(more),
+                    _ => *entry = None,
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The script one scene node attaches, and the components beside it.
+///
+/// The node is read as the loader reads it, so the components are whatever
+/// `SceneNode` did not claim as a field of its own and nothing here holds a
+/// second list of those names. A node the loader would reject still reports
+/// its script — it is a root the checker should compile — with its components
+/// unknown.
+fn attachment(node: &toml::Value) -> Option<(String, Option<Vec<String>>)> {
+    if let Ok(parsed) = node.clone().try_into::<SceneNode>() {
+        let source = parsed.script.as_ref()?.source();
+        if source.is_empty() {
+            return None;
+        }
+        return Some((source.to_string(), Some(parsed.extra.into_keys().collect())));
+    }
+    // `script` is a path, or a table whose `source` is one.
+    let script = match node.get("script") {
+        Some(toml::Value::String(path)) => path.clone(),
+        Some(toml::Value::Table(table)) => table.get("source")?.as_str()?.to_string(),
+        _ => return None,
+    };
+    (!script.is_empty()).then_some((script, None))
 }

@@ -425,9 +425,12 @@ grow = 1
 id = "status"
 name = "Status"
 parent = "bottom"
+# A pooled row, not a hatch: the strip is labels and a dot, so the theme can
+# dress it and the layout can keep its boxes between passes.
 [nodes.widget]
-kind = "draw"
-draw = "draw_status"
+kind = "row"
+align = "center"
+gap = 8
 height = 24
 
 [[nodes]]

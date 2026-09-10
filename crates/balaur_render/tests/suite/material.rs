@@ -326,3 +326,56 @@ import package::mesh::{VertexInput, VertexOutput, vertex, vertex_color, shade};
         plain.wgsl
     );
 }
+
+/// The 2D builtins a ported canvas_item shader reaches for, linked in one
+/// unit: the screen behind the object, the frame clock, the vertex the shader
+/// displaces, and a texel of each of the two textures.
+///
+/// One test rather than five: what is being checked is that the contract
+/// `sprite.wesl` publishes covers them, and a link either resolves every name
+/// or fails naming the one it could not.
+const SHADER_BUILTINS: &str = r"
+import package::sprite::{
+    VertexInput, VertexOutput, place, tint, time,
+    sample_albedo, sample_screen, screen_uv, texture_pixel_size, screen_pixel_size,
+};
+
+struct Params { amplitude: f32 }
+@group(3) @binding(0) var<uniform> params: Params;
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    let sway = vec2<f32>(sin(time()) * params.amplitude, 0.0);
+    return place(in, sway);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let step = texture_pixel_size();
+    let neighbour = sample_albedo(in.uv + step);
+    let behind = sample_screen(screen_uv(in.clip_position) + screen_pixel_size());
+    return (sample_albedo(in.uv) + neighbour + behind) * tint(in);
+}
+";
+
+#[test]
+fn the_2d_contract_covers_the_builtins_a_canvas_shader_uses() {
+    let dir = project();
+    std::fs::write(dir.path().join("shaders/builtins.wesl"), SHADER_BUILTINS).unwrap();
+    std::fs::write(
+        dir.path().join("materials/builtins.toml"),
+        "type = \"material\"\nshader = \"shaders/builtins.wesl\"\nfeatures = { screen = true }\nparams = { amplitude = 0.25 }\n",
+    )
+    .unwrap();
+    let app = app(dir.path());
+
+    let asset = balaur_core::assets::load_typed::<Material>(&app.engine, "materials/builtins.toml")
+        .unwrap();
+    let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
+    let compiled = compile(&asset, &source).unwrap();
+
+    assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
+    assert!(
+        compiled.wgsl.contains("screen_texture"),
+        "`features = {{ screen = true }}` should bind the frame so far: {}",
+        compiled.wgsl
+    );
+}

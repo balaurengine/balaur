@@ -6,7 +6,9 @@
 > `layoutdemo` asserts nine invariants including that no two sheets overlap.
 > §5.1, §5.2, §5.3 and the plugin-window half of §5.5 came with it, and the
 > three panels are now one dock model (`docks.rn`). Phase 3 has started: the
-> radius ladder and the inspector grid are done. What is left is below.
+> radius ladder and the inspector grid are done. §5.7 is done too:
+> `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `focusdemo`. What is
+> left is below.
 >
 > Written 2026-09-03 against the screen catalogue in
 > [EDITOR-SCREENS.md](EDITOR-SCREENS.md), captured by `scripts/uiaudit.sh` at
@@ -127,8 +129,8 @@ document owns the centre.
 | Piece | Decision |
 |---|---|
 | The verb | `⇧⌘\` beside `⌘\` for the split, a palette command, and a chip next to Split in the top bar |
-| Entering with nothing open | The verb opens the selected node's script first; a node with none says so in the status strip rather than folding the shell around an empty pane |
-| The status strip | Stays. The bottom dock folds to it already, so the problem count and the save state are still readable |
+| Entering with nothing open | The verb opens the selected node's script. A selection with none greys the chip out and says so in its tooltip, rather than folding the shell around an empty pane |
+| The status strip | Goes with the dock. The bottom dock folds away whole today, not to its strip, so the save state is read from the dot on the document tab |
 | Opening a panel while focused | Clears `S.focus_was` rather than fighting it. `⌘K`, a diagnostic's gutter click and the dock tabs all set `shut = false`, and a restore must not shut a panel that was deliberately asked for |
 | The top bar | Stays: the document tabs and the persona bar are how the code is left again |
 | OS full screen | Not this verb. `render.set_fullscreen` is the game's, and a borderless editor loses the tabs |

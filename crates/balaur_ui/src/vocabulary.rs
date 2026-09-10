@@ -45,10 +45,25 @@ pub(crate) mod words {
     pub(crate) const BOTTOM_LEFT: &str = "bottom_left";
     pub(crate) const BOTTOM_RIGHT: &str = "bottom_right";
     pub(crate) const CENTER: &str = "center";
+    pub(crate) const CENTER_LEFT: &str = "center_left";
+    pub(crate) const CENTER_RIGHT: &str = "center_right";
+    pub(crate) const CENTER_TOP: &str = "center_top";
+    pub(crate) const CENTER_BOTTOM: &str = "center_bottom";
     pub(crate) const FILL: &str = "fill";
-    /// Screen anchors.
-    pub(crate) const ANCHORS: &[&str] =
-        &[TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER, FILL];
+    /// Screen anchors: the four corners, the four edge midpoints, the middle,
+    /// and the whole surface.
+    pub(crate) const ANCHORS: &[&str] = &[
+        TOP_LEFT,
+        TOP_RIGHT,
+        BOTTOM_LEFT,
+        BOTTOM_RIGHT,
+        CENTER,
+        CENTER_LEFT,
+        CENTER_RIGHT,
+        CENTER_TOP,
+        CENTER_BOTTOM,
+        FILL,
+    ];
 
     pub(crate) const START: &str = "start";
     pub(crate) const END: &str = "end";
@@ -90,6 +105,7 @@ pub(crate) mod keys {
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
+    pub(crate) const GROUP: &str = "group";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";

@@ -53,11 +53,13 @@ A clip keys node properties over time. `length` is in seconds and may be
 left out to end at the last key; `loop` is `none` (hold the last key),
 `loop` or `pingpong`. Each track names a `target` node path relative to the
 playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
-`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
-an optional `ease`. A track with no `property` is a method track whose keys
-call the node's script. A file holds one clip, or several under
-`[clips.<name>]`, addressed as `file.toml#name`.
+`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
+`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
+`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
+and always stepped; `tint` is the `[r, g, b, a]` every descendant is
+multiplied by, which a renderable's own `color` is not. A track with no
+`property` is a method track whose keys call the node's script. A file holds
+one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
 
 ```toml
 type = "animation_clip"
@@ -328,6 +330,52 @@ How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padd
 ## The `assets` script module
 
 `assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`.
+
+## Import settings
+
+How a file is *read* is stated beside the file, not in the scene that
+names it. `art/hero.png.toml` holds one image's settings, and
+`[import.texture]` in `project.toml` sets the default for every image
+in the project. The sidecar overrides the project key by key.
+
+```toml
+# project.toml: every texture in a pixel-art project
+[import.texture]
+filter = "nearest"
+
+# art/hero.png.toml: this one image
+premultiply = true
+```
+
+Settings change pixels and samples, never sizes. A headless run reads
+them for nothing and computes the same world, so turning mipmaps on
+cannot move a replay or a network session.
+
+### Texture keys
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `filter` | `linear`, `nearest` | `linear` | Between texels. `nearest` is what keeps pixel art crisp. |
+| `mag_filter`, `min_filter` | as `filter` | `filter` | One direction alone, where magnifying and minifying differ. |
+| `repeat` | `clamp`, `repeat`, `mirror` | `clamp` | What a coordinate past the edge reads. `mirror` tiles without a seam. |
+| `repeat_u`, `repeat_v` | as `repeat` | `repeat` | One axis alone, for art that tiles across and clamps down. |
+| `mipmaps` | `true`, `false` | `false` | Build the smaller copies a texture drawn small samples, which stops it shimmering. |
+| `mipmap_filter` | `linear`, `nearest` | `linear` | Between mip levels, read only when `mipmaps` is on. |
+| `anisotropy` | `1` to `16` | `1` | Samples per fetch on a surface seen edge-on. Needs every filter `linear`. |
+| `srgb` | `true`, `false` | `true` | Off for a normal map or a mask, which carry data rather than colour. |
+| `premultiply` | `true`, `false` | `false` | Scale colour by alpha at upload, so a soft edge blends with no dark fringe. |
+| `recode` | `keep` | unset | Ship this file's own bytes whatever `[export]` says. |
+
+A value nothing knows reads as the default rather than refusing the
+texture, because a settings file is written by hand. `anisotropy`
+above `1` is dropped with a warning when a filter is `nearest`, which
+is a pair no GPU samples. `premultiply` is honoured on 2D nodes, which
+carry the blend mode that matches it; a 3D mesh draws the same image
+straight.
+
+The Import tab in the editor writes the sidecar, one row per key,
+each saying whether the value is the file's own, the project's or the
+engine's.
 
 ## Plugins define asset types
 

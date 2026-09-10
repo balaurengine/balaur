@@ -31,7 +31,19 @@ pub mod kinds {
 /// would be a promise the picture does not keep.
 pub mod keys {
     pub const FILTER: &str = "filter";
+    /// `filter` for one direction alone, when the two differ.
+    pub const MAG_FILTER: &str = "mag_filter";
+    pub const MIN_FILTER: &str = "min_filter";
     pub const SRGB: &str = "srgb";
+    pub const REPEAT: &str = "repeat";
+    /// `repeat` for one axis alone, for a texture that tiles across and
+    /// clamps down.
+    pub const REPEAT_U: &str = "repeat_u";
+    pub const REPEAT_V: &str = "repeat_v";
+    pub const MIPMAPS: &str = "mipmaps";
+    pub const MIPMAP_FILTER: &str = "mipmap_filter";
+    pub const ANISOTROPY: &str = "anisotropy";
+    pub const PREMULTIPLY: &str = "premultiply";
     pub const RECODE: &str = "recode";
 }
 
@@ -39,6 +51,12 @@ pub mod keys {
 pub mod words {
     pub const NEAREST: &str = "nearest";
     pub const LINEAR: &str = "linear";
+    /// `repeat = "repeat"`: the texture tiles past its edge.
+    pub const REPEAT: &str = "repeat";
+    /// Every other tile flipped, so a tiling texture has no seam.
+    pub const MIRROR: &str = "mirror";
+    /// The edge texel held, which is what a sprite wants.
+    pub const CLAMP: &str = "clamp";
     /// `recode = "keep"`: ship this file's own bytes whatever the export's
     /// mode is.
     pub const KEEP: &str = "keep";
@@ -211,6 +229,130 @@ pub fn flag(settings: &toml::Table, key: &str, fallback: bool) -> bool {
         .unwrap_or(fallback)
 }
 
+/// A whole-number setting, or `fallback` when it is missing or of another
+/// type.
+#[must_use]
+pub fn count(settings: &toml::Table, key: &str, fallback: u16) -> u16 {
+    settings
+        .get(key)
+        .and_then(toml::Value::as_integer)
+        .and_then(|found| u16::try_from(found).ok())
+        .unwrap_or(fallback)
+}
+
+/// What a texture's settings say about sampling it, with the words already
+/// read and the constraints already applied.
+///
+/// Here rather than in the renderer so a headless test can prove the merge
+/// and the refusals without a GPU, and so the editor and the exporter read
+/// the same answer the picture does.
+pub mod texture {
+    use super::{count, flag, keys, word, words};
+
+    /// Between texels.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Filter {
+        /// The nearest texel, which is what keeps pixel art crisp.
+        Nearest,
+        /// Interpolated between texels.
+        Linear,
+    }
+
+    /// What a coordinate past the edge reads.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Wrap {
+        Repeat,
+        Mirror,
+        Clamp,
+    }
+
+    /// One texture's whole sampler, resolved.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct Sampling {
+        pub mag: Filter,
+        pub min: Filter,
+        pub mipmap: Filter,
+        pub wrap_u: Wrap,
+        pub wrap_v: Wrap,
+        pub mipmaps: bool,
+        /// Samples per fetch, 1 to 16, where 1 is off.
+        pub anisotropy: u16,
+        pub srgb: bool,
+        pub premultiply: bool,
+    }
+
+    /// What the engine samples with when nothing says otherwise: a sprite's
+    /// clamped bilinear colour, with no mip chain to build at load.
+    impl Default for Sampling {
+        fn default() -> Self {
+            Sampling {
+                mag: Filter::Linear,
+                min: Filter::Linear,
+                mipmap: Filter::Linear,
+                wrap_u: Wrap::Clamp,
+                wrap_v: Wrap::Clamp,
+                mipmaps: false,
+                anisotropy: 1,
+                srgb: true,
+                premultiply: false,
+            }
+        }
+    }
+
+    /// The sampler one file's resolved settings ask for.
+    ///
+    /// Every key falls back to the one above it — `mag_filter` to `filter`,
+    /// `repeat_u` to `repeat` — so a project that samples the same way in
+    /// both directions writes one line.
+    #[must_use]
+    pub fn sampling(settings: &toml::Table) -> Sampling {
+        let base = Sampling::default();
+        let both = filter(settings, keys::FILTER, base.mag);
+        let axes = wrap(settings, keys::REPEAT, base.wrap_u);
+        Sampling {
+            mag: filter(settings, keys::MAG_FILTER, both),
+            min: filter(settings, keys::MIN_FILTER, both),
+            mipmap: filter(settings, keys::MIPMAP_FILTER, base.mipmap),
+            wrap_u: wrap(settings, keys::REPEAT_U, axes),
+            wrap_v: wrap(settings, keys::REPEAT_V, axes),
+            mipmaps: flag(settings, keys::MIPMAPS, base.mipmaps),
+            anisotropy: count(settings, keys::ANISOTROPY, base.anisotropy).clamp(1, 16),
+            srgb: flag(settings, keys::SRGB, base.srgb),
+            premultiply: flag(settings, keys::PREMULTIPLY, base.premultiply),
+        }
+    }
+
+    /// Whether this sampler asks for anisotropy the filters cannot give it.
+    ///
+    /// Anisotropy averages between texels and between mip levels; a nearest
+    /// filter does neither, and a GPU refuses the pair. The caller reports it
+    /// and samples without, rather than dropping the texture.
+    #[must_use]
+    pub fn anisotropy_refused(sampling: &Sampling) -> bool {
+        sampling.anisotropy > 1
+            && (sampling.mag != Filter::Linear
+                || sampling.min != Filter::Linear
+                || sampling.mipmap != Filter::Linear)
+    }
+
+    fn filter(settings: &toml::Table, key: &str, fallback: Filter) -> Filter {
+        match word(settings, key, "") {
+            words::NEAREST => Filter::Nearest,
+            words::LINEAR => Filter::Linear,
+            _ => fallback,
+        }
+    }
+
+    fn wrap(settings: &toml::Table, key: &str, fallback: Wrap) -> Wrap {
+        match word(settings, key, "") {
+            words::REPEAT => Wrap::Repeat,
+            words::MIRROR => Wrap::Mirror,
+            words::CLAMP => Wrap::Clamp,
+            _ => fallback,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{flag, is_sidecar, kind_of, kinds, sidecar_of, stamp, word};
@@ -260,5 +402,77 @@ mod tests {
         assert_eq!(word(&table, "filter", "linear"), "nearest");
         assert_eq!(word(&table, "repeat", "clamp"), "clamp");
         assert!(flag(&table, "srgb", true));
+    }
+
+    mod sampling {
+        use crate::import::texture::{Filter, Sampling, Wrap, anisotropy_refused, sampling};
+
+        fn of(source: &str) -> Sampling {
+            sampling(&toml::from_str::<toml::Table>(source).unwrap())
+        }
+
+        /// A file that says nothing samples the way a sprite wants: clamped,
+        /// smooth, and with no mip chain to build at load.
+        #[test]
+        fn a_file_with_no_settings_samples_the_way_it_always_did() {
+            assert_eq!(of(""), Sampling::default());
+        }
+
+        /// One line for both directions, and the per-axis key only where they
+        /// differ.
+        #[test]
+        fn a_per_axis_key_falls_back_to_the_one_that_covers_both() {
+            let tiled = of("repeat = \"repeat\"\nrepeat_v = \"clamp\"");
+            assert_eq!(tiled.wrap_u, Wrap::Repeat);
+            assert_eq!(tiled.wrap_v, Wrap::Clamp);
+
+            let pixel = of("filter = \"nearest\"\nmin_filter = \"linear\"");
+            assert_eq!(pixel.mag, Filter::Nearest);
+            assert_eq!(pixel.min, Filter::Linear);
+        }
+
+        #[test]
+        fn every_key_is_read() {
+            let all = of(
+                "filter = \"nearest\"\nrepeat = \"mirror\"\nmipmaps = true\n\
+                 mipmap_filter = \"nearest\"\nanisotropy = 8\nsrgb = false\n\
+                 premultiply = true",
+            );
+            assert_eq!(all.mag, Filter::Nearest);
+            assert_eq!(all.wrap_u, Wrap::Mirror);
+            assert_eq!(all.mipmap, Filter::Nearest);
+            assert!(all.mipmaps && all.premultiply && !all.srgb);
+            assert_eq!(all.anisotropy, 8);
+        }
+
+        /// A misspelled value is the engine's own, not a texture that refuses
+        /// to draw: a settings file is written by hand.
+        #[test]
+        fn a_word_nothing_knows_reads_as_the_default() {
+            assert_eq!(of("filter = \"bilinear\"").mag, Filter::Linear);
+            assert_eq!(of("repeat = \"tile\"").wrap_u, Wrap::Clamp);
+            assert_eq!(of("anisotropy = \"lots\"").anisotropy, 1);
+        }
+
+        /// A GPU refuses anisotropy without a linear filter on every axis, so
+        /// the pair is caught here and reported rather than sampled.
+        #[test]
+        fn anisotropy_asks_for_a_linear_filter() {
+            assert!(anisotropy_refused(&of(
+                "filter = \"nearest\"\nanisotropy = 4"
+            )));
+            assert!(!anisotropy_refused(&of("anisotropy = 4")));
+            assert!(
+                !anisotropy_refused(&of("filter = \"nearest\"")),
+                "no anisotropy asked for is nothing to refuse"
+            );
+        }
+
+        #[test]
+        fn anisotropy_past_what_a_gpu_offers_is_clamped() {
+            assert_eq!(of("anisotropy = 64").anisotropy, 16);
+            assert_eq!(of("anisotropy = 0").anisotropy, 1);
+            assert_eq!(of("anisotropy = -4").anisotropy, 1);
+        }
     }
 }

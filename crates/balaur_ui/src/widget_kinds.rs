@@ -118,12 +118,19 @@ fn rows(
     let widget = &placed.widget;
     let entity = placed.entity;
     let want = box_of(widget, at.assigned, at.scale);
-    let row_h = if widget.height > 0.0 && !indent {
-        widget.height * at.scale
-    } else {
-        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
+    // `row_height` is the pitch, and a `list` has always spelled it `height`.
+    let stated = match (widget.row_height > 0.0, widget.height > 0.0 && !indent) {
+        (true, _) => widget.row_height * at.scale,
+        (false, true) => widget.height * at.scale,
+        (false, false) => ui.text_style_height(&egui::TextStyle::Body).max(1.0),
     };
-    steady_height(ui);
+    // A row is drawn at the pitch it is placed at, so the pitch has to hold
+    // its text: the two drifting apart is a list that scrolls off its own bar.
+    let text_h = ui.fonts_mut(|f| f.row_height(font));
+    let row_h = stated.max(text_h);
+    // The pitch is the row, with nothing between: `show_rows` places by the
+    // one and the rows draw at the other, and a gap makes them two numbers.
+    ui.spacing_mut().item_spacing.y = 0.0;
     let items: Vec<String> = widget
         .options
         .iter()
@@ -184,6 +191,7 @@ fn rows(
                 ui,
                 &Row {
                     item,
+                    slot,
                     depth,
                     parent,
                     indent,
@@ -234,6 +242,9 @@ fn steady_height(ui: &mut egui::Ui) {
 /// One row of a list or tree, and what a click on it meant.
 struct Row<'a> {
     item: &'a str,
+    /// Which row this is in the open walk. Two nodes of the same name at the
+    /// same depth write the same string, so the string is not an identity.
+    slot: usize,
     depth: usize,
     /// Whether a caret is drawn, because the next row is deeper than this one.
     parent: bool,
@@ -250,51 +261,111 @@ struct Row<'a> {
 struct Hit {
     picked: bool,
     folded: bool,
+    /// Whether the pointer is on the caret rather than the row, so the row
+    /// still lights up while the branch is being aimed at.
+    folded_hovered: bool,
 }
 
 /// Draw one row: the guides down its indent, its caret, its icon field, its
 /// label, and whatever it trails on the right.
+///
+/// The whole row is the hit area and paints its own background. Built out of
+/// buttons it lit only under the name, so a row had a dead strip over its own
+/// icon and its indent, and each part carried a margin the row's height moved
+/// with.
 fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     let mut hit = Hit {
         picked: false,
         folded: false,
+        folded_hovered: false,
     };
-    ui.horizontal(|ui| {
-        if r.depth > 0 {
-            let head = ui.cursor().min;
-            ui.add_space(r.row_h * r.depth as f32);
-            guides(ui, head, r.row_h, r.trail);
-        }
-        if r.parent {
-            let caret = if r.shut { "\u{25b8}" } else { "\u{25be}" };
-            let mark = egui::RichText::new(caret)
-                .font(r.font.clone())
-                .color(r.color);
-            hit.folded = ui.selectable_label(false, mark).clicked();
-        } else if r.indent {
-            ui.add_space(r.row_h);
-        }
-        let (icon, label, trailing, tint) = fields(r.item);
-        let color = tint.unwrap_or(r.color);
-        if !icon.is_empty() {
-            // The icon field is a glyph from the project's icon face, not a
-            // character in the UI one.
-            let mark = egui::FontId::new(r.font.size, crate::theme::family("icon"));
-            ui.label(egui::RichText::new(icon).font(mark).color(color));
-        }
-        let text = egui::RichText::new(label).font(r.font.clone()).color(color);
-        let picked = ui.selectable_label(r.item == r.chosen, text);
-        if !trailing.is_empty() {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    egui::RichText::new(trailing)
-                        .font(r.font.clone())
-                        .color(color),
-                );
-            });
-        }
-        hit.picked = picked.clicked();
-    });
+    let step = r.row_h;
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), step), Sense::click());
+    let chosen = r.item == r.chosen;
+    let radius = egui::CornerRadius::same((step * 0.2) as u8);
+    // Reserved, painted once the caret has had its say: the caret is a hit of
+    // its own, and a row that went dark under it would blink as it was aimed at.
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let mut at = rect.min.x;
+    if r.depth > 0 {
+        guides(ui, rect.min, step, r.trail);
+        at += step * r.depth as f32;
+    }
+    if r.parent {
+        // Interacted after the row, so a click on the caret is the caret's:
+        // egui gives a tie to the widget registered last.
+        let box_ = Rect::from_min_size(pos2(at, rect.min.y), egui::Vec2::splat(step));
+        let caret = ui.interact(box_, ui.id().with(("caret", r.slot)), Sense::click());
+        hit.folded = caret.clicked();
+        hit.folded_hovered = caret.hovered();
+        ui.painter().text(
+            box_.center(),
+            egui::Align2::CENTER_CENTER,
+            if r.shut { "\u{25b8}" } else { "\u{25be}" },
+            r.font.clone(),
+            r.color,
+        );
+    }
+    if r.parent || r.indent {
+        at += step;
+    }
+    let over = response.hovered() || hit.folded_hovered;
+    let held = response.is_pointer_button_down_on();
+    let lit = if chosen {
+        Some(ui.visuals().selection.bg_fill)
+    } else if over {
+        Some(crate::widgets::wash(ui, held))
+    } else {
+        None
+    };
+    if let Some(fill) = lit {
+        ui.painter().set(
+            plate,
+            egui::epaint::RectShape::filled(rect, radius, fill),
+        );
+    }
+    // A picked row still answers the pointer: the wash goes over the fill that
+    // says it is picked rather than instead of it.
+    if chosen && over {
+        ui.painter()
+            .rect_filled(rect, radius, crate::widgets::wash(ui, held));
+    }
+    let (icon, label, trailing, tint) = fields(r.item);
+    let ink = if chosen {
+        ui.visuals().selection.stroke.color
+    } else {
+        tint.unwrap_or(r.color)
+    };
+    if !icon.is_empty() {
+        // The icon field is a glyph from the project's icon face, not a
+        // character in the UI one.
+        let mark = egui::FontId::new(r.font.size, crate::theme::family("icon"));
+        let drawn = ui.painter().text(
+            pos2(at, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            icon,
+            mark,
+            ink,
+        );
+        at += drawn.width() + step * 0.25;
+    }
+    ui.painter().text(
+        pos2(at, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        r.font.clone(),
+        ink,
+    );
+    if !trailing.is_empty() {
+        ui.painter().text(
+            pos2(rect.max.x - step * 0.3, rect.center().y),
+            egui::Align2::RIGHT_CENTER,
+            trailing,
+            r.font.clone(),
+            ink,
+        );
+    }
+    hit.picked = response.clicked();
     hit
 }
 
@@ -631,6 +702,7 @@ pub(crate) fn table(
         ui.text_style_height(&egui::TextStyle::Body).max(1.0)
     };
     let mut picked = None;
+    steady_height(ui);
     egui::Grid::new(("balaur-table", entity))
         .num_columns(columns)
         .striped(true)

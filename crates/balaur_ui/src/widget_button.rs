@@ -113,7 +113,9 @@ pub(crate) fn button(
         let placed = &at.arena[index];
         (placed.entity, placed.widget.clone())
     };
-    let base = at.look(index).style.clone();
+    // Resting: a button is not always as wide as the box it was given, so it
+    // reads the state off its own response rather than off that box.
+    let base = at.resting(index).style.clone();
     let (scale, focused) = (at.scale, at.focused);
     let face = face_of(ui, at, index, caption, font);
     let pad_x = base
@@ -157,6 +159,15 @@ pub(crate) fn button(
                 egui::StrokeKind::Inside,
             ),
         ),
+    }
+    // A theme that dresses no state still lights the button up: every control
+    // answers the pointer, and a theme refines what that looks like.
+    if response.hovered() && base.hover.is_none() && base.active.is_none() {
+        ui.painter().rect_filled(
+            response.rect,
+            radius,
+            crate::widgets::wash(ui, response.is_pointer_button_down_on()),
+        );
     }
     let ink = if widget.text_color[3] > 0.0 {
         color

@@ -28,7 +28,7 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 50 | 0 | the engine |
+| [`node`](#node) | 53 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 66 | 48 | the engine |
 | [`physics3d`](#physics3d) | 89 | 62 | the engine |
@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 57 | 45 | the engine |
+| [`ui`](#ui) | 57 | 49 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -179,7 +179,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_sibling_index`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_tint`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_sibling_index`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `tint`, `translate`, `visible`, `z_index`
 
 ## `physics`
 
@@ -351,7 +351,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
 
-**Constants** (45):
+**Constants** (49):
 
 | Name | Value |
 | --- | --- |
@@ -362,6 +362,10 @@ cannot drift from what scripts actually see.
 | `ANCHOR_BOTTOM_LEFT` | `bottom_left` |
 | `ANCHOR_BOTTOM_RIGHT` | `bottom_right` |
 | `ANCHOR_CENTER` | `center` |
+| `ANCHOR_CENTER_BOTTOM` | `center_bottom` |
+| `ANCHOR_CENTER_LEFT` | `center_left` |
+| `ANCHOR_CENTER_RIGHT` | `center_right` |
+| `ANCHOR_CENTER_TOP` | `center_top` |
 | `ANCHOR_FILL` | `fill` |
 | `ANCHOR_TOP_LEFT` | `top_left` |
 | `ANCHOR_TOP_RIGHT` | `top_right` |
@@ -375,12 +379,8 @@ cannot drift from what scripts actually see.
 | `MOD_SHIFT` | `shift` |
 | `WIDGET_BUTTON` | `button` |
 | `WIDGET_CHECK` | `check` |
-| `WIDGET_CODE` | `code` |
-| `WIDGET_COLOR` | `color` |
-| `WIDGET_COLUMN` | `column` |
-| `WIDGET_DIALOG` | `dialog` |
 
-…and 21 more.
+…and 25 more.
 
 ## `web`
 

@@ -96,8 +96,13 @@ fn a_component_handle_offers_what_acts_on_that_component() {
     let (_dir, app) = host();
     let found = complete_after(&rune(&app), "node.body2d.");
     assert!(found.contains(&"apply_impulse".to_string()), "{found:?}");
-    // The six generic ops every handle answers, whatever it is on.
-    assert!(found.contains(&"props".to_string()), "{found:?}");
+    // The generic ops every handle answers, whatever it is on, and only the
+    // ones it really answers: the popup and the handle read one table.
+    assert!(found.contains(&"patch".to_string()), "{found:?}");
+    assert!(
+        !found.contains(&"props".to_string()),
+        "a method no handle carries was offered: {found:?}"
+    );
     assert!(
         !found.contains(&"raycast".to_string()),
         "a function acting on no component reached a handle: {found:?}"

@@ -41,7 +41,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ON_FOCUS, r#"{ type = "string", default = "", description = "Script method called on this node when focus arrives", group = "events" }"#),
                     (k::THEME, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one", group = "paint" }}"#, crate::widget_theme::ASSET_TYPE)),
                     (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once", group = "type" }"#),
-                    (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called on this node when the button is clicked", group = "events" }"#),
+                    (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called on this node when the widget is clicked. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
                     (k::GROW, r#"{ type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for", group = "placement" }"#),
                     (k::MIN_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels", group = "placement" }"#),
@@ -63,6 +63,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ON_CHANGE, r#"{ type = "string", default = "", description = "Script method called on this node with a `field`'s text after every edit", group = "events" }"#),
                     (k::ON_SUBMIT, r#"{ type = "string", default = "", description = "Script method called on this node with a `field`'s text on Enter, or when focus leaves it", group = "events" }"#),
                     (k::CHECKED, r#"{ type = "bool", default = false, description = "Whether a `check` is ticked; every click flips it and calls `on_change` with the new state" }"#),
+                    (k::GROUP, r#"{ type = "string", default = "", description = "A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
                     (k::VALUE, r#"{ type = "float", default = 0.0, description = "Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it" }"#),
                     (k::MIN, r#"{ type = "float", default = 0.0, description = "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
                     (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
@@ -269,6 +270,7 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
 /// fold, fill root, sliced image and deadzone scroll carry.
 fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::CHECKED.into(), toml::Value::Boolean(widget.checked));
+    map.insert(k::GROUP.into(), toml::Value::String(widget.group.to_string()));
     map.insert(k::COLOR.into(), four(widget.color));
     map.insert(k::FONT.into(), toml::Value::String(widget.font.to_string()));
     map.insert(
@@ -412,6 +414,7 @@ fn widget_from(params: &toml::Value) -> Widget {
     let (s, f) = (|k: &str| r.str(k), |k: &str| r.num(k));
     let mut widget = Widget {
         kind: s(k::KIND),
+        group: s(k::GROUP),
         text: s(k::TEXT),
         visible: r.flag(k::VISIBLE),
         anchor: s(k::ANCHOR),
@@ -484,6 +487,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     let r = Read(params);
     let (f, b) = (|k: &str| r.num(k), |k: &str| r.flag(k));
     widget.checked = b(k::CHECKED);
+    widget.group = r.str(k::GROUP);
     widget.value = f(k::VALUE);
     widget.min = f(k::MIN);
     widget.max = f(k::MAX);

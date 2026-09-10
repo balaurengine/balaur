@@ -20,6 +20,7 @@ use crate::util;
 // computed, because the rail and the document both change what is left for
 // the scene.
 pub fn modes(S) {
+    shell::keep_focus(S);
     // A tab the centre is showing is open, whoever pointed it there.
     if S.doctab == "script" {
         S.script_open = true;
@@ -40,8 +41,8 @@ pub fn modes(S) {
     let rail_on = S.viewport_live && has_tools;
     S.rail_visible = rail_on;
     // The hooks list only earns its 172 px when the code has the centre to
-    // itself; a split is already two columns.
-    let hooks_on = code && !split;
+    // itself; a split is already two columns, and focus is neither.
+    let hooks_on = code && !split && !S.focus;
     S.hooks_open = hooks_on;
 }
 
@@ -271,7 +272,6 @@ fn viewport(S, k) {
     // chip too many painted its last over the inspector beside it.
     // Clear of the folded left dock's handle, which shares this row.
     let inset = crate::docks::fold_inset(S);
-    log::warn(format!("PROBE stage {} {} {} {} inset {} canvas {}", vp.x, vp.y, vp.w, vp.h, inset, S.layout.hooks.w));
     ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: HUD_H }, || {
         ui::horizontal(#{ height: HUD_H }, || {
             ui::spacing(6, 0);

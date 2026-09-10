@@ -7,20 +7,34 @@ use crate::util;
 
 // The keys each kind offers, in the order they are drawn. `fallback` is what
 // the engine assumes when neither the project nor the sidecar says.
+
+// The per-axis keys (`mag_filter`, `repeat_u`, `mipmap_filter` and the rest)
+// are written by hand: a row apiece would double the panel.
 const ROWS = #{
     texture: [
         #{ key: "filter", kind: "enum", options: ["linear", "nearest"], fallback: "linear",
            help: "nearest keeps pixel art crisp when it is magnified" },
+        #{ key: "repeat", kind: "enum", options: ["clamp", "repeat", "mirror"], fallback: "clamp",
+           help: "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam" },
+        #{ key: "mipmaps", kind: "bool", fallback: false,
+           help: "smaller copies for a texture drawn small, which stops it shimmering" },
+        #{ key: "anisotropy", kind: "count", options: ["1", "2", "4", "8", "16"], fallback: 1,
+           help: "samples per fetch on a surface seen edge-on; needs a linear filter" },
+        #{ key: "premultiply", kind: "bool", fallback: false,
+           help: "colour scaled by alpha at upload, so a soft edge blends without a dark fringe" },
         #{ key: "srgb", kind: "bool", fallback: true,
            help: "off for a normal map or a mask, which carry data rather than colour" },
     ],
 };
 
-// Extensions the panel claims, matching `balaur_core::import::kind_of`.
-const KINDS = #{
-    png: "texture", jpg: "texture", jpeg: "texture", webp: "texture",
-    bmp: "texture", tga: "texture",
-};
+// What each `count` option writes: the sidecar holds a number, and a dropdown
+// hands back the text beside it.
+const COUNTS = #{ "1": 1, "2": 2, "4": 4, "8": 8, "16": 16 };
+
+// Extensions the panel claims, matching `balaur_core::import::kind_of`. A
+// picture in another format is not a texture the engine reads, so offering
+// its settings would write a file nothing opens.
+const KINDS = #{ png: "texture", webp: "texture" };
 
 pub fn kind_of(rel) {
     let lower = rel.to_lowercase();
@@ -133,6 +147,13 @@ fn row(S, k, rel, kind, spec) {
             kind: "check", text: "", tooltip: spec.help,
             checked: effective == true,
             on: |on| { write(S, rel, key, on); },
+        }
+    } else if spec.kind == "count" {
+        #{
+            kind: "dropdown", grow: 1, tooltip: spec.help,
+            text: format!("{}", if effective is i64 { effective } else { spec.fallback }),
+            options: spec.options,
+            on: |picked| { write(S, rel, key, COUNTS.get(picked).unwrap_or(spec.fallback)); },
         }
     } else {
         #{

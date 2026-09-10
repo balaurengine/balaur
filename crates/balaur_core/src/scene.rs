@@ -6,7 +6,7 @@
 
 use std::cell::RefCell;
 
-use glamx::{Quat, Vec3};
+use glamx::{Quat, Vec3, Vec4};
 use hecs::{Entity, World};
 use smol_str::SmolStr;
 
@@ -128,13 +128,17 @@ impl Transform {
     }
 }
 
-/// Whether a node draws, and which layer it draws on.
+/// Whether a node draws, what it is tinted by, and which layer it draws on.
 ///
-/// Nothing in physics reads either field: a hidden collider still collides,
+/// Nothing in physics reads any field: a hidden collider still collides,
 /// which is what a game hiding a sprite for a frame expects.
 #[derive(Clone, Copy)]
 pub struct Appearance {
     pub visible: bool,
+    /// A colour multiplied into whatever the node draws, and into every
+    /// descendant's, so one key fades a whole rig. A renderable's own `color`
+    /// is the node's alone; this is the one that inherits.
+    pub tint: Vec4,
     pub z_index: i32,
     /// Add `z_index` to the parent's rather than replacing it, so moving a
     /// subtree between layers keeps the order inside it.
@@ -145,6 +149,7 @@ impl Appearance {
     pub const fn identity() -> Self {
         Self {
             visible: true,
+            tint: Vec4::ONE,
             z_index: 0,
             z_relative: true,
         }
@@ -203,6 +208,9 @@ pub fn tagged(world: &World, root: Entity, tag: &str) -> Vec<Entity> {
 #[derive(Clone, Copy)]
 pub struct GlobalAppearance {
     pub visible: bool,
+    /// Every `Appearance::tint` from the root down, multiplied channel by
+    /// channel. What a renderer multiplies its own colour by.
+    pub tint: Vec4,
     pub z_index: i32,
 }
 
@@ -210,6 +218,7 @@ impl GlobalAppearance {
     pub const fn identity() -> Self {
         Self {
             visible: true,
+            tint: Vec4::ONE,
             z_index: 0,
         }
     }
@@ -217,6 +226,7 @@ impl GlobalAppearance {
     fn mul(self, local: Appearance) -> Self {
         Self {
             visible: self.visible && local.visible,
+            tint: self.tint * local.tint,
             z_index: if local.z_relative {
                 self.z_index.saturating_add(local.z_index)
             } else {

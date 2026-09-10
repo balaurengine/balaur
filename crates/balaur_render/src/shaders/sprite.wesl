@@ -60,6 +60,17 @@ fn screen_uv(position: vec4<f32>) -> vec2<f32> {
     return textureSample(screen_texture, screen_sampler, uv);
 }
 
+// One texel of the bound texture, in UV units: what an outline or a blur
+// steps by, and what another engine spells TEXTURE_PIXEL_SIZE.
+fn texture_pixel_size() -> vec2<f32> {
+    return vec2<f32>(1.0, 1.0) / vec2<f32>(textureDimensions(albedo_texture));
+}
+
+// One pixel of the frame, in the units `screen_uv` answers in.
+fn screen_pixel_size() -> vec2<f32> {
+    return vec2<f32>(1.0, 1.0) / frame.clock.yz;
+}
+
 // The node's tint times the instance's own.
 fn tint(in: VertexOutput) -> vec4<f32> {
     return object.color * in.color;
