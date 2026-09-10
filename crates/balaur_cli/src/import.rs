@@ -95,10 +95,10 @@ fn import_from_godot(file: &Path, project: &Path) -> Result<Imported> {
             "a .{extension} is a Godot scene or resource, which `balaur import` does not read yet;              `balaur import project.godot` converts the project settings today"
         );
     }
-    let text = std::fs::read_to_string(file)
-        .with_context(|| format!("reading {}", file.display()))?;
-    let document = crate::import_godot::parse(&text)
-        .with_context(|| format!("reading {}", file.display()))?;
+    let text =
+        std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
+    let document =
+        crate::import_godot::parse(&text).with_context(|| format!("reading {}", file.display()))?;
     let root = file.parent().unwrap_or(Path::new("."));
     let uids = crate::import_godot_project::uid_index(root)?;
     let converted = crate::import_godot_project::convert(&document, &uids)?;
@@ -114,9 +114,11 @@ fn import_from_godot(file: &Path, project: &Path) -> Result<Imported> {
         out.note = "everything in the project file carried across".to_string();
         return Ok(out);
     }
-    let mut report = String::from("# What did not convert
+    let mut report = String::from(
+        "# What did not convert
 
-");
+",
+    );
     for line in &converted.notes {
         report.push_str("- ");
         report.push_str(line);

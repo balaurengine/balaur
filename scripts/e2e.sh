@@ -84,6 +84,15 @@ edit_step() { # edit_step <label> <project> [state]
   fi
 }
 
+# The editor is a Balaur project, and so are the library it copies from and
+# each template: a manifest each, so each is checked from its own root.
+printf '== editor\n'
+for project in editor editor/library editor/library/templates/*/; do
+  printf '  check %-38s' "$project"
+  step "check $project" check "$project" --strict
+  printf 'ok\n'
+done
+
 for ex in examples/*/; do
   name=$(basename "$ex")
   if [ ${#only[@]} -gt 0 ]; then
@@ -103,8 +112,9 @@ for ex in examples/*/; do
 
   # The editor's Problems list, headless: every script a scene attaches,
   # compiled. Cheaper than running one, and it names the file and the line.
+  # `--strict` so a new warning fails here rather than sitting in the output.
   printf '  check ...  '
-  step "$name: check" check "$ex"
+  step "$name: check" check "$ex" --strict
   printf 'ok\n'
 
   printf '  run ...    '

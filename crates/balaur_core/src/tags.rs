@@ -37,6 +37,14 @@ pub const WASM32: &str = "wasm32";
 pub const DEBUG: &str = "debug";
 pub const RELEASE: &str = "release";
 
+/// Every tag a project may write an override for, broad to narrow.
+///
+/// The set is closed: a tag nothing answers to is an override that never
+/// applies, and the editor offers this list rather than a text field.
+pub const ALL: [&str; 12] = [
+    DESKTOP, MOBILE, WINDOWS, MACOS, LINUX, ANDROID, IOS, WEB, X86_64, ARM64, WASM32, DEBUG,
+];
+
 /// The tags in force, broad to narrow: the kind of machine, the operating
 /// system, the architecture, the build, then whatever a target added.
 ///
@@ -62,7 +70,14 @@ impl Tags {
         }
         tags.push(os().to_string());
         tags.push(arch().to_string());
-        tags.push(if cfg!(debug_assertions) { DEBUG } else { RELEASE }.to_string());
+        tags.push(
+            if cfg!(debug_assertions) {
+                DEBUG
+            } else {
+                RELEASE
+            }
+            .to_string(),
+        );
         Self(tags)
     }
 

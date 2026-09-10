@@ -105,21 +105,69 @@ impl Default for ExportConfig {
     }
 }
 
+/// The project's manifest as `target` resolves it: every `[override.<tag>]`
+/// the target answers to, folded onto the tables it overrides, before any of
+/// them is parsed.
+///
+/// Read through the files backend rather than the disk, so an export from a
+/// browser tab reads the project it holds. `None` is the machine exporting,
+/// which is what a bare pack is built for.
+pub(crate) fn manifest_for(project: &Path, target: Option<&str>) -> Result<toml::Table> {
+    let path = project.join("project.toml");
+    let Ok(bytes) = balaur::files::default_backend().read(&path) else {
+        return Ok(toml::Table::new());
+    };
+    let source = String::from_utf8(bytes)
+        .with_context(|| format!("{} is not text", path.display()))?;
+    let tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
+    balaur::settings::resolve(&source, &tags)
+        .with_context(|| format!("parsing {}", path.display()))
+}
+
+/// `[window] orientation` out of a resolved manifest.
+///
+/// A device decides which way up a game starts before the game runs, so this
+/// one window key is written into the platform's own manifest rather than
+/// read at startup like the rest of `[window]`.
+pub(crate) fn orientation_of(manifest: &toml::Table) -> balaur::project::Orientation {
+    manifest
+        .get("window")
+        .and_then(|window| window.get("orientation"))
+        .and_then(toml::Value::as_str)
+        .map_or(balaur::project::Orientation::Any, {
+            balaur::project::Orientation::parse
+        })
+}
+
+/// One table out of a resolved manifest, or the defaults when the project
+/// declares none.
+pub(crate) fn table_of<T: serde::de::DeserializeOwned + Default>(
+    manifest: &toml::Table,
+    name: &str,
+    project: &Path,
+) -> Result<T> {
+    let Some(table) = manifest.get(name) else {
+        return Ok(T::default());
+    };
+    table.clone().try_into().with_context(|| {
+        format!(
+            "parsing [{name}] in {}",
+            project.join("project.toml").display()
+        )
+    })
+}
+
 impl ExportConfig {
-    /// The `[export]` table of a project, or the defaults when there is none.
-    pub fn load(project: &Path) -> Result<Self> {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            export: ExportConfig,
-        }
-        let path = project.join("project.toml");
-        let Ok(source) = std::fs::read_to_string(&path) else {
-            return Ok(Self::default());
-        };
-        let manifest: Manifest = toml::from_str(&source)
-            .with_context(|| format!("parsing [export] in {}", path.display()))?;
-        Ok(manifest.export)
+    /// The `[export]` table of a project as `target` resolves it, or the
+    /// defaults when there is none.
+    pub fn load(project: &Path, target: Option<&str>) -> Result<Self> {
+        Self::from_manifest(&manifest_for(project, target)?, project)
+    }
+
+    /// The table out of a manifest already resolved for a target, so the
+    /// exporter reads the file once.
+    pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
+        table_of(manifest, "export", project)
     }
 
     /// A path the project named, resolved against the project directory so a
@@ -151,13 +199,42 @@ pub(crate) fn secret_or(name: &str, fallback: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::ExportConfig;
+    use super::{ExportConfig, orientation_of};
+
+    /// A target reads its own answers: the same file exports one way for a
+    /// desktop and another for a phone.
+    #[test]
+    fn a_target_reads_the_override_it_answers_to() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[export]\noutput = \"builds\"\n\n\
+             [override.mobile.export]\nimages = \"quantised\"\n\n\
+             [window]\norientation = \"portrait\"\n\n\
+             [override.desktop.window]\norientation = \"any\"\n",
+        )
+        .unwrap();
+
+        let desktop = ExportConfig::load(dir.path(), Some("linux-x64")).unwrap();
+        let phone = ExportConfig::load(dir.path(), Some("android")).unwrap();
+        assert_eq!(desktop.images, crate::recode::ImageMode::Keep);
+        assert_eq!(phone.images, crate::recode::ImageMode::Quantised);
+        assert_eq!(phone.output, "builds", "what no override touched still lands");
+
+        let manifest = super::manifest_for(dir.path(), Some("android")).unwrap();
+        assert_eq!(
+            orientation_of(&manifest),
+            balaur::project::Orientation::Portrait
+        );
+        let manifest = super::manifest_for(dir.path(), Some("windows-x64")).unwrap();
+        assert_eq!(orientation_of(&manifest), balaur::project::Orientation::Any);
+    }
 
     #[test]
     fn a_project_with_no_table_gets_the_defaults() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("project.toml"), "name = \"game\"\n").unwrap();
-        let config = ExportConfig::load(dir.path()).unwrap();
+        let config = ExportConfig::load(dir.path(), None).unwrap();
         assert!(config.output.is_empty(), "no table exports where it stands");
         assert_eq!(config.output_for(dir.path(), "linux-x64", "game"), None);
         assert!(!config.notarize);
@@ -175,7 +252,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = ExportConfig::load(dir.path()).unwrap();
+        let config = ExportConfig::load(dir.path(), None).unwrap();
 
         assert!(config.notarize);
         assert_eq!(config.macos_identity, "Developer ID Application: Studio");
@@ -205,7 +282,7 @@ mod tests {
             "[export]\nmacos_identiy = \"typo\"\n",
         )
         .unwrap();
-        let err = ExportConfig::load(dir.path()).unwrap_err().to_string();
+        let err = ExportConfig::load(dir.path(), None).unwrap_err().to_string();
         assert!(err.contains("[export]"), "{err}");
     }
 }

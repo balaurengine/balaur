@@ -9,6 +9,7 @@
 pub mod app;
 pub mod asset_index;
 pub mod assets;
+pub mod attachments;
 mod batteries_api;
 pub mod bindings;
 pub mod cloner;

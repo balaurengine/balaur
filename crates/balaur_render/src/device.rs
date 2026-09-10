@@ -27,9 +27,21 @@ impl Probe {
         let refresh_rate = self.refresh_rate();
         let dark_mode = dark_mode();
         let safe_area = safe_area(window);
+        let screen_size = [window.width() as f32, window.height() as f32];
+        // The UI scale is a script's to set and this crate's to publish:
+        // anything placed in design pixels multiplies by it, and a touch
+        // control is placed in the tick, where the config resource is the
+        // only way to reach it.
+        let ui_scale = app
+            .engine
+            .try_resource::<balaur_ui::UiConfig>()
+            .map_or(1.0, |config| config.borrow().scale)
+            .max(f32::EPSILON);
         balaur_core::facts::update_device(&app.engine, |facts| {
             facts.dark_mode = dark_mode;
             facts.safe_area = safe_area;
+            facts.screen_size = screen_size;
+            facts.ui_scale = ui_scale;
             if let Some(rate) = refresh_rate {
                 facts.refresh_rate = rate;
             }

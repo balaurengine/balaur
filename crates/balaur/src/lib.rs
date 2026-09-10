@@ -206,7 +206,7 @@ pub fn check_project_using(
 /// imports — and its diagnostics arrive through the root that imports it.
 #[must_use]
 pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
-    balaur_core::project::scene_attachments(project_root)
+    balaur_core::attachments::scene_attachments(project_root)
         .into_keys()
         .collect()
 }

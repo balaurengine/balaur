@@ -1,6 +1,7 @@
-> **Status:** the scene-aware pass is in, as warnings. Written 2026-09-07,
-> after a CI failure raised the question of why a bad script call is only ever
-> found at run time; steps 1, 2 and 6 landed 2026-09-10.
+> **Status:** the scene-aware pass is in, as warnings, and `--strict` is the
+> gate. Written 2026-09-07, after a CI failure raised the question of why a
+> bad script call is only ever found at run time; steps 1 to 6 landed
+> 2026-09-10, leaving step 7.
 
 # Plan: static analysis for Rune — what `balaur check` cannot see yet
 
@@ -25,9 +26,10 @@ example and never `check`, and no test in the workspace called
 `check_project` or `check_source`. Step 1 below is done: `e2e.sh` now runs
 `balaur check` per example, before `run`.
 
-Today every example passes plain `check`. Under `--strict` two do not:
-`angrynerds` has 3 warnings and `benchmark` has 9, all of them Rune's
-`Pattern might panic` on a refutable `let`.
+Every example, the editor, its library and its three templates pass
+`--strict`, which `e2e.sh` runs. What stood in the way was one Rune warning:
+`Pattern might panic` fired 381 times in the editor and 12 across the
+examples, every one of them a tuple being unpacked. See step 4.
 
 ## 1. What no compiler pass can see
 
@@ -90,9 +92,19 @@ own scripts are clean under `--strict`, and only then is promoted.
 3. **Fix the paths.** A finding names its file relative to the project for
    scripts a scene attaches, and absolutely for a `mod` submodule reached
    through one. `benchmark` shows both in one run. They should agree.
-4. **Clear the warnings.** The 12 `Pattern might panic` findings in
-   `angrynerds` and `benchmark`, so `--strict` can be the gate.
-5. **`--strict` in e2e.** Once step 4 lands, so a new warning fails a build.
+4. **Clear the warnings.** *Done 2026-09-10.* Not one by one: all 393 were
+   `let (x, y) = ...` and `for (i, node) in ...`, which Rune calls refutable
+   because nothing proves a value's arity before it arrives. That is every
+   multiple return the language has, so the checker stops reporting a tuple
+   of plain names and still reports a pattern that tests a value — `Some(x)`,
+   a list, an object. The 22 `Not used` findings under it were real, and the
+   dead code they named is gone.
+5. **`--strict` in e2e.** *Done 2026-09-10.* Over the examples, and over the
+   editor, its library and each template before them — a directory carrying a
+   `project.toml` is another project, so the walk stops there and the project
+   is checked from its own root. `[check] strict = true` in a manifest says
+   the same thing for every run of `balaur check`, which is how the editor
+   holds itself to it.
 6. **The scene-aware pass.** Fold literal `this.node.<component>`, resolve
    the method against the drives table, emit a warning naming both the
    component and the method. *Done 2026-09-10.* Four findings come out of it:

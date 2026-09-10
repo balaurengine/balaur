@@ -92,56 +92,117 @@ node and to every descendant that does not name its own. Reasons:
 The cost of choosing push is that a material now reaches nodes nobody named
 it on, including ones it cannot draw. Section 3 is that cost.
 
-## 2. The decision: compose it beside the tint, once a frame
+## 2. The decision: a field on `Appearance`, composed like the tint
 
-`propagate_transforms` already walks every node from the root each frame,
-carrying a parent value down a reused stack. The material rides along.
+`Appearance` is already the answer to "how does this node and its subtree
+look": `visible`, `tint`, `z_index`. A material belongs in that sentence, so
+it goes in that struct, and `propagate_transforms` composes it with the rest.
 
-- A new `MaterialSource(String)` component in `balaur_render`, registered as
-  a `material` component that any node takes, shape or no shape.
-- A new `GlobalMaterial(Option<Rc<str>>)` written per node by the same pass:
-  the node's own source when it has one, otherwise the parent's.
+`Appearance` and `GlobalAppearance` are `Copy`, pushed through the propagate
+stack by value and read that way at 62 sites across five crates. A `String`
+would end that. So the field is an interned id:
+
+```rust
+pub struct MaterialId(u32);        // 0 is "no material"
+```
+
+The engine owns the table, a `Vec<String>` and a `HashMap<String, u32>`.
+References are few and long-lived, so it never needs to shrink.
+
+- `Appearance::material: MaterialId` — what this node and its subtree draw
+  with. Composed as "the child's own, or the parent's when the child has
+  none", the way `theme_of` resolves a widget theme.
+- `GlobalAppearance::material: MaterialId` — the resolved answer, written by
+  the same pass that writes `tint`, and read by `composed_appearance` for a
+  caller that cannot wait for the next one.
 - `Renderable::material` and `Renderable2d::material` are deleted. The five
   component schemas keep their `material` property, and their `apply` hooks
-  write `MaterialSource` instead of the renderable field. What a node names
-  for itself is therefore also what its subtree takes, with no second path.
-- The backend reads `GlobalMaterial` where it reads `renderable.material`
-  now, and rebuilds when the resolved reference differs from the slot's.
-  `channel_changed` already does exactly this comparison, so the rebuild
-  condition gains a sibling rather than a new shape.
+  write `Appearance::material` instead of the renderable field. What a node
+  names for itself is therefore also what its subtree takes, through one
+  path and not two.
+- A `material` component in `balaur_render`, writing the same field, so a
+  node with no shape can carry one. This is the node you set a look on.
+- The backend reads `GlobalAppearance::material` where it reads
+  `renderable.material` now, and rebuilds when the id differs from the
+  slot's. `channel_changed` already makes exactly this comparison, so the
+  rebuild condition gains a sibling rather than a new shape.
+
+Any component can then write the field, and the five that carry a `material`
+property today are just the first five. A component added later that draws
+something inherits the rule without a line of its own, which is the same
+bargain the schema layer already makes.
 
 **Why the propagate pass and not a walk up the ancestors at rebuild.** A lazy
 walk is less code and no per-frame cost, and it is wrong under two edits.
 Setting a material on a root has to bump `version` on every renderable
 beneath it, and reparenting a subtree under a different root has to do the
 same with nothing to hang the bump on. Propagation recomputes from the root
-every frame, so both correct themselves with no invalidation code. The price
-is one component lookup and one `Rc` clone per node per frame, which is the
-price `Appearance` already pays.
+every frame, so both correct themselves with no invalidation code, and the
+per-node cost is a `u32` copy inside a struct already being copied.
 
-`GlobalMaterial` is a separate component rather than a field on
-`GlobalAppearance` because `GlobalAppearance` is `Copy` and a reference is
-not. If the per-node `Rc` traffic ever shows in a profile, the answer is to
-intern references to a `u32` and fold the field in; nothing above changes.
+**An id is per-run, so anything crossing a run boundary stores the string.**
+Two places. `digest.rs` hashes `Appearance` per node, and an insertion-ordered
+id would make the digest depend on load order. `snapshot.rs` records an
+`AppearanceFrame` for the replay, and a recording outlives the table that
+numbered it. Both take the reference and intern on the way back in.
+`AppearanceFrame` already carries the pattern: its `tint` is
+`#[serde(default)]`, so a recording made before the tint existed still loads.
 
-A `composed_material(world, entity)` beside `composed_appearance`, for a
-caller that needs the answer this instant rather than as of the last pass.
+## 3. Why 2D and 3D are two, and what can be made one
 
-## 3. A 2D material on a 3D node, and the reverse
+The split is not a Balaur choice and it is not really about materials. It is
+two GPU pipelines, and a pipeline is built against one vertex layout and one
+set of bind group layouts.
 
-2D and 3D materials are different pipelines, held in different caches
-(`materials` and `materials_3d`). Under push, a 3D material on a root reaches
-a sprite child that cannot link it.
+- **The vertex input differs.** `sprite.wesl` declares `position: vec2<f32>`,
+  a uv, an instance position and colour, and two deformation columns.
+  `mesh.wesl` declares `position: vec3<f32>`, a normal, a uv, five instancing
+  attributes, an optional vertex colour and the skinning pair. Binding a
+  mesh's `vec3` position stream to a shader reading `vec2` is a pipeline
+  validation failure, not a wrong-looking sprite.
+- **The frame group differs.** 2D binds a 3x4 view and projection and a
+  clock. 3D binds two `mat4`, the eye, the ambient term, fog, and sixteen
+  lights. A mesh shader reading `frame.lights` out of the 2D group would read
+  whatever follows the clock.
+- **The Rust traits differ.** `Material2d`, `MaterialManager2d`, `Camera2d`,
+  `GpuMesh2d` against `Material3d`, `MaterialManager3d`, `Camera3d`,
+  `GpuMesh3d`, each with its own global manager in the kiss3d fork.
 
-**A material that will not link for the node it reached falls back to the
-built-in one, and warns once per reference.** Not an error, because the node
-that caused it is not the node that names it, and a scene must still load.
-Once per reference, because the warning would otherwise repeat every rebuild;
-`theme_of` already carries the warn-once pattern to copy.
+**What is already one.** The `material` asset has no dimension in it: it is
+`shader`, `features` and `params`, and nothing more. Parsing, linking, the
+param packing and the group 3 layout are shared by both dimensions already
+(`crate::material::Compiled`, `bind_layout::material_group`, `PARAMS_GROUP`).
+So a material's *values* are portable across the split. Only its shader is
+not.
 
-A node's own material is the exception. Naming a material that cannot link
-for the node you named it on is a mistake in the file, and should say so as
-loudly as it does today.
+**And the shader already says which side it is on.** A project shader names
+its contract in an import, in its first lines:
+
+```wgsl
+import package::mesh::{VertexInput, VertexOutput, vertex};    // 3D
+import package::sprite::{VertexInput, VertexOutput, vertex};  // 2D
+```
+
+Nothing reads that today. Reading it turns a dimension mismatch from a
+pipeline failure into a sentence naming both the material and the node, at
+parse time, with no new syntax in the file.
+
+Two things follow, in order:
+
+1. **A material knows its dimension, and a mismatch is reported.** A material
+   inherited by a node of the other dimension falls back to the built-in one
+   and warns once per reference: the node that caused it is not the node that
+   names it, and a scene must still load. `theme_of` carries the warn-once
+   pattern to copy. A material named on the node itself is the exception,
+   because that is a mistake in the file, and it should say so as loudly as
+   it does today.
+2. **A material may name a shader per dimension.** `shader` and `shader_2d`
+   in the same file, sharing one `[params]` table, which group 3 makes
+   possible at no cost. One material then styles a mixed subtree: the meshes
+   under it and the sprites under it, from one asset with one set of values.
+   This is the answer to "why can the two not co-exist", and it is a small
+   step once the dimension is known. Worth doing after the inheritance lands,
+   not with it.
 
 ## 4. The inspector says where a material came from
 

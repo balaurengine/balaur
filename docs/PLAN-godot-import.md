@@ -1,5 +1,8 @@
 > **Status:** the five engine gaps §2 found are closed, built and tested on
-> 2026-09-10; the importer itself (§3 onward) is not started. Written down on
+> 2026-09-10, and so are the reader (§3) and the project (§4): `balaur import
+> project.godot` writes a `project.toml` and an `import-report.md`, checked
+> against the real Polyglot Pirates project file. Assets (§5), scenes (§6),
+> animation (§7) and scripts (§8) are not started. Written down on
 > 2026-09-10, from the question "what is missing before Polyglot Pirates runs
 > on balaur, and can the assets be converted one file at a time". Measured
 > against `../polyglot-pirates-game` at that date: a Godot 4.7 GL Compatibility
@@ -191,7 +194,7 @@ What is left is translating 1768 lines of Godot shading language into WESL by
 hand. A translator for it is **not planned**: the language is small but the
 work is a compiler, and 24 files is less work than one.
 
-## 3. Phase 0: one reader for the Godot text format
+## 3. Phase 0: one reader for the Godot text format — built
 
 `project.godot`, `.tscn`, `.tres` and `.godot` are one grammar: `[header
 key=value]` sections with `key = value` bodies, values being numbers,
@@ -204,11 +207,17 @@ file beside a script or the `uid=` on an `[ext_resource]` line.
 `.scn` and `.res` are **not planned**: this project is text, and a Godot
 project can always be resaved as text.
 
+Two shapes cost more than the grammar suggests, and both are in the tests. A
+quoted string runs over lines, so a BBCode label puts a `[b]` at the start of
+one and a line-based reader takes it for a section. And `Object(InputEventKey,
+"keycode": 32, …)` is the one constructor whose arguments are named rather
+than positional, which is what the whole input map is written in.
+
 Beside it, `.import` files, which carry the settings a texture was imported
 with, read for the fields `docs/PLAN-textures.md` covers and reported for the
 rest.
 
-## 4. Phase 1: the project
+## 4. Phase 1: the project — built
 
 `balaur import project.godot --project out` writes `out/project.toml`:
 
@@ -221,9 +230,19 @@ rest.
   better input, which is what the 1.0 "Translations as a pipeline" row is.
 - `[audio]` `default_bus_layout` into the project's buses.
 - `[display]` window size, stretch mode and orientation.
-- `[autoload]` into a bootstrap scene of one node per entry, each with its
-  script, instantiated before the main scene. Autoloads are not a concept
-  here and will not become one.
+- `[autoload]` is **reported, not converted**. A bootstrap scene of one node
+  per entry is a scene, so it belongs to §6 rather than here, and an autoload
+  will not become a concept of its own.
+
+Run against `../polyglot-pirates-game`, that writes the name, the main scene
+resolved through its `uid://`, an 840x1920 window, the default locale and
+twelve input actions, and reports four things: the splash image, the thirty
+locales whose `.translation` files are not read, and the two autoloads.
+
+Two mappings were wrong on the first pass and are worth stating because the
+numbers look obvious and are not. Godot's `Window.Mode` 2 is **maximized**,
+not fullscreen — only 3 and 4 are. And `ScreenOrientation` 6 is **the sensor
+deciding**, which is `any`, not portrait.
 
 ## 5. Phase 2: assets
 
@@ -330,8 +349,8 @@ re-run rewrites it. Nothing is silently dropped.
 
 ## 10. Order
 
-0. The reader (§3), with a test per value shape.
-1. The project (§4) and the assets (§5), which are independent of scenes.
+0. ~~The reader (§3), with a test per value shape.~~ Built.
+1. ~~The project (§4)~~, and the assets (§5), which are independent of scenes.
 2. Scenes (§6), starting with the smallest under `scenes/ui/`.
 3. Animation (§7).
 4. Scripts (§8) and the report (§9).

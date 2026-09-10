@@ -114,6 +114,11 @@ pub(crate) struct AppleConfig {
     /// plist whole, so a key it does not know goes here rather than into the
     /// template.
     pub plist: BTreeMap<String, PlistValue>,
+    /// `[window] orientation`, which iOS settles in the plist rather than at
+    /// startup. Not a key of `[apple]`: it is the same window setting every
+    /// platform reads, taken from the same resolved document.
+    #[serde(skip)]
+    pub(crate) orientation: balaur::project::Orientation,
 }
 
 impl Default for AppleConfig {
@@ -132,6 +137,7 @@ impl Default for AppleConfig {
             category: String::new(),
             capabilities: Vec::new(),
             plist: BTreeMap::new(),
+            orientation: balaur::project::Orientation::Any,
         }
     }
 }
@@ -141,19 +147,18 @@ impl AppleConfig {
     ///
     /// A table that does not parse is an error rather than a warning: a
     /// misspelled capability or identifier is not something to ship past.
-    pub(crate) fn load(project: &Path) -> Result<Self> {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            apple: AppleConfig,
-        }
-        let path = project.join("project.toml");
-        let Ok(source) = std::fs::read_to_string(&path) else {
-            return Ok(Self::default());
-        };
-        let manifest: Manifest = toml::from_str(&source)
-            .with_context(|| format!("parsing [apple] in {}", path.display()))?;
-        Ok(manifest.apple)
+    pub(crate) fn load(project: &Path, target: Option<&str>) -> Result<Self> {
+        let manifest = crate::config::manifest_for(project, target)?;
+        Self::from_manifest(&manifest, project)
+    }
+
+    /// The table out of a manifest already resolved for a target, so the
+    /// exporter reads the file once.
+    pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
+        Ok(Self {
+            orientation: crate::config::orientation_of(manifest),
+            ..crate::config::table_of(manifest, "apple", project)?
+        })
     }
 
     /// The identifier this bundle ships with: the project's, or the old
@@ -293,6 +298,11 @@ impl AppleConfig {
                 body.push_str("  <key>LSRequiresIPhoneOS</key><true/>\n");
                 body.push_str("  <key>UILaunchScreen</key><dict/>\n");
                 string_key(&mut body, "MinimumOSVersion", &self.min_os);
+                // A project naming the key itself is left alone: it may want
+                // an order or a set this one window setting cannot say.
+                if !self.plist.contains_key(ORIENTATIONS) {
+                    body.push_str(&orientations(self.orientation));
+                }
             }
             Platform::Macos => {
                 string_key(&mut body, "LSMinimumSystemVersion", &self.min_macos);
@@ -331,6 +341,31 @@ fn parse_version(text: &str) -> Result<(u32, u32)> {
         None => 0,
     };
     Ok((major, minor))
+}
+
+/// The plist key iOS reads a starting orientation from.
+const ORIENTATIONS: &str = "UISupportedInterfaceOrientations";
+
+/// `[window] orientation` as the two or three interface orientations iOS
+/// takes. `any` writes nothing, which leaves the device deciding.
+fn orientations(held: balaur::project::Orientation) -> String {
+    let faces: &[&str] = match held {
+        balaur::project::Orientation::Any => return String::new(),
+        balaur::project::Orientation::Portrait => &[
+            "UIInterfaceOrientationPortrait",
+            "UIInterfaceOrientationPortraitUpsideDown",
+        ],
+        balaur::project::Orientation::Landscape => &[
+            "UIInterfaceOrientationLandscapeLeft",
+            "UIInterfaceOrientationLandscapeRight",
+        ],
+    };
+    let mut out = format!("  <key>{ORIENTATIONS}</key>\n  <array>\n");
+    for face in faces {
+        let _ = writeln!(out, "    <string>{face}</string>");
+    }
+    out.push_str("  </array>\n");
+    out
 }
 
 fn string_key(body: &mut String, key: &str, value: &str) {
@@ -389,6 +424,34 @@ mod tests {
         toml::from_str::<Manifest>(table)
             .expect("the table parses")
             .apple
+    }
+
+    /// `[window] orientation` lands in the plist iOS reads, and a project
+    /// that names the key itself keeps its own answer.
+    #[test]
+    fn an_orientation_reaches_the_plist() {
+        let held = AppleConfig {
+            orientation: balaur::project::Orientation::Portrait,
+            ..AppleConfig::default()
+        };
+        let text = held.info_plist(Platform::Ios, "Balaur", "Tide");
+        assert!(text.contains("<key>UISupportedInterfaceOrientations</key>"), "{text}");
+        assert!(text.contains("UIInterfaceOrientationPortrait"), "{text}");
+        assert!(!text.contains("LandscapeLeft"), "{text}");
+
+        let none = AppleConfig::default().info_plist(Platform::Ios, "Balaur", "Tide");
+        assert!(!none.contains("UISupportedInterfaceOrientations"), "{none}");
+
+        let named = AppleConfig {
+            orientation: balaur::project::Orientation::Portrait,
+            ..config(
+                "[apple]\n[apple.plist]\n\
+                 UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
+            )
+        };
+        let text = named.info_plist(Platform::Ios, "Balaur", "Tide");
+        assert!(text.contains("LandscapeLeft"), "{text}");
+        assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
     }
 
     #[test]

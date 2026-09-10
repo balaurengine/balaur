@@ -142,7 +142,7 @@ fn the_compilers_own_findings_still_arrive() {
 #[test]
 fn a_scene_names_the_components_beside_each_script() {
     let dir = project("pub fn init(this) {}\n");
-    let attached = balaur_core::project::scene_attachments(dir.path());
+    let attached = balaur_core::attachments::scene_attachments(dir.path());
     assert_eq!(
         attached.get("main.rn"),
         Some(&Some(BTreeSet::from([
@@ -151,6 +151,48 @@ fn a_scene_names_the_components_beside_each_script() {
         ])))
     );
     assert_eq!(balaur::scene_scripts(dir.path()), ["main.rn"]);
+}
+
+/// Rune warns that every refutable pattern might panic, and a tuple is one:
+/// nothing proves a value's arity before it arrives. That is every multiple
+/// return the language has, so it is not reported; a pattern that tests a
+/// value still is.
+#[test]
+fn unpacking_a_tuple_is_not_a_warning_but_testing_a_value_is() {
+    assert_eq!(
+        check(
+            "    let (x, y) = input::mouse_position();\n\
+             \x20   let rows = [1, 2];\n\
+             \x20   for (i, row) in rows.iter().enumerate() {\n\
+             \x20       let _ = i + row + x + y;\n\
+             \x20   }"
+        ),
+        Vec::<String>::new()
+    );
+    let found = check("    let Some(first) = [1, 2].first();\n\x20   let _ = first;");
+    assert_eq!(found, ["main.rn:2:warning: Pattern might panic"]);
+}
+
+/// A directory carrying a manifest is another project: its scenes name their
+/// scripts from their own root, and it is checked from there.
+#[test]
+fn a_nested_project_is_not_part_of_this_one() {
+    let dir = project("pub fn init(this) {}\n");
+    let nested = dir.path().join("templates").join("starter");
+    std::fs::create_dir_all(nested.join("scenes")).unwrap();
+    std::fs::write(
+        nested.join("project.toml"),
+        "[application]\nname = \"s\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        nested.join("scenes").join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = \"scripts/starter.rn\"\n",
+    )
+    .unwrap();
+    assert_eq!(balaur::scene_scripts(dir.path()), ["main.rn"]);
+    // Its missing script is the nested project's own business, not this one's.
+    assert_eq!(balaur::check_project(dir.path()).unwrap().len(), 0);
 }
 
 /// A node the scene loader would reject is still a root to compile, and its
@@ -164,9 +206,25 @@ fn a_node_that_will_not_parse_leaves_its_components_unknown() {
         "[[nodes]]\nid = \"n\"\nname = \"Crate\"\nscript = \"main.rn\"\ntags = \"one\"\n",
     )
     .unwrap();
-    let attached = balaur_core::project::scene_attachments(dir.path());
+    let attached = balaur_core::attachments::scene_attachments(dir.path());
     assert_eq!(attached.get("main.rn"), Some(&None));
     assert_eq!(balaur::check_project(dir.path()).unwrap().len(), 0);
+}
+
+/// `[check] strict = true` is how a project says a warning is a failure
+/// without every caller having to remember the flag. The editor says it.
+#[test]
+fn a_project_can_ask_for_strict_checking_in_its_manifest() {
+    use balaur_core::project::ProjectManifest;
+    let plain = "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n";
+    assert!(!ProjectManifest::parse(plain).unwrap().check.strict);
+    let strict = format!("{plain}\n[check]\nstrict = true\n");
+    assert!(ProjectManifest::parse(&strict).unwrap().check.strict);
+    let editor = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/project.toml"),
+    )
+    .unwrap();
+    assert!(ProjectManifest::parse(&editor).unwrap().check.strict);
 }
 
 /// A directory with no scenes in it has no roots, and a checker with no roots
@@ -174,7 +232,7 @@ fn a_node_that_will_not_parse_leaves_its_components_unknown() {
 #[test]
 fn a_project_with_no_scenes_reports_nothing() {
     assert_eq!(
-        balaur_core::project::scene_attachments(Path::new("does/not/exist")).len(),
+        balaur_core::attachments::scene_attachments(Path::new("does/not/exist")).len(),
         0
     );
 }

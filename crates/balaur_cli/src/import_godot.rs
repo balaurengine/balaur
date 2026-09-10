@@ -98,9 +98,7 @@ impl Value {
     /// whose arguments are always numeric.
     pub(crate) fn numbers(&self) -> Option<Vec<f64>> {
         match self {
-            Self::Call { args, .. } | Self::Array(args) => {
-                args.iter().map(Self::as_f64).collect()
-            }
+            Self::Call { args, .. } | Self::Array(args) => args.iter().map(Self::as_f64).collect(),
             _ => None,
         }
     }
@@ -197,7 +195,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn line(&self) -> usize {
-        1 + self.source[..self.at].bytes().filter(|b| *b == b'\n').count()
+        1 + self.source[..self.at]
+            .bytes()
+            .filter(|b| *b == b'\n')
+            .count()
     }
 
     fn bump(&mut self) -> Option<char> {
@@ -419,7 +420,10 @@ impl<'a> Scanner<'a> {
             let key = self.value()?;
             self.trivia();
             if !self.eat(':') {
-                bail!("line {}: a dictionary key needs a `:` after it", self.line());
+                bail!(
+                    "line {}: a dictionary key needs a `:` after it",
+                    self.line()
+                );
             }
             let value = self.value()?;
             pairs.push((key, value));
@@ -617,7 +621,11 @@ missing = null
             document.sections.len(),
             4,
             "the `[b]` inside the string opened a section: {:?}",
-            document.sections.iter().map(|s| &s.kind).collect::<Vec<_>>()
+            document
+                .sections
+                .iter()
+                .map(|s| &s.kind)
+                .collect::<Vec<_>>()
         );
     }
 

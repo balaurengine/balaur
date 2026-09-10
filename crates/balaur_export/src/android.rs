@@ -68,6 +68,11 @@ pub(crate) struct AndroidConfig {
     /// Which of the template's ABIs the export keeps. Empty means every one
     /// the template carries, so a game that says nothing ships everywhere.
     pub abis: Vec<Abi>,
+    /// `[window] orientation`, which Android settles in the manifest rather
+    /// than at startup. Not a key of `[android]`: it is the same window
+    /// setting every platform reads, taken from the same resolved document.
+    #[serde(skip)]
+    pub(crate) orientation: balaur::project::Orientation,
 }
 
 impl Default for AndroidConfig {
@@ -81,6 +86,7 @@ impl Default for AndroidConfig {
             min_sdk: 0,
             target_sdk: 35,
             abis: Vec::new(),
+            orientation: balaur::project::Orientation::Any,
         }
     }
 }
@@ -88,18 +94,17 @@ impl Default for AndroidConfig {
 impl AndroidConfig {
     /// The `[android]` table of a project, or the defaults when there is none.
     pub(crate) fn load(project: &Path) -> Result<Self> {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            android: AndroidConfig,
-        }
-        let path = project.join("project.toml");
-        let Ok(source) = std::fs::read_to_string(&path) else {
-            return Ok(Self::default());
-        };
-        let manifest: Manifest = toml::from_str(&source)
-            .with_context(|| format!("parsing [android] in {}", path.display()))?;
-        Ok(manifest.android)
+        let manifest = crate::config::manifest_for(project, Some("android"))?;
+        Self::from_manifest(&manifest, project)
+    }
+
+    /// The table out of a manifest already resolved for a target, so the
+    /// exporter reads the file once.
+    pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
+        Ok(Self {
+            orientation: crate::config::orientation_of(manifest),
+            ..crate::config::table_of(manifest, "android", project)?
+        })
     }
 
     /// Drop the ABIs this game does not ship from an exported layout, after
@@ -200,8 +205,37 @@ impl AndroidConfig {
             "android:targetSdkVersion",
             &self.target_sdk.to_string(),
         )?;
-        set_attr(&xml, "android:label", &escape(label))
+        xml = set_attr(&xml, "android:label", &escape(label))?;
+        Ok(match self.orientation {
+            balaur::project::Orientation::Any => xml,
+            held => set_or_add_attr(
+                &xml,
+                "<activity",
+                "android:screenOrientation",
+                match held {
+                    balaur::project::Orientation::Portrait => "portrait",
+                    _ => "landscape",
+                },
+            ),
+        })
     }
+}
+
+/// One attribute on the element `opening` names, added when the template does
+/// not carry it.
+///
+/// `set_attr` alone would refuse a template written before the attribute
+/// existed, and a game that names an orientation would stop exporting against
+/// the runtime it already has.
+fn set_or_add_attr(xml: &str, opening: &str, name: &str, value: &str) -> String {
+    if attr(xml, name).is_ok() {
+        return set_attr(xml, name, value).unwrap_or_else(|_| xml.to_string());
+    }
+    let Some(at) = xml.find(opening) else {
+        return xml.to_string();
+    };
+    let at = at + opening.len();
+    format!("{}\n        {name}=\"{value}\"{}", &xml[..at], &xml[at..])
 }
 
 /// An application id Play takes: two or more segments, each a Java identifier.
@@ -721,6 +755,23 @@ mod tests {
         assert!(err.contains("arm64-v8a"), "{err}");
     }
 
+    /// The manifest scripts/package_template.sh stages, activity and all.
+    const TEMPLATE_WITH_ACTIVITY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.balaur.template"
+    android:versionCode="1"
+    android:versionName="1.0">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+  <application android:label="Balaur" android:hasCode="false">
+    <activity
+        android:name="android.app.NativeActivity"
+        android:exported="true"
+        android:configChanges="orientation|keyboardHidden|screenSize">
+    </activity>
+  </application>
+</manifest>
+"#;
+
     /// The manifest scripts/package_template.sh stages.
     const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -732,6 +783,30 @@ mod tests {
   </application>
 </manifest>
 "#;
+
+    /// A template written before the attribute existed still takes one: the
+    /// activity gets it added rather than the export failing.
+    #[test]
+    fn an_orientation_reaches_the_activity() {
+        let config = AndroidConfig {
+            orientation: balaur::project::Orientation::Landscape,
+            ..AndroidConfig::default()
+        };
+        let xml = config.manifest(TEMPLATE_WITH_ACTIVITY, "Tide").unwrap();
+        assert!(
+            xml.contains(r#"android:screenOrientation="landscape""#),
+            "{xml}"
+        );
+    }
+
+    /// A game that names none writes the manifest it always did.
+    #[test]
+    fn no_orientation_leaves_the_manifest_alone() {
+        let xml = AndroidConfig::default()
+            .manifest(TEMPLATE_WITH_ACTIVITY, "Tide")
+            .unwrap();
+        assert!(!xml.contains("screenOrientation"), "{xml}");
+    }
 
     #[test]
     fn a_game_that_declares_nothing_still_stops_being_the_template() {

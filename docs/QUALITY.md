@@ -147,8 +147,12 @@ desktop platforms. Beyond `cargo test --workspace`:
 `scripts/e2e.sh` runs each of the nine examples thirty-one ways, on three
 platforms:
 
-- **check** — every script a scene attaches, compiled. The cheapest gate, and
-  the only one that names a file and a line rather than a symptom.
+- **check** — every script a scene attaches, compiled, plus the handle calls
+  no compiler can see. The cheapest gate, and the only one that names a file
+  and a line rather than a symptom. Run `--strict`, so a warning fails.
+  Before the examples, the same gate over the editor, the library it copies
+  from and each template it starts a project with: each carries a manifest,
+  so each is checked from its own root.
 - **run** — dev mode from sources.
 - **export**, twice — the packs must be identical.
 - **play** — the exported pack, no sources, no compiler.

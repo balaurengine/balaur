@@ -62,10 +62,17 @@ pub fn draw(S) {
         }
         ui::vertical(|| {
             ui::label(
-                "Builds the project this editor is editing. Signing identities \
-                 come from the project's [export] table.",
+                "Builds the project this editor is editing.",
                 style::mono_sm(k.faint),
             );
+            ui::add_space(6);
+            // The sheet builds; what it builds from is a settings page, so the
+            // sentence that used to name the table is the link to it.
+            if ui::pill("export settings", #{
+                height: 22, size: style::SM, radius: 8, fill: k.panel, color: k.dim,
+            }) {
+                crate::settings::open_search(S, "export");
+            }
             ui::add_space(12);
             for row in S.exporter.rows {
                 target_row(S, k, util::obj(row));

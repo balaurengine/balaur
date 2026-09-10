@@ -184,6 +184,12 @@ pub struct InputActions {
     /// Actions the player rebound, kept apart from the project's so
     /// `reset_bindings` has something to go back to.
     overrides: BTreeMap<String, Vec<Binding>>,
+    /// What a touch control or a script put into an action this frame,
+    /// without a binding: Godot's `InputEventAction`, which is how a
+    /// `TouchScreenButton` presses `jump` on a project that bound `jump` to
+    /// the space bar and never mentioned touch. Filled before [`tick`] and
+    /// emptied by it, so it lasts exactly one frame.
+    fed: BTreeMap<String, f32>,
     loaded: bool,
 }
 
@@ -225,6 +231,19 @@ impl InputActions {
 
     pub fn is_declared(&self, name: &str) -> bool {
         self.bound.contains_key(name)
+    }
+
+    /// Put a value into an action for this frame, as if a binding had
+    /// produced it. The furthest from rest wins, so two controls feeding one
+    /// action behave like two bindings on it.
+    ///
+    /// An action nothing declared still answers: a scene may carry its own
+    /// controls into a project whose manifest never named them.
+    pub fn feed(&mut self, name: &str, value: f32) {
+        let slot = self.fed.entry(name.to_string()).or_insert(0.0);
+        if value.abs() > slot.abs() {
+            *slot = value;
+        }
     }
 
     /// Declare the project's actions outright, replacing what was declared
@@ -273,24 +292,48 @@ pub(crate) fn tick(eng: &Engine) {
     let keys = keys.borrow();
     let pads = pads.borrow();
     let mut actions = actions.borrow_mut();
-    let InputActions { bound, state, .. } = &mut *actions;
-    for (name, bindings) in bound.iter() {
-        let value = bindings
-            .iter()
-            .map(|b| b.value(&keys, &pads))
-            .fold(
-                0.0_f32,
-                |best, v| if v.abs() > best.abs() { v } else { best },
-            );
+    let InputActions {
+        bound, state, fed, ..
+    } = &mut *actions;
+    // Every action with a binding, and every action only a control fed. The
+    // second set is what lets a scene carry its own controls.
+    let names: Vec<&String> = bound
+        .keys()
+        .chain(fed.keys().filter(|name| !bound.contains_key(*name)))
+        .collect();
+    let mut next: Vec<(String, f32)> = Vec::with_capacity(names.len());
+    for name in names {
+        let bound_value = bound
+            .get(name)
+            .map(|bindings| {
+                bindings
+                    .iter()
+                    .map(|b| b.value(&keys, &pads))
+                    .fold(
+                        0.0_f32,
+                        |best, v| if v.abs() > best.abs() { v } else { best },
+                    )
+            })
+            .unwrap_or(0.0);
+        let value = match fed.get(name) {
+            Some(v) if v.abs() > bound_value.abs() => *v,
+            _ => bound_value,
+        };
+        next.push((name.clone(), value));
+    }
+    for (name, value) in next {
         // Looked up before inserting: the entry is there after the first
         // frame, and `entry` would clone the name on every one.
-        let slot = match state.get_mut(name) {
+        let slot = match state.get_mut(&name) {
             Some(slot) => slot,
-            None => state.entry(name.clone()).or_default(),
+            None => state.entry(name).or_default(),
         };
         slot.previous = slot.value;
         slot.value = value;
     }
+    // One frame, like a key's edge: a control that stopped feeding stops
+    // holding the action down.
+    fed.clear();
 }
 
 /// Load the project's table and the player's rebindings over it, once.
@@ -480,8 +523,18 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
         ("bind", &[], "", "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
         ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
         ("declare_actions", &[], "(actions: any)", "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor."),
+        ("feed_action", &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
     ]);
 
+    // Godot's `parse_input_event` with an `InputEventAction`, and the seam a
+    // `touch_button` goes through: an action gains a source without gaining a
+    // binding, so a project that never mentioned touch still answers.
+    m.function("feed_action", |eng: &Engine, (name, value): (String, f32)| {
+        eng.resource::<InputActions>()
+            .borrow_mut()
+            .feed(&name, value.clamp(-1.0, 1.0));
+        Ok(())
+    });
     // Every declared action, so a rebinding screen can list them.
     m.function("actions", |eng: &Engine, ()| {
         let names = eng.resource::<InputActions>().borrow().names();

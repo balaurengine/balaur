@@ -4,3 +4,8 @@
 [application]
 name = "balaur-library"
 main_scene = "scenes/studio.toml"
+
+# The editor holds itself to its own checker: a warning here is a failure,
+# not a line in the output someone might read.
+[check]
+strict = true

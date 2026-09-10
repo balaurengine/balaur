@@ -176,7 +176,8 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Report warnings too, and fail on them.
+        /// Report warnings too, and fail on them. `[check] strict = true` in
+        /// `project.toml` says the same thing for every run.
         #[arg(long)]
         strict: bool,
     },
@@ -979,7 +980,21 @@ fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plug
     }
 }
 
+/// Whether `project.toml` asked for `[check] strict = true`.
+///
+/// A manifest that will not parse reads as no: booting the project is about
+/// to say so with the error a person can act on.
+fn project_is_strict(path: &std::path::Path) -> bool {
+    std::fs::read_to_string(path.join("project.toml"))
+        .ok()
+        .and_then(|text| balaur_core::project::ProjectManifest::parse(&text).ok())
+        .is_some_and(|manifest| manifest.check.strict)
+}
+
 fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
+    // A project that means to stay clean says so in its own manifest; the
+    // flag is for the run that wants it anyway.
+    let strict = strict || project_is_strict(path);
     #[cfg(not(target_family = "wasm"))]
     let found = balaur::check_project_using(
         path,

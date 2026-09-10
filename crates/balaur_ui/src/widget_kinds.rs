@@ -754,12 +754,19 @@ pub(crate) fn menu(
     color: Color32,
 ) {
     let placed = &at.arena[index];
-    let widget = &placed.widget;
     let entity = placed.entity;
+    // A menu whose rows are nodes: icons, shortcuts and ticks are widgets
+    // like any other, which a flat list of strings cannot carry.
+    let rows = !placed.children.is_empty();
+    let options = placed.widget.options.clone();
     let mut picked = None;
     let label = egui::RichText::new(caption).font(font.clone()).color(color);
     ui.menu_button(label, |ui| {
-        for option in &widget.options {
+        if rows {
+            popup_rows(ui, at, index);
+            return;
+        }
+        for option in &options {
             let item = egui::RichText::new(option.as_str())
                 .font(font.clone())
                 .color(color);
@@ -772,6 +779,31 @@ pub(crate) fn menu(
     if let Some(choice) = picked {
         at.edits.push((entity, Edit::Choice(choice)));
     }
+}
+
+/// A menu's rows, drawn inside the popup egui opened for it.
+///
+/// The popup's rect is only known here, so the subtree is solved against it
+/// the way `fold` solves what it opens, then drawn by the same walker every
+/// container uses. A row's click is its own, so nothing new comes back.
+fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let room = ui.available_rect_before_wrap();
+    let space = crate::widget_taffy::Room::hugging(room);
+    let solved = crate::widget_taffy::solve_subtree(
+        at.eng,
+        at.arena,
+        index,
+        ui,
+        at.scale,
+        &at.theme,
+        &space,
+        at.deep(index),
+    );
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(room));
+    let held = std::mem::replace(&mut at.rects, solved);
+    lay_out(&mut inner, at, index, Axis::Column);
+    at.rects = held;
+    ui.advance_cursor_after_rect(inner.min_rect());
 }
 
 /// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is

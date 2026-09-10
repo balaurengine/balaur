@@ -433,3 +433,119 @@ fn uid_of(path: &std::path::Path) -> Option<String> {
     let header = crate::import_godot::parse(text.lines().next()?).ok()?;
     Some(header.sections.first()?.attr_str("uid")?.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{convert, key_name, pad_button};
+    use crate::import_godot::parse;
+    use std::collections::BTreeMap;
+
+    const PROJECT: &str = r#"config_version=5
+
+[application]
+
+config/name="Pirates"
+run/main_scene="res://scenes/world.tscn"
+
+[autoload]
+
+ThemeEvents="*res://scripts/theme.gd"
+
+[display]
+
+window/size/viewport_width=840
+window/size/viewport_height=1920
+window/size/mode=2
+window/handheld/orientation=6
+
+[input]
+
+jump={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":32,"keycode":0,"script":null)
+, Object(InputEventJoypadButton,"button_index":0,"script":null)
+]
+}
+move_x={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0,"script":null)
+, Object(InputEventMouseButton,"button_index":1,"script":null)
+]
+}
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lang/ro.ro.translation")
+"#;
+
+    fn converted() -> super::Converted {
+        let document = parse(PROJECT).expect("the project parses");
+        convert(&document, &BTreeMap::new()).expect("it converts")
+    }
+
+    #[test]
+    fn a_project_carries_its_name_scene_window_locale_and_actions() {
+        let out = converted().project_toml;
+        let doc: toml::Value = toml::from_str(&out).unwrap_or_else(|e| panic!("{e}\n{out}"));
+        assert_eq!(doc["application"]["name"].as_str(), Some("Pirates"));
+        assert_eq!(
+            doc["application"]["main_scene"].as_str(),
+            Some("scenes/world.toml"),
+            "a `.tscn` reference becomes the `.toml` beside it"
+        );
+        assert_eq!(doc["window"]["width"].as_integer(), Some(840));
+        assert_eq!(doc["locale"]["default"].as_str(), Some("en"));
+        let actions = &doc["input"]["actions"];
+        assert_eq!(
+            actions["jump"].as_array().map(|a| a.len()),
+            Some(2),
+            "{actions:?}"
+        );
+        assert_eq!(actions["jump"][0].as_str(), Some("Space"));
+        assert_eq!(actions["jump"][1].as_str(), Some("gamepad:South"));
+        assert_eq!(
+            actions["move_x"][0].as_str(),
+            Some("axis:LeftStickX+"),
+            "a joypad motion keeps the half its value names"
+        );
+        assert_eq!(actions["move_x"][1].as_str(), Some("mouse:left"));
+    }
+
+    /// Maximized is not fullscreen, and the sensor deciding is not portrait.
+    /// Both were mapped wrong on the first pass and are the reason this test
+    /// checks the modes rather than the width.
+    #[test]
+    fn a_maximized_sensor_window_is_neither_fullscreen_nor_portrait() {
+        let out = converted();
+        let doc: toml::Value = toml::from_str(&out.project_toml).unwrap();
+        assert_eq!(doc["window"]["fullscreen"].as_bool(), Some(false));
+        assert_eq!(doc["window"]["orientation"].as_str(), Some("any"));
+        assert!(
+            out.notes.iter().any(|n| n.contains("maximized")),
+            "{:?}",
+            out.notes
+        );
+    }
+
+    #[test]
+    fn an_autoload_is_reported_rather_than_invented() {
+        let notes = converted().notes;
+        assert!(notes.iter().any(|n| n.contains("ThemeEvents")), "{notes:?}");
+    }
+
+    #[test]
+    fn the_key_and_pad_tables_agree_with_godots_numbering() {
+        assert_eq!(key_name(32), Some("Space"));
+        assert_eq!(key_name(87), Some("W"));
+        assert_eq!(key_name(48), Some("Key0"));
+        assert_eq!(key_name(4_194_319), Some("Left"));
+        assert_eq!(key_name(4_194_322), Some("Down"));
+        assert_eq!(key_name(4_194_332), Some("F1"));
+        assert_eq!(key_name(1), None);
+        // Godot numbers the face buttons by position, so its `X` is the west
+        // one and its `Y` the north one.
+        assert_eq!(pad_button(2), Some("West"));
+        assert_eq!(pad_button(3), Some("North"));
+        assert_eq!(pad_button(13), Some("DPadLeft"));
+    }
+}

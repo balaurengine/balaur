@@ -253,7 +253,7 @@ fn row(S, k, def) {
     ui::horizontal(#{ height: 24 }, || {
         ui::label(name, style::mono(k.text));
         ui::right(|| {
-            edit(S, k, def);
+            edit(S, k, def, def.path);
         });
     });
     let spec = util::obj(def.spec);
@@ -262,20 +262,71 @@ fn row(S, k, def) {
         let suffix = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
         ui::label(help + suffix, style::mono_sm(k.faint));
     }
+    if def.scope == "project" {
+        overrides(S, k, def);
+    }
     ui::add_space(8);
 }
 
-fn edit(S, k, def) {
+// The answers this key has besides the one above: one row per tag the project
+// overrides it for, and a picker that adds another.
+fn overrides(S, k, def) {
+    let held = settings::overrides(def.path);
+    for tag in held {
+        let path = override_path(tag, def.path);
+        ui::horizontal(#{ height: 22 }, || {
+            ui::label("  on " + tag, style::mono_sm(k.dim));
+            ui::right(|| {
+                if ui::pill("×", #{ height: 20, size: style::SM, radius: 6, fill: k.panel, color: k.faint }) {
+                    settings::clear(path);
+                    S.settings.dirty = true;
+                }
+                ui::add_space(6);
+                edit(S, k, def, path);
+            });
+        });
+    }
+    let free = [];
+    for tag in settings::known_tags() {
+        if !held.iter().any(|t| t == tag) {
+            free.push(tag);
+        }
+    }
+    if free.is_empty() {
+        return;
+    }
+    // The prompt is the dropdown's own text: it draws what it is handed, and
+    // an empty selection would draw an empty pill.
+    let (picked, changed) = ui::dropdown(
+        "override:" + def.path, "override for…", free,
+        #{ width: 150, size: style::SM, color: k.faint },
+    );
+    if changed && picked != "" {
+        // Seeded with what the key already answers, so the row that appears
+        // says what it is overriding rather than a type's empty value.
+        settings::set(override_path(picked, def.path), settings::base(def.path));
+        S.settings.dirty = true;
+    }
+}
+
+fn override_path(tag, path) {
+    "override/" + tag + "/" + path
+}
+
+// `base`, never `get`: the editor edits what the file says. A screen showing
+// the override this machine happened to match would write it onto the key it
+// overrides.
+fn edit(S, k, def, path) {
     let spec = util::obj(def.spec);
     let datatype = spec.get("type").unwrap_or("string");
-    let value = settings::get(def.path);
+    let value = settings::base(path);
     if datatype == "bool" {
         let (on, changed) = ui::toggle(value == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
         });
         if changed {
-            write(S, def.path, on);
+            write(S, path, on);
         }
     } else if datatype == "float" {
         let low = util::f(spec.get("min").unwrap_or(0.0));
@@ -285,7 +336,7 @@ fn edit(S, k, def) {
         let now = if value is Tuple { low } else { util::f(value) };
         let (v, changed) = ui::slider(now, low, high, #{ width: 220 });
         if changed {
-            write(S, def.path, v);
+            write(S, path, v);
         }
     } else if datatype == "int" {
         let low = util::f(spec.get("min").unwrap_or(0.0));
@@ -298,27 +349,27 @@ fn edit(S, k, def) {
             fill: k.sunken, stroke: k.line, color: k.text,
         });
         if changed {
-            write(S, def.path, math::round(util::clamp(v, low, high)) as i64);
+            write(S, path, math::round(util::clamp(v, low, high)) as i64);
         }
     } else if datatype == "enum" {
         let (v, changed) = ui::dropdown(
-            "set:" + def.path,
+            "set:" + path,
             if value is String { value } else { "" },
             util::vec(spec.get("options").unwrap_or([])),
             #{ width: 220, size: style::MD, height: 24, color: k.text },
         );
         if changed {
-            write(S, def.path, v);
+            write(S, path, v);
         }
     } else {
         // Committed on submit rather than per keystroke: a settings file
         // rewritten on every character is noise in a diff.
-        let (text, _, submitted) = ui::text_field("set:" + def.path, "",
+        let (text, _, submitted) = ui::text_field("set:" + path, "",
             util::merge(style::field(k, 220.0), #{
                 value: if value is String { value } else { "" },
             }));
         if submitted {
-            write(S, def.path, text);
+            write(S, path, text);
         }
     }
 }

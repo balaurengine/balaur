@@ -113,6 +113,8 @@ shot scripting_editor  examples/hello      "script,select:Spinner"
 # The completion popup, and the Docs dock the reference is rendered into.
 shot script_completion examples/hello      "script,select:Spinner,show:completion"
 shot script_docs       examples/hello      "script,select:Spinner,dock:docs"
+# Focus: the code pane with the window to itself, beside its hooks list.
+shot editor_focus      examples/hello      "script,select:Spinner,focus"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
 # One still per persona for the editor page, plus the pages that had no picture.
 shot hello_open        examples/hello      "scene,select:World,dock:output"

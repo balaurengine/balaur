@@ -21,6 +21,7 @@ pub mod gestures;
 pub mod haptics;
 pub mod settings;
 pub mod touch_controls;
+mod vocabulary;
 // A pad's motion and touchpad come from reading its HID reports, which a tab
 // cannot do; `GamepadState` gates the field the same way.
 #[cfg(not(target_family = "wasm"))]
@@ -147,33 +148,6 @@ impl InputSnapshot {
     /// without ever counting as a tap, which is a script-side distinction, so
     /// both land in `touches_ended`.
     pub fn touch_event(&mut self, id: u64, x: f32, y: f32, phase: TouchPhase) {
-        self.apply_touch(id, x, y, phase);
-        if !self.emulate.mouse_from_touch || id == EMULATED_TOUCH_ID {
-            return;
-        }
-        // One cursor, so only the first finger down drives it; a second
-        // finger is a second touch and nothing else.
-        match phase {
-            TouchPhase::Start if self.emulate.primary.is_none() => {
-                self.emulate.primary = Some(id);
-                // Placed before the press, so a tap does not also report a
-                // drag from wherever the cursor last was.
-                self.mouse_pos = (x, y);
-                self.apply_mouse_button(0, true);
-            }
-            TouchPhase::Move if self.emulate.primary == Some(id) => self.apply_mouse_pos(x, y),
-            TouchPhase::End | TouchPhase::Cancel if self.emulate.primary == Some(id) => {
-                self.emulate.primary = None;
-                self.apply_mouse_button(0, false);
-            }
-            _ => {}
-        }
-    }
-
-    /// The touch set alone, with no conversion. Every path that writes a
-    /// finger goes through here, so the emulated finger and the real one are
-    /// the same kind of thing to every reader.
-    fn apply_touch(&mut self, id: u64, x: f32, y: f32, phase: TouchPhase) {
         match phase {
             TouchPhase::Start => {
                 if !self.touches.iter().any(|(t, _, _)| *t == id) {
@@ -198,6 +172,74 @@ impl InputSnapshot {
     pub fn set_emulation(&mut self, mouse_from_touch: bool, touch_from_mouse: bool) {
         self.emulate.mouse_from_touch = mouse_from_touch;
         self.emulate.touch_from_mouse = touch_from_mouse;
+    }
+
+    /// Fill in whichever of the pointer and the finger the frame's events did
+    /// not report, so every reader below sees both.
+    ///
+    /// Once per frame at the top of the tick rather than per event, for two
+    /// reasons: the project's settings are read when the project loads, which
+    /// is after the first events could arrive, and a conversion applied per
+    /// event would run again for every event in a frame. The edges it writes
+    /// last until the next `begin_frame`, exactly like an OS event's.
+    ///
+    /// A replay must not call this: the recording already holds what the
+    /// conversion produced.
+    pub fn convert_pointer_and_touch(&mut self) {
+        if self.emulate.mouse_from_touch {
+            self.mouse_from_touch();
+        }
+        if self.emulate.touch_from_mouse {
+            self.touch_from_mouse();
+        }
+    }
+
+    /// A finger is also a left click, which is what makes every widget kind
+    /// written against a pointer work on a phone. Godot's default, and for
+    /// Godot's reason.
+    fn mouse_from_touch(&mut self) {
+        // One cursor, so one finger drives it: the first one down keeps it
+        // until it lifts, and a second finger is a touch and nothing else.
+        if let Some(id) = self.emulate.primary
+            && self.touches_ended.contains(&id)
+        {
+            self.emulate.primary = None;
+            self.mouse_button_event(0, false);
+        }
+        if self.emulate.primary.is_none()
+            && let Some(id) = self.touches_started.first().copied()
+            && let Some((_, x, y)) = self.touches.iter().find(|(t, _, _)| *t == id).copied()
+        {
+            self.emulate.primary = Some(id);
+            // Placed before the press, so a tap does not also report a drag
+            // from wherever the cursor was last left.
+            self.mouse_pos = (x, y);
+            self.mouse_button_event(0, true);
+        }
+        if let Some(id) = self.emulate.primary
+            && let Some((_, x, y)) = self.touches.iter().find(|(t, _, _)| *t == id).copied()
+        {
+            self.set_mouse_pos(x, y);
+        }
+    }
+
+    /// The mouse is also a finger, so touch code runs on a desktop. A hover
+    /// is not a touch: only a held button reports one.
+    fn touch_from_mouse(&mut self) {
+        // With both conversions on, the button may be a finger's already.
+        // Converting it back would report that finger twice, once real and
+        // once emulated, which is the loop the two settings invite.
+        if self.emulate.primary.is_some() {
+            return;
+        }
+        let (x, y) = self.mouse_pos;
+        if self.mouse_just_pressed[0] {
+            self.touch_event(EMULATED_TOUCH_ID, x, y, TouchPhase::Start);
+        } else if self.mouse_just_released[0] {
+            self.touch_event(EMULATED_TOUCH_ID, x, y, TouchPhase::End);
+        } else if self.mouse_down[0] {
+            self.touch_event(EMULATED_TOUCH_ID, x, y, TouchPhase::Move);
+        }
     }
 
     pub fn file_drop_event(&mut self, path: String) {
@@ -263,21 +305,7 @@ impl InputSnapshot {
         }
     }
 
-    pub fn mouse_button_event(&mut self, button: usize, pressed: bool) {
-        self.apply_mouse_button(button, pressed);
-        // The left button is the finger; the other two have no touch meaning.
-        if self.emulate.touch_from_mouse && button == 0 {
-            let (x, y) = self.mouse_pos;
-            let phase = if pressed {
-                TouchPhase::Start
-            } else {
-                TouchPhase::End
-            };
-            self.apply_touch(EMULATED_TOUCH_ID, x, y, phase);
-        }
-    }
-
-    const fn apply_mouse_button(&mut self, button: usize, pressed: bool) {
+    pub const fn mouse_button_event(&mut self, button: usize, pressed: bool) {
         if button >= MOUSE_BUTTONS {
             return;
         }
@@ -291,16 +319,6 @@ impl InputSnapshot {
     }
 
     pub fn set_mouse_pos(&mut self, x: f32, y: f32) {
-        self.apply_mouse_pos(x, y);
-        // A drag, not a hover: a finger that is not touching the glass is not
-        // reported at all, so the cursor moving with no button held is not a
-        // touch event either.
-        if self.emulate.touch_from_mouse && self.mouse_down[0] {
-            self.apply_touch(EMULATED_TOUCH_ID, x, y, TouchPhase::Move);
-        }
-    }
-
-    fn apply_mouse_pos(&mut self, x: f32, y: f32) {
         self.mouse_delta.0 += x - self.mouse_pos.0;
         self.mouse_delta.1 += y - self.mouse_pos.1;
         self.mouse_pos = (x, y);
@@ -379,6 +397,10 @@ impl balaur_plugin::Plugin for InputPlugin {
         reg.insert_resource(InputSnapshot::default());
         reg.insert_resource(GamepadState::default());
         reg.insert_resource(InputActions::default());
+        reg.insert_resource(InputSettings::default());
+        reg.insert_resource(Gestures::default());
+        touch_controls::register_touch_button(reg);
+        touch_controls::register_touch_stick(reg);
         reg.add_replay_source(
             "gamepad",
             |eng| gamepad::capture(&eng.resource::<GamepadState>().borrow()),
@@ -400,8 +422,28 @@ impl balaur_plugin::Plugin for InputPlugin {
             }
             eng.resource::<GamepadState>().borrow_mut().poll();
         });
-        // After the poll and after a replay restored the recording's snapshot,
-        // so an action is derived from exactly the input that was recorded.
+        // The three below run in this order and all of them before the
+        // actions, because each is a source the action layer folds in.
+        //
+        // After the poll and after a replay restored the recording's
+        // snapshot, so every one of them reads exactly what was recorded.
+        reg.add_system(Stage::First, |eng, dt| {
+            settings::ensure_loaded(eng);
+            // Before every reader below, and never on playback: the recording
+            // holds what the conversion produced the first time.
+            if !balaur_core::replay::is_playing(eng) {
+                eng.resource::<InputSnapshot>()
+                    .borrow_mut()
+                    .convert_pointer_and_touch();
+            }
+            // Derived state that walks forward, so re-running one tick would
+            // count its time twice. A replay still runs it: the fingers it
+            // reads were restored a moment ago.
+            if !balaur_core::rollback::is_resimulating(eng) {
+                gestures::tick(eng, dt);
+            }
+            touch_controls::tick(eng);
+        });
         reg.add_system(Stage::First, |eng, _| actions::tick(eng));
 
         let mut m = reg.script_module("input")?;
@@ -722,8 +764,57 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     });
     install_feed_api(m);
     install_touch_api(m);
+    install_gesture_api(m);
     install_gamepad_api(m);
     actions::install_actions(m);
+}
+
+/// `input.pinch`, `pan`, `swipe` and `long_press`: what the fingers are
+/// doing, past where they are. Each reads neutral with nothing happening, so
+/// a desktop and a headless run answer the same as a still screen.
+fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("pinch", &[], "", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
+        ("pan", &[], "", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
+        ("swipe", &[], "", "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise."),
+        ("long_press", &[], "", "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise."),
+    ]);
+    m.function("pinch", |eng: &Engine, ()| {
+        let Some(pinch) = eng.resource::<Gestures>().borrow().pinch() else {
+            return Ok(Value::Map(Vec::new()));
+        };
+        Ok(Value::Map(vec![
+            ("scale".to_string(), Value::Num(f64::from(pinch.scale))),
+            ("x".to_string(), Value::Num(f64::from(pinch.center.0))),
+            ("y".to_string(), Value::Num(f64::from(pinch.center.1))),
+        ]))
+    });
+    m.function("pan", |eng: &Engine, ()| {
+        let (x, y) = eng.resource::<Gestures>().borrow().pan();
+        Ok(Value::Map(vec![
+            ("x".to_string(), Value::Num(f64::from(x))),
+            ("y".to_string(), Value::Num(f64::from(y))),
+        ]))
+    });
+    m.function("swipe", |eng: &Engine, ()| {
+        let Some(swipe) = eng.resource::<Gestures>().borrow().swipe() else {
+            return Ok(Value::Map(Vec::new()));
+        };
+        Ok(Value::Map(vec![
+            ("x".to_string(), Value::Num(f64::from(swipe.direction.0))),
+            ("y".to_string(), Value::Num(f64::from(swipe.direction.1))),
+            ("speed".to_string(), Value::Num(f64::from(swipe.speed))),
+        ]))
+    });
+    m.function("long_press", |eng: &Engine, ()| {
+        let Some((x, y)) = eng.resource::<Gestures>().borrow().long_press() else {
+            return Ok(Value::Map(Vec::new()));
+        };
+        Ok(Value::Map(vec![
+            ("x".to_string(), Value::Num(f64::from(x))),
+            ("y".to_string(), Value::Num(f64::from(y))),
+        ]))
+    });
 }
 
 /// `input.feed_*`: the window backend's feeders, for a script that stands in

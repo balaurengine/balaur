@@ -121,7 +121,10 @@ fn read_source(
     if id == root {
         return Some(buffer.to_string());
     }
-    std::fs::read_to_string(sources.get(id)?.path()?).ok()
+    let read = balaur_core::files::default_backend()
+        .read(sources.get(id)?.path()?)
+        .ok()?;
+    String::from_utf8(read).ok()
 }
 
 /// Whether a "Pattern might panic" is a tuple of names being unpacked.
@@ -440,7 +443,7 @@ impl RuneHost {
             }
             state.project_root.clone()
         };
-        let attached = balaur_core::project::scene_attachments(&root);
+        let attached = balaur_core::attachments::scene_attachments(&root);
         let carried = attached.get(key).and_then(Option::as_ref);
         handles::check(&self.engine, key, source, carried)
     }

@@ -19,6 +19,8 @@ mod android;
 mod apple;
 mod bundle;
 mod config;
+pub mod settings;
+mod variants;
 pub mod recode;
 mod sign;
 pub mod size;
@@ -160,9 +162,19 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
     let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
-    let apple = AppleConfig::load(&opts.path)?;
-    let android = android::AndroidConfig::load(&opts.path)?;
-    let config = ExportConfig::load(&opts.path)?;
+    // One read, resolved for the target: `[override.android.export]` is
+    // folded onto `[export]` before any of these three is parsed.
+    let manifest = config::manifest_for(&opts.path, target)?;
+    let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
+    let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
+    let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
+    // Before the pack is measured or stripped: a variant that lost is not an
+    // unreferenced asset, it is one this target was never going to carry.
+    let tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
+    let folded = variants::apply(&mut pack, &tags);
+    if !folded.is_empty() {
+        tracing::info!("variants for {}: {}", tags.0.join(", "), folded.join(", "));
+    }
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));
     if summary.total_saved() > 0 {

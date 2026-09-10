@@ -250,6 +250,19 @@ pub fn load(eng: &Engine, text: &str) -> Result<()> {
     Ok(())
 }
 
+/// The tags this manifest holds an override for at `path`, in tag order.
+///
+/// What the settings screen lists under a row: the answers this key has
+/// besides the one in front of you.
+#[must_use]
+pub fn overrides(eng: &Engine, path: &str) -> Vec<String> {
+    crate::tags::ALL
+        .iter()
+        .filter(|tag| stored(eng, &format!("{OVERRIDE}/{tag}/{path}")).is_some())
+        .map(|tag| (*tag).to_string())
+        .collect()
+}
+
 /// Keys a manifest holds that nothing declares, inside tables that something
 /// does.
 ///
@@ -346,6 +359,21 @@ fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
     }
 }
 
+/// Forget one value, so the next write drops the key it was stored at.
+///
+/// What removing an override is: the base value is a row that always exists,
+/// but an override is one the project either holds or does not.
+pub fn clear(eng: &Engine, path: &str) {
+    let Some(values) = eng.try_resource::<SettingsValues>() else {
+        return;
+    };
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut values = values.borrow_mut();
+    table_at(&mut values.0, &tables).remove(key);
+}
+
 /// The text one scope's settings would write, starting from `existing` so
 /// anything no setting describes survives.
 ///
@@ -371,15 +399,66 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .map(|d| d.path.clone())
         .collect();
     for path in paths {
-        let Some(value) = base(eng, &path) else {
+        if let Some(value) = base(eng, &path)
+            && let Some((tables, key)) = split(&path)
+        {
+            table_at(&mut doc, &tables).insert(key.to_string(), value);
+        }
+        // An override is a key the project either holds or does not, so a
+        // cleared one is removed rather than written back as it was.
+        if scope != Scope::Project {
             continue;
-        };
-        let Some((tables, key)) = split(&path) else {
-            continue;
-        };
-        table_at(&mut doc, &tables).insert(key.to_string(), value);
+        }
+        for tag in crate::tags::ALL {
+            let at = format!("{OVERRIDE}/{tag}/{path}");
+            let Some((tables, key)) = split(&at) else {
+                continue;
+            };
+            match stored(eng, &at) {
+                Some(value) => {
+                    table_at(&mut doc, &tables).insert(key.to_string(), value);
+                }
+                None => remove_at(&mut doc, &tables, key),
+            }
+        }
     }
+    prune_overrides(&mut doc);
     toml::to_string_pretty(&doc).context("writing settings")
+}
+
+/// Remove one key without making the tables on the way to it: `table_at`
+/// would write an empty `[override.android.window]` to delete from.
+fn remove_at(root: &mut toml::value::Table, tables: &[&str], key: &str) {
+    let mut at = root;
+    for table in tables {
+        let Some(next) = at.get_mut(*table).and_then(toml::Value::as_table_mut) else {
+            return;
+        };
+        at = next;
+    }
+    at.remove(key);
+}
+
+/// Drop the tables a removed override left behind. Only under `override`: an
+/// empty `[plugins]` elsewhere is a project saying something.
+fn prune_overrides(doc: &mut toml::value::Table) {
+    let Some(toml::Value::Table(overrides)) = doc.get_mut(OVERRIDE) else {
+        return;
+    };
+    prune_empty(overrides);
+    if overrides.is_empty() {
+        doc.remove(OVERRIDE);
+    }
+}
+
+fn prune_empty(table: &mut toml::value::Table) {
+    table.retain(|_, value| {
+        if let toml::Value::Table(inner) = value {
+            prune_empty(inner);
+            return !inner.is_empty();
+        }
+        true
+    });
 }
 
 /// Core's own settings. Plugins define theirs from their own `build`.

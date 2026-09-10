@@ -250,3 +250,35 @@ fn an_undeclared_table_is_readable_by_path() {
         Some(toml::Value::String(String::from("http://localhost:8080")))
     );
 }
+
+/// The screen owns the override tree: setting one writes it, clearing one
+/// takes it out, and the table it lived in goes with it.
+#[test]
+fn an_override_is_written_and_removed_by_the_same_write() {
+    let app = app();
+    settings::set(
+        &app.engine,
+        "override/android/window/fullscreen",
+        toml::Value::Boolean(true),
+    );
+    let written = settings::to_toml(&app.engine, Scope::Project, "").unwrap();
+    assert!(written.contains("[override.android.window]"), "{written}");
+
+    settings::clear(&app.engine, "override/android/window/fullscreen");
+    let written = settings::to_toml(&app.engine, Scope::Project, &written).unwrap();
+    assert!(
+        !written.contains("override"),
+        "the emptied table stayed behind: {written}"
+    );
+}
+
+/// An override on a key nothing declares is not the screen's to write, and a
+/// hand-written one has to survive the screen's save.
+#[test]
+fn an_override_the_screen_does_not_know_survives_a_write() {
+    let app = app();
+    let source = "[override.ios.mygame]\nurl = \"https://example.test\"\n";
+    settings::load(&app.engine, source).unwrap();
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    assert!(written.contains("example.test"), "{written}");
+}

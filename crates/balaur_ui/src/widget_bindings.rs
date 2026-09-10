@@ -849,6 +849,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
         ("color", &[], "", "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
         ("wants_keyboard", &[], "", "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
+        ("wants_pointer", &[], "", "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window."),
     ]);
     // Queries return design pixels (real points divided by the UI scale), so
     // scripts compute layout in one consistent unit.
@@ -958,6 +959,9 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     });
     m.function("wants_keyboard", |_eng: &Engine, ()| {
         with_ctx(|ctx| Ok(ctx.egui_wants_keyboard_input()))
+    });
+    m.function("wants_pointer", |_eng: &Engine, ()| {
+        with_ctx(|ctx| Ok(ctx.egui_wants_pointer_input()))
     });
 }
 
