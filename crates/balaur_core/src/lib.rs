@@ -50,6 +50,7 @@ pub mod plugins;
 pub mod presets;
 pub mod primitive;
 pub mod project;
+mod project_files;
 pub mod replay;
 pub mod replay_api;
 pub mod resources;

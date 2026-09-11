@@ -24,6 +24,8 @@ mod instancing;
 pub mod light;
 pub mod light3d;
 pub mod material;
+mod material_check;
+mod material_compile;
 pub mod mesh;
 /// The URL the app was launched with, taken once.
 ///
@@ -64,6 +66,8 @@ mod texture;
 #[cfg(feature = "kiss3d")]
 mod tile_quad;
 mod tilemap;
+#[cfg(feature = "kiss3d")]
+mod tilemap_mesh;
 pub mod world_text;
 pub use camera::{Camera, CameraKind, Post, PostPass};
 pub use cloner::Clones;

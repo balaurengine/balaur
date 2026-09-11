@@ -41,6 +41,7 @@ pub mod ease;
 mod gizmo;
 pub mod machine;
 pub mod modifier;
+mod modifier_solve;
 pub mod player;
 pub mod retarget;
 pub mod sampler;
