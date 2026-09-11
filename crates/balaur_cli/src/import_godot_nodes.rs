@@ -38,12 +38,6 @@ impl Resources<'_> {
         self.external.get(id).map(|(_, path)| path.as_str())
     }
 
-    /// The type an `ExtResource("id")` declares.
-    pub(crate) fn kind(&self, value: &Value) -> Option<&str> {
-        let id = value.call("ExtResource")?.first()?.as_str()?;
-        self.external.get(id).map(|(kind, _)| kind.as_str())
-    }
-
     /// The section a `SubResource("id")` names.
     pub(crate) fn sub(&self, value: &Value) -> Option<&Section> {
         let id = value.call("SubResource")?.first()?.as_str()?;
@@ -277,7 +271,8 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.touch("sprite");
     let texture = section.field("texture").and_then(|t| res.path(t));
     if let Some(path) = texture {
-        out.set("sprite", "texture", Toml::String(image_path(path, out)));
+        let texture = image_path(path, out);
+        out.set("sprite", "texture", Toml::String(texture));
     }
     if let Some(color) = section.field("self_modulate").and_then(colour) {
         out.set("sprite", "color", color);
@@ -296,7 +291,7 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             out.set("sprite", "region_size", floats(&[w, h]));
         }
     }
-    let frames = |key| section.field(key).and_then(Value::as_i64);
+    let frames = |key: &str| section.field(key).and_then(Value::as_i64);
     let (columns, rows) = (frames("hframes"), frames("vframes"));
     if columns.unwrap_or(1) > 1 || rows.unwrap_or(1) > 1 {
         out.set("sprite", "columns", Toml::Float(columns.unwrap_or(1) as f64));
@@ -327,7 +322,8 @@ fn polygon(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     }
     let texture = section.field("texture").and_then(|t| res.path(t));
     if let Some(path) = texture {
-        out.set("polygon", "texture", Toml::String(image_path(path, out)));
+        let texture = image_path(path, out);
+        out.set("polygon", "texture", Toml::String(texture));
     }
     let color = section.field("color").and_then(colour);
     let tint = section.field("self_modulate").and_then(colour);
@@ -480,7 +476,7 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         out.note("CollisionShape2D without an inline shape: its collider is the default rect");
         return;
     };
-    let number = |key| shape.field(key).and_then(Value::as_f64);
+    let number = |key: &str| shape.field(key).and_then(Value::as_f64);
     match shape.attr_str("type").unwrap_or_default() {
         "RectangleShape2D" => {
             let [w, h] = shape.field("size").and_then(pair).unwrap_or([20.0, 20.0]);
@@ -545,7 +541,7 @@ fn polygon_collider(points: &[[f64; 2]], kind: &str, out: &mut Mapped) {
 
 fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.touch("particles");
-    let number = |key| section.field(key).and_then(Value::as_f64);
+    let number = |key: &str| section.field(key).and_then(Value::as_f64);
     let lifetime = number("lifetime").unwrap_or(1.0);
     out.set("particles", "lifetime", Toml::Float(lifetime));
     if let Some(amount) = number("amount") {
@@ -560,7 +556,8 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         out.set("particles", "explosiveness", Toml::Float(explosiveness));
     }
     if let Some(path) = section.field("texture").and_then(|t| res.path(t)) {
-        out.set("particles", "texture", Toml::String(image_path(path, out)));
+        let texture = image_path(path, out);
+        out.set("particles", "texture", Toml::String(texture));
     }
     if let Some(color) = section.field("color").and_then(colour) {
         out.set("particles", "color", color);
@@ -654,8 +651,8 @@ fn widget(class: &str, section: &Section, parent: &str, res: &Resources<'_>, out
         .find(|(godot, _)| *godot == class)
         .map_or("panel", |(_, kind)| *kind);
     out.set("widget", "kind", Toml::String(kind.into()));
-    let text = |key| section.field(key).and_then(Value::as_str).map(str::to_string);
-    let number = |key| section.field(key).and_then(Value::as_f64);
+    let text = |key: &str| section.field(key).and_then(Value::as_str).map(str::to_string);
+    let number = |key: &str| section.field(key).and_then(Value::as_f64);
 
     if let Some(caption) = text("text").or_else(|| text("title")) {
         out.set("widget", "text", Toml::String(caption));
@@ -780,7 +777,8 @@ fn widget(class: &str, section: &Section, parent: &str, res: &Resources<'_>, out
         "TextureRect" | "TextureButton" | "NinePatchRect" => {
             let key = if class == "TextureButton" { "texture_normal" } else { "texture" };
             if let Some(path) = section.field(key).and_then(|t| res.path(t)) {
-                out.set("widget", "source", Toml::String(image_path(path, out)));
+                let source = image_path(path, out);
+                out.set("widget", "source", Toml::String(source));
             }
             if class == "NinePatchRect" {
                 let slice: Vec<f64> = ["left", "top", "right", "bottom"]
@@ -827,7 +825,7 @@ fn widget(class: &str, section: &Section, parent: &str, res: &Resources<'_>, out
 /// and size. Inside a container a Control is placed by it, so only a Control
 /// whose parent is not one reaches here.
 fn placement(section: &Section, out: &mut Mapped) {
-    let number = |key| section.field(key).and_then(Value::as_f64).unwrap_or(0.0);
+    let number = |key: &str| section.field(key).and_then(Value::as_f64).unwrap_or(0.0);
     let preset = section.field("anchors_preset").and_then(Value::as_i64).unwrap_or(0);
     let anchor = match preset {
         1 => "top_right",

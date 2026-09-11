@@ -128,7 +128,10 @@ fn install_override_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("known_tags", |eng: &Engine, (): ()| {
         Ok(Value::List(
-            settings::known_tags(eng).into_iter().map(Value::Str).collect(),
+            settings::known_tags(eng)
+                .into_iter()
+                .map(Value::Str)
+                .collect(),
         ))
     });
     m.function("overrides", |eng: &Engine, path: String| {

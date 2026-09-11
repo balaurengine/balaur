@@ -375,3 +375,36 @@ fn restoring_the_first_of_three_siblings_puts_it_back_where_it_was() {
         "a node that came back last is a desync report about sibling order"
     );
 }
+
+fn set_material(app: &App, entity: balaur_core::hecs::Entity, reference: &str) {
+    app.engine
+        .world()
+        .get::<&mut balaur_core::Appearance>(entity)
+        .unwrap()
+        .material = balaur_core::scene::MaterialId::intern(reference);
+}
+
+/// A material is authored state a script can change mid-run, so a rollback
+/// has to put it back and a digest has to notice it moved.
+#[test]
+fn a_restore_puts_a_nodes_material_back() {
+    let app = app();
+    let a = spawn(&app, "n_a", 0.0);
+    set_material(&app, a, "materials/metal.toml");
+    let before = digest::digest(&app.engine);
+    let taken = snapshot::capture(&app.engine);
+
+    set_material(&app, a, "materials/glass.toml");
+    assert_ne!(
+        digest::digest(&app.engine),
+        before,
+        "the digest missed a material change"
+    );
+
+    snapshot::restore(&app.engine, &taken);
+    let world = app.engine.world();
+    let restored = world.get::<&balaur_core::Appearance>(a).unwrap().material;
+    assert_eq!(&*restored.reference(), "materials/metal.toml");
+    drop(world);
+    assert_eq!(digest::digest(&app.engine), before);
+}

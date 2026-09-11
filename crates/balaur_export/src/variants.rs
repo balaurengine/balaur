@@ -13,12 +13,13 @@ use balaur::Pack;
 use balaur::tags::Tags;
 
 /// Fold every variant this target answers to onto the name it varies, and
-/// drop the rest.
-pub(crate) fn apply(pack: &mut Pack, tags: &Tags) -> Vec<String> {
+/// drop the rest. `declared` is the project's own tags, which name variants
+/// as the engine's do.
+pub(crate) fn apply(pack: &mut Pack, tags: &Tags, declared: &[String]) -> Vec<String> {
     let mut chosen: Vec<(String, String, usize)> = Vec::new();
     let mut drop = Vec::new();
     for path in pack.assets.keys() {
-        let Some((canonical, tag)) = split_variant(path) else {
+        let Some((canonical, tag)) = split_variant(path, declared) else {
             continue;
         };
         match rank(tags, &tag) {
@@ -52,13 +53,11 @@ pub(crate) fn apply(pack: &mut Pack, tags: &Tags) -> Vec<String> {
 
 /// `sprites/hero.android.png` as `sprites/hero.png` and `android`, or `None`
 /// when the middle segment is not a tag anything could answer to.
-fn split_variant(path: &str) -> Option<(String, String)> {
+fn split_variant(path: &str, declared: &[String]) -> Option<(String, String)> {
     let (stem, extension) = path.rsplit_once('.')?;
     let (base, tag) = stem.rsplit_once('.')?;
-    balaur::tags::ALL
-        .iter()
-        .find(|known| **known == tag)
-        .map(|known| (format!("{base}.{extension}"), (*known).to_string()))
+    let known = balaur::tags::ALL.contains(&tag) || declared.iter().any(|own| own == tag);
+    known.then(|| (format!("{base}.{extension}"), tag.to_string()))
 }
 
 /// How narrow a tag this target holds is, or `None` when it holds none.
@@ -83,7 +82,7 @@ mod tests {
     #[test]
     fn the_variant_a_target_answers_to_becomes_the_asset() {
         let mut pack = pack_with(&["sprites/hero.png", "sprites/hero.android.png"]);
-        let folded = apply(&mut pack, &Tags::for_target("android"));
+        let folded = apply(&mut pack, &Tags::for_target("android"), &[]);
 
         assert_eq!(folded, ["sprites/hero.png"]);
         assert_eq!(pack.assets.get("sprites/hero.png"), Some(&vec![1]));
@@ -95,7 +94,7 @@ mod tests {
     #[test]
     fn a_variant_no_tag_selects_never_ships() {
         let mut pack = pack_with(&["sprites/hero.png", "sprites/hero.android.png"]);
-        apply(&mut pack, &Tags::for_target("linux-x64"));
+        apply(&mut pack, &Tags::for_target("linux-x64"), &[]);
 
         assert_eq!(pack.assets.get("sprites/hero.png"), Some(&vec![0]));
         assert_eq!(pack.assets.len(), 1);
@@ -110,7 +109,7 @@ mod tests {
             "sprites/hero.mobile.png",
             "sprites/hero.android.png",
         ]);
-        apply(&mut pack, &Tags::for_target("android"));
+        apply(&mut pack, &Tags::for_target("android"), &[]);
 
         assert_eq!(pack.assets.get("sprites/hero.png"), Some(&vec![2]));
         assert_eq!(pack.assets.len(), 1);
@@ -121,9 +120,26 @@ mod tests {
     #[test]
     fn a_middle_segment_that_is_not_a_tag_is_left_alone() {
         let mut pack = pack_with(&["sprites/hero.old.png"]);
-        apply(&mut pack, &Tags::for_target("android"));
+        apply(&mut pack, &Tags::for_target("android"), &[]);
 
         assert!(pack.assets.contains_key("sprites/hero.old.png"));
+    }
+
+    /// A project's own tag names a variant too, and a build that does not
+    /// answer to it drops the file like any other variant.
+    #[test]
+    fn a_project_s_own_tag_names_a_variant() {
+        let declared = ["demo".to_string()];
+        let mut pack = pack_with(&["title.png", "title.demo.png"]);
+        let mut tags = Tags::for_target("linux-x64");
+        tags.push("demo");
+        apply(&mut pack, &tags, &declared);
+        assert_eq!(pack.assets.get("title.png"), Some(&vec![1]));
+
+        let mut pack = pack_with(&["title.png", "title.demo.png"]);
+        apply(&mut pack, &Tags::for_target("linux-x64"), &declared);
+        assert_eq!(pack.assets.get("title.png"), Some(&vec![0]));
+        assert_eq!(pack.assets.len(), 1);
     }
 
     /// A variant with no canonical file beside it still ships, under the name
@@ -131,7 +147,7 @@ mod tests {
     #[test]
     fn a_variant_without_a_canonical_file_becomes_one() {
         let mut pack = pack_with(&["sprites/pad.android.png"]);
-        apply(&mut pack, &Tags::for_target("android"));
+        apply(&mut pack, &Tags::for_target("android"), &[]);
 
         assert_eq!(pack.assets.get("sprites/pad.png"), Some(&vec![0]));
     }

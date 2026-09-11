@@ -186,7 +186,7 @@ Every place a game from this engine could be asked to prove who made it.
 | The editor and runtime downloads | Unsigned on every platform | `docs/PLAN-release.md` phases 1 and 2, run through the same `sign` and `notarize` code in `package.sh` behind the maintainers' secrets, skipped when the secrets are absent (a fork, a pull request). Notarization takes a `.zip`, not a `.tar.gz`, so the macOS editor archive changes shape |
 | Provenance for everything above | None | Step 2: `actions/attest-build-provenance` in `build-engine` and `export-game`; `balaur update` and `templates.rs` **do not** verify attestations — `SHA256SUMS` from the release is their check, and adding `cosign` to the binary is a dependency nothing has asked for |
 | An entitlement or capability the store needs | `[apple] capabilities` | Have; `docs/PLAN-apple.md` and `docs/PLAN-google.md` own the lists |
-| A signed extension (`.dylib`, `.dll`, `.so`) inside a bundle | Nothing signs `Contents/Frameworks` | Step 3, in the order `docs/PLAN-steam.md` §0 spells out: frameworks first, then the bundle. The shipped templates have to load extensions first (step 1) |
+| A signed extension (`.dylib`, `.dll`, `.so`) inside a game | `balaur export` copies `extensions/` into `Contents/PlugIns`, or beside a fused binary | Have. `codesign` signs `Contents/PlugIns` before the bundle, in the order `docs/PLAN-steam.md` §0 spells out; a signed Windows export runs Authenticode over each `.dll` too; Linux checks no signature |
 
 ## 3. Export from the editor
 

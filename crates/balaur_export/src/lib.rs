@@ -154,6 +154,20 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     roots
 }
 
+/// Write the project's own tags for this target into the pack's manifest as
+/// `[build] tags`, where the runtime reads them before its first setting.
+///
+/// Only the pack's copy: the project on disk never carries a build's tags.
+fn bake_tags(pack: &mut balaur::Pack, own: &[String]) -> Result<()> {
+    if own.is_empty() {
+        return Ok(());
+    }
+    let names = toml::Value::Array(own.iter().cloned().map(toml::Value::String).collect());
+    pack.manifest = balaur::settings::patch(&pack.manifest, balaur::tags::BUILT, &names)
+        .context("stamping the pack's manifest with its tags")?;
+    Ok(())
+}
+
 /// Write a `.bpak`, or a standalone game when a template is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
@@ -171,8 +185,12 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
     // Before the pack is measured or stripped: a variant that lost is not an
     // unreferenced asset, it is one this target was never going to carry.
-    let tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
-    let folded = variants::apply(&mut pack, &tags);
+    let source = config::manifest_text(&opts.path).unwrap_or_default();
+    let tags = config::tags_for(&source, target)?;
+    let declared =
+        toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
+    let folded = variants::apply(&mut pack, &tags, &declared);
+    bake_tags(&mut pack, &config.tags)?;
     if !folded.is_empty() {
         tracing::info!("variants for {}: {}", tags.0.join(", "), folded.join(", "));
     }

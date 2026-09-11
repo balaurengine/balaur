@@ -70,6 +70,10 @@ pub struct ExportConfig {
     /// text field or a line from a server draws with cannot be subset to the
     /// characters this project happens to contain.
     pub font_keep: Vec<String>,
+    /// Names this build answers to besides its platform's: `demo`, `store`.
+    /// Written into the pack as `[build] tags`, so `[override.demo]` and
+    /// `hero.demo.png` work the way `[override.android]` does.
+    pub tags: Vec<String>,
     /// `keep`, `flac` or `vorbis`: how uncompressed audio is re-encoded.
     /// `flac` keeps every sample; `vorbis` does not.
     pub audio: crate::recode::AudioMode,
@@ -94,6 +98,7 @@ impl Default for ExportConfig {
             windows_timestamp_url: "http://timestamp.digicert.com".into(),
             strip: false,
             keep: Vec::new(),
+            tags: Vec::new(),
             images: crate::recode::ImageMode::Keep,
             images_quality: crate::recode::DEFAULT_IMAGES_QUALITY,
             fonts: crate::recode::FontMode::Keep,
@@ -119,8 +124,32 @@ pub(crate) fn manifest_for(project: &Path, target: Option<&str>) -> Result<toml:
     };
     let source =
         String::from_utf8(bytes).with_context(|| format!("{} is not text", path.display()))?;
-    let tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
+    let tags = tags_for(&source, target)?;
     balaur::settings::resolve(&source, &tags).with_context(|| format!("parsing {}", path.display()))
+}
+
+/// What `target` answers to: its platform's tags, then the project's own the
+/// file names for it. Two passes, since `[override.android.export] tags` is
+/// itself an override the platform's tags select.
+pub(crate) fn tags_for(source: &str, target: Option<&str>) -> Result<balaur::tags::Tags> {
+    let mut tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
+    let resolved = balaur::settings::resolve(source, &tags)?;
+    let own = resolved
+        .get("export")
+        .and_then(|export| export.get("tags"))
+        .and_then(toml::Value::as_array);
+    for name in own.into_iter().flatten().filter_map(toml::Value::as_str) {
+        tags.push(name);
+    }
+    Ok(tags)
+}
+
+/// The project's manifest text, through the files backend.
+pub(crate) fn manifest_text(project: &Path) -> Option<String> {
+    let bytes = balaur::files::default_backend()
+        .read(&project.join("project.toml"))
+        .ok()?;
+    String::from_utf8(bytes).ok()
 }
 
 /// `[window] orientation` out of a resolved manifest.
@@ -199,6 +228,17 @@ pub(crate) fn secret_or(name: &str, fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{ExportConfig, orientation_of};
+
+    /// A target's own tags are the ones its resolved `[export] tags` names,
+    /// including the ones only its override names.
+    #[test]
+    fn a_target_takes_the_tags_its_override_names() {
+        let source = "[export]\ntags = [\"demo\"]\n\n[override.android.export]\ntags = [\"store\"]\n";
+        let phone = super::tags_for(source, Some("android")).unwrap();
+        let desktop = super::tags_for(source, Some("linux-x64")).unwrap();
+        assert!(phone.has("store") && !phone.has("demo"), "{phone:?}");
+        assert!(desktop.has("demo") && !desktop.has("store"), "{desktop:?}");
+    }
 
     /// A target reads its own answers: the same file exports one way for a
     /// desktop and another for a phone.

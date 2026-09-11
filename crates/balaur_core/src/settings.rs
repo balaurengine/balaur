@@ -191,7 +191,9 @@ pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
     };
     if let Some(tags) = eng.try_resource::<Tags>() {
         for tag in &tags.borrow().0 {
-            if let Some(toml::Value::Table(layer)) = stored(eng, &format!("{OVERRIDE}/{tag}/{path}")) {
+            if let Some(toml::Value::Table(layer)) =
+                stored(eng, &format!("{OVERRIDE}/{tag}/{path}"))
+            {
                 merge(&mut out, layer);
             }
         }
@@ -473,6 +475,18 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
     Ok(doc.to_string())
 }
 
+/// One value written into a manifest's text at its path, keeping everything
+/// else as written: what an export uses to stamp its pack's copy.
+///
+/// # Errors
+/// When `existing` is not valid TOML.
+pub fn patch(existing: &str, path: &str, value: &toml::Value) -> Result<String> {
+    let mut doc: toml_edit::DocumentMut =
+        existing.parse().context("parsing the file being written")?;
+    write_at(&mut doc, path, value);
+    Ok(doc.to_string())
+}
+
 /// Put one value at its path, making the tables on the way. A value that has
 /// not changed is left as written, so a save touches only what moved.
 fn write_at(doc: &mut toml_edit::DocumentMut, path: &str, value: &toml::Value) {
@@ -517,7 +531,10 @@ fn remove_at(doc: &mut toml_edit::DocumentMut, path: &str) {
     };
     let mut at: &mut dyn toml_edit::TableLike = doc.as_table_mut();
     for table in tables {
-        let Some(next) = at.get_mut(table).and_then(toml_edit::Item::as_table_like_mut) else {
+        let Some(next) = at
+            .get_mut(table)
+            .and_then(toml_edit::Item::as_table_like_mut)
+        else {
             return;
         };
         at = next;
@@ -543,7 +560,10 @@ fn prune_overrides(doc: &mut toml_edit::DocumentMut) {
 fn prune_empty(table: &mut dyn toml_edit::TableLike) {
     let keys: Vec<String> = table.iter().map(|(k, _)| k.to_string()).collect();
     for key in keys {
-        let Some(inner) = table.get_mut(&key).and_then(toml_edit::Item::as_table_like_mut) else {
+        let Some(inner) = table
+            .get_mut(&key)
+            .and_then(toml_edit::Item::as_table_like_mut)
+        else {
             continue;
         };
         prune_empty(inner);

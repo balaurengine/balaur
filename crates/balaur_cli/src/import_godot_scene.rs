@@ -452,7 +452,9 @@ impl Walk<'_> {
         else {
             return;
         };
-        let file = format!("{stem}_{}.anim.toml", slug(&path));
+        // `animations/` is where a clip library lives; the scene's own path
+        // goes in the name so two scenes' players never share a file.
+        let file = format!("animations/{}_{}.toml", slug(stem), slug(&path));
         let root = section
             .field("root_node")
             .and_then(node_path)

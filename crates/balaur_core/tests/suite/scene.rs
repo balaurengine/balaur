@@ -442,3 +442,109 @@ fn freeing_every_child_at_once_forgets_all_their_names() {
     let again = scene::spawn_node(&mut engine.world_mut(), "n3", holder);
     assert_eq!(find_node(&engine.world(), holder, "n3"), Some(again));
 }
+
+fn material(world: &hecs::World, e: Entity) -> String {
+    world
+        .get::<&scene::GlobalAppearance>(e)
+        .unwrap()
+        .material
+        .reference()
+        .to_string()
+}
+
+fn set_material(engine: &Engine, e: Entity, reference: &str) {
+    engine
+        .world()
+        .get::<&mut scene::Appearance>(e)
+        .unwrap()
+        .material = scene::MaterialId::intern(reference);
+}
+
+#[test]
+fn a_material_is_inherited_by_everything_under_it() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        assert_eq!(material(&world, entity), "materials/metal.toml");
+    }
+    assert_eq!(
+        material(&world, engine.root()),
+        "",
+        "the root above names none"
+    );
+}
+
+#[test]
+fn the_nearest_material_wins_over_one_further_up() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    set_material(&engine, b, "materials/glass.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert_eq!(material(&world, a), "materials/metal.toml");
+    assert_eq!(material(&world, b), "materials/glass.toml");
+    assert_eq!(material(&world, c), "materials/glass.toml");
+}
+
+#[test]
+fn a_reparented_subtree_takes_its_new_parents_material() {
+    let (engine, a, b, c) = tree();
+    let other = scene::spawn_node(&mut engine.world_mut(), "Other", engine.root());
+    set_material(&engine, a, "materials/metal.toml");
+    set_material(&engine, other, "materials/glass.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    assert_eq!(material(&engine.world(), c), "materials/metal.toml");
+
+    scene::reparent(&mut engine.world_mut(), b, other).unwrap();
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert_eq!(material(&world, b), "materials/glass.toml");
+    assert_eq!(material(&world, c), "materials/glass.toml");
+}
+
+#[test]
+fn clearing_a_material_returns_the_subtree_to_none() {
+    let (engine, a, _, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    set_material(&engine, a, "");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert!(
+        world
+            .get::<&scene::GlobalAppearance>(c)
+            .unwrap()
+            .material
+            .is_none()
+    );
+}
+
+#[test]
+fn composed_appearance_finds_the_same_material_propagation_does() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, b, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        let propagated = world
+            .get::<&scene::GlobalAppearance>(entity)
+            .unwrap()
+            .material;
+        assert_eq!(
+            propagated,
+            scene::composed_appearance(&world, entity).material
+        );
+    }
+}
+
+#[test]
+fn a_material_reference_interns_to_one_id_and_back() {
+    let first = scene::MaterialId::intern("materials/interned.toml");
+    assert_eq!(first, scene::MaterialId::intern("materials/interned.toml"));
+    assert_ne!(first, scene::MaterialId::intern("materials/other.toml"));
+    assert_eq!(&*first.reference(), "materials/interned.toml");
+    assert!(scene::MaterialId::intern("").is_none());
+    assert_eq!(&*scene::MaterialId::NONE.reference(), "");
+}

@@ -323,10 +323,38 @@ fn a_table_folds_each_override_on_key_by_key() {
          [override.mobile.input.actions]\njump = [\"touch:jump\"]\n",
     )
     .unwrap();
-    app.engine
-        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
 
     let actions = settings::table(&app.engine, "input/actions");
     assert_eq!(actions["jump"][0].as_str(), Some("touch:jump"));
     assert_eq!(actions["fire"][0].as_str(), Some("KeyF"));
+}
+
+/// A shipped pack answers to the tags its export stamped into it, from the
+/// first setting read: a demo build reads `[override.demo]` and nothing
+/// else does.
+#[test]
+fn a_pack_answers_to_the_tags_its_export_wrote() {
+    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
+                    [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nfullscreen = true\n";
+    let mut pack = balaur_core::Pack::default();
+    pack.manifest = manifest.to_string();
+    pack.scenes.insert("main.toml".to_string(), String::new());
+    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+
+    assert!(app.engine.resource::<balaur_core::tags::Tags>().borrow().has("demo"));
+    assert_eq!(
+        settings::get(&app.engine, "window/fullscreen"),
+        Some(toml::Value::Boolean(true))
+    );
+    let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
+    assert_eq!(
+        files.borrow().source(),
+        balaur_core::project::AssetSource::Embedded,
+        "application/assets is read through the registry before the files exist"
+    );
 }

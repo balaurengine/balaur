@@ -38,9 +38,6 @@ pub struct ProjectManifest {
     /// Which scripting language this project is written in. The assembling
     /// crate maps the name to a backend; core does not know the set.
     pub language: String,
-    /// Where a shipped game may read assets from. Only bites once packed;
-    /// a dev run always reads the source tree.
-    pub assets: AssetSource,
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
@@ -276,8 +273,6 @@ struct Application {
     #[serde(default = "default_language")]
     language: String,
     #[serde(default)]
-    assets: AssetSource,
-    #[serde(default)]
     splash: String,
     #[serde(default = "default_splash_seconds")]
     splash_seconds: f32,
@@ -293,7 +288,6 @@ impl From<RawManifest> for ProjectManifest {
             name: raw.application.name,
             main_scene: raw.application.main_scene,
             language: raw.application.language,
-            assets: raw.application.assets,
             plugins: raw.plugins,
             splash: raw.application.splash,
             splash_seconds: raw.application.splash_seconds.max(0.0),

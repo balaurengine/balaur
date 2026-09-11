@@ -379,3 +379,104 @@ fn the_2d_contract_covers_the_builtins_a_canvas_shader_uses() {
         compiled.wgsl
     );
 }
+
+fn child_of(app: &App, parent: balaur_core::hecs::Entity) -> balaur_core::hecs::Entity {
+    scene::spawn_node(&mut app.engine.world_mut(), "Child", parent)
+}
+
+fn inherited(app: &App, entity: balaur_core::hecs::Entity) -> String {
+    scene::propagate_transforms(&mut app.engine.world_mut(), app.engine.root());
+    let world = app.engine.world();
+    let global = world.get::<&scene::GlobalAppearance>(entity).unwrap();
+    global.material.reference().to_string()
+}
+
+#[test]
+fn the_material_component_goes_on_a_node_that_draws_nothing() {
+    let dir = project();
+    let app = app(dir.path());
+    let parent = node(&app);
+    let child = child_of(&app, parent);
+    let table = toml::from_str("source = \"materials/wave.toml\"").unwrap();
+    components::add(&app.engine, parent, "material", Some(&table)).unwrap();
+
+    assert_eq!(inherited(&app, child), "materials/wave.toml");
+    let got = components::get(&app.engine, parent, "material").unwrap();
+    assert_eq!(got["source"].as_str(), Some("materials/wave.toml"));
+}
+
+/// The `color` and `tint` split, for materials: a renderable's own names
+/// what it draws, and only the component reaches the nodes under it.
+#[test]
+fn a_sprites_own_material_is_its_alone() {
+    let dir = project();
+    let app = app(dir.path());
+    let parent = node(&app);
+    let child = child_of(&app, parent);
+    let table =
+        toml::from_str("texture = \"art/sprite.png\"\nmaterial = \"materials/wave.toml\"").unwrap();
+    components::add(&app.engine, parent, "sprite", Some(&table)).unwrap();
+
+    assert_eq!(inherited(&app, child), "");
+    assert!(components::get(&app.engine, parent, "material").is_none());
+}
+
+#[test]
+fn removing_the_material_component_clears_what_it_named() {
+    let dir = project();
+    let app = app(dir.path());
+    let parent = node(&app);
+    let child = child_of(&app, parent);
+    let table = toml::from_str("source = \"materials/wave.toml\"").unwrap();
+    components::add(&app.engine, parent, "material", Some(&table)).unwrap();
+    components::remove(&app.engine, parent, "material").unwrap();
+
+    assert_eq!(inherited(&app, child), "");
+    assert!(components::get(&app.engine, parent, "material").is_none());
+}
+
+/// Added from the picker with nothing chosen yet, the component stays on
+/// the node rather than vanishing because it names no material.
+#[test]
+fn an_empty_material_component_stays_on_the_node() {
+    let dir = project();
+    let app = app(dir.path());
+    let entity = node(&app);
+    components::add(&app.engine, entity, "material", None).unwrap();
+    let got = components::get(&app.engine, entity, "material").unwrap();
+    assert_eq!(got["source"].as_str(), Some(""));
+}
+
+/// `node.set_material` writes the same field, so the inspector shows it.
+#[test]
+fn a_material_a_script_set_reads_back_as_the_component() {
+    let dir = project();
+    let app = app(dir.path());
+    let entity = node(&app);
+    app.engine
+        .world()
+        .get::<&mut scene::Appearance>(entity)
+        .unwrap()
+        .material = scene::MaterialId::intern("materials/lit.toml");
+    let got = components::get(&app.engine, entity, "material").unwrap();
+    assert_eq!(got["source"].as_str(), Some("materials/lit.toml"));
+}
+
+#[test]
+fn the_contract_a_shader_imports_says_which_nodes_it_draws() {
+    use balaur_render::material::{Contract, contract};
+    assert_eq!(contract(SHADER, &[]), Some(Contract::Sprite));
+    assert_eq!(contract(SHADER_3D, &[]), Some(Contract::Mesh));
+    let pbr = "import package::common::unpack_mat3;\nimport package::pbr::{shade_pbr};";
+    assert_eq!(contract(pbr, &[]), Some(Contract::Mesh));
+    assert_eq!(contract("import package::post::{frame};", &[]), Some(Contract::Post));
+    assert_eq!(contract("fn main() {}", &[]), None);
+    // A plugin's module decides by what it imports in turn.
+    let water = ("package::water".to_string(), "import package::sprite::{vertex};".to_string());
+    assert_eq!(
+        contract("import package::water::{ripple};", &[water]),
+        Some(Contract::Sprite)
+    );
+    let looped = ("package::me".to_string(), "import package::me::{x};".to_string());
+    assert_eq!(contract("import package::me::{x};", &[looped]), None);
+}

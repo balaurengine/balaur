@@ -28,6 +28,7 @@ pub fn declare(eng: &Engine) {
             r#"
 output = { type = "string", default = "", order = 1, help = "A project-relative directory; each target gets a subdirectory of it. Empty exports where the command stands." }
 strip = { type = "bool", default = false, order = 2, help = "Drop an asset no scene, script or keep-glob names. Off by default: a script may compute a path this cannot see, and losing an asset is worse than shipping one." }
+tags = { type = "strings", default = [], order = 11, help = "Names this build answers to besides its platform's, such as demo or store. An override or an asset variant may be written for any of them; per target, set it under that target's override." }
 keep = { type = "strings", default = [], order = 3, help = "Globs an export keeps whatever else it decides, for the paths a script builds at run time." }
 images = { type = "enum", default = "keep", options = ["keep", "png", "webp", "smallest", "quantised"], order = 4, help = "How an image is re-encoded on the way into the pack. Every mode keeps the size; quantised is the one that does not keep the pixels." }
 images_quality = { type = "int", default = 70, min = 0, max = 100, order = 5, help = "imagequant's quality target, which images = \"quantised\" reads and every other mode ignores." }

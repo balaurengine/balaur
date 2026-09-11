@@ -359,6 +359,7 @@ fn contract_within(source: &str, modules: &[(String, String)], depth: u32) -> Op
 /// Whether a material written against `found` draws on a node of `wanted`,
 /// warning when not. An inherited material reaches nodes nobody named it on,
 /// so a mismatch keeps the built-in material rather than failing a pipeline.
+#[cfg(feature = "kiss3d")]
 pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -> bool {
     match found {
         Some(found) if found != wanted => {

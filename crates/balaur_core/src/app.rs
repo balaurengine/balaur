@@ -164,6 +164,18 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
     eng.insert_resource(crate::assets::AssetState::default());
     eng.insert_resource(ProjectRoot(config.project_root.clone()));
+    eng.insert_resource(crate::settings::SettingsRegistry::default());
+    eng.insert_resource(crate::settings::SettingsValues::default());
+    // Before any setting is read, since the tags in force decide which
+    // `[override.<tag>]` a read answers from.
+    eng.insert_resource(crate::tags::Tags::current());
+    // A pack's manifest is here already, and `application/assets` decides
+    // how its files are served, so it is read before the files exist.
+    if let Some(pack) = config.pack.as_ref()
+        && crate::settings::load(eng, &pack.manifest).is_ok()
+    {
+        crate::settings::answer_to_built_tags(eng);
+    }
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
     eng.insert_resource(
@@ -171,8 +183,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
             Some(pack) => crate::project::ProjectFiles::packed(
                 config.project_root.clone(),
                 pack.assets.clone(),
-                crate::project::ProjectManifest::parse(&pack.manifest)
-                    .map(|m| m.assets)
+                crate::settings::stated(eng, "application/assets")
+                    .and_then(|v| v.try_into().ok())
                     .unwrap_or_default(),
             )
             .with_index(pack.scenes.get(crate::assets::INDEX_PATH).cloned()),
@@ -183,11 +195,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
     eng.insert_resource(crate::ids::IdAllocator::default());
-    eng.insert_resource(crate::settings::SettingsRegistry::default());
-    eng.insert_resource(crate::settings::SettingsValues::default());
-    // Before any setting is read, since the tags in force decide which
-    // `[override.<tag>]` a read answers from.
-    eng.insert_resource(crate::tags::Tags::current());
     eng.insert_resource(crate::netsession::PeerTraffic::default());
     eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
@@ -665,6 +672,7 @@ impl App {
         // Every table in the file, as values the settings registry answers
         // from: one reader for what a project declares, whoever declared it.
         crate::settings::load(&self.engine, &manifest_src)?;
+        crate::settings::answer_to_built_tags(&self.engine);
         let unknown = crate::settings::unknown(&self.engine, &manifest_src);
         if !unknown.is_empty() {
             bail!(
