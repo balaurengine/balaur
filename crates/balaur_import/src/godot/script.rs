@@ -10,7 +10,7 @@
 
 use std::fmt::Write as _;
 
-use crate::import_godot_exports::{Classes, split_top};
+use crate::godot::exports::{Classes, split_top};
 
 /// A skeleton, and what the port will have to deal with.
 pub(crate) struct Converted {
@@ -97,7 +97,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             push_comment(&mut out, line, "");
         }
     }
-    let exports = crate::import_godot_exports::exports(source, classes);
+    let exports = crate::godot::exports::exports(source, classes);
     let entries: Vec<String> = exports
         .iter()
         .filter_map(|e| Some(format!("\"{}\": {}", e.name, e.entry()?)))
@@ -232,7 +232,7 @@ fn push_comment(out: &mut String, line: &str, indent: &str) {
 #[cfg(test)]
 mod tests {
     use super::convert;
-    use crate::import_godot_exports::Classes;
+    use crate::godot::exports::Classes;
 
     const SHIP: &str = "extends Node\n\
 class_name Ship\n\

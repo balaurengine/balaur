@@ -8,6 +8,24 @@
 //! Binary `.scn` and `.res` are not read. A Godot project can always be
 //! resaved as text, and a second decoder would be a second grammar.
 
+pub(crate) mod anim;
+pub(crate) mod controls;
+pub(crate) mod exports;
+pub(crate) mod files;
+pub(crate) mod machine;
+pub(crate) mod material;
+pub(crate) mod nodes;
+pub(crate) mod project;
+pub(crate) mod scene;
+pub(crate) mod script;
+pub(crate) mod shader;
+pub(crate) mod shader_names;
+pub(crate) mod shader_syntax;
+pub(crate) mod strings;
+pub(crate) mod textures;
+pub(crate) mod theme;
+pub(crate) mod tiles;
+
 use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};

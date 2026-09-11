@@ -1,5 +1,9 @@
-//! `balaur import`: a model or a sprite brought into a project as the files
-//! the editor edits.
+//! `balaur import`: a model, a sprite, a level or a Godot project brought
+//! into a project as the files the editor edits.
+
+mod godot;
+mod ldtk;
+mod tiled_map;
 
 use std::path::Path;
 
@@ -8,14 +12,14 @@ use anyhow::{Context, Result};
 /// What an import wrote: the project-relative paths, and the scene the editor
 /// would instantiate for a model.
 #[derive(Debug, Default)]
-pub(crate) struct Imported {
+pub struct Imported {
     pub files: Vec<String>,
     pub scene: Option<String>,
     pub note: String,
 }
 
 /// `balaur import <file>`, printing each path it wrote.
-pub(crate) fn import_and_report(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+pub fn import_and_report(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
     let imported = import_file(file, project, layers)?;
     for rel in &imported.files {
         println!("wrote {}", project.join(rel).display());
@@ -27,7 +31,7 @@ pub(crate) fn import_and_report(file: &Path, project: &Path, layers: &[String]) 
 }
 
 /// `balaur import <file>`: by extension, a model or a sprite.
-pub(crate) fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<Imported> {
+pub fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<Imported> {
     let extension = file
         .extension()
         .and_then(|e| e.to_str())
@@ -52,9 +56,9 @@ fn import_level(file: &Path, project: &Path) -> Result<Imported> {
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("ldtk"));
     let imported = if ldtk {
-        crate::import_ldtk::import(file, &stem)
+        crate::ldtk::import(file, &stem)
     } else {
-        crate::import_tiled::import(file, &stem)
+        crate::tiled_map::import(file, &stem)
     }
     .with_context(|| format!("importing {}", file.display()))?;
     let mut out = Imported::default();
@@ -88,8 +92,8 @@ fn import_from_godot(file: &Path, project: &Path) -> Result<Imported> {
         .unwrap_or_default()
         .to_ascii_lowercase();
     match extension.as_str() {
-        "godot" => crate::import_godot_files::import_project(file, project),
-        "tscn" => crate::import_godot_files::import_scene(file, project),
+        "godot" => crate::godot::files::import_project(file, project),
+        "tscn" => crate::godot::files::import_scene(file, project),
         _ => anyhow::bail!(
             "a .{extension} on its own is not read yet; `balaur import project.godot` converts the \
              resources its scenes use"

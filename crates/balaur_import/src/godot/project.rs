@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 
 use anyhow::{Context, Result};
 
-use crate::import_godot::{Document, Value};
+use crate::godot::{Document, Value};
 
 /// A converted project, and what would not convert.
 pub(crate) struct Converted {
@@ -64,7 +64,7 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
             writeln!(
                 out,
                 "theme = {}",
-                quote(&crate::import_godot_theme::theme_path(&format!(
+                quote(&crate::godot::theme::theme_path(&format!(
                     "{godot}.tres"
                 )))
             )?;
@@ -98,11 +98,11 @@ pub(crate) fn custom_font(
         .field("theme/custom_font")?
         .as_str()?;
     let path = resolve(reference, uids, &mut Vec::new());
-    if !crate::import_godot_files::has_extension(&path, "tres") {
+    if !crate::godot::files::has_extension(&path, "tres") {
         return Some(path).filter(|p| !p.is_empty());
     }
     let text = std::fs::read_to_string(root.join(&path)).ok()?;
-    let variation = crate::import_godot::parse(&text).ok()?;
+    let variation = crate::godot::parse(&text).ok()?;
     let id = variation
         .first("resource")?
         .field("base_font")?
@@ -467,18 +467,18 @@ fn uid_of(path: &std::path::Path) -> Option<String> {
     // An `.import` states its file's uid as a field of `[remap]`, where a
     // scene and a resource state their own as an attribute of the header.
     if extension == "import" {
-        let document = crate::import_godot::parse(&text).ok()?;
+        let document = crate::godot::parse(&text).ok()?;
         let uid = document.first("remap")?.field("uid")?;
         return uid.as_str().map(std::string::ToString::to_string);
     }
-    let header = crate::import_godot::parse(text.lines().next()?).ok()?;
+    let header = crate::godot::parse(text.lines().next()?).ok()?;
     Some(header.sections.first()?.attr_str("uid")?.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::{convert, key_name, pad_button};
-    use crate::import_godot::parse;
+    use crate::godot::parse;
     use std::collections::BTreeMap;
 
     const PROJECT: &str = r#"config_version=5

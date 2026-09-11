@@ -1,6 +1,6 @@
 //! `balaur import` over a Godot project, or one scene of it, as files.
 //!
-//! The converters in the `import_godot_*` modules turn text into text; this
+//! The converters in the `godot::*` modules turn text into text; this
 //! finds the files, writes what they return, copies the art and audio the
 //! scenes name, and gathers everything that did not carry into one
 //! `import-report.md`.
@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-use crate::import::Imported;
-use crate::import_godot_nodes::Project;
+use crate::Imported;
+use crate::godot::nodes::Project;
 
 /// File kinds copied across as they are: the engine reads each directly.
 const COPIED: &[&str] = &[
@@ -25,16 +25,16 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     let text =
         std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
     let document =
-        crate::import_godot::parse(&text).with_context(|| format!("reading {}", file.display()))?;
-    let uids = crate::import_godot_project::uid_index(root)?;
-    let converted = crate::import_godot_project::convert(&document, &uids)?;
+        crate::godot::parse(&text).with_context(|| format!("reading {}", file.display()))?;
+    let uids = crate::godot::project::uid_index(root)?;
+    let converted = crate::godot::project::convert(&document, &uids)?;
 
     let mut out = Imported::default();
     let mut report = Report::default();
     write(project, "project.toml", &converted.project_toml, &mut out)?;
     report.section("project.godot", converted.notes);
     // A project's own faces come first in every font chain, from `fonts/`.
-    if let Some(font) = crate::import_godot_project::custom_font(&document, &uids, root)
+    if let Some(font) = crate::godot::project::custom_font(&document, &uids, root)
         && let Some(name) = Path::new(&font).file_name()
     {
         let target = Path::new("fonts").join(name);
@@ -71,7 +71,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
             let source = std::fs::read_to_string(root.join(&relative))
                 .with_context(|| format!("reading {relative}"))?;
             let converted =
-                crate::import_godot_script::convert(&source, &relative, &lookups.classes);
+                crate::godot::script::convert(&source, &relative, &lookups.classes);
             let target = format!("{}.rn", relative.trim_end_matches(".gd"));
             write(project, &target, &converted.rune, &mut out)?;
             scripts += 1;
@@ -118,12 +118,12 @@ pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
         .replace('\\', "/");
     let mut out = Imported::default();
     let mut report = Report::default();
-    let uids = crate::import_godot_project::uid_index(&root)?;
+    let uids = crate::godot::project::uid_index(&root)?;
     let lookups = lookups(&root, &walk(&root)?, uids, project, &mut out, &mut report)?;
     let notes = scene(&root, &relative, project, &lookups, &mut out)?;
     report.section(&relative, notes);
     let lines = report.write(project, &mut out)?;
-    out.scene = Some(crate::import_godot_scene::scene_path(&relative));
+    out.scene = Some(crate::godot::scene::scene_path(&relative));
     out.note = if lines == 0 {
         "everything in the scene carried across".to_string()
     } else {
@@ -144,9 +144,9 @@ fn scene(
     out: &mut Imported,
 ) -> Result<Vec<String>> {
     let text = std::fs::read_to_string(root.join(relative))?;
-    let document = crate::import_godot::parse(&text)?;
-    let converted = crate::import_godot_scene::convert(&document, relative, root, lookups)?;
-    let path = crate::import_godot_scene::scene_path(relative);
+    let document = crate::godot::parse(&text)?;
+    let converted = crate::godot::scene::convert(&document, relative, root, lookups)?;
+    let path = crate::godot::scene::scene_path(relative);
     write(project, &path, &converted.scene_toml, out)?;
     for (file, text) in &converted.files {
         write(project, file, text, out)?;
@@ -167,14 +167,14 @@ fn theme(
     if !text.starts_with("[gd_resource type=\"Theme\"") {
         return Ok(None);
     }
-    let document = crate::import_godot::parse(&text)?;
-    let res = crate::import_godot_nodes::resources_of(&document, root, lookups);
-    let Some(converted) = crate::import_godot_theme::convert(&document, &res) else {
+    let document = crate::godot::parse(&text)?;
+    let res = crate::godot::nodes::resources_of(&document, root, lookups);
+    let Some(converted) = crate::godot::theme::convert(&document, &res) else {
         return Ok(None);
     };
     write(
         project,
-        &crate::import_godot_theme::theme_path(relative),
+        &crate::godot::theme::theme_path(relative),
         &converted.toml,
         out,
     )?;
@@ -191,14 +191,14 @@ fn lookups(
     out: &mut Imported,
     report: &mut Report,
 ) -> Result<Project> {
-    let strings = crate::import_godot_strings::convert(root, files);
+    let strings = crate::godot::strings::convert(root, files);
     for (path, text) in strings.files()? {
         write(project, &path, &text, out)?;
     }
     report.section("translations", strings.notes);
     let mut rasters = std::collections::BTreeMap::new();
     for svg in files.iter().filter(|f| has_extension(f, "svg")) {
-        let Some((bytes, extension)) = crate::import_godot_textures::raster(root, svg) else {
+        let Some((bytes, extension)) = crate::godot::textures::raster(root, svg) else {
             continue;
         };
         let target = format!("{}.{extension}", svg.trim_end_matches(".svg"));
@@ -215,7 +215,7 @@ fn lookups(
         keys: strings.keys,
         uids,
         rasters,
-        classes: crate::import_godot_exports::class_index(root, files),
+        classes: crate::godot::exports::class_index(root, files),
         shaders,
     })
 }
@@ -229,26 +229,26 @@ fn shaders(
     project: &Path,
     out: &mut Imported,
     report: &mut Report,
-) -> Result<std::collections::BTreeMap<String, std::rc::Rc<crate::import_godot_material::Shader>>> {
+) -> Result<std::collections::BTreeMap<String, std::rc::Rc<crate::godot::material::Shader>>> {
     let mut shaders = std::collections::BTreeMap::new();
     for godot in files.iter().filter(|f| has_extension(f, "gdshader")) {
         let source = std::fs::read_to_string(root.join(godot))
             .with_context(|| format!("reading {godot}"))?;
-        let translated = match crate::import_godot_shader::translate(&source) {
+        let translated = match crate::godot::shader::translate(&source) {
             Ok(translated) => translated,
             Err(why) => {
                 report.section(godot, vec![format!("not translated: {why:#}")]);
                 continue;
             }
         };
-        let path = crate::import_godot_material::shader_path(godot);
+        let path = crate::godot::material::shader_path(godot);
         write(project, &path, &translated.wesl, out)?;
         let mut notes = translated.notes.clone();
-        match crate::import_godot_shader::check(&translated) {
+        match crate::godot::shader::check(&translated) {
             Ok(()) => {
                 shaders.insert(
                     godot.clone(),
-                    std::rc::Rc::new(crate::import_godot_material::Shader { path, translated }),
+                    std::rc::Rc::new(crate::godot::material::Shader { path, translated }),
                 );
             }
             Err(why) => notes.push(format!(

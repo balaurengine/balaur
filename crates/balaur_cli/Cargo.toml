@@ -55,12 +55,7 @@ tracing.workspace = true
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 # The importer behind `balaur import`; the browser has no command line.
-balaur_render = { workspace = true, features = ["aseprite"] }
-# Tiled and LDtk levels, read at import: the engine never sees either format.
-tiled = "0.16"
-# Type-checks a shader the importer translated, which linking does not; the
-# version wgpu already builds, so nothing new compiles.
-naga = { version = "30.0.1", features = ["wgsl-in"] }
+balaur_import.workspace = true
 ureq.workspace = true
 sha2.workspace = true
 dirs = "6"

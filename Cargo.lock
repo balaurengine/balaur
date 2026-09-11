@@ -528,21 +528,19 @@ dependencies = [
  "balaur",
  "balaur_core",
  "balaur_export",
+ "balaur_import",
  "balaur_plugin",
- "balaur_render",
  "balaur_script",
  "clap",
  "console_error_panic_hook",
  "dirs 6.0.0",
  "flate2",
  "js-sys",
- "naga",
  "serde",
  "serde_json",
  "sha2",
  "tar",
  "tempfile",
- "tiled",
  "toml",
  "tracing",
  "tracing-log",
@@ -653,6 +651,22 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "balaur_import"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "balaur",
+ "balaur_core",
+ "balaur_plugin",
+ "balaur_render",
+ "naga",
+ "serde_json",
+ "tempfile",
+ "tiled",
+ "toml",
 ]
 
 [[package]]

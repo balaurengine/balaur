@@ -1,4 +1,4 @@
-//! The parse half of the shader translation in `import_godot_shader`:
+//! The parse half of the shader translation in `godot::shader`:
 //! Godot's shading language as tokens, then as statements and expressions.
 //! Only the shapes a `canvas_item` shader writes are read; the rest fail
 //! with what was found.
@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::import_godot_shader::Uniform;
+use crate::godot::shader::Uniform;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Tok {

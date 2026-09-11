@@ -1,6 +1,6 @@
 //! A Godot `ShaderMaterial` as an inline `material` asset.
 //!
-//! The shader is the translation `import_godot_shader` wrote for the
+//! The shader is the translation `godot::shader` wrote for the
 //! `.gdshader` the material names, or one written here for a shader saved
 //! inside the scene. Its uniforms' defaults come first and the material's
 //! `shader_parameter/*` over them, each in the shape its `Params` field takes:
@@ -12,9 +12,9 @@ use std::rc::Rc;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
-use crate::import_godot_nodes::{Asset, Mapped, Resources, image_path};
-use crate::import_godot_shader::{Translated, Uniform, field_name, linear};
+use crate::godot::{Section, Value};
+use crate::godot::nodes::{Asset, Mapped, Resources, image_path};
+use crate::godot::shader::{Translated, Uniform, field_name, linear};
 
 /// A shader translated once for the whole import, and where it was written.
 pub(crate) struct Shader {
@@ -34,7 +34,7 @@ pub(crate) fn attach(value: &Value, res: &Resources<'_>, out: &mut Mapped) {
     let loaded;
     let (section, lookup, kind) = if let Some(section) = res.sub(value) {
         (section, res, section.attr_str("type"))
-    } else if let Some((document, nested)) = crate::import_godot_nodes::load(res, value) {
+    } else if let Some((document, nested)) = crate::godot::nodes::load(res, value) {
         loaded = (document, nested);
         let Some(section) = loaded.0.first("resource") else {
             return;
@@ -117,7 +117,7 @@ fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option
     }
     let inline = res.sub(value)?;
     let code = inline.field("code").and_then(Value::as_str)?;
-    let translated = match crate::import_godot_shader::translate(code) {
+    let translated = match crate::godot::shader::translate(code) {
         Ok(translated) => translated,
         Err(why) => {
             out.note(format!(
@@ -131,7 +131,7 @@ fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option
         out.note(format!("its shader: {note}"));
     }
     out.files.push((path.clone(), translated.wesl.clone()));
-    if let Err(why) = crate::import_godot_shader::check(&translated) {
+    if let Err(why) = crate::godot::shader::check(&translated) {
         out.note(format!(
             "its shader, saved in the scene as {path}, does not compile, so the material was dropped: {why:#}"
         ));

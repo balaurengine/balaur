@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
-use crate::import_godot_nodes::{Family, PIXELS_PER_UNIT, Resources, colour, family, floats};
+use crate::godot::{Section, Value};
+use crate::godot::nodes::{Family, PIXELS_PER_UNIT, Resources, colour, family, floats};
 
 /// The clip file a player's libraries made, and what would not carry.
 pub(crate) struct Clips {
@@ -110,7 +110,7 @@ pub(crate) fn convert(
 /// animations it declares as sub-resources.
 fn load_library<'a>(res: &Resources<'a>, path: &str) -> Option<(Section, Resources<'a>)> {
     let text = std::fs::read_to_string(res.root.join(path)).ok()?;
-    let document = crate::import_godot::parse(&text).ok()?;
+    let document = crate::godot::parse(&text).ok()?;
     let resource = document.first("resource")?.clone();
     let internal = document
         .sections

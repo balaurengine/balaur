@@ -281,50 +281,6 @@ enum Command {
     },
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-mod import;
-// Both read a level file through `tiled`, which is a non-wasm dependency:
-// `balaur import` is a command line the browser has not got.
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_anim;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_controls;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_exports;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_files;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_machine;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_material;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_nodes;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_project;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_scene;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_script;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_shader;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_shader_names;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_shader_syntax;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_strings;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_textures;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_theme;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_godot_tiles;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_ldtk;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_tiled;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
@@ -400,7 +356,7 @@ fn dispatch(command: Command) -> Result<()> {
             file,
             project,
             layers,
-        } => import::import_and_report(&file, &project, &layers),
+        } => balaur_import::import_and_report(&file, &project, &layers),
         Command::New { path, template } => new_project::create(&path, template.as_deref()),
         Command::Run {
             path,

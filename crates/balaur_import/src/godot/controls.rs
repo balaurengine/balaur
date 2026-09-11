@@ -1,12 +1,12 @@
 //! A Godot `Control` as a balaur widget: which kind it becomes, and how its
 //! caption, spacing, place and per-kind properties land on the `widget`
-//! component. Split from `import_godot_nodes`, which maps every other class.
+//! component. Split from `godot::nodes`, which maps every other class.
 
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
-use crate::import_godot_nodes::{
+use crate::godot::{Section, Value};
+use crate::godot::nodes::{
     Family, Mapped, Resources, colour, family, floats, hex, image_path, pair,
 };
 
@@ -147,7 +147,7 @@ pub(crate) fn widget(
             Some(path) => out.set(
                 "widget",
                 "theme",
-                Toml::String(crate::import_godot_theme::theme_path(path)),
+                Toml::String(crate::godot::theme::theme_path(path)),
             ),
             None => out.note("a Theme made inside the scene: save it as a .tres to convert it"),
         }
@@ -213,7 +213,7 @@ fn style_override(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         .iter()
         .find_map(|name| section.field(&format!("theme_override_styles/{name}")));
     if let Some(value) = own {
-        for (key, value) in crate::import_godot_theme::stylebox(value, res) {
+        for (key, value) in crate::godot::theme::stylebox(value, res) {
             match key.as_str() {
                 "fill" | "stroke" | "radius" | "padding_x" => out.set("widget", &key, value),
                 "padding" => {

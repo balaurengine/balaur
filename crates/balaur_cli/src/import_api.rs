@@ -92,7 +92,7 @@ fn handles(file: &Path) -> bool {
 
 #[cfg(not(target_family = "wasm"))]
 fn import(file: &Path, project: &Path) -> Value {
-    match crate::import::import_file(file, project, &[]) {
+    match balaur_import::import_file(file, project, &[]) {
         Ok(imported) => {
             let files = imported.files.into_iter().map(Value::Str).collect();
             Value::Map(vec![

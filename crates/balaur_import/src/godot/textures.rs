@@ -13,7 +13,7 @@ use std::path::Path;
 /// GPU and holds neither.
 pub(crate) fn raster(root: &Path, relative: &str) -> Option<(Vec<u8>, &'static str)> {
     let import = std::fs::read_to_string(root.join(format!("{relative}.import"))).ok()?;
-    let document = crate::import_godot::parse(&import).ok()?;
+    let document = crate::godot::parse(&import).ok()?;
     let imported = document.first("remap")?.field("path")?.as_str()?;
     let file = imported.strip_prefix("res://").unwrap_or(imported);
     let bytes = std::fs::read(root.join(file)).ok()?;

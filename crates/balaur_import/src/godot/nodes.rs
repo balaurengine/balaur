@@ -15,7 +15,7 @@ use std::path::Path;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
+use crate::godot::{Section, Value};
 
 /// Texture pixels per world unit: the default of every 2D component here.
 pub(crate) const PIXELS_PER_UNIT: f64 = 100.0;
@@ -44,9 +44,9 @@ pub(crate) struct Project {
     /// An SVG's path to the raster Godot imported it as, written beside it.
     pub rasters: BTreeMap<String, String>,
     /// The project's own `class_name`s, to the class each extends.
-    pub classes: crate::import_godot_exports::Classes,
+    pub classes: crate::godot::exports::Classes,
     /// Every `.gdshader` that translated and compiles, by its Godot path.
-    pub shaders: BTreeMap<String, std::rc::Rc<crate::import_godot_material::Shader>>,
+    pub shaders: BTreeMap<String, std::rc::Rc<crate::godot::material::Shader>>,
 }
 
 impl Resources<'_> {
@@ -78,7 +78,7 @@ impl Resources<'_> {
 
 /// A `.tres` or `.tscn`'s declared resources, resolved the way a scene's are.
 pub(crate) fn resources_of<'a>(
-    document: &crate::import_godot::Document,
+    document: &crate::godot::Document,
     root: &'a Path,
     project: &'a Project,
 ) -> Resources<'a> {
@@ -120,10 +120,10 @@ pub(crate) fn resources_of<'a>(
 pub(crate) fn load<'a>(
     res: &Resources<'a>,
     value: &Value,
-) -> Option<(crate::import_godot::Document, Resources<'a>)> {
+) -> Option<(crate::godot::Document, Resources<'a>)> {
     let path = res.path(value)?;
     let text = std::fs::read_to_string(res.root.join(path)).ok()?;
-    let document = crate::import_godot::parse(&text).ok()?;
+    let document = crate::godot::parse(&text).ok()?;
     let nested = resources_of(&document, res.root, res.project);
     Some((document, nested))
 }
@@ -187,7 +187,7 @@ pub(crate) enum Family {
 }
 
 pub(crate) fn family(class: &str) -> Family {
-    if crate::import_godot_controls::is_widget(class) || class == "Control" {
+    if crate::godot::controls::is_widget(class) || class == "Control" {
         return Family::Control;
     }
     if PLAIN.contains(&class) {
@@ -223,7 +223,7 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
     match family(class) {
         Family::Node2d => transform(section, &mut out),
         Family::Control => {
-            crate::import_godot_controls::widget(class, section, parent, res, &mut out);
+            crate::godot::controls::widget(class, section, parent, res, &mut out);
         }
         Family::Plain => {}
     }
@@ -268,7 +268,7 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
                 out.touch("animation");
             }
         }
-        "TileMapLayer" => crate::import_godot_tiles::layer(section, res, &mut out),
+        "TileMapLayer" => crate::godot::tiles::layer(section, res, &mut out),
         "TileMap" => {
             out.note(
                 "TileMap: Godot 4.3 split it into TileMapLayers; resave the scene there first",
@@ -293,7 +293,7 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
                 "a material on a Control: widgets draw through the UI layer, which runs no shader",
             );
         } else {
-            crate::import_godot_material::attach(material, res, &mut out);
+            crate::godot::material::attach(material, res, &mut out);
         }
     }
     out

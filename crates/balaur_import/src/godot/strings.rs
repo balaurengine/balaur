@@ -44,7 +44,7 @@ pub(crate) fn convert(root: &Path, files: &[String]) -> Strings {
     let mut strings = Strings::default();
     for relative in files
         .iter()
-        .filter(|f| crate::import_godot_files::has_extension(f, "csv"))
+        .filter(|f| crate::godot::files::has_extension(f, "csv"))
     {
         let Some(settings) = translation_settings(&root.join(format!("{relative}.import"))) else {
             continue;
@@ -69,7 +69,7 @@ struct Settings {
 /// The import settings, when the file is a translation table at all.
 fn translation_settings(import: &Path) -> Option<Settings> {
     let text = std::fs::read_to_string(import).ok()?;
-    let document = crate::import_godot::parse(&text).ok()?;
+    let document = crate::godot::parse(&text).ok()?;
     let remap = document.first("remap")?;
     if remap.field("importer")?.as_str()? != "csv_translation" {
         return None;
@@ -77,12 +77,12 @@ fn translation_settings(import: &Path) -> Option<Settings> {
     let params = document.first("params");
     let param = |key: &str| params.and_then(|p| p.field(key));
     // Godot's delimiter is an enum: comma, semicolon, tab.
-    let delimiter = match param("delimiter").and_then(crate::import_godot::Value::as_i64) {
+    let delimiter = match param("delimiter").and_then(crate::godot::Value::as_i64) {
         Some(1) => ';',
         Some(2) => '\t',
         _ => ',',
     };
-    let unescape = param("unescape_translations") != Some(&crate::import_godot::Value::Bool(false));
+    let unescape = param("unescape_translations") != Some(&crate::godot::Value::Bool(false));
     Some(Settings {
         delimiter,
         unescape,

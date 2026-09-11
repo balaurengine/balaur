@@ -12,7 +12,7 @@ use std::path::Path;
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 
-use crate::import_tiled::Imported;
+use crate::tiled_map::Imported;
 
 /// Read a `.ldtk` and lay out the files a project would keep.
 pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {

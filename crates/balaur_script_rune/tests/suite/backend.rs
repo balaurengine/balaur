@@ -818,3 +818,30 @@ fn a_handler_taking_fewer_arguments_gets_the_ones_it_declares() {
         .unwrap();
     assert_eq!(rune.number_field(node, "closed"), Some(1.0));
 }
+
+/// `await door.opened` in GDScript: a task parks on the next delivery of an
+/// event and resumes with its payload.
+#[test]
+fn a_task_waits_on_the_next_event_and_gets_its_payload() {
+    let dir = project(&[(
+        "waiter.rn",
+        r#"pub async fn init(this) {
+               this.got = 0.0;
+               let payload = task::wait(events::next("opened", ())).await;
+               this.got = payload;
+           }"#,
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "waiter.rn").unwrap();
+    app.tick(1.0 / 60.0);
+    balaur_core::events::emit(&app.engine, "opened", balaur_script::Value::Num(7.0));
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "got"), Some(7.0));
+}

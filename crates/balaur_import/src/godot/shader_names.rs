@@ -3,7 +3,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::import_godot_shader_syntax::TYPES;
+use crate::godot::shader_syntax::TYPES;
 
 /// WGSL's keywords and reserved words a Godot name may collide with, and
 /// the names this translation declares itself.

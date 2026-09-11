@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
-use crate::import_godot_nodes::{Asset, Mapped, Resources, load, points_of};
+use crate::godot::{Section, Value};
+use crate::godot::nodes::{Asset, Mapped, Resources, load, points_of};
 
 /// Godot's alternative-tile bits for a flipped or transposed cell.
 const FLIP_H: u16 = 1 << 12;

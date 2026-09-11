@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Section, Value};
-use crate::import_godot_nodes::Resources;
+use crate::godot::{Section, Value};
+use crate::godot::nodes::Resources;
 
 /// Godot's own entry and exit states.
 const START: &str = "Start";

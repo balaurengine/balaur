@@ -1,0 +1,28 @@
+[package]
+name = "balaur_import"
+description = "Balaur importers: models, Aseprite sprites, Tiled and LDtk levels, and Godot projects"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur = { workspace = true, default-features = false }
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+# `balaur import file.aseprite` reads the editor's own format.
+balaur_render = { workspace = true, features = ["aseprite"] }
+anyhow.workspace = true
+serde_json.workspace = true
+# Tiled and LDtk levels, read at import: the engine never sees either format.
+tiled = "0.16"
+# Type-checks a shader the importer translated, which linking does not; the
+# version wgpu already builds, so nothing new compiles.
+naga = { version = "30.0.1", features = ["wgsl-in"] }
+
+[dev-dependencies]
+tempfile = "3"
+toml.workspace = true
+
+[lints]
+workspace = true

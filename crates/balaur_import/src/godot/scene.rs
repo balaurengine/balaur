@@ -14,9 +14,9 @@ use anyhow::Result;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Document, Section, Value};
-use crate::import_godot_anim::{join, node_path};
-use crate::import_godot_nodes::{Family, Mapped, Resources, family, map};
+use crate::godot::{Document, Section, Value};
+use crate::godot::anim::{join, node_path};
+use crate::godot::nodes::{Family, Mapped, Resources, family, map};
 
 /// A converted scene, the files written beside it, and what did not carry.
 pub(crate) struct Converted {
@@ -101,10 +101,10 @@ pub(crate) fn convert(
     document: &Document,
     path: &str,
     root: &Path,
-    project: &crate::import_godot_nodes::Project,
+    project: &crate::godot::nodes::Project,
 ) -> Result<Converted> {
     let mut walk = Walk {
-        res: crate::import_godot_nodes::resources_of(document, root, project),
+        res: crate::godot::nodes::resources_of(document, root, project),
         nodes: Vec::new(),
         assets: Vec::new(),
         asset_ids: BTreeMap::new(),
@@ -429,7 +429,7 @@ impl Walk<'_> {
     /// The values `section` gives the exports of the Godot script `godot`.
     fn script_props(&mut self, section: &Section, path: &str, godot: &str) -> toml::Table {
         let source = std::fs::read_to_string(self.res.root.join(godot)).unwrap_or_default();
-        let exports = crate::import_godot_exports::exports(&source, &self.res.project.classes);
+        let exports = crate::godot::exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
         let res = &self.res;
         let path_of = |v: &Value| res.path(v).map(scene_path);
@@ -444,7 +444,7 @@ impl Walk<'_> {
                 ));
                 continue;
             };
-            match crate::import_godot_exports::scene_value(kind, value, &path_of) {
+            match crate::godot::exports::scene_value(kind, value, &path_of) {
                 Some(value) => {
                     props.insert(key.clone(), value);
                 }
@@ -480,11 +480,11 @@ impl Walk<'_> {
         // A dialog's answer is a click on the button it was given here.
         let (from, signal) = match (class.as_str(), signal) {
             ("AcceptDialog" | "ConfirmationDialog", "confirmed") => (
-                format!("{from}/{}", crate::import_godot_controls::DIALOG_OK),
+                format!("{from}/{}", crate::godot::controls::DIALOG_OK),
                 "pressed",
             ),
             ("ConfirmationDialog", "canceled") => (
-                format!("{from}/{}", crate::import_godot_controls::DIALOG_CANCEL),
+                format!("{from}/{}", crate::godot::controls::DIALOG_CANCEL),
                 "pressed",
             ),
             _ => (from, signal),
@@ -597,7 +597,7 @@ impl Walk<'_> {
             Some(p) => format!("{p}/{name}"),
         };
         let Some(clips) =
-            crate::import_godot_anim::convert(section, &path, &self.classes, &self.res)
+            crate::godot::anim::convert(section, &path, &self.classes, &self.res)
         else {
             return;
         };
@@ -651,7 +651,7 @@ impl Walk<'_> {
             Some(".") => name.to_string(),
             Some(p) => format!("{p}/{name}"),
         };
-        let Some(machine) = crate::import_godot_machine::convert(section, &self.res) else {
+        let Some(machine) = crate::godot::machine::convert(section, &self.res) else {
             if section.field("tree_root").is_some() {
                 self.notes.push(format!(
                     "`{path}` (AnimationTree): its root is not a state machine; blend trees have no equivalent"
@@ -768,8 +768,8 @@ fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
 /// nodes' classes. `None` when the file is missing or will not parse.
 fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
     let text = std::fs::read_to_string(res.root.join(prefab)).ok()?;
-    let document = crate::import_godot::parse(&text).ok()?;
-    let own = crate::import_godot_nodes::resources_of(&document, res.root, res.project);
+    let document = crate::godot::parse(&text).ok()?;
+    let own = crate::godot::nodes::resources_of(&document, res.root, res.project);
     let mut classes = BTreeMap::new();
     let mut instances = BTreeMap::new();
     let mut scripts = BTreeMap::new();

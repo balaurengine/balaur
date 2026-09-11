@@ -12,7 +12,7 @@ use std::path::Path;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::Value;
+use crate::godot::Value;
 
 /// A project's own `class_name`s: the class each extends, so an export typed
 /// by one can be traced back to a node or a resource, and the file each is
@@ -375,7 +375,7 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
     };
     for file in files
         .iter()
-        .filter(|f| crate::import_godot_files::has_extension(f, "gd"))
+        .filter(|f| crate::godot::files::has_extension(f, "gd"))
     {
         let Ok(source) = std::fs::read_to_string(root.join(file)) else {
             continue;

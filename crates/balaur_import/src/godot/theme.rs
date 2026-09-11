@@ -14,8 +14,8 @@ use std::fmt::Write as _;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::import_godot::{Document, Section, Value};
-use crate::import_godot_nodes::{Mapped, Resources, colour, hex, image_path};
+use crate::godot::{Document, Section, Value};
+use crate::godot::nodes::{Mapped, Resources, colour, hex, image_path};
 
 /// A fill or an outline that draws nothing.
 const CLEAR: &str = "#00000000";
@@ -51,7 +51,7 @@ fn states(class: &str) -> (&'static str, Option<&'static str>, Option<&'static s
 
 /// The kind a Godot class draws as here, or `None` for one with no widget.
 fn kind_of(class: &str) -> Option<&'static str> {
-    crate::import_godot_controls::kind_of(class)
+    crate::godot::controls::kind_of(class)
 }
 
 /// Convert one `Theme` document.
@@ -82,7 +82,7 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
     // The widget kinds' own classes first, in the order their table lists
     // them, so `Label` dresses `label` before `RichTextLabel` can.
     let mut order: Vec<&str> = types.keys().copied().collect();
-    order.sort_by_key(|ty| crate::import_godot_controls::rank(ty).unwrap_or(usize::MAX));
+    order.sort_by_key(|ty| crate::godot::controls::rank(ty).unwrap_or(usize::MAX));
     for ty in order {
         let items = &types[ty];
         let class = base.get(ty).copied().unwrap_or(ty);
