@@ -76,7 +76,7 @@ constants.
 ```toml
 [[nodes]]
 name = "Key"
-position = [4.0, 6.0, 2.0]
+transform = { position = [4.0, 6.0, 2.0] }
 look_at = [0.0, 0.0, 0.0]
 light3d = { kind = "spot", color = "#fff2e0", intensity = 8.0, radius = 30.0, inner = 20.0, outer = 35.0, shadows = true }
 ```

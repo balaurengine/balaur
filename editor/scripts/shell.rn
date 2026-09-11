@@ -704,6 +704,7 @@ fn prefixed_states() {
         ("find:", state_find),
         ("settings?", state_settings_search),
         ("settings:", state_settings),
+        ("override:", state_override),
         ("shot=", state_shot),
         ("frames=", state_frames),
         ("show:", state_show),
@@ -736,6 +737,12 @@ fn state_settings(S, category) {
 
 fn state_settings_search(S, query) {
     crate::settings::open_search(S, query);
+}
+
+// `override:<tag>` picks the settings page's override target, for a screenshot
+// of the rows that add one.
+fn state_override(S, tag) {
+    S.settings.target = tag;
 }
 
 // `find:<query>` fills the scene tree's search, for a screenshot.

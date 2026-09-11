@@ -194,11 +194,14 @@ impl<'a> Scanner<'a> {
         self.source[self.at..].chars().next()
     }
 
+    /// The line an offset is on. Counted only for an error message: counting
+    /// on every value made a large scene quadratic to read.
+    fn line_at(&self, at: usize) -> usize {
+        1 + self.source[..at].bytes().filter(|b| *b == b'\n').count()
+    }
+
     fn line(&self) -> usize {
-        1 + self.source[..self.at]
-            .bytes()
-            .filter(|b| *b == b'\n')
-            .count()
+        self.line_at(self.at)
     }
 
     fn bump(&mut self) -> Option<char> {
@@ -240,11 +243,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn section(&mut self) -> Result<Section> {
-        let line = self.line();
+        let start = self.at;
         self.bump();
         let kind = self.word();
         if kind.is_empty() {
-            bail!("line {line}: a section needs a name after its `[`");
+            bail!("line {}: a section needs a name after its `[`", self.line_at(start));
         }
         let mut attributes = BTreeMap::new();
         loop {
@@ -253,7 +256,7 @@ impl<'a> Scanner<'a> {
                 break;
             }
             if self.done() {
-                bail!("line {line}: this [{kind}] never closes");
+                bail!("line {}: this [{kind}] never closes", self.line_at(start));
             }
             let key = self.word();
             if key.is_empty() {
@@ -314,9 +317,9 @@ impl<'a> Scanner<'a> {
 
     fn value(&mut self) -> Result<Value> {
         self.spaces();
-        let line = self.line();
+        let start = self.at;
         match self.peek() {
-            None => bail!("line {line}: a value was expected and the file ended"),
+            None => bail!("line {}: a value was expected and the file ended", self.line_at(start)),
             Some('"') => Ok(Value::Str(self.string()?)),
             Some('&' | '^') => {
                 self.bump();
@@ -341,7 +344,7 @@ impl<'a> Scanner<'a> {
                     _ => {
                         self.spaces();
                         if !self.eat('(') {
-                            bail!("line {line}: `{word}` is not a value this reads");
+                            bail!("line {}: `{word}` is not a value this reads", self.line_at(start));
                         }
                         if word == "Object" {
                             return self.object();
@@ -353,7 +356,7 @@ impl<'a> Scanner<'a> {
                     }
                 }
             }
-            Some(c) => bail!("line {line}: `{c}` does not begin a value"),
+            Some(c) => bail!("line {}: `{c}` does not begin a value", self.line_at(start)),
         }
     }
 
@@ -439,20 +442,20 @@ impl<'a> Scanner<'a> {
     /// does. Newlines inside the quotes are part of the string, which is how
     /// a BBCode label puts a `[b]` at the start of a line.
     fn string(&mut self) -> Result<String> {
-        let line = self.line();
+        let start = self.at;
         if !self.eat('"') {
-            bail!("line {line}: expected a quoted string");
+            bail!("line {}: expected a quoted string", self.line_at(start));
         }
         let mut out = String::new();
         loop {
             let Some(c) = self.bump() else {
-                bail!("line {line}: this string never closes");
+                bail!("line {}: this string never closes", self.line_at(start));
             };
             match c {
                 '"' => return Ok(out),
                 '\\' => {
                     let Some(esc) = self.bump() else {
-                        bail!("line {line}: this string never closes");
+                        bail!("line {}: this string never closes", self.line_at(start));
                     };
                     match esc {
                         'n' => out.push('\n'),
@@ -461,7 +464,7 @@ impl<'a> Scanner<'a> {
                         'b' => out.push('\u{8}'),
                         'f' => out.push('\u{c}'),
                         'a' => out.push('\u{7}'),
-                        'u' => out.push(self.unicode(line)?),
+                        'u' => out.push(self.unicode(start)?),
                         other => out.push(other),
                     }
                 }
@@ -472,11 +475,11 @@ impl<'a> Scanner<'a> {
 
     /// The four hex digits after `\u`. A lone surrogate has no character to
     /// stand for, so it becomes the replacement rather than failing the file.
-    fn unicode(&mut self, line: usize) -> Result<char> {
+    fn unicode(&mut self, string: usize) -> Result<char> {
         let start = self.at;
         for _ in 0..4 {
             if !self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
-                bail!("line {line}: `\\u` wants four hex digits");
+                bail!("line {}: `\\u` wants four hex digits", self.line_at(string));
             }
             self.at += 1;
         }
@@ -486,7 +489,6 @@ impl<'a> Scanner<'a> {
 
     /// An integer or a float, including the `1e-05` and `-inf` Godot writes.
     fn number(&mut self) -> Result<Value> {
-        let line = self.line();
         let start = self.at;
         self.eat('-');
         self.eat('+');
@@ -525,7 +527,7 @@ impl<'a> Scanner<'a> {
             // Past i64 rather than malformed: Godot writes hashes as integers.
             Err(_) => match text.parse::<f64>() {
                 Ok(n) => Ok(Value::Float(n)),
-                Err(_) => bail!("line {line}: `{text}` is not a number"),
+                Err(_) => bail!("line {}: `{text}` is not a number", self.line_at(start)),
             },
         }
     }

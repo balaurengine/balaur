@@ -50,8 +50,8 @@ constraint stated on the reader: a scale is a wall-clock matter.
 keeps the previous tick's pose beside the current one for every node that
 opts in, and the render sync draws
 `lerp(previous, current, accumulator / FIXED_DT)`. Nothing reads it back:
-`node.position()` answers the tick, not the frame, so a script never sees a
-blended pose and the digest never contains one. A rollback restores the tick
+`node.transform.position` answers the tick, not the frame, so a script never
+sees a blended pose and the digest never contains one. A rollback restores the tick
 and discards the previous pose, which is exactly what a snapshot already
 does with everything render-side. A body that teleports resets its
 previous pose, so a respawn does not streak across the level.

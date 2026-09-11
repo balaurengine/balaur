@@ -363,10 +363,19 @@ fn contract_within(source: &str, modules: &[(String, String)], depth: u32) -> Op
 pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -> bool {
     match found {
         Some(found) if found != wanted => {
-            tracing::warn!(
-                material = reference,
-                "the material's shader draws {found}, so a {wanted} node keeps the built-in one"
-            );
+            // Once per material and dimension: a reload empties the cache that
+            // would otherwise have remembered it.
+            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
+                std::sync::Mutex::new(None);
+            let key = format!("{wanted}:{reference}");
+            if let Ok(mut seen) = WARNED.lock()
+                && seen.get_or_insert_with(std::collections::BTreeSet::new).insert(key)
+            {
+                tracing::warn!(
+                    material = reference,
+                    "the material's shader draws {found}, so a {wanted} node keeps the built-in one"
+                );
+            }
             false
         }
         _ => true,

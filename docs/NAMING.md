@@ -111,7 +111,7 @@ Recorded so each stops being cited as precedent for the next.
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
 | The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.rn` instead |
 | The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | A deliberate affordance for Godot refugees; renaming five of nine would mix vocabularies in one inspector header |
-| `scale`, four times over | `node:scale()`, `ui.scale()`, `ViewportSnapshot.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
+| `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
 | `scene.spawn` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
 
 ## Glossary

@@ -50,9 +50,11 @@ the direction, and it is what keeps core language-free.
   script bindings see one state, unmarshalled. Single-threaded by design;
   parallelism goes inside a system.
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
-  `Children`, `Transform`, `GlobalTransform`. Paths, transform propagation and
-  recursive free are core systems; plugins hang components off the same
-  entities, so "node" is an API surface, not a cost.
+  `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
+  component, `[nodes.transform]` in a file, and a node without one sits at its
+  parent. Paths, transform propagation and recursive free are core systems;
+  plugins hang components off the same entities, so "node" is an API surface,
+  not a cost.
 - A scene's `parent` is an id or a path of names; ids resolve first, and a path
   may not climb out with `..`. The editor normalizes paths to ids on load — a
   replay addresses a node by id.
@@ -197,7 +199,7 @@ remove hooks.
   `scene.component_types`, `scene.component_schema`) and the editor: the
   Add-component palette and every inspector row are generated from the registry,
   so a third-party component needs no editor change.
-- In tree: `body3d`/`collider3d`, `body2d`/`collider2d`;
+- In tree: `transform` in core; `body3d`/`collider3d`, `body2d`/`collider2d`;
   `shape3d`/`shape2d`/`sprite`, each with its own `color` property, since a tint
   needs something to tint; `widget`.
 - Materials split the same way. A renderable's `material` is its own; the
@@ -223,7 +225,7 @@ remove hooks.
 
 ### 2D
 
-A second set of components over the same tree, on the regular `Transform`.
+A second set of components over the same tree, on the same `transform`.
 
 - `shape2d` (`rect`/`circle`) and `sprite` render through a pan/zoom
   orthographic camera: `render.set_camera_2d(cx, cy, zoom)` in logical px per
@@ -306,7 +308,7 @@ its `Cargo.toml` and fails if one appears.
   `widget/x` animate, and a third-party component animates the day it registers.
   A track with no `property` is a method track, calling through `call_on`.
 - Rotation keys are authored as euler radians (the spelling
-  `set_rotation_euler` uses, readable in a diff) and interpolated as
+  `transform.rotation_euler` uses, readable in a diff) and interpolated as
   quaternions, the only way past ±180° that takes the short way. A `rotation`
   track takes the quaternion — what an imported `.glb` holds.
 - The sampler is `(clip, time) -> pose`, pure and reachable with no `Engine`, so

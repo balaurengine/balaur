@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::engine::Engine;
-use crate::project::{ProjectFiles, ProjectManifest};
+use crate::project::ProjectFiles;
 
 /// The kinds a file sorts into. A kind names its defaults table in
 /// `project.toml` and the settings its reader looks for.
@@ -177,14 +177,13 @@ pub fn settings(eng: &Engine, path: &str) -> toml::Table {
     table
 }
 
-/// The project's defaults for whatever kind `path` is.
+/// The project's defaults for whatever kind `path` is, as this run resolves
+/// them: `[override.mobile.import.texture] mipmaps = false` answers on a phone.
 fn defaults(eng: &Engine, path: &str) -> toml::Table {
     let Some(kind) = kind_of(path) else {
         return toml::Table::new();
     };
-    eng.try_resource::<ProjectManifest>()
-        .and_then(|manifest| manifest.borrow().import.get(kind).cloned())
-        .unwrap_or_default()
+    crate::settings::table(eng, &format!("import/{kind}"))
 }
 
 /// A short stable name for a resolved set of settings.

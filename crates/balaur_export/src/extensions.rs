@@ -92,7 +92,7 @@ pub(crate) fn warn_left_behind(libraries: &[PathBuf], platform: &str) {
     if !libraries.is_empty() {
         tracing::warn!(
             "a {platform} build cannot load extensions, so this game ships without {} and \
-             a script calling one fails there; a plugin {platform} needs ships as a module",
+             a script calling one fails there; a plugin this build needs has to be a module",
             names(libraries)
         );
     }

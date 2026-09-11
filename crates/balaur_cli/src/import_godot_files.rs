@@ -453,7 +453,11 @@ position = Vector2(0, -10)
         // The script phase writes these; a stub stands in so what is tested
         // is the scene, not whether its script exists yet.
         std::fs::create_dir_all(out.path().join("scripts")).unwrap();
-        std::fs::write(out.path().join("scripts/root.rn"), "pub fn init(self) {}\n").unwrap();
+        std::fs::write(
+            out.path().join("scripts/root.rn"),
+            "pub fn exports() {\n    #{ speed: 2.0 }\n}\n\npub fn init(this) {}\n",
+        )
+        .unwrap();
 
         let mut config = balaur::AppConfig::dev(out.path().to_string_lossy().as_ref());
         config.watch = false;

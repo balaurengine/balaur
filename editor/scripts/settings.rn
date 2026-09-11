@@ -20,6 +20,9 @@ pub fn state() {
         compact: false,
         // Where `--state settingsdemo` has got to; -1 when it is not running.
         demo: -1,
+        // The tag the header offers an override for, "" for none: one choice
+        // for the page, as Godot's "Override For", not a picker per row.
+        target: "",
     }
 }
 
@@ -215,7 +218,12 @@ fn body(S, k) {
         if S.settings.query != "" {
             ui::label(format!("{} matching \"{}\"", rows.len(), S.settings.query), style::mono_sm(k.faint));
         } else if scope_of(current(S)) == "project" {
-            ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+            ui::horizontal(#{ height: 24 }, || {
+                ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+                ui::right(|| {
+                    target_picker(S, k);
+                });
+            });
         } else {
             ui::label("Kept in this editor only, and never written to the project.", style::mono_sm(k.faint));
         }
@@ -269,7 +277,7 @@ fn row(S, k, def) {
 }
 
 // The answers this key has besides the one above: one row per tag the project
-// overrides it for, and a picker that adds another.
+// overrides it for, and, when the header names a tag, a pill that adds one.
 fn overrides(S, k, def) {
     let held = settings::overrides(def.path);
     for tag in held {
@@ -286,26 +294,30 @@ fn overrides(S, k, def) {
             });
         });
     }
-    let free = [];
-    for tag in settings::known_tags() {
-        if !held.iter().any(|t| t == tag) {
-            free.push(tag);
-        }
-    }
-    if free.is_empty() {
+    let tag = S.settings.target;
+    if tag == "" || held.iter().any(|t| t == tag) {
         return;
     }
-    // The prompt is the dropdown's own text: it draws what it is handed, and
-    // an empty selection would draw an empty pill.
-    let (picked, changed) = ui::dropdown(
-        "override:" + def.path, "override for…", free,
-        #{ width: 150, size: style::SM, color: k.faint },
-    );
-    if changed && picked != "" {
+    if ui::pill("+ on " + tag, #{ height: 20, size: style::SM, radius: 6, fill: k.panel, color: k.faint }) {
         // Seeded with what the key already answers, so the row that appears
         // says what it is overriding rather than a type's empty value.
-        settings::set(override_path(picked, def.path), settings::base(def.path));
+        settings::set(override_path(tag, def.path), settings::base(def.path));
         S.settings.dirty = true;
+    }
+}
+
+// The page's one override choice. The dropdown draws what it is handed, so the
+// prompt is its own text until a tag is picked.
+fn target_picker(S, k) {
+    let options = ["none"];
+    for tag in settings::known_tags() {
+        options.push(tag);
+    }
+    let showing = if S.settings.target == "" { "override for…" } else { "override for " + S.settings.target };
+    let (picked, changed) = ui::dropdown("settings:target", showing, options,
+        #{ width: 170, size: style::SM, color: k.dim });
+    if changed {
+        S.settings.target = if picked == "none" { "" } else { picked };
     }
 }
 

@@ -41,14 +41,6 @@ pub struct ProjectManifest {
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
-    /// A project-relative picture the runtime shows over the first frames,
-    /// on every target; empty shows none.
-    pub splash: String,
-    /// How long the splash stays, in seconds of engine time.
-    pub splash_seconds: f32,
-    /// `[import.<kind>]`: the default settings for every file of a kind.
-    /// See [`crate::import`].
-    pub import: BTreeMap<String, toml::Table>,
     /// `[check]`: how hard `balaur check` is on this project.
     pub check: CheckSettings,
 }
@@ -285,8 +277,6 @@ struct RawManifest {
     #[serde(default)]
     plugins: BTreeMap<String, PluginChoice>,
     #[serde(default)]
-    import: BTreeMap<String, toml::Table>,
-    #[serde(default)]
     check: CheckSettings,
 }
 
@@ -296,14 +286,6 @@ struct Application {
     main_scene: String,
     #[serde(default = "default_language")]
     language: String,
-    #[serde(default)]
-    splash: String,
-    #[serde(default = "default_splash_seconds")]
-    splash_seconds: f32,
-}
-
-fn default_splash_seconds() -> f32 {
-    1.5
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -313,9 +295,6 @@ impl From<RawManifest> for ProjectManifest {
             main_scene: raw.application.main_scene,
             language: raw.application.language,
             plugins: raw.plugins,
-            splash: raw.application.splash,
-            splash_seconds: raw.application.splash_seconds.max(0.0),
-            import: raw.import,
             check: raw.check,
         }
     }
