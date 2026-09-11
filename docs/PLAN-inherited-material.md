@@ -199,14 +199,14 @@ import package::mesh::{VertexInput, VertexOutput, vertex};    // 3D
 import package::sprite::{VertexInput, VertexOutput, vertex};  // 2D
 ```
 
-Nothing read that before this plan. Reading it turns a dimension mismatch from a
-pipeline failure into a sentence naming both the material and the node, at
+Nothing read that before this plan. Reading it turns a dimension mismatch from
+a pipeline failure into a sentence naming both the material and the node, at
 parse time, with no new syntax in the file.
 
 Two things follow, in order:
 
 1. **A material knows its dimension, and a mismatch is reported. Built.**
-   `material::contract` reads the imports, following a plugin module into
+   `shaders::contract` reads the imports, following a plugin module into
    its own, and `fits` refuses a material written for the other dimension
    before its pipeline is built. The node keeps the built-in material and
    the cache warns once per reference per dimension, because the node that
@@ -240,6 +240,16 @@ break.
   component, the rows are left to that component's row.
 - Typing a reference into the row sets the node's own, which takes over.
   Clearing it returns the node to what it inherits.
+
+**The mirror keeps a material as a path.** D24's fix inlined every typed
+`.toml` asset into the editor's mirror, so from 2026-09-07 every material
+field read "inline", and an edit to a material's values was saved to a `#!`
+digest that `assets::save` refuses. A material resolves its own files against
+the game already, its shader through `shader_text` and now its texture slots
+through `material::project_path`, so `model::absolute_files` passes it as an
+absolute path. The field shows the file, and an edit saves to it and relinks
+every node drawing with it. Colour rows had read white for the same span: a
+`vec4` param comes back as a `balaur::Color`, which the row read as a list.
 
 ## 5. What this does not cover
 

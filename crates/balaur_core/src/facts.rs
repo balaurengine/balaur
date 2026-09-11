@@ -9,6 +9,9 @@ use crate::engine::Engine;
 
 /// What never changes for one run: recorded once, in the recording's
 /// header, so a replay on another machine answers as the original did.
+// Four facts about one machine, each read on its own: an enum would claim
+// they exclude each other, and a page on a phone is web, mobile and touch.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PlatformFacts {
     pub os: String,

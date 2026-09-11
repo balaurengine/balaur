@@ -452,9 +452,8 @@ fn material(world: &hecs::World, e: Entity) -> String {
         .to_string()
 }
 
-fn set_material(engine: &Engine, e: Entity, reference: &str) {
-    engine
-        .world()
+fn set_material(eng: &Engine, e: Entity, reference: &str) {
+    eng.world()
         .get::<&mut scene::Appearance>(e)
         .unwrap()
         .material = scene::MaterialId::intern(reference);
@@ -547,4 +546,66 @@ fn a_material_reference_interns_to_one_id_and_back() {
     assert_eq!(&*first.reference(), "materials/interned.toml");
     assert!(scene::MaterialId::intern("").is_none());
     assert_eq!(&*scene::MaterialId::NONE.reference(), "");
+}
+
+/// Godot's `Transform2D` with skew, written out independently: the x axis is
+/// the rotation times the x scale, and the y axis is turned `skew` further.
+fn godot_2d(angle: f32, skew: f32, sx: f32, sy: f32, at: [f32; 2]) -> glamx::Mat3 {
+    glamx::Mat3::from_cols(
+        glamx::Vec3::new(balaur_core::libm::cosf(angle) * sx, balaur_core::libm::sinf(angle) * sx, 0.0),
+        glamx::Vec3::new(
+            -balaur_core::libm::sinf(angle + skew) * sy,
+            balaur_core::libm::cosf(angle + skew) * sy,
+            0.0,
+        ),
+        glamx::Vec3::new(at[0], at[1], 1.0),
+    )
+}
+
+fn close(a: glamx::Mat3, b: glamx::Mat3) -> bool {
+    a.to_cols_array().iter().zip(b.to_cols_array()).all(|(x, y)| (x - y).abs() < 1e-4)
+}
+
+/// A skewed parent carries its shear into its child, as Godot's does: the
+/// child's world matrix is the parent's times its own, exactly.
+#[test]
+fn a_skewed_parent_places_its_child_by_the_full_matrix() {
+    let (engine, a, b, _) = tree();
+    {
+        let world = engine.world();
+        let mut parent = world.get::<&mut scene::Transform>(a).unwrap();
+        parent.position = glamx::Vec3::new(3.0, -1.0, 0.0);
+        parent.rotation = glamx::Quat::from_rotation_z(0.2);
+        parent.scale = glamx::Vec3::new(2.0, 0.5, 1.0);
+        parent.skew = 0.3;
+        drop(parent);
+        let mut child = world.get::<&mut scene::Transform>(b).unwrap();
+        child.position = glamx::Vec3::new(1.0, 1.0, 0.0);
+        child.rotation = glamx::Quat::from_rotation_z(0.1);
+        child.skew = -0.15;
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    let expected = godot_2d(0.2, 0.3, 2.0, 0.5, [3.0, -1.0])
+        * godot_2d(0.1, -0.15, 1.0, 1.0, [1.0, 1.0]);
+    let got = world.get::<&scene::GlobalTransform>(b).unwrap().affine_2d();
+    assert!(close(got, expected), "got {got:?}\nwanted {expected:?}");
+}
+
+#[test]
+fn reparenting_under_a_skewed_parent_keeps_the_world_pose() {
+    let (engine, a, _, c) = tree();
+    {
+        let world = engine.world();
+        let mut parent = world.get::<&mut scene::Transform>(a).unwrap();
+        parent.rotation = glamx::Quat::from_rotation_z(0.4);
+        parent.skew = 0.5;
+        parent.scale = glamx::Vec3::new(1.5, 1.0, 1.0);
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let before = scene::composed_global(&engine.world(), c).affine_2d();
+    scene::reparent(&mut engine.world_mut(), c, a).unwrap();
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let after = engine.world().get::<&scene::GlobalTransform>(c).unwrap().affine_2d();
+    assert!(close(before, after), "moved from {before:?}\nto {after:?}");
 }

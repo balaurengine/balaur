@@ -424,6 +424,9 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                 eng,
                 entity_of(node)?,
                 SpriteTexture {
+                    offset: [0.0, 0.0],
+                    centered: true,
+                    shift: [0.0, 0.0],
                     path,
                     sheet: None,
                     frame: 0,
@@ -447,6 +450,9 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                 eng,
                 entity_of(node)?,
                 SpriteTexture {
+                    offset: [0.0, 0.0],
+                    centered: true,
+                    shift: [0.0, 0.0],
                     path,
                     sheet: Some(SpriteSheet2d {
                         columns: columns.max(1),

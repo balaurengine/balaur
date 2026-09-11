@@ -33,6 +33,9 @@ pub enum TrackValue {
     /// Whether the node draws. Sampled off a stepped track, so it is the
     /// key's own value and never a blend of two.
     Visible(bool),
+    /// A component's string or bool property: the last key's value as it
+    /// was authored.
+    Discrete(toml::Value),
     /// The node's inherited tint, `[r, g, b, a]`.
     Tint(Vec4),
     /// A method track holds no value. It is a list of moments, and what
@@ -207,6 +210,9 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
         Property::Rotation => TrackValue::Rotation(sample_rotation(track, time, |key| {
             Quat::from_vec4(key.value).normalize()
         })),
+        Property::Component { .. } if track.keys.first().is_some_and(|k| k.discrete.is_some()) => {
+            TrackValue::Discrete(held(track, time))
+        }
         Property::Component { .. } => TrackValue::Property {
             value: sample_channels(track, time),
             channels: track.channels,
@@ -218,6 +224,61 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
         Property::Deform => TrackValue::Deform(sample_wide(track, time)),
         Property::Call => TrackValue::None,
     }
+}
+
+/// A pose partway from one clip's to another's, `weight` of the way: every
+/// track of the incoming clip blended with the outgoing track that drives the
+/// same property of the same node, and taken as it is where none does.
+#[must_use]
+pub fn blend(from: &Clip, mut from_pose: Pose, to: &Clip, to_pose: Pose, weight: f32) -> Pose {
+    let weight = weight.clamp(0.0, 1.0);
+    to.tracks
+        .iter()
+        .zip(to_pose)
+        .map(|(track, incoming)| {
+            let partner = from
+                .tracks
+                .iter()
+                .position(|t| t.target == track.target && t.property == track.property);
+            match partner.and_then(|at| from_pose.get_mut(at)) {
+                Some(outgoing) => mix(std::mem::replace(outgoing, TrackValue::None), incoming, weight),
+                None => incoming,
+            }
+        })
+        .collect()
+}
+
+/// One track's value `weight` of the way from `a` to `b`. A value with nothing
+/// between two of it — a visibility, a name — changes at the halfway point.
+fn mix(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
+    match (a, b) {
+        (TrackValue::Position(a), TrackValue::Position(b)) => TrackValue::Position(a.lerp(b, weight)),
+        (TrackValue::Scale(a), TrackValue::Scale(b)) => TrackValue::Scale(a.lerp(b, weight)),
+        (TrackValue::Rotation(a), TrackValue::Rotation(b)) => TrackValue::Rotation(a.slerp(b, weight)),
+        (TrackValue::Tint(a), TrackValue::Tint(b)) => TrackValue::Tint(a.lerp(b, weight)),
+        (TrackValue::Property { value: a, .. }, TrackValue::Property { value: b, channels }) => {
+            TrackValue::Property {
+                value: a.lerp(b, weight),
+                channels,
+            }
+        }
+        (TrackValue::Deform(a), TrackValue::Deform(b)) if a.len() == b.len() => TrackValue::Deform(
+            a.iter().zip(&b).map(|(x, y)| x + (y - x) * weight).collect(),
+        ),
+        (a, b) => {
+            if weight < 0.5 {
+                a
+            } else {
+                b
+            }
+        }
+    }
+}
+
+/// The value of the last key at or before `time`, or the first before any.
+fn held(track: &Track, time: f32) -> toml::Value {
+    let at = track.keys.partition_point(|k| k.t <= time).saturating_sub(1);
+    track.keys[at].discrete.clone().unwrap_or(toml::Value::Boolean(false))
 }
 
 /// A track wider than four channels at `time`, interpolated channel by

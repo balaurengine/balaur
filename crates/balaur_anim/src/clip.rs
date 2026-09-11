@@ -239,6 +239,10 @@ pub struct Key {
     /// transform, every component property — keeps its fixed-size value and
     /// allocates nothing per key.
     pub wide: Vec<f32>,
+    /// A string or a bool, on a component track whose property is one: a
+    /// widget's `role`, a check's `checked`. Held rather than blended, since
+    /// there is nothing between two names, and written as it was authored.
+    pub discrete: Option<toml::Value>,
 }
 
 /// One property of one node over time — or, with no property, one list of
@@ -353,6 +357,11 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
     };
     let mut channels = property.channels();
     let keys = parse_keys(value, &property, &mut channels)?;
+    let discrete = keys.iter().filter(|k| k.discrete.is_some()).count();
+    if discrete != 0 && discrete != keys.len() {
+        bail!("a track keys both names and numbers; a property is one or the other");
+    }
+    let interp = if discrete > 0 { Interp::Step } else { interp };
     Ok(Track {
         target,
         property,
@@ -416,6 +425,7 @@ fn parse_key(
             call: Some(call),
             ease,
             wide: Vec::new(),
+            discrete: None,
         });
     }
     if value.get("call").is_some() {
@@ -429,6 +439,21 @@ fn parse_key(
             call: None,
             ease,
             wide,
+            discrete: None,
+        });
+    }
+    // A component's string or bool property keys its own value, which no
+    // number can stand for.
+    if let Property::Component { .. } = property
+        && let Some(raw @ (toml::Value::String(_) | toml::Value::Boolean(_))) = value.get("value")
+    {
+        return Ok(Key {
+            t,
+            value: Vec4::ZERO,
+            call: None,
+            ease,
+            wide: Vec::new(),
+            discrete: Some(raw.clone()),
         });
     }
     Ok(Key {
@@ -437,6 +462,7 @@ fn parse_key(
         call: None,
         ease,
         wide: Vec::new(),
+        discrete: None,
     })
 }
 

@@ -340,8 +340,10 @@ fn a_table_folds_each_override_on_key_by_key() {
 fn a_pack_answers_to_the_tags_its_export_wrote() {
     let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
                     [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nvsync = false\n";
-    let mut pack = balaur_core::Pack::default();
-    pack.manifest = manifest.to_string();
+    let mut pack = balaur_core::Pack {
+        manifest: manifest.to_string(),
+        ..balaur_core::Pack::default()
+    };
     pack.scenes.insert("main.toml".to_string(), String::new());
     let mut app = App::new(AppConfig::packed(pack)).unwrap();
     app.load_project().unwrap();
@@ -363,4 +365,46 @@ fn a_pack_answers_to_the_tags_its_export_wrote() {
         balaur_core::project::AssetSource::Embedded,
         "application/assets is read through the registry before the files exist"
     );
+}
+
+/// What a host reads before an engine exists resolves too: `[plugins]` on
+/// one platform, and the scene a demo build opens with.
+#[test]
+fn the_boot_manifest_takes_overrides() {
+    use balaur_core::project::ProjectManifest;
+    use balaur_core::tags::Tags;
+    let source = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n\
+                  [plugins]\nhttp = true\n\n[override.ios.plugins]\nhttp = false\n\n\
+                  [override.demo.application]\nmain_scene = \"demo.toml\"\n";
+
+    let phone =
+        ProjectManifest::parse_for(source, &Tags(vec!["mobile".into(), "ios".into()])).unwrap();
+    assert!(!phone.plugins["http"].wanted());
+    assert_eq!(phone.main_scene, "main.toml");
+
+    let desktop = ProjectManifest::parse_for(source, &Tags(vec!["desktop".into()])).unwrap();
+    assert!(desktop.plugins["http"].wanted());
+
+    let demo = ProjectManifest::parse_for(source, &Tags(vec!["demo".into()])).unwrap();
+    assert_eq!(demo.main_scene, "demo.toml");
+}
+
+/// A pack built as a demo opens the demo's scene: `[build] tags` is read
+/// before the manifest decides what `main_scene` is.
+#[test]
+fn a_demo_pack_opens_the_demo_s_scene() {
+    let mut pack = balaur_core::Pack {
+        manifest: "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n\
+                     [build]\ntags = [\"demo\"]\n\n\
+                     [override.demo.application]\nmain_scene = \"demo.toml\"\n"
+            .to_string(),
+        ..balaur_core::Pack::default()
+    };
+    pack.scenes.insert(
+        "demo.toml".to_string(),
+        "[[nodes]]\nid = \"d\"\nname = \"DemoOnly\"\n".to_string(),
+    );
+    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+    assert_eq!(app.manifest().unwrap().main_scene, "demo.toml");
 }

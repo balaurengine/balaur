@@ -66,6 +66,9 @@ pub(crate) struct Slot2d {
     /// A polyline's pieces with where along the chain each sits, so a
     /// gradient can colour them every frame under the node's tint.
     pub(crate) pieces: Vec<(SceneNode2d, f32)>,
+    /// The shear last written as the node's instance deformation, so a node
+    /// that never leans never has its instance buffer touched.
+    pub(crate) shear: f32,
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed

@@ -206,11 +206,17 @@ pub struct UiSettings {
     /// ever draws the faces it vendors can turn them off and not pay for
     /// them.
     pub system_fonts: bool,
+    /// The `widget_theme` every root widget starts from; empty is the
+    /// built-in look.
+    pub theme: String,
 }
 
 impl Default for UiSettings {
     fn default() -> Self {
-        Self { system_fonts: true }
+        Self {
+            system_fonts: true,
+            theme: String::new(),
+        }
     }
 }
 
@@ -221,6 +227,7 @@ impl UiSettings {
         let fallback = Self::default();
         Self {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
+            theme: setting_string(eng, "ui/theme"),
         }
     }
 }
@@ -311,8 +318,26 @@ fn default_language() -> String {
 }
 
 impl ProjectManifest {
+    /// The manifest as this machine resolves it: its own tags, and any a pack
+    /// was built with. What a host reads before an engine exists, so
+    /// `[override.ios.plugins] http = false` decides what loads.
     pub fn parse(source: &str) -> Result<Self> {
-        toml::from_str(source).context("parsing project.toml")
+        let doc: toml::value::Table = toml::from_str(source).context("parsing project.toml")?;
+        let mut tags = crate::tags::Tags::current();
+        for name in crate::tags::built_in(&doc) {
+            tags.push(&name);
+        }
+        Self::parse_for(source, &tags)
+    }
+
+    /// The manifest as `tags` resolve it: `App::load_project` passes the
+    /// engine's, so a demo build's `[override.demo.application] main_scene`
+    /// is the scene it opens.
+    pub fn parse_for(source: &str, tags: &crate::tags::Tags) -> Result<Self> {
+        let resolved = crate::settings::resolve(source, tags).context("parsing project.toml")?;
+        toml::Value::Table(resolved)
+            .try_into()
+            .context("parsing project.toml")
     }
 }
 

@@ -147,6 +147,14 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
     if queued.is_empty() {
         return;
     }
+    // The emitter's own `emitted:<name>` rows first, the way a node's
+    // bindings run before its script: they need no script to be heard.
+    for (name, from, payload) in &queued {
+        if let Some(from) = from {
+            let event = format!("{}{name}", crate::hooks::EMITTED);
+            crate::bindings::fire(eng, *from, &event, std::slice::from_ref(payload));
+        }
+    }
     let Some(host) = eng.script_host() else {
         return;
     };

@@ -619,8 +619,8 @@ fn build(
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
-    let found = crate::material::contract(&source, &modules);
-    if !crate::material::fits(reference, found, crate::material::Contract::Mesh) {
+    let found = crate::shaders::contract(&source, &modules);
+    if !crate::shaders::fits(reference, found, crate::shaders::Contract::Mesh) {
         return Ok(None);
     }
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
@@ -630,7 +630,9 @@ fn build(
         .into_iter()
         .map(|path| {
             path.and_then(|path| {
-                crate::texture::upload(&app.engine, path, crate::texture::PREMULTIPLY_DROPPED)
+                let path = crate::material::project_path(&app.engine, reference, path)
+                    .unwrap_or_else(|| path.to_string());
+                crate::texture::upload(&app.engine, &path, crate::texture::PREMULTIPLY_DROPPED)
             })
         })
         .collect();

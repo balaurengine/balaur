@@ -7,6 +7,8 @@
 //! iteration, which dirties the box that holds it and re-solves what that
 //! reaches, which is what an animating panel pays.
 
+use std::fmt::Write as _;
+
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 use balaur_core::hecs::Entity;
@@ -168,10 +170,11 @@ fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
          [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n",
     );
     for i in 0..count {
-        scene.push_str(&format!(
+        let _ = write!(
+            scene,
             "\n[[nodes]]\nid = \"c{i}\"\nname = \"Cell\"\nparent = \"screen\"\n\
              [nodes.widget]\nkind = \"button\"\ntext = \"cell\"\n"
-        ));
+        );
     }
     app_from(&scene, "pub fn init(this) {}\n")
 }

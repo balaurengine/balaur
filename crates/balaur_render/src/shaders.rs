@@ -58,11 +58,98 @@ pub const CHANNELS: &[&str] = &["albedo", "normals", "uv", "depth"];
 pub struct ShaderModules(pub Vec<(String, String)>);
 
 /// The contract modules a material's shader imports; which one says what
-/// it draws. See [`crate::material::contract`].
+/// it draws. See [`contract`].
 pub(crate) const SPRITE_MODULE: &str = "package::sprite";
 pub(crate) const MESH_MODULE: &str = "package::mesh";
 pub(crate) const PBR_MODULE: &str = "package::pbr";
 pub(crate) const POST_MODULE: &str = "package::post";
+
+/// Which pipeline a shader was written for, read off the contract it imports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Contract {
+    /// `package::sprite`: a 2D node.
+    Sprite,
+    /// `package::mesh` or `package::pbr`: a 3D node.
+    Mesh,
+    /// `package::post`: a pass over the frame, never a node.
+    Post,
+}
+
+impl std::fmt::Display for Contract {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Contract::Sprite => "2D",
+            Contract::Mesh => "3D",
+            Contract::Post => "a post-process pass",
+        })
+    }
+}
+
+/// The contract `source` imports, following a plugin's module into its own
+/// imports. `None` names none, and links as it would have.
+#[must_use]
+pub fn contract(source: &str, modules: &[(String, String)]) -> Option<Contract> {
+    contract_within(source, modules, 0)
+}
+
+fn contract_within(source: &str, modules: &[(String, String)], depth: u32) -> Option<Contract> {
+    // Deep enough for any honest chain, and a stop for one that imports itself.
+    if depth > 8 {
+        return None;
+    }
+    for line in source.lines() {
+        let Some(path) = line.trim_start().strip_prefix("import ") else {
+            continue;
+        };
+        let module = path
+            .split("::")
+            .take(2)
+            .map(|segment| segment.trim().trim_end_matches(';'))
+            .collect::<Vec<_>>()
+            .join("::");
+        let found = match module.as_str() {
+            SPRITE_MODULE => Some(Contract::Sprite),
+            MESH_MODULE | PBR_MODULE => Some(Contract::Mesh),
+            POST_MODULE => Some(Contract::Post),
+            _ => modules
+                .iter()
+                .find(|(name, _)| *name == module)
+                .and_then(|(_, text)| contract_within(text, modules, depth + 1)),
+        };
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
+}
+
+/// Whether a material written against `found` draws on a node of `wanted`,
+/// warning when not. An inherited material reaches nodes nobody named it on,
+/// so a mismatch keeps the built-in material rather than failing a pipeline.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -> bool {
+    match found {
+        Some(found) if found != wanted => {
+            // Once per material and dimension: a reload empties the cache that
+            // would otherwise have remembered it.
+            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
+                std::sync::Mutex::new(None);
+            let key = format!("{wanted}:{reference}");
+            if let Ok(mut seen) = WARNED.lock()
+                && seen
+                    .get_or_insert_with(std::collections::BTreeSet::new)
+                    .insert(key)
+            {
+                tracing::warn!(
+                    material = reference,
+                    "the material's shader draws {found}, so a {wanted} node keeps the built-in one"
+                );
+            }
+            false
+        }
+        _ => true,
+    }
+}
 
 /// Make `source` importable as `path` — `package::water`, say.
 ///

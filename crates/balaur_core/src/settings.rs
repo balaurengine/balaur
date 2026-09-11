@@ -294,14 +294,15 @@ pub fn known_tags(eng: &Engine) -> Vec<String> {
 /// run answers to. Called wherever a manifest is loaded, so a shipped demo
 /// reads `[override.demo]` from its first setting on.
 pub fn answer_to_built_tags(eng: &Engine) {
-    let Some(toml::Value::Array(names)) = stored(eng, crate::tags::BUILT) else {
+    let (Some(values), Some(tags)) = (
+        eng.try_resource::<SettingsValues>(),
+        eng.try_resource::<Tags>(),
+    ) else {
         return;
     };
-    let Some(tags) = eng.try_resource::<Tags>() else {
-        return;
-    };
+    let built = crate::tags::built_in(&values.borrow().0);
     let mut tags = tags.borrow_mut();
-    for name in names.iter().filter_map(toml::Value::as_str) {
+    for name in &built {
         tags.push(name);
     }
 }
@@ -706,6 +707,7 @@ msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "rest
             "settings.ui",
             r#"
 system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
+theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
 "#,
         ),
     );

@@ -171,6 +171,10 @@ pub(crate) fn parse(text: &str) -> Result<Document> {
     Ok(document)
 }
 
+/// A dictionary's delimiters, named on one line so the brace in a character
+/// literal is not counted as one that opens a block.
+const DICT: (char, char) = ('{', '}');
+
 struct Scanner<'a> {
     text: &'a [u8],
     source: &'a str,
@@ -247,7 +251,10 @@ impl<'a> Scanner<'a> {
         self.bump();
         let kind = self.word();
         if kind.is_empty() {
-            bail!("line {}: a section needs a name after its `[`", self.line_at(start));
+            bail!(
+                "line {}: a section needs a name after its `[`",
+                self.line_at(start)
+            );
         }
         let mut attributes = BTreeMap::new();
         loop {
@@ -331,7 +338,10 @@ impl<'a> Scanner<'a> {
         self.spaces();
         let start = self.at;
         match self.peek() {
-            None => bail!("line {}: a value was expected and the file ended", self.line_at(start)),
+            None => bail!(
+                "line {}: a value was expected and the file ended",
+                self.line_at(start)
+            ),
             Some('"') => Ok(Value::Str(self.string()?)),
             Some('&' | '^') => {
                 self.bump();
@@ -341,7 +351,7 @@ impl<'a> Scanner<'a> {
                 self.bump();
                 Ok(Value::Array(self.items(']')?))
             }
-            Some('{') => {
+            Some(c) if c == DICT.0 => {
                 self.bump();
                 self.pairs()
             }
@@ -357,7 +367,10 @@ impl<'a> Scanner<'a> {
                     _ => {
                         self.spaces();
                         if !self.eat('(') {
-                            bail!("line {}: `{word}` is not a value this reads", self.line_at(start));
+                            bail!(
+                                "line {}: `{word}` is not a value this reads",
+                                self.line_at(start)
+                            );
                         }
                         if word == "Object" {
                             return self.object();
@@ -412,12 +425,18 @@ impl<'a> Scanner<'a> {
         }
         self.spaces();
         if !self.eat('(') {
-            bail!("line {}: a typed container wants `(` after its types", self.line_at(start));
+            bail!(
+                "line {}: a typed container wants `(` after its types",
+                self.line_at(start)
+            );
         }
         let inner = self.value()?;
         self.trivia();
         if !self.eat(')') {
-            bail!("line {}: a typed container is missing its `)`", self.line_at(start));
+            bail!(
+                "line {}: a typed container is missing its `)`",
+                self.line_at(start)
+            );
         }
         Ok(inner)
     }
@@ -456,11 +475,11 @@ impl<'a> Scanner<'a> {
         let mut pairs = Vec::new();
         loop {
             self.trivia();
-            if self.eat('}') {
+            if self.eat(DICT.1) {
                 return Ok(Value::Dict(pairs));
             }
             if self.done() {
-                bail!("line {}: a `}}` is missing", self.line());
+                bail!("line {}: a dictionary never closes", self.line());
             }
             let key = self.value()?;
             self.trivia();
@@ -473,8 +492,8 @@ impl<'a> Scanner<'a> {
             let value = self.value()?;
             pairs.push((key, value));
             self.trivia();
-            if !self.eat(',') && self.peek() != Some('}') {
-                bail!("line {}: expected `,` or `}}`", self.line());
+            if !self.eat(',') && self.peek() != Some(DICT.1) {
+                bail!("line {}: expected `,` or the dictionary's end", self.line());
             }
         }
     }
@@ -711,7 +730,13 @@ jump={
         )
         .expect("both shapes parse");
         let resource = document.first("resource").unwrap();
-        assert_eq!(resource.field("flags").and_then(Value::as_array).map(<[_]>::len), Some(1));
+        assert_eq!(
+            resource
+                .field("flags")
+                .and_then(Value::as_array)
+                .map(<[_]>::len),
+            Some(1)
+        );
         assert_eq!(resource.field("0:0/0/terrain"), Some(&Value::Int(2)));
     }
 

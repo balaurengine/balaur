@@ -274,6 +274,7 @@ fn register_core_content(app: &mut App) {
     crate::skeleton::register_bone2d_component(app);
     crate::skeleton::register_bone3d_component(app);
     crate::states::register_states_component(app);
+    crate::timer::register_timer_component(app);
     crate::bindings::register_bindings_component(app);
     app.engine
         .insert_resource(crate::variables::Variables::default());
@@ -327,6 +328,7 @@ impl App {
         app.add_system(Stage::First, crate::facts::read_clock_system);
         app.add_system(Stage::First, crate::facts::announce_device_system);
         app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
+        app.add_system(Stage::FixedUpdate, crate::timer::step_system);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
@@ -635,33 +637,45 @@ impl App {
     /// Load `project.toml` and instantiate the main scene. Call after all
     /// plugins are added so their scene keys are known.
     pub fn load_project(&mut self) -> Result<&mut Self> {
-        let (manifest_src, scene_src);
-        if let Some(pack) = &self.pack {
-            manifest_src = pack.manifest.clone();
-            let manifest = ProjectManifest::parse(&manifest_src)?;
-            scene_src = pack
-                .scenes
+        let fs = crate::files::backend(&self.engine);
+        let manifest_src = if let Some(pack) = &self.pack {
+            pack.manifest.clone()
+        } else {
+            let path = self.project_root.join("project.toml");
+            fs.read(&path)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .with_context(|| format!("no project.toml in {}", self.project_root.display()))?
+        };
+        // Every table in the file, as values the settings registry answers
+        // from: one reader for what a project declares, whoever declared it.
+        // First, because the tags it adds decide what the manifest says.
+        crate::settings::load(&self.engine, &manifest_src)?;
+        crate::settings::answer_to_built_tags(&self.engine);
+        let unknown = crate::settings::unknown(&self.engine, &manifest_src);
+        if !unknown.is_empty() {
+            bail!(
+                "project.toml has {} nothing declares. A misspelled key is a \
+                 setting that silently does not apply; a table of your own \
+                 (`[mygame] url`) is not checked.",
+                unknown.join(", ")
+            );
+        }
+        let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
+        let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
+        let scene_src = if let Some(pack) = &self.pack {
+            pack.scenes
                 .get(&manifest.main_scene)
                 .cloned()
-                .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?;
-            self.manifest = Some(manifest);
+                .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?
         } else {
-            let fs = crate::files::backend(&self.engine);
-            let path = self.project_root.join("project.toml");
-            manifest_src = fs
-                .read(&path)
-                .ok()
-                .and_then(|b| String::from_utf8(b).ok())
-                .with_context(|| format!("no project.toml in {}", self.project_root.display()))?;
-            let manifest = ProjectManifest::parse(&manifest_src)?;
             let scene_path = self.project_root.join(&manifest.main_scene);
-            scene_src = fs
-                .read(&scene_path)
+            fs.read(&scene_path)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
-                .with_context(|| format!("reading {}", scene_path.display()))?;
-            self.manifest = Some(manifest);
-        }
+                .with_context(|| format!("reading {}", scene_path.display()))?
+        };
+        self.manifest = Some(manifest);
         // A resource too, so subsystems can read the project's language and
         // name without reaching back through App.
         if let Some(manifest) = &self.manifest {
@@ -669,17 +683,6 @@ impl App {
         }
         self.engine
             .insert_resource(project::ManifestSource(manifest_src.clone()));
-        // Every table in the file, as values the settings registry answers
-        // from: one reader for what a project declares, whoever declared it.
-        crate::settings::load(&self.engine, &manifest_src)?;
-        crate::settings::answer_to_built_tags(&self.engine);
-        let unknown = crate::settings::unknown(&self.engine, &manifest_src);
-        if !unknown.is_empty() {
-            bail!(
-                "project.toml has {} nothing declares. A misspelled key is a                  setting that silently does not apply; a table of your own                  (`[mygame] url`) is not checked.",
-                unknown.join(", ")
-            );
-        }
         self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;

@@ -215,7 +215,9 @@ pub(crate) fn button(
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
     );
-    let style = base.in_state(response.hovered(), response.is_pointer_button_down_on());
+    // A checked button is a toggle held down, and wears its pressed look.
+    let down = response.is_pointer_button_down_on() || widget.checked;
+    let style = base.in_state(response.hovered(), down);
     let radius = corner(&style, &widget, scale, response.rect.height());
     match style.image.as_ref() {
         Some(path) => crate::widget_kinds::nine_patch_plate(
@@ -242,12 +244,9 @@ pub(crate) fn button(
     }
     // A theme that dresses no state still lights the button up: every control
     // answers the pointer, and a theme refines what that looks like.
-    if response.hovered() && base.hover.is_none() && base.active.is_none() {
-        ui.painter().rect_filled(
-            response.rect,
-            radius,
-            crate::widgets::wash(ui, response.is_pointer_button_down_on()),
-        );
+    if (response.hovered() || widget.checked) && base.hover.is_none() && base.active.is_none() {
+        ui.painter()
+            .rect_filled(response.rect, radius, crate::widgets::wash(ui, down));
     }
     let ink = if widget.text_color[3] > 0.0 {
         color

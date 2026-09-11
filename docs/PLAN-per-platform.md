@@ -122,7 +122,10 @@ Every step above is built.
   `[websocket]` used to read `project.toml` from the project files, which a
   pack does not keep there, so a shipped game took their defaults.
 - `ProjectManifest` keeps only what is read before an engine exists: the
-  name, the main scene, the language, `[plugins]` and `[check]`. A pack's
+  name, the main scene, the language, `[plugins]` and `[check]`. It resolves
+  too, against the machine's tags and a pack's `[build] tags`, so
+  `[override.ios.plugins] http = false` decides what loads and a demo build
+  opens `[override.demo.application] main_scene`. A pack's
   `application/assets` is read through the registry at boot.
 - `App::load_project` refuses a key `settings::unknown` finds.
 - `settings::to_toml` edits through `toml_edit` and writes only what was set.
@@ -168,8 +171,6 @@ Every step above is built.
 
 ## Worth checking when this is picked up
 
-Whether `[plugins]` belongs under an override at all. Turning a module off on
-one platform is a run-time selection out of what the template already linked,
-so it saves nothing but a little startup — the size win is the separate web
-module split. It is still the honest place to say "no `http` on iOS", but the
-row should not promise a smaller binary.
+`[plugins]` under an override turns a module off out of what the template
+already linked, so it saves startup rather than bytes; the size win is the
+separate web module split.

@@ -142,6 +142,7 @@ impl<'a> Measure<'a> {
                 widget.font_size * self.scale + self.padding.y,
             ),
             w::SEPARATOR => egui::Vec2::splat(6.0 * self.scale),
+            w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
                 let head = self.text(index, widget, theme) + vec2(20.0 * self.scale, 0.0);
                 if !widget.open {
@@ -175,6 +176,9 @@ impl<'a> Measure<'a> {
         let children = placed.children.clone();
         let caption = if widget.kind == w::PANEL {
             self.text(index, widget, theme)
+        } else if widget.kind == w::WINDOW {
+            // The title and its cross, on one bar.
+            self.text(index, widget, theme) + egui::vec2(widget.font_size * self.scale * 1.5, 0.0)
         } else {
             egui::Vec2::ZERO
         };

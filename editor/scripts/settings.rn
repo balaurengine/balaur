@@ -268,7 +268,9 @@ fn row(S, k, def) {
     let help = spec.get("help").unwrap_or("");
     if help != "" {
         let suffix = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
-        ui::label(help + suffix, style::mono_sm(k.faint));
+        // Wrapped: one long sentence otherwise widens the page, and every
+        // editor aligned to its right edge goes off the sheet with it.
+        ui::label(help + suffix, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
     }
     if def.scope == "project" {
         overrides(S, k, def);

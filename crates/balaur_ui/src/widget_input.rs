@@ -103,6 +103,13 @@ pub(crate) fn record(
     frame.edits.extend(changes);
 }
 
+/// What a widget emits from its own node when its value changes, and when a
+/// field is submitted, with the new value: a `[[nodes.bindings]]` row answers
+/// `emitted:change` on any node's script, as a Godot signal connected in a
+/// scene does.
+pub const CHANGE_EVENT: &str = "change";
+pub const SUBMIT_EVENT: &str = "submit";
+
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
     // keeps what its first run had; only a live tick takes the draw's report.
@@ -119,14 +126,31 @@ fn apply_system(eng: &Engine, _dt: f32) {
             frame.edits.clone(),
         )
     };
-    let mut typed = settle_edits(eng, &edits);
-    let signals = settle_clicks(eng, &clicked, &mut typed);
+    let mut emitted = Vec::new();
+    let mut typed = settle_edits(eng, &edits, &mut emitted);
+    let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
+    for (entity, event, value) in emitted {
+        balaur_core::events::emit_from(eng, entity, event, value);
+    }
+    // A clicked widget's `pointer_click` rows, so a button can call any
+    // node's script from the scene alone, as a world object's click can.
+    for entity in clicked.iter().filter_map(|key| resolve(eng, key)) {
+        balaur_core::bindings::fire(eng, entity, balaur_core::hooks::POINTER_CLICK, &[]);
+    }
     // Dispatch once the world borrow is gone: a handler may spawn, free or
     // reparent nodes, and it must not do that mid-iteration.
     if let Some(host) = eng.script_host() {
+        // Every recipient found before any handler runs, which may reshape
+        // the tree the search walks.
+        let signals: Vec<_> = signals
+            .into_iter()
+            .map(|(entity, method)| (recipient(eng, host.as_ref(), entity, &method), method))
+            .collect();
+        let typed: Vec<_> = typed
+            .into_iter()
+            .map(|(entity, method, value)| (recipient(eng, host.as_ref(), entity, &method), method, value))
+            .collect();
         for (entity, method) in signals {
-            // No payload: the handler runs on the widget's own node, so
-            // `self.node` already is the thing that was clicked.
             host.call_on(balaur_core::node_id_of(entity), &method, &[]);
         }
         for (entity, method, value) in typed {
@@ -142,7 +166,11 @@ fn apply_system(eng: &Engine, _dt: f32) {
 
 /// Apply a dragged seam, a chosen tab or typed text to the widget that owns
 /// it, and collect the field handlers to call with what was typed.
-fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, String, Value)> {
+fn settle_edits(
+    eng: &Engine,
+    edits: &[(WidgetKey, Edit)],
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
+) -> Vec<(Entity, String, Value)> {
     let mut signals = Vec::new();
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
@@ -161,6 +189,7 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             Edit::Active(name) => widget.active = name.as_str().into(),
             Edit::Text(text) => {
                 widget.text = text.as_str().into();
+                emitted.push((entity, CHANGE_EVENT, Value::Str(text.clone())));
                 if !widget.on_change.is_empty() {
                     signals.push((
                         entity,
@@ -171,6 +200,7 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             }
             Edit::Submit(text) => {
                 widget.text = text.as_str().into();
+                emitted.push((entity, SUBMIT_EVENT, Value::Str(text.clone())));
                 if !widget.on_submit.is_empty() {
                     signals.push((
                         entity,
@@ -181,6 +211,7 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             }
             Edit::Value(value) => {
                 widget.value = *value;
+                emitted.push((entity, CHANGE_EVENT, Value::Num(f64::from(*value))));
                 if !widget.on_change.is_empty() {
                     signals.push((
                         entity,
@@ -191,12 +222,14 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
             }
             Edit::Open(open) => {
                 widget.open = *open;
+                emitted.push((entity, CHANGE_EVENT, Value::Bool(*open)));
                 if !widget.on_change.is_empty() {
                     signals.push((entity, widget.on_change.to_string(), Value::Bool(*open)));
                 }
             }
             Edit::Choice(choice) => {
                 widget.text = choice.as_str().into();
+                emitted.push((entity, CHANGE_EVENT, Value::Str(choice.clone())));
                 if !widget.on_change.is_empty() {
                     signals.push((
                         entity,
@@ -205,8 +238,14 @@ fn settle_edits(eng: &Engine, edits: &[(WidgetKey, Edit)]) -> Vec<(Entity, Strin
                     ));
                 }
             }
+            Edit::Moved([dx, dy]) => {
+                let (sx, sy) = crate::widget_window::drag_signs(&widget.anchor);
+                widget.x += dx * sx;
+                widget.y += dy * sy;
+            }
             Edit::Color(rgba) => {
                 widget.color = *rgba;
+                emitted.push((entity, CHANGE_EVENT, Value::Color(*rgba)));
                 if !widget.on_change.is_empty() {
                     signals.push((entity, widget.on_change.to_string(), Value::Color(*rgba)));
                 }
@@ -224,6 +263,7 @@ fn settle_clicks(
     eng: &Engine,
     clicked: &[WidgetKey],
     changes: &mut Vec<(Entity, String, Value)>,
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
@@ -254,6 +294,7 @@ fn settle_clicks(
             widget.checked = if grouped { true } else { !was };
             if widget.checked != was {
                 crate::widget_arena::widget_changed(entity);
+                emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
                 if !widget.on_change.is_empty() {
                     changes.push((
                         entity,
@@ -280,6 +321,7 @@ fn settle_clicks(
             }
             widget.checked = false;
             crate::widget_arena::widget_changed(entity);
+            emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
             if !widget.on_change.is_empty() {
                 changes.push((entity, widget.on_change.to_string(), Value::Bool(false)));
             }
@@ -304,6 +346,31 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
         widget.on_focus.clone()
     };
     if let Some(host) = eng.script_host() {
-        host.call_on(balaur_core::node_id_of(entity), &method, &[]);
+        let target = recipient(eng, host.as_ref(), entity, &method);
+        host.call_on(balaur_core::node_id_of(target), &method, &[]);
+    }
+}
+
+/// The node a widget's handler runs on: the widget's own when its script
+/// declares the method, else the nearest ancestor whose script does. So a
+/// button deep in a panel names a method on the panel's script, the way a
+/// Godot signal is connected to the node that owns the scene. With none
+/// declaring it, the widget's own node, where the call is the no-op it was.
+fn recipient(
+    eng: &Engine,
+    host: &dyn balaur_script::ScriptHost<Engine>,
+    entity: Entity,
+    method: &str,
+) -> Entity {
+    let world = eng.world();
+    let mut current = entity;
+    loop {
+        if host.has_method(balaur_core::node_id_of(current), method) {
+            return current;
+        }
+        match world.get::<&balaur_core::scene::Parent>(current) {
+            Ok(parent) => current = parent.0,
+            Err(_) => return entity,
+        }
     }
 }

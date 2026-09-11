@@ -9,20 +9,31 @@ The sampler stayed pure — `(clip, time) -> pose`, reachable with no `Engine` �
 so a blender composes *samples* without the data model moving. Three pieces,
 in order:
 
-1. **Blend.** A pose is a `Vec<TrackValue>`; `blend(a, b, t)` lerps
-   positions and scales and slerps rotations, track by track, over two
-   poses of the same clip shape. The player gains a second slot and a
-   cross-fade: `animation::play(node, "run", #{ fade: 0.2 })` samples both
-   clips and blends by elapsed fade. Method tracks fire from the incoming
-   clip only.
+1. **Blend — built, 2026-09-11.** `sampler::blend(from, from_pose, to,
+   to_pose, weight)` pairs two clips' tracks by target and property, lerps
+   positions, scales, tints and component numbers, slerps rotations, and
+   switches a name or a flag at the halfway point; a track only one clip
+   keys takes that clip's value. The player holds the outgoing clip as a
+   `Fade`, still advancing, until `fade` seconds have run:
+   `animation::play(node, "run", #{ fade: 0.2 })`. Method tracks fire from
+   the incoming clip only. The fade is in the rollback snapshot and the
+   digest.
 2. **Blend trees.** An `animation_tree` asset: a small graph of nodes —
    clip, blend by one parameter, blend by two — evaluated to one pose per
    tick from parameters a script sets (`animation::set_param(node, "speed",
    v)`). The tree is data in a TOML file, edited in the Animate persona as
    a list before it is a graph.
-3. **State machines.** States name a tree or a clip; transitions carry a
-   condition on parameters and a fade. Evaluated on the fixed step, so a
-   replay reproduces every transition.
+3. **State machines — built over clips, 2026-09-11.** A `state_machine`
+   asset maps states to clips of the player's library and carries
+   transitions with a fade, an `advance` (`disabled`, `enabled` for travel
+   only, `auto`), a `switch` (`immediate`, `sync`, `at_end`) and a
+   condition, Godot's `AnimationNodeStateMachine` field for field
+   (`crates/balaur_anim/src/machine.rs`). The `state_machine` component runs
+   one against a player; `animation::travel` walks the fewest transitions
+   to a state and cuts to one none reaches, `jump` cuts, `set_condition`
+   feeds `auto`. Evaluated on the fixed step after the players advance, and
+   in the snapshot and the digest, so a replay reproduces every transition.
+   A state naming a blend tree waits on 2.
 
 3D IK follows the 2D modifiers: `modifier3d` with `look_at` and
 `two_bone_ik` on a `bone3d` chain, the same analytic solve in three

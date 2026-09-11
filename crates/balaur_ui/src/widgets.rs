@@ -397,6 +397,12 @@ pub const ANCHORS: &[(&str, &str)] = &[
     ("ANCHOR_CENTER_TOP", w::CENTER_TOP),
     ("ANCHOR_CENTER_BOTTOM", w::CENTER_BOTTOM),
     ("ANCHOR_FILL", "fill"),
+    ("ANCHOR_FILL_TOP", w::FILL_TOP),
+    ("ANCHOR_FILL_BOTTOM", w::FILL_BOTTOM),
+    ("ANCHOR_FILL_LEFT", w::FILL_LEFT),
+    ("ANCHOR_FILL_RIGHT", w::FILL_RIGHT),
+    ("ANCHOR_FILL_ACROSS", w::FILL_ACROSS),
+    ("ANCHOR_FILL_DOWN", w::FILL_DOWN),
 ];
 
 /// Widget kinds the layer draws.
@@ -426,6 +432,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_FLOW", w::FLOW),
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),
+    ("WIDGET_WINDOW", w::WINDOW),
     ("WIDGET_SEPARATOR", "separator"),
     ("WIDGET_CODE", w::CODE),
 ];

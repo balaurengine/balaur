@@ -638,3 +638,65 @@ keys = [ { t = 0.0, value = 1.0 }, { t = 0.75, value = 0.0 } ]
         "and so is everything under it"
     );
 }
+
+/// A string or a bool keys its own value and holds it until the next key:
+/// Godot's `theme_type_variation` and `button_pressed` tracks, which a number
+/// cannot stand for.
+#[test]
+fn a_track_keys_strings_and_bools_and_holds_each_until_the_next() {
+    let mut app = app();
+    let entity = spawn(&app, "Sign");
+    set(&app, entity, "text2d", "text = \"calm\"");
+    set(
+        &app,
+        entity,
+        "animation",
+        r#"
+[library]
+length = 1.0
+
+[[library.tracks]]
+property = "text2d/text"
+interp = "linear"
+keys = [ { t = 0.0, value = "calm" }, { t = 0.5, value = "storm" } ]
+
+[[library.tracks]]
+property = "text2d/markup"
+keys = [ { t = 0.0, value = false }, { t = 0.5, value = true } ]
+"#,
+    );
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+
+    tick(&mut app, 20);
+    assert_eq!(property(&app, entity, "text2d", "text").as_str(), Some("calm"));
+    assert_eq!(property(&app, entity, "text2d", "markup").as_bool(), Some(false));
+
+    tick(&mut app, 20);
+    assert_eq!(
+        property(&app, entity, "text2d", "text").as_str(),
+        Some("storm"),
+        "past the second key the name is the second one, `linear` and all"
+    );
+    assert_eq!(property(&app, entity, "text2d", "markup").as_bool(), Some(true));
+}
+
+#[test]
+fn a_track_that_mixes_names_and_numbers_is_refused() {
+    let app = app();
+    let entity = spawn(&app, "Sign");
+    set(&app, entity, "text2d", "text = \"calm\"");
+    let params: toml::Value = toml::from_str(
+        r#"
+[library]
+length = 1.0
+[[library.tracks]]
+property = "text2d/text"
+keys = [ { t = 0.0, value = "calm" }, { t = 0.5, value = 3.0 } ]
+"#,
+    )
+    .unwrap();
+    components::add(&app.engine, entity, "animation", Some(&params)).unwrap();
+    let why = balaur_anim::play(&app.engine, entity, "").expect_err("a mixed track is not a clip");
+    let why = format!("{why:#}");
+    assert!(why.contains("names and numbers"), "{why}");
+}

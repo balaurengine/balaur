@@ -76,6 +76,7 @@ impl Bone {
             position: self.rest_position,
             rotation: quat_from_euler(self.rest_rotation),
             scale: self.rest_scale,
+            skew: 0.0,
         }
     }
 
@@ -374,7 +375,7 @@ pub fn joint_matrices_2d(
         world
             .get::<&GlobalTransform>(entity)
             .ok()
-            .map(|g| affine_2d(g.position, g.rotation, g.scale))
+            .map(|g| g.affine_2d())
     };
     let (Some(skin_global), Some(rig_global)) = (global(skin), global(rig)) else {
         return vec![Mat3::IDENTITY; bones.len()];

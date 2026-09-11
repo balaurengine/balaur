@@ -536,6 +536,7 @@ dependencies = [
  "dirs 6.0.0",
  "flate2",
  "js-sys",
+ "naga",
  "serde",
  "serde_json",
  "sha2",

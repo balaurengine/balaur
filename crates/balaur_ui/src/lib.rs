@@ -26,6 +26,7 @@ mod splash;
 pub mod text;
 mod theme;
 mod vocabulary;
+mod widget_anchor;
 mod widget_arena;
 mod widget_arrange;
 mod widget_bindings;
@@ -40,6 +41,7 @@ mod widget_scroll;
 mod widget_taffy;
 mod widget_text;
 mod widget_theme;
+mod widget_window;
 mod widgets;
 
 use anyhow::Result;
@@ -48,7 +50,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
-pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
+pub use widget_input::{CHANGE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot};
 pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget_theme::WidgetTheme;
 

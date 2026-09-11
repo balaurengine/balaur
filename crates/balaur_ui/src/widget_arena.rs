@@ -21,6 +21,9 @@ thread_local! {
     /// than counted: one inspector row changing its number should re-read that
     /// row, not the ten thousand nodes around it.
     pub(crate) static DIRTY: RefCell<rustc_hash::FxHashSet<u64>> = RefCell::new(rustc_hash::FxHashSet::default());
+    /// The tree's appearance revision last pass drew at: when it moves, a
+    /// node was hidden or shown and every widget's visibility is re-read.
+    static SEEN: std::cell::Cell<u64> = const { std::cell::Cell::new(u64::MAX) };
 }
 
 #[derive(Default)]
@@ -158,6 +161,7 @@ fn forest(
                 widget,
                 children: Vec::new(),
                 look: RefCell::new(None),
+                alpha: 1.0,
             });
             index_of.insert(entity.to_bits().get(), index);
             match owner {
@@ -195,7 +199,7 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
     let written = DIRTY.with(|d| std::mem::take(&mut *d.borrow_mut()));
     let mut fresh = true;
     let mut touched = Vec::new();
-    let (placed, roots, index_of) = match kept(stamp) {
+    let (mut placed, roots, index_of) = match kept(stamp) {
         Ok((mut arena, roots, index_of)) => {
             match if written.is_empty() {
                 Some(Vec::new())
@@ -212,6 +216,7 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
         }
         Err((arena, roots, index_of)) => forest(eng, arena, roots, index_of),
     };
+    shown_by_tree(eng, &mut placed, fresh, &mut touched);
     if !fresh {
         // The look is a pass's answer, not the arena's: a theme applied since
         // must not be answered out of the pass that cached it.
@@ -225,5 +230,47 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
         index_of,
         fresh,
         touched,
+    }
+}
+
+/// A widget draws only while its node does: `visible = false` on the node,
+/// or on any node above it, hides the widget and everything it lays out, as
+/// it hides a sprite; and it draws at its node's inherited tint's alpha, so a
+/// fade reaches the UI as it reaches a sprite.
+///
+/// Read against the tree's appearance revision, so a pass in which nothing
+/// was hidden or shown costs nothing; a slot re-read from its component this
+/// pass has its own `visible` back and is folded again either way.
+fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut Vec<usize>) {
+    let revision = balaur_core::scene::appearance_revision();
+    let moved = SEEN.with(|seen| seen.replace(revision)) != revision;
+    let reread = touched.clone();
+    let world = eng.world();
+    let mut fold = |index: usize, one: &mut Placed| {
+        let authored = world.get::<&Widget>(one.entity).map_or(true, |w| w.visible);
+        let (shown, alpha) = world
+            .get::<&balaur_core::GlobalAppearance>(one.entity)
+            .map_or((true, 1.0), |a| (a.visible, a.tint.w.clamp(0.0, 1.0)));
+        // Drawn over, not laid out: a fade changes no size, so it is written
+        // without marking the slot for the layout pass.
+        one.alpha = alpha;
+        let visible = authored && shown;
+        if one.widget.visible != visible {
+            one.widget.visible = visible;
+            if !fresh && !touched.contains(&index) {
+                touched.push(index);
+            }
+        }
+    };
+    if fresh || moved {
+        for (index, one) in placed.iter_mut().enumerate() {
+            fold(index, one);
+        }
+    } else {
+        for index in reread {
+            if let Some(one) = placed.get_mut(index) {
+                fold(index, one);
+            }
+        }
     }
 }

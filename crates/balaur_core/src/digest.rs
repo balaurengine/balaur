@@ -166,6 +166,11 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             for v in t.trs() {
                 h.write_f32(v);
             }
+            // Only when there is one, so every digest taken before skew
+            // existed still matches the same scene now.
+            if t.skew != 0.0 {
+                h.write_f32(t.skew);
+            }
             out.push(Entry {
                 label: format!("{label}/transform"),
                 digest: h.finish(),

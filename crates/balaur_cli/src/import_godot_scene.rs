@@ -7,7 +7,7 @@
 //! and on any node edited inside one, lands in `overrides` under the path
 //! from the prefab's root.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::Result;
@@ -31,14 +31,8 @@ pub(crate) struct Converted {
 struct Outline {
     root: String,
     classes: BTreeMap<String, String>,
-}
-
-/// `res://a/b.tscn` as `a/b.tscn`.
-pub(crate) fn project_path(reference: &str) -> String {
-    reference
-        .strip_prefix("res://")
-        .unwrap_or(reference)
-        .to_string()
+    /// The nodes that are instances themselves, to the scene each holds.
+    instances: BTreeMap<String, String>,
 }
 
 /// A scene's path in the converted project: the same tree, `.toml`.
@@ -65,16 +59,39 @@ enum Slot {
     Override { instance: usize, path: String },
 }
 
+/// What a widget emits by name when its value changes and when a field is
+/// submitted; `balaur_ui`'s `CHANGE_EVENT` and `SUBMIT_EVENT`.
+const CHANGE_EVENT: &str = "change";
+const SUBMIT_EVENT: &str = "submit";
+
+/// Godot signals of its own classes that nothing here emits; a row answering
+/// one waits on a script that does.
+const UNSENT: &[&str] = &[
+    "gui_input",
+    "visibility_changed",
+    "text_change_rejected",
+    "tab_changed",
+    "tab_selected",
+    "draw",
+    "resized",
+    "ready",
+    "tree_entered",
+    "tree_exited",
+];
+
 struct Walk<'a> {
     res: Resources<'a>,
     nodes: Vec<toml::Table>,
     assets: Vec<Toml>,
+    asset_ids: BTreeMap<String, String>,
     slots: BTreeMap<String, Slot>,
     classes: BTreeMap<String, String>,
     instances: BTreeMap<String, Outline>,
     ids: BTreeMap<String, String>,
     taken: Vec<String>,
     notes: Vec<String>,
+    /// Files nodes asked to have written beside the scene.
+    files: Vec<(String, String)>,
 }
 
 /// Convert one scene. `path` is its project path, for naming the files it
@@ -83,18 +100,20 @@ pub(crate) fn convert(
     document: &Document,
     path: &str,
     root: &Path,
-    keys: &BTreeSet<String>,
+    project: &crate::import_godot_nodes::Project,
 ) -> Result<Converted> {
     let mut walk = Walk {
-        res: resources(document, root, keys),
+        res: crate::import_godot_nodes::resources_of(document, root, project),
         nodes: Vec::new(),
         assets: Vec::new(),
+        asset_ids: BTreeMap::new(),
         slots: BTreeMap::new(),
         classes: BTreeMap::new(),
         instances: BTreeMap::new(),
         ids: BTreeMap::new(),
         taken: Vec::new(),
         notes: Vec::new(),
+        files: Vec::new(),
     };
     let nodes: Vec<&Section> = document.each("node").collect();
     for section in &nodes {
@@ -103,13 +122,17 @@ pub(crate) fn convert(
     for connection in document.each("connection") {
         walk.connection(connection);
     }
-    let mut files = Vec::new();
+    let mut files = std::mem::take(&mut walk.files);
     let stem = path.strip_suffix(".tscn").unwrap_or(path);
     for section in &nodes {
-        if section.attr_str("type") != Some("AnimationPlayer") {
-            continue;
+        match section.attr_str("type") {
+            Some("AnimationPlayer") => walk.player(section, stem, &mut files),
+            Some("AnimationTree") => {
+                walk.player(section, stem, &mut files);
+                walk.machine(section, stem, &mut files);
+            }
+            _ => {}
         }
-        walk.player(section, stem, &mut files);
     }
     let mut out = toml::Table::new();
     if !walk.assets.is_empty() {
@@ -128,31 +151,12 @@ pub(crate) fn convert(
     })
 }
 
-fn resources<'a>(document: &Document, root: &'a Path, keys: &'a BTreeSet<String>) -> Resources<'a> {
-    let mut external = BTreeMap::new();
-    for section in document.each("ext_resource") {
-        let (Some(id), Some(path)) = (section.attr_str("id"), section.attr_str("path")) else {
-            continue;
-        };
-        let kind = section.attr_str("type").unwrap_or_default().to_string();
-        external.insert(id.to_string(), (kind, project_path(path)));
-    }
-    let internal = document
-        .each("sub_resource")
-        .filter_map(|s| Some((s.attr_str("id")?.to_string(), s.clone())))
-        .collect();
-    Resources {
-        external,
-        internal,
-        root,
-        keys,
-    }
-}
-
 impl Walk<'_> {
     fn node(&mut self, section: &Section) {
         let name = section.attr_str("name").unwrap_or("Node").to_string();
-        let parent = section.attr_str("parent").map(|p| if p == "." { "" } else { p });
+        let parent = section
+            .attr_str("parent")
+            .map(|p| if p == "." { "" } else { p });
         let path = match parent {
             None => String::new(),
             Some("") => name.clone(),
@@ -202,7 +206,9 @@ impl Walk<'_> {
         parent_class: &str,
     ) {
         let Some(prefab) = self.res.path(instance).map(str::to_string) else {
-            self.notes.push(format!("`{path}` instances a scene this file does not declare"));
+            self.notes.push(format!(
+                "`{path}` instances a scene this file does not declare"
+            ));
             return;
         };
         let outline = outline(&self.res, &prefab);
@@ -242,10 +248,12 @@ impl Walk<'_> {
 
     /// A node with no type: an edit of one an instance above it already has.
     fn edit(&mut self, section: &Section, path: &str, parent_class: &str) {
+        // The scene's own root may be an instance, whose path is empty and
+        // who owns everything below it that no deeper instance does.
         let owner = self
             .instances
             .keys()
-            .filter(|inst| path.starts_with(&format!("{inst}/")))
+            .filter(|inst| inst.is_empty() || path.starts_with(&format!("{inst}/")))
             .max_by_key(|inst| inst.len())
             .cloned();
         let Some(owner) = owner else {
@@ -254,10 +262,12 @@ impl Walk<'_> {
             ));
             return;
         };
-        let outline = &self.instances[&owner];
-        let inner = &path[owner.len() + 1..];
-        let class = outline.classes.get(inner).cloned().unwrap_or_default();
-        let override_path = format!("{}/{inner}", outline.root);
+        let inner = if owner.is_empty() {
+            path
+        } else {
+            &path[owner.len() + 1..]
+        };
+        let (override_path, class) = locate(&self.res, &self.instances[&owner], inner, 0);
         let Slot::Override { instance, .. } = self.slots[&owner].clone() else {
             return;
         };
@@ -298,25 +308,27 @@ impl Walk<'_> {
         }
     }
 
-    /// One mapped node into its table, its inline meshes into the scene's
-    /// `[[assets]]`, and its notes prefixed with where they came from.
+    /// One mapped node into its table, its inline assets into the scene's
+    /// `[[assets]]`, its extra nodes under it, and its notes prefixed with
+    /// where they came from.
     fn write(&mut self, path: &str, class: &str, mapped: Mapped, id: &str) {
         let Mapped {
             keys,
             mut components,
             assets,
+            children,
             notes,
+            files,
         } = mapped;
-        for (index, (component, mut mesh)) in assets.into_iter().enumerate() {
-            let asset = if index == 0 {
-                format!("{id}_{component}")
-            } else {
-                format!("{id}_{component}_{index}")
-            };
-            mesh.insert("id".into(), Toml::String(asset.clone()));
-            self.assets.push(Toml::Table(mesh));
-            if let Some(Toml::Table(table)) = components.get_mut(component) {
-                table.insert("mesh".into(), Toml::String(format!("#{asset}")));
+        for file in files {
+            if !self.files.iter().any(|(path, _)| *path == file.0) {
+                self.files.push(file);
+            }
+        }
+        for (index, asset) in assets.into_iter().enumerate() {
+            let reference = self.asset(asset.table, id, asset.component, index);
+            if let Some(Toml::Table(table)) = components.get_mut(asset.component) {
+                table.insert(asset.key.into(), Toml::String(format!("#{reference}")));
             }
         }
         let shown = if path.is_empty() { "the root" } else { path };
@@ -333,6 +345,31 @@ impl Walk<'_> {
                     table.insert(key, value);
                 }
             }
+        }
+        if children.is_empty() {
+            return;
+        }
+        let Some(Slot::Own(_)) = self.slots.get(path) else {
+            self.notes.push(format!(
+                "`{shown}` ({class}): inside an instance, so its extra nodes were not added"
+            ));
+            return;
+        };
+        for (name, child) in children {
+            let child_path = if path.is_empty() {
+                name.clone()
+            } else {
+                format!("{path}/{name}")
+            };
+            let child_id = self.id_for(&child_path, &name);
+            let mut table = toml::Table::new();
+            table.insert("id".into(), Toml::String(child_id.clone()));
+            table.insert("name".into(), Toml::String(name));
+            table.insert("parent".into(), Toml::String(id.to_string()));
+            self.nodes.push(table);
+            self.slots
+                .insert(child_path.clone(), Slot::Own(self.nodes.len() - 1));
+            self.write(&child_path, class, child, &child_id);
         }
     }
 
@@ -357,16 +394,34 @@ impl Walk<'_> {
             return;
         };
         let Some(godot) = self.res.path(reference).map(str::to_string) else {
-            self.notes.push(format!("`{path}`: an inline script is not converted"));
+            self.notes
+                .push(format!("`{path}`: an inline script is not converted"));
             return;
         };
-        let exports = exported(&self.res.root.join(&godot));
+        let source = std::fs::read_to_string(self.res.root.join(&godot)).unwrap_or_default();
+        let exports = crate::import_godot_exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
+        let res = &self.res;
+        let path_of = |v: &Value| res.path(v).map(scene_path);
         for (key, value) in &section.fields {
-            if exports.contains(key) {
-                if let Some(value) = toml_of(value, &self.res) {
+            let Some(export) = exports.iter().find(|e| &e.name == key) else {
+                continue;
+            };
+            let Some(kind) = export.kind else {
+                self.notes.push(format!(
+                    "`{path}`: export `{key}` is a {}, which a scene prop cannot hold; dropped",
+                    export.hint
+                ));
+                continue;
+            };
+            match crate::import_godot_exports::scene_value(kind, value, &path_of) {
+                Some(value) => {
                     props.insert(key.clone(), value);
                 }
+                None => self.notes.push(format!(
+                    "`{path}`: export `{key}`'s value did not read as a {}",
+                    export.hint
+                )),
             }
         }
         let mut script = toml::Table::new();
@@ -379,8 +434,9 @@ impl Walk<'_> {
         }
     }
 
-    /// A signal connection as the handler key a widget names, or a `call`
-    /// binding, or a note when neither can say it.
+    /// A signal connection as the handler key a widget names, or a binding
+    /// row on the emitting node: a click, a collision, a pointer crossing,
+    /// or `emitted:<signal>` for everything a node emits by name.
     fn connection(&mut self, section: &Section) {
         let (Some(signal), Some(from), Some(to), Some(method)) = (
             section.attr_str("signal"),
@@ -393,51 +449,66 @@ impl Walk<'_> {
         let from = join("", from);
         let to = join("", to);
         let class = self.classes.get(&from).cloned().unwrap_or_default();
+        if section.attr("binds").is_some() || section.attr("unbinds").is_some() {
+            self.notes.push(format!(
+                "connection `{signal}` from `{from}` to `{method}`: its bound arguments were dropped"
+            ));
+        }
+        // A dialog's answer is a click on the button it was given here.
+        let (from, signal) = match (class.as_str(), signal) {
+            ("AcceptDialog" | "ConfirmationDialog", "confirmed") => {
+                (format!("{from}/{}", crate::import_godot_controls::DIALOG_OK), "pressed")
+            }
+            ("ConfirmationDialog", "canceled") => {
+                (format!("{from}/{}", crate::import_godot_controls::DIALOG_CANCEL), "pressed")
+            }
+            _ => (from, signal),
+        };
+        let control = family(&class) == Family::Control;
         // A widget handler runs on the widget's node or the nearest scripted
         // ancestor, so it can say a connection to either and nothing else.
         let upward = to.is_empty() || from == to || from.starts_with(&format!("{to}/"));
         let handler = match signal {
             "pressed" | "button_up" => Some("on_click"),
-            "toggled" | "text_changed" | "value_changed" | "item_selected" | "folding_changed" => {
-                Some("on_change")
-            }
+            "toggled" | "text_changed" | "value_changed" | "item_selected" | "folding_changed"
+            | "close_requested" => Some("on_change"),
             "text_submitted" => Some("on_submit"),
             "focus_entered" => Some("on_focus"),
             _ => None,
         };
-        if family(&class) == Family::Control && upward {
-            if let Some(handler) = handler {
-                if let Some(Toml::Table(widget)) = self
-                    .table(&from)
-                    .map(|t| t.entry("widget").or_insert_with(|| Toml::Table(toml::Table::new())))
-                {
-                    widget.insert(handler.into(), Toml::String(method.to_string()));
-                }
-                return;
+        if control
+            && upward
+            && let Some(handler) = handler
+        {
+            if let Some(Toml::Table(widget)) = self.table(&from).map(|t| {
+                t.entry("widget")
+                    .or_insert_with(|| Toml::Table(toml::Table::new()))
+            }) {
+                widget.insert(handler.into(), Toml::String(method.to_string()));
             }
-        }
-        let event = match signal {
-            "body_entered" | "area_entered" => Some("collision_start"),
-            "body_exited" | "area_exited" => Some("collision_stop"),
-            "mouse_entered" => Some("pointer_enter"),
-            "mouse_exited" => Some("pointer_exit"),
-            _ => None,
-        };
-        let Some(event) = event else {
-            self.notes.push(format!(
-                "connection `{signal}` from `{from}` to `{method}` on `{to}`: subscribe to it in a script"
-            ));
             return;
-        };
+        }
+        if handler.is_none() && UNSENT.contains(&signal) {
+            self.notes.push(format!(
+                "connection `{signal}` from `{from}`: nothing here emits it, so its row waits on a script's `emit(\"{signal}\")`"
+            ));
+        }
+        let event = event_of(signal, control, handler);
         // A collision is reported by the collider's own node, and a Godot
         // area or body holds its shapes as children, so the row goes on each.
         let colliding = event.starts_with("collision");
         let holders: Vec<String> = if colliding {
-            let prefix = if from.is_empty() { String::new() } else { format!("{from}/") };
+            let prefix = if from.is_empty() {
+                String::new()
+            } else {
+                format!("{from}/")
+            };
             self.classes
                 .iter()
                 .filter(|(path, class)| {
-                    let child = path.strip_prefix(&prefix).is_some_and(|rest| !rest.contains('/'));
+                    let child = path
+                        .strip_prefix(&prefix)
+                        .is_some_and(|rest| !rest.contains('/'));
                     child && matches!(class.as_str(), "CollisionShape2D" | "CollisionPolygon2D")
                 })
                 .map(|(path, _)| path.clone())
@@ -450,27 +521,41 @@ impl Walk<'_> {
                 "connection `{signal}` from `{from}`: it has no shape child to report it"
             ));
         }
+        // A Godot method every node has is a verb a row already knows.
+        let (action, value) = match method {
+            "show" => ("visible", Toml::Boolean(true)),
+            "hide" => ("visible", Toml::Boolean(false)),
+            "queue_free" => ("free", Toml::String(String::new())),
+            _ => ("call", Toml::String(method.to_string())),
+        };
         for holder in holders {
-            let mut row = toml::Table::new();
-            row.insert("event".into(), Toml::String(event.into()));
-            row.insert("action".into(), Toml::String("call".into()));
-            row.insert("target".into(), Toml::String(relative(&holder, &to)));
-            row.insert("value".into(), Toml::String(method.to_string()));
-            let Some(table) = self.table(&holder) else { continue };
-            if colliding {
-                if let Some(Toml::Table(collider)) = table.get_mut("collider2d") {
-                    collider.insert(
-                        "events".into(),
-                        Toml::Array(vec![Toml::String("collision".into())]),
-                    );
-                }
-            }
-            let rows = table
-                .entry("bindings")
-                .or_insert_with(|| Toml::Array(Vec::new()));
-            if let Toml::Array(rows) = rows {
-                rows.push(Toml::Table(row));
-            }
+            self.bind(&holder, &to, &event, action, value.clone());
+        }
+    }
+
+    /// One binding row on `holder`, aimed at `to`.
+    fn bind(&mut self, holder: &str, to: &str, event: &str, action: &str, value: Toml) {
+        let mut row = toml::Table::new();
+        row.insert("event".into(), Toml::String(event.into()));
+        row.insert("action".into(), Toml::String(action.into()));
+        row.insert("target".into(), Toml::String(relative(holder, to)));
+        row.insert("value".into(), value);
+        let Some(table) = self.table(holder) else {
+            return;
+        };
+        if event.starts_with("collision")
+            && let Some(Toml::Table(collider)) = table.get_mut("collider2d")
+        {
+            collider.insert(
+                "events".into(),
+                Toml::Array(vec![Toml::String("collision".into())]),
+            );
+        }
+        let rows = table
+            .entry("bindings")
+            .or_insert_with(|| Toml::Array(Vec::new()));
+        if let Toml::Array(rows) = rows {
+            rows.push(Toml::Table(row));
         }
     }
 
@@ -478,13 +563,16 @@ impl Walk<'_> {
     /// `animation` component.
     fn player(&mut self, section: &Section, stem: &str, files: &mut Vec<(String, String)>) {
         let name = section.attr_str("name").unwrap_or("AnimationPlayer");
-        let parent = section.attr_str("parent").map(|p| if p == "." { "" } else { p });
+        let parent = section
+            .attr_str("parent")
+            .map(|p| if p == "." { "" } else { p });
         let path = match parent {
             None => String::new(),
             Some("") => name.to_string(),
             Some(p) => format!("{p}/{name}"),
         };
-        let Some(clips) = crate::import_godot_anim::convert(section, &path, &self.classes, &self.res)
+        let Some(clips) =
+            crate::import_godot_anim::convert(section, &path, &self.classes, &self.res)
         else {
             return;
         };
@@ -495,11 +583,16 @@ impl Walk<'_> {
             .field("root_node")
             .and_then(node_path)
             .unwrap_or_else(|| "..".to_string());
-        let autoplay = section.field("autoplay").and_then(Value::as_str).map(str::to_string);
-        for note in clips.notes {
-            self.notes.push(format!("`{path}` (AnimationPlayer): {note}"));
+        let autoplay = section
+            .field("autoplay")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        for note in &clips.notes {
+            self.notes
+                .push(format!("`{path}` (AnimationPlayer): {note}"));
         }
-        files.push((file.clone(), clips.toml));
+        let mut missing = None;
+        files.push((file.clone(), clips.toml.clone()));
         let Some(table) = self.table(&path) else {
             return;
         };
@@ -510,9 +603,80 @@ impl Walk<'_> {
             animation.insert("library".into(), Toml::String(file));
             animation.insert("root".into(), Toml::String(root));
             if let Some(clip) = autoplay.filter(|c| !c.is_empty()) {
-                animation.insert("autoplay".into(), Toml::String(clip));
+                if clips.names.contains(&clip) {
+                    animation.insert("autoplay".into(), Toml::String(clip));
+                } else {
+                    missing = Some(clip);
+                }
             }
         }
+        if let Some(clip) = missing {
+            self.notes.push(format!(
+                "`{path}` (AnimationPlayer): autoplays `{clip}`, which its libraries do not have; Godot ignores it silently"
+            ));
+        }
+    }
+
+    /// An AnimationTree's state machine, written beside the scene and run by
+    /// its `state_machine` component against the player it names.
+    fn machine(&mut self, section: &Section, stem: &str, files: &mut Vec<(String, String)>) {
+        let name = section.attr_str("name").unwrap_or("AnimationTree");
+        let path = match section.attr_str("parent") {
+            None => String::new(),
+            Some(".") => name.to_string(),
+            Some(p) => format!("{p}/{name}"),
+        };
+        let Some(machine) = crate::import_godot_machine::convert(section, &self.res) else {
+            if section.field("tree_root").is_some() {
+                self.notes.push(format!(
+                    "`{path}` (AnimationTree): its root is not a state machine; blend trees have no equivalent"
+                ));
+            }
+            return;
+        };
+        for note in &machine.notes {
+            self.notes.push(format!("`{path}` (AnimationTree): {note}"));
+        }
+        let file = format!("animations/{}_{}_machine.toml", slug(stem), slug(&path));
+        files.push((file.clone(), machine.toml));
+        // Its own libraries make the tree its own player; otherwise it drives
+        // the one `anim_player` names.
+        let own = section.fields.iter().any(|(key, _)| key.starts_with("libraries"));
+        let player = if own {
+            String::new()
+        } else {
+            section
+                .field("anim_player")
+                .and_then(node_path)
+                .unwrap_or_default()
+        };
+        let active = section.field("active") != Some(&Value::Bool(false));
+        let Some(table) = self.table(&path) else {
+            return;
+        };
+        let mut component = toml::Table::new();
+        component.insert("machine".into(), Toml::String(file));
+        component.insert("player".into(), Toml::String(player));
+        component.insert("active".into(), Toml::Boolean(active));
+        table.insert("state_machine".into(), Toml::Table(component));
+    }
+
+    /// Add an inline asset, or find the one already added with the same
+    /// contents, and answer its id: two layers over one tileset share it.
+    fn asset(&mut self, mut table: toml::Table, id: &str, component: &str, index: usize) -> String {
+        let key = toml::to_string(&table).unwrap_or_default();
+        if let Some(found) = self.asset_ids.get(&key) {
+            return found.clone();
+        }
+        let reference = if index == 0 {
+            format!("{id}_{component}")
+        } else {
+            format!("{id}_{component}_{index}")
+        };
+        table.insert("id".into(), Toml::String(reference.clone()));
+        self.assets.push(Toml::Table(table));
+        self.asset_ids.insert(key, reference.clone());
+        reference
     }
 
     /// A readable id for a scene path, unique within this file.
@@ -534,12 +698,35 @@ impl Walk<'_> {
     }
 }
 
+/// The binding event a Godot signal is here: a click, a collision or a
+/// pointer crossing where one says the same thing, else the name the node
+/// emits, a widget's change and submit included.
+fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
+    match signal {
+        "body_entered" | "area_entered" => "collision_start".into(),
+        "body_exited" | "area_exited" => "collision_stop".into(),
+        "mouse_entered" => "pointer_enter".into(),
+        "mouse_exited" => "pointer_exit".into(),
+        "pressed" | "button_up" if control => "pointer_click".into(),
+        _ => {
+            let emitted = match handler {
+                Some("on_change") => CHANGE_EVENT,
+                Some("on_submit") => SUBMIT_EVENT,
+                _ => signal,
+            };
+            format!("emitted:{emitted}")
+        }
+    }
+}
+
 /// A scene an instance names, read far enough to know its root and its
 /// nodes' classes. `None` when the file is missing or will not parse.
 fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
     let text = std::fs::read_to_string(res.root.join(prefab)).ok()?;
     let document = crate::import_godot::parse(&text).ok()?;
+    let own = crate::import_godot_nodes::resources_of(&document, res.root, res.project);
     let mut classes = BTreeMap::new();
+    let mut instances = BTreeMap::new();
     let mut root = String::new();
     for section in document.each("node") {
         let name = section.attr_str("name").unwrap_or_default();
@@ -551,72 +738,65 @@ fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
             Some(".") => name.to_string(),
             Some(p) => format!("{p}/{name}"),
         };
-        // An instance inside the prefab: its class is its own prefab's root,
-        // which one level down is as far as an override usually reaches.
+        if let Some(nested) = section.attr("instance").and_then(|i| own.path(i)) {
+            instances.insert(path.clone(), nested.to_string());
+        }
         let class = section
             .attr_str("type")
             .map(str::to_string)
             .unwrap_or_default();
         classes.insert(path, class);
     }
-    Some(Outline { root, classes })
-}
-
-/// The `@export` names a GDScript file declares.
-fn exported(file: &Path) -> Vec<String> {
-    let Ok(source) = std::fs::read_to_string(file) else {
-        return Vec::new();
-    };
-    let mut names = Vec::new();
-    let mut pending = false;
-    for line in source.lines() {
-        let line = line.trim();
-        let exporting = line.starts_with("@export");
-        if exporting || pending {
-            if let Some(at) = line.find("var ") {
-                let name: String = line[at + 4..]
-                    .chars()
-                    .take_while(|c| c.is_alphanumeric() || *c == '_')
-                    .collect();
-                if !name.is_empty() {
-                    names.push(name);
-                }
-                pending = false;
-            } else {
-                // `@export` alone on a line annotates the `var` on the next.
-                pending = exporting;
-            }
-        }
-    }
-    names
-}
-
-/// A Godot value as the TOML a script's props take.
-fn toml_of(value: &Value, res: &Resources<'_>) -> Option<Toml> {
-    Some(match value {
-        Value::Null => return None,
-        Value::Bool(b) => Toml::Boolean(*b),
-        Value::Int(n) => Toml::Integer(*n),
-        Value::Float(n) => Toml::Float(*n),
-        Value::Str(s) | Value::Name(s) => Toml::String(s.clone()),
-        Value::Array(items) => Toml::Array(items.iter().filter_map(|v| toml_of(v, res)).collect()),
-        Value::Dict(pairs) => {
-            let mut table = toml::Table::new();
-            for (key, value) in pairs {
-                if let (Some(key), Some(value)) = (key.as_str(), toml_of(value, res)) {
-                    table.insert(key.to_string(), value);
-                }
-            }
-            Toml::Table(table)
-        }
-        Value::Call { name, args } => match name.as_str() {
-            "NodePath" => Toml::String(args.first()?.as_str()?.to_string()),
-            "ExtResource" => Toml::String(scene_path(res.path(value)?)),
-            "SubResource" => return None,
-            _ => Toml::Array(args.iter().filter_map(|v| toml_of(v, res)).collect()),
-        },
-        Value::Object { .. } => return None,
+    Some(Outline {
+        root,
+        classes,
+        instances,
     })
+}
+
+/// Where a node `inner` below a prefab's root sits under the instance node
+/// holding it, and its class. Each instance inside the prefab adds its own
+/// prefab's root to the path, because here an instance holds its prefab.
+fn locate(res: &Resources<'_>, prefab: &Outline, inner: &str, depth: usize) -> (String, String) {
+    // A prefab whose root is an instance holds that scene's root under its
+    // own, and a node this file did not declare with a type lives in there.
+    let first = inner.split('/').next().unwrap_or_default();
+    let declared = prefab.classes.get(first).is_some_and(|c| !c.is_empty())
+        || prefab.instances.contains_key(first);
+    if !declared
+        && let Some(nested) = prefab.instances.get("").filter(|_| depth < 8)
+        && let Some(nested) = outline(res, nested)
+    {
+        let (tail, class) = locate(res, &nested, inner, depth + 1);
+        return (format!("{}/{tail}", prefab.root), class);
+    }
+    let mut out = prefab.root.clone();
+    let segments: Vec<&str> = inner.split('/').collect();
+    let mut walked = String::new();
+    for (index, segment) in segments.iter().enumerate() {
+        walked = if walked.is_empty() {
+            (*segment).to_string()
+        } else {
+            format!("{walked}/{segment}")
+        };
+        out.push('/');
+        out.push_str(segment);
+        let Some(nested) = prefab.instances.get(&walked) else {
+            continue;
+        };
+        // Prefabs nest a handful deep at most; a cycle is Godot's error too.
+        let Some(nested) = (depth < 8).then(|| outline(res, nested)).flatten() else {
+            continue;
+        };
+        let rest = segments[index + 1..].join("/");
+        if rest.is_empty() {
+            let class = nested.classes.get("").cloned().unwrap_or_default();
+            return (format!("{out}/{}", nested.root), class);
+        }
+        let (tail, class) = locate(res, &nested, &rest, depth + 1);
+        return (format!("{out}/{tail}"), class);
+    }
+    (out, prefab.classes.get(inner).cloned().unwrap_or_default())
 }
 
 /// The node path from one scene path to another, as a binding's `target`.

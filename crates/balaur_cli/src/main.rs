@@ -285,7 +285,15 @@ mod import_godot;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_anim;
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot_controls;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_exports;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_godot_files;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_machine;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_material;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_nodes;
 #[cfg(not(target_arch = "wasm32"))]
@@ -295,7 +303,17 @@ mod import_godot_scene;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_script;
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot_shader;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_shader_syntax;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_godot_strings;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_textures;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_theme;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_tiles;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_ldtk;
 #[cfg(not(target_arch = "wasm32"))]

@@ -8,7 +8,7 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 16 | 0 | the engine |
+| [`animation`](#animation) | 20 | 0 | the engine |
 | [`apple`](#apple) | 18 | 0 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 20 | 0 | the engine |
@@ -45,13 +45,13 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 58 | 49 | the engine |
+| [`ui`](#ui) | 58 | 56 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
 
-**Functions:** `current`, `define`, `is_playing`, `is_tween_running`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `stop`, `time`, `tween`, `tween_to`, `tween_value`, `tween_value_of`
+**Functions:** `current`, `define`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `state`, `stop`, `time`, `travel`, `tween`, `tween_to`, `tween_value`, `tween_value_of`
 
 ## `apple`
 
@@ -351,7 +351,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `window`
 
-**Constants** (49):
+**Constants** (56):
 
 | Name | Value |
 | --- | --- |
@@ -367,20 +367,20 @@ cannot drift from what scripts actually see.
 | `ANCHOR_CENTER_RIGHT` | `center_right` |
 | `ANCHOR_CENTER_TOP` | `center_top` |
 | `ANCHOR_FILL` | `fill` |
+| `ANCHOR_FILL_ACROSS` | `fill_across` |
+| `ANCHOR_FILL_BOTTOM` | `fill_bottom` |
+| `ANCHOR_FILL_DOWN` | `fill_down` |
+| `ANCHOR_FILL_LEFT` | `fill_left` |
+| `ANCHOR_FILL_RIGHT` | `fill_right` |
+| `ANCHOR_FILL_TOP` | `fill_top` |
 | `ANCHOR_TOP_LEFT` | `top_left` |
 | `ANCHOR_TOP_RIGHT` | `top_right` |
 | `FONT_HEADING` | `heading` |
 | `FONT_MONO` | `mono` |
 | `FONT_STYLE_ITALIC` | `italic` |
 | `FONT_STYLE_NORMAL` | `normal` |
-| `MOD_ALT` | `alt` |
-| `MOD_CMD` | `cmd` |
-| `MOD_CTRL` | `ctrl` |
-| `MOD_SHIFT` | `shift` |
-| `WIDGET_BUTTON` | `button` |
-| `WIDGET_CHECK` | `check` |
 
-…and 25 more.
+…and 32 more.
 
 ## `web`
 

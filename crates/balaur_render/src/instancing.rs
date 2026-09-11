@@ -85,6 +85,7 @@ mod tests {
             position,
             rotation,
             scale,
+            skew: 0.0,
         }
     }
 

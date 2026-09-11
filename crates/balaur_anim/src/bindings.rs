@@ -26,12 +26,39 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
     install_transport_api(m);
     install_playhead_api(m);
     install_tween_api(m);
+    install_machine_api(m);
+}
+
+/// Driving a node's `state_machine`.
+fn install_machine_api(m: &mut dyn Bindings<Engine>) {
+    const MACHINE: &[&str] = &[crate::machine::COMPONENT];
+    m.describe(&[
+        ("travel", MACHINE, "", "Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly."),
+        ("jump", MACHINE, "", "Cut the state machine to the named state on the next step, with no fade."),
+        ("set_condition", MACHINE, "", "Turn on or off a condition that `auto` transitions wait on."),
+        ("state", MACHINE, "", "The state the machine is in, or nil before it has entered one."),
+    ]);
+    m.function("travel", |eng: &Engine, (node, to): (NodeId, String)| {
+        crate::machine::travel(eng, entity_of(node)?, &to)
+    });
+    m.function("jump", |eng: &Engine, (node, to): (NodeId, String)| {
+        crate::machine::jump(eng, entity_of(node)?, &to)
+    });
+    m.function(
+        "set_condition",
+        |eng: &Engine, (node, name, on): (NodeId, String, bool)| {
+            crate::machine::set_condition(eng, entity_of(node)?, &name, on)
+        },
+    );
+    m.function("state", |eng: &Engine, node: NodeId| {
+        Ok(crate::machine::state(eng, entity_of(node)?).map_or(Value::Nil, Value::Str))
+    });
 }
 
 /// Starting, queueing and holding a clip.
 fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
+        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
         ("stop", &[crate::COMPONENT], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
@@ -57,7 +84,8 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
                 option(opts.as_ref(), "from_start"),
                 Some(Value::Bool(false))
             );
-            player::play_from(eng, entity, &name, from_start)
+            let fade = option(opts.as_ref(), "fade").as_ref().and_then(number).unwrap_or(0.0);
+            player::play_faded(eng, entity, &name, fade, from_start)
         },
     );
     // Plays once the current clip ends. A looping clip never ends, so a queue

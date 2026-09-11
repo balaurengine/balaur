@@ -57,7 +57,8 @@ playing node (empty means that node), a `property` (`position`,
 `<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
 `keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
 and always stepped; `tint` is the `[r, g, b, a]` every descendant is
-multiplied by, which a renderable's own `color` is not. A track with no
+multiplied by, which a renderable's own `color` is not. A component
+property's value may be a string or a bool, held from key to key. A track with no
 `property` is a method track whose keys call the node's script. A file holds
 one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
 
@@ -262,6 +263,36 @@ direction = "forward"
 
 [slices.hitbox]
 rect = [8, 4, 16, 28]
+```
+
+### `state_machine`
+
+Files: `animations/`. Used by: `state_machine.machine`.
+
+A state machine switches a player between clips. `start` is the state
+entered first; `[states]` maps each state to the clip it plays from the
+player's library (an empty clip is the state's own name). Each transition
+names `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never
+fires, `enabled` fires only on `animation.travel`, `auto` also fires on its
+own), a `switch` (`immediate` once any fade already running has finished,
+`sync` the same keeping the playhead, `at_end` fading so the fade ends with
+the clip) and an optional `condition` that `animation.set_condition` turns
+on.
+
+```toml
+type = "state_machine"
+start = "idle"
+
+[states]
+idle = "idle"
+walk = "walk_cycle"
+
+[[transitions]]
+from = "idle"
+to = "walk"
+fade = 0.2
+advance = "auto"
+condition = "moving"
 ```
 
 ### `tileset`

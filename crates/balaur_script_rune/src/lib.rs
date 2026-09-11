@@ -709,10 +709,17 @@ impl RuneHost {
                 .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
         };
         let (key, state) = found?;
-        // The instance first, then the payload: `pub fn on_x(this, a, b)`,
-        // the same shape `update(this, dt)` already has.
+        // A handler may take fewer arguments than its event carries; the rest drop.
+        let takes = self
+            .state
+            .borrow()
+            .scripts
+            .get(&*key)
+            .and_then(|script| script.functions.iter().find(|f| f.name == method))
+            .map_or(usize::MAX, |declared| declared.arity);
+        // The instance first, then the payload: `pub fn on_x(this, a, b)`.
         let mut call_args = vec![state];
-        for arg in args {
+        for arg in args.iter().take(takes.saturating_sub(1)) {
             match value::from_neutral(arg) {
                 Ok(value) => call_args.push(value),
                 Err(err) => {

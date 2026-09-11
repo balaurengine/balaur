@@ -112,6 +112,8 @@ pub(crate) struct ShaderMaterial {
     last_frame: Cell<u64>,
     /// The sampler `screen_texture` is read through, for a screen reader.
     screen: Option<wgpu::Sampler>,
+    /// The material's own images, one per slot; `None` reads the fallback.
+    slots: Vec<Option<Arc<Texture>>>,
 }
 
 const fn float32x2(shader_location: u32, offset: u64) -> wgpu::VertexAttribute {
@@ -162,9 +164,15 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
     ]
 }
 
+/// How many images a 2D material binds itself, and the binding the first
+/// takes; `texture_1` onward in `shaders/sprite.wesl`.
+const SLOTS: u32 = crate::material::SPRITE_TEXTURE_SLOTS.len() as u32;
+const FIRST_SLOT_BINDING: u32 = 4;
+
 /// The frame, object and texture layouts, in the order the pipeline binds
 /// them. `shaders/sprite.wesl` declares the matching groups; a material
-/// reading the screen has it at bindings 2 and 3 of the texture group.
+/// reading the screen has it at bindings 2 and 3 of the texture group, and
+/// the material's own images follow from binding 4.
 fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     let uniform = |label| {
@@ -176,6 +184,9 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
     let mut entries = crate::bind_layout::sampled_entries(0).to_vec();
     if screen {
         entries.extend(crate::bind_layout::sampled_entries(2));
+    }
+    for slot in 0..SLOTS {
+        entries.extend(crate::bind_layout::sampled_entries(FIRST_SLOT_BINDING + slot * 2));
     }
     [
         uniform("material_frame_layout"),
@@ -211,6 +222,17 @@ impl ShaderMaterial {
     /// Build the pipeline for one linked material; `reads_screen` binds the
     /// frame so far at the texture group's bindings 2 and 3.
     pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>, reads_screen: bool) -> Self {
+        Self::with_textures(compiled, probe, reads_screen, Vec::new())
+    }
+
+    /// [`Self::new`], with an image per [`crate::material::SPRITE_TEXTURE_SLOTS`]
+    /// name, `None` for a slot the material left out.
+    pub(crate) fn with_textures(
+        compiled: &Compiled,
+        probe: Option<&Probe>,
+        reads_screen: bool,
+        slots: Vec<Option<Arc<Texture>>>,
+    ) -> Self {
         let ctxt = Context::get();
         let [frame_layout, object_layout, texture_layout] = bind_group_layouts(reads_screen);
         let screen = reads_screen.then(|| {
@@ -267,6 +289,7 @@ impl ShaderMaterial {
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
             screen,
+            slots,
         }
     }
 
@@ -295,6 +318,25 @@ impl ShaderMaterial {
             entries.push(wgpu::BindGroupEntry {
                 binding: 3,
                 resource: wgpu::BindingResource::Sampler(sampler),
+            });
+        }
+        // Made here rather than held, as the 3D fallbacks are: a `Texture`
+        // reaches the window's manager when it drops.
+        let fallback = Texture::new_default();
+        for slot in 0..SLOTS {
+            let bound = self
+                .slots
+                .get(slot as usize)
+                .and_then(Option::as_ref)
+                .unwrap_or(&fallback);
+            let binding = FIRST_SLOT_BINDING + slot * 2;
+            entries.push(wgpu::BindGroupEntry {
+                binding,
+                resource: wgpu::BindingResource::TextureView(&bound.view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: binding + 1,
+                resource: wgpu::BindingResource::Sampler(&bound.sampler),
             });
         }
         Some(
@@ -498,12 +540,24 @@ fn build(
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
-    let found = crate::material::contract(&source, &modules);
-    if !crate::material::fits(reference, found, crate::material::Contract::Sprite) {
+    let found = crate::shaders::contract(&source, &modules);
+    if !crate::shaders::fits(reference, found, crate::shaders::Contract::Sprite) {
         return Ok(None);
     }
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
-    let material = ShaderMaterial::new(&compiled, probe.as_deref(), asset.reads_screen());
+    let slots = asset
+        .sprite_textures()
+        .into_iter()
+        .map(|path| {
+            path.and_then(|path| {
+                let path = crate::material::project_path(&app.engine, reference, path)
+                    .unwrap_or_else(|| path.to_string());
+                crate::texture::upload(&app.engine, &path, crate::texture::PREMULTIPLY_DROPPED)
+            })
+        })
+        .collect();
+    let material =
+        ShaderMaterial::with_textures(&compiled, probe.as_deref(), asset.reads_screen(), slots);
     Ok(Some((material, probe)))
 }

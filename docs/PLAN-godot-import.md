@@ -1,13 +1,12 @@
-> **Status:** the five engine gaps §2 found are closed, built and tested on
-> 2026-09-10, and so are the reader (§3) and the project (§4): `balaur import
-> project.godot` writes a `project.toml` and an `import-report.md`, checked
-> against the real Polyglot Pirates project file. Assets (§5), scenes (§6),
-> animation (§7) and scripts (§8) are not started. Written down on
-> 2026-09-10, from the question "what is missing before Polyglot Pirates runs
-> on balaur, and can the assets be converted one file at a time". Measured
-> against `../polyglot-pirates-game` at that date: a Godot 4.7 GL Compatibility
-> 2D game of 181 scenes, 769 `.gd` files, 22 `.tres`, 24 `.gdshader`, 4248
-> images and 1095 `.csv`.
+> **Status:** built through every phase on 2026-09-11. `balaur import
+> project.godot` converts the whole of `../polyglot-pirates-game` — its
+> settings, theme and font, 181 scenes, 769 script skeletons, 441 animation
+> clips, 2 state machines, 24 shaders and 86 materials, 35 tile layers, 30
+> locales and every texture, SVGs included — and the result boots headless
+> with no errors. §11 is what the game still needs. Written down on
+> 2026-09-10 from the question "what is missing before Polyglot Pirates runs
+> on balaur, and can the assets be converted one file at a time", measured
+> against that game: Godot 4.7, GL Compatibility, 2D.
 
 # Plan: reading a Godot project
 
@@ -46,8 +45,9 @@ One real game, counted rather than guessed.
 | `CanvasLayer` | 6 | `ui.set_widget_layer` and `node.z_index` |
 | `MultiMeshInstance2D`, `MultiMesh` | 3, 3 | `cloner` |
 | `RemoteTransform2D` | 4 | `modifier2d` of kind `follow` |
-| `AnimationTree`, `AnimationNodeStateMachine` | 2, 2 | nothing yet; see §6 |
-| `Window`, `SpinBox`, `TextureButton` | 1, 1, 1 | nothing yet; see §6 |
+| `AnimationTree`, `AnimationNodeStateMachine` | 2, 2 | `state_machine` over a `state_machine` asset |
+| `Window`, `SpinBox`, `TextureButton` | 1, 1, 1 | `window`, `field` with `numeric`, an `image` with `on_click` |
+| `Timer` | 5 | `timer`, which emits `timeout` |
 | animation tracks | 3792 | all of them `value` tracks |
 
 Every animation track in the project is a `value` track, and their properties
@@ -130,7 +130,7 @@ so a bare grouping node fades and hides like any other.
 
 ### 2.3 The Control anchor model
 
-**The corners and the edges are built; the six wide presets are not.** A Godot
+**Built, all sixteen presets.** A Godot
 `Control` carries `anchor_left/top/right/bottom` as fractions plus
 four offsets plus `size_flags`. A `widget` carries one `anchor`, `x`, `y`,
 `width`, `height`, `grow`, `padding` and `gap`. Godot's sixteen anchor
@@ -142,21 +142,20 @@ presets map like this:
 | `CENTER` | `center` | have |
 | `CENTER_LEFT`, `CENTER_RIGHT`, `CENTER_TOP`, `CENTER_BOTTOM` | `center_left`, `center_right`, `center_top`, `center_bottom` | have, added here |
 | `FULL_RECT` | `fill` | have |
-| `LEFT_WIDE`, `RIGHT_WIDE`, `VCENTER_WIDE` | an anchor plus a `height` the layout fills | fallback |
-| `TOP_WIDE`, `BOTTOM_WIDE`, `HCENTER_WIDE` | an anchor plus a `width` the layout fills | fallback |
+| `LEFT_WIDE`, `RIGHT_WIDE`, `HCENTER_WIDE` | `fill_left`, `fill_right`, `fill_down` | have, added here |
+| `TOP_WIDE`, `BOTTOM_WIDE`, `VCENTER_WIDE` | `fill_top`, `fill_bottom`, `fill_across` | have, added here |
 
-The six wide presets are `fill` on one axis and an anchor on the other, and
-the widget's `anchor` is one word for both axes. A per-axis fill is a change
-to the layout model rather than a word, so it belongs to
-`docs/PLAN-ui-layout.md`; until it lands the importer writes the anchor and
-the stated size, and names the node in its report.
+A wide preset spans one axis of the surface less its `inset` and is placed on
+the other by `x` or `y`, measured the way the matching corner or middle
+anchor measures; the axis it does not span is the widget's stated size, or
+what it measures when it states none (`crates/balaur_ui/src/widget_anchor.rs`).
 
 A `Control` anchored to two different fractions on one axis has no spelling
 here at all and is reported.
 
 ### 2.4 The widget kinds
 
-**Two built, one owned elsewhere, one not planned.**
+**All four built.**
 
 - **`TextureButton`** — built, and not as a kind. An `image` that names an
   `on_click` senses the click and reports it like a button, so a picture
@@ -164,14 +163,23 @@ here at all and is reported.
 - **`ButtonGroup`** — built, as a `group` name on a `check`. Ticking one
   unticks the rest of its group, and clicking the ticked one leaves it
   ticked, because something in a group has to be.
-- **`SpinBox`** — the `spin` kind on the 0.2 "Text a game can edit" row,
-  which `docs/PLAN-widgets.md` owns. Not duplicated here.
-- **A second `Window`** — a second OS window, which is a platform feature and
-  not a widget. **Not planned.** One use in this game, reported.
+- **`SpinBox`** — a `field` with `numeric = true`; the arrows are the 0.2
+  "Text a game can edit" row's, which `docs/PLAN-widgets.md` owns.
+- **`Window`** — the `window` kind: a panel with a title bar that drags it and
+  a cross that closes it, calling `on_change` with `false`. Godot embeds a
+  subwindow in its parent's viewport unless the project says otherwise, and
+  this game does not, so an embedded window is the faithful reading. A second
+  OS window stays **not planned**.
+- **A button's picture** — `source` on a `button` draws before its caption at
+  the caption's height, which is where Godot's `icon` goes. A `checked`
+  button wears its pressed look, which is Godot's toggle button held down.
+- **Dialogs** — an `AcceptDialog` becomes a hidden `dialog` holding its text
+  and a row of OK and, for a `ConfirmationDialog`, Cancel buttons, each
+  closing it; `confirmed` and `canceled` connect to those buttons.
 
 ### 2.5 The shaders
 
-**The contract covers them; the bodies are hand work.** 24 `.gdshader` files, all `shader_type canvas_item`, 1768 lines, 16 of them
+**Built: translated at import.** 24 `.gdshader` files, all `shader_type canvas_item`, 1768 lines, 16 of them
 reached through a `.tres`. What they use, counted, against what
 `crates/balaur_render/src/shaders/sprite.wesl` publishes:
 
@@ -180,7 +188,8 @@ reached through a `.tres`. What they use, counted, against what
 | `UV`, `TEXTURE` | 39, 17 | `in.uv`, `sample_albedo(uv)` |
 | `COLOR`, `MODULATE` | 33 | `in.color`, `tint(in)` |
 | `TIME` | 17 | `time()` |
-| `VERTEX` | 8 | `place(in, offset)`, the vertex stage a shader overrides |
+| `VERTEX`, `MODEL_MATRIX` | 8, 3 | `vertex_pixels(in, ppu)` and `model_matrix_pixels(ppu)` in pixels, y down, then `place(in, pixels_to_offset(delta, ppu))`; added here |
+| `uniform sampler2D` | 3 | `texture_1` to `texture_4`, four slots a 2D material binds; added here |
 | `SCREEN_UV`, `SCREEN_TEXTURE`, `hint_screen_texture` | 4, 4, 2 | `screen_uv(position)` and `sample_screen(uv)`, behind `features = { screen = true }` |
 | `TEXTURE_PIXEL_SIZE` | 3 | `texture_pixel_size()`, added here |
 | `SCREEN_PIXEL_SIZE` | 1 | `screen_pixel_size()`, added here |
@@ -190,9 +199,30 @@ reached through a `.tres`. What they use, counted, against what
 screen texture, the clock, a displaced vertex and both pixel sizes, so the
 claim that the contract covers them is checked rather than asserted.
 
-What is left is translating 1768 lines of Godot shading language into WESL by
-hand. A translator for it is **not planned**: the language is small but the
-work is a compiler, and 24 files is less work than one.
+`crates/balaur_cli/src/import_godot_shader.rs` translates them, with the
+parse in `import_godot_shader_syntax.rs`. It reads the whole language a
+`canvas_item` shader writes into statements and expressions and writes each
+back as WGSL spells it: a uniform is a `Params` field (a bool or an int
+stored as `f32` and read back as the type the shader expects), `vertex()` and
+`fragment()` become `vs_main` and `fs_main` with the built-ins as locals, a
+`varying` rides a vertex output struct of the shader's own, `texture()`
+samples at level zero because WGSL only allows the implicit level in
+uniform control flow, a multi-component swizzle assignment goes through a
+temporary, a parameter the body assigns is copied into a local, a ternary
+is `select` and `mod` is its GLSL definition. Every translation is linked
+against the contract and type-checked with naga at import, so a shader that
+would fail on the GPU fails in the report instead. All 24 files and the five
+shaders saved inside scenes translate and pass.
+
+A `ShaderMaterial` becomes an inline `material` asset
+(`import_godot_material.rs`): the uniforms' defaults, the material's
+`shader_parameter/*` over them, a `source_color` in linear light because the
+engine blends there and Godot's canvas does not, an image as the slot its
+sampler was given, and `features = { screen = true }` for a shader reading
+the frame. It lands on a sprite's or shape's own `material`, or else on the
+`material` component, which descendants inherit as Godot's
+`use_parent_material` children do. A blend `render_mode` and `light()` have
+no equivalent and are reported.
 
 ## 3. Phase 0: one reader for the Godot text format — built
 
@@ -244,116 +274,154 @@ numbers look obvious and are not. Godot's `Window.Mode` 2 is **maximized**,
 not fullscreen — only 3 and 4 are. And `ScreenOrientation` 6 is **the sensor
 deciding**, which is `any`, not portrait.
 
-## 5. Phase 2: assets
+## 5. Phase 2: assets — built
 
-One output file per input, so a re-run is idempotent and a single asset can
-be converted alone.
+`balaur import project.godot` walks the whole tree once and writes each file
+kind the way the engine reads it. Run against `../polyglot-pirates-game` on
+2026-09-11 it takes about twenty seconds.
 
-| Input | Output |
-| --- | --- |
-| `.png`, `.webp` | copied, with its `.import` settings recorded |
-| `.ogg`, `.wav` | copied |
-| `.ttf`, `.otf` | copied |
-| `AtlasTexture` | `sprite.region_origin` and `region_size` on the user |
-| `SpriteFrames` | a `sprite_sheet` asset and a clip per animation |
-| `TileSet`, `TileSetAtlasSource` | a `tileset` asset, the shape `import_tiled.rs` already writes |
-| `Theme`, `StyleBox`, `FontVariation` | a `widget_theme` asset with a role per `theme_type_variation` |
-| `Gradient`, `GradientTexture2D`, `Curve` | inline data on the component that reads it |
-| `Shader`, `ShaderMaterial` | a `material` asset with `params`, and a named gap for the `.wesl` |
-| `PhysicsMaterial` | `friction` and `restitution` on the collider |
-| `ArrayMesh`, `MultiMesh` | a `mesh` asset, and `cloner` for the instances |
+| Input | Output | State |
+| --- | --- | --- |
+| `.png`, `.webp`, `.jpg`, `.ogg`, `.wav`, `.mp3`, `.ttf`, `.otf`, `.json`, `.csv` | copied as they are | have |
+| `.svg` | the WebP or PNG Godot rasterised it as at import, lifted out of `.godot/imported/*.ctex` | have |
+| translation `.csv` | `strings/<locale>.toml`, one per locale, the `_` columns skipped | have |
+| `TileSet`, `TileSetAtlasSource` | an inline `tileset` asset per atlas, with each tile's collision polygons | have |
+| `Theme`, `StyleBox` | a `widget_theme` beside it: a class is its widget kind, a variation a role, `normal`/`hover`/`pressed` the style and its states | have |
+| the project theme and font | `[ui] theme` in `project.toml`, the font copied into `fonts/` | have |
+| `Shader`, `ShaderMaterial` | the `.wesl` translation beside it, and an inline `material` per use | have |
+| `SpriteFrames` | a `sprite_sheet` asset and a clip per animation | planned, none in this game |
+| `.scn`, `.res` | not read: resave as text | not planned |
 
-An `.svg` is **not planned**: Godot rasterises it at import, and this project
-has none outside its addons. If one appears, export it as a PNG first.
+An SVG costs nothing to carry because Godot already drew it. A texture
+imported lossless or lossy keeps a plain PNG or WebP inside its `GST2`
+container, and the engine reads both, so the scene names the raster beside
+the SVG and gets exactly the pixels Godot showed. A texture compressed for the
+GPU holds neither and is reported; none of this game's are.
 
-## 6. Phase 3: scenes
+## 6. Phase 3: scenes — built
 
-A `.tscn` becomes one `scenes/<name>.toml`. A `[node]` line becomes a
-`[[nodes]]` table whose `parent` is the id of its `parent=` path, and whose
-components come from a table keyed by the Godot type, the one in §0. Then:
+A `.tscn` becomes the `.toml` beside it, node for node in Godot's order. Every
+Godot class the survey found has a row in
+`crates/balaur_cli/src/import_godot_nodes.rs`, and a class with none keeps its
+transform and is reported. Positions go from pixels to units at 100 a unit
+with y flipped; a widget stays in design pixels, y down, as widgets measure.
 
-- `instance=ExtResource(...)` becomes `instance = "scenes/other.toml"`, and
-  the property lines under a node with an `index=` or a `parent=` inside the
-  instance become `overrides."Path".component`.
-- `[connection signal=... from=... to=... method=...]` becomes a `bindings`
-  row where the signal is one the engine knows, and a note on the target
-  script otherwise.
-- `groups=["a", "b"]` becomes tags, which `node.add_tag` and `scene.tagged`
-  already carry.
-- `[editable path=...]` is dropped: an instance here is editable by default.
-- A `Control` writes its `widget` through the §2.3 table, and reports what
-  will not fit.
+- **Instances.** A Godot instance node *is* the prefab's root; here an
+  `instance` node holds the prefab's roots. So what the instance line sets,
+  and every node edited inside it, is an override under the prefab root's
+  name — through any number of nested prefabs, each adding its root to the
+  path, and through a prefab whose own root is an instance.
+- **References.** An `ext_resource` resolves by its `uid` first and its path
+  second, as Godot does, so a moved file still converts.
+- **Connections.** A widget signal (`pressed`, `toggled`, `text_submitted`…)
+  connected to the widget or an ancestor becomes the widget's `on_click` and
+  kin, which run on the nearest ancestor whose script declares the method.
+  Every other connection is a binding row on the emitting node: a click on a
+  button is `pointer_click`, a collision a `call` on each shape child with
+  `events = ["collision"]`, a changed or submitted widget `emitted:change` or
+  `emitted:submit`, and anything else, custom signals, `timeout` and
+  `animation_finished` included, `emitted:<signal>`. `show`, `hide` and
+  `queue_free` are the rows' own `visible` and `free`. A handler that takes
+  fewer arguments than its event carries gets the ones it declares.
+- **Timers.** A `Timer` is the `timer` component, counted on the fixed step,
+  which emits `timeout` from its node.
+- **State machines.** An `AnimationTree` whose root is a state machine
+  becomes a `state_machine` asset beside the scene and the component that
+  runs it; a tree holding its own libraries plays them itself. `Start`'s
+  transition names the start, an `End` transition is reported, and a
+  transition keeps its fade, advance, switch and condition.
+- **Scripts.** `script` names the `.rn` skeleton §8 writes, and each value
+  the scene gave an `@export` becomes a prop of the kind the skeleton
+  declares, inherited exports included.
+- **Captions.** A Label whose text is a translation key gets `text_key`, which
+  is what Godot's auto-translation did with it.
+- **Tile layers.** A `TileMapLayer` becomes a `tilemap` over one atlas; a
+  layer that paints from several gets a child node per extra atlas.
 
-The two multi-thousand-line scenes in this game (`teaser.tscn` at 17518
-lines, `scenes/banner.tscn` at 8558) are rigs, so the sprite and bone rows
-carry most of the volume and the mapping is narrow.
+All 181 of the game's scenes convert.
 
-## 7. Phase 4: animation
+## 7. Phase 4: animation — built
 
-An `AnimationPlayer` becomes an `animation` component whose `library` is one
-`animation_clip` file, and an `AnimationLibrary` becomes a `[clips.<name>]`
-in it. Every track is a `value` track, so each becomes a track with a
-`target` (the Godot `NodePath` minus its property), a `property`, an
-`interp` from the track's `interpolation`, and its keys.
-
-The property table:
+An `AnimationPlayer` becomes an `animation` component over one clip file in
+`animations/`, its libraries merged, reading both Godot 4.7's
+`libraries/<name>` keys and the older `libraries = {…}` table. Godot's
+per-key transition curves become easings: its curve is a power, so 2 is
+`in_quad`, 0.5 `out_quad` and -2 `in_out_quad`, exact for whole powers up to
+five and the nearest one otherwise. The game converts to 441 clips, 5202
+tracks and 11931 keys.
 
 | Godot | Here |
 | --- | --- |
-| `position` | `position`, with z zero |
-| `rotation` | `rotation_euler`, with x and y zero |
-| `scale` | `scale`, with z one |
+| `position` | `position`, in units, y flipped |
+| `rotation` | `rotation_euler` about z, sign flipped |
+| `scale` | `scale` |
 | `modulate` | `tint` |
-| `self_modulate` | `sprite/color` or `polygon/color`, by what the node carries |
+| `self_modulate`, `color` | `sprite/color`, `polygon/color` or `shape2d/color`, by the target's class |
 | `visible` | `visible` |
-| `skew` | nothing; reported |
-| `theme_type_variation` | `widget/role` |
-| `button_pressed` | `widget/checked` |
-| method tracks | a track with no `property`, which the format already has |
+| `frame` | `sprite/frame` |
+| `value` on a range | `widget/value` |
+| method tracks | a track with no `property` |
+| `skew` | `transform/skew`, sign flipped |
+| `offset` on a sprite | `sprite/offset`, in texture pixels |
+| `theme_type_variation`, `text` | `widget/role`, `widget/text`, held from key to key |
+| `button_pressed` | `widget/checked`, held from key to key |
 
-`AnimationTree` and `AnimationNodeStateMachine` wait on the 0.2 "Animation
-blending" row and are reported until it lands. Two of each in this game.
+An autoplay naming a clip the libraries do not have is reported rather than
+copied: Godot ignores it silently, and this game has one.
 
-## 8. Phase 5: scripts
+## 8. Phase 5: scripts — built as skeletons
 
-84608 lines of GDScript do not translate by machine, and this plan does not
-claim they do. What the importer writes per `.gd` file is a `.rn` beside it
-holding:
+Each `.gd` becomes a `.rn` beside it. The hooks are Rune — `_ready` is
+`init`, `_process` is `update`, `_physics_process` is `fixed_update` and
+`_exit_tree` is `on_free` — every other function keeps its name so a scene's
+handlers still reach it, and a name that is a Rune keyword gains a `_`.
+Every `@export`, inherited ones included, is an `exports()` entry typed as
+the engine checks it: a node reference is `node`, a resource is a path, a
+vector or colour its own type, a list of nodes or names `strings`. A
+Dictionary, a Callable or a list of numbers has no entry and is reported.
+Each body stays inside its function as a comment.
 
-- The hooks, mapped by name: `_ready` to `init`, `_process` to `update`,
-  `_physics_process` to `fixed_update`, `_input` to the input calls,
-  `_exit_tree` to the teardown hook.
-- Each `@export` as an entry in the node's `[nodes.script.props]`, with its
-  type and default.
-- Each `signal` as an `events.emit` key, and each `.connect` as an
-  `events.subscribe` in `init`.
-- Each `class_name` as a Rune struct with an `impl`.
-- The original body, line for line, as a comment under the hook it came from.
+The game's 769 scripts convert, and `balaur check` over the result reports
+no problems. A GDScript-to-Rune translator is still **not planned**, for the
+reason this section gave before: the bodies are a port, and the skeleton is
+where it starts.
 
-And a report naming every Godot call with no equivalent here, counted, so the
-list is worked through by frequency rather than by file. The 133 `Tween`
-calls, the 190 `Time` calls and the 80 `TranslationServer` calls all have
-one; the report is for what does not.
+## 9. Phase 6: the report — built
 
-A GDScript-to-Rune translator is **not planned**. Two languages with
-different object models, different coroutines and different numeric types
-would need a compiler to move 84608 lines, and hand-porting the hot files
-against a report is the shorter path.
+`import-report.md` has a heading per file and a line per thing that did not
+carry, naming the node and the class. It is the port's work list.
 
-## 9. Phase 6: the report
+## 10. Where it stands
 
-`balaur import` over a project prints, and writes to
-`out/import-report.md`, one line per thing it could not carry: the file, the
-line, the Godot name and why. That file is the conversion's work list, and a
-re-run rewrites it. Nothing is silently dropped.
+The converted game boots and runs its main scene with no errors, headless and
+rendered offscreen. What it warns about is the game's own: four scenes set a
+`close_button` their script no longer exports, which Godot drops without a
+word.
 
-## 10. Order
+Rendering it found two more engine gaps, both closed on 2026-09-11. A widget
+now draws only while its node does, and at its node's inherited alpha: the
+widget layer had ignored both, so every popup the game hides with `visible =
+false` drew at once. The arena folds them in against a revision
+`propagate_transforms` bumps when a node's visibility or tint changes, so a
+frame in which nothing was hidden or faded costs nothing. And a widget's
+handler now runs on the nearest ancestor whose script declares it, which is
+what a Godot signal connected to the scene's root was.
 
-0. ~~The reader (§3), with a test per value shape.~~ Built.
-1. ~~The project (§4)~~, and the assets (§5), which are independent of scenes.
-2. Scenes (§6), starting with the smallest under `scenes/ui/`.
-3. Animation (§7).
-4. Scripts (§8) and the report (§9).
+## 11. What the game still needs
 
-§2 is done, so nothing in the engine blocks any of these. The per-axis fill
-§2.3 leaves open goes to `docs/PLAN-ui-layout.md` rather than waiting here.
+Every row the 2026-09-11 gap table named is built: shaders and materials, a
+button's picture, string and bool tracks, skew, the theme, a sprite's
+`offset` and `centered`, custom signals, the wide anchors, state machines
+with crossfades, and the window. What the report still lists, counted after
+the second run that day, largest first:
+
+| Gap | In this game | State |
+| --- | --: | --- |
+| Script bodies: `async` outside handlers, `_input`, typed exports a scene prop cannot hold | 769 files | the port's; skeletons carry every signature |
+| A shader on a Control: a `ColorRect` or `TextureRect` drawn with a material | 34 | planned: the widget layer draws through egui and runs no material |
+| Theme items a `widget_theme` has no key for: icons, fonts, separations, shadow colours | 349 items | icons and separations planned with the theme row; fonts by name |
+| A gradient or curve over a particle's life | 6 | its ends carry |
+| Unequal margins on a MarginContainer | 5 | planned with per-side padding |
+| `z_index`, `scale` on a Control, `update_position` as tracks | 16 tracks | planned |
+| Built-in signals nothing here emits: `gui_input`, `visibility_changed`, `tab_changed` | 7 | their rows wait on a script's `emit` |
+| `MultiMeshInstance2D`, `VSplitContainer`, `AnimatedSprite2D` | 5 | the `cloner`, a split kind, a `sprite_sheet` |

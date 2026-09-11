@@ -464,19 +464,100 @@ fn a_material_a_script_set_reads_back_as_the_component() {
 
 #[test]
 fn the_contract_a_shader_imports_says_which_nodes_it_draws() {
-    use balaur_render::material::{Contract, contract};
+    use balaur_render::shaders::{Contract, contract};
     assert_eq!(contract(SHADER, &[]), Some(Contract::Sprite));
     assert_eq!(contract(SHADER_3D, &[]), Some(Contract::Mesh));
     let pbr = "import package::common::unpack_mat3;\nimport package::pbr::{shade_pbr};";
     assert_eq!(contract(pbr, &[]), Some(Contract::Mesh));
-    assert_eq!(contract("import package::post::{frame};", &[]), Some(Contract::Post));
+    assert_eq!(
+        contract("import package::post::{frame};", &[]),
+        Some(Contract::Post)
+    );
     assert_eq!(contract("fn main() {}", &[]), None);
     // A plugin's module decides by what it imports in turn.
-    let water = ("package::water".to_string(), "import package::sprite::{vertex};".to_string());
+    let water = (
+        "package::water".to_string(),
+        "import package::sprite::{vertex};".to_string(),
+    );
     assert_eq!(
         contract("import package::water::{ripple};", &[water]),
         Some(Contract::Sprite)
     );
-    let looped = ("package::me".to_string(), "import package::me::{x};".to_string());
+    let looped = (
+        "package::me".to_string(),
+        "import package::me::{x};".to_string(),
+    );
     assert_eq!(contract("import package::me::{x};", &[looped]), None);
+}
+
+/// The editor's case: its engine is rooted elsewhere and names the game's
+/// material by absolute path. The material still resolves its files against
+/// the game, and an inspector edit saves to the game's own file.
+#[test]
+fn a_material_named_by_absolute_path_belongs_to_its_own_project() {
+    let game = project();
+    std::fs::write(
+        game.path().join("project.toml"),
+        "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    let editor = tempfile::tempdir().unwrap();
+    let app = app(editor.path());
+    let reference = game.path().join("materials/wave.toml");
+    let reference = reference.to_string_lossy();
+
+    let texture = balaur_render::material::project_path(&app.engine, &reference, "art/sprite.png");
+    assert_eq!(
+        texture.as_deref(),
+        Some(
+            game.path()
+                .join("art/sprite.png")
+                .to_string_lossy()
+                .as_ref()
+        )
+    );
+    assert_eq!(
+        balaur_render::material::project_path(&app.engine, "materials/wave.toml", "art/x.png"),
+        None,
+        "a relative material resolves against the engine as it always did"
+    );
+
+    let mut definition = balaur_core::assets::definition(&app.engine, &reference).unwrap();
+    definition["params"]["speed"] = toml::Value::Float(9.0);
+    balaur_core::assets::save(&app.engine, &reference, &definition).unwrap();
+    let written = std::fs::read_to_string(game.path().join("materials/wave.toml")).unwrap();
+    assert!(written.contains("speed = 9.0"), "{written}");
+    let reread = balaur_core::assets::load_typed::<Material>(&app.engine, &reference).unwrap();
+    let speed = reread.params.iter().find(|(name, _)| name == "speed");
+    assert_eq!(
+        speed.map(|(_, value)| value.clone()),
+        Some(balaur_render::material::Param::Float(9.0)),
+        "the next load reads what was saved"
+    );
+}
+
+/// A 2D material binds images of its own beside the node's, and its shader
+/// reads them through `package::sprite`.
+#[test]
+fn a_sprite_material_binds_and_samples_images_of_its_own() {
+    let body: toml::Value =
+        toml::from_str("shader = \"shaders/dissolve.wesl\"\n[params]\ntexture_2 = \"art/noise.png\"")
+            .unwrap();
+    let material = balaur_render::material::parse(&body).unwrap();
+    assert_eq!(
+        material.sprite_textures(),
+        vec![None, Some("art/noise.png"), None, None]
+    );
+    let shader = r"
+import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo, texture_2, sampler_2};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput { return vertex(in); }
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let noise = textureSample(texture_2, sampler_2, in.uv).r;
+    return sample_albedo(in.uv) * step(0.5, noise);
+}
+";
+    let compiled = balaur_render::material::compile(&material, shader).expect("a slot links");
+    assert!(compiled.wgsl.contains("texture_2"), "{}", compiled.wgsl);
 }

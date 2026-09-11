@@ -792,3 +792,28 @@ fn call_all_reaches_only_the_scripts_that_declare_the_method() {
         "a script that declares no handler is passed over"
     );
 }
+
+/// A handler that takes fewer arguments than the call carries gets the ones
+/// it declares, as a Godot method connected to a richer signal does.
+#[test]
+fn a_handler_taking_fewer_arguments_gets_the_ones_it_declares() {
+    let dir = project(&[(
+        "closer.rn",
+        r"pub fn init(this) { this.closed = 0.0; }
+           pub fn on_close(this) { this.closed += 1.0; }",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Window");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "closer.rn").unwrap();
+    host.call_on(
+        balaur_core::node_id_of(node),
+        "on_close",
+        &[balaur_script::Value::Bool(false)],
+    );
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "closed"), Some(1.0));
+}

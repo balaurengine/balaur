@@ -991,7 +991,8 @@ fn read_now(S, comp, prop, fallback) {
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(S, k, comp, prop, spec, value) {
     let asset_type = spec.get("asset").unwrap_or("");
-    // An empty material draws with the nearest one up, so the field says which.
+    // An empty material draws with the nearest one up, so the field says which
+    // and where from: `red ← Rig`.
     let (inherited, from, here) = if asset_type == "material" && as_text(value) == "" {
         inherited_material(S)
     } else {
@@ -1000,7 +1001,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
     let placeholder = if inherited == "" {
         "— none —"
     } else {
-        format!("{} · from {}", inherited_label(S, from, inherited), util::last_segment(from))
+        format!("{} ← {}", inherited_label(S, inherited), util::last_segment(from))
     };
     spec_row(S, k, prop, spec, || {
         let reference = model::relative_file(S, as_text(value));
@@ -1041,21 +1042,16 @@ fn edit_asset(S, k, comp, prop, spec, value) {
     });
     // Not when the node's own `material` component is the source: it draws them.
     if asset_type == "material" && !here {
+        // The live spelling, which the editor's own engine can load and save.
         let own = as_text(value);
-        let shown = if own == "" { inherited } else { own };
-        material_rows(S, k, model::relative_file(S, shown));
+        let loadable = if own == "" { inherited } else { own };
+        material_rows(S, k, loadable);
     }
 }
 
-/// What the placeholder calls an inherited material: the file its node's
-/// `material` component names in the scene, since the mirror holds every
-/// material inline (D24), and failing that the reference's own leaf.
-fn inherited_label(S, from_path, reference) {
-    let named = match model::index_of_path(S, from_path) {
-        Some(i) => util::obj(util::obj(S.doc[i]).get("material").unwrap_or(#{})).get("source").unwrap_or(""),
-        None => "",
-    };
-    let file = if named is String && named != "" { named } else { reference };
+/// What the placeholder calls an inherited material: its file's stem.
+fn inherited_label(S, reference) {
+    let file = model::relative_file(S, reference);
     if file.starts_with("#!") {
         "inline"
     } else {
@@ -1190,7 +1186,13 @@ fn material_row(S, k, reference, name, datatype, value) {
     // Indented, because these belong to the row above rather than the node.
     tip_row(S, k, "  " + util::prop_label(name), util::prop_label(name), || {
         if datatype == "color" {
-            let (rgba, changed) = ui::color(#{ value: util::vec(value) });
+            // `material_params` hands a colour back as a `balaur::Color`.
+            let channels = if value is balaur::Color {
+                [value.r, value.g, value.b, value.a]
+            } else {
+                util::vec(value)
+            };
+            let (rgba, changed) = ui::color(#{ value: channels });
             if changed {
                 write_material_param(S, reference, name, rgba);
             }

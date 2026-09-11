@@ -17,24 +17,33 @@ use wesl::syntax::{GlobalDeclaration, TranslationUnit};
 /// The asset type name, and what an `asset`-typed property asks for.
 pub const MATERIAL_ASSET_TYPE: &str = "material";
 
-/// The shader a material names, read against the material's own project. A
-/// material handed in by absolute path — the editor mirrors a game's files
-/// that way — names its shader relative to that game, not this engine's root.
-pub(crate) fn shader_text(eng: &Engine, reference: &str, shader: &str) -> Result<String> {
+/// A file a material names, as its own project would find it. A material
+/// handed in by absolute path — the editor mirrors a game's files that way —
+/// names its shader and textures relative to that game, not this engine's
+/// root, so the path is joined under the nearest `project.toml` above it.
+#[must_use]
+pub fn project_path(eng: &Engine, reference: &str, path: &str) -> Option<String> {
     let material = std::path::Path::new(reference);
-    if balaur_core::files::rooted(material) {
-        let fs = balaur_core::files::backend(eng);
-        let mut dir = material.parent();
-        while let Some(d) = dir {
-            if fs.exists(&d.join("project.toml")) {
-                let full = d.join(shader);
-                if let Ok(bytes) = fs.read(&full) {
-                    return Ok(String::from_utf8(bytes)?);
-                }
-                break;
-            }
-            dir = d.parent();
+    if !balaur_core::files::rooted(material) {
+        return None;
+    }
+    let fs = balaur_core::files::backend(eng);
+    let mut dir = material.parent();
+    while let Some(d) = dir {
+        if fs.exists(&d.join("project.toml")) {
+            return Some(d.join(path).to_string_lossy().into_owned());
         }
+        dir = d.parent();
+    }
+    None
+}
+
+/// The shader a material names, read against the material's own project.
+pub(crate) fn shader_text(eng: &Engine, reference: &str, shader: &str) -> Result<String> {
+    if let Some(full) = project_path(eng, reference, shader)
+        && let Ok(bytes) = balaur_core::files::backend(eng).read(std::path::Path::new(&full))
+    {
+        return Ok(String::from_utf8(bytes)?);
     }
     balaur_core::project::scene_text(eng, shader)
 }
@@ -100,10 +109,14 @@ pub const TEXTURE_SLOTS: &[&str] = &[
     "height",
 ];
 
-/// Whether `name` is one of [`TEXTURE_SLOTS`].
+/// The images a 2D material binds beside the node's own, in binding order:
+/// `texture_1` to `texture_4` in `package::sprite`.
+pub const SPRITE_TEXTURE_SLOTS: &[&str] = &["texture_1", "texture_2", "texture_3", "texture_4"];
+
+/// Whether `name` is one of [`TEXTURE_SLOTS`] or [`SPRITE_TEXTURE_SLOTS`].
 #[must_use]
 pub fn is_texture_slot(name: &str) -> bool {
-    TEXTURE_SLOTS.contains(&name)
+    TEXTURE_SLOTS.contains(&name) || SPRITE_TEXTURE_SLOTS.contains(&name)
 }
 
 /// Image extensions a `[params]` string is read as a texture path for. A
@@ -136,7 +149,17 @@ impl Material {
     /// `None` for a slot this material left out.
     #[must_use]
     pub fn textures(&self) -> Vec<Option<&str>> {
-        TEXTURE_SLOTS
+        self.bound(TEXTURE_SLOTS)
+    }
+
+    /// The image each of [`SPRITE_TEXTURE_SLOTS`] is bound to, in order.
+    #[must_use]
+    pub fn sprite_textures(&self) -> Vec<Option<&str>> {
+        self.bound(SPRITE_TEXTURE_SLOTS)
+    }
+
+    fn bound(&self, slots: &[&str]) -> Vec<Option<&str>> {
+        slots
             .iter()
             .map(|slot| {
                 self.params.iter().find_map(|(name, param)| match param {
@@ -201,8 +224,10 @@ fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
         if names_an_image(text) {
             if !is_texture_slot(name) {
                 bail!(
-                    "param `{name}`: an image binds a texture slot, and the slots are {}",
-                    TEXTURE_SLOTS.join(", ")
+                    "param `{name}`: an image binds a texture slot, and the slots are {} in \
+                     3D and {} in 2D",
+                    TEXTURE_SLOTS.join(", "),
+                    SPRITE_TEXTURE_SLOTS.join(", ")
                 );
             }
             return Ok(Param::Texture(text.to_string()));
@@ -295,91 +320,6 @@ pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> 
         renderable.version += 1;
     }
     Ok(())
-}
-
-/// Which pipeline a shader was written for, read off the contract it imports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Contract {
-    /// `package::sprite`: a 2D node.
-    Sprite,
-    /// `package::mesh` or `package::pbr`: a 3D node.
-    Mesh,
-    /// `package::post`: a pass over the frame, never a node.
-    Post,
-}
-
-impl std::fmt::Display for Contract {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Contract::Sprite => "2D",
-            Contract::Mesh => "3D",
-            Contract::Post => "a post-process pass",
-        })
-    }
-}
-
-/// The contract `source` imports, following a plugin's module into its own
-/// imports. `None` names none, and links as it would have.
-#[must_use]
-pub fn contract(source: &str, modules: &[(String, String)]) -> Option<Contract> {
-    contract_within(source, modules, 0)
-}
-
-fn contract_within(source: &str, modules: &[(String, String)], depth: u32) -> Option<Contract> {
-    // Deep enough for any honest chain, and a stop for one that imports itself.
-    if depth > 8 {
-        return None;
-    }
-    for line in source.lines() {
-        let Some(path) = line.trim_start().strip_prefix("import ") else {
-            continue;
-        };
-        let module = path
-            .split("::")
-            .take(2)
-            .map(|segment| segment.trim().trim_end_matches(';'))
-            .collect::<Vec<_>>()
-            .join("::");
-        let found = match module.as_str() {
-            crate::shaders::SPRITE_MODULE => Some(Contract::Sprite),
-            crate::shaders::MESH_MODULE | crate::shaders::PBR_MODULE => Some(Contract::Mesh),
-            crate::shaders::POST_MODULE => Some(Contract::Post),
-            _ => modules
-                .iter()
-                .find(|(name, _)| *name == module)
-                .and_then(|(_, text)| contract_within(text, modules, depth + 1)),
-        };
-        if found.is_some() {
-            return found;
-        }
-    }
-    None
-}
-
-/// Whether a material written against `found` draws on a node of `wanted`,
-/// warning when not. An inherited material reaches nodes nobody named it on,
-/// so a mismatch keeps the built-in material rather than failing a pipeline.
-#[cfg(feature = "kiss3d")]
-pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -> bool {
-    match found {
-        Some(found) if found != wanted => {
-            // Once per material and dimension: a reload empties the cache that
-            // would otherwise have remembered it.
-            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
-                std::sync::Mutex::new(None);
-            let key = format!("{wanted}:{reference}");
-            if let Ok(mut seen) = WARNED.lock()
-                && seen.get_or_insert_with(std::collections::BTreeSet::new).insert(key)
-            {
-                tracing::warn!(
-                    material = reference,
-                    "the material's shader draws {found}, so a {wanted} node keeps the built-in one"
-                );
-            }
-            false
-        }
-        _ => true,
-    }
 }
 
 /// The component that names a material for a node and its subtree.
@@ -729,6 +669,10 @@ pub fn pack(fields: &[Field], params: &[(String, Param)]) -> Result<Vec<u8>> {
         .next_multiple_of(UNIFORM_ALIGN);
     let mut bytes = vec![0u8; end];
     for (name, param) in params {
+        // An image binds a slot, which is not a field of `Params`.
+        if matches!(param, Param::Texture(_)) {
+            continue;
+        }
         let Some(field) = fields.iter().find(|f| &f.name == name) else {
             tracing::warn!(
                 param = name.as_str(),

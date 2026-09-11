@@ -197,6 +197,7 @@ pub(crate) mod keys {
     pub(crate) const CLOSED: &str = "closed";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const COLOR_END: &str = "color_end";
+    pub(crate) const CENTERED: &str = "centered";
     pub(crate) const COLUMNS: &str = "columns";
     pub(crate) const CURRENT: &str = "current";
     pub(crate) const DEPTH_TEST: &str = "depth_test";
@@ -225,6 +226,7 @@ pub(crate) mod keys {
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MESH: &str = "mesh";
+    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const OP: &str = "op";
     pub(crate) const OUTLINE_COLOR: &str = "outline_color";

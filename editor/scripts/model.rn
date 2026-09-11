@@ -713,11 +713,12 @@ fn absolute_files(S, value) {
         }
         if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
             let abs = S.game_root + "/" + value;
-            // Inlined so what the asset names resolves against the editor's
-            // root (D24); only one declaring `type`, since a scene is TOML too.
+            // Inlined so what it names resolves against the editor's root (D24),
+            // except a material: it resolves its own files, and a path saves.
             if value.ends_with(".toml") {
                 let (ok, loaded) = script::attempt(|| assets::load(abs));
-                if ok && loaded is Object && loaded.contains_key("type") {
+                if ok && loaded is Object && loaded.contains_key("type")
+                    && loaded["type"] != "material" {
                     return absolute_files(S, loaded);
                 }
             }

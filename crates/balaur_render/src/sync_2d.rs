@@ -115,6 +115,7 @@ pub(crate) fn build_slot_2d(
         deform,
         deformed: false,
         pieces,
+        shear: 0.0,
     })
 }
 
@@ -210,8 +211,9 @@ pub(crate) fn sync_2d(
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         let visible = appearance.visible;
+        let shift = lean_and_shift(slot, &renderable, &global);
         slot.node
-            .set_position(Vec2::new(global.position.x, global.position.y))
+            .set_position(Vec2::new(global.position.x, global.position.y) + shift)
             .set_rotation(angle)
             .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
             .set_color(Color::new(r, g, b, a))
@@ -225,6 +227,31 @@ pub(crate) fn sync_2d(
             false
         }
     });
+}
+
+/// Lean a node by its shear and answer how far its sprite's quad sits off
+/// it: the shift turns and scales with the node, so it is taken through both.
+fn lean_and_shift(slot: &mut Slot2d, renderable: &Renderable2d, global: &GlobalTransform) -> Vec2 {
+    // The shear is the node's one instance, applied between rotation and
+    // scale as Godot does; a polyline's group node has no object to lean.
+    if slot.shear.to_bits() != global.skew.to_bits() && slot.node.data().object().is_some() {
+        let (sin, cos) = (
+            balaur_core::libm::sinf(global.skew),
+            balaur_core::libm::cosf(global.skew),
+        );
+        slot.node.set_instances(&[kiss3d::scene::InstanceData2d {
+            deformation: glamx::Mat2::from_cols(Vec2::new(1.0, 0.0), Vec2::new(-sin, cos)),
+            ..Default::default()
+        }]);
+        slot.shear = global.skew;
+    }
+    match (&renderable.sprite, renderable.shape) {
+        (Some(sprite), Shape2d::Sprite { hx, hy }) => {
+            let [x, y] = sprite.centre(hx, hy);
+            (global.affine_2d() * glamx::Vec3::new(x, y, 0.0)).truncate()
+        }
+        _ => Vec2::ZERO,
+    }
 }
 
 /// A node's own colour with the tint every ancestor contributed multiplied

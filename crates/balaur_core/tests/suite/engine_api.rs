@@ -625,7 +625,7 @@ fn the_platform_and_device_id_are_stable_facts() {
         panic!("a map")
     };
     let keys: Vec<&str> = facts.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(keys, ["os", "web", "mobile", "editor"]);
+    assert_eq!(keys, ["os", "web", "mobile", "touchscreen", "editor"]);
     let first = call(&app.engine, "engine", "device_id", &[]).unwrap();
     let again = call(&app.engine, "engine", "device_id", &[]).unwrap();
     assert_eq!(first, again, "one id per install");

@@ -70,6 +70,7 @@ pub mod strings;
 pub mod tags;
 pub mod tiles;
 pub mod time;
+pub mod timer;
 pub mod timers;
 pub mod timings;
 pub mod transform;
@@ -110,6 +111,9 @@ pub struct UserActivation;
 
 pub use glamx;
 pub use hecs;
+/// The platform-identical float math DETERMINISM.md asks for, for a crate
+/// that has no reason to depend on it for anything else.
+pub use libm;
 
 /// Re-hydrate a script's node handle.
 ///

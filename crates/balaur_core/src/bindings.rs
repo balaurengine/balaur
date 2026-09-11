@@ -298,10 +298,11 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
     if event.is_empty() {
         bail!("a binding names the event it answers: `event = \"pointer_click\"`");
     }
-    if !hooks::BINDABLE.contains(&event.as_str()) {
+    if !hooks::is_bindable(&event) {
         bail!(
-            "no event `{event}`; the events are {}",
-            hooks::BINDABLE.join(", ")
+            "no event `{event}`; the events are {}, and `{}<name>` for a name the node emits",
+            hooks::BINDABLE.join(", "),
+            hooks::EMITTED
         );
     }
     let word = text("action");

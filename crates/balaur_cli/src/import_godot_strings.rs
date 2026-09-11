@@ -30,7 +30,8 @@ impl Strings {
             for (key, text) in table {
                 doc.insert(key.clone(), toml::Value::String(text.clone()));
             }
-            let mut text = String::from("# Converted from Godot translation CSVs by `balaur import`.\n");
+            let mut text =
+                String::from("# Converted from Godot translation CSVs by `balaur import`.\n");
             text.push_str(&toml::to_string(&toml::Value::Table(doc))?);
             out.push((format!("strings/{locale}.toml"), text));
         }
@@ -41,7 +42,10 @@ impl Strings {
 /// Read every translation CSV in `files` (project-relative) under `root`.
 pub(crate) fn convert(root: &Path, files: &[String]) -> Strings {
     let mut strings = Strings::default();
-    for relative in files.iter().filter(|f| f.ends_with(".csv")) {
+    for relative in files
+        .iter()
+        .filter(|f| crate::import_godot_files::has_extension(f, "csv"))
+    {
         let Some(settings) = translation_settings(&root.join(format!("{relative}.import"))) else {
             continue;
         };
@@ -105,7 +109,11 @@ fn add(strings: &mut Strings, rows: &[Vec<String>], unescape: bool) {
             let Some(text) = row.get(*index).filter(|t| !t.is_empty()) else {
                 continue;
             };
-            let text = if unescape { unescaped(text) } else { text.clone() };
+            let text = if unescape {
+                unescaped(text)
+            } else {
+                text.clone()
+            };
             strings
                 .locales
                 .entry((*locale).to_string())
@@ -182,7 +190,11 @@ mod tests {
 
     #[test]
     fn a_table_splits_on_its_delimiter_and_keeps_quoted_commas_and_newlines() {
-        let rows = table("keys,en\n\"a, b\",\"one\ntwo\"\nc,\"say \"\"hi\"\"\"\n", ',').unwrap();
+        let rows = table(
+            "keys,en\n\"a, b\",\"one\ntwo\"\nc,\"say \"\"hi\"\"\"\n",
+            ',',
+        )
+        .unwrap();
         assert_eq!(rows[1], vec!["a, b", "one\ntwo"]);
         assert_eq!(rows[2], vec!["c", "say \"hi\""]);
     }

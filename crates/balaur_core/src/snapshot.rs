@@ -223,6 +223,9 @@ struct TransformFrame {
     id: Option<String>,
     entity: u64,
     trs: [f32; 10],
+    /// Defaulted, so a recording made before skew existed still loads.
+    #[serde(default)]
+    skew: f32,
 }
 
 fn save_transforms(eng: &Engine) -> serde_json::Value {
@@ -235,6 +238,7 @@ fn save_transforms(eng: &Engine) -> serde_json::Value {
                 id: crate::ids::of(&world, entity),
                 entity: entity.to_bits().get(),
                 trs: t.trs(),
+                skew: t.skew,
             })
         })
         .collect();
@@ -262,6 +266,7 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
         t.position = glamx::Vec3::new(v[0], v[1], v[2]);
         t.rotation = glamx::Quat::from_xyzw(v[3], v[4], v[5], v[6]);
         t.scale = glamx::Vec3::new(v[7], v[8], v[9]);
+        t.skew = frame.skew;
     }
 }
 

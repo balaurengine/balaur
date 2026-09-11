@@ -18,6 +18,8 @@ use crate::import_godot_nodes::{Family, PIXELS_PER_UNIT, Resources, colour, fami
 /// The clip file a player's libraries made, and what would not carry.
 pub(crate) struct Clips {
     pub toml: String,
+    /// Every clip's name, for checking what the player autoplays.
+    pub names: Vec<String>,
     pub notes: Vec<String>,
 }
 
@@ -87,20 +89,21 @@ pub(crate) fn convert(
     if clips.is_empty() {
         return None;
     }
-    let mut named = toml::Table::new();
+    let names = clips.iter().map(|(name, _)| name.clone()).collect();
+    let mut table = toml::Table::new();
     for (name, clip) in clips {
-        named.insert(name, clip);
+        table.insert(name, clip);
     }
     let mut document = toml::Table::new();
     document.insert("type".into(), Toml::String("animation_clip".into()));
-    document.insert("clips".into(), Toml::Table(named));
+    document.insert("clips".into(), Toml::Table(table));
     let mut toml = String::new();
     let _ = writeln!(
         toml,
         "# Converted from a Godot AnimationPlayer by `balaur import`."
     );
     toml.push_str(&toml::to_string(&Toml::Table(document)).ok()?);
-    Some(Clips { toml, notes })
+    Some(Clips { toml, names, notes })
 }
 
 /// A library saved as its own `.tres`: its `[resource]` section, and the
@@ -119,7 +122,7 @@ fn load_library<'a>(res: &Resources<'a>, path: &str) -> Option<(Section, Resourc
         external: BTreeMap::new(),
         internal,
         root: res.root,
-        keys: res.keys,
+        project: res.project,
     };
     Some((resource, lookup))
 }
@@ -132,9 +135,13 @@ fn clip(
     notes: &mut Vec<String>,
 ) -> Toml {
     let mut clip = toml::Table::new();
-    if let Some(length) = animation.field("length").and_then(Value::as_f64) {
-        clip.insert("length".into(), Toml::Float(length));
-    }
+    // Godot's default is a second, and a clip whose tracks were all dropped
+    // needs it written: here a length comes from the keys when it is not.
+    let length = animation
+        .field("length")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+    clip.insert("length".into(), Toml::Float(length));
     let wrap = match animation.field("loop_mode").and_then(Value::as_i64) {
         Some(1) => "loop",
         Some(2) => "pingpong",
@@ -157,14 +164,16 @@ fn clip(
         let keys = field("keys");
         let (target, property) = path.split_once(':').unwrap_or((path.as_str(), ""));
         let target = if target == "." { "" } else { target };
-        let class = classes
-            .get(&join(base, target))
-            .map_or("", String::as_str);
+        let class = classes.get(&join(base, target)).map_or("", String::as_str);
         let track = match kind {
-            "value" => value_track(target, property, class, &field, keys, &mut eased, name, notes),
+            "value" => value_track(
+                target, property, class, &field, keys, &mut eased, name, notes,
+            ),
             "method" => method_track(target, keys),
             other => {
-                notes.push(format!("clip `{name}`: a `{other}` track has no equivalent"));
+                notes.push(format!(
+                    "clip `{name}`: a `{other}` track has no equivalent"
+                ));
                 None
             }
         };
@@ -174,14 +183,17 @@ fn clip(
     }
     if eased {
         notes.push(format!(
-            "clip `{name}`: its keys carry Godot transition curves; they play linear here"
+            "clip `{name}`: a Godot transition curve had no exact easing here and was approximated"
         ));
     }
     clip.insert("tracks".into(), Toml::Array(tracks));
     Toml::Table(clip)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one track's context, read once here rather than bundled for a single caller"
+)]
 fn value_track<'a>(
     target: &str,
     property: &str,
@@ -207,6 +219,12 @@ fn value_track<'a>(
             _ => None,
         },
         "frame" if class == "Sprite2D" => Some("sprite/frame".to_string()),
+        "offset" if class == "Sprite2D" => Some("sprite/offset".to_string()),
+        "skew" if !control => Some("transform/skew".to_string()),
+        "theme_type_variation" if control => Some("widget/role".to_string()),
+        "button_pressed" if control => Some("widget/checked".to_string()),
+        "text" if control => Some("widget/text".to_string()),
+        "theme_override_font_sizes/font_size" if control => Some("widget/font_size".to_string()),
         "value" if control => Some("widget/value".to_string()),
         "zoom" if class == "Camera2D" => Some("camera/zoom".to_string()),
         _ => None,
@@ -214,7 +232,11 @@ fn value_track<'a>(
     let Some(here) = here else {
         notes.push(format!(
             "clip `{clip}`: `{property}` on {} has no track here",
-            if class.is_empty() { "an unknown node" } else { class }
+            if class.is_empty() {
+                "an unknown node"
+            } else {
+                class
+            }
         ));
         return None;
     };
@@ -229,12 +251,9 @@ fn value_track<'a>(
     };
     let times = get("times").and_then(Value::numbers).unwrap_or_default();
     let values = get("values").and_then(Value::as_array).unwrap_or_default();
-    if get("transitions")
+    let transitions = get("transitions")
         .and_then(Value::numbers)
-        .is_some_and(|t| t.iter().any(|v| (v - 1.0).abs() > 1e-6))
-    {
-        *eased = true;
-    }
+        .unwrap_or_default();
     let discrete = get("update").and_then(Value::as_i64) == Some(1);
     let interp = match field("interp").and_then(Value::as_i64) {
         _ if discrete => "step",
@@ -243,13 +262,27 @@ fn value_track<'a>(
         _ => "linear",
     };
     let mut out_keys = Vec::new();
-    for (t, value) in times.iter().zip(values) {
+    for (index, (t, value)) in times.iter().zip(values).enumerate() {
         let Some(value) = key_value(&here, value) else {
             continue;
         };
         let mut key = toml::Table::new();
         key.insert("t".into(), Toml::Float(*t));
         key.insert("value".into(), value);
+        // Godot's curve shapes the segment leaving a key; here `ease` shapes
+        // the one arriving, so key i's curve is key i + 1's ease.
+        let leaving = index.checked_sub(1).and_then(|i| transitions.get(i));
+        match leaving.map(|c| easing(*c)) {
+            Some(Easing::Named(name)) => {
+                key.insert("ease".into(), Toml::String(name));
+            }
+            Some(Easing::Approximate(name)) => {
+                key.insert("ease".into(), Toml::String(name));
+                *eased = true;
+            }
+            Some(Easing::Held) => *eased = true,
+            Some(Easing::Linear) | None => {}
+        }
         out_keys.push(Toml::Table(key));
     }
     if out_keys.is_empty() {
@@ -261,6 +294,51 @@ fn value_track<'a>(
     track.insert("interp".into(), Toml::String(interp.into()));
     track.insert("keys".into(), Toml::Array(out_keys));
     Some(track)
+}
+
+/// A Godot transition as an easing here.
+enum Easing {
+    Linear,
+    /// An exact match: Godot's curve is `x^n` for a whole `n` from 2 to 5.
+    Named(String),
+    /// The nearest whole power, for a curve between two of them.
+    Approximate(String),
+    /// Godot's 0, which holds the key and jumps at the next one.
+    Held,
+}
+
+/// Godot's `ease(x, c)`: above 1 eases in as `x^c`, between 0 and 1 eases
+/// out as the mirror of `x^(1/c)`, below 0 eases in and out with power `-c`.
+fn easing(curve: f64) -> Easing {
+    if (curve - 1.0).abs() < 1e-6 {
+        return Easing::Linear;
+    }
+    if curve == 0.0 {
+        return Easing::Held;
+    }
+    let (family, power) = if curve < 0.0 {
+        ("in_out", -curve)
+    } else if curve > 1.0 {
+        ("in", curve)
+    } else {
+        ("out", 1.0 / curve)
+    };
+    if power < 1.25 {
+        return Easing::Linear;
+    }
+    let whole = power.round().clamp(2.0, 5.0);
+    let shape = match whole as i64 {
+        2 => "quad",
+        3 => "cubic",
+        4 => "quart",
+        _ => "quint",
+    };
+    let name = format!("{family}_{shape}");
+    if (power - whole).abs() < 0.05 {
+        Easing::Named(name)
+    } else {
+        Easing::Approximate(name)
+    }
 }
 
 /// One key's value in the units and the handedness the property takes here.
@@ -284,7 +362,16 @@ fn key_value(property: &str, value: &Value) -> Option<Toml> {
             _ => None,
         },
         "camera/zoom" => Some(Toml::Float(pair()?[0])),
-        "sprite/frame" | "widget/value" => Some(Toml::Float(value.as_f64()?)),
+        "sprite/frame" | "widget/value" | "widget/font_size" => Some(Toml::Float(value.as_f64()?)),
+        // Texture pixels, y down, in both engines.
+        "sprite/offset" => Some(floats(&pair()?)),
+        "transform/skew" => Some(Toml::Float(-value.as_f64()?)),
+        // A name or a flag, held from key to key.
+        "widget/role" | "widget/text" => Some(Toml::String(value.as_str()?.to_string())),
+        "widget/checked" => match value {
+            Value::Bool(on) => Some(Toml::Boolean(*on)),
+            _ => None,
+        },
         _ => colour(value),
     }
 }
@@ -349,4 +436,36 @@ pub(crate) fn join(from: &str, relative: &str) -> String {
         }
     }
     parts.join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Easing, easing, join};
+
+    fn name(curve: f64) -> String {
+        match easing(curve) {
+            Easing::Named(n) => n,
+            Easing::Approximate(n) => format!("~{n}"),
+            Easing::Held => "held".into(),
+            Easing::Linear => "linear".into(),
+        }
+    }
+
+    #[test]
+    fn a_godot_curve_is_the_power_easing_it_draws() {
+        assert_eq!(name(1.0), "linear");
+        assert_eq!(name(2.0), "in_quad");
+        assert_eq!(name(0.5), "out_quad");
+        assert_eq!(name(-2.0), "in_out_quad");
+        assert_eq!(name(3.0), "in_cubic");
+        assert_eq!(name(2.4), "~in_quad");
+        assert_eq!(name(0.0), "held");
+    }
+
+    #[test]
+    fn a_path_folds_its_dots_against_the_node_it_is_read_from() {
+        assert_eq!(join("Ship/Player", ".."), "Ship");
+        assert_eq!(join("Ship/Player", "../Hull"), "Ship/Hull");
+        assert_eq!(join("", "."), "");
+    }
 }

@@ -67,6 +67,22 @@ pub struct Playback {
     /// plays every track exactly as it was authored.
     pub retarget: Option<crate::retarget::Retarget>,
     pub(crate) retarget_reference: String,
+    /// The clip a crossfade is leaving, still advancing and blended out; none
+    /// once the fade has run.
+    pub fade: Option<Fade>,
+}
+
+/// The outgoing half of a crossfade.
+#[derive(Clone)]
+pub struct Fade {
+    pub clip_name: String,
+    pub clip: std::rc::Rc<Clip>,
+    /// Its playhead, which keeps moving while it fades.
+    pub time: f32,
+    pub speed: f32,
+    /// Seconds of the fade gone, and how many it lasts.
+    pub elapsed: f32,
+    pub duration: f32,
 }
 
 impl Default for Playback {
@@ -86,6 +102,7 @@ impl Default for Playback {
             finished: String::new(),
             retarget: None,
             retarget_reference: String::new(),
+            fade: None,
         }
     }
 }
@@ -149,6 +166,9 @@ pub struct AnimationState {
     /// cache moves past it — a file saved in dev mode, an editor writing a
     /// clip — every live playback re-resolves and keeps its playhead.
     pub(crate) asset_generation: u64,
+    /// Every node running a state machine, keyed by that node. Ordered like
+    /// `players`, and for the same reason.
+    pub machines: DetHashMap<Entity, crate::machine::MachineRun>,
 }
 
 /// Run `f` over one node's playback, or answer `None` when it has none.
@@ -212,6 +232,35 @@ pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool
         }
         playback.playing = true;
         playback.paused = false;
+    }
+    Ok(())
+}
+
+/// [`play_from`], fading out of whatever is current over `fade` seconds
+/// rather than cutting to the new clip: both are sampled and blended until
+/// the fade has run. A fade of zero, or nothing current, is a plain play.
+///
+/// # Errors
+/// As [`play`].
+pub fn play_faded(eng: &Engine, entity: Entity, clip_name: &str, fade: f32, from_start: bool) -> Result<()> {
+    let leaving = {
+        let state = eng.resource::<AnimationState>();
+        let state = state.borrow();
+        state.players.get(&entity).and_then(|playback| {
+            let clip = playback.clip.clone()?;
+            (fade > 0.0 && playback.active() && playback.clip_name != clip_name).then(|| Fade {
+                clip_name: playback.clip_name.clone(),
+                clip,
+                time: playback.time,
+                speed: playback.speed,
+                elapsed: 0.0,
+                duration: fade,
+            })
+        })
+    };
+    play_from(eng, entity, clip_name, from_start)?;
+    if let Some(playback) = eng.resource::<AnimationState>().borrow_mut().players.get_mut(&entity) {
+        playback.fade = leaving;
     }
     Ok(())
 }

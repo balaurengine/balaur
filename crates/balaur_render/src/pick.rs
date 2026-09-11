@@ -334,6 +334,7 @@ mod tests {
             position,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
+            skew: 0.0,
         }
     }
 

@@ -217,6 +217,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::FLOW
             | w::FOLD
             | w::DIALOG
+            | w::WINDOW
             | w::MENU
     )
 }
@@ -308,6 +309,9 @@ pub(crate) struct Placed {
     /// once: without this the theme was walked, the role merged and the face
     /// built five times a widget a frame.
     pub(crate) look: RefCell<Option<Rc<Look>>>,
+    /// The alpha of the node's inherited tint: every ancestor's multiplied
+    /// in, so a fade on a panel reaches what it lays out.
+    pub(crate) alpha: f32,
 }
 
 /// A widget's resolved look: what to paint it with and what face to draw its
@@ -437,34 +441,6 @@ fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity
     None
 }
 
-/// Where a root's own `anchor`, `x` and `y` put it inside its surface. Only a
-/// root is placed this way; every other widget is placed by its container.
-fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2, Align2) {
-    let align = match widget.anchor.as_str() {
-        w::TOP_RIGHT => Align2::RIGHT_TOP,
-        w::BOTTOM_LEFT => Align2::LEFT_BOTTOM,
-        w::BOTTOM_RIGHT => Align2::RIGHT_BOTTOM,
-        w::CENTER => Align2::CENTER_CENTER,
-        w::CENTER_LEFT => Align2::LEFT_CENTER,
-        w::CENTER_RIGHT => Align2::RIGHT_CENTER,
-        w::CENTER_TOP => Align2::CENTER_TOP,
-        w::CENTER_BOTTOM => Align2::CENTER_BOTTOM,
-        _ => Align2::LEFT_TOP,
-    };
-    // The offset runs inward from whichever edge the anchor names, so the
-    // position falls out of the alignment rather than repeating it per anchor.
-    let inward = |edge, min: f32, mid: f32, max: f32, offset: f32| match edge {
-        egui::Align::Min => min + offset,
-        egui::Align::Center => mid + offset,
-        egui::Align::Max => max - offset,
-    };
-    let (centre, ox, oy) = (area.center(), widget.x * scale, widget.y * scale);
-    let pos = pos2(
-        inward(align.x(), area.min.x, centre.x, area.max.x, ox),
-        inward(align.y(), area.min.y, centre.y, area.max.y, oy),
-    );
-    (pos, align)
-}
 
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
@@ -474,38 +450,6 @@ fn above_keyboard(eng: &Engine, area: egui::Rect) -> egui::Rect {
     egui::Rect::from_min_max(area.min, egui::pos2(area.max.x, bottom))
 }
 
-/// Where a root goes and what box it is handed: `fill` takes the surface
-/// less its insets so a container at the root fills the screen, a dialog
-/// sits in the middle over the dimmed screen, the rest anchor as before.
-fn root_frame(
-    widget: &Widget,
-    area: egui::Rect,
-    scale: f32,
-) -> (egui::Pos2, Align2, egui::Vec2, egui::Order) {
-    if widget.anchor == w::FILL {
-        let inset = widget.inset.map(|v| v * scale);
-        let rect = egui::Rect::from_min_max(
-            area.min + vec2(inset[0], inset[1]),
-            area.max - vec2(inset[2], inset[3]),
-        );
-        return (
-            rect.min,
-            Align2::LEFT_TOP,
-            rect.size().max(egui::Vec2::ZERO),
-            egui::Order::Middle,
-        );
-    }
-    if widget.kind == w::DIALOG {
-        return (
-            area.center(),
-            Align2::CENTER_CENTER,
-            egui::Vec2::ZERO,
-            egui::Order::Foreground,
-        );
-    }
-    let (pos, align) = root_placement(widget, area, scale);
-    (pos, align, egui::Vec2::ZERO, egui::Order::Middle)
-}
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
@@ -564,7 +508,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         arena: &placed,
         scale,
         focused,
-        theme: theme_root(),
+        theme: theme_root(eng),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
         edits: Vec::new(),
@@ -626,13 +570,30 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     } else {
         area
     };
-    let (pos, align, assigned, order) = root_frame(widget, area, scale);
+    let (pos, align, mut assigned, order) = crate::widget_anchor::root_frame(widget, area, scale);
+    // A root spanning one axis states or measures the other.
+    if (assigned.x == 0.0) != (assigned.y == 0.0) {
+        assigned = measured(eng, ctx, painting, root, area, assigned);
+    }
     painting.assigned = assigned;
     painting.rects = place_root(eng, ctx, painting, root, area, (pos, align, assigned));
-    let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
+    // A box of known size is placed by its corner: egui's pivot works from
+    // last frame's size, and with none it opens at its default and keeps it.
+    let (pos, align) = if assigned == egui::Vec2::ZERO {
+        (pos, align)
+    } else {
+        (align.anchor_size(pos, assigned).min, Align2::LEFT_TOP)
+    };
+    let mut root_area = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
         .order(order)
         .pivot(align)
-        .fixed_pos(pos)
+        .fixed_pos(pos);
+    if assigned != egui::Vec2::ZERO {
+        // Egui's first frame otherwise guesses a size and pushes the corner
+        // in to keep the guess on screen, and the cursor keeps it there.
+        root_area = root_area.default_size(assigned);
+    }
+    let shown = root_area
         // A widget appears when the scene says so, at the alpha its own
         // theme sets; egui's fade would override both.
         .fade_in(false)
@@ -673,7 +634,7 @@ fn place_root(
     let space = if hugs {
         crate::widget_taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, area.size()))
     } else {
-        crate::widget_taffy::Room::fixed(egui::Rect::from_min_size(pos, assigned))
+        crate::widget_taffy::Room::fixed(align.anchor_size(pos, assigned))
     };
     let probe = root_ui(ctx);
     let touched = painting.touched.clone();
@@ -683,7 +644,7 @@ fn place_root(
         root,
         &probe,
         painting.scale,
-        &theme_root(),
+        &theme_root(eng),
         &space,
         painting.fresh,
         &touched,
@@ -696,6 +657,40 @@ fn place_root(
         }
     }
     rects
+}
+
+/// A half-known box made whole: the root is measured hugging its content
+/// within the axis it spans, and that measure is the axis it did not state.
+fn measured(
+    eng: &Engine,
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    root: usize,
+    area: egui::Rect,
+    assigned: egui::Vec2,
+) -> egui::Vec2 {
+    let bounds = vec2(
+        if assigned.x > 0.0 { assigned.x } else { area.width() },
+        if assigned.y > 0.0 { assigned.y } else { area.height() },
+    );
+    let space = crate::widget_taffy::Room::hugging(egui::Rect::from_min_size(egui::Pos2::ZERO, bounds));
+    let touched = painting.touched.clone();
+    let rects = crate::widget_taffy::solve(
+        eng,
+        painting.arena,
+        root,
+        &root_ui(ctx),
+        painting.scale,
+        &theme_root(eng),
+        &space,
+        painting.fresh,
+        &touched,
+    );
+    let size = rects.get(&root).map_or(egui::Vec2::ZERO, egui::Rect::size);
+    vec2(
+        if assigned.x > 0.0 { assigned.x } else { size.x },
+        if assigned.y > 0.0 { assigned.y } else { size.y },
+    )
 }
 
 /// A `Ui` over the viewport, for a pass that has to measure before it draws.
@@ -715,9 +710,12 @@ thread_local! {
     static BARE: Rc<WidgetTheme> = Rc::new(WidgetTheme::default());
 }
 
-/// The theme a root starts from, before it names one of its own.
-fn theme_root() -> Rc<WidgetTheme> {
-    BARE.with(Rc::clone)
+/// The theme a root starts from, before it names one of its own: the
+/// project's `ui/theme`, or the built-in look.
+fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
+    let bare = BARE.with(Rc::clone);
+    let project = balaur_core::project::UiSettings::from_settings(eng).theme;
+    theme_of(eng, &project, &bare)
 }
 
 /// What one draw pass carries down the widget tree.
@@ -918,6 +916,8 @@ pub(crate) enum Edit {
     Choice(String),
     /// A swatch's colour.
     Color([f32; 4]),
+    /// A window's title bar dragged, in design pixels.
+    Moved([f32; 2]),
 }
 
 /// The theme a widget's own subtree is drawn with, for a caller that holds no
@@ -984,15 +984,22 @@ pub(crate) fn theme_of(
 pub(crate) fn draw_one(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
-    if !widget.visible {
+    if !widget.visible || placed.alpha <= 0.0 {
         return;
     }
+    // The node's alpha over its widget parent's, which the parent already
+    // applied: `alpha` is inherited, so the ratio is this node's own share.
+    let above = placed.parent.map_or(1.0, |p| at.arena[p].alpha);
+    let share = if above > 0.0 { placed.alpha / above } else { 1.0 };
+    let opacity = ui.opacity();
+    ui.multiply_opacity(share);
     // Restored before returning, so a themed subtree does not leak its look
     // onto whatever the caller draws next.
     let outer = at.theme.clone();
     at.theme = theme_of(at.eng, &widget.theme, &outer);
     draw_themed(ui, at, index);
     at.theme = outer;
+    ui.set_opacity(opacity);
 }
 
 /// What a widget shows: its key, translated in the locale in force, or its
@@ -1045,6 +1052,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
+        w::WINDOW => crate::widget_window::window(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
         w::COLOR => crate::widget_kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),

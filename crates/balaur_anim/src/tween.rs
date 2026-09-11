@@ -494,6 +494,7 @@ impl Builder<'_> {
             call: Some(method.to_string()),
             ease: None,
             wide: Vec::new(),
+            discrete: None,
         });
         Ok(())
     }
@@ -650,6 +651,7 @@ fn push_segment(
             call: None,
             ease: None,
             wide: Vec::new(),
+            discrete: None,
         });
     }
     track.keys.push(Key {
@@ -658,6 +660,7 @@ fn push_segment(
         call: None,
         ease: None,
         wide: Vec::new(),
+            discrete: None,
     });
     track.keys.push(Key {
         t: start + duration,
@@ -665,6 +668,7 @@ fn push_segment(
         call: None,
         ease,
         wide: Vec::new(),
+            discrete: None,
     });
 }
 
@@ -715,9 +719,12 @@ fn current_value(
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
         Property::Rotation => Vec4::from(transform.rotation),
-        // Answered above, before the transform this arm needs.
-        Property::Visible | Property::Tint => Vec4::ZERO,
-        Property::Component { .. } | Property::Call | Property::Deform => Vec4::ZERO,
+        // Visibility and tint were answered above, before the transform.
+        Property::Visible
+        | Property::Tint
+        | Property::Component { .. }
+        | Property::Call
+        | Property::Deform => Vec4::ZERO,
     })
 }
 

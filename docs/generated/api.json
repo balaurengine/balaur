@@ -2,7 +2,7 @@
   "asset_types": {
     "animation_clip": {
       "directory": "animations",
-      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or\n`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its\n`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel\nand always stepped; `tint` is the `[r, g, b, a]` every descendant is\nmultiplied by, which a renderable's own `color` is not. A track with no\n`property` is a method track whose keys call the node's script. A file holds\none clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
+      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or\n`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its\n`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel\nand always stepped; `tint` is the `[r, g, b, a]` every descendant is\nmultiplied by, which a renderable's own `color` is not. A component\nproperty's value may be a string or a bool, held from key to key. A track with no\n`property` is a method track whose keys call the node's script. A file holds\none clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
     },
     "bone_map": {
       "directory": "animations",
@@ -35,6 +35,10 @@
     "sprite_sheet": {
       "directory": "sheets",
       "doc": "An image cut into frames of any size, for `sprite.sheet`: `texture` names\nthe image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels\nwith the `duration` in seconds a clip shows it for. `sprite.frame` indexes\nthe list, past the end drawing the last frame. `[tags.<name>]` is a run of\nframes `from` one index `to` another with a `direction` (`forward`,\n`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for\never; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,\nwith an optional nine-patch `center` and `pivot`, and `keys` when the slice\nmoves between frames. `balaur import file.aseprite` writes one of these\nbeside the atlas it packs and a clip per tag.\n\n```toml\ntype = \"sprite_sheet\"\ntexture = \"art/walk.png\"\nframes = [\n  { rect = [0, 0, 32, 32], duration = 0.1 },\n  { rect = [32, 0, 32, 32], duration = 0.1 },\n]\n\n[tags.walk]\nfrom = 0\nto = 1\ndirection = \"forward\"\n\n[slices.hitbox]\nrect = [8, 4, 16, 28]\n```"
+    },
+    "state_machine": {
+      "directory": "animations",
+      "doc": "A state machine switches a player between clips. `start` is the state\nentered first; `[states]` maps each state to the clip it plays from the\nplayer's library (an empty clip is the state's own name). Each transition\nnames `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never\nfires, `enabled` fires only on `animation.travel`, `auto` also fires on its\nown), a `switch` (`immediate` once any fade already running has finished,\n`sync` the same keeping the playhead, `at_end` fading so the fade ends with\nthe clip) and an optional `condition` that `animation.set_condition` turns\non.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]\nidle = \"idle\"\nwalk = \"walk_cycle\"\n\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nfade = 0.2\nadvance = \"auto\"\ncondition = \"moving\"\n```"
     },
     "tileset": {
       "directory": "tilesets",
@@ -82,11 +86,13 @@
     "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
+    "state_machine": "Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.",
     "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
     "text2d": "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
+    "timer": "Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = \"emitted:timeout\"` answers it, and so does a script subscribed to it. Set `running` to start it.",
     "touch_button": "An on-screen button that presses an `action` while a finger is on it, so a game bound to a key on a desktop needs no second code path on a phone. Placed against the screen less its safe area, not in the scene's world.",
     "touch_stick": "An on-screen stick that pushes one action per axis while a thumb drags it, reading -1..1 with y positive away from the player, the way a gamepad's stick does. Placed against the screen less its safe area.",
     "transform": "Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.",
@@ -216,6 +222,9 @@
       "2d",
       "render"
     ],
+    "state_machine": [
+      "animation"
+    ],
     "states": [
       "interaction"
     ],
@@ -234,6 +243,9 @@
     "tilemap": [
       "2d",
       "render"
+    ],
+    "timer": [
+      "interaction"
     ],
     "touch_button": [
       "2d",
@@ -3018,6 +3030,11 @@
       }
     },
     "sprite": {
+      "centered": {
+        "default": true,
+        "description": "Centre the image on the node; off puts its top-left corner there",
+        "type": "bool"
+      },
       "color": {
         "default": [
           0.8,
@@ -3064,6 +3081,14 @@
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
       },
+      "offset": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where the image sits against the node, in texture pixels with y down; turns and scales with the node",
+        "type": "vec2"
+      },
       "pixels_per_unit": {
         "default": 100.0,
         "description": "Texture pixels per world unit",
@@ -3101,6 +3126,24 @@
       "texture": {
         "default": "",
         "description": "Image file, project-relative; required",
+        "type": "string"
+      }
+    },
+    "state_machine": {
+      "active": {
+        "default": true,
+        "description": "Whether the machine is running",
+        "type": "bool"
+      },
+      "machine": {
+        "asset": "state_machine",
+        "default": "",
+        "description": "The state machine to run",
+        "type": "asset"
+      },
+      "player": {
+        "default": "",
+        "description": "Node path to the `animation` player it drives; empty means this node",
         "type": "string"
       }
     },
@@ -3730,6 +3773,35 @@
         "type": "asset"
       }
     },
+    "timer": {
+      "autostart": {
+        "default": false,
+        "description": "Start counting as soon as the node is in the scene",
+        "type": "bool"
+      },
+      "one_shot": {
+        "default": false,
+        "description": "Stop after one `timeout`; off, count the next one at once",
+        "type": "bool"
+      },
+      "running": {
+        "default": false,
+        "description": "Whether it is counting; set true to start it from `wait_time`, false to stop it",
+        "type": "bool"
+      },
+      "time_left": {
+        "default": 0.0,
+        "description": "Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes.",
+        "min": 0.0,
+        "type": "float"
+      },
+      "wait_time": {
+        "default": 1.0,
+        "description": "Seconds from starting to `timeout`",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
     "touch_button": {
       "action": {
         "default": "",
@@ -3928,6 +4000,12 @@
         ],
         "description": "Size relative to the parent's",
         "type": "vec3"
+      },
+      "skew": {
+        "default": 0.0,
+        "description": "A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it",
+        "type": "float",
+        "unit": "degrees"
       }
     },
     "vehicle3d": {
@@ -4051,7 +4129,13 @@
           "center_right",
           "center_top",
           "center_bottom",
-          "fill"
+          "fill",
+          "fill_top",
+          "fill_bottom",
+          "fill_left",
+          "fill_right",
+          "fill_across",
+          "fill_down"
         ],
         "type": "enum"
       },
@@ -4063,7 +4147,7 @@
       },
       "checked": {
         "default": false,
-        "description": "Whether a `check` is ticked; every click flips it and calls `on_change` with the new state",
+        "description": "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
         "type": "bool"
       },
       "clicked": {
@@ -4258,6 +4342,7 @@
           "flow",
           "fold",
           "dialog",
+          "window",
           "separator",
           "code"
         ],
@@ -4316,25 +4401,25 @@
       },
       "on_change": {
         "default": "",
-        "description": "Script method called on this node with a `field`'s text after every edit",
+        "description": "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
       "on_click": {
         "default": "",
-        "description": "Script method called on this node when the widget is clicked. An `image` that names one senses clicks too, which is how a picture becomes a button",
+        "description": "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button",
         "group": "events",
         "type": "string"
       },
       "on_focus": {
         "default": "",
-        "description": "Script method called on this node when focus arrives",
+        "description": "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
       "on_submit": {
         "default": "",
-        "description": "Script method called on this node with a `field`'s text on Enter, or when focus leaves it",
+        "description": "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -4413,7 +4498,7 @@
       },
       "source": {
         "default": "",
-        "description": "The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
+        "description": "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
         "type": "string"
       },
       "step": {
@@ -4530,6 +4615,9 @@
         "is_playing": [
           "animation"
         ],
+        "jump": [
+          "state_machine"
+        ],
         "just_finished": [
           "animation"
         ],
@@ -4548,15 +4636,25 @@
         "seek": [
           "animation"
         ],
+        "set_condition": [
+          "state_machine"
+        ],
+        "state": [
+          "state_machine"
+        ],
         "stop": [
           "animation"
         ],
         "time": [
           "animation"
+        ],
+        "travel": [
+          "state_machine"
         ]
       },
       "components": [
-        "animation"
+        "animation",
+        "state_machine"
       ],
       "constants": [],
       "doc": "Clip playback on a node's `animation` component: starting, holding, seeking, and tweens, short clips generated from a table of steps and addressed by the handle they hand back.",
@@ -4565,14 +4663,18 @@
         "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
+        "jump": "Cut the state machine to the named state on the next step, with no fade.",
         "just_finished": "The clip that ended on this node during the last step, and nil on every other frame.",
         "pause": "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.",
-        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
+        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
         "queue": "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.",
         "resume": "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.",
         "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
+        "set_condition": "Turn on or off a condition that `auto` transitions wait on.",
+        "state": "The state the machine is in, or nil before it has entered one.",
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
+        "travel": "Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly.",
         "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out.",
         "tween_to": "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle.",
         "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
@@ -4583,14 +4685,18 @@
         "define",
         "is_playing",
         "is_tween_running",
+        "jump",
         "just_finished",
         "pause",
         "play",
         "queue",
         "resume",
         "seek",
+        "set_condition",
+        "state",
         "stop",
         "time",
+        "travel",
         "tween",
         "tween_to",
         "tween_value",
@@ -4602,14 +4708,18 @@
         "define": "(NodeId, String, Value) -> ()",
         "is_playing": "NodeId -> bool",
         "is_tween_running": "Value -> bool",
+        "jump": "(NodeId, String) -> ()",
         "just_finished": "NodeId -> Option<String>",
         "pause": "NodeId -> ()",
         "play": "(NodeId, String, Option<Value>) -> ()",
         "queue": "(NodeId, String) -> ()",
         "resume": "NodeId -> ()",
         "seek": "(NodeId, f32) -> ()",
+        "set_condition": "(NodeId, String, bool) -> ()",
+        "state": "NodeId -> Value",
         "stop": "Value -> ()",
         "time": "NodeId -> f32",
+        "travel": "(NodeId, String) -> ()",
         "tween": "(NodeId, Value) -> u64",
         "tween_to": "(NodeId, String, Value, f32, Option<String>) -> u64",
         "tween_value": "(Value, Value, f32, Option<String>) -> u64",
@@ -8840,6 +8950,30 @@
           "value": "fill"
         },
         {
+          "name": "ANCHOR_FILL_ACROSS",
+          "value": "fill_across"
+        },
+        {
+          "name": "ANCHOR_FILL_BOTTOM",
+          "value": "fill_bottom"
+        },
+        {
+          "name": "ANCHOR_FILL_DOWN",
+          "value": "fill_down"
+        },
+        {
+          "name": "ANCHOR_FILL_LEFT",
+          "value": "fill_left"
+        },
+        {
+          "name": "ANCHOR_FILL_RIGHT",
+          "value": "fill_right"
+        },
+        {
+          "name": "ANCHOR_FILL_TOP",
+          "value": "fill_top"
+        },
+        {
           "name": "ANCHOR_TOP_LEFT",
           "value": "top_left"
         },
@@ -8986,6 +9120,10 @@
         {
           "name": "WIDGET_TREE",
           "value": "tree"
+        },
+        {
+          "name": "WIDGET_WINDOW",
+          "value": "window"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",

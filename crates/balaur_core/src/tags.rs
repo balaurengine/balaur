@@ -81,6 +81,19 @@ pub fn declared_in(doc: &toml::value::Table) -> Vec<String> {
     found
 }
 
+/// The tags an export stamped into a manifest as `[build] tags`.
+#[must_use]
+pub fn built_in(doc: &toml::value::Table) -> Vec<String> {
+    doc.get("build")
+        .and_then(|build| build.get("tags"))
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(toml::Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
 /// The tags in force, broad to narrow: the kind of machine, the operating
 /// system, the architecture, the build, then whatever a target added.
 ///

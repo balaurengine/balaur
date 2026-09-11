@@ -30,6 +30,7 @@ pub(crate) mod words {
     pub(crate) const FLOW: &str = "flow";
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
+    pub(crate) const WINDOW: &str = "window";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
@@ -37,7 +38,7 @@ pub(crate) mod words {
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
         COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
-        DIALOG, SEPARATOR, CODE,
+        DIALOG, WINDOW, SEPARATOR, CODE,
     ];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
@@ -50,8 +51,14 @@ pub(crate) mod words {
     pub(crate) const CENTER_TOP: &str = "center_top";
     pub(crate) const CENTER_BOTTOM: &str = "center_bottom";
     pub(crate) const FILL: &str = "fill";
+    pub(crate) const FILL_TOP: &str = "fill_top";
+    pub(crate) const FILL_BOTTOM: &str = "fill_bottom";
+    pub(crate) const FILL_LEFT: &str = "fill_left";
+    pub(crate) const FILL_RIGHT: &str = "fill_right";
+    pub(crate) const FILL_ACROSS: &str = "fill_across";
+    pub(crate) const FILL_DOWN: &str = "fill_down";
     /// Screen anchors: the four corners, the four edge midpoints, the middle,
-    /// and the whole surface.
+    /// the whole surface, and one axis of it along an edge or the middle.
     pub(crate) const ANCHORS: &[&str] = &[
         TOP_LEFT,
         TOP_RIGHT,
@@ -63,6 +70,12 @@ pub(crate) mod words {
         CENTER_TOP,
         CENTER_BOTTOM,
         FILL,
+        FILL_TOP,
+        FILL_BOTTOM,
+        FILL_LEFT,
+        FILL_RIGHT,
+        FILL_ACROSS,
+        FILL_DOWN,
     ];
 
     pub(crate) const START: &str = "start";

@@ -57,6 +57,20 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     }
 
     window(document, &mut out, &mut notes)?;
+    if let Some(theme) = get("gui", "theme/custom")
+        .as_ref()
+        .and_then(Value::as_str)
+    {
+        let path = resolve(theme, uids, &mut notes);
+        if let Some(godot) = path.strip_suffix(".tres") {
+            writeln!(out, "\n[ui]")?;
+            writeln!(
+                out,
+                "theme = {}",
+                quote(&crate::import_godot_theme::theme_path(&format!("{godot}.tres")))
+            )?;
+        }
+    }
     locale(document, &mut out)?;
     actions(document, &mut out, &mut notes)?;
 
@@ -73,18 +87,49 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     })
 }
 
+/// The font file `gui/theme/custom_font` names, project-relative: the file
+/// itself, or the `base_font` of a FontVariation saved as a `.tres`.
+pub(crate) fn custom_font(
+    document: &Document,
+    uids: &BTreeMap<String, String>,
+    root: &std::path::Path,
+) -> Option<String> {
+    let reference = document.first("gui")?.field("theme/custom_font")?.as_str()?;
+    let path = resolve(reference, uids, &mut Vec::new());
+    if !crate::import_godot_files::has_extension(&path, "tres") {
+        return Some(path).filter(|p| !p.is_empty());
+    }
+    let text = std::fs::read_to_string(root.join(&path)).ok()?;
+    let variation = crate::import_godot::parse(&text).ok()?;
+    let id = variation
+        .first("resource")?
+        .field("base_font")?
+        .call("ExtResource")?
+        .first()?
+        .as_str()?
+        .to_string();
+    let section = variation
+        .each("ext_resource")
+        .find(|s| s.attr_str("id") == Some(id.as_str()))?;
+    let by_uid = section.attr_str("uid").and_then(|u| uids.get(u)).cloned();
+    by_uid.or_else(|| {
+        section
+            .attr_str("path")
+            .map(|p| p.strip_prefix("res://").unwrap_or(p).to_string())
+    })
+}
+
 /// `res://a/b.tscn` and `uid://xyz` as the path a balaur project would use.
 /// A scene keeps its stem and takes `.toml`; everything else keeps its name.
 fn resolve(reference: &str, uids: &BTreeMap<String, String>, notes: &mut Vec<String>) -> String {
     let path = if let Some(rest) = reference.strip_prefix("res://") {
         rest.to_string()
     } else if reference.starts_with("uid://") {
-        match uids.get(reference) {
-            Some(path) => path.clone(),
-            None => {
-                notes.push(format!("`{reference}` names no file in this project"));
-                return String::new();
-            }
+        if let Some(path) = uids.get(reference) {
+            path.clone()
+        } else {
+            notes.push(format!("`{reference}` names no file in this project"));
+            return String::new();
         }
     } else {
         reference.to_string()
@@ -162,10 +207,10 @@ fn locale(document: &Document, out: &mut String) -> Result<()> {
     ) {
         let Some(path) = item.as_str() else { continue };
         let file = path.rsplit('/').next().unwrap_or(path);
-        if let Some(tag) = file.split('.').next().filter(|t| !t.is_empty()) {
-            if !locales.iter().any(|l| l == tag) {
-                locales.push(tag.to_string());
-            }
+        if let Some(tag) = file.split('.').next().filter(|t| !t.is_empty())
+            && !locales.iter().any(|l| l == tag)
+        {
+            locales.push(tag.to_string());
         }
     }
     if locales.is_empty() {
@@ -491,7 +536,7 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
         assert_eq!(doc["locale"]["default"].as_str(), Some("en"));
         let actions = &doc["input"]["actions"];
         assert_eq!(
-            actions["jump"].as_array().map(|a| a.len()),
+            actions["jump"].as_array().map(std::vec::Vec::len),
             Some(2),
             "{actions:?}"
         );

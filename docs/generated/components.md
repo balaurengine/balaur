@@ -434,13 +434,14 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `sprite`
 
-`2d` · `render` · 13 properties · 7 methods
+`2d` · `render` · 15 properties · 7 methods
 
 A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>centered</code></td><td>bool</td><td><code>true</code></td><td>Centre the image on the node; off puts its top-left corner there</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>columns</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid columns for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
 <tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
@@ -448,6 +449,7 @@ A textured 2D quad at the node, sized from its image at `pixels_per_unit` textur
 <tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the image sits against the node, in texture pixels with y down; turns and scales with the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>region_origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`</td></tr>
 <tr><td><code>region_size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell</td></tr>
@@ -621,7 +623,7 @@ An on-screen stick that pushes one action per axis while a thumb drags it, readi
 
 ### `transform`
 
-`2d` · `3d` · 3 properties
+`2d` · `3d` · 4 properties
 
 Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.
 
@@ -631,6 +633,7 @@ Where the node sits in its parent's space, how it is turned and how big it is. A
 <tr><td><code>position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the node sits in its parent&#x27;s space</td></tr>
 <tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Size relative to the parent&#x27;s</td></tr>
+<tr><td><code>skew</code></td><td>float</td><td><code>0.0</code></td><td>A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it</td></tr>
 </tbody>
 </table>
 
@@ -1311,12 +1314,39 @@ On a node carrying `animation`, as `node.animation.<method>`:
 <tr><td><code>is_playingNodeId</code></td><td><code>bool</code></td><td>Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.</td><td><code>animation</code></td></tr>
 <tr><td><code>just_finishedNodeId</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip that ended on this node during the last step, and nil on every other frame.</td><td><code>animation</code></td></tr>
 <tr><td><code>pauseNodeId</code></td><td>—</td><td>Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.</td><td><code>animation</code></td></tr>
-<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
+<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
 <tr><td><code>queue(String)</code></td><td>—</td><td>Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.</td><td><code>animation</code></td></tr>
 <tr><td><code>resumeNodeId</code></td><td>—</td><td>Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.</td><td><code>animation</code></td></tr>
 <tr><td><code>seek(f32)</code></td><td>—</td><td>Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.</td><td><code>animation</code></td></tr>
 <tr><td><code>stopValue</code></td><td>—</td><td>End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.</td><td><code>animation</code></td></tr>
 <tr><td><code>timeNodeId</code></td><td><code>f32</code></td><td>Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.</td><td><code>animation</code></td></tr>
+</tbody>
+</table>
+
+### `state_machine`
+
+`animation` · 3 properties · 4 methods
+
+Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>active</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
+<tr><td><code>machine</code></td><td>asset · <code>state_machine</code></td><td>—</td><td>The state machine to run</td></tr>
+<tr><td><code>player</code></td><td>string</td><td>—</td><td>Node path to the `animation` player it drives; empty means this node</td></tr>
+</tbody>
+</table>
+
+On a node carrying `state_machine`, as `node.state_machine.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>jump(String)</code></td><td>—</td><td>Cut the state machine to the named state on the next step, with no fade.</td><td><code>animation</code></td></tr>
+<tr><td><code>set_condition(String, bool)</code></td><td>—</td><td>Turn on or off a condition that `auto` transitions wait on.</td><td><code>animation</code></td></tr>
+<tr><td><code>stateNodeId</code></td><td><code>Value</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
+<tr><td><code>travel(String)</code></td><td>—</td><td>Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly.</td><td><code>animation</code></td></tr>
 </tbody>
 </table>
 
@@ -1380,9 +1410,9 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tbody>
 <tr><td><code>active</code></td><td>string</td><td>—</td><td>Which child a `tab` shows, by node name; empty shows the first</td></tr>
 <tr><td><code>align</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
-<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>.</td></tr>
+<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
 <tr><td><code>avoid_keyboard</code></td><td>bool</td><td><code>false</code></td><td>On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop</td></tr>
-<tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked; every click flips it and calls `on_change` with the new state</td></tr>
+<tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
 <tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list At least 0.</td></tr>
@@ -1404,7 +1434,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
 <tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes One of <code>start</code>, <code>center</code>, <code>end</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
 <tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>color</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>, <code>code</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>color</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
 <tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
@@ -1413,10 +1443,10 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `field` to digits, a sign and a point</td></tr>
-<tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text after every edit</td></tr>
-<tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the widget is clicked. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
-<tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
-<tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called on this node with a `field`&#x27;s text on Enter, or when focus leaves it</td></tr>
+<tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
+<tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>
@@ -1428,7 +1458,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
-<tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>
+<tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption&#x27;s height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>
 <tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
 <tr><td><code>stroke</code></td><td>string</td><td>—</td><td>The outline around this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
@@ -1483,6 +1513,23 @@ On a node carrying `states`, as `node.states.<method>`:
 <tbody>
 <tr><td><code>go(state: string)</code></td><td>—</td><td>Put the node in one of its `states`: the state&#x27;s table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.</td><td><code>node</code></td></tr>
 <tr><td><code>state()</code></td><td>—</td><td>The state the node is in, or &quot;&quot; for the pose the scene gave it.</td><td><code>node</code></td></tr>
+</tbody>
+</table>
+
+### `timer`
+
+`interaction` · 5 properties
+
+Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = "emitted:timeout"` answers it, and so does a script subscribed to it. Set `running` to start it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>autostart</code></td><td>bool</td><td><code>false</code></td><td>Start counting as soon as the node is in the scene</td></tr>
+<tr><td><code>one_shot</code></td><td>bool</td><td><code>false</code></td><td>Stop after one `timeout`; off, count the next one at once</td></tr>
+<tr><td><code>running</code></td><td>bool</td><td><code>false</code></td><td>Whether it is counting; set true to start it from `wait_time`, false to stop it</td></tr>
+<tr><td><code>time_left</code></td><td>float</td><td><code>0.0</code></td><td>Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes. At least 0.0.</td></tr>
+<tr><td><code>wait_time</code></td><td>float</td><td><code>1.0</code></td><td>Seconds from starting to `timeout` At least 0.001.</td></tr>
 </tbody>
 </table>
 

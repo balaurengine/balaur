@@ -29,9 +29,24 @@ pub(crate) struct Resources<'a> {
     pub internal: BTreeMap<String, Section>,
     /// The Godot project's root, for reading an image's size off disk.
     pub root: &'a Path,
+    /// What the whole project knows, which every scene reads the same way.
+    pub project: &'a Project,
+}
+
+/// Lookups built once over the whole Godot project.
+#[derive(Default)]
+pub(crate) struct Project {
     /// Every translation key, so a caption that is one draws as `text_key`,
     /// which is what Godot's auto-translation made of it.
-    pub keys: &'a BTreeSet<String>,
+    pub keys: BTreeSet<String>,
+    /// `uid://` to project path, for a resource loaded from its own file.
+    pub uids: BTreeMap<String, String>,
+    /// An SVG's path to the raster Godot imported it as, written beside it.
+    pub rasters: BTreeMap<String, String>,
+    /// The project's own `class_name`s, to the class each extends.
+    pub classes: crate::import_godot_exports::Classes,
+    /// Every `.gdshader` that translated and compiles, by its Godot path.
+    pub shaders: BTreeMap<String, std::rc::Rc<crate::import_godot_material::Shader>>,
 }
 
 impl Resources<'_> {
@@ -61,6 +76,58 @@ impl Resources<'_> {
     }
 }
 
+/// A `.tres` or `.tscn`'s declared resources, resolved the way a scene's are.
+pub(crate) fn resources_of<'a>(
+    document: &crate::import_godot::Document,
+    root: &'a Path,
+    project: &'a Project,
+) -> Resources<'a> {
+    let uids = &project.uids;
+    let mut external = BTreeMap::new();
+    for section in document.each("ext_resource") {
+        let Some(id) = section.attr_str("id") else {
+            continue;
+        };
+        // Godot follows the uid and only falls back on the path, which goes
+        // stale when a file moves; this reads them in the same order.
+        let by_uid = section
+            .attr_str("uid")
+            .and_then(|uid| uids.get(uid))
+            .cloned();
+        let by_path = section
+            .attr_str("path")
+            .map(|p| p.strip_prefix("res://").unwrap_or(p).to_string());
+        let Some(path) = by_uid.or(by_path) else {
+            continue;
+        };
+        let kind = section.attr_str("type").unwrap_or_default().to_string();
+        external.insert(id.to_string(), (kind, path));
+    }
+    let internal = document
+        .each("sub_resource")
+        .filter_map(|s| Some((s.attr_str("id")?.to_string(), s.clone())))
+        .collect();
+    Resources {
+        external,
+        internal,
+        root,
+        project,
+    }
+}
+
+/// A resource an `ExtResource` names, parsed with its own declarations, or
+/// `None` when it is a sub-resource or will not load.
+pub(crate) fn load<'a>(
+    res: &Resources<'a>,
+    value: &Value,
+) -> Option<(crate::import_godot::Document, Resources<'a>)> {
+    let path = res.path(value)?;
+    let text = std::fs::read_to_string(res.root.join(path)).ok()?;
+    let document = crate::import_godot::parse(&text).ok()?;
+    let nested = resources_of(&document, res.root, res.project);
+    Some((document, nested))
+}
+
 /// What one node became.
 #[derive(Default)]
 pub(crate) struct Mapped {
@@ -68,14 +135,27 @@ pub(crate) struct Mapped {
     pub keys: toml::Table,
     /// Component name to its table.
     pub components: toml::Table,
-    /// Inline `[[assets]]`, each with the component whose `mesh` names it;
-    /// the scene walker gives it an id and writes the `#id` there.
-    pub assets: Vec<(&'static str, toml::Table)>,
+    /// Inline `[[assets]]`; the scene walker gives each an id and writes
+    /// the `#id` into the component property that names it.
+    pub assets: Vec<Asset>,
+    /// Nodes this one becomes the parent of, for a Godot node that is more
+    /// than one node here: a tile layer over several atlases, for one.
+    pub children: Vec<(String, Mapped)>,
     pub notes: Vec<String>,
+    /// Files the node needs written beside the scene, as `(path, text)`: a
+    /// shader saved inside the scene, for one.
+    pub files: Vec<(String, String)>,
+}
+
+/// One inline asset, and the component property that points at it.
+pub(crate) struct Asset {
+    pub component: &'static str,
+    pub key: &'static str,
+    pub table: toml::Table,
 }
 
 impl Mapped {
-    fn set(&mut self, component: &str, key: &str, value: Toml) {
+    pub(crate) fn set(&mut self, component: &str, key: &str, value: Toml) {
         let table = self
             .components
             .entry(component)
@@ -85,13 +165,13 @@ impl Mapped {
         }
     }
 
-    fn touch(&mut self, component: &str) {
+    pub(crate) fn touch(&mut self, component: &str) {
         self.components
             .entry(component)
             .or_insert_with(|| Toml::Table(toml::Table::new()));
     }
 
-    fn note(&mut self, text: impl Into<String>) {
+    pub(crate) fn note(&mut self, text: impl Into<String>) {
         self.notes.push(text.into());
     }
 }
@@ -107,7 +187,7 @@ pub(crate) enum Family {
 }
 
 pub(crate) fn family(class: &str) -> Family {
-    if WIDGET_KINDS.iter().any(|(godot, _)| *godot == class) || class == "Control" {
+    if crate::import_godot_controls::is_widget(class) || class == "Control" {
         return Family::Control;
     }
     if PLAIN.contains(&class) {
@@ -115,6 +195,9 @@ pub(crate) fn family(class: &str) -> Family {
     }
     Family::Node2d
 }
+
+/// Classes whose transform is all they are.
+const BARE: &[&str] = &["Node", "Node2D", "Marker2D", "CanvasLayer", "Skeleton2D"];
 
 /// Classes that are neither placed nor drawn.
 const PLAIN: &[&str] = &[
@@ -132,51 +215,6 @@ const PLAIN: &[&str] = &[
     "MultiplayerSynchronizer",
 ];
 
-/// Each `Control` subclass, and the widget kind it becomes.
-const WIDGET_KINDS: &[(&str, &str)] = &[
-    ("Label", "label"),
-    ("RichTextLabel", "label"),
-    ("Button", "button"),
-    ("LinkButton", "button"),
-    ("MenuButton", "button"),
-    ("TextureButton", "image"),
-    ("CheckBox", "check"),
-    ("CheckButton", "check"),
-    ("LineEdit", "field"),
-    ("OptionButton", "dropdown"),
-    ("HSlider", "slider"),
-    ("VSlider", "slider"),
-    ("ProgressBar", "progress"),
-    ("TextureProgressBar", "progress"),
-    ("TextureRect", "image"),
-    ("NinePatchRect", "image"),
-    ("ColorRect", "panel"),
-    ("Panel", "panel"),
-    ("PanelContainer", "panel"),
-    ("MarginContainer", "panel"),
-    ("CenterContainer", "panel"),
-    ("AspectRatioContainer", "panel"),
-    ("SubViewportContainer", "panel"),
-    ("HBoxContainer", "row"),
-    ("VBoxContainer", "column"),
-    ("BoxContainer", "row"),
-    ("GridContainer", "grid"),
-    ("FlowContainer", "flow"),
-    ("HFlowContainer", "flow"),
-    ("VFlowContainer", "flow"),
-    ("ScrollContainer", "scroll"),
-    ("TabContainer", "tab"),
-    ("TabBar", "tab"),
-    ("FoldableContainer", "fold"),
-    ("HSeparator", "separator"),
-    ("VSeparator", "separator"),
-    ("AcceptDialog", "dialog"),
-    ("ConfirmationDialog", "dialog"),
-    ("Window", "dialog"),
-    ("SpinBox", "field"),
-    ("TextEdit", "field"),
-];
-
 /// Map one node. `parent` is the class of the node above it, which decides
 /// which of a Control's two size flags is the one its container reads.
 pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<'_>) -> Mapped {
@@ -184,11 +222,12 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
     node_keys(section, &mut out);
     match family(class) {
         Family::Node2d => transform(section, &mut out),
-        Family::Control => widget(class, section, parent, res, &mut out),
+        Family::Control => {
+            crate::import_godot_controls::widget(class, section, parent, res, &mut out);
+        }
         Family::Plain => {}
     }
     match class {
-        "Node" | "Node2D" | "Control" | "Marker2D" | "CanvasLayer" | "Skeleton2D" => {}
         "Sprite2D" => sprite(section, res, &mut out),
         "AnimatedSprite2D" => {
             out.touch("sprite");
@@ -218,19 +257,37 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
             // The clips themselves are the animation phase's; the node is here.
             out.touch("animation");
         }
-        "TileMapLayer" | "TileMap" => {
-            out.note("TileMapLayer: its tile data is not converted yet");
+        // A tree holding libraries of its own plays them itself; the state
+        // machine over them is the scene walker's, beside the clips.
+        "AnimationTree" => {
+            if section.fields.iter().any(|(key, _)| key.starts_with("libraries")) {
+                out.touch("animation");
+            }
         }
-        "Timer" => out.note("Timer: use `task.seconds` in the script that started it"),
-        other if family(other) == Family::Control => {}
-        other => out.note(format!("{other}: no balaur equivalent; kept as a plain node")),
+        "TileMapLayer" => crate::import_godot_tiles::layer(section, res, &mut out),
+        "TileMap" => {
+            out.note(
+                "TileMap: Godot 4.3 split it into TileMapLayers; resave the scene there first",
+            );
+        }
+        "Timer" => timer(section, &mut out),
+        // A Control is its widget and these are their transform; neither is
+        // anything more.
+        other if family(other) == Family::Control || BARE.contains(&other) => {}
+        other => out.note(format!(
+            "{other}: no balaur equivalent; kept as a plain node"
+        )),
     }
     if parent == "Area2D" && out.components.contains_key("collider2d") {
         out.set("collider2d", "sensor", Toml::Boolean(true));
     }
-    if let Some(material) = section.field("material") {
-        if res.sub(material).is_some() || res.path(material).is_some() {
-            out.note("a ShaderMaterial: port its .gdshader to WESL by hand");
+    if let Some(material) = section.field("material")
+        && (res.sub(material).is_some() || res.path(material).is_some())
+    {
+        if family(class) == Family::Control {
+            out.note("a material on a Control: widgets draw through the UI layer, which runs no shader");
+        } else {
+            crate::import_godot_material::attach(material, res, &mut out);
         }
     }
     out
@@ -238,10 +295,10 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
 
 /// `visible`, `modulate` and `z_index`, which every node has here too.
 fn node_keys(section: &Section, out: &mut Mapped) {
-    if let Some(visible) = section.field("visible") {
-        if let Value::Bool(on) = visible {
-            out.keys.insert("visible".into(), Toml::Boolean(*on));
-        }
+    if let Some(visible) = section.field("visible")
+        && let Value::Bool(on) = visible
+    {
+        out.keys.insert("visible".into(), Toml::Boolean(*on));
     }
     if let Some(color) = section.field("modulate").and_then(colour) {
         out.keys.insert("tint".into(), color);
@@ -256,7 +313,11 @@ fn node_keys(section: &Section, out: &mut Mapped) {
 
 fn transform(section: &Section, out: &mut Mapped) {
     if let Some([x, y]) = section.field("position").and_then(pair) {
-        out.set("transform", "position", floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT, 0.0]));
+        out.set(
+            "transform",
+            "position",
+            floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT, 0.0]),
+        );
     }
     if let Some(angle) = section.field("rotation").and_then(Value::as_f64) {
         // y flips, so a turn one way in Godot is the other way here.
@@ -265,8 +326,13 @@ fn transform(section: &Section, out: &mut Mapped) {
     if let Some([x, y]) = section.field("scale").and_then(pair) {
         out.set("transform", "scale", floats(&[x, y, 1.0]));
     }
-    if section.field("skew").and_then(Value::as_f64).is_some_and(|s| s != 0.0) {
-        out.note("skew: a transform here has no shear, so it was dropped");
+    // y flips, so the y axis leans the other way too.
+    if let Some(skew) = section
+        .field("skew")
+        .and_then(Value::as_f64)
+        .filter(|s| *s != 0.0)
+    {
+        out.set("transform", "skew", Toml::Float(-skew));
     }
 }
 
@@ -274,7 +340,7 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.touch("sprite");
     let texture = section.field("texture").and_then(|t| res.path(t));
     if let Some(path) = texture {
-        let texture = image_path(path, out);
+        let texture = image_path(path, res, out);
         out.set("sprite", "texture", Toml::String(texture));
     }
     if let Some(color) = section.field("self_modulate").and_then(colour) {
@@ -288,28 +354,51 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         }
     }
     let region = section.field("region_enabled") == Some(&Value::Bool(true));
-    if let Some(rect) = section.field("region_rect").and_then(Value::numbers).filter(|_| region) {
-        if let [x, y, w, h] = rect[..] {
-            out.set("sprite", "region_origin", floats(&[x, y]));
-            out.set("sprite", "region_size", floats(&[w, h]));
-        }
+    if let Some(rect) = section
+        .field("region_rect")
+        .and_then(Value::numbers)
+        .filter(|_| region)
+        && let [x, y, w, h] = rect[..]
+    {
+        out.set("sprite", "region_origin", floats(&[x, y]));
+        out.set("sprite", "region_size", floats(&[w, h]));
     }
     let frames = |key: &str| section.field(key).and_then(Value::as_i64);
     let (columns, rows) = (frames("hframes"), frames("vframes"));
     if columns.unwrap_or(1) > 1 || rows.unwrap_or(1) > 1 {
-        out.set("sprite", "columns", Toml::Float(columns.unwrap_or(1) as f64));
+        out.set(
+            "sprite",
+            "columns",
+            Toml::Float(columns.unwrap_or(1) as f64),
+        );
         out.set("sprite", "rows", Toml::Float(rows.unwrap_or(1) as f64));
         if let Some(frame) = frames("frame") {
             out.set("sprite", "frame", Toml::Float(frame as f64));
         }
     }
-    // Godot centres a sprite on its origin by default and shifts it by
-    // `offset`; here a sprite is centred and cannot be shifted.
+    // Both engines measure `offset` in texture pixels, y down.
     if section.field("centered") == Some(&Value::Bool(false)) {
-        out.note("Sprite2D centered = false: a sprite here is always centred on its node");
+        out.set("sprite", "centered", Toml::Boolean(false));
     }
-    if section.field("offset").and_then(pair).is_some_and(|[x, y]| x != 0.0 || y != 0.0) {
-        out.note("Sprite2D offset: move the sprite into a child node to shift it");
+    if let Some([x, y]) = section
+        .field("offset")
+        .and_then(pair)
+        .filter(|[x, y]| *x != 0.0 || *y != 0.0)
+    {
+        out.set("sprite", "offset", floats(&[x, y]));
+    }
+}
+
+/// A Timer as the `timer` component, which emits `timeout` as Godot's does.
+fn timer(section: &Section, out: &mut Mapped) {
+    out.touch("timer");
+    if let Some(wait) = section.field("wait_time").and_then(Value::as_f64) {
+        out.set("timer", "wait_time", Toml::Float(wait));
+    }
+    for key in ["one_shot", "autostart"] {
+        if let Some(Value::Bool(on)) = section.field(key) {
+            out.set("timer", key, Toml::Boolean(*on));
+        }
     }
 }
 
@@ -325,24 +414,36 @@ fn polygon(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     }
     let texture = section.field("texture").and_then(|t| res.path(t));
     if let Some(path) = texture {
-        let texture = image_path(path, out);
+        let texture = image_path(path, res, out);
         out.set("polygon", "texture", Toml::String(texture));
     }
     let color = section.field("color").and_then(colour);
     let tint = section.field("self_modulate").and_then(colour);
-    out.set("polygon", "color", tint.or(color).unwrap_or_else(|| floats(&[1.0, 1.0, 1.0, 1.0])));
+    out.set(
+        "polygon",
+        "color",
+        tint.or(color)
+            .unwrap_or_else(|| floats(&[1.0, 1.0, 1.0, 1.0])),
+    );
 
     let mut mesh = toml::Table::new();
     mesh.insert("type".into(), Toml::String("mesh".into()));
     let positions = points
         .iter()
-        .map(|[x, y]| floats(&[(x + offset[0]) / PIXELS_PER_UNIT, -(y + offset[1]) / PIXELS_PER_UNIT]))
+        .map(|[x, y]| {
+            floats(&[
+                (x + offset[0]) / PIXELS_PER_UNIT,
+                -(y + offset[1]) / PIXELS_PER_UNIT,
+            ])
+        })
         .collect();
     mesh.insert("positions".into(), Toml::Array(positions));
-    if let Some(internal) = section.field("internal_vertex_count").and_then(Value::as_i64) {
-        if internal > 0 {
-            mesh.insert("internal".into(), Toml::Integer(internal));
-        }
+    if let Some(internal) = section
+        .field("internal_vertex_count")
+        .and_then(Value::as_i64)
+        && internal > 0
+    {
+        mesh.insert("internal".into(), Toml::Integer(internal));
     }
     if let Some(loops) = section.field("polygons").and_then(Value::as_array) {
         let loops: Vec<Toml> = loops
@@ -356,15 +457,26 @@ fn polygon(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     }
     // Godot's UVs are texture pixels, and with none the points are the UVs;
     // here they are 0 to 1, so the texture's size turns one into the other.
-    let uvs = section.field("uv").map(points_of).filter(|u| u.len() == points.len());
+    let uvs = section
+        .field("uv")
+        .map(points_of)
+        .filter(|u| u.len() == points.len());
     let size = texture.and_then(|p| res.image_size(p));
     match (size, texture) {
         (Some((w, h)), _) => {
-            let texture_offset = section.field("texture_offset").and_then(pair).unwrap_or([0.0, 0.0]);
+            let texture_offset = section
+                .field("texture_offset")
+                .and_then(pair)
+                .unwrap_or([0.0, 0.0]);
             let source = uvs.unwrap_or_else(|| points.clone());
             let uvs = source
                 .iter()
-                .map(|[u, v]| floats(&[(u + texture_offset[0]) / f64::from(w), (v + texture_offset[1]) / f64::from(h)]))
+                .map(|[u, v]| {
+                    floats(&[
+                        (u + texture_offset[0]) / f64::from(w),
+                        (v + texture_offset[1]) / f64::from(h),
+                    ])
+                })
                 .collect();
             mesh.insert("uvs".into(), Toml::Array(uvs));
         }
@@ -379,7 +491,11 @@ fn polygon(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             out.set("polygon", "skeleton", Toml::String(rig.to_string()));
         }
     }
-    out.assets.push(("polygon", mesh));
+    out.assets.push(Asset {
+        component: "polygon",
+        key: "mesh",
+        table: mesh,
+    });
 }
 
 /// `bones = [NodePath, PackedFloat32Array, …]` as `skin.bones`. The paths
@@ -389,14 +505,20 @@ fn skin(section: &Section, vertices: usize) -> Option<Toml> {
     let mut bones = Vec::new();
     for pair in flat.chunks(2) {
         let [path, weights] = pair else { continue };
-        let path = path.call("NodePath").and_then(|a| a.first()).and_then(Value::as_str)?;
+        let path = path
+            .call("NodePath")
+            .and_then(|a| a.first())
+            .and_then(Value::as_str)?;
         let weights = weights.numbers()?;
         if weights.len() != vertices {
             continue;
         }
         let mut bone = toml::Table::new();
         bone.insert("path".into(), Toml::String(path.to_string()));
-        bone.insert("weights".into(), Toml::Array(weights.into_iter().map(Toml::Float).collect()));
+        bone.insert(
+            "weights".into(),
+            Toml::Array(weights.into_iter().map(Toml::Float).collect()),
+        );
         bones.push(Toml::Table(bone));
     }
     if bones.is_empty() {
@@ -417,7 +539,10 @@ fn line(section: &Section, out: &mut Mapped) {
         .map(|[x, y]| floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]))
         .collect();
     out.set("shape2d", "points", Toml::Array(points));
-    let width = section.field("width").and_then(Value::as_f64).unwrap_or(10.0);
+    let width = section
+        .field("width")
+        .and_then(Value::as_f64)
+        .unwrap_or(10.0);
     out.set("shape2d", "width", Toml::Float(width / PIXELS_PER_UNIT));
     if let Some(color) = section.field("default_color").and_then(colour) {
         out.set("shape2d", "color", color);
@@ -435,14 +560,27 @@ fn bone(section: &Section, out: &mut Mapped) {
     // The rest pose is Godot's `rest` transform; with none the bone rests
     // where the scene put it.
     let rest = section.field("rest").and_then(Value::numbers);
-    let (x, y, angle) = match rest.as_deref() {
-        Some([a, b, _, _, ox, oy]) => (*ox, *oy, b.atan2(*a)),
-        _ => {
-            let [x, y] = section.field("position").and_then(pair).unwrap_or([0.0, 0.0]);
-            (x, y, section.field("rotation").and_then(Value::as_f64).unwrap_or(0.0))
-        }
+    let (x, y, angle) = if let Some([a, b, _, _, ox, oy]) = rest.as_deref() {
+        (*ox, *oy, balaur_core::libm::atan2(*b, *a))
+    } else {
+        let [x, y] = section
+            .field("position")
+            .and_then(pair)
+            .unwrap_or([0.0, 0.0]);
+        (
+            x,
+            y,
+            section
+                .field("rotation")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0),
+        )
     };
-    out.set("bone2d", "rest_position", floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]));
+    out.set(
+        "bone2d",
+        "rest_position",
+        floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]),
+    );
     out.set("bone2d", "rest_rotation", Toml::Float(-angle));
     if let Some(length) = section.field("length").and_then(Value::as_f64) {
         out.set("bone2d", "length", Toml::Float(length / PIXELS_PER_UNIT));
@@ -484,33 +622,63 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         "RectangleShape2D" => {
             let [w, h] = shape.field("size").and_then(pair).unwrap_or([20.0, 20.0]);
             out.set("collider2d", "kind", Toml::String("rect".into()));
-            out.set("collider2d", "half_extents", floats(&[w / 2.0 / PIXELS_PER_UNIT, h / 2.0 / PIXELS_PER_UNIT]));
+            out.set(
+                "collider2d",
+                "half_extents",
+                floats(&[w / 2.0 / PIXELS_PER_UNIT, h / 2.0 / PIXELS_PER_UNIT]),
+            );
         }
         "CircleShape2D" => {
             out.set("collider2d", "kind", Toml::String("circle".into()));
-            out.set("collider2d", "radius", Toml::Float(number("radius").unwrap_or(10.0) / PIXELS_PER_UNIT));
+            out.set(
+                "collider2d",
+                "radius",
+                Toml::Float(number("radius").unwrap_or(10.0) / PIXELS_PER_UNIT),
+            );
         }
         "CapsuleShape2D" => {
             out.set("collider2d", "kind", Toml::String("capsule".into()));
-            out.set("collider2d", "radius", Toml::Float(number("radius").unwrap_or(10.0) / PIXELS_PER_UNIT));
-            out.set("collider2d", "height", Toml::Float(number("height").unwrap_or(30.0) / PIXELS_PER_UNIT));
+            out.set(
+                "collider2d",
+                "radius",
+                Toml::Float(number("radius").unwrap_or(10.0) / PIXELS_PER_UNIT),
+            );
+            out.set(
+                "collider2d",
+                "height",
+                Toml::Float(number("height").unwrap_or(30.0) / PIXELS_PER_UNIT),
+            );
         }
         "SegmentShape2D" => {
             let a = shape.field("a").and_then(pair).unwrap_or([0.0, 0.0]);
             let b = shape.field("b").and_then(pair).unwrap_or([0.0, 10.0]);
             out.set("collider2d", "kind", Toml::String("segment".into()));
-            out.set("collider2d", "a", floats(&[a[0] / PIXELS_PER_UNIT, -a[1] / PIXELS_PER_UNIT]));
-            out.set("collider2d", "b", floats(&[b[0] / PIXELS_PER_UNIT, -b[1] / PIXELS_PER_UNIT]));
+            out.set(
+                "collider2d",
+                "a",
+                floats(&[a[0] / PIXELS_PER_UNIT, -a[1] / PIXELS_PER_UNIT]),
+            );
+            out.set(
+                "collider2d",
+                "b",
+                floats(&[b[0] / PIXELS_PER_UNIT, -b[1] / PIXELS_PER_UNIT]),
+            );
         }
         "WorldBoundaryShape2D" => {
             out.set("collider2d", "kind", Toml::String("halfspace".into()));
         }
         "ConvexPolygonShape2D" | "ConcavePolygonShape2D" => {
-            let key = if shape.field("points").is_some() { "points" } else { "segments" };
+            let key = if shape.field("points").is_some() {
+                "points"
+            } else {
+                "segments"
+            };
             let points = shape.field(key).map(points_of).unwrap_or_default();
             polygon_collider(&points, "convex_hull", out);
         }
-        other => out.note(format!("{other}: no 2D collider of that shape; left as the default rect")),
+        other => out.note(format!(
+            "{other}: no 2D collider of that shape; left as the default rect"
+        )),
     }
 }
 
@@ -539,7 +707,11 @@ fn polygon_collider(points: &[[f64; 2]], kind: &str, out: &mut Mapped) {
         .map(|[x, y]| floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]))
         .collect();
     mesh.insert("positions".into(), Toml::Array(positions));
-    out.assets.push(("collider2d", mesh));
+    out.assets.push(Asset {
+        component: "collider2d",
+        key: "mesh",
+        table: mesh,
+    });
 }
 
 fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
@@ -548,7 +720,11 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     let lifetime = number("lifetime").unwrap_or(1.0);
     out.set("particles", "lifetime", Toml::Float(lifetime));
     if let Some(amount) = number("amount") {
-        out.set("particles", "rate", Toml::Float(amount / lifetime.max(0.05)));
+        out.set(
+            "particles",
+            "rate",
+            Toml::Float(amount / lifetime.max(0.05)),
+        );
     }
     for (godot, here) in [("emitting", "emitting"), ("one_shot", "one_shot")] {
         if let Some(Value::Bool(on)) = section.field(godot) {
@@ -559,7 +735,7 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         out.set("particles", "explosiveness", Toml::Float(explosiveness));
     }
     if let Some(path) = section.field("texture").and_then(|t| res.path(t)) {
-        let texture = image_path(path, out);
+        let texture = image_path(path, res, out);
         out.set("particles", "texture", Toml::String(texture));
     }
     if let Some(color) = section.field("color").and_then(colour) {
@@ -567,17 +743,30 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     }
     // Godot's direction is a y-down vector; here it is an angle, 90 up.
     if let Some([x, y]) = section.field("direction").and_then(pair) {
-        out.set("particles", "angle", Toml::Float((-y).atan2(x).to_degrees()));
+        out.set(
+            "particles",
+            "angle",
+            Toml::Float(balaur_core::libm::atan2(-y, x).to_degrees()),
+        );
     }
     if let Some(spread) = number("spread") {
         out.set("particles", "spread", Toml::Float(spread));
     }
     if let Some([x, y]) = section.field("gravity").and_then(pair) {
-        out.set("particles", "gravity", floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]));
+        out.set(
+            "particles",
+            "gravity",
+            floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]),
+        );
     }
     let low = number("initial_velocity_min");
     let high = number("initial_velocity_max");
-    if let Some(speed) = low.zip(high).map(|(a, b)| (a + b) / 2.0).or(high).or(low) {
+    if let Some(speed) = low
+        .zip(high)
+        .map(|(a, b)| f64::midpoint(a, b))
+        .or(high)
+        .or(low)
+    {
         out.set("particles", "speed", Toml::Float(speed / PIXELS_PER_UNIT));
     }
     if let Some(scale) = number("scale_amount_max").or_else(|| number("scale_amount_min")) {
@@ -586,12 +775,11 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     if section.field("color_ramp").is_some() || section.field("scale_amount_curve").is_some() {
         out.note("CPUParticles2D ramp or curve: only its start and end carry, as `color_end` and `size_end`");
     }
-    if let Some(ramp) = section.field("color_ramp").and_then(|r| res.sub(r)) {
-        if let Some(colors) = ramp.field("colors").and_then(Value::numbers) {
-            if let [.., r, g, b, a] = colors[..] {
-                out.set("particles", "color_end", floats(&[r, g, b, a]));
-            }
-        }
+    if let Some(ramp) = section.field("color_ramp").and_then(|r| res.sub(r))
+        && let Some(colors) = ramp.field("colors").and_then(Value::numbers)
+        && let [.., r, g, b, a] = colors[..]
+    {
+        out.set("particles", "color_end", floats(&[r, g, b, a]));
     }
 }
 
@@ -604,7 +792,11 @@ fn sound(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) 
         out.set("sound", "autoplay", Toml::Boolean(*on));
     }
     if let Some(db) = section.field("volume_db").and_then(Value::as_f64) {
-        out.set("sound", "volume", Toml::Float(10f64.powf(db / 20.0)));
+        out.set(
+            "sound",
+            "volume",
+            Toml::Float(balaur_core::libm::pow(10.0, db / 20.0)),
+        );
     }
     if let Some(pitch) = section.field("pitch_scale").and_then(Value::as_f64) {
         out.set("sound", "pitch", Toml::Float(pitch));
@@ -612,11 +804,19 @@ fn sound(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) 
     if let Some(bus) = section.field("bus").and_then(Value::as_str) {
         out.set("sound", "bus", Toml::String(bus.to_string()));
     }
-    out.set("sound", "positional", Toml::Boolean(class == "AudioStreamPlayer2D"));
+    out.set(
+        "sound",
+        "positional",
+        Toml::Boolean(class == "AudioStreamPlayer2D"),
+    );
 }
 
 fn light(class: &str, section: &Section, out: &mut Mapped) {
-    let kind = if class == "DirectionalLight2D" { "directional" } else { "point" };
+    let kind = if class == "DirectionalLight2D" {
+        "directional"
+    } else {
+        "point"
+    };
     out.set("light2d", "kind", Toml::String(kind.into()));
     if let Some(color) = section.field("color").and_then(colour) {
         out.set("light2d", "color", color);
@@ -628,7 +828,9 @@ fn light(class: &str, section: &Section, out: &mut Mapped) {
         out.set("light2d", "shadows", Toml::Boolean(*on));
     }
     if class == "PointLight2D" {
-        out.note("PointLight2D: its texture falloff is balaur's radius; set `light2d.radius` by eye");
+        out.note(
+            "PointLight2D: its texture falloff is balaur's radius; set `light2d.radius` by eye",
+        );
     }
 }
 
@@ -646,258 +848,25 @@ fn remote(section: &Section, out: &mut Mapped) {
     }
 }
 
-/// A Control as a widget: its kind, its caption, its place, and the
-/// properties each kind reads.
-fn widget(class: &str, section: &Section, parent: &str, res: &Resources<'_>, out: &mut Mapped) {
-    let kind = WIDGET_KINDS
-        .iter()
-        .find(|(godot, _)| *godot == class)
-        .map_or("panel", |(_, kind)| *kind);
-    out.set("widget", "kind", Toml::String(kind.into()));
-    let text = |key: &str| section.field(key).and_then(Value::as_str).map(str::to_string);
-    let number = |key: &str| section.field(key).and_then(Value::as_f64);
-
-    if let Some(caption) = text("text").or_else(|| text("title")) {
-        if res.keys.contains(&caption) {
-            out.set("widget", "text_key", Toml::String(caption.clone()));
-        }
-        out.set("widget", "text", Toml::String(caption));
+/// A texture's project path. An SVG is drawn from the raster Godot made of
+/// it at import, which the importer writes beside it; with none, the scene
+/// names the PNG it expects to find there.
+pub(crate) fn image_path(path: &str, res: &Resources<'_>, out: &mut Mapped) -> String {
+    if let Some(raster) = res.project.rasters.get(path) {
+        return raster.clone();
     }
-    if class == "RichTextLabel" {
-        out.set("widget", "markup", Toml::Boolean(true));
-    }
-    if class == "BoxContainer" && section.field("vertical") == Some(&Value::Bool(true)) {
-        out.set("widget", "kind", Toml::String("column".into()));
-    }
-    if let Some(role) = text("theme_type_variation") {
-        out.set("widget", "role", Toml::String(role));
-    }
-    if let Some(tooltip) = text("tooltip_text") {
-        out.set("widget", "tooltip", Toml::String(tooltip));
-    }
-    if let Some(Value::Bool(on)) = section.field("disabled") {
-        out.set("widget", "disabled", Toml::Boolean(*on));
-    }
-    if section.field("autowrap_mode").and_then(Value::as_i64).is_some_and(|m| m != 0) {
-        out.set("widget", "wrap", Toml::Boolean(true));
-    }
-    if let Some(align) = section.field("horizontal_alignment").and_then(Value::as_i64) {
-        let align = match align {
-            1 => "center",
-            2 => "end",
-            _ => "start",
-        };
-        out.set("widget", "text_align", Toml::String(align.into()));
-    }
-    if let Some(size) = number("theme_override_font_sizes/font_size") {
-        out.set("widget", "font_size", Toml::Float(size));
-    }
-    if let Some(color) = section.field("theme_override_colors/font_color").and_then(colour) {
-        out.set("widget", "text_color", color);
-    }
-    if let Some(gap) = number("theme_override_constants/separation")
-        .or_else(|| number("theme_override_constants/h_separation"))
-    {
-        out.set("widget", "gap", Toml::Float(gap.max(0.0)));
-    }
-    let margins: Vec<f64> = ["left", "top", "right", "bottom"]
-        .iter()
-        .filter_map(|side| number(&format!("theme_override_constants/margin_{side}")))
-        .collect();
-    if let Some(most) = margins.iter().copied().reduce(f64::max) {
-        out.set("widget", "padding", Toml::Float(most.max(0.0)));
-        if margins.iter().any(|m| (m - most).abs() > 0.5) {
-            out.note("MarginContainer with unequal margins: balaur pads evenly, at the largest");
-        }
-    }
-    if let Some([w, h]) = section.field("custom_minimum_size").and_then(pair) {
-        if w > 0.0 {
-            out.set("widget", "min_width", Toml::Float(w));
-        }
-        if h > 0.0 {
-            out.set("widget", "min_height", Toml::Float(h));
-        }
-    }
-    // EXPAND is bit 2; the flag a container reads is the one along its axis.
-    let flag = match parent {
-        "HBoxContainer" | "HFlowContainer" => number("size_flags_horizontal"),
-        "VBoxContainer" | "VFlowContainer" => number("size_flags_vertical"),
-        _ => None,
-    };
-    if flag.is_some_and(|f| (f as i64) & 2 != 0) {
-        out.set("widget", "grow", Toml::Float(1.0));
-    }
-    if family(parent) != Family::Control {
-        placement(section, out);
-    }
-    match class {
-        "CheckBox" | "CheckButton" => {
-            if let Some(Value::Bool(on)) = section.field("button_pressed") {
-                out.set("widget", "checked", Toml::Boolean(*on));
-            }
-            if let Some(group) = section.field("button_group") {
-                let name = group
-                    .call("SubResource")
-                    .or_else(|| group.call("ExtResource"))
-                    .and_then(|a| a.first())
-                    .and_then(Value::as_str)
-                    .unwrap_or("group");
-                out.set("widget", "group", Toml::String(name.to_string()));
-            }
-        }
-        "LineEdit" | "SpinBox" | "TextEdit" => {
-            if let Some(hint) = text("placeholder_text") {
-                out.set("widget", "placeholder", Toml::String(hint));
-            }
-            if let Some(Value::Bool(on)) = section.field("secret") {
-                out.set("widget", "secret", Toml::Boolean(*on));
-            }
-            if let Some(length) = number("max_length") {
-                out.set("widget", "max_length", Toml::Float(length));
-            }
-            if class == "SpinBox" {
-                out.set("widget", "numeric", Toml::Boolean(true));
-            }
-        }
-        "OptionButton" => {
-            let options: Vec<Toml> = (0..)
-                .map_while(|i| text(&format!("popup/item_{i}/text")))
-                .map(Toml::String)
-                .collect();
-            let selected = number("selected").map(|i| i as usize);
-            if let Some(Toml::String(chosen)) = selected.and_then(|i| options.get(i)) {
-                out.set("widget", "text", Toml::String(chosen.clone()));
-            }
-            out.set("widget", "options", Toml::Array(options));
-        }
-        "HSlider" | "VSlider" | "ProgressBar" | "TextureProgressBar" => {
-            for (godot, here) in [("min_value", "min"), ("max_value", "max"), ("step", "step"), ("value", "value")] {
-                if let Some(n) = number(godot) {
-                    out.set("widget", here, Toml::Float(n));
-                }
-            }
-            if !section.fields.iter().any(|(k, _)| k == "max_value") {
-                out.set("widget", "max", Toml::Float(100.0));
-            }
-        }
-        "TextureRect" | "TextureButton" | "NinePatchRect" => {
-            let key = if class == "TextureButton" { "texture_normal" } else { "texture" };
-            if let Some(path) = section.field(key).and_then(|t| res.path(t)) {
-                let source = image_path(path, out);
-                out.set("widget", "source", Toml::String(source));
-            }
-            if class == "NinePatchRect" {
-                let slice: Vec<f64> = ["left", "top", "right", "bottom"]
-                    .iter()
-                    .map(|side| number(&format!("patch_margin_{side}")).unwrap_or(0.0))
-                    .collect();
-                out.set("widget", "slice", floats(&slice));
-            }
-            if class == "TextureButton" {
-                out.note("TextureButton: name its `on_click` handler, which is what makes a picture a button here");
-            }
-        }
-        "ColorRect" => {
-            if let Some(color) = section.field("color").and_then(colour) {
-                out.set("widget", "fill", Toml::String(hex(&color)));
-            }
-        }
-        "GridContainer" => {
-            if let Some(columns) = number("columns") {
-                out.set("widget", "columns", Toml::Integer(columns as i64));
-            }
-        }
-        "FoldableContainer" => {
-            if let Some(Value::Bool(folded)) = section.field("folded") {
-                out.set("widget", "open", Toml::Boolean(!*folded));
-            }
-        }
-        "CenterContainer" => {
-            out.set("widget", "align", Toml::String("center".into()));
-            out.set("widget", "justify", Toml::String("center".into()));
-        }
-        "Window" => out.note("Window: a second OS window is not planned; kept as a dialog"),
-        _ => {}
-    }
-    if section.field("icon").is_some() && matches!(kind, "button") {
-        out.note("Button icon: a texture icon has no slot; `icon` takes a glyph from the theme");
-    }
-    if section.field("theme").is_some() {
-        out.note("a Theme resource: convert it to a `widget_theme` and name it in `theme`");
-    }
-}
-
-/// A root Control's anchor preset and offsets as a widget's anchor, `x`, `y`
-/// and size. Inside a container a Control is placed by it, so only a Control
-/// whose parent is not one reaches here.
-fn placement(section: &Section, out: &mut Mapped) {
-    let number = |key: &str| section.field(key).and_then(Value::as_f64).unwrap_or(0.0);
-    let preset = section.field("anchors_preset").and_then(Value::as_i64).unwrap_or(0);
-    let anchor = match preset {
-        1 => "top_right",
-        2 => "bottom_left",
-        3 => "bottom_right",
-        4 => "center_left",
-        5 => "center_top",
-        6 => "center_right",
-        7 => "center_bottom",
-        8 => "center",
-        15 => "fill",
-        9..=14 => {
-            out.note(format!(
-                "anchor preset {preset} stretches one axis, which a widget cannot yet; kept at its corner"
-            ));
-            "top_left"
-        }
-        _ => "top_left",
-    };
-    out.set("widget", "anchor", Toml::String(anchor.into()));
-    let (left, top, right, bottom) = (
-        number("offset_left"),
-        number("offset_top"),
-        number("offset_right"),
-        number("offset_bottom"),
-    );
-    if anchor == "fill" {
-        out.set("widget", "inset", floats(&[left, top, -right, -bottom]));
-        return;
-    }
-    let (width, height) = (right - left, bottom - top);
-    if width > 0.0 {
-        out.set("widget", "width", Toml::Float(width));
-    }
-    if height > 0.0 {
-        out.set("widget", "height", Toml::Float(height));
-    }
-    // An anchor on the far edge measures inward, so its offset is the far
-    // edge's; a centred axis is measured from the middle of the box.
-    let x = match anchor {
-        "top_right" | "bottom_right" | "center_right" => -right,
-        "center" | "center_top" | "center_bottom" => (left + right) / 2.0,
-        _ => left,
-    };
-    let y = match anchor {
-        "bottom_left" | "bottom_right" | "center_bottom" => -bottom,
-        "center" | "center_left" | "center_right" => (top + bottom) / 2.0,
-        _ => top,
-    };
-    out.set("widget", "x", Toml::Float(x));
-    out.set("widget", "y", Toml::Float(y));
-}
-
-/// A texture's project path. An SVG is refused here: balaur rasterises
-/// nothing, so the scene names the PNG it expects to find beside it.
-fn image_path(path: &str, out: &mut Mapped) -> String {
     match path.strip_suffix(".svg") {
         Some(stem) => {
-            out.note(format!("{path}: export it as {stem}.png, which is what the scene now names"));
+            out.note(format!(
+                "{path}: Godot kept no raster of it, so export it as {stem}.png, which the scene names"
+            ));
             format!("{stem}.png")
         }
         None => path.to_string(),
     }
 }
 
-fn pair(value: &Value) -> Option<[f64; 2]> {
+pub(crate) fn pair(value: &Value) -> Option<[f64; 2]> {
     match value.numbers()?.as_slice() {
         [x, y] => Some([*x, *y]),
         _ => None,
@@ -910,7 +879,12 @@ pub(crate) fn points_of(value: &Value) -> Vec<[f64; 2]> {
         .call("PackedVector2Array")
         .and_then(|args| args.iter().map(Value::as_f64).collect::<Option<Vec<_>>>());
     if let Some(flat) = flat {
-        return flat.chunks_exact(2).map(|c| [c[0], c[1]]).collect();
+        return flat
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| [c[0], c[1]])
+            .collect();
     }
     value
         .as_array()
@@ -921,7 +895,11 @@ pub(crate) fn points_of(value: &Value) -> Vec<[f64; 2]> {
 }
 
 pub(crate) fn colour(value: &Value) -> Option<Toml> {
-    let channels = value.call("Color")?.iter().map(Value::as_f64).collect::<Option<Vec<_>>>()?;
+    let channels = value
+        .call("Color")?
+        .iter()
+        .map(Value::as_f64)
+        .collect::<Option<Vec<_>>>()?;
     match channels[..] {
         [r, g, b] => Some(floats(&[r, g, b, 1.0])),
         [r, g, b, a] => Some(floats(&[r, g, b, a])),
@@ -929,7 +907,7 @@ pub(crate) fn colour(value: &Value) -> Option<Toml> {
     }
 }
 
-fn hex(color: &Toml) -> String {
+pub(crate) fn hex(color: &Toml) -> String {
     let channel = |i: usize| {
         color
             .as_array()
@@ -937,7 +915,13 @@ fn hex(color: &Toml) -> String {
             .and_then(Toml::as_float)
             .map_or(255, |v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
     };
-    format!("#{:02x}{:02x}{:02x}{:02x}", channel(0), channel(1), channel(2), channel(3))
+    format!(
+        "#{:02x}{:02x}{:02x}{:02x}",
+        channel(0),
+        channel(1),
+        channel(2),
+        channel(3)
+    )
 }
 
 pub(crate) fn floats(values: &[f64]) -> Toml {
