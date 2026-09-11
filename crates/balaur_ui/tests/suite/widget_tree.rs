@@ -166,3 +166,27 @@ fn a_ticked_check_emits_change_for_its_bindings() {
         .map(balaur_core::variables::as_num);
     assert_eq!(flips, Some(1.0), "the tick emitted `change` once");
 }
+
+/// A harness clicks with no window: `click` settles at the next tick exactly
+/// as a pointer click would, and refuses a widget no pointer could click.
+#[test]
+fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
+    let (_dir, mut app) = app();
+    let go = add_widget(&app, &toml::toml! { kind = "button" text = "Sail" x = 0.0 y = 0.0 }.into());
+    let shut = add_widget(&app, &toml::toml! { kind = "button" text = "Shut" disabled = true }.into());
+    let rows = toml::toml! {
+        rows = [{ event = "pointer_click", action = "add_variable", target = "sailed", value = 1.0 }]
+    };
+    for button in [go, shut] {
+        balaur::components::add(&app.engine, button, "bindings", Some(&rows.clone().into())).unwrap();
+    }
+    let declared = toml::toml! { sailed = { type = "float", value = 0.0 } };
+    balaur_core::variables::declare_from_toml(&app.engine, &declared).unwrap();
+    app.tick(1.0 / 60.0);
+    assert!(balaur_ui::click(&app.engine, go, false));
+    assert!(!balaur_ui::click(&app.engine, shut, true), "a disabled button takes no click");
+    app.tick(1.0 / 60.0);
+    let variables = app.engine.resource::<balaur_core::variables::Variables>();
+    let sailed = variables.borrow().get("sailed").map(balaur_core::variables::as_num);
+    assert_eq!(sailed, Some(1.0), "one click, from the enabled button");
+}

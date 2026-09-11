@@ -622,6 +622,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "()",
             "Activate the focused widget, exactly as a click on it would.",
         ),
+        (
+            "click",
+            &[],
+            "(node: node, opts: map?)",
+            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+        ),
     ]);
     m.function("focused", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
@@ -635,6 +641,18 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         eng.resource::<crate::UiFocus>().borrow_mut().focused = Some(entity);
         Ok(())
     });
+    m.function(
+        "click",
+        |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {
+            let hidden = match opts {
+                Some(balaur_script::Value::Map(fields)) => fields
+                    .iter()
+                    .any(|(k, v)| k == "hidden" && matches!(v, balaur_script::Value::Bool(true))),
+                _ => false,
+            };
+            Ok(crate::click(eng, balaur_core::entity_of(node)?, hidden))
+        },
+    );
     for (name, asked) in [
         ("focus_next", Move::Next),
         ("focus_previous", Move::Previous),

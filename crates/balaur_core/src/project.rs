@@ -389,6 +389,12 @@ pub(crate) struct SceneNode {
     /// instance's, not the prefab's — and the prefab's roots become its
     /// children, which is what `scene::instantiate` does from a script.
     instance: Option<String>,
+    /// The node *is* the prefab's one root, as a Godot instance is: the
+    /// root's keys, components and script land on this node, under this
+    /// node's own, and its children are this node's. Overrides then name
+    /// paths from this node, `.` for the node itself.
+    #[serde(default)]
+    instance_root: bool,
     /// Per-node edits inside the instance, keyed by path from this node:
     /// `[nodes.overrides."Body/Arm"]`. Each holds scene keys, applied after
     /// the prefab is built, in key order.
@@ -491,6 +497,7 @@ pub fn instantiate_scene(
         open: Vec::new(),
         pending: Vec::new(),
         attach_scripts,
+        merge_into: None,
     };
     build_scene(eng, source, base, &mut build)?;
     attach_pending(eng, &build)
@@ -509,6 +516,9 @@ struct Build {
     /// so `init` can already look up anything the scene declares.
     pending: Vec<PendingScript>,
     attach_scripts: bool,
+    /// The node the prefab being built becomes the root of, for an
+    /// `instance_root` instance; taken by that prefab's root.
+    merge_into: Option<Entity>,
 }
 
 /// Parse and build one scene document under `base`.
@@ -576,73 +586,138 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let root = base;
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     let ids = repair_ids(&doc.nodes);
+    // Taken once, by this document's root: a nested prefab asks afresh.
+    let mut merge_into = build.merge_into.take();
+    let into_node = merge_into.is_some();
+    // The document's first root, which a parent path may start from by name
+    // even once it has been merged into the node that instanced it.
+    let mut scene_root: Option<(&str, Entity)> = None;
     for (index, node) in doc.nodes.iter().enumerate() {
-        let parent = resolve_parent(eng, node, root, &by_id)?;
-        // The transform is a component, so a node that names none has none.
-        // Chosen at the spawn rather than inserted after, which would move
-        // every node in the file to another archetype.
-        let entity = if node.extra.contains_key(crate::transform::COMPONENT) {
-            scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
-        } else {
-            scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent)
+        let parent = resolve_parent(eng, node, root, scene_root, &by_id)?;
+        let merged = if node.parent.is_empty() { merge_into.take() } else { None };
+        if into_node && merged.is_none() && node.parent.is_empty() {
+            bail!(
+                "instanced as its root, the prefab has to have one root; '{}' is another",
+                node.name
+            );
+        }
+        let entity = match merged {
+            Some(entity) => entity,
+            // The transform is a component, so a node that names none has
+            // none. Chosen at the spawn rather than inserted after, which
+            // would move every node in the file to another archetype.
+            None if node.extra.contains_key(crate::transform::COMPONENT) => {
+                scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
+            }
+            None => scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent),
         };
         by_id.insert(ids[index].as_str(), entity);
-        eng.world_mut()
-            .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
-        {
-            let world = eng.world();
-            // spawn_node inserts an Appearance on every node it creates.
-            let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
-            if let Some(on) = node.visible {
-                appearance.visible = on;
-            }
-            if let Some(colour) = node.tint.as_ref().and_then(crate::components::rgba) {
-                appearance.tint = glamx::Vec4::from(colour);
-            }
-            if let Some(z) = node.z_index {
-                appearance.z_index = z;
-            }
-            if let Some(on) = node.z_relative {
-                appearance.z_relative = on;
-            }
+        if node.parent.is_empty() && scene_root.is_none() {
+            scene_root = Some((node.name.as_str(), entity));
         }
-        if !node.tags.is_empty() {
-            let mut tags = Tags::default();
-            for tag in &node.tags {
-                tags.add(tag);
-            }
-            eng.world_mut().insert_one(entity, tags)?;
+        if merged.is_none() {
+            eng.world_mut()
+                .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         }
-        for (key, handler) in handlers {
-            if let Some(value) = node.extra.get(key) {
-                handler(eng, entity, value)
-                    .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
-            }
-        }
-        for key in node.extra.keys() {
-            if !handlers.iter().any(|(k, _)| k == key) {
-                tracing::warn!(
-                    "scene key '{key}' on node '{}' has no registered handler",
-                    node.name
-                );
-            }
-        }
-        if let Some(script) = &node.script {
-            if script.source().is_empty() {
-                bail!("node '{}' has a script key with no source", node.name);
-            }
-            let props = script
-                .props()
-                .with_context(|| format!("script properties on node '{}'", node.name))?;
-            build
-                .pending
-                .push((entity, script.source().to_string(), props));
-        }
-        if let Some(prefab) = &node.instance {
-            build_instance(eng, node, &ids[index], entity, build)
-                .with_context(|| format!("instance '{prefab}' on node '{}'", node.name))?;
+        // A prefab instanced as this node's root lands first, so the node's
+        // own keys win over the root's, as a Godot instance's do.
+        if node.instance_root && node.instance.is_some() {
+            instance(eng, node, &ids[index], entity, build, true)?;
+            apply_own_keys(eng, node, entity, handlers, build)?;
             apply_overrides(eng, node, entity, handlers, build);
+        } else {
+            apply_own_keys(eng, node, entity, handlers, build)?;
+            if node.instance.is_some() {
+                instance(eng, node, &ids[index], entity, build, false)?;
+                apply_overrides(eng, node, entity, handlers, build);
+            }
         }
+    }
+    Ok(())
+}
+
+/// Build the prefab `node` names under `entity`, or, `as_root`, into it.
+fn instance(
+    eng: &Engine,
+    node: &SceneNode,
+    id: &str,
+    entity: Entity,
+    build: &mut Build,
+    as_root: bool,
+) -> Result<()> {
+    if as_root {
+        build.merge_into = Some(entity);
+    }
+    let prefab = node.instance.as_deref().unwrap_or_default();
+    let outcome = build_instance(eng, node, id, entity, build)
+        .with_context(|| format!("instance '{prefab}' on node '{}'", node.name));
+    build.merge_into = None;
+    outcome
+}
+
+/// A node's own keys: what every node has, its tags, its components and its
+/// script. A script already pending on the node, a merged prefab root's, is
+/// replaced by the node's own.
+fn apply_own_keys(
+    eng: &Engine,
+    node: &SceneNode,
+    entity: Entity,
+    handlers: &[(String, SceneKeyHandler)],
+    build: &mut Build,
+) -> Result<()> {
+    {
+        let world = eng.world();
+        // spawn_node inserts an Appearance on every node it creates.
+        let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
+        if let Some(on) = node.visible {
+            appearance.visible = on;
+        }
+        if let Some(colour) = node.tint.as_ref().and_then(crate::components::rgba) {
+            appearance.tint = glamx::Vec4::from(colour);
+        }
+        if let Some(z) = node.z_index {
+            appearance.z_index = z;
+        }
+        if let Some(on) = node.z_relative {
+            appearance.z_relative = on;
+        }
+    }
+    if !node.tags.is_empty() {
+        let mut tags = eng
+            .world()
+            .get::<&Tags>(entity)
+            .map(|t| (*t).clone())
+            .unwrap_or_default();
+        for tag in &node.tags {
+            tags.add(tag);
+        }
+        eng.world_mut().insert_one(entity, tags)?;
+    }
+    for (key, handler) in handlers {
+        if let Some(value) = node.extra.get(key) {
+            handler(eng, entity, value)
+                .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
+        }
+    }
+    for key in node.extra.keys() {
+        if !handlers.iter().any(|(k, _)| k == key) {
+            tracing::warn!(
+                "scene key '{key}' on node '{}' has no registered handler",
+                node.name
+            );
+        }
+    }
+    if let Some(script) = &node.script {
+        if script.source().is_empty() {
+            bail!("node '{}' has a script key with no source", node.name);
+        }
+        let props = script
+            .props()
+            .with_context(|| format!("script properties on node '{}'", node.name))?;
+        build.pending.retain(|(e, _, _)| *e != entity);
+        build
+            .pending
+            .push((entity, script.source().to_string(), props));
     }
     Ok(())
 }
@@ -802,6 +877,7 @@ fn resolve_parent(
     eng: &Engine,
     node: &SceneNode,
     root: Entity,
+    scene_root: Option<(&str, Entity)>,
     by_id: &DetHashMap<&str, Entity>,
 ) -> Result<Entity> {
     if node.parent.is_empty() {
@@ -819,7 +895,14 @@ fn resolve_parent(
             node.parent
         );
     }
-    scene::find_node(&eng.world(), root, &node.parent).ok_or_else(|| {
+    let world = eng.world();
+    let from_root = scene_root.and_then(|(name, entity)| {
+        let rest = node.parent.strip_prefix(name)?;
+        (rest.is_empty() || rest.starts_with('/'))
+            .then(|| scene::find_node(&world, entity, rest))
+            .flatten()
+    });
+    from_root.or_else(|| scene::find_node(&world, root, &node.parent)).ok_or_else(|| {
         anyhow!(
             "node '{}' names parent '{}', which no earlier node declares as an id \
              or a path of names",

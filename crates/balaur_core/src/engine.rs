@@ -34,6 +34,8 @@ pub(crate) struct EngineInner {
     pub(crate) delta: Cell<f32>,
     pub(crate) tick: Cell<u64>,
     pub(crate) quit: Cell<bool>,
+    /// What the process exits with once it quits; 0 unless a script said.
+    pub(crate) exit_code: Cell<i32>,
     /// One engine-wide counter behind [`Engine::next_token`], so every
     /// subsystem's awaitable ids share a namespace and a wake can never
     /// resume the wrong task.
@@ -61,6 +63,7 @@ impl Engine {
                 delta: Cell::new(0.0),
                 tick: Cell::new(0),
                 quit: Cell::new(false),
+                exit_code: Cell::new(0),
                 tokens: Cell::new(1),
                 debug_scope: Cell::new(None),
                 frozen: Cell::new(false),
@@ -183,6 +186,17 @@ impl Engine {
 
     pub fn request_quit(&self) {
         self.inner.quit.set(true);
+    }
+
+    /// [`Engine::request_quit`], with the code the process exits with: what
+    /// a test harness's failure reaches the shell as.
+    pub fn request_quit_with(&self, code: i32) {
+        self.inner.exit_code.set(code);
+        self.request_quit();
+    }
+
+    pub fn exit_code(&self) -> i32 {
+        self.inner.exit_code.get()
     }
 
     /// Name the subtree a debugger pause holds still: the editor's mirror

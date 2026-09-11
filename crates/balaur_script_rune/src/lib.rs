@@ -549,6 +549,30 @@ impl RuneHost {
                 value::from_neutral(value)?,
             )?;
         }
+        // A `node` export arrives as the node its path names, relative to this
+        // one, or nil: what a Godot `@export var x: Node` holds.
+        for (name, spec) in declared.iter().filter(|(_, spec)| inspect::is_node_export(spec)) {
+            let path = props
+                .iter()
+                .find(|(n, _)| n == name)
+                .map_or_else(|| inspect::export_default(spec), |(_, v)| v.clone());
+            let balaur_script::Value::Str(path) = path else {
+                continue;
+            };
+            let found = (!path.is_empty())
+                .then(|| balaur_core::scene::find_node(&self.engine.world(), entity, &path))
+                .flatten();
+            if found.is_none() && !path.is_empty() {
+                tracing::warn!("[{key}] node property '{name}' names '{path}', which is not there");
+            }
+            let resolved = match found {
+                Some(node) => rune::to_value(Node {
+                    id: node.to_bits().get(),
+                })?,
+                None => rune::to_value(())?,
+            };
+            obj.insert(rune::alloc::String::try_from(name.as_str())?, resolved)?;
+        }
         let state = rune::to_value(obj)?;
         let shared = self.shared_key(&key);
         self.state.borrow_mut().instances.insert(

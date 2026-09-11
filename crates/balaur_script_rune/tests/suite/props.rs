@@ -488,3 +488,28 @@ fn an_exported_asset_says_where_to_declare_it() {
         "it points at the form that works: {err}"
     );
 }
+
+/// A `node` export is the node its path names, relative to the scripted one,
+/// even one declared later in the file; a path to nothing is nil.
+#[test]
+fn a_node_export_arrives_as_the_node_it_names() {
+    let script = "pub fn exports() {\n\
+         #{ target: #{ \"type\": \"node\", \"default\": \"\" }, lost: #{ \"type\": \"node\", \"default\": \"\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen_target = this.target.name();\n\
+         this.seen_lost = if this.lost is Tuple { \"nil\" } else { \"node\" };\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Hunter\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { target = \"../Prey\", lost = \"../Nobody\" } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Prey\"\n",
+        script,
+    );
+    let hunter = node_named(&app, "Hunter");
+    assert_eq!(text(&app, hunter, "seen_target"), Some(String::from("Prey")));
+    assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
+}

@@ -147,6 +147,8 @@ pub struct App {
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
+    /// A scene to open instead of the manifest's `main_scene`.
+    main_scene: Option<String>,
     fixed_dt: Option<f32>,
     accumulator: f32,
 }
@@ -308,6 +310,7 @@ impl App {
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
+            main_scene: None,
             fixed_dt: None,
             accumulator: 0.0,
         };
@@ -636,6 +639,14 @@ impl App {
 
     /// Load `project.toml` and instantiate the main scene. Call after all
     /// plugins are added so their scene keys are known.
+    /// Open `scene` (project-relative) when the project loads, instead of the
+    /// manifest's `main_scene`: a test harness booting its own scene around
+    /// the game's.
+    pub fn set_main_scene(&mut self, scene: impl Into<String>) -> &mut Self {
+        self.main_scene = Some(scene.into());
+        self
+    }
+
     pub fn load_project(&mut self) -> Result<&mut Self> {
         let fs = crate::files::backend(&self.engine);
         let manifest_src = if let Some(pack) = &self.pack {
@@ -663,13 +674,14 @@ impl App {
         }
         let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
         let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
+        let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
         let scene_src = if let Some(pack) = &self.pack {
             pack.scenes
-                .get(&manifest.main_scene)
+                .get(main_scene)
                 .cloned()
-                .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?
+                .with_context(|| format!("scene {main_scene} missing from pack"))?
         } else {
-            let scene_path = self.project_root.join(&manifest.main_scene);
+            let scene_path = self.project_root.join(main_scene);
             fs.read(&scene_path)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())

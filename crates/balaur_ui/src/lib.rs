@@ -33,7 +33,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
-pub use widget::input::{CHANGE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot};
+pub use widget::input::{CHANGE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click};
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 

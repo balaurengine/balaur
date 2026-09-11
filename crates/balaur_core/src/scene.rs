@@ -677,30 +677,35 @@ fn child_named(world: &World, parent: Entity, name: &str) -> Option<Entity> {
         .find(|&c| world.get::<&Name>(c).is_ok_and(|n| n.0 == name))
 }
 
-/// Resolve a `A/B/C` path relative to `from` by matching child names; a
-/// `..` segment climbs to the parent, as a Godot NodePath does.
+/// Resolve a `A/B/C` path relative to `from` by matching child names; `.`
+/// is the node itself and `..` climbs to the parent, as a Godot NodePath does.
 pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
     let mut current = from;
-    for segment in path.split('/').filter(|s| !s.is_empty()) {
+    for segment in path.split('/').filter(|s| !s.is_empty() && *s != ".") {
         if segment == ".." {
             current = world.get::<&Parent>(current).ok()?.0;
             continue;
         }
-        current = match world.get::<&NameIndex>(current) {
-            Ok(index) => {
-                let found = index.0.get(segment)?.first;
-                debug_assert!(
-                    world.get::<&Name>(found).is_ok_and(|n| n.0 == segment)
-                        && world.get::<&Parent>(found).is_ok_and(|p| p.0 == current),
-                    "the name index of {current:?} is stale for {segment:?}"
-                );
-                found
-            }
-            Err(_) => child_named(world, current, segment)?,
-        };
+        current = named_child(world, current, segment)?;
     }
     Some(current)
 }
+
+fn named_child(world: &World, parent: Entity, name: &str) -> Option<Entity> {
+    match world.get::<&NameIndex>(parent) {
+        Ok(index) => {
+            let found = index.0.get(name)?.first;
+            debug_assert!(
+                world.get::<&Name>(found).is_ok_and(|n| n.0 == name)
+                    && world.get::<&Parent>(found).is_ok_and(|p| p.0 == parent),
+                "the name index of {parent:?} is stale for {name:?}"
+            );
+            Some(found)
+        }
+        Err(_) => child_named(world, parent, name),
+    }
+}
+
 
 /// Absolute path of a node from the root, for debugging and editor display.
 pub fn node_path(world: &World, entity: Entity) -> String {

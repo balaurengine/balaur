@@ -308,11 +308,14 @@ Godot class the survey found has a row in
 transform and is reported. Positions go from pixels to units at 100 a unit
 with y flipped; a widget stays in design pixels, y down, as widgets measure.
 
-- **Instances.** A Godot instance node *is* the prefab's root; here an
-  `instance` node holds the prefab's roots. So what the instance line sets,
-  and every node edited inside it, is an override under the prefab root's
-  name — through any number of nested prefabs, each adding its root to the
-  path, and through a prefab whose own root is an instance.
+- **Instances.** A Godot instance node *is* the prefab's root, and so is
+  the node here: every instance is written with `instance_root = true`, so
+  the root's components and script land on it and the tree is as deep as
+  Godot's. What the instance line sets is an override on `.`, an edit inside
+  is an override by the Godot path from it, and an export set on either
+  retunes the prefab's script. A node added under a node inside an instance
+  names its parent by path. So every Godot path, in a binding, a track, an
+  export or a script, reads the same here.
 - **References.** An `ext_resource` resolves by its `uid` first and its path
   second, as Godot does, so a moved file still converts.
 - **Connections.** A widget signal (`pressed`, `toggled`, `text_submitted`…)
@@ -408,6 +411,24 @@ false` drew at once. The arena folds them in against a revision
 frame in which nothing was hidden or faded costs nothing. And a widget's
 handler now runs on the nearest ancestor whose script declares it, which is
 what a Godot signal connected to the scene's root was.
+
+## 10b. Driving it: the automation port
+
+The port lives in its own repo, `../polyglot-pirates-balaur`: the raw import
+as its first commit, `port/check.sh` as the gate, and `port/reimport.sh` to
+bring an importer or engine fix in without touching what was ported by hand.
+The game's own automation (`scripts/automation/`, 54 scenarios) is being
+ported first, in `port/automation/`, because each scenario that passes is the
+acceptance test for the scripts it walks through.
+
+Getting the first two, `boot_perf` and `login_offline`, to pass found six
+engine gaps, all closed on 2026-09-11: `balaur run --scene` boots a
+harness's own scene, `engine.quit(code)` reaches the shell, a headless
+`--frames` run stops when a script quits, `ui.click(node)` clicks with no
+window, a `node` export arrives as the node, and `instance_root` above. It
+also found one in the game: its offline login button is hidden and never
+shown, so Godot's runner passed by emitting `pressed` on an invisible
+button. The port's runner does the same, and warns.
 
 ## 11. What the game still needs
 

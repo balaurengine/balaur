@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod check;
+mod debugger;
 mod export_api;
 mod export_shared;
 mod fmt;
@@ -45,6 +46,10 @@ enum Command {
     Run {
         #[arg(default_value = ".")]
         path: PathBuf,
+        /// Open this scene (project-relative) instead of the project's
+        /// `main_scene`: a test harness's own scene around the game's.
+        #[arg(long, value_name = "SCENE")]
+        scene: Option<String>,
         /// Run without a window even when built with rendering support.
         #[arg(long)]
         headless: bool,
@@ -399,6 +404,7 @@ fn dispatch(command: Command) -> Result<()> {
         Command::New { path, template } => new_project::create(&path, template.as_deref()),
         Command::Run {
             path,
+            scene,
             headless,
             frames,
             offscreen,
@@ -411,6 +417,7 @@ fn dispatch(command: Command) -> Result<()> {
             args,
         } => run_project(&RunOpts {
             path,
+            scene,
             display: Display::of(headless, offscreen),
             frames,
             fixed_tick,
@@ -529,6 +536,7 @@ impl Display {
 
 struct RunOpts {
     path: PathBuf,
+    scene: Option<String>,
     display: Display,
     frames: Option<u64>,
     fixed_tick: bool,
@@ -645,6 +653,7 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
 fn run_project(opts: &RunOpts) -> Result<()> {
     let RunOpts {
         path,
+        scene,
         display,
         frames,
         fixed_tick,
@@ -661,12 +670,15 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let mut app = balaur::standard_app(config)?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
-    let _debugger = start_debugger(&mut app, *debug, *debug_wait)?;
+    let _debugger = debugger::start_debugger(&mut app, *debug, *debug_wait)?;
     // Before the project loads, for the same reason a replay sets its mode
     // there: a script's `init` already takes await tokens and draws from the
     // RNG, and the header has to hold the values it started from.
     if let Some(out) = record {
         record_to(&app, out, path)?;
+    }
+    if let Some(scene) = scene {
+        app.set_main_scene(scene.clone());
     }
     app.load_project()?;
     if *fixed_tick {
@@ -685,10 +697,14 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     // Registered last, so the frame it folds in is the whole frame.
     let timings = opts.timings.then(|| log_timings(&mut app));
+    let engine = app.engine.clone();
     if display == Display::Headless {
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
+                    if engine.quit_requested() {
+                        break;
+                    }
                     app.tick(balaur::FIXED_DT);
                 }
             }
@@ -697,6 +713,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         if let Some(log) = &timings {
             print!("{}", log.borrow().report());
         }
+        exit_with(engine.exit_code());
         return Ok(());
     }
     // Windowed, offscreen, or the headless fallback when built without the
@@ -719,48 +736,16 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     if let Some(log) = &timings {
         print!("{}", log.borrow().report());
     }
-    ran
+    ran?;
+    exit_with(engine.exit_code());
+    Ok(())
 }
 
-/// How long `--debug-wait` holds the boot for a client. Long enough to start
-/// one by hand, short enough that a forgotten flag in CI fails rather than
-/// hangs.
-const DEBUG_ATTACH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
-
-/// Serve the debug adapter for `--debug`, held open for the run.
-///
-/// # Errors
-/// If the port cannot be bound, or no client attaches under `--debug-wait`.
-#[cfg(not(target_family = "wasm"))]
-fn start_debugger(
-    app: &mut App,
-    port: Option<u16>,
-    wait: bool,
-) -> Result<Option<balaur::dap::Server>> {
-    let Some(port) = port else {
-        return Ok(None);
-    };
-    let server = balaur::dap::serve(app, port)?;
-    println!("debug adapter listening on {}", server.addr());
-    if wait {
-        println!("waiting for a debugger to attach");
-        server.wait_for_attach(DEBUG_ATTACH_TIMEOUT)?;
+/// End the process with the code a script quit with, once the run is over.
+fn exit_with(code: i32) {
+    if code != 0 {
+        std::process::exit(code);
     }
-    Ok(Some(server))
-}
-
-/// The adapter speaks over a TCP listener, which a web build has none of, so
-/// `--debug` is refused there rather than quietly doing nothing.
-///
-/// # Errors
-/// If `--debug` was given.
-#[cfg(target_family = "wasm")]
-fn start_debugger(_app: &mut App, port: Option<u16>, _wait: bool) -> Result<Option<()>> {
-    anyhow::ensure!(
-        port.is_none(),
-        "--debug needs a TCP listener, and a web build has none"
-    );
-    Ok(None)
 }
 
 /// The offscreen framebuffer: 16:9, which is what every screen a showcase

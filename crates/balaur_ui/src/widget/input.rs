@@ -104,6 +104,27 @@ pub(crate) fn record(
     frame.edits.extend(changes);
 }
 
+/// Click a widget as the pointer would, settled at the next tick: no window
+/// or draw pass needed, so a headless harness drives the game with it. False,
+/// and nothing clicked, for a node a pointer could not click: hidden,
+/// disabled, or no widget at all. `hidden` clicks a hidden one anyway, as a
+/// test emitting a button's signal does; a disabled one never.
+pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
+    let clickable = {
+        let world = eng.world();
+        let shown = hidden
+            || world
+                .get::<&balaur_core::GlobalAppearance>(entity)
+                .is_ok_and(|a| a.visible);
+        let enabled = world.get::<&Widget>(entity).is_ok_and(|w| !w.disabled);
+        shown && enabled
+    };
+    if clickable {
+        record(eng, &[entity], Vec::new(), None);
+    }
+    clickable
+}
+
 /// What a widget emits from its own node when its value changes, and when a
 /// field is submitted, with the new value: a `[[nodes.bindings]]` row answers
 /// `emitted:change` on any node's script, as a Godot signal connected in a

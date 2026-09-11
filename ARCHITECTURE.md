@@ -119,6 +119,9 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.
 - It is scene data — packed, digested, replayed. `node:attach_script(path,
   props)` is the same thing at run time.
+- A `node` export arrives as the node its path names, resolved from the
+  scripted node once the whole scene exists, or nil: Godot's `@export var x:
+  Node`.
 
 ### Prefabs
 
@@ -135,6 +138,11 @@ transform and components.
   replication will address.
 - A path naming nothing is reported and kept; a self-containing prefab is an
   error naming the cycle. Scripts attach when the outermost scene finishes.
+- `instance_root = true` makes the node *be* the prefab's one root, as a Godot
+  instance is: the root's keys, components and script land on the node, under
+  its own, and the root's children are the node's. Overrides then name paths
+  from the node, `.` for itself. What `balaur import` writes for every Godot
+  instance, so a Godot path reads the same here.
 - In the editor: placed from the palette, opened from its row, drawn one shade
   quieter. Editing a prefab row writes a sparse `overrides` entry, removed again
   when the value returns to the prefab's. Comparison needs

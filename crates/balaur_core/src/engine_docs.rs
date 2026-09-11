@@ -16,7 +16,7 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("script_costs", &[], "()", "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "()", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
-        ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),
+        ("quit", &[], "(code: int?)", "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out."),
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),

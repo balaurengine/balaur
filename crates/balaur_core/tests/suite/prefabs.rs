@@ -68,6 +68,11 @@ position = [1.0, 0.0, 0.0]
 [nodes.marker]
 label = "arm"
 size = 3.0
+
+[[nodes]]
+id = "n_patch"
+name = "Patch"
+parent = "Body/Arm"
 "#;
 
 fn label(app: &App, path: &str) -> Option<String> {
@@ -107,6 +112,43 @@ position = [4.0, 0.0, 0.0]
     );
     assert_eq!(label(&app, "Enemy/Body"), Some(String::from("body")));
     assert_eq!(label(&app, "Enemy/Body/Arm"), Some(String::from("arm")));
+}
+
+/// Instanced as its root, the node *is* the prefab's root, as a Godot
+/// instance is: the root's components land on it under the node's own, its
+/// children are the node's, and an override names `.` for the node itself.
+#[test]
+fn an_instance_as_its_root_is_the_prefabs_root() {
+    let (_dir, app) = load(
+        r##"
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+instance = "scenes/enemy.toml"
+instance_root = true
+
+[nodes.overrides."."]
+tint = "#ff0000"
+
+[nodes.overrides.Arm.marker]
+size = 5.0
+"##,
+    );
+    assert_eq!(label(&app, "Enemy"), Some(String::from("body")), "the root's components");
+    assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("arm")), "the root's children");
+    assert_eq!(label(&app, "Enemy/Body"), None, "no second level");
+    assert_eq!(stable_id(&app, "Enemy"), Some(String::from("n_enemy")));
+    let world = app.engine.world();
+    let enemy = find_node(&world, app.engine.root(), "Enemy").unwrap();
+    let tint = world.get::<&balaur_core::scene::Appearance>(enemy).unwrap().tint;
+    assert!((tint.y).abs() < 1e-6, "the `.` override reached the node itself");
+    let arm = find_node(&world, enemy, "./Arm").unwrap();
+    assert!(
+        find_node(&world, arm, "Patch").is_some(),
+        "a prefab node parented by a path from the prefab's root, merged away"
+    );
+    let size = world.get::<&Marker>(arm).unwrap().0.get("size").and_then(toml::Value::as_float);
+    assert_eq!(size, Some(5.0));
 }
 
 #[test]

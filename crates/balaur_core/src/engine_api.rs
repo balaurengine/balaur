@@ -632,8 +632,11 @@ fn tick(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Int(i64::try_from(eng.tick()).unwrap_or(i64::MAX)))
 }
 
-fn quit(eng: &Engine, _: &[Value]) -> Result<Value> {
-    eng.request_quit();
+fn quit(eng: &Engine, args: &[Value]) -> Result<Value> {
+    match args.first() {
+        Some(Value::Int(code)) => eng.request_quit_with(i32::try_from(*code).unwrap_or(1)),
+        _ => eng.request_quit(),
+    }
     Ok(Value::Nil)
 }
 

@@ -26,11 +26,12 @@ pub(crate) struct Converted {
     pub notes: Vec<String>,
 }
 
-/// What an instance of a scene needs to know about it: its root's name, and
-/// every node's class by its path under that root.
+/// What an instance of a scene needs to know about it: every node's class and
+/// script by its path under the root.
 struct Outline {
-    root: String,
     classes: BTreeMap<String, String>,
+    /// The Godot script each scripted node carries, project-relative.
+    scripts: BTreeMap<String, String>,
     /// The nodes that are instances themselves, to the scene each holds.
     instances: BTreeMap<String, String>,
 }
@@ -180,11 +181,7 @@ impl Walk<'_> {
         let mut table = toml::Table::new();
         table.insert("id".into(), Toml::String(id.clone()));
         table.insert("name".into(), Toml::String(name));
-        let parent_id = parent
-            .and_then(|p| self.ids.get(p))
-            .cloned()
-            .unwrap_or_default();
-        table.insert("parent".into(), Toml::String(parent_id));
+        table.insert("parent".into(), Toml::String(self.parent_ref(parent)));
         self.nodes.push(table);
         let index = self.nodes.len() - 1;
         self.slots.insert(path.clone(), Slot::Own(index));
@@ -216,12 +213,10 @@ impl Walk<'_> {
         let mut table = toml::Table::new();
         table.insert("id".into(), Toml::String(id));
         table.insert("name".into(), Toml::String(name.to_string()));
-        let parent_id = parent
-            .and_then(|p| self.ids.get(p))
-            .cloned()
-            .unwrap_or_default();
-        table.insert("parent".into(), Toml::String(parent_id));
+        table.insert("parent".into(), Toml::String(self.parent_ref(parent)));
         table.insert("instance".into(), Toml::String(scene_path(&prefab)));
+        // A Godot instance node is the prefab's root, and so is this one.
+        table.insert("instance_root".into(), Toml::Boolean(true));
         self.nodes.push(table);
         let index = self.nodes.len() - 1;
         self.groups(section, index);
@@ -235,7 +230,7 @@ impl Walk<'_> {
         let class = outline.classes.get("").cloned().unwrap_or_default();
         let root = Slot::Override {
             instance: index,
-            path: outline.root.clone(),
+            path: ".".into(),
         };
         self.slots.insert(path.to_string(), root);
         self.classes.insert(path.to_string(), class.clone());
@@ -243,6 +238,7 @@ impl Walk<'_> {
         let id = format!("{}_root", self.ids[path]);
         self.write(path, &class, mapped, &id);
         self.script(section, path);
+        self.retune(section, path, script_in(&self.res, &outline, ""));
         self.instances.insert(path.to_string(), outline);
     }
 
@@ -267,15 +263,17 @@ impl Walk<'_> {
         } else {
             &path[owner.len() + 1..]
         };
-        let (override_path, class) = locate(&self.res, &self.instances[&owner], inner, 0);
+        let class = class_in(&self.res, &self.instances[&owner], inner, 0);
         let Slot::Override { instance, .. } = self.slots[&owner].clone() else {
             return;
         };
+        // Every instance is its prefab's root here, so the path inside one is
+        // the Godot path from it.
         self.slots.insert(
             path.to_string(),
             Slot::Override {
                 instance,
-                path: override_path,
+                path: inner.to_string(),
             },
         );
         self.classes.insert(path.to_string(), class.clone());
@@ -283,6 +281,8 @@ impl Walk<'_> {
         let id = format!("{}_{}", self.ids[&owner], slug(inner));
         self.write(path, &class, mapped, &id);
         self.script(section, path);
+        let godot = script_in(&self.res, &self.instances[&owner], inner);
+        self.retune(section, path, godot);
     }
 
     /// The table a node's keys go in, made on first use for an override.
@@ -398,7 +398,37 @@ impl Walk<'_> {
                 .push(format!("`{path}`: an inline script is not converted"));
             return;
         };
-        let source = std::fs::read_to_string(self.res.root.join(&godot)).unwrap_or_default();
+        let props = self.script_props(section, path, &godot);
+        let mut script = toml::Table::new();
+        script.insert("source".into(), Toml::String(script_path(&godot)));
+        if !props.is_empty() {
+            script.insert("props".into(), Toml::Table(props));
+        }
+        if let Some(table) = self.table(path) {
+            table.insert("script".into(), Toml::Table(script));
+        }
+    }
+
+    /// The exports a line sets on a node inside an instance whose prefab gave
+    /// it the script: a props-only script override, which retunes it.
+    fn retune(&mut self, section: &Section, path: &str, godot: Option<String>) {
+        let Some(godot) = godot.filter(|_| section.field("script").is_none()) else {
+            return;
+        };
+        let props = self.script_props(section, path, &godot);
+        if props.is_empty() {
+            return;
+        }
+        let mut script = toml::Table::new();
+        script.insert("props".into(), Toml::Table(props));
+        if let Some(table) = self.table(path) {
+            table.insert("script".into(), Toml::Table(script));
+        }
+    }
+
+    /// The values `section` gives the exports of the Godot script `godot`.
+    fn script_props(&mut self, section: &Section, path: &str, godot: &str) -> toml::Table {
+        let source = std::fs::read_to_string(self.res.root.join(godot)).unwrap_or_default();
         let exports = crate::import_godot_exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
         let res = &self.res;
@@ -424,14 +454,7 @@ impl Walk<'_> {
                 )),
             }
         }
-        let mut script = toml::Table::new();
-        script.insert("source".into(), Toml::String(script_path(&godot)));
-        if !props.is_empty() {
-            script.insert("props".into(), Toml::Table(props));
-        }
-        if let Some(table) = self.table(path) {
-            table.insert("script".into(), Toml::Table(script));
-        }
+        props
     }
 
     /// A signal connection as the handler key a widget names, or a binding
@@ -684,6 +707,23 @@ impl Walk<'_> {
         reference
     }
 
+    /// What a node's `parent` names: the id of a node this file declares, or
+    /// for one added inside an instance, the path of names from the scene's
+    /// root, which the loader walks through the instance.
+    fn parent_ref(&self, parent: Option<&str>) -> String {
+        let Some(parent) = parent else {
+            return String::new();
+        };
+        if let Some(id) = self.ids.get(parent) {
+            return id.clone();
+        }
+        let root = self.nodes.first().and_then(|n| n.get("name")).and_then(Toml::as_str);
+        match root {
+            Some(root) => format!("{root}/{parent}"),
+            None => String::new(),
+        }
+    }
+
     /// A readable id for a scene path, unique within this file.
     fn id_for(&mut self, path: &str, name: &str) -> String {
         let base = if path.is_empty() {
@@ -732,19 +772,19 @@ fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
     let own = crate::import_godot_nodes::resources_of(&document, res.root, res.project);
     let mut classes = BTreeMap::new();
     let mut instances = BTreeMap::new();
-    let mut root = String::new();
+    let mut scripts = BTreeMap::new();
     for section in document.each("node") {
         let name = section.attr_str("name").unwrap_or_default();
         let path = match section.attr_str("parent") {
-            None => {
-                root = name.to_string();
-                String::new()
-            }
+            None => String::new(),
             Some(".") => name.to_string(),
             Some(p) => format!("{p}/{name}"),
         };
         if let Some(nested) = section.attr("instance").and_then(|i| own.path(i)) {
             instances.insert(path.clone(), nested.to_string());
+        }
+        if let Some(script) = section.field("script").and_then(|s| own.path(s)) {
+            scripts.insert(path.clone(), script.to_string());
         }
         let class = section
             .attr_str("type")
@@ -753,29 +793,48 @@ fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
         classes.insert(path, class);
     }
     Some(Outline {
-        root,
         classes,
+        scripts,
         instances,
     })
 }
 
-/// Where a node `inner` below a prefab's root sits under the instance node
-/// holding it, and its class. Each instance inside the prefab adds its own
-/// prefab's root to the path, because here an instance holds its prefab.
-fn locate(res: &Resources<'_>, prefab: &Outline, inner: &str, depth: usize) -> (String, String) {
-    // A prefab whose root is an instance holds that scene's root under its
-    // own, and a node this file did not declare with a type lives in there.
+/// The class of the node `inner` names inside `prefab`, looking through the
+/// prefabs it instances in turn; empty when nothing there declares one.
+fn class_in(res: &Resources<'_>, prefab: &Outline, inner: &str, depth: usize) -> String {
+    find_in(res, prefab, inner, depth, &|o, p| o.classes.get(p).filter(|c| !c.is_empty()).cloned())
+        .unwrap_or_default()
+}
+
+/// The Godot script the node `inner` names inside `prefab` carries.
+fn script_in(res: &Resources<'_>, prefab: &Outline, inner: &str) -> Option<String> {
+    find_in(res, prefab, inner, 0, &|o, p| o.scripts.get(p).cloned())
+}
+
+/// What `pick` reads off the node `inner` names inside `prefab`, following
+/// the path into each prefab it instances on the way down.
+fn find_in(
+    res: &Resources<'_>,
+    prefab: &Outline,
+    inner: &str,
+    depth: usize,
+    pick: &dyn Fn(&Outline, &str) -> Option<String>,
+) -> Option<String> {
+    // A prefab whose root is an instance has that scene's nodes as its own,
+    // and a node this file did not declare with a type is one of those.
     let first = inner.split('/').next().unwrap_or_default();
     let declared = prefab.classes.get(first).is_some_and(|c| !c.is_empty())
         || prefab.instances.contains_key(first);
     if !declared
+        && !inner.is_empty()
         && let Some(nested) = prefab.instances.get("").filter(|_| depth < 8)
         && let Some(nested) = outline(res, nested)
     {
-        let (tail, class) = locate(res, &nested, inner, depth + 1);
-        return (format!("{}/{tail}", prefab.root), class);
+        return find_in(res, &nested, inner, depth + 1, pick);
     }
-    let mut out = prefab.root.clone();
+    if let Some(found) = pick(prefab, inner) {
+        return Some(found);
+    }
     let segments: Vec<&str> = inner.split('/').collect();
     let mut walked = String::new();
     for (index, segment) in segments.iter().enumerate() {
@@ -784,24 +843,16 @@ fn locate(res: &Resources<'_>, prefab: &Outline, inner: &str, depth: usize) -> (
         } else {
             format!("{walked}/{segment}")
         };
-        out.push('/');
-        out.push_str(segment);
+        // The node itself, when it is a prefab's root, or something inside one.
         let Some(nested) = prefab.instances.get(&walked) else {
             continue;
         };
         // Prefabs nest a handful deep at most; a cycle is Godot's error too.
-        let Some(nested) = (depth < 8).then(|| outline(res, nested)).flatten() else {
-            continue;
-        };
+        let nested = (depth < 8).then(|| outline(res, nested)).flatten()?;
         let rest = segments[index + 1..].join("/");
-        if rest.is_empty() {
-            let class = nested.classes.get("").cloned().unwrap_or_default();
-            return (format!("{out}/{}", nested.root), class);
-        }
-        let (tail, class) = locate(res, &nested, &rest, depth + 1);
-        return (format!("{out}/{tail}"), class);
+        return find_in(res, &nested, &rest, depth + 1, pick);
     }
-    (out, prefab.classes.get(inner).cloned().unwrap_or_default())
+    None
 }
 
 /// The node path from one scene path to another, as a binding's `target`.

@@ -715,3 +715,16 @@ fn the_device_facts_default_and_take_a_backends_report() {
     );
     assert!((balaur_core::facts::device(&app.engine).safe_area[1] - 44.0).abs() < f32::EPSILON);
 }
+
+/// A harness that failed says so to the shell: `quit(code)` is what the
+/// process exits with, and a bare `quit()` is a clean exit.
+#[test]
+fn quit_carries_the_code_the_process_exits_with() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    call(&app.engine, "engine", "quit", &[]).unwrap();
+    assert!(app.engine.quit_requested());
+    assert_eq!(app.engine.exit_code(), 0);
+    call(&app.engine, "engine", "quit", &[Value::Int(1)]).unwrap();
+    assert_eq!(app.engine.exit_code(), 1);
+}

@@ -447,12 +447,16 @@ shape = SubResource("Rect_1")
 
 [node name="Box" parent="." instance=ExtResource("2_crate")]
 position = Vector2(-50, 0)
+weight = 3.0
 
 [node name="Lid" parent="Box"]
 visible = false
 
 [node name="Grip" parent="Box/Handle"]
 visible = false
+
+[node name="Sticker" type="Node2D" parent="Box/Lid"]
+position = Vector2(0, 5)
 
 [node name="Hud" type="VBoxContainer" parent="."]
 offset_left = 16.0
@@ -481,8 +485,10 @@ autoplay = "fade"
     const CRATE: &str = r#"[gd_scene format=3 uid="uid://ccrate"]
 
 [ext_resource type="PackedScene" path="res://scenes/knob.tscn" id="1_knob"]
+[ext_resource type="Script" path="res://scripts/crate.gd" id="2_crate"]
 
 [node name="Crate" type="Node2D"]
+script = ExtResource("2_crate")
 
 [node name="Lid" type="Sprite2D" parent="."]
 position = Vector2(0, -10)
@@ -626,6 +632,7 @@ PanelContainer/styles/panel = SubResource("Plain")
         put("store/.gdignore", "");
         std::fs::copy(HULL, dir.path().join("store/shot.png")).unwrap();
         put("scripts/root.gd", SCRIPT);
+        put("scripts/crate.gd", "extends Node2D\n\n@export var weight := 1.0\n");
         std::fs::create_dir_all(dir.path().join("art")).unwrap();
         std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
         dir
@@ -698,25 +705,6 @@ PanelContainer/styles/panel = SubResource("Plain")
             "from the shape up to the root"
         );
         assert_eq!(row["value"].as_str(), Some("on_dock"));
-
-        let boxed = node(&scene, "Box");
-        assert_eq!(boxed["instance"].as_str(), Some("scenes/crate.toml"));
-        let overrides = &boxed["overrides"];
-        assert_eq!(
-            floats(&overrides["Crate"]["transform"]["position"]),
-            vec![-0.5, 0.0, 0.0],
-            "the instance line moves the prefab's root"
-        );
-        assert_eq!(
-            overrides["Crate/Lid"]["visible"].as_bool(),
-            Some(false),
-            "an edit inside the instance is an override under the prefab's root"
-        );
-        assert_eq!(
-            overrides["Crate/Handle/Knob/Grip"]["visible"].as_bool(),
-            Some(false),
-            "an edit two instances deep names the inner prefab's root too"
-        );
 
         let hud = node(&scene, "Hud");
         assert_eq!(hud["widget"]["kind"].as_str(), Some("column"));
@@ -844,6 +832,47 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert!(theme["roles"]["ButtonGreen"]["fill"].as_str().is_some());
     }
 
+    /// A Godot instance node is its prefab's root, and so is the node here:
+    /// what its line sets, and every edit inside it, are overrides by the
+    /// Godot path from it.
+    #[test]
+    fn an_instance_is_its_prefabs_root() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/main.toml");
+        let boxed = node(&scene, "Box");
+        assert_eq!(boxed["instance"].as_str(), Some("scenes/crate.toml"));
+        let overrides = &boxed["overrides"];
+        assert_eq!(boxed["instance_root"].as_bool(), Some(true));
+        assert_eq!(
+            overrides["."]["script"]["props"]["weight"].as_float(),
+            Some(3.0),
+            "an export set on the instance line retunes the prefab root's script"
+        );
+        assert_eq!(
+            floats(&overrides["."]["transform"]["position"]),
+            vec![-0.5, 0.0, 0.0],
+            "the instance line moves the node, which is the prefab's root"
+        );
+        assert_eq!(
+            overrides["Lid"]["visible"].as_bool(),
+            Some(false),
+            "an edit inside the instance names the Godot path from it"
+        );
+        assert_eq!(
+            overrides["Handle/Grip"]["visible"].as_bool(),
+            Some(false),
+            "and two instances deep, still the Godot path"
+        );
+
+        assert_eq!(
+            node(&scene, "Sticker")["parent"].as_str(),
+            Some("World/Box/Lid"),
+            "a node added inside an instance names its parent by path"
+        );
+    }
+
     /// The converted project booted by the engine: every component, override,
     /// binding and clip above has to parse for the scene to load at all.
     #[test]
@@ -864,7 +893,7 @@ PanelContainer/styles/panel = SubResource("Plain")
 
         let world = app.engine.world();
         let root = app.engine.root();
-        let lid = balaur_core::scene::find_node(&world, root, "World/Box/Crate/Lid")
+        let lid = balaur_core::scene::find_node(&world, root, "World/Box/Lid")
             .expect("the instance built its prefab under the instance node");
         assert!(
             !world
@@ -873,7 +902,7 @@ PanelContainer/styles/panel = SubResource("Plain")
                 .visible,
             "the override inside the instance reached the prefab's node"
         );
-        let grip = balaur_core::scene::find_node(&world, root, "World/Box/Crate/Handle/Knob/Grip")
+        let grip = balaur_core::scene::find_node(&world, root, "World/Box/Handle/Grip")
             .expect("the nested prefab was built inside the outer one");
         assert!(
             !world
@@ -882,13 +911,17 @@ PanelContainer/styles/panel = SubResource("Plain")
                 .visible,
             "the override two instances deep reached its node"
         );
+        assert!(
+            balaur_core::scene::find_node(&world, root, "World/Box/Lid/Sticker").is_some(),
+            "the node added inside the instance sits under the prefab's node"
+        );
         let ship = balaur_core::scene::find_node(&world, root, "World/Ship").unwrap();
         let tint = world
             .get::<&balaur_core::scene::Appearance>(ship)
             .unwrap()
             .tint;
         assert!(tint.w < 1.0, "autoplay started the fade: alpha {}", tint.w);
-        let tree = balaur_core::scene::find_node(&world, root, "World/Extras/Extras/Tree")
+        let tree = balaur_core::scene::find_node(&world, root, "World/Extras/Tree")
             .expect("the extras prefab was built");
         drop(world);
         for _ in 0..3 {

@@ -270,6 +270,17 @@ fn export_type(default: &balaur_script::Value) -> &'static str {
 /// The `default` an export declares, which is what the host writes onto an
 /// instance before `init`.
 #[must_use]
+/// Whether an export is declared `type = "node"`: a path the scene writes and
+/// the script receives as the node it names.
+pub(crate) fn is_node_export(spec: &balaur_script::Value) -> bool {
+    let balaur_script::Value::Map(fields) = spec else {
+        return false;
+    };
+    fields
+        .iter()
+        .any(|(k, v)| k == "type" && matches!(v, balaur_script::Value::Str(t) if t == "node"))
+}
+
 pub(crate) fn export_default(spec: &balaur_script::Value) -> balaur_script::Value {
     let balaur_script::Value::Map(fields) = spec else {
         return spec.clone();
