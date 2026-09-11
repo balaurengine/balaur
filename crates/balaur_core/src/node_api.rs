@@ -256,10 +256,12 @@ pub const NODE_OPS: &[NodeOp] = &[
 /// itself instead; this is the plain path.
 pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "What every node has: its name and path, its transform in local and \
-         world space, its children, its components and its script. Each \
-         operation takes the node as its first argument, so scripts normally \
-         call them as methods on a node value (`this.node.position()`).",
+        "What every node has: its name and path, its place in the world, its \
+         children, its components and its script. Each operation takes the \
+         node as its first argument, so scripts normally call them as methods \
+         on a node value (`this.node.get_node(\"Arm\")`). `position`, \
+         `rotation_euler` and `scale` read the `transform` component, which \
+         `this.node.transform.position` reads and writes directly.",
     );
     m.describe(&[
         ("is_valid", &[], "()", "Whether the node is still in the world; false rather than an error when the value is not a node."),

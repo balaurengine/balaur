@@ -16,7 +16,7 @@ pub fn update(this, dt) {
     // Straight up and straight down are where a first-person view stops:
     // past them the world rolls over.
     this.pitch = math::clamp(this.pitch - dy * this.sensitivity, -89.0, 89.0);
-    this.node.set_rotation_degrees(this.pitch, this.yaw, 0.0);
+    this.node.transform.rotation_euler = [math::rad(this.pitch), math::rad(this.yaw), 0.0];
 }
 
 pub fn fixed_update(this, dt) {

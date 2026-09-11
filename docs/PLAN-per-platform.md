@@ -101,45 +101,50 @@ Three smaller facts that shape the work:
    canonical path and nothing downstream — scenes, scripts, the runtime —
    learns a new concept. A variant that no tag selects never enters the pack.
 10. **`[window] mode` and `orientation`.** The window keys are desktop-shaped:
-    a phone has no width. `mode` (`windowed`, `borderless`, `fullscreen`) and
-    `orientation` (`any`, `portrait`, `landscape`) join them, and both reach
-    the two native manifests through step 8 rather than through a raw plist
-    key.
+    a phone has no width. `mode` (`windowed`, `maximized`, `fullscreen`,
+    `exclusive`) replaces the `fullscreen` switch, and `orientation` (`any`,
+    `portrait`, `landscape`) reaches the two native manifests through step 8
+    rather than through a raw plist key.
 
 ## What has landed
 
-Steps 2, 3, 4, 6, 7 and 9 are built; the rest is in part.
+Every step above is built.
 
-- `crates/balaur_core/src/tags.rs` holds the vocabulary, `Tags::current` and
-  `Tags::for_target`. `settings::get` resolves overrides, `settings::stated`
-  does the same without a schema default, `settings::base` ignores them, and
-  `settings::resolve` folds a whole manifest for an export target.
-- `App::load_project` loads the manifest into the registry and refuses a key
-  `settings::unknown` finds. `[window]`, `[ui]`, `[physics]`, `[save]`,
-  `[locale]` and `application/splash` read through it.
-- `settings::to_toml` edits through `toml_edit` and writes only what was set,
-  so a save keeps comments and adds no defaults.
+- `crates/balaur_core/src/tags.rs` holds the vocabulary: `Tags::current`,
+  `Tags::for_target`, and a project's own from `[export] tags`.
+- `crates/balaur_core/src/settings.rs` is the one reader. `get` resolves an
+  override, `stated` does the same without a schema default, `table` folds a
+  table of the game's own names key by key, `base` ignores overrides, and
+  `resolve` folds a whole manifest for an export target.
+- Every table reads through it: `[window]`, `[ui]`, `[physics]`, `[save]`,
+  `[locale]`, `[input]`, `[input.actions]`, `[audio.buses]`, `[http]`,
+  `[websocket]`, `[import.<kind>]` and `application/splash`. `[http]` and
+  `[websocket]` used to read `project.toml` from the project files, which a
+  pack does not keep there, so a shipped game took their defaults.
+- `ProjectManifest` keeps only what is read before an engine exists: the
+  name, the main scene, the language, `[plugins]` and `[check]`. A pack's
+  `application/assets` is read through the registry at boot.
+- `App::load_project` refuses a key `settings::unknown` finds.
+- `settings::to_toml` edits through `toml_edit` and writes only what was set.
 - `crates/balaur_export/src/settings.rs` declares `[export]`, `[android]` and
-  `[apple]`; the exporter reads all three from one resolved document through
-  the `files` backend. The export sheet links to the settings page.
-- `[window] orientation` reaches `android:screenOrientation` and
-  `UISupportedInterfaceOrientations`. `crates/balaur_export/src/variants.rs`
-  folds `name.<tag>.ext` onto `name.ext` before the pack is measured.
+  `[apple]`; the exporter reads them from one document resolved for the
+  target, and stamps the target's own tags into the pack as `[build] tags`.
+- `[window] orientation` reaches both native manifests, and `[window] mode`
+  is `windowed`, `maximized`, `fullscreen` or `exclusive`, with
+  `render.set_window_mode` beside it. The kiss3d fork gained
+  `set_maximized` and `set_exclusive_fullscreen`.
+- `crates/balaur_export/src/variants.rs` folds `name.<tag>.ext` onto
+  `name.ext`, for the engine's tags and a project's own.
+- The settings screen shows each override under its key, and one
+  "override for" choice in the header adds them, as Godot's does.
 
-## What is left
+## Worth checking next
 
-- **The remaining readers.** `[http]`, `[websocket]`, `[audio]`,
-  `[input.actions]` and `[input]` still parse `manifest_source` themselves,
-  so an override does not reach them. Each is the change `[save]` took.
-- **`application/assets`** stays a typed field: `ProjectFiles` needs it before
-  the registry is loaded. Declared for the screen, read at boot.
-- **`[import.<kind>]`** is not declared; its keys depend on the importer.
-- **Custom tags.** `Tags::push` exists, but nothing names a target's own tags
-  or bakes them into the pack for the runtime to push.
-- **`[window] mode`.** `fullscreen` stays until the renderer offers borderless.
-- **The override picker.** One per row is heavy on a long page; a single
-  "override for" choice in the sheet's header, applied to the row clicked,
-  is Godot's shape and worth trying.
+- **Previewing a target in the editor.** Play runs with the machine's own
+  tags; running as `android` or `demo` from the editor is `Tags` swapped
+  before `load_project`, and a menu entry to pick it.
+- **The kiss3d fork.** Its two new calls are local to `../kiss3d` until the
+  branch is pushed, and balaur builds against the path until then.
 
 ## What not to do
 

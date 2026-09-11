@@ -285,7 +285,7 @@ impl<'a> Scanner<'a> {
             if self.done() || self.peek() == Some('[') {
                 return Ok(fields);
             }
-            let key = self.word();
+            let key = self.key();
             if key.is_empty() {
                 bail!(
                     "line {}: expected a `key = value` or a [section]",
@@ -315,6 +315,18 @@ impl<'a> Scanner<'a> {
         self.source[start..self.at].to_string()
     }
 
+    /// A field's key: a word, plus the `:` a TileSet's atlas coordinates
+    /// carry (`0:0/0/terrain`). Only keys take it, since a value never does.
+    fn key(&mut self) -> String {
+        let mut key = self.word();
+        while self.peek() == Some(':') {
+            self.at += 1;
+            key.push(':');
+            key.push_str(&self.word());
+        }
+        key
+    }
+
     fn value(&mut self) -> Result<Value> {
         self.spaces();
         let start = self.at;
@@ -341,6 +353,7 @@ impl<'a> Scanner<'a> {
                     "false" => Ok(Value::Bool(false)),
                     "null" | "nan" => Ok(Value::Null),
                     "inf" => Ok(Value::Float(f64::INFINITY)),
+                    "Array" | "Dictionary" if self.peek() == Some('[') => self.typed(),
                     _ => {
                         self.spaces();
                         if !self.eat('(') {
@@ -378,6 +391,35 @@ impl<'a> Scanner<'a> {
                 bail!("line {}: expected `,` or `{close}`", self.line());
             }
         }
+    }
+
+    /// `Array[Texture2D]([…])` or `Dictionary[String, int]({…})`, the word
+    /// already read: skip the element types, then read the one value inside.
+    fn typed(&mut self) -> Result<Value> {
+        let start = self.at;
+        let mut depth = 0;
+        while let Some(c) = self.bump() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.spaces();
+        if !self.eat('(') {
+            bail!("line {}: a typed container wants `(` after its types", self.line_at(start));
+        }
+        let inner = self.value()?;
+        self.trivia();
+        if !self.eat(')') {
+            bail!("line {}: a typed container is missing its `)`", self.line_at(start));
+        }
+        Ok(inner)
     }
 
     /// The inside of an `Object(`, its `(` already eaten: a class name, then
@@ -658,6 +700,19 @@ jump={
             Some(32)
         );
         assert_eq!(events[0].field("script"), Some(&Value::Null));
+    }
+
+    /// Two shapes the first survey of this game's files missed: a typed
+    /// array around a list, and a TileSet's `atlas:coords/alternative` keys.
+    #[test]
+    fn a_typed_array_and_a_tileset_key_read() {
+        let document = parse(
+            "[resource]\nflags = Array[Texture2D]([ExtResource(\"1_a\")])\n0:0/0 = 0\n0:0/0/terrain = 2\n",
+        )
+        .expect("both shapes parse");
+        let resource = document.first("resource").unwrap();
+        assert_eq!(resource.field("flags").and_then(Value::as_array).map(<[_]>::len), Some(1));
+        assert_eq!(resource.field("0:0/0/terrain"), Some(&Value::Int(2)));
     }
 
     #[test]

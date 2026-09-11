@@ -36,11 +36,25 @@ pub(crate) fn convert(
         .unwrap_or_else(|| "..".to_string());
     let base = join(player, &root);
     let mut clips: Vec<(String, Toml)> = Vec::new();
-    let Some(Value::Dict(libraries)) = section.field("libraries") else {
+    // Godot 4.7 writes each library as its own key, `libraries/` for the
+    // default one; earlier 4.x wrote one `libraries = { name: … }` table.
+    let mut libraries: Vec<(&str, &Value)> = section
+        .fields
+        .iter()
+        .filter_map(|(key, value)| Some((key.strip_prefix("libraries/")?, value)))
+        .collect();
+    if let Some(Value::Dict(table)) = section.field("libraries") {
+        libraries.extend(
+            table
+                .iter()
+                .filter_map(|(name, value)| Some((name.as_str()?, value))),
+        );
+    }
+    if libraries.is_empty() {
         return None;
-    };
+    }
     for (name, library) in libraries {
-        let prefix = name.as_str().filter(|n| !n.is_empty());
+        let prefix = Some(name).filter(|n| !n.is_empty());
         let loaded;
         let (data, lookup): (&Section, &Resources<'_>) = if let Some(sub) = res.sub(library) {
             (sub, res)

@@ -117,7 +117,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 
 ### `material`
 
-Files: `materials/`. Used by: `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
+Files: `materials/`. Used by: `material.source`, `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
 
 A shader and the values it draws with. `shader` names a `.wesl` file
 (project-relative); `[features]` are the `@if` flags that pick a variant when

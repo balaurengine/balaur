@@ -1000,7 +1000,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
     let placeholder = if inherited == "" {
         "— none —"
     } else {
-        format!("from {}: {}", from, util::last_segment(inherited))
+        format!("{} · from {}", inherited_label(S, from, inherited), util::last_segment(from))
     };
     spec_row(S, k, prop, spec, || {
         let reference = model::relative_file(S, as_text(value));
@@ -1047,7 +1047,23 @@ fn edit_asset(S, k, comp, prop, spec, value) {
     }
 }
 
-/// The material the selection draws with while it names none, the name of the
+/// What the placeholder calls an inherited material: the file its node's
+/// `material` component names in the scene, since the mirror holds every
+/// material inline (D24), and failing that the reference's own leaf.
+fn inherited_label(S, from_path, reference) {
+    let named = match model::index_of_path(S, from_path) {
+        Some(i) => util::obj(util::obj(S.doc[i]).get("material").unwrap_or(#{})).get("source").unwrap_or(""),
+        None => "",
+    };
+    let file = if named is String && named != "" { named } else { reference };
+    if file.starts_with("#!") {
+        "inline"
+    } else {
+        util::last_segment(file).replace(".toml", "")
+    }
+}
+
+/// The material the selection draws with while it names none, the path of the
 /// node naming it, and whether that is the selection itself. The nearest one
 /// up wins, and the walk stops at the edited scene.
 fn inherited_material(S) {
@@ -1059,7 +1075,7 @@ fn inherited_material(S) {
     while at is balaur::Node && at.is_valid() {
         let own = at.material();
         if own != "" {
-            return (own, at.name(), at.path() == found.path());
+            return (own, at.path(), at.path() == found.path());
         }
         if S.mirror is balaur::Node && at.path() == S.mirror.path() {
             break;

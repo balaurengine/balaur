@@ -202,7 +202,7 @@ fn entities_toml(layer: &Value, layer_name: &str) -> String {
             / grid;
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{layer_name}_{index}\"\nname = \"{name}\"\nposition = [{x}, {}, 0.0]\n\n",
+            "[[nodes]]\nid = \"n_{layer_name}_{index}\"\nname = \"{name}\"\ntransform = {{ position = [{x}, {}, 0.0] }}\n\n",
             -y
         );
         let fields = array(entity, &["fieldInstances"]);
@@ -297,6 +297,7 @@ mod tests {
     fn an_entity_becomes_a_node_with_the_fields_it_carried() {
         let scene = written(&imported().files, "scenes/cave.toml");
         assert!(scene.contains("name = \"Chest\""), "{scene}");
+        assert!(scene.contains("transform = { position = [2, -1, 0.0] }"), "{scene}");
         assert!(scene.contains("gold = 12"), "{scene}");
     }
 

@@ -70,6 +70,7 @@
     "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
     "light3d": "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
+    "material": "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
     "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.",
     "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
@@ -169,6 +170,9 @@
     ],
     "listener": [
       "audio"
+    ],
+    "material": [
+      "render"
     ],
     "mesh": [
       "3d",
@@ -2347,6 +2351,14 @@
         "default": true,
         "description": "Whether the mix is heard from this node; the last current one wins",
         "type": "bool"
+      }
+    },
+    "material": {
+      "source": {
+        "asset": "material",
+        "default": "",
+        "description": "The material asset; empty takes the parent's",
+        "type": "asset"
       }
     },
     "mesh": {
@@ -6285,7 +6297,7 @@
         "states"
       ],
       "constants": [],
-      "doc": "What every node has: its name and path, its transform in local and world space, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.position()`).",
+      "doc": "What every node has: its name and path, its place in the world, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.get_node(\"Arm\")`). `position`, `rotation_euler` and `scale` read the `transform` component, which `this.node.transform.position` reads and writes directly.",
       "docs": {
         "add_child": "Create a named child node under this one and return it.",
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
@@ -6298,6 +6310,7 @@
         "emit": "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it.",
         "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
+        "global_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
@@ -6309,6 +6322,7 @@
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "has_tag": "Whether the node is filed under a name.",
         "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
+        "material": "The `material` asset the node names itself, empty when it takes its parent's.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
         "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds.",
@@ -6322,6 +6336,7 @@
         "scale": "The node's scale relative to its parent.",
         "script_path": "The path of the script attached to the node, nil when it has none.",
         "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest.",
+        "set_material": "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's.",
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_position": "Move the node to a local position, given as three numbers or one vector.",
@@ -6353,6 +6368,7 @@
         "emit",
         "get_component",
         "get_node",
+        "global_material",
         "global_position",
         "global_rotation_euler",
         "global_scale",
@@ -6364,6 +6380,7 @@
         "has_method",
         "has_tag",
         "is_valid",
+        "material",
         "name",
         "parent",
         "patch_component",
@@ -6377,6 +6394,7 @@
         "scale",
         "script_path",
         "set_component",
+        "set_material",
         "set_name",
         "set_parent",
         "set_position",
@@ -6409,6 +6427,7 @@
         "emit": "(name: string, payload: any?)",
         "get_component": "(component: string)",
         "get_node": "(path: string)",
+        "global_material": "(node)",
         "global_position": "()",
         "global_rotation_euler": "()",
         "global_scale": "()",
@@ -6420,6 +6439,7 @@
         "has_method": "(method: string)",
         "has_tag": "(node, tag: string)",
         "is_valid": "()",
+        "material": "(node)",
         "name": "()",
         "parent": "()",
         "patch_component": "(component: string, params: table)",
@@ -6433,6 +6453,7 @@
         "scale": "()",
         "script_path": "()",
         "set_component": "(component: string, params: any?)",
+        "set_material": "(node, material: string)",
         "set_name": "(name: string)",
         "set_parent": "(parent: node)",
         "set_position": "(x: float, y: float, z: float)",
@@ -8154,6 +8175,7 @@
         "set_sprite_size": "Override the size the sprite took from its image, giving half-extents in world units instead.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
         "set_text": "Replace the text a node draws. The block re-shapes on the next frame; a `text_key` on the node still wins over it.",
+        "set_window_mode": "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "shape2d": "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.",
         "shape3d": "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.",
@@ -8221,6 +8243,7 @@
         "set_sprite_size",
         "set_terrain",
         "set_text",
+        "set_window_mode",
         "shader_probe",
         "shape2d",
         "shape3d",
@@ -8289,6 +8312,7 @@
         "set_sprite_size": "(NodeId, f32, f32) -> ()",
         "set_terrain": "(NodeId, i64, i64, i64) -> ()",
         "set_text": "(NodeId, String) -> ()",
+        "set_window_mode": "String -> ()",
         "shader_probe": "() -> Value",
         "shape2d": "NodeId -> (String, f32, f32)",
         "shape3d": "NodeId -> (String, f32, f32, f32)",
@@ -8608,14 +8632,14 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored: `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's. One key may hold an answer per platform: `[override.android.window] fullscreen` is what `window/fullscreen` reads on a phone.",
+      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored: `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's. One key may hold an answer per platform: `[override.android.window] orientation` is what `window/orientation` reads on a phone.",
       "docs": {
         "all": "Every defined setting as `{ path, scope, spec }`, in definition order.",
         "base": "What the file says, ignoring every override: what a settings screen edits.",
         "clear": "Forget one value, so the next write drops the key: how an override is removed.",
         "define": "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game.",
         "get": "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil.",
-        "known_tags": "Every tag a project may write an override for.",
+        "known_tags": "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`.",
         "load": "Read values out of a TOML text, folding them onto what is already loaded.",
         "overrides": "The tags this project holds an override for at `path`, in tag order.",
         "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",

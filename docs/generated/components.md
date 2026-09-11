@@ -1235,6 +1235,19 @@ On a node carrying `cloner`, as `node.cloner.<method>`:
 </tbody>
 </table>
 
+### `material`
+
+`render` · 1 property
+
+The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>source</code></td><td>asset · <code>material</code></td><td>—</td><td>The material asset; empty takes the parent&#x27;s</td></tr>
+</tbody>
+</table>
+
 ### `particles`
 
 `render` · 14 properties · 1 method

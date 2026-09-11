@@ -38,6 +38,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     report.section("translations", strings.notes.clone());
 
     let mut scenes = 0;
+    let mut scripts = 0;
     let mut failed = 0;
     for relative in files {
         let extension = Path::new(&relative)
@@ -56,6 +57,14 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
                     report.section(&relative, vec![format!("not converted: {why:#}")]);
                 }
             }
+        } else if extension == "gd" {
+            let source = std::fs::read_to_string(root.join(&relative))
+                .with_context(|| format!("reading {relative}"))?;
+            let converted = crate::import_godot_script::convert(&source, &relative);
+            let target = format!("{}.rn", relative.trim_end_matches(".gd"));
+            write(project, &target, &converted.rune, &mut out)?;
+            scripts += 1;
+            report.section(&relative, converted.notes);
         } else if COPIED.contains(&extension.as_str()) && !is_translation(root, &relative) {
             let target = project.join(&relative);
             if let Some(parent) = target.parent() {
@@ -68,8 +77,9 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     }
     let lines = report.write(project, &mut out)?;
     out.note = format!(
-        "{scenes} scene{} converted{}; {lines} note{} in import-report.md",
+        "{scenes} scene{} and {scripts} script skeleton{} converted{}; {lines} note{} in import-report.md",
         if scenes == 1 { "" } else { "s" },
+        if scripts == 1 { "" } else { "s" },
         if failed == 0 { String::new() } else { format!(", {failed} would not") },
         if lines == 1 { "" } else { "s" },
     );
@@ -312,9 +322,7 @@ text = "Sail"
 size_flags_vertical = 3
 
 [node name="Player" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_1")
-}
+libraries/ = SubResource("AnimationLibrary_1")
 autoplay = "fade"
 
 [connection signal="pressed" from="Hud/Go" to="." method="on_go"]
@@ -450,14 +458,10 @@ position = Vector2(0, -10)
         let godot = godot();
         let out = tempfile::tempdir().unwrap();
         import_project(&godot.path().join("project.godot"), out.path()).unwrap();
-        // The script phase writes these; a stub stands in so what is tested
-        // is the scene, not whether its script exists yet.
-        std::fs::create_dir_all(out.path().join("scripts")).unwrap();
-        std::fs::write(
-            out.path().join("scripts/root.rn"),
-            "pub fn exports() {\n    #{ speed: 2.0 }\n}\n\npub fn init(this) {}\n",
-        )
-        .unwrap();
+        assert!(
+            out.path().join("scripts/root.rn").is_file(),
+            "the script's skeleton is written beside the scene that names it"
+        );
 
         let mut config = balaur::AppConfig::dev(out.path().to_string_lossy().as_ref());
         config.watch = false;

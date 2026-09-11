@@ -60,7 +60,7 @@ fn instantiate_scene(c: &mut Criterion) {
             use std::fmt::Write as _;
             let _ = write!(
                 doc,
-                "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\nposition = [1.0, 2.0, 3.0]\n\n"
+                "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\ntransform = {{ position = [1.0, 2.0, 3.0] }}\n\n"
             );
         }
         let project = Project::new(Backend::Rune, EMPTY).unwrap();
@@ -88,7 +88,7 @@ fn parse_scene(c: &mut Criterion) {
             use std::fmt::Write as _;
             let _ = write!(
                 doc,
-                "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\nposition = [1.0, 2.0, 3.0]\n\n"
+                "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\ntransform = {{ position = [1.0, 2.0, 3.0] }}\n\n"
             );
         }
         group.throughput(Throughput::Elements(count as u64));
