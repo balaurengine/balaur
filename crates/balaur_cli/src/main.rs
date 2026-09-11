@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+mod api_dump;
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod check;
@@ -21,6 +22,7 @@ mod fmt;
 mod import_api;
 mod lsp;
 mod new_project;
+mod project_tests;
 mod templates;
 mod update;
 mod version;
@@ -351,7 +353,7 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
 #[cfg(not(target_arch = "wasm32"))]
 fn dispatch(command: Command) -> Result<()> {
     match command {
-        Command::Api => dump_api(),
+        Command::Api => api_dump::dump_api(),
         Command::Import {
             file,
             project,
@@ -437,7 +439,7 @@ fn dispatch(command: Command) -> Result<()> {
             path,
             frames,
             filter,
-        } => test_project(&path, frames, filter.as_deref()),
+        } => project_tests::test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
         Command::Fmt { paths, check } => fmt::run(&paths, check),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
@@ -796,98 +798,6 @@ fn edit_project(
     ran
 }
 
-/// Boot a standard app in a scratch project and print what scripts can reach.
-///
-/// The engine is asked, not the source: constants like `input.KEY_SPACE` are
-/// derived at registration, so parsing Rust would miss them.
-/// `balaur test`: each test script on its own node in its own headless app,
-/// failed by any script error the run logs. The project's main scene loads
-/// first, so a test finds the nodes a game would.
-fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Result<()> {
-    let tests = test_scripts(path);
-    let mut failed = 0usize;
-    let mut ran = 0usize;
-    for rel in tests {
-        if filter.is_some_and(|f| !rel.contains(f)) {
-            continue;
-        }
-        ran += 1;
-        balaur::logbuf::clear();
-        let outcome = run_test(path, &rel, frames);
-        let errors: Vec<String> = balaur::logbuf::recent(500)
-            .into_iter()
-            .filter(|entry| entry.level == "error")
-            .map(|entry| entry.message)
-            .collect();
-        match (outcome, errors.is_empty()) {
-            (Ok(()), true) => println!("test {rel} ... ok"),
-            (Ok(()), false) => {
-                failed += 1;
-                println!("test {rel} ... FAILED");
-                for message in errors {
-                    println!("    {message}");
-                }
-            }
-            (Err(why), _) => {
-                failed += 1;
-                println!("test {rel} ... FAILED\n    {why:#}");
-            }
-        }
-    }
-    if ran == 0 {
-        println!("no tests: put `.rn` files under tests/");
-        return Ok(());
-    }
-    println!("{} passed, {failed} failed", ran - failed);
-    if failed > 0 {
-        anyhow::bail!("{failed} of {ran} tests failed");
-    }
-    Ok(())
-}
-
-/// Every `.rn` under `tests/`, project-relative and sorted.
-fn test_scripts(project_root: &Path) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut dirs = vec![project_root.join("tests")];
-    while let Some(dir) = dirs.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                dirs.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
-                && let Ok(rel) = path.strip_prefix(project_root)
-            {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-            }
-        }
-    }
-    out.sort();
-    out
-}
-
-fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()> {
-    let mut app = balaur::standard_app(AppConfig::export(project_root))?;
-    app.load_project()?;
-    let root = app.engine.root();
-    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Test", root);
-    let host = app
-        .engine
-        .script_host()
-        .context("no script backend for the project")?;
-    host.attach(balaur::node_id_of(node), rel)?;
-    for _ in 0..frames {
-        app.tick(balaur::FIXED_DT);
-    }
-    Ok(())
-}
-
-/// `balaur check`: the editor's Problems list, headless, for CI.
-///
-/// Exits non-zero when anything would stop the project running, so a broken
-/// script fails a build rather than a play session.
 /// Everything `balaur export` was asked for, as the command line spells it.
 #[allow(
     clippy::struct_excessive_bools,
@@ -959,86 +869,6 @@ fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plug
     }
 }
 
-fn dump_api() -> Result<()> {
-    let dir = std::env::temp_dir().join("balaur-api-probe");
-    std::fs::create_dir_all(dir.join("scenes"))?;
-    std::fs::write(
-        dir.join("project.toml"),
-        "[application]\nname = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
-    )?;
-    std::fs::write(
-        dir.join("scenes/main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
-    )?;
-
-    let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
-    // `export` and `import` are the editor's, registered by this binary rather
-    // than by the engine, so the probe loads both or the reference would list
-    // neither.
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(dir.clone()))?;
-    app.load_project()?;
-    let host = balaur::rune::rune_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
-    // Component schemas ride along, so docs and tools read one probe.
-    let components: std::collections::BTreeMap<String, serde_json::Value> =
-        balaur::components::schemas(&app.engine)
-            .into_iter()
-            .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
-            .collect::<Result<_>>()?;
-    api["components"] = serde_json::to_value(components)?;
-    // What each component is for, and the facets it belongs to, so the
-    // reference can describe and group them.
-    let component_docs: std::collections::BTreeMap<String, &'static str> = app
-        .engine
-        .try_resource::<balaur::components::ComponentRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, def)| (name.clone(), def.doc))
-                .collect()
-        })
-        .unwrap_or_default();
-    api["component_docs"] = serde_json::to_value(component_docs)?;
-    let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
-        .engine
-        .try_resource::<balaur::components::ComponentRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, def)| (name.clone(), def.tags.to_vec()))
-                .collect()
-        })
-        .unwrap_or_default();
-    api["component_tags"] = serde_json::to_value(component_tags)?;
-    let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
-        .engine
-        .try_resource::<balaur::assets::AssetTypeRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, t)| {
-                    (
-                        name.clone(),
-                        serde_json::json!({"directory": t.directory, "doc": t.doc}),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    api["asset_types"] = serde_json::to_value(asset_types)?;
-    println!("{}", serde_json::to_string_pretty(&api)?);
-    Ok(())
-}
-
 /// The command line, plus the arguments a double-clicked bundle cannot give
 /// itself: Finder starts an app with none and a working directory of `/`, so
 /// `Balaur.app` would open on clap's help and quit.
@@ -1075,7 +905,8 @@ fn bundle_project() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{joinable, run_test, test_scripts};
+    use super::joinable;
+    use crate::project_tests::{run_test, test_scripts};
     use std::path::{Path, PathBuf};
 
     /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path

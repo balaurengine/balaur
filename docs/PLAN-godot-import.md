@@ -12,7 +12,7 @@
 
 `balaur import` already takes a `.tmx`, an `.ldtk`, an `.aseprite` and a
 `.glb` and writes the files the editor edits
-(`crates/balaur_cli/src/import.rs:30`). A Godot project is the same verb over
+(`crates/balaur_import/src/lib.rs`). A Godot project is the same verb over
 more file kinds, and one file at a time is the design: a `.tscn` converts
 without its scripts, a `.tres` without its scene, and a re-run overwrites
 what it wrote before.
@@ -199,8 +199,8 @@ reached through a `.tres`. What they use, counted, against what
 screen texture, the clock, a displaced vertex and both pixel sizes, so the
 claim that the contract covers them is checked rather than asserted.
 
-`crates/balaur_cli/src/import_godot_shader.rs` translates them, with the
-parse in `import_godot_shader_syntax.rs`. It reads the whole language a
+`crates/balaur_import/src/godot/shader/` translates them, with the
+parse in `godot/shader_syntax.rs`. It reads the whole language a
 `canvas_item` shader writes into statements and expressions and writes each
 back as WGSL spells it: a uniform is a `Params` field (a bool or an int
 stored as `f32` and read back as the type the shader expects), `vertex()` and
@@ -215,7 +215,7 @@ would fail on the GPU fails in the report instead. All 24 files and the five
 shaders saved inside scenes translate and pass.
 
 A `ShaderMaterial` becomes an inline `material` asset
-(`import_godot_material.rs`): the uniforms' defaults, the material's
+(`godot/material.rs`): the uniforms' defaults, the material's
 `shader_parameter/*` over them, a `source_color` in linear light because the
 engine blends there and Godot's canvas does not, an image as the slot its
 sampler was given, and `features = { screen = true }` for a shader reading
@@ -233,7 +233,7 @@ strings, `true`, arrays, dictionaries, `&"NodePath"`, `Vector2(x, y)`,
 `PackedStringArray(...)`. A `uid://` reference resolves through the `.uid`
 file beside a script or the `uid=` on an `[ext_resource]` line.
 
-`crates/balaur_cli/src/import_godot.rs`, parser only, no mapping. Binary
+`crates/balaur_import/src/godot/mod.rs`, parser only, no mapping. Binary
 `.scn` and `.res` are **not planned**: this project is text, and a Godot
 project can always be resaved as text.
 
@@ -304,7 +304,7 @@ GPU holds neither and is reported; none of this game's are.
 
 A `.tscn` becomes the `.toml` beside it, node for node in Godot's order. Every
 Godot class the survey found has a row in
-`crates/balaur_cli/src/import_godot_nodes.rs`, and a class with none keeps its
+`crates/balaur_import/src/godot/nodes.rs`, and a class with none keeps its
 transform and is reported. Positions go from pixels to units at 100 a unit
 with y flipped; a widget stays in design pixels, y down, as widgets measure.
 
