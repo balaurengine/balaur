@@ -148,7 +148,7 @@ presets map like this:
 A wide preset spans one axis of the surface less its `inset` and is placed on
 the other by `x` or `y`, measured the way the matching corner or middle
 anchor measures; the axis it does not span is the widget's stated size, or
-what it measures when it states none (`crates/balaur_ui/src/widget_anchor.rs`).
+what it measures when it states none (`crates/balaur_ui/src/widget/anchor.rs`).
 
 A `Control` anchored to two different fractions on one axis has no spelling
 here at all and is reported.

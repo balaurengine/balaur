@@ -46,8 +46,8 @@ states the split this plan wants for materials: *a renderable's own `color`
 is the node's alone; this is the one that inherits*.
 
 **A widget theme.** The `widget` component's `theme` property is already
-resolved against the nearest ancestor that names one, by `theme_of` and
-`theme_of_owned` in `crates/balaur_ui/src/widget_layer.rs`. It is carried
+resolved against the nearest ancestor that names one, by `theme_of` in
+`crates/balaur_ui/src/widget/theme.rs`. It is carried
 down the draw in `Painting::theme` rather than stored per node, and
 `a_theme_is_inherited_by_everything_under_it` in
 `crates/balaur_ui/tests/suite/widget_focus.rs` holds it.

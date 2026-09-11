@@ -37,7 +37,7 @@ Built, and load-bearing for a 2D game:
 | Rapier 2D: every body kind, sensors with `overlaps`, joints, `character2d`, the query pipeline, 32 layers, one-way platforms | `crates/balaur_physics/src/dim2`, `docs/PLAN-rapier.md` |
 | `tilemap` over a `tileset` atlas; `particles`; `shape2d` polyline with `width`, `closed` and `material`; `light2d` and `occluder2d` | `crates/balaur_render/src/{tilemap,particles,shape,light}.rs` |
 | `material` assets in WESL on `sprite`, `shape2d`, `polygon`, with a vertex stage that displaces, `time()`, hot reload and sourcemapped errors | `crates/balaur_render/src/shaders/sprite.wesl`, `docs/PLAN-shaders.md` phases 1–8 |
-| Widgets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab`, `draw`, `image`; `widget_theme`; focus for pad and keyboard; `ui.set_scale` | `crates/balaur_ui/src/widget_layer.rs`, `docs/PLAN-ui-layout.md` |
+| Widgets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab`, `draw`, `image`; `widget_theme`; focus for pad and keyboard; `ui.set_scale` | `crates/balaur_ui/src/widget/`, `docs/PLAN-ui-layout.md` |
 | Immediate-mode `ui`: `text_field`, `code_editor`, `toggle`, `slider`, `dropdown`, `modal`, `window` | `crates/balaur_ui/src/lib.rs` |
 | Touch with phases and indices, mouse, keyboard, `typed`, actions with rebinding, gamepads with rumble | `crates/balaur_input`, `docs/PLAN-input.md` |
 | Audio from ogg, wav, mp3 and flac, decoded from bytes, played from a project or absolute path; buses as a gain tree; positional audio; audio events | `crates/balaur_audio/src/{cache,bus,spatial,event}.rs` |

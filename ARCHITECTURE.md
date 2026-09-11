@@ -569,9 +569,8 @@ like anything else.
   not be a menu.
 - A widget's parent is its nearest *widget* ancestor, so a grouping node changes
   nothing. Only containers adopt what is under them.
-- The layout is egui's own, the same arithmetic the editor's panels use. Layout
-  is presentation and never touches the digest; wrapping or percentages are what
-  would justify `taffy`.
+- The layout is `taffy`'s flexbox, solved per root before anything draws.
+  Layout is presentation and never touches the digest.
 
 **Focus.** One focused widget per screen, held as a resource so moving it is one
 write. It walks widgets in scene order and wraps.
