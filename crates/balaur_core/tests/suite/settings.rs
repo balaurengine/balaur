@@ -182,15 +182,19 @@ fn an_override_answers_only_where_its_tag_is_in_force() {
     )
     .unwrap();
 
-    app.engine
-        .insert_resource(balaur_core::tags::Tags(vec!["desktop".into(), "linux".into()]));
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "desktop".into(),
+        "linux".into(),
+    ]));
     assert_eq!(
         settings::get(&app.engine, "window/fullscreen"),
         Some(toml::Value::Boolean(false))
     );
 
-    app.engine
-        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
     assert_eq!(
         settings::get(&app.engine, "window/fullscreen"),
         Some(toml::Value::Boolean(true))
@@ -208,8 +212,10 @@ fn the_narrower_tag_outranks_the_broader_one() {
          [override.mobile.physics]\nsolver_iterations = 2.0\n",
     )
     .unwrap();
-    app.engine
-        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
     assert_eq!(
         settings::get(&app.engine, "physics/solver_iterations"),
         Some(toml::Value::Float(3.0))
@@ -244,7 +250,11 @@ fn the_base_read_ignores_every_override() {
 #[test]
 fn an_undeclared_table_is_readable_by_path() {
     let app = app();
-    settings::load(&app.engine, "[mygame]\nlocal_server_url = \"http://localhost:8080\"\n").unwrap();
+    settings::load(
+        &app.engine,
+        "[mygame]\nlocal_server_url = \"http://localhost:8080\"\n",
+    )
+    .unwrap();
     assert_eq!(
         settings::get(&app.engine, "mygame/local_server_url"),
         Some(toml::Value::String(String::from("http://localhost:8080")))
@@ -281,4 +291,23 @@ fn an_override_the_screen_does_not_know_survives_a_write() {
     settings::load(&app.engine, source).unwrap();
     let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
     assert!(written.contains("example.test"), "{written}");
+}
+
+/// A save from the settings screen is a small diff: comments stay, and a key
+/// nobody set is not written out as its default.
+#[test]
+fn a_write_keeps_comments_and_adds_no_defaults() {
+    let app = app();
+    let source = "# The game.\n[application]\nname = \"g\" # shown in the title\nmain_scene = \"main.toml\"\n";
+    settings::load(&app.engine, source).unwrap();
+    settings::set(&app.engine, "window/fullscreen", toml::Value::Boolean(true));
+
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    assert!(written.contains("# The game."), "{written}");
+    assert!(written.contains("# shown in the title"), "{written}");
+    assert!(written.contains("[window]\nfullscreen = true"), "{written}");
+    assert!(
+        !written.contains("width") && !written.contains("solver"),
+        "a default nobody chose was written: {written}"
+    );
 }

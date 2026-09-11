@@ -178,6 +178,7 @@ pub(crate) fn platform(eng: &Engine, _: &[Value]) -> Result<Value> {
         ("os".into(), Value::Str(facts.os)),
         ("web".into(), Value::Bool(facts.web)),
         ("mobile".into(), Value::Bool(facts.mobile)),
+        ("touchscreen".into(), Value::Bool(facts.touchscreen)),
         ("editor".into(), Value::Bool(facts.editor)),
     ]))
 }

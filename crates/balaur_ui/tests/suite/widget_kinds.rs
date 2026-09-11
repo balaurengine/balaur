@@ -591,3 +591,281 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
         "the contents did not follow the finger: {before} -> {after}"
     );
 }
+
+/// A menu's rows can be nodes: an icon, a shortcut and a tick are widgets
+/// like any other, which a flat list of strings cannot carry.
+#[test]
+fn a_menu_opens_its_child_rows() {
+    let (_dir, mut app) = app();
+    let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 };
+    let host = add_widget(&app, &params.into());
+    let mut rows = Vec::new();
+    for name in ["R0", "R1"] {
+        let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
+        rows.push(add_child_widget(&app, host, name, &row.into()));
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    // Counted by the boxes they take: a node caption shapes through the text
+    // renderer, not an egui galley, so it is not a Text shape to find.
+    let boxes = |out: &egui::FullOutput| {
+        out.shapes
+            .iter()
+            .filter(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
+                _ => false,
+            })
+            .map(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) => r.rect,
+                _ => unreachable!(),
+            })
+            .fold(Vec::<egui::Rect>::new(), |mut seen, rect| {
+                // A button paints its frame and its fill over the same box.
+                if !seen.contains(&rect) {
+                    seen.push(rect);
+                }
+                seen
+            })
+    };
+    assert!(
+        boxes(&pass(&app, &ctx, vec![])).is_empty(),
+        "a shut menu drew its rows"
+    );
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    let open = boxes(&pass(&app, &ctx, vec![]));
+    assert_eq!(open.len(), 2, "the open menu drew {open:?}");
+    assert!(open[1].min.y >= open[0].max.y, "the rows overlap: {open:?}");
+    let second = open[1].center();
+    pass(&app, &ctx, press(second, true));
+    pass(&app, &ctx, press(second, false));
+    consume_input(&mut app);
+    assert!(
+        clicked(&app, rows[1]),
+        "a click on a row did not reach its node"
+    );
+    assert!(!clicked(&app, rows[0]), "the click reached the wrong row");
+}
+
+/// An action row closes its menu; a toggle row says `keep_open` and stays,
+/// which is what a grid of panel ticks needs.
+#[test]
+fn a_row_closes_its_menu_unless_it_keeps_it_open() {
+    for (keep, open_after) in [(false, false), (true, true)] {
+        let (_dir, mut app) = app();
+        let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 };
+        let host = add_widget(&app, &params.into());
+        let row = toml::toml! {
+            kind = "button" text = "row" width = 173.0 height = 22.0 keep_open = keep
+        };
+        add_child_widget(&app, host, "R0", &row.into());
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let at = root_rect(&ctx, host).center();
+        pass(&app, &ctx, press(at, true));
+        pass(&app, &ctx, press(at, false));
+        // Shown the pass after the click, and hit-tested against that pass.
+        pass(&app, &ctx, vec![]);
+        let row_at = pos2(100.0, 51.0);
+        pass(&app, &ctx, press(row_at, true));
+        pass(&app, &ctx, press(row_at, false));
+        consume_input(&mut app);
+        let drawn = pass(&app, &ctx, vec![])
+            .shapes
+            .iter()
+            .any(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
+                _ => false,
+            });
+        assert_eq!(
+            drawn, open_after,
+            "keep_open = {keep}: menu open after the click = {drawn}"
+        );
+    }
+}
+
+/// The roles the face tests read.
+fn face_theme(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir.join("themes")).unwrap();
+    std::fs::write(
+        dir.join("themes/face.toml"),
+        "type = \"widget_theme\"\n\n[roles.row]\nalign = \"left\"\n\n[roles.mark]\nplate = \"#ffffff\"\n",
+    )
+    .unwrap();
+}
+
+/// A role's `align = "left"` reaches a node button. It reached script pills
+/// only, so a node `row` drew its caption in the middle of the row.
+#[test]
+fn a_role_puts_a_button_s_face_at_its_left_edge() {
+    let (dir, app) = app();
+    face_theme(dir.path());
+    let icon = "\u{e1dc}";
+    let left = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 }
+            .into(),
+    );
+    let _middle = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let at = |upper: bool| {
+        texts(&out)
+            .into_iter()
+            .find(|(t, p)| t == icon && (p.y < 50.0) == upper)
+            .map(|(_, p)| p.x)
+            .expect("the icon drew")
+    };
+    let edge = root_rect(&ctx, left).min.x;
+    assert!(
+        at(true) - edge < 20.0,
+        "the row's face is not at its edge: {}",
+        at(true)
+    );
+    assert!(
+        at(false) > at(true) + 40.0,
+        "the plain button is not centred"
+    );
+}
+
+/// Trailing text sits after the caption and widens a button that hugs its
+/// content: a menu's caret, or a row's shortcut against its far edge.
+#[test]
+fn trailing_text_widens_a_button_and_draws() {
+    let (_dir, app) = app();
+    let plain = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Open" x = 0.0 y = 0.0 }.into(),
+    );
+    let tailed = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Open" trailing = "⌘K" x = 0.0 y = 100.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let (narrow, wide) = (root_rect(&ctx, plain), root_rect(&ctx, tailed));
+    assert!(
+        wide.width() > narrow.width() + 10.0,
+        "{narrow:?} vs {wide:?}"
+    );
+    let shortcut = texts(&out).into_iter().find(|(t, _)| t == "⌘K");
+    let (_, pos) = shortcut.expect("the trailing text drew");
+    assert!(
+        pos.x > wide.center().x,
+        "the trailing text is not on the far side"
+    );
+}
+
+/// A button's picture draws on the disc its role asks for, and the button is
+/// measured wide enough to hold it.
+#[test]
+fn a_picture_sits_on_its_role_s_plate() {
+    let (dir, app) = app();
+    face_theme(dir.path());
+    let mut mark = image::RgbaImage::new(8, 8);
+    for pixel in mark.pixels_mut() {
+        *pixel = image::Rgba([0, 0, 0, 255]);
+    }
+    mark.save(dir.path().join("mark.png")).unwrap();
+    let bare = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "B" theme = "themes/face.toml" x = 0.0 y = 0.0 }
+            .into(),
+    );
+    let pictured = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "B" source = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let (without, with) = (root_rect(&ctx, bare), root_rect(&ctx, pictured));
+    assert!(
+        with.width() > without.width() + 8.0,
+        "{without:?} vs {with:?}"
+    );
+    let plate = out.shapes.iter().any(|s| match &s.shape {
+        egui::epaint::Shape::Rect(r) => {
+            r.fill == egui::Color32::WHITE && with.contains_rect(r.rect)
+        }
+        _ => false,
+    });
+    assert!(plate, "no white disc under the picture");
+}
+
+/// `showing` holds a menu's rows up with no click, which is the only way an
+/// offscreen run or a tutorial can show one.
+#[test]
+fn a_showing_menu_is_open_without_a_click() {
+    let (_dir, app) = app();
+    let params = toml::toml! { kind = "menu" text = "Menu" showing = true x = 10.0 y = 10.0 };
+    let host = add_widget(&app, &params.into());
+    let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
+    add_child_widget(&app, host, "R0", &row.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = pass(&app, &ctx, vec![])
+        .shapes
+        .iter()
+        .any(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
+            _ => false,
+        });
+    assert!(drawn, "a showing menu drew no rows");
+}
+
+/// A menu whose rows are nodes is measured as the button it draws: its picture
+/// and caret included, or whatever sits after it in a row draws over it.
+#[test]
+fn a_menu_button_holds_its_room_in_a_row() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/row.toml"),
+        "type = \"widget_theme\"\n\n[roles.m]\nfill = \"#ff0000\"\n\n[roles.n]\nfill = \"#00ff00\"\n",
+    )
+    .unwrap();
+    let strip = add_widget(
+        &app,
+        &toml::toml! { kind = "row" gap = 0.0 theme = "themes/row.toml" x = 0.0 y = 0.0 }.into(),
+    );
+    let menu = add_child_widget(
+        &app,
+        strip,
+        "M",
+        &toml::toml! { kind = "menu" role = "m" text = "Balaur" trailing = "▾" }.into(),
+    );
+    let row = toml::toml! { kind = "button" text = "row" };
+    add_child_widget(&app, menu, "R0", &row.into());
+    add_child_widget(
+        &app,
+        strip,
+        "N",
+        &toml::toml! { kind = "button" role = "n" text = "next" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let boxed = |fill: egui::Color32| {
+        out.shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+                _ => None,
+            })
+            .expect("the button drew")
+    };
+    let (mine, next) = (boxed(egui::Color32::RED), boxed(egui::Color32::GREEN));
+    assert!(
+        mine.max.x <= next.min.x + 0.5,
+        "the next button draws over the menu: {mine:?} {next:?}"
+    );
+}

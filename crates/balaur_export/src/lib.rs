@@ -19,11 +19,12 @@ mod android;
 mod apple;
 mod bundle;
 mod config;
-pub mod settings;
-mod variants;
+mod extensions;
 pub mod recode;
+pub mod settings;
 mod sign;
 pub mod size;
+mod variants;
 
 use apple::AppleConfig;
 pub use bundle::web_shell;
@@ -187,6 +188,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.
     if let Some(kind) = bundle {
+        extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
         let template = match opts.template.clone() {
             Some(explicit) => explicit,
             None => find_bundle_template(kind, &opts.template_roots)?,
@@ -230,7 +232,15 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         }
         let identity = identity(opts.sign.as_deref(), &config.macos_identity);
         let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
-        let app = export_macos_app(&template, &pack.encode(), &name, output, identity, &apple)?;
+        let app = export_macos_app(
+            &template,
+            &pack.encode(),
+            &name,
+            output,
+            identity,
+            &apple,
+            &opts.path,
+        )?;
         if opts.notarize || config.notarize {
             sign::notarize(&app)?;
         }
@@ -295,12 +305,15 @@ fn export_desktop(
         template.display(),
         output.display()
     );
+    let shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
     if windows && (opts.sign.is_some() || !config.windows_certificate.is_empty()) {
         let mut config = config.clone();
         if let Some(named) = &opts.sign {
             config.windows_certificate.clone_from(named);
         }
-        sign::sign_windows(&output, &opts.path, &config)?;
+        for file in std::iter::once(&output).chain(&shipped) {
+            sign::sign_windows(file, &opts.path, &config)?;
+        }
     }
     Ok(())
 }

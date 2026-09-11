@@ -637,6 +637,8 @@ pub fn load(S) {
             if actions is Object {
                 input::declare_actions(actions);
             }
+            // The rest of `[input]`: the emulation switches and gesture thresholds.
+            input::declare_config(table);
         }
     }
     S.scene_path = root + "/" + application.main_scene;

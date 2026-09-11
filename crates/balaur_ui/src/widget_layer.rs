@@ -101,6 +101,12 @@ pub struct Widget {
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
+    /// A menu row that leaves the menu open when clicked, as a toggle does.
+    pub keep_open: bool,
+    /// Text against a button's far edge: a shortcut, or a menu's caret.
+    pub trailing: SmolStr,
+    /// A menu held open by the scene rather than by a click.
+    pub showing: bool,
 
     /// Where text sits in the width the widget was given.
     pub text_align: SmolStr,
@@ -156,6 +162,9 @@ pub struct Widget {
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],
+    /// A root that measures its bottom from the top of the on-screen
+    /// keyboard, so a form stays above it.
+    pub avoid_keyboard: bool,
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
@@ -208,6 +217,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::FLOW
             | w::FOLD
             | w::DIALOG
+            | w::MENU
     )
 }
 
@@ -456,6 +466,14 @@ fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2,
     (pos, align)
 }
 
+/// `area` less the part the on-screen keyboard covers. The keyboard is
+/// measured in the window's pixels, which are this pass's units.
+fn above_keyboard(eng: &Engine, area: egui::Rect) -> egui::Rect {
+    let covered = balaur_core::facts::device(eng).keyboard_height;
+    let bottom = (area.max.y - covered).max(area.min.y);
+    egui::Rect::from_min_max(area.min, egui::pos2(area.max.x, bottom))
+}
+
 /// Where a root goes and what box it is handed: `fill` takes the surface
 /// less its insets so a container at the root fills the screen, a dialog
 /// sits in the middle over the dimmed screen, the rest anchor as before.
@@ -603,6 +621,11 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     if widget.kind == w::DIALOG {
         crate::widget_kinds::dialog_backdrop(ctx, entity, area);
     }
+    let area = if widget.avoid_keyboard {
+        above_keyboard(eng, area)
+    } else {
+        area
+    };
     let (pos, align, assigned, order) = root_frame(widget, area, scale);
     painting.assigned = assigned;
     painting.rects = place_root(eng, ctx, painting, root, area, (pos, align, assigned));
@@ -859,7 +882,10 @@ pub(crate) fn face(
     } else {
         style.font_size.unwrap_or(16.0)
     };
-    (ink, egui::FontId::new(size * scale, family(family_of(style, widget))))
+    (
+        ink,
+        egui::FontId::new(size * scale, family(family_of(style, widget))),
+    )
 }
 
 /// The weight a widget draws at, the theme answering for one left at 400.
@@ -1009,7 +1035,9 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ui.disable();
     }
     match widget.kind.as_str() {
-        w::BUTTON => crate::widget_button::button(ui, at, index, &caption, &font, color),
+        w::BUTTON => {
+            crate::widget_button::button(ui, at, index, &caption, &font, color);
+        }
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
         w::FIELD => crate::widget_text::field(ui, at, index, &font, color),

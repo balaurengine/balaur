@@ -24,7 +24,7 @@ cannot drift from what scripts actually see.
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
 | [`import`](#import) | 2 | 0 | the engine |
-| [`input`](#input) | 41 | 190 | the engine |
+| [`input`](#input) | 48 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
@@ -40,12 +40,12 @@ cannot drift from what scripts actually see.
 | [`save`](#save) | 5 | 0 | the engine |
 | [`scene`](#scene) | 23 | 0 | the engine |
 | [`script`](#script) | 17 | 0 | the engine |
-| [`settings`](#settings) | 6 | 0 | the engine |
+| [`settings`](#settings) | 11 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 57 | 49 | the engine |
+| [`ui`](#ui) | 58 | 49 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -124,7 +124,7 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `declare_actions`, `dropped_files`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `keyboard_height`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`, `typed`, `vibrate`
+**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `declare_actions`, `declare_config`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_ended`, `touches_started`, `typed`, `vibrate`
 
 **Constants** (190):
 
@@ -329,7 +329,7 @@ cannot drift from what scripts actually see.
 
 ## `settings`
 
-**Functions:** `all`, `define`, `get`, `load`, `set`, `to_toml`
+**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `load`, `overrides`, `set`, `tags`, `to_toml`
 
 ## `skeleton`
 
@@ -349,7 +349,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `window`
 
 **Constants** (49):
 

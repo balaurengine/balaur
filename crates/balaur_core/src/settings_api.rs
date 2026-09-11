@@ -76,38 +76,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
             .and_then(|v| from_toml(&v).ok())
             .unwrap_or(Value::Nil))
     });
-    m.function("base", |eng: &Engine, path: String| {
-        Ok(settings::base(eng, &path)
-            .and_then(|v| from_toml(&v).ok())
-            .unwrap_or(Value::Nil))
-    });
-    m.function("tags", |eng: &Engine, (): ()| {
-        let tags = eng.resource::<crate::tags::Tags>();
-        let tags = tags.borrow();
-        Ok(Value::List(
-            tags.0.iter().cloned().map(Value::Str).collect(),
-        ))
-    });
-    m.function("known_tags", |_: &Engine, (): ()| {
-        Ok(Value::List(
-            crate::tags::ALL
-                .iter()
-                .map(|tag| Value::Str((*tag).to_string()))
-                .collect(),
-        ))
-    });
-    m.function("overrides", |eng: &Engine, path: String| {
-        Ok(Value::List(
-            settings::overrides(eng, &path)
-                .into_iter()
-                .map(Value::Str)
-                .collect(),
-        ))
-    });
-    m.function("clear", |eng: &Engine, path: String| {
-        settings::clear(eng, &path);
-        Ok(Value::Nil)
-    });
+    install_override_api(m);
     m.function("set", |eng: &Engine, (path, value): (String, Value)| {
         settings::set(eng, &path, to_toml(&value)?);
         Ok(Value::Nil)
@@ -140,4 +109,41 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
             )?))
         },
     );
+}
+
+/// The calls the settings screen needs for a key with more than one answer:
+/// the file's own value, the tags in play, and the overrides a key carries.
+fn install_override_api(m: &mut dyn Bindings<Engine>) {
+    m.function("base", |eng: &Engine, path: String| {
+        Ok(settings::base(eng, &path)
+            .and_then(|v| from_toml(&v).ok())
+            .unwrap_or(Value::Nil))
+    });
+    m.function("tags", |eng: &Engine, (): ()| {
+        let tags = eng.resource::<crate::tags::Tags>();
+        let tags = tags.borrow();
+        Ok(Value::List(
+            tags.0.iter().cloned().map(Value::Str).collect(),
+        ))
+    });
+    m.function("known_tags", |_: &Engine, (): ()| {
+        Ok(Value::List(
+            crate::tags::ALL
+                .iter()
+                .map(|tag| Value::Str((*tag).to_string()))
+                .collect(),
+        ))
+    });
+    m.function("overrides", |eng: &Engine, path: String| {
+        Ok(Value::List(
+            settings::overrides(eng, &path)
+                .into_iter()
+                .map(Value::Str)
+                .collect(),
+        ))
+    });
+    m.function("clear", |eng: &Engine, path: String| {
+        settings::clear(eng, &path);
+        Ok(Value::Nil)
+    });
 }

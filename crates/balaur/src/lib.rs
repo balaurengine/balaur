@@ -216,13 +216,18 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         config.script_backend = Some(backend_for(&config)?);
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
+    #[cfg(feature = "extensions")]
+    let extensions = config
+        .extensions
+        .clone()
+        .unwrap_or_else(|| config.project_root.join(standalone::EXTENSIONS_DIR));
     let mut app = App::new(config)?;
     app.engine.insert_resource(configs_from(&asked));
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
     interact::install(&mut app);
     #[cfg(feature = "extensions")]
-    load_project_extensions(&mut app, &asked)?;
+    load_extensions(&mut app, &asked, &extensions)?;
     refuse_absent(&app, &asked)?;
     deliver_launch_url();
     Ok(app)
@@ -356,18 +361,18 @@ fn drive_ui_focus(app: &mut App) {
     );
 }
 
-/// Load every extension in the project's `extensions/` directory.
+/// Load every extension in `dir`: the project's `extensions/`, or what a
+/// packed game ships beside its executable (`AppConfig::extensions`).
 ///
 /// # Errors
 /// If a library fails to load, disagrees about the build, or requires
 /// something absent.
 #[cfg(feature = "extensions")]
-fn load_project_extensions(app: &mut App, asked: &Selection) -> Result<()> {
-    let dir = app.project_root().join("extensions");
+fn load_extensions(app: &mut App, asked: &Selection, dir: &std::path::Path) -> Result<()> {
     let modules = balaur_core::plugins::names(&app.engine);
     // Safety: opening a library runs its initialisers, and the fingerprint
     // check inside refuses a build that cannot share this process.
-    let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir, &modules) }?;
+    let mut loaded = unsafe { balaur_plugin::load_extensions_in(dir, &modules) }?;
     for extension in &mut loaded {
         let name = extension.manifest().name.clone();
         if asked.get(&name).is_some_and(|choice| !choice.wanted()) {

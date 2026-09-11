@@ -161,7 +161,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // that far, so a tap on a child lands; past it, this drags the
         // offset itself.
         let dragged = (dead > 0.0)
-            .then(|| crate::widget_kinds::deadzone_drag(ui, at.eng, entity, dead))
+            .then(|| crate::widget_scroll::deadzone_drag(ui, at.eng, entity, dead))
             .flatten();
         if dead > 0.0 {
             area = area.scroll_source(egui::scroll_area::ScrollSource {

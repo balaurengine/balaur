@@ -1084,3 +1084,39 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
          {without} against {with}"
     );
 }
+
+/// A root that avoids the keyboard measures its bottom from the keyboard's
+/// top, and one that does not stays where it was.
+#[test]
+fn a_root_can_keep_above_the_on_screen_keyboard() {
+    let (_dir, app) = app();
+    let at = |avoid: bool| {
+        let params = toml::toml! {
+            kind = "label" text = "send" anchor = "center_bottom"
+            x = 0.0 y = 0.0 avoid_keyboard = avoid
+        };
+        add_widget(&app, &params.into())
+    };
+    let (lifted, left) = (at(true), at(false));
+    let ctx = egui::Context::default();
+    let bottom = |entity: Entity| {
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+            .expect("the label drew")
+            .max
+            .y
+    };
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let (before, unmoved) = (bottom(lifted), bottom(left));
+    assert!((before - unmoved).abs() < 1.0, "no keyboard, no difference");
+
+    balaur_core::facts::update_device(&app.engine, |f| f.keyboard_height = 200.0);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        (before - bottom(lifted) - 200.0).abs() < 1.0,
+        "lifted by the keyboard: {before} -> {}",
+        bottom(lifted)
+    );
+    assert!((bottom(left) - unmoved).abs() < 1.0, "the other stays put");
+}

@@ -30,7 +30,10 @@ pub(crate) fn apply(pack: &mut Pack, tags: &Tags) -> Vec<String> {
     chosen.sort_by(|a, b| a.0.cmp(&b.0).then(b.2.cmp(&a.2)));
     let mut taken = Vec::new();
     for (canonical, path, _) in chosen {
-        if taken.iter().any(|(name, _): &(String, String)| *name == canonical) {
+        if taken
+            .iter()
+            .any(|(name, _): &(String, String)| *name == canonical)
+        {
             drop.push(path);
             continue;
         }

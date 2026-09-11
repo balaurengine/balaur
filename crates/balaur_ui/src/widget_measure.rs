@@ -150,6 +150,10 @@ impl<'a> Measure<'a> {
                 let body = self.container(index, theme);
                 vec2(head.x.max(body.x), head.y + body.y)
             }
+            // Drawn as a button once its rows are nodes, so measured as one; a
+            // menu of strings is egui's own button, measured by its caption.
+            w::MENU if !self.arena[index].children.is_empty() => self.button(index, widget, theme),
+            w::MENU => self.text(index, widget, theme),
             w::GRID => self.grid(index, theme),
             w::FLOW => self.flow(index, theme),
             _ if lays_out(&widget.kind) => self.container(index, theme),
@@ -321,20 +325,61 @@ impl<'a> Measure<'a> {
                 .layout_no_wrap(widget.icon.to_string(), face, egui::Color32::WHITE)
                 .size()
         };
-        let gap = if mark.x > 0.0 && text.x > 0.0 {
-            font.size * 0.5
+        let pic = self.picture(widget, style, font.size);
+        let tail = if widget.trailing.is_empty() {
+            egui::Vec2::ZERO
         } else {
-            0.0
+            self.painter
+                .layout_no_wrap(
+                    widget.trailing.to_string(),
+                    font.clone(),
+                    egui::Color32::WHITE,
+                )
+                .size()
         };
+        // The draw's arithmetic: a gap between each pair of parts that are
+        // there, and a wider one before the trailing text.
+        let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
+        let between = font.size * 0.5 * parts.saturating_sub(1) as f32;
+        let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
         let pad = style
             .padding_x
             .map_or(self.padding.x, |p| p * self.scale * 2.0);
         let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0)) * self.scale;
         vec2(
-            mark.x + gap + text.x + pad,
-            mark.y.max(text.y) + self.padding.y,
+            pic.x + mark.x + text.x + between + tail_gap + tail.x + pad,
+            pic.y.max(mark.y).max(text.y).max(tail.y) + self.padding.y,
         )
         .max(floor)
+    }
+
+    /// A button's picture at its caption's height, with the disc a role may
+    /// put under it.
+    fn picture(
+        &self,
+        widget: &Widget,
+        style: &crate::widget_theme::Style,
+        line: f32,
+    ) -> egui::Vec2 {
+        if widget.source.is_empty() {
+            return egui::Vec2::ZERO;
+        }
+        let Ok(texture) = crate::images::texture_of(self.eng, self.painter.ctx(), &widget.source)
+        else {
+            return egui::Vec2::ZERO;
+        };
+        let native = texture.size_vec2();
+        let aspect = if native.y > 0.0 {
+            native.x / native.y
+        } else {
+            1.0
+        };
+        let plate = if style.plate.is_some() {
+            4.0 * self.scale
+        } else {
+            0.0
+        };
+        vec2(line * aspect + plate, line + plate)
     }
 
     fn text(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {

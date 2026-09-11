@@ -64,6 +64,11 @@ pub struct Style {
     pub slice: [f32; 4],
     /// The ink a caption is drawn in, which a role spells `color`.
     pub text_color: Option<Color32>,
+    /// The disc a control's picture sits on, so a dark mark reads on a dark
+    /// sheet.
+    pub plate: Option<Color32>,
+    /// Where a control's content sits across it: `left` for a row, else centred.
+    pub align: Option<String>,
     pub font_size: Option<f32>,
     /// Which of the theme's families, by the names `font` offers.
     pub font: Option<String>,
@@ -125,6 +130,8 @@ impl Style {
             image: self.image.clone().or_else(|| base.image.clone()),
             slice,
             text_color: self.text_color.or(base.text_color),
+            plate: self.plate.or(base.plate),
+            align: self.align.clone().or_else(|| base.align.clone()),
             font_size: self.font_size.or(base.font_size),
             font: self.font.clone().or_else(|| base.font.clone()),
             weight: self.weight.or(base.weight),
@@ -266,6 +273,11 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
             .map(str::to_string),
         slice: four_of(body.get(k::SLICE)),
         text_color: body.get(k::COLOR).and_then(|v| color(v, what, colors)),
+        plate: body.get(k::PLATE).and_then(|v| color(v, what, colors)),
+        align: body
+            .get(k::ALIGN)
+            .and_then(toml::Value::as_str)
+            .map(str::to_string),
         font_size: number(k::SIZE).or_else(|| number(k::FONT_SIZE)),
         font: body
             .get(k::FONT)

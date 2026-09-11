@@ -106,6 +106,41 @@ Three smaller facts that shape the work:
     the two native manifests through step 8 rather than through a raw plist
     key.
 
+## What has landed
+
+Steps 2, 3, 4, 6, 7 and 9 are built; the rest is in part.
+
+- `crates/balaur_core/src/tags.rs` holds the vocabulary, `Tags::current` and
+  `Tags::for_target`. `settings::get` resolves overrides, `settings::stated`
+  does the same without a schema default, `settings::base` ignores them, and
+  `settings::resolve` folds a whole manifest for an export target.
+- `App::load_project` loads the manifest into the registry and refuses a key
+  `settings::unknown` finds. `[window]`, `[ui]`, `[physics]`, `[save]`,
+  `[locale]` and `application/splash` read through it.
+- `settings::to_toml` edits through `toml_edit` and writes only what was set,
+  so a save keeps comments and adds no defaults.
+- `crates/balaur_export/src/settings.rs` declares `[export]`, `[android]` and
+  `[apple]`; the exporter reads all three from one resolved document through
+  the `files` backend. The export sheet links to the settings page.
+- `[window] orientation` reaches `android:screenOrientation` and
+  `UISupportedInterfaceOrientations`. `crates/balaur_export/src/variants.rs`
+  folds `name.<tag>.ext` onto `name.ext` before the pack is measured.
+
+## What is left
+
+- **The remaining readers.** `[http]`, `[websocket]`, `[audio]`,
+  `[input.actions]` and `[input]` still parse `manifest_source` themselves,
+  so an override does not reach them. Each is the change `[save]` took.
+- **`application/assets`** stays a typed field: `ProjectFiles` needs it before
+  the registry is loaded. Declared for the screen, read at boot.
+- **`[import.<kind>]`** is not declared; its keys depend on the importer.
+- **Custom tags.** `Tags::push` exists, but nothing names a target's own tags
+  or bakes them into the pack for the runtime to push.
+- **`[window] mode`.** `fullscreen` stays until the renderer offers borderless.
+- **The override picker.** One per row is heavy on a long page; a single
+  "override for" choice in the sheet's header, applied to the row clicked,
+  is Godot's shape and worth trying.
+
 ## What not to do
 
 - **No resolution at export for settings.** Baking is a second code path for

@@ -101,6 +101,7 @@ pub(crate) mod keys {
     pub(crate) const ALIGN: &str = "align";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const AUTOFOCUS: &str = "autofocus";
+    pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
     pub(crate) const BG: &str = "bg";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
@@ -212,6 +213,8 @@ pub(crate) mod keys {
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const TOP: &str = "top";
     pub(crate) const TRAILING: &str = "trailing";
+    pub(crate) const PLATE: &str = "plate";
+    pub(crate) const SHOWING: &str = "showing";
     pub(crate) const TRAILING_COLOR: &str = "trailing_color";
     pub(crate) const TRAILING_SIZE: &str = "trailing_size";
     pub(crate) const TRANSPARENT: &str = "transparent";

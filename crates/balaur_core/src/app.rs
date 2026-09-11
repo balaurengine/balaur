@@ -92,6 +92,9 @@ pub struct AppConfig {
     pub script_args: Vec<String>,
     /// Which script backend to run. `None` means no scripting.
     pub script_backend: Option<ScriptHostFactory>,
+    /// Where extension libraries load from; `None` is the project's own
+    /// `extensions/`. Only a build with the `extensions` feature reads it.
+    pub extensions: Option<PathBuf>,
 }
 
 impl AppConfig {
@@ -102,6 +105,7 @@ impl AppConfig {
             watch: true,
             script_args: Vec::new(),
             script_backend: None,
+            extensions: None,
         }
     }
 
@@ -124,9 +128,14 @@ impl AppConfig {
         }
     }
 
+    /// A shipped game. Its extensions sit beside its executable, never in the
+    /// working directory, which is `/` for a `.app` opened from Finder.
     pub fn packed(pack: Pack) -> Self {
         Self {
             pack: Some(pack),
+            extensions: std::env::current_exe()
+                .ok()
+                .map(|exe| crate::standalone::extensions_beside(&exe)),
             ..Self::bare(".")
         }
     }

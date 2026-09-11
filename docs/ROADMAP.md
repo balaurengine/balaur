@@ -15,17 +15,17 @@ split it rather than letting one grow.
 
 | Milestone | Estimate | What it is |
 | --- | :-: | --- |
-| **0.1** | September 2026 | The engine as it stands |
-| **0.2** | December 2026 | Nothing blocks an ordinary game |
-| **0.3** | March 2027 | Everything you see |
-| **0.4** | July 2027 | Multiplayer, end to end |
-| **0.5** | November 2027 | A game built without writing a script |
-| **0.6** | April 2028 | A game gets out |
-| **0.7** | September 2028 | What a bigger game asks for |
-| **0.8** | March 2029 | The machine a game runs on |
-| **0.9** | September 2029 | A world, not a scene |
-| **1.0** | March 2030 | The editor makes the content |
-| **1.1** | July 2030 | Other people's parts |
+| **0.1** | September 2026 | Hello Balaur |
+| **0.2** | December 2026 | Balaur v2 |
+| **0.3** | March 2027 | Balaur Again |
+| **0.4** | July 2027 | Balaur Multiplayer |
+| **0.5** | November 2027 | Balaur Scripting |
+| **0.6** | April 2028 | Balaur Web |
+| **0.7** | September 2028 | Big Balaur |
+| **0.8** | March 2029 | Balaur Inputs |
+| **0.9** | September 2029 | Balaur Physics |
+| **1.0** | March 2030 | Balaur Editor |
+| **1.1** | July 2030 | Balaur Packages |
 
 The estimate is the month a milestone is aimed at, and every row in it carries
 that date rather than one of its own. A milestone that is done keeps its month
@@ -59,14 +59,14 @@ being built, marked `done`, never back in the shipped one.
 | --- | :-: | --- |
 | **The editor** — The base, built from the engine's own widgets, with undo, prefabs, ray picking and a few tools. | 0.1 done | no plan |
 | **Tile maps** — a tileset that says what each tile is, with voxel collision, autotiling, animated tiles, isometric and hexagonal layouts, and Tiled and LDtk import. | 0.1 done | [PLAN-tilemap.md](PLAN-tilemap.md) |
-| **Script completion and hover** — completion, hover, go-to-definition, references, rename and formatting, in the Script persona, in `balaur lsp` and in a VS Code extension. | 0.1 done | no plan |
+| **Script completion and hover** — completion, hover, go-to-definition, rename and formatting. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
 | **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
-| **A green `main`** — the same bits on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
+| **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
 | **What the editor's frame costs** — the docks rebuild every row every frame, so the shell costs more than a 60 Hz budget; a list draws only what is visible. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **More than one window** — a second OS window: a dock torn off the editor, or a game on a second display. | 1.0 | no plan |
@@ -88,12 +88,12 @@ being built, marked `done`, never back in the shipped one.
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
-| **More importers** — Spine and DragonBones for 2D skeletal animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |
+| **More importers** — Spine and DragonBones for 2D bone animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |
 | **A package manager** — `[dependencies]` in `project.toml`, `balaur add`, and a lockfile carrying a hash per entry, resolved against the catalogue. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
 | **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
-| **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-plugins.md](PLAN-plugins.md) |
+| **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 
 ## Physics and animation
@@ -135,7 +135,7 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text in the world, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
+| **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
 | **Lists, trees and tables** — `list`, `tree` and `table` kinds with selection, columns, and only the rows in view built, which every dock hand-rolls today. | 0.2 | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
 | **Menus, popups and tooltips** — a menu bar, a context menu, a tooltip and a toast in a scene, over a pass that draws above the widget tree. | 0.2 | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
 | **A picture that clicks, and checks that are exclusive** — an `image` naming an `on_click` senses it, a `group` on a check makes a radio row, and four edge anchors join the corners. | 0.2 | [PLAN-godot-import.md#24-the-widget-kinds](PLAN-godot-import.md#24-the-widget-kinds) |
@@ -174,7 +174,7 @@ can do today, in the batches it would be built in.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record and replay, rollback, and three transports behind one trait. | 0.1 done | no plan |
+| **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record, replay and rollback, and three transports behind one trait. | 0.1 done | no plan |
 | **WebTransport in the browser** — native QUIC datagrams, binary frames, stable ids and rollback are built, and the browser side is not. | 0.4 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
 | **Sessions from a script** — host, join and leave from Rune, with a roster bound to links and `peer`, `host` and headless `server` roles. | 0.2 | [PLAN-sessions.md](PLAN-sessions.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |

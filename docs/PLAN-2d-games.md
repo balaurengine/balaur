@@ -216,7 +216,7 @@ in the game; "not planned" is a deliberate no.
 | Hinting, subpixel positioning, OpenType features | Step 2 for hinting and subpixel; `liga` and `kern` come with the shaper; anything further is a game that has asked |
 | Inline marks in a localized string | Step 2: `markup = true` on `label`, the span parser in §1 |
 | A text input in the scene tree | Step 2: a `field` widget kind, single-line, with `placeholder`, `max_length`, `secret`, `numeric`, `on_change`, `on_submit`; multi-line is `ui.code_editor` today and a `text` kind when asked |
-| Room above the on-screen keyboard | Step 2 shipped it as `input.keyboard_height()`, in the input snapshot, and web-only. iOS, Android and a layout that reads it are `docs/PLAN-touch.md` step 4 |
+| Room above the on-screen keyboard | Have: `input.keyboard_height()`, recorded on `DeviceFacts`, read from the page, UIKit and the Android activity; `avoid_keyboard` on a root widget lifts it clear. `docs/PLAN-touch.md` |
 | Composed input for CJK | Have: winit's `Ime` events through the fork's `Window::ime_events`; committed text lands in `input.typed`, the preedit in `input.composing()`, and egui's fields compose the same way. A page composes nothing: a browser only composes into an editable element, and a proxy input is **not planned** until a web text field asks |
 | Word wrap that knows CJK and Thai | Step 2: `wrap = "word"` gains the shaper's line breaker; nothing else changes |
 | Text to speech, speech recognition | Not planned; nothing has asked |
@@ -278,7 +278,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Touch, drag, multi-touch by index | Have |
-| Pinch and two-finger pan | Have as raw touches. Recognisers reversed this row's *not planned*: `docs/PLAN-touch.md` step 2 derives pinch, pan, swipe and long press from the recorded touches, since a scene wanting one wants all four |
+| Pinch and two-finger pan | Have: `input.pinch()` and `input.pan()`, with `swipe()` and `long_press()` beside them, derived from the recorded touches. This row once said *not planned*; `docs/PLAN-touch.md` reversed it, since a scene wanting one wants all four |
 | Mouse as a touch on desktop | Have: a script reads both; a `touch_from_mouse` setting is a step 4 convenience |
 | Actions bound to keys, pad and axes | Have: `[input.actions]` |
 | A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |

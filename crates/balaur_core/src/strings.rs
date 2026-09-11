@@ -18,9 +18,9 @@ use anyhow::Result;
 
 use crate::engine::Engine;
 
-/// What `project.toml` says about languages.
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(default, deny_unknown_fields)]
+/// What `project.toml` says about languages, read through the settings
+/// registry so a platform may start in its own.
+#[derive(Clone, Debug)]
 pub struct LocaleConfig {
     /// The locale a fresh run starts in.
     pub default: String,
@@ -40,22 +40,18 @@ impl Default for LocaleConfig {
 }
 
 impl LocaleConfig {
+    /// `[locale]` as this run resolves it, or the defaults.
     #[must_use]
     pub fn load(eng: &Engine) -> Self {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            locale: LocaleConfig,
-        }
-        let Some(source) = crate::project::manifest_source(eng) else {
-            return Self::default();
+        let fallback = Self::default();
+        let read = |path: &str, or: String| {
+            crate::settings::get(eng, path)
+                .and_then(|v| v.as_str().map(str::to_string))
+                .unwrap_or(or)
         };
-        match toml::from_str::<Manifest>(&source) {
-            Ok(manifest) => manifest.locale,
-            Err(err) => {
-                tracing::warn!("project.toml [locale]: {err}; using the defaults");
-                Self::default()
-            }
+        Self {
+            default: read("locale/default", fallback.default),
+            fallback: read("locale/fallback", fallback.fallback),
         }
     }
 }

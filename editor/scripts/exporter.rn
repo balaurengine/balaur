@@ -71,7 +71,7 @@ pub fn draw(S) {
             if ui::pill("export settings", #{
                 height: 22, size: style::SM, radius: 8, fill: k.panel, color: k.dim,
             }) {
-                crate::settings::open_search(S, "export");
+                crate::settings::open_at(S, "export");
             }
             ui::add_space(12);
             for row in S.exporter.rows {

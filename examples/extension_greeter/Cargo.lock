@@ -211,10 +211,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 name = "extension_greeter"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "balaur_core",
  "balaur_plugin",
- "balaur_script",
 ]
 
 [[package]]

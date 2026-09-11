@@ -117,11 +117,10 @@ pub(crate) fn manifest_for(project: &Path, target: Option<&str>) -> Result<toml:
     let Ok(bytes) = balaur::files::default_backend().read(&path) else {
         return Ok(toml::Table::new());
     };
-    let source = String::from_utf8(bytes)
-        .with_context(|| format!("{} is not text", path.display()))?;
+    let source =
+        String::from_utf8(bytes).with_context(|| format!("{} is not text", path.display()))?;
     let tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
-    balaur::settings::resolve(&source, &tags)
-        .with_context(|| format!("parsing {}", path.display()))
+    balaur::settings::resolve(&source, &tags).with_context(|| format!("parsing {}", path.display()))
 }
 
 /// `[window] orientation` out of a resolved manifest.
@@ -219,7 +218,10 @@ mod tests {
         let phone = ExportConfig::load(dir.path(), Some("android")).unwrap();
         assert_eq!(desktop.images, crate::recode::ImageMode::Keep);
         assert_eq!(phone.images, crate::recode::ImageMode::Quantised);
-        assert_eq!(phone.output, "builds", "what no override touched still lands");
+        assert_eq!(
+            phone.output, "builds",
+            "what no override touched still lands"
+        );
 
         let manifest = super::manifest_for(dir.path(), Some("android")).unwrap();
         assert_eq!(
@@ -282,7 +284,9 @@ mod tests {
             "[export]\nmacos_identiy = \"typo\"\n",
         )
         .unwrap();
-        let err = ExportConfig::load(dir.path(), None).unwrap_err().to_string();
+        let err = ExportConfig::load(dir.path(), None)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("[export]"), "{err}");
     }
 }

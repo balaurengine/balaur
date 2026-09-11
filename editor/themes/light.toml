@@ -318,6 +318,46 @@ color = "accent"
 [roles.row_action_on.hover]
 color = "text"
 
+# The mark at the head of the bar, which is the shell's one menu. The disc
+# is white in both themes: the mark is dark, and so is half the sheets.
+[roles.brand]
+font = "heading"
+size = 17
+strong = true
+color = "text"
+fill = "sunken"
+radius = 6
+padding_x = 3
+plate = "#ffffff"
+[roles.brand.hover]
+fill = "raised"
+
+# A row in a menu: an action, or a panel that is open.
+[roles.menu_row]
+height = 22
+radius = 5
+size = 12
+align = "left"
+color = "text"
+[roles.menu_row.hover]
+fill = "raised"
+
+# A panel that is shut: the same row, one level quieter.
+[roles.menu_row_off]
+height = 22
+radius = 5
+size = 12
+align = "left"
+color = "faint"
+[roles.menu_row_off.hover]
+fill = "raised"
+
+# A section heading inside a menu.
+[roles.menu_heading]
+size = 11
+height = 18
+color = "faint"
+
 # The shell's own boxes, as `scenes/main.toml` holds them. `panel` is the
 # sheet a dock is drawn on; the two containers only round what clips inside.
 [panel]

@@ -120,7 +120,8 @@ game's inventory is the third.
 - **A controller-only shell.** Directional focus, an on-screen keyboard and
   safe-area insets ride on the focus order this plan does not change.
 - **Touch kinds.** `touch_button` and `touch_stick` are
-  [PLAN-touch.md](PLAN-touch.md), which also asks whether either is a widget.
+  components rather than kinds, for the reason Godot's `TouchScreenButton`
+  is a `Node2D`; [PLAN-touch.md](PLAN-touch.md) says why.
 - **Video.** A movie on a texture is a render feature; a widget draws the
   texture it produces.
 - **A theme editor.** `widget_theme` is an asset edited as text today, and a

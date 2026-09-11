@@ -426,6 +426,11 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin` —
   for one nothing registered is an error naming the feature to rebuild with;
   turning off one every build has is refused — a setting that cannot be honoured
   must not look like it was.
+- `balaur_plugin` re-exports every crate its API names (`balaur_core`,
+  `balaur_script`, `anyhow`, `toml`) plus a `prelude`, so a plugin outside the
+  tree has one dependency.
+- Only the desktop builds carry `extensions`. Web, iOS and Android builds leave
+  it off, so a game shipping there takes its plugins as modules.
 
 **Two boundaries, because Rust has no stable ABI.** `load_extension` picks by
 exported symbols.
@@ -1030,6 +1035,27 @@ fire = ["mouse:left"]
 - Rumble is output through `gilrs::ff`, so a recording never carries it — the
   script asks again on replay. `can_rumble` *is* recorded, because a script may
   branch on it. No gyroscope, no HID and no pad all read zero.
+
+**Touch.** The whole design is `docs/PLAN-touch.md`; the rules it keeps:
+
+- Pointer and finger convert into each other at the top of the tick, once per
+  frame, not per event: `emulate_mouse_from_touch` (on) makes a finger a left
+  click, which is why every widget kind works on a phone;
+  `emulate_touch_from_mouse` (off) makes a held button a finger. The snapshot
+  records what the conversion produced, so a replay converts nothing.
+- `touch_button` and `touch_stick` are components, not widget kinds, as
+  Godot's `TouchScreenButton` is a `Node2D`: the widget pass runs in the
+  backend's draw, after actions derive and never headless. They are hit-tested
+  in `First` against `DeviceFacts`' recorded `screen_size`, `ui_scale` and
+  `safe_area`, and `balaur_render` only paints them.
+- A control *feeds* an action (`InputActions::feed`, `input.feed_action`)
+  rather than being bound to one: the furthest from rest wins against the
+  bindings, and a fed action answers even if undeclared.
+- Pinch, pan, swipe and long press are derived from the recorded touches and
+  the fixed step, never recorded, and skipped on a rollback's second run of a
+  tick, where their timers would count twice.
+- The keyboard height lives on `DeviceFacts`, beside the safe area a layout
+  reads with it; `avoid_keyboard` on a root widget measures from its top.
 
 ## Showcase: the manual's pictures are a test
 

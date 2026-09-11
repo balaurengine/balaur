@@ -8,7 +8,7 @@
 
 use balaur_core::{App, AppConfig, components, facts, scene};
 use balaur_input::{
-    Gestures, InputActions, InputPlugin, InputSettings, InputSnapshot, TouchButton, TouchStick,
+    Gestures, InputActions, InputConfig, InputPlugin, InputSnapshot, TouchButton, TouchStick,
 };
 
 const MANIFEST: &str = r#"
@@ -68,8 +68,6 @@ fn control(app: &App, name: &str, component: &str, params: &str) -> balaur_core:
 
 use balaur_input::TouchPhase::{Cancel, End, Move, Start};
 
-// --- emulation ---------------------------------------------------------
-
 /// The default, and the reason every existing widget kind works on a phone:
 /// a finger is also a left click at the same place.
 #[test]
@@ -85,10 +83,7 @@ fn a_finger_moves_the_mouse_by_default() {
     }
     frame(&mut app, finger(1, 320.0, 200.0, Move));
     assert_eq!(
-        app.engine
-            .resource::<InputSnapshot>()
-            .borrow()
-            .mouse_pos(),
+        app.engine.resource::<InputSnapshot>().borrow().mouse_pos(),
         (320.0, 200.0)
     );
     frame(&mut app, finger(1, 320.0, 200.0, End));
@@ -196,8 +191,6 @@ fn emulation_can_be_turned_off() {
     );
 }
 
-// --- the button --------------------------------------------------------
-
 const BUTTON: &str = r#"
 action = "jump"
 anchor = "bottom_right"
@@ -214,7 +207,7 @@ fn a_button_presses_its_action() {
     let entity = control(&app, "Jump", "touch_button", BUTTON);
     // Anchored to the bottom right of 1000 x 600, offset back up and left.
     frame(&mut app, finger(1, 900.0, 500.0, Start));
-    assert_eq!(value(&app, "jump"), 1.0);
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6);
     assert!(
         app.engine
             .world()
@@ -223,7 +216,7 @@ fn a_button_presses_its_action() {
             .pressed
     );
     frame(&mut app, finger(1, 900.0, 500.0, End));
-    assert_eq!(value(&app, "jump"), 0.0);
+    assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
 /// A finger outside the circle is not on the button, even inside the square
@@ -234,7 +227,7 @@ fn a_circle_button_ignores_its_corners() {
     control(&app, "Jump", "touch_button", BUTTON);
     // The box's corner: inside a rect of the same size, outside the circle.
     frame(&mut app, finger(1, 960.0, 560.0, Start));
-    assert_eq!(value(&app, "jump"), 0.0);
+    assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
 /// The finger that pressed it keeps it wherever it goes. A thumb sliding off
@@ -245,9 +238,9 @@ fn a_thumb_that_slides_off_keeps_the_button() {
     control(&app, "Jump", "touch_button", BUTTON);
     frame(&mut app, finger(1, 900.0, 500.0, Start));
     frame(&mut app, finger(1, 400.0, 200.0, Move));
-    assert_eq!(value(&app, "jump"), 1.0, "still held");
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "still held");
     frame(&mut app, finger(1, 400.0, 200.0, End));
-    assert_eq!(value(&app, "jump"), 0.0);
+    assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
 /// A control the platform hides takes no fingers either, the way a hidden
@@ -258,7 +251,7 @@ fn a_touchscreen_only_button_is_dead_on_a_desktop() {
     let params = BUTTON.replace("visibility = \"always\"", "visibility = \"touchscreen\"");
     control(&app, "Jump", "touch_button", &params);
     frame(&mut app, finger(1, 900.0, 500.0, Start));
-    assert_eq!(value(&app, "jump"), 0.0);
+    assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
 /// The whole point of feeding rather than binding: a key and a button drive
@@ -268,12 +261,12 @@ fn a_key_and_a_button_drive_one_action() {
     let (_dir, mut app) = app(MANIFEST);
     control(&app, "Jump", "touch_button", BUTTON);
     frame(&mut app, |input| input.key_event("Space", true));
-    assert_eq!(value(&app, "jump"), 1.0, "the key alone");
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "the key alone");
     frame(&mut app, |input| {
         input.key_event("Space", false);
         input.touch_event(1, 900.0, 500.0, Start);
     });
-    assert_eq!(value(&app, "jump"), 1.0, "the button alone");
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "the button alone");
 }
 
 /// An action no manifest declared still answers, because a scene may carry
@@ -284,7 +277,7 @@ fn a_button_can_feed_an_undeclared_action() {
     let params = BUTTON.replace("action = \"jump\"", "action = \"crouch\"");
     control(&app, "Crouch", "touch_button", &params);
     frame(&mut app, finger(1, 900.0, 500.0, Start));
-    assert_eq!(value(&app, "crouch"), 1.0);
+    assert!((value(&app, "crouch") - 1.0).abs() < 1e-6);
 }
 
 /// The safe area moves a control, so a HUD does not sit under a home bar.
@@ -296,12 +289,18 @@ fn a_safe_area_moves_a_button() {
     // Where it used to be: now 80 pixels below the button's new place, which
     // is still inside a 120-wide circle, so aim at the old centre's old edge.
     frame(&mut app, finger(1, 900.0, 500.0, Start));
-    assert_eq!(value(&app, "jump"), 0.0, "the old spot is past the rim now");
+    assert!(
+        (value(&app, "jump") - 0.0).abs() < 1e-6,
+        "the old spot is past the rim now"
+    );
     frame(&mut app, |input| {
         input.touch_event(1, 900.0, 500.0, End);
         input.touch_event(2, 900.0, 420.0, Start);
     });
-    assert_eq!(value(&app, "jump"), 1.0, "and the new spot answers");
+    assert!(
+        (value(&app, "jump") - 1.0).abs() < 1e-6,
+        "and the new spot answers"
+    );
 }
 
 /// Design pixels, not physical ones: the same scene on a dense screen puts
@@ -315,10 +314,8 @@ fn the_ui_scale_sizes_a_control() {
         f.ui_scale = 2.0;
     });
     frame(&mut app, finger(1, 1800.0, 1000.0, Start));
-    assert_eq!(value(&app, "jump"), 1.0);
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6);
 }
-
-// --- the stick ---------------------------------------------------------
 
 const STICK: &str = r#"
 action_x = "move_x"
@@ -371,7 +368,10 @@ fn a_deadzone_holds_a_resting_thumb_at_rest() {
     control(&app, "Move", "touch_stick", &params);
     frame(&mut app, finger(1, 150.0, 450.0, Start));
     frame(&mut app, finger(1, 180.0, 450.0, Move));
-    assert_eq!(value(&app, "move_x"), 0.0, "inside the deadzone");
+    assert!(
+        (value(&app, "move_x") - 0.0).abs() < 1e-6,
+        "inside the deadzone"
+    );
     frame(&mut app, finger(1, 206.0, 450.0, Move));
     let just_live = value(&app, "move_x");
     assert!(
@@ -405,11 +405,15 @@ fn a_stick_lets_go_when_the_thumb_lifts() {
     frame(&mut app, finger(1, 250.0, 450.0, Move));
     assert!(value(&app, "move_x") > 0.9);
     frame(&mut app, finger(1, 250.0, 450.0, End));
-    assert_eq!(value(&app, "move_x"), 0.0);
+    assert!((value(&app, "move_x") - 0.0).abs() < 1e-6);
     let world = app.engine.world();
     let stick = world.get::<&TouchStick>(entity).unwrap();
     assert!(stick.finger.is_none());
-    assert_eq!(stick.value, [0.0, 0.0]);
+    assert!(
+        stick.value.iter().all(|v| v.abs() < 1e-6),
+        "at rest: {:?}",
+        stick.value
+    );
 }
 
 /// A finger that lands outside the circle is somebody else's: the stick is
@@ -420,7 +424,7 @@ fn a_stick_ignores_a_finger_outside_it() {
     control(&app, "Move", "touch_stick", STICK);
     frame(&mut app, finger(1, 700.0, 200.0, Start));
     frame(&mut app, finger(1, 750.0, 200.0, Move));
-    assert_eq!(value(&app, "move_x"), 0.0);
+    assert!((value(&app, "move_x") - 0.0).abs() < 1e-6);
 }
 
 /// The keys the project bound and the stick both drive `move_x`, and the
@@ -430,16 +434,17 @@ fn a_stick_and_a_key_pair_share_an_action() {
     let (_dir, mut app) = app(MANIFEST);
     control(&app, "Move", "touch_stick", STICK);
     frame(&mut app, |input| input.key_event("D", true));
-    assert_eq!(value(&app, "move_x"), 1.0, "the key alone");
+    assert!((value(&app, "move_x") - 1.0).abs() < 1e-6, "the key alone");
     frame(&mut app, |input| {
         input.key_event("D", false);
         input.touch_event(1, 150.0, 450.0, Start);
     });
     frame(&mut app, finger(1, 100.0, 450.0, Move));
-    assert!(value(&app, "move_x") < -0.4, "and the thumb alone, the other way");
+    assert!(
+        value(&app, "move_x") < -0.4,
+        "and the thumb alone, the other way"
+    );
 }
-
-// --- gestures ----------------------------------------------------------
 
 fn gestures<T>(app: &App, read: impl FnOnce(&Gestures) -> T) -> T {
     read(&app.engine.resource::<Gestures>().borrow())
@@ -457,7 +462,7 @@ fn two_fingers_spreading_are_a_pinch() {
         input.touch_event(1, 300.0, 300.0, Move);
         input.touch_event(2, 700.0, 300.0, Move);
     });
-    let pinch = gestures(&app, |g| g.pinch()).expect("two fingers moved apart");
+    let pinch = gestures(&app, Gestures::pinch).expect("two fingers moved apart");
     assert!((pinch.scale - 2.0).abs() < 0.01, "200 apart became 400");
     assert!((pinch.center.0 - 500.0).abs() < 0.01);
 }
@@ -468,7 +473,7 @@ fn one_finger_is_never_a_pinch() {
     frame(&mut app, finger(1, 400.0, 300.0, Start));
     frame(&mut app, finger(1, 500.0, 300.0, Move));
     assert!(gestures(&app, |g| g.pinch().is_none()));
-    assert_eq!(gestures(&app, |g| g.pan()), (0.0, 0.0));
+    assert_eq!(gestures(&app, Gestures::pan), (0.0, 0.0));
 }
 
 #[test]
@@ -482,7 +487,7 @@ fn two_fingers_moving_together_are_a_pan() {
         input.touch_event(1, 400.0, 260.0, Move);
         input.touch_event(2, 500.0, 260.0, Move);
     });
-    let (dx, dy) = gestures(&app, |g| g.pan());
+    let (dx, dy) = gestures(&app, Gestures::pan);
     assert!(dx.abs() < 0.01);
     assert!((dy + 40.0).abs() < 0.01, "both fingers went up 40");
 }
@@ -495,7 +500,7 @@ fn a_travelled_finger_is_a_swipe_when_it_lifts() {
     frame(&mut app, finger(1, 600.0, 300.0, Move));
     assert!(gestures(&app, |g| g.swipe().is_none()), "still down");
     frame(&mut app, finger(1, 600.0, 300.0, End));
-    let swipe = gestures(&app, |g| g.swipe()).expect("400 pixels is a swipe");
+    let swipe = gestures(&app, Gestures::swipe).expect("400 pixels is a swipe");
     assert!((swipe.direction.0 - 1.0).abs() < 0.01, "to the right");
     assert!(swipe.speed > 0.0);
     frame(&mut app, |_| {});
@@ -517,7 +522,7 @@ fn a_still_finger_becomes_a_long_press() {
     let (_dir, mut app) = app(MANIFEST);
     let seconds = app
         .engine
-        .resource::<InputSettings>()
+        .resource::<InputConfig>()
         .borrow()
         .long_press_seconds;
     frame(&mut app, finger(1, 400.0, 300.0, Start));
@@ -568,5 +573,48 @@ fn a_control_with_no_screen_takes_nothing() {
     control(&app, "Jump", "touch_button", BUTTON);
     facts::update_device(&app.engine, |f| f.screen_size = [0.0, 0.0]);
     frame(&mut app, finger(1, 0.0, 0.0, Start));
-    assert_eq!(value(&app, "jump"), 0.0);
+    assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
+}
+
+/// In the editor a game is confined to the viewport, and its controls go with
+/// it rather than to the window's corners.
+#[test]
+fn a_control_sits_in_the_game_area_the_host_confines_it_to() {
+    let (_dir, mut app) = app(MANIFEST);
+    control(&app, "Jump", "touch_button", BUTTON);
+    // A 600 x 400 viewport at (200, 100): its bottom right is (800, 500).
+    facts::update_device(&app.engine, |f| f.game_area = Some([200.0, 100.0, 600.0, 400.0]));
+    frame(&mut app, finger(1, 900.0, 500.0, Start));
+    assert!(value(&app, "jump").abs() < 1e-6, "the window's corner is not the game's");
+    frame(&mut app, |input| {
+        input.touch_event(1, 900.0, 500.0, End);
+        input.touch_event(2, 700.0, 400.0, Start);
+    });
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "the viewport's corner is");
+}
+
+/// A host that switched the game's surface off, as the editor does while
+/// nothing plays, leaves the controls dead.
+#[test]
+fn a_control_is_dead_while_the_game_area_is_off() {
+    let (_dir, mut app) = app(MANIFEST);
+    control(&app, "Jump", "touch_button", BUTTON);
+    facts::update_device(&app.engine, |f| f.game_area = Some([0.0; 4]));
+    frame(&mut app, finger(1, 900.0, 500.0, Start));
+    assert!(value(&app, "jump").abs() < 1e-6);
+}
+
+/// A project that made the mouse a finger gets its touch-only controls on a
+/// desktop too: the mouse can reach them now.
+#[test]
+fn emulating_touch_shows_touchscreen_only_controls() {
+    let manifest = format!("{MANIFEST}\n[input]\nemulate_touch_from_mouse = true\n");
+    let (_dir, mut app) = app(&manifest);
+    let params = BUTTON.replace("visibility = \"always\"", "visibility = \"touchscreen\"");
+    control(&app, "Jump", "touch_button", &params);
+    frame(&mut app, |input| {
+        input.set_mouse_pos(900.0, 500.0);
+        input.mouse_button_event(0, true);
+    });
+    assert!((value(&app, "jump") - 1.0).abs() < 1e-6);
 }

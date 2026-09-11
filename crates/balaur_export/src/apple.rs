@@ -143,17 +143,11 @@ impl Default for AppleConfig {
 }
 
 impl AppleConfig {
-    /// The `[apple]` table of a project, or the defaults when there is none.
+    /// The `[apple]` table out of a manifest already resolved for the target,
+    /// or the defaults when there is none.
     ///
     /// A table that does not parse is an error rather than a warning: a
     /// misspelled capability or identifier is not something to ship past.
-    pub(crate) fn load(project: &Path, target: Option<&str>) -> Result<Self> {
-        let manifest = crate::config::manifest_for(project, target)?;
-        Self::from_manifest(&manifest, project)
-    }
-
-    /// The table out of a manifest already resolved for a target, so the
-    /// exporter reads the file once.
     pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
         Ok(Self {
             orientation: crate::config::orientation_of(manifest),
@@ -435,7 +429,10 @@ mod tests {
             ..AppleConfig::default()
         };
         let text = held.info_plist(Platform::Ios, "Balaur", "Tide");
-        assert!(text.contains("<key>UISupportedInterfaceOrientations</key>"), "{text}");
+        assert!(
+            text.contains("<key>UISupportedInterfaceOrientations</key>"),
+            "{text}"
+        );
         assert!(text.contains("UIInterfaceOrientationPortrait"), "{text}");
         assert!(!text.contains("LandscapeLeft"), "{text}");
 

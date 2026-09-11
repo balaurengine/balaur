@@ -1,18 +1,20 @@
-> **Status:** not started. Written 2026-09-10, from the touch surface measured
-> against Godot's, after the roadmap row's four promises were found spread
-> across three plans that disagree with each other.
+> **Status:** built 2026-09-11, all four steps, and **not yet held on a
+> phone**. Written 2026-09-10 from the touch surface measured against Godot's,
+> after the roadmap row's four promises were found spread across three plans
+> that disagreed. §0 is the state it started from; §3 says what each row
+> became, and where the build parted from the plan it says why.
 
 # Plan: the touch controls a phone needs
 
-## 0. Where touch is today
+## 0. Where touch started
 
-Raw touch is built and recorded. Everything above it is not.
+Raw touch was built and recorded. Everything above it was not.
 
 - **`input.touches()`, `touches_started()`, `touches_ended()`**: id, x and y
   per finger, oldest first, fed from kiss3d's `WindowEvent::Touch` and
   serialized into the replay snapshot.
 - **`input.keyboard_height()`**: in the snapshot, bound, documented. The
-  implementation reads a page's visual viewport, so it answers on the web and
+  implementation read a page's visual viewport, so it answered on the web and
   zero everywhere else, including the two platforms that have a keyboard.
 - **`render.safe_area()`**: recorded insets, UIKit on iOS through the kiss3d
   fork, `env(safe-area-inset-*)` on a page.
@@ -20,7 +22,9 @@ Raw touch is built and recorded. Everything above it is not.
   child lands rather than being taken as a scroll.
 
 Missing: any touch widget kind, any gesture recogniser, `input.feed_touch`,
-and any way for a layout to read the keyboard height.
+and any way for a layout to read the keyboard height. Already built and easy
+to miss: the backend raised the system keyboard on both phones whenever egui
+held keyboard focus, so a focused `field` summoned one before this plan.
 
 ### What this plan settles
 
@@ -75,14 +79,17 @@ declines too.
 Five rules. The first four hold PLAN-input.md's five, and the fifth is this
 plan's own.
 
-1. **Emulation happens in the backend, ahead of the snapshot.** The mouse
-   fields and the touch fields are both written from whichever device is
-   present, so a recording holds both and a replay derives nothing. A queue
-   engine fans one event into two; a snapshot engine fills two sets of fields,
-   which is cheaper and exact.
+1. **Emulation fills the snapshot at the top of the tick.** The mouse fields
+   and the touch fields are both written from whichever device reported, so a
+   recording holds both and a replay converts nothing. A queue engine fans one
+   event into two; a snapshot engine fills two sets of fields. The plan put
+   this in the backend, per event; it moved to the first system of the tick,
+   once per frame, because the project's `[input]` table loads after the first
+   events can arrive.
 2. **A touch control feeds the action layer, never the game.** Godot's
-   injection, through the seam that exists already: `input.feed_*`. Game code
-   reads `input.action_value("move_x")` and carries no platform branch.
+   injection, as `InputActions::feed` and the script verb
+   `input.feed_action`. Game code reads `input.action_value("move_x")` and
+   carries no platform branch.
 3. **A gesture is derived, never fed.** Pinch, swipe and long press are a
    function of the recorded touches and the fixed step, so they stay out of
    the snapshot. Two readings of one finger is what PLAN-input.md rule 5
@@ -110,9 +117,14 @@ so it runs headless, lands in the digest, and replays exactly.
 The cost is placement: a component has no container to sit in. It carries the
 widget vocabulary's own words instead, `anchor` and an offset in design
 pixels, resolved against the screen less its safe area. That needs two facts
-in the tick that only the backend knows, so `DeviceFacts` gains `screen_size`
-and `ui_scale` beside the `safe_area` it carries already. Both are recorded,
-which is what makes the hit-test replay.
+in the tick that only the backend knows, so `DeviceFacts` gained
+`screen_size` and `ui_scale` beside the `safe_area` it carried already. Both
+are recorded, which is what makes the hit-test replay.
+
+The keyboard height moved there too, out of the input snapshot. It is a fact
+about the display rather than something a player did, and `balaur_ui` cannot
+reach `balaur_input` to read it. Moving a recorded field between resources
+changed the recording format, so `replay::FORMAT` went from 2 to 3.
 
 Drawing is the half that does need a window. The component is defined and
 hit-tested in `balaur_input`; `balaur_render` draws it behind the `kiss3d`
@@ -126,31 +138,37 @@ decision, not an oversight.
 
 | Need | Decision |
 | --- | --- |
-| A finger fed by a script or a test | Step 1: `input.feed_touch(id, x, y, phase)`, beside `feed_key` and `feed_mouse`, calling the feeder the window calls |
-| A mouse driving touch code on a desktop | Step 1: `emulate_touch_from_mouse`, off by default, applied in the backend before the snapshot |
-| A finger driving mouse code | Step 1: `emulate_mouse_from_touch`, on by default. This is what makes the twenty-seven existing kinds work on a phone |
-| Knowing a widget took the finger | Step 1: `ui.wants_pointer()` |
-| Pinch | Step 2: `input.pinch()`, scale and centre, from the two oldest fingers |
-| Two-finger pan | Step 2: `input.pan()`, a delta in the same pixels as `mouse_position` |
-| Swipe | Step 2: `input.swipe()`, direction and velocity, reported on the frame the finger lifts |
-| Long press | Step 2: `input.long_press()`, position, reported once when the hold passes its threshold |
+| A finger fed by a script or a test | Have: `input.feed_touch(id, x, y, phase)`, `phase` one of `start`, `move`, `end`, `cancel`, through the feeder the window calls |
+| An action fed without a binding | Have: `input.feed_action(name, value)`, Godot's `parse_input_event`; the furthest from rest wins against the action's bindings, and an undeclared action still answers |
+| A finger driving mouse code | Have: `emulate_mouse_from_touch` in `[input]`, on by default. The first finger down drives the cursor until it lifts; a second finger is only a touch |
+| A mouse driving touch code on a desktop | Have: `emulate_touch_from_mouse`, off by default. A held left button is finger `input.EMULATED_TOUCH_ID`; a hover is not a touch. With both settings on, a finger's own button is not converted back |
+| Knowing a widget took the finger | Have: `ui.wants_pointer()` |
+| Pinch | Have: `input.pinch()` as `{ scale, x, y }`, from the two oldest fingers, against last frame |
+| Two-finger pan | Have: `input.pan()` as `{ x, y }`, the average movement of every finger down |
+| Swipe | Have: `input.swipe()` as `{ x, y, speed }` on the frame the finger lifts, past `swipe_pixels` |
+| Long press | Have: `input.long_press()` as `{ x, y }`, once per finger, past `long_press_seconds` and inside `long_press_slop` |
+| Gesture thresholds | Have: `swipe_pixels`, `long_press_seconds` and `long_press_slop` in `[input]`, read into `InputConfig` |
 | Rotate | Not planned. Nothing has asked, and two angles are a line of script |
-| A touch button | Step 3: a `touch_button` component: the `action` it feeds, a `shape` of `rect` or `circle`, and `visibility` so it hides where there is no touch screen |
-| A touch stick | Step 3: a `touch_stick` component: an action per axis, `deadzone`, and whether the knob recentres under the finger that grabbed it |
-| Binding a control to an action | Step 3: the control names the action it feeds, and feeds it through `input.feed_*`. No new binding kind: an action already bound to a key gains a second source, which is the point |
-| Scroll inertia after a finger lifts | Step 3: velocity over the drag, decayed after release, on the `scroll` kind. Godot has it and a phone feels wrong without it |
-| Keyboard height on iOS | Step 4: `keyboardWillChangeFrame` through the kiss3d fork's `balaur-hooks`, the shape `Window::safe_area` has already |
-| Keyboard height on Android | Step 4: `WindowInsets.ime` on the same hook. The Android side is `docs/PLAN-google.md`'s |
-| A layout that moves for the keyboard | Step 4: `inset` on a root reads the height, so the surface shrinks and the tree reflows |
-| Raising the keyboard for a `field` | Step 4: the kind asks on focus and lets go on blur |
-| Mouse as a touch on the web | Have: a page reports both, and step 1's emulation covers the rest |
+| A touch button | Have: the `touch_button` component: the `action` it feeds, a `shape` of `rect` or `circle`, `visibility`, and two colours. The finger that pressed it keeps it when it slides off |
+| A touch stick | Have: the `touch_stick` component: `action_x` and `action_y`, `radius`, `deadzone` rescaled so the first live reading is near zero, `recenter`, `visibility`. Y is positive away from the player, as `axis:LeftStickY` is |
+| Binding a control to an action | Have: the control names the action it feeds. No new binding kind: an action already bound to a key gains a second source |
+| Placing a control | Have: `anchor`, nine of the widget vocabulary's ten words, and an `offset` in design pixels to the control's centre, against the screen less its safe area |
+| The screen's size inside the tick | Have: `screen_size` and `ui_scale` on `DeviceFacts`, recorded beside `safe_area` |
+| A touch control drawn without a window | Have: not drawn, and still hit-tested. `balaur_render` paints both kinds on an egui layer below the widget tree, so a menu covers a stick |
+| Scroll inertia after a finger lifts | Have: the drag's speed, smoothed over two frames, carries on after a lift past 120 points a second and decays by time, so a flick throws the same distance at any frame rate |
+| Keyboard height on iOS | Have: the kiss3d fork observes `UIKeyboardWillChangeFrameNotification` and converts the end frame into the view's coordinates, as Apple asks |
+| Keyboard height on Android | Have: NativeActivity has no insets call, so the fork reads how much `content_rect` leaves uncovered and subtracts the least it has left at this window height, which is the navigation bar. `WindowInsets.ime` would want the GameActivity glue |
+| Keyboard height on the web | Have: the page's visual viewport, as before |
+| A layout that moves for the keyboard | Have: `avoid_keyboard` on a root widget measures the surface's bottom from the keyboard's top. A new key rather than `inset`, which is design pixels a scene author types |
+| Raising the keyboard for a `field` | Have, from before this plan: the backend shows the system keyboard while egui holds keyboard focus, through the fork's `set_keyboard_visible` |
+| Mouse as a touch on the web | Have: a page reports both, and the emulation covers the rest |
 | A phone's vibration | Have: `input.vibrate(milliseconds)` |
-| Placing a control | Step 3: `anchor` and an offset in design pixels, the widget vocabulary's own words, against the screen less its safe area |
-| The screen's size inside the tick | Step 3: `screen_size` and `ui_scale` on `DeviceFacts`, recorded beside `safe_area` |
-| A touch control drawn without a window | Step 3: not drawn, and still hit-tested. The component is `balaur_input`'s, the picture is `balaur_render`'s |
 | A gesture the widget layer consumes | Not planned. A gesture is read from the snapshot by whoever wants it; only pointer and keyboard are claimed |
 
 ## 4. Steps
+
+All four are built. Each ended as the plan said except where §3 notes a
+change of shape.
 
 1. **Feeding and emulation.** `input.feed_touch`; the two emulation settings
    in the backend; `ui.wants_pointer()`. Ends with: a test that drags a
@@ -173,12 +191,20 @@ decision, not an oversight.
 Everything but the platforms. Step 1's feeder makes every row above testable
 without a screen: a fed finger drives a gesture, a gesture drives an action,
 an action drives a scene, and the run records and replays byte for byte.
+`balaur_input/tests/suite/touch.rs` covers the emulation, both controls and
+the four gestures headless. `balaur/tests/suite/touch_replay.rs` steers a Rune
+script with a thumb on a stick and replays the session against every tick's
+digest, and a widget-layer test lifts a root by a set keyboard height.
+
+The fork's two keyboard readers compile for `aarch64-apple-ios` and
+`aarch64-linux-android` and have run on neither.
 
 What it cannot prove is that a real finger arrives where the backend says.
 kiss3d's touch ids, iOS's keyboard frame and Android's IME insets are each one
 platform's report, and no runner has any of them. The first person with a
 phone should check that a resting two-finger pinch reads a scale near 1.0, and
-that the keyboard height matches what the keyboard covers.
+that the keyboard height matches what the keyboard covers, on Android with
+the navigation bar both at the bottom and at the side.
 
 ## 6. Open questions
 
@@ -193,8 +219,9 @@ that the keyboard height matches what the keyboard covers.
 3. **What a swipe reports while it is still running.** A finger that has
    travelled far enough is a swipe when it lifts and a drag until then, and
    different scenes want different halves.
-4. **Whether the keyboard height belongs in `DeviceFacts`.** It sits in the
-   input snapshot today, beside the touches. The safe area sits in
-   `DeviceFacts`, and a layout reading one reads the other.
-   [PLAN-2d-games.md](PLAN-2d-games.md) calls it `render.keyboard_height()`
-   already, which is the name it would carry there.
+4. **Whether Android's navigation-bar baseline holds.** The least cover seen
+   at a window height is the bar only if the keyboard was down at least once
+   at that height. A game that raises the keyboard on its first frame and
+   never lowers it would read the keyboard as the bar, and zero as its
+   height. The GameActivity glue has `WindowInsets.ime` and would end the
+   guess.

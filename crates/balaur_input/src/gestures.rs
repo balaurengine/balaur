@@ -13,7 +13,7 @@
 use balaur_core::Engine;
 
 use crate::InputSnapshot;
-use crate::settings::InputSettings;
+use crate::settings::InputConfig;
 
 /// What the fingers are doing this frame, past the raw positions.
 ///
@@ -90,12 +90,12 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
     let Some(snapshot) = eng.try_resource::<InputSnapshot>() else {
         return;
     };
-    let (swipe_pixels, hold_seconds, hold_slop) = eng
-        .try_resource::<InputSettings>()
-        .map_or((0.0, f32::MAX, 0.0), |s| {
-            let s = s.borrow();
-            (s.swipe_pixels, s.long_press_seconds, s.long_press_slop)
-        });
+    let (swipe_pixels, hold_seconds, hold_slop) =
+        eng.try_resource::<InputConfig>()
+            .map_or((0.0, f32::MAX, 0.0), |s| {
+                let s = s.borrow();
+                (s.swipe_pixels, s.long_press_seconds, s.long_press_slop)
+            });
     let snapshot = snapshot.borrow();
     let mut g = gestures.borrow_mut();
     let previous = spread(&g.spans);
@@ -113,7 +113,7 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
         };
         let span = g.spans.remove(at);
         let (dx, dy) = (span.at.0 - span.from.0, span.at.1 - span.from.1);
-        let distance = dx.hypot(dy);
+        let distance = libm::hypotf(dx, dy);
         if distance >= swipe_pixels && span.held > 0.0 && g.swipe.is_none() {
             g.swipe = Some(Swipe {
                 direction: (dx / distance, dy / distance),
@@ -132,7 +132,7 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
                 moving += 1;
                 span.at = (*x, *y);
                 span.held += dt;
-                let wander = (span.at.0 - span.from.0).hypot(span.at.1 - span.from.1);
+                let wander = libm::hypotf(span.at.0 - span.from.0, span.at.1 - span.from.1);
                 if wander > hold_slop {
                     // Moved too far to be a hold, and too far to become one
                     // later: a drag that pauses is still a drag.
@@ -172,7 +172,7 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
 /// `None` with fewer than two down, which is what makes a pinch neutral.
 fn spread(spans: &[Span]) -> Option<(f32, (f32, f32))> {
     let (a, b) = (spans.first()?, spans.get(1)?);
-    let distance = (a.at.0 - b.at.0).hypot(a.at.1 - b.at.1);
-    let center = ((a.at.0 + b.at.0) / 2.0, (a.at.1 + b.at.1) / 2.0);
+    let distance = libm::hypotf(a.at.0 - b.at.0, a.at.1 - b.at.1);
+    let center = (f32::midpoint(a.at.0, b.at.0), f32::midpoint(a.at.1, b.at.1));
     Some((distance, center))
 }

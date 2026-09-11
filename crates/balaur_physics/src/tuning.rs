@@ -121,7 +121,10 @@ fn setting(eng: &Engine, key: &str) -> Option<toml::Value> {
 /// `[physics] threads`, which a script's own `set_threads` outranks: the
 /// manifest is what a project usually wants and the call is what this run does.
 fn read_manifest_threads(eng: &Engine) {
-    let Some(count) = setting(eng, k::THREADS).as_ref().and_then(toml::Value::as_integer) else {
+    let Some(count) = setting(eng, k::THREADS)
+        .as_ref()
+        .and_then(toml::Value::as_integer)
+    else {
         return;
     };
     if eng.resource::<SolverThreads>().borrow().asked {

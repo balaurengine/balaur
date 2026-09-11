@@ -16,9 +16,9 @@
 //!
 //! Drawing is the half that needs a window, and it is `balaur_render`'s.
 
+use balaur_core::Engine;
 use balaur_core::components::{ComponentDef, prop_bool, prop_str};
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 
 use crate::InputActions;
@@ -73,7 +73,7 @@ impl Anchor {
     /// bottom)` in physical pixels.
     fn point(self, area: [f32; 4]) -> (f32, f32) {
         let (left, top, right, bottom) = (area[0], area[1], area[2], area[3]);
-        let (mid_x, mid_y) = ((left + right) / 2.0, (top + bottom) / 2.0);
+        let (mid_x, mid_y) = (f32::midpoint(left, right), f32::midpoint(top, bottom));
         match self {
             Self::TopLeft => (left, top),
             Self::TopCenter => (mid_x, top),
@@ -197,9 +197,15 @@ impl TouchButton {
         let area = area(eng).filter(|_| self.visibility.live(has_touchscreen(eng)))?;
         let scale = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
         let center = center_of(self.anchor, self.offset, area, scale);
-        Some((center, (self.width * scale / 2.0, self.height * scale / 2.0)))
+        Some((
+            center,
+            (self.width * scale / 2.0, self.height * scale / 2.0),
+        ))
     }
 }
+
+/// A centre and a radius, in physical pixels.
+pub type Circle = ((f32, f32), f32);
 
 impl TouchStick {
     /// The base circle and the knob, in physical pixels, as two centres and
@@ -208,7 +214,7 @@ impl TouchStick {
     /// The centres come off the component rather than being recomputed: a
     /// recentring stick moved where the thumb put it, and only the hit-test
     /// knows where that was.
-    pub fn placement(&self, eng: &Engine) -> Option<(((f32, f32), f32), ((f32, f32), f32))> {
+    pub fn placement(&self, eng: &Engine) -> Option<(Circle, Circle)> {
         area(eng).filter(|_| self.visibility.live(has_touchscreen(eng)))?;
         let scale = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
         Some((
@@ -218,9 +224,10 @@ impl TouchStick {
     }
 }
 
-/// The area a control is placed inside: the screen less what a notch covers.
-/// `None` where nothing draws, which is what keeps a headless run neutral
-/// rather than placing every control at the origin.
+/// The area a control is placed inside: the game's area less what a notch
+/// covers. `None` where nothing draws or the host switched the game off,
+/// which keeps a headless run neutral rather than placing every control at
+/// the origin.
 fn area(eng: &Engine) -> Option<[f32; 4]> {
     let facts = balaur_core::facts::device(eng);
     let [width, height] = facts.screen_size;
@@ -228,7 +235,11 @@ fn area(eng: &Engine) -> Option<[f32; 4]> {
         return None;
     }
     let [left, top, right, bottom] = facts.safe_area;
-    Some([left, top, width - right, height - bottom])
+    let mut out = [left, top, width - right, height - bottom];
+    if let Some([x, y, w, h]) = facts.game_area {
+        out = [out[0].max(x), out[1].max(y), out[2].min(x + w), out[3].min(y + h)];
+    }
+    (out[2] > out[0] && out[3] > out[1]).then_some(out)
 }
 
 /// Where a control's centre lands, in physical pixels.
@@ -244,7 +255,7 @@ fn hits(shape: Shape, center: (f32, f32), half: (f32, f32), at: (f32, f32)) -> b
         Shape::Rect => dx.abs() <= half.0 && dy.abs() <= half.1,
         // The larger half, so a circle authored as a square box is the circle
         // that fills it rather than one that hides inside it.
-        Shape::Circle => dx.hypot(dy) <= half.0.max(half.1),
+        Shape::Circle => libm::hypotf(dx, dy) <= half.0.max(half.1),
     }
 }
 
@@ -271,10 +282,26 @@ pub(crate) fn tick(eng: &Engine) {
     let world = eng.world();
 
     for (_, button) in &mut world.query::<(Entity, &mut TouchButton)>() {
-        press(button, &touches, &ended, area, scale, touchscreen, &mut actions);
+        press(
+            button,
+            &touches,
+            &ended,
+            area,
+            scale,
+            touchscreen,
+            &mut actions,
+        );
     }
     for (_, stick) in &mut world.query::<(Entity, &mut TouchStick)>() {
-        push(stick, &touches, &ended, area, scale, touchscreen, &mut actions);
+        push(
+            stick,
+            &touches,
+            &ended,
+            area,
+            scale,
+            touchscreen,
+            &mut actions,
+        );
     }
 }
 
@@ -295,10 +322,7 @@ fn press(
         return;
     };
     let center = center_of(button.anchor, button.offset, area, scale);
-    let half = (
-        button.width * scale / 2.0,
-        button.height * scale / 2.0,
-    );
+    let half = (button.width * scale / 2.0, button.height * scale / 2.0);
     if button.finger.is_some_and(|id| ended.contains(&id)) {
         button.finger = None;
     }
@@ -311,7 +335,10 @@ fn press(
     {
         button.finger = Some(*id);
     }
-    if button.finger.is_some_and(|id| !touches.iter().any(|(t, _, _)| *t == id)) {
+    if button
+        .finger
+        .is_some_and(|id| !touches.iter().any(|(t, _, _)| *t == id))
+    {
         button.finger = None;
     }
     button.pressed = button.finger.is_some();
@@ -346,7 +373,7 @@ fn push(
         stick.center = [home.0, home.1];
         if let Some((id, x, y)) = touches
             .iter()
-            .find(|(_, x, y)| (x - home.0).hypot(y - home.1) <= throw)
+            .find(|(_, x, y)| libm::hypotf(x - home.0, y - home.1) <= throw)
         {
             stick.finger = Some(*id);
             // A recentring stick puts itself under the thumb that found it,
@@ -366,7 +393,7 @@ fn push(
         return;
     };
     let (dx, dy) = (x - stick.center[0], y - stick.center[1]);
-    let distance = dx.hypot(dy);
+    let distance = libm::hypotf(dx, dy);
     // Past the throw the knob stops and the reading saturates, which is what
     // a stick with a rim does.
     let clamped = distance.min(throw);
@@ -398,13 +425,16 @@ fn push(
     }
 }
 
-/// Whether this platform has a touch screen at all.
+/// Whether a finger can reach this screen: the platform says so, or the
+/// project made the mouse a finger.
 ///
 /// The platform rather than a finger already seen: a control that appeared
 /// only after the first touch could never be found by the first touch.
 fn has_touchscreen(eng: &Engine) -> bool {
-    let facts = balaur_core::facts::platform(eng);
-    facts.mobile || facts.web
+    balaur_core::facts::platform(eng).touchscreen
+        || eng
+            .try_resource::<crate::InputConfig>()
+            .is_some_and(|config| config.borrow().emulate_touch_from_mouse)
 }
 
 /// The four channels a `color` property holds, or `fallback` where a scene

@@ -51,6 +51,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ACTIVE, r#"{ type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
                     (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line", group = "type" }"#),
+                    (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
+                    (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
+                    (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
                     (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::SOURCE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights" }"#),
                     (k::MARKUP, r#"{ type = "bool", default = false, description = "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text", group = "type" }"#),
@@ -75,6 +78,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list", group = "layout" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state", group = "events" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels", group = "placement" }"#),
+                    (k::AVOID_KEYBOARD, r#"{ type = "bool", default = false, description = "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop", group = "placement" }"#),
                     (k::SLICE, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture", group = "paint" }"#),
                     (k::DEADZONE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once", group = "value" }"#),
                     (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled", group = "paint" }"#),
@@ -191,6 +195,12 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::String(widget.layer.to_string()),
     );
     map.insert(k::WRAP.into(), toml::Value::Boolean(widget.wrap));
+    map.insert(k::KEEP_OPEN.into(), toml::Value::Boolean(widget.keep_open));
+    map.insert(
+        k::TRAILING.into(),
+        toml::Value::String(widget.trailing.to_string()),
+    );
+    map.insert(k::SHOWING.into(), toml::Value::Boolean(widget.showing));
     text_to_toml(widget, &mut map);
     look_to_toml(widget, &mut map);
     controls_to_toml(widget, &mut map);
@@ -297,6 +307,10 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
     );
     map.insert(k::OPEN.into(), toml::Value::Boolean(widget.open));
     map.insert(k::INSET.into(), four(widget.inset));
+    map.insert(
+        k::AVOID_KEYBOARD.into(),
+        toml::Value::Boolean(widget.avoid_keyboard),
+    );
     map.insert(k::SLICE.into(), four(widget.slice));
     map.insert(
         k::DEADZONE.into(),
@@ -444,6 +458,9 @@ fn widget_from(params: &toml::Value) -> Widget {
         active: s(k::ACTIVE),
         layer: s(k::LAYER),
         wrap: r.flag(k::WRAP),
+        keep_open: r.flag(k::KEEP_OPEN),
+        trailing: s(k::TRAILING),
+        showing: r.flag(k::SHOWING),
         text_align: s(k::TEXT_ALIGN),
         source: s(k::SOURCE),
         markup: r.flag(k::MARKUP),
@@ -473,6 +490,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         columns: 2,
         open: true,
         inset: [0.0; 4],
+        avoid_keyboard: false,
         slice: [0.0; 4],
         deadzone: 0.0,
     };
@@ -506,6 +524,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);
     widget.inset = crate::widget_theme::four_of(params.get(k::INSET));
+    widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
     widget.slice = crate::widget_theme::four_of(params.get(k::SLICE));
     widget.deadzone = f(k::DEADZONE);
 }

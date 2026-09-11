@@ -36,6 +36,7 @@ mod widget_layer;
 mod widget_layout;
 mod widget_measure;
 mod widget_schema;
+mod widget_scroll;
 mod widget_taffy;
 mod widget_text;
 mod widget_theme;

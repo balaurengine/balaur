@@ -281,7 +281,7 @@ pub fn unknown(eng: &Engine, text: &str) -> Vec<String> {
     };
     let declared: Vec<String> = registry.borrow().0.iter().map(|d| d.path.clone()).collect();
     let mut found = Vec::new();
-    walk(&doc, String::new(), &mut |path: &str| {
+    walk(&doc, "", &mut |path: &str| {
         let named = without_tag(path);
         if declared.iter().any(|d| d == named) {
             return;
@@ -307,7 +307,7 @@ fn without_tag(path: &str) -> &str {
 }
 
 /// Every leaf key in a document, as the path it is stored at.
-fn walk(table: &toml::value::Table, prefix: String, found: &mut impl FnMut(&str)) {
+fn walk(table: &toml::value::Table, prefix: &str, found: &mut impl FnMut(&str)) {
     for (key, value) in table {
         let path = if prefix.is_empty() {
             key.clone()
@@ -315,7 +315,7 @@ fn walk(table: &toml::value::Table, prefix: String, found: &mut impl FnMut(&str)
             format!("{prefix}/{key}")
         };
         match value {
-            toml::Value::Table(inner) => walk(inner, path, found),
+            toml::Value::Table(inner) => walk(inner, &path, found),
             _ => found(&path),
         }
     }
@@ -336,7 +336,7 @@ pub fn resolve(text: &str, tags: &Tags) -> Result<toml::value::Table> {
     let Some(toml::Value::Table(overrides)) = doc.remove(OVERRIDE) else {
         return Ok(doc);
     };
-    for tag in tags.0.iter() {
+    for tag in &tags.0 {
         if let Some(toml::Value::Table(layer)) = overrides.get(tag.as_str()) {
             merge(&mut doc, layer.clone());
         }
@@ -377,19 +377,19 @@ pub fn clear(eng: &Engine, path: &str) {
 /// The text one scope's settings would write, starting from `existing` so
 /// anything no setting describes survives.
 ///
-/// Only the paths that scope defines are touched, which is what lets a
-/// manifest keep its comments, its ordering and its unrelated tables.
+/// Edits the document rather than rebuilding it, so a manifest keeps its
+/// comments, its key order and its unrelated tables. Only a value something
+/// set is written: a key the project never named stays absent rather than
+/// arriving as its default, which would turn "the engine decides" into a
+/// number nobody chose.
 ///
 /// # Errors
-/// When `existing` is not valid TOML, or the result cannot be written.
+/// When `existing` is not valid TOML.
 pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
-    let mut doc: toml::value::Table = if existing.trim().is_empty() {
-        toml::value::Table::new()
-    } else {
-        toml::from_str(existing).context("parsing the file being written")?
-    };
+    let mut doc: toml_edit::DocumentMut =
+        existing.parse().context("parsing the file being written")?;
     let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
-        return toml::to_string_pretty(&doc).context("writing settings");
+        return Ok(doc.to_string());
     };
     let paths: Vec<String> = registry
         .borrow()
@@ -399,10 +399,8 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .map(|d| d.path.clone())
         .collect();
     for path in paths {
-        if let Some(value) = base(eng, &path)
-            && let Some((tables, key)) = split(&path)
-        {
-            table_at(&mut doc, &tables).insert(key.to_string(), value);
+        if let Some(value) = stored(eng, &path) {
+            write_at(&mut doc, &path, &value);
         }
         // An override is a key the project either holds or does not, so a
         // cleared one is removed rather than written back as it was.
@@ -411,27 +409,61 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         }
         for tag in crate::tags::ALL {
             let at = format!("{OVERRIDE}/{tag}/{path}");
-            let Some((tables, key)) = split(&at) else {
-                continue;
-            };
             match stored(eng, &at) {
-                Some(value) => {
-                    table_at(&mut doc, &tables).insert(key.to_string(), value);
-                }
-                None => remove_at(&mut doc, &tables, key),
+                Some(value) => write_at(&mut doc, &at, &value),
+                None => remove_at(&mut doc, &at),
             }
         }
     }
     prune_overrides(&mut doc);
-    toml::to_string_pretty(&doc).context("writing settings")
+    Ok(doc.to_string())
 }
 
-/// Remove one key without making the tables on the way to it: `table_at`
-/// would write an empty `[override.android.window]` to delete from.
-fn remove_at(root: &mut toml::value::Table, tables: &[&str], key: &str) {
-    let mut at = root;
+/// Put one value at its path, making the tables on the way. A value that has
+/// not changed is left as written, so a save touches only what moved.
+fn write_at(doc: &mut toml_edit::DocumentMut, path: &str, value: &toml::Value) {
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut at: &mut dyn toml_edit::TableLike = doc.as_table_mut();
     for table in tables {
-        let Some(next) = at.get_mut(*table).and_then(toml::Value::as_table_mut) else {
+        let entry = at.entry(table).or_insert_with(|| {
+            let mut made = toml_edit::Table::new();
+            // Only the table holding the key gets a header of its own.
+            made.set_implicit(true);
+            toml_edit::Item::Table(made)
+        });
+        if entry.as_table_like().is_none() {
+            *entry = toml_edit::Item::Table(toml_edit::Table::new());
+        }
+        at = entry.as_table_like_mut().expect("made a table above");
+    }
+    let item = crate::file_api::as_item(value);
+    // Compared without decor: `name = "g" # shown in the title` is the same
+    // value as `"g"`, and rewriting it would take the comment with it.
+    let bare = |v: &toml_edit::Value| {
+        let mut v = v.clone();
+        v.decor_mut().clear();
+        v.to_string()
+    };
+    let same = at
+        .get(key)
+        .and_then(toml_edit::Item::as_value)
+        .zip(item.as_value())
+        .is_some_and(|(held, new)| bare(held) == bare(new));
+    if !same {
+        at.insert(key, item);
+    }
+}
+
+/// Remove one key without making the tables on the way to it.
+fn remove_at(doc: &mut toml_edit::DocumentMut, path: &str) {
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut at: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    for table in tables {
+        let Some(next) = at.get_mut(table).and_then(toml_edit::Item::as_table_like_mut) else {
             return;
         };
         at = next;
@@ -441,8 +473,11 @@ fn remove_at(root: &mut toml::value::Table, tables: &[&str], key: &str) {
 
 /// Drop the tables a removed override left behind. Only under `override`: an
 /// empty `[plugins]` elsewhere is a project saying something.
-fn prune_overrides(doc: &mut toml::value::Table) {
-    let Some(toml::Value::Table(overrides)) = doc.get_mut(OVERRIDE) else {
+fn prune_overrides(doc: &mut toml_edit::DocumentMut) {
+    let Some(overrides) = doc
+        .get_mut(OVERRIDE)
+        .and_then(toml_edit::Item::as_table_like_mut)
+    else {
         return;
     };
     prune_empty(overrides);
@@ -451,14 +486,17 @@ fn prune_overrides(doc: &mut toml::value::Table) {
     }
 }
 
-fn prune_empty(table: &mut toml::value::Table) {
-    table.retain(|_, value| {
-        if let toml::Value::Table(inner) = value {
-            prune_empty(inner);
-            return !inner.is_empty();
+fn prune_empty(table: &mut dyn toml_edit::TableLike) {
+    let keys: Vec<String> = table.iter().map(|(k, _)| k.to_string()).collect();
+    for key in keys {
+        let Some(inner) = table.get_mut(&key).and_then(toml_edit::Item::as_table_like_mut) else {
+            continue;
+        };
+        prune_empty(inner);
+        if inner.is_empty() {
+            table.remove(&key);
         }
-        true
-    });
+    }
 }
 
 /// Core's own settings. Plugins define theirs from their own `build`.
@@ -480,33 +518,7 @@ splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order =
 "#,
         ),
     );
-    define_group(
-        eng,
-        "window",
-        Scope::Project,
-        &parse(
-            "settings.window",
-            r#"
-width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
-height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
-fullscreen = { type = "bool", default = false, order = 3, applies = "restart", help = "Open filling the screen. A script toggles the same state later, so starting fullscreen and switching into it take one path." }
-orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
-vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
-msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
-"#,
-        ),
-    );
-    define_group(
-        eng,
-        "ui",
-        Scope::Project,
-        &parse(
-            "settings.ui",
-            r#"
-system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
-"#,
-        ),
-    );
+    build_window_settings(eng, &parse);
     define_group(
         eng,
         "save",
@@ -588,6 +600,38 @@ compact = { type = "bool", default = false, order = 3, help = "Drop labels the i
             r#"
 keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
 verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
+"#,
+        ),
+    );
+}
+
+/// `[window]` and `[ui]`: what a windowed build opens and draws with, which
+/// is the table a platform most often answers differently.
+fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+    define_group(
+        eng,
+        "window",
+        Scope::Project,
+        &parse(
+            "settings.window",
+            r#"
+width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
+height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
+fullscreen = { type = "bool", default = false, order = 3, applies = "restart", help = "Open filling the screen. A script toggles the same state later, so starting fullscreen and switching into it take one path." }
+orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
+vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
+msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "ui",
+        Scope::Project,
+        &parse(
+            "settings.ui",
+            r#"
+system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
 "#,
         ),
     );

@@ -30,7 +30,7 @@ mod sensors;
 pub use actions::InputActions;
 pub use gamepad::{GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadTouch};
 pub use gestures::Gestures;
-pub use settings::InputSettings;
+pub use settings::InputConfig;
 pub use touch_controls::{TouchButton, TouchStick};
 
 const MOUSE_BUTTONS: usize = 8;
@@ -383,7 +383,7 @@ impl balaur_plugin::Plugin for InputPlugin {
         reg.insert_resource(InputSnapshot::default());
         reg.insert_resource(GamepadState::default());
         reg.insert_resource(InputActions::default());
-        reg.insert_resource(InputSettings::default());
+        reg.insert_resource(InputConfig::default());
         reg.insert_resource(Gestures::default());
         touch_controls::register_touch_button(reg);
         touch_controls::register_touch_stick(reg);
@@ -408,11 +408,8 @@ impl balaur_plugin::Plugin for InputPlugin {
             }
             eng.resource::<GamepadState>().borrow_mut().poll();
         });
-        // The three below run in this order and all of them before the
-        // actions, because each is a source the action layer folds in.
-        //
-        // After the poll and after a replay restored the recording's
-        // snapshot, so every one of them reads exactly what was recorded.
+        // Emulation, gestures and controls, in that order, after the restore
+        // and before the actions they feed.
         reg.add_system(Stage::First, |eng, dt| {
             settings::ensure_loaded(eng);
             // Before every reader below, and never on playback: the recording
@@ -811,6 +808,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame."),
         ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it."),
+        ("declare_config", &[], "(table: any)", "Take the settings a project's `[input]` table would give, from a table: the two emulation switches and the gesture thresholds. For a host running a project other than its own, such as the editor; a key left out keeps its default."),
         ("feed_touch", &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
     m.function("feed_key", |eng: &Engine, (key, down): (String, bool)| {
@@ -835,6 +833,9 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+    m.function("declare_config", |eng: &Engine, table: Value| {
+        settings::declare(eng, balaur_core::node_api::to_toml(&table)?)
+    });
     m.function(
         "feed_touch",
         |eng: &Engine, (id, x, y, phase): (i64, f32, f32, String)| {
@@ -843,13 +844,16 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
                 "move" => TouchPhase::Move,
                 "end" => TouchPhase::End,
                 "cancel" => TouchPhase::Cancel,
-                other => anyhow::bail!(
-                    "'{other}' is not a touch phase: start, move, end or cancel"
-                ),
+                other => {
+                    anyhow::bail!("'{other}' is not a touch phase: start, move, end or cancel")
+                }
             };
-            eng.resource::<InputSnapshot>()
-                .borrow_mut()
-                .touch_event(id.cast_unsigned(), x, y, phase);
+            eng.resource::<InputSnapshot>().borrow_mut().touch_event(
+                id.cast_unsigned(),
+                x,
+                y,
+                phase,
+            );
             Ok(())
         },
     );

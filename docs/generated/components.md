@@ -575,6 +575,50 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 </tbody>
 </table>
 
+### `touch_button`
+
+`2d` · `ui` · 9 properties
+
+An on-screen button that presses an `action` while a finger is on it, so a game bound to a key on a desktop needs no second code path on a phone. Placed against the screen less its safe area, not in the scene's world.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>string</td><td>—</td><td>The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding</td></tr>
+<tr><td><code>anchor</code></td><td>enum</td><td><code>bottom_right</code></td><td>Screen corner or edge the offset is measured from, inside the safe area One of <code>top_left</code>, <code>center_top</code>, <code>top_right</code>, <code>center_left</code>, <code>center</code>, <code>center_right</code>, <code>bottom_left</code>, <code>center_bottom</code>, <code>bottom_right</code>.</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.25]</code></td><td>Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>120.0</code></td><td>Touch area height in design pixels At least 0.0.</td></tr>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[-110.0, -110.0]</code></td><td>From the anchor to the button&#x27;s centre, in design pixels, x right and y down</td></tr>
+<tr><td><code>pressed_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.5]</code></td><td>Fill while a finger is on it</td></tr>
+<tr><td><code>shape</code></td><td>enum</td><td><code>circle</code></td><td>The touch area&#x27;s outline; a circle uses the larger half of the box One of <code>rect</code>, <code>circle</code>.</td></tr>
+<tr><td><code>visibility</code></td><td>enum</td><td><code>touchscreen</code></td><td>`touchscreen` hides it and stops it taking fingers where the platform has no touch screen One of <code>always</code>, <code>touchscreen</code>.</td></tr>
+<tr><td><code>width</code></td><td>float</td><td><code>120.0</code></td><td>Touch area width in design pixels At least 0.0.</td></tr>
+</tbody>
+</table>
+
+### `touch_stick`
+
+`2d` · `ui` · 11 properties
+
+An on-screen stick that pushes one action per axis while a thumb drags it, reading -1..1 with y positive away from the player, the way a gamepad's stick does. Placed against the screen less its safe area.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>action_x</code></td><td>string</td><td>—</td><td>The action the stick&#x27;s left and right feed, -1 at the left of its throw</td></tr>
+<tr><td><code>action_y</code></td><td>string</td><td>—</td><td>The action the stick&#x27;s up and down feed, 1 pushed away from the player</td></tr>
+<tr><td><code>anchor</code></td><td>enum</td><td><code>bottom_left</code></td><td>Screen corner or edge the offset is measured from, inside the safe area One of <code>top_left</code>, <code>center_top</code>, <code>top_right</code>, <code>center_left</code>, <code>center</code>, <code>center_right</code>, <code>bottom_left</code>, <code>center_bottom</code>, <code>bottom_right</code>.</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.18]</code></td><td>The base circle&#x27;s fill, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>deadzone</code></td><td>float</td><td><code>0.15</code></td><td>Fraction of the throw that reads zero, so a resting thumb does not drift; the rest is rescaled so the first live reading is near zero Range 0.0–0.95.</td></tr>
+<tr><td><code>knob_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.45]</code></td><td>The knob&#x27;s fill</td></tr>
+<tr><td><code>knob_radius</code></td><td>float</td><td><code>38.0</code></td><td>The knob&#x27;s own radius in design pixels; drawing only At least 1.0.</td></tr>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[130.0, -130.0]</code></td><td>From the anchor to the stick&#x27;s centre, in design pixels, x right and y down</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>90.0</code></td><td>The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in At least 1.0.</td></tr>
+<tr><td><code>recenter</code></td><td>bool</td><td><code>false</code></td><td>Move the stick&#x27;s centre to the thumb that grabbed it, so an off-centre grab does not jerk</td></tr>
+<tr><td><code>visibility</code></td><td>enum</td><td><code>touchscreen</code></td><td>`touchscreen` hides it and stops it taking fingers where the platform has no touch screen One of <code>always</code>, <code>touchscreen</code>.</td></tr>
+</tbody>
+</table>
+
 ### `transform`
 
 `2d` · `3d` · 3 properties
@@ -1314,7 +1358,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 62 properties
+`ui` · 66 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1324,6 +1368,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>active</code></td><td>string</td><td>—</td><td>Which child a `tab` shows, by node name; empty shows the first</td></tr>
 <tr><td><code>align</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>.</td></tr>
+<tr><td><code>avoid_keyboard</code></td><td>bool</td><td><code>false</code></td><td>On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked; every click flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
@@ -1334,7 +1379,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>font</code></td><td>enum</td><td><code>ui</code></td><td>Which of the theme&#x27;s families the widget draws in One of <code>ui</code>, <code>mono</code>, <code>heading</code>, <code>icon</code>.</td></tr>
-<tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
+<tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
 <tr><td><code>gap</code></td><td>float</td><td><code>8.0</code></td><td>Space between a container&#x27;s children, in design pixels At least 0.0.</td></tr>
@@ -1345,6 +1390,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
 <tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes One of <code>start</code>, <code>center</code>, <code>end</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tab</code>, <code>draw</code>, <code>image</code>, <code>field</code>, <code>text_area</code>, <code>check</code>, <code>color</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>drag_value</code>, <code>progress</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>separator</code>, <code>code</code>.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
@@ -1367,6 +1413,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
+<tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>
 <tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
@@ -1377,6 +1424,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why</td></tr>
+<tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>

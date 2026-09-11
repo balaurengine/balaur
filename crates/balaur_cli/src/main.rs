@@ -453,16 +453,21 @@ fn dispatch(command: Command) -> Result<()> {
 /// `balaur play`: an exported pack, windowed, or headless for a frame budget.
 fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
+    let mut config = AppConfig::packed(Pack::decode(&bytes)?);
+    // Beside the pack: this executable is the CLI, not the game.
+    config.extensions = Some(pack.with_file_name(balaur::standalone::EXTENSIONS_DIR));
+    let mut app = balaur::standard_app(config)?;
+    app.load_project()?;
     if let Some(frames) = frames {
-        let pack = Pack::decode(&bytes)?;
-        let mut app = balaur::standard_app(AppConfig::packed(pack))?;
-        app.load_project()?;
         for _ in 0..frames {
             app.tick(balaur::FIXED_DT);
         }
         return Ok(());
     }
-    balaur::boot_pack(&bytes)
+    let title = app
+        .manifest()
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+    balaur::run(app, &title)
 }
 
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.

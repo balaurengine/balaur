@@ -74,7 +74,11 @@ impl Default for Held {
 
 /// Whether taffy lays this kind's children out, or the kind does it itself.
 fn owns_children(kind: &str) -> bool {
-    lays_out(kind) && !matches!(kind, w::TAB | w::SCROLL | w::GRID | w::FLOW | w::FOLD)
+    lays_out(kind)
+        && !matches!(
+            kind,
+            w::TAB | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU
+        )
 }
 
 /// Which axis a container stacks along, from its kind.

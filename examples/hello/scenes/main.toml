@@ -275,3 +275,29 @@ kind = "button"
 text_key = "menu.reverse"
 font_size = 13
 on_click = "on_reverse"
+
+# On-screen controls for a phone. They feed the same actions the keys do, so
+# the spinner's script never learns a finger moved it.
+[[nodes]]
+id = "n_stick"
+name = "Stick"
+parent = ""
+
+[nodes.touch_stick]
+action_x = "spin"
+anchor = "center_bottom"
+offset = [0.0, -110.0]
+radius = 70.0
+knob_radius = 30.0
+
+[[nodes]]
+id = "n_flip"
+name = "Flip"
+parent = ""
+
+[nodes.touch_button]
+action = "reverse"
+anchor = "bottom_right"
+offset = [-80.0, -80.0]
+width = 90.0
+height = 90.0

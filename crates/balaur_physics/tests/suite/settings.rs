@@ -31,8 +31,7 @@ fn length_unit_for(tags: Tags) -> f32 {
     app.engine.insert_resource(tags);
     app.tick(balaur_core::FIXED_DT);
     let state = app.engine.resource::<PhysicsState>();
-    let unit = state.borrow().world.integration_parameters.length_unit;
-    f32::from(unit)
+    state.borrow().world.integration_parameters.length_unit
 }
 
 #[test]

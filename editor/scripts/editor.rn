@@ -500,6 +500,7 @@ pub fn draw_ui(this) {
     layout::compute(S);
     // After the layout: the strip drops columns as the dock narrows, so it
     // cannot be filled until the dock's width is known.
+    chrome::top_bar(S);
     chrome::status_bar(S, S.theme, S.layout.bottom.w);
     docks::right_foot(S);
     center::draw(S);
@@ -511,9 +512,6 @@ pub fn draw_ui(this) {
     }
     if S.fontdemo {
         selftest::font_sheet(S);
-    }
-    if S.menu_open {
-        menu::preview(S);
     }
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
@@ -598,10 +596,6 @@ pub fn draw_form_row(this) {
 
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
-}
-
-pub fn draw_top_bar(this) {
-    chrome::top_bar(this.S);
 }
 
 pub fn hot_reload(this) {

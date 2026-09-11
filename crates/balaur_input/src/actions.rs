@@ -303,18 +303,15 @@ pub(crate) fn tick(eng: &Engine) {
         .collect();
     let mut next: Vec<(String, f32)> = Vec::with_capacity(names.len());
     for name in names {
-        let bound_value = bound
-            .get(name)
-            .map(|bindings| {
-                bindings
-                    .iter()
-                    .map(|b| b.value(&keys, &pads))
-                    .fold(
-                        0.0_f32,
-                        |best, v| if v.abs() > best.abs() { v } else { best },
-                    )
-            })
-            .unwrap_or(0.0);
+        let bound_value = bound.get(name).map_or(0.0, |bindings| {
+            bindings
+                .iter()
+                .map(|b| b.value(&keys, &pads))
+                .fold(
+                    0.0_f32,
+                    |best, v| if v.abs() > best.abs() { v } else { best },
+                )
+        });
         let value = match fed.get(name) {
             Some(v) if v.abs() > bound_value.abs() => *v,
             _ => bound_value,
@@ -529,12 +526,15 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
     // Godot's `parse_input_event` with an `InputEventAction`, and the seam a
     // `touch_button` goes through: an action gains a source without gaining a
     // binding, so a project that never mentioned touch still answers.
-    m.function("feed_action", |eng: &Engine, (name, value): (String, f32)| {
-        eng.resource::<InputActions>()
-            .borrow_mut()
-            .feed(&name, value.clamp(-1.0, 1.0));
-        Ok(())
-    });
+    m.function(
+        "feed_action",
+        |eng: &Engine, (name, value): (String, f32)| {
+            eng.resource::<InputActions>()
+                .borrow_mut()
+                .feed(&name, value.clamp(-1.0, 1.0));
+            Ok(())
+        },
+    );
     // Every declared action, so a rebinding screen can list them.
     m.function("actions", |eng: &Engine, ()| {
         let names = eng.resource::<InputActions>().borrow().names();

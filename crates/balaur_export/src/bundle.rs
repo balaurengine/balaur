@@ -213,7 +213,8 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
 
 /// A macOS game as a signable `.app`: the template binary untouched, the
 /// pack a resource beside it (`standalone::own_pack` looks there inside a
-/// bundle), and `codesign` run over the result.
+/// bundle), the extensions in `Contents/PlugIns`, and `codesign` run over
+/// the result.
 pub(crate) fn export_macos_app(
     template: &Path,
     pack: &[u8],
@@ -221,6 +222,7 @@ pub(crate) fn export_macos_app(
     output: Option<PathBuf>,
     sign: Option<&str>,
     apple: &AppleConfig,
+    project: &Path,
 ) -> Result<PathBuf> {
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
@@ -239,7 +241,10 @@ pub(crate) fn export_macos_app(
     std::fs::create_dir_all(&resources)?;
     let bytes = std::fs::read(template)
         .with_context(|| format!("reading template {}", template.display()))?;
-    balaur::standalone::write_executable(&macos_dir.join(name), &bytes, template)?;
+    let executable = macos_dir.join(name);
+    balaur::standalone::write_executable(&executable, &bytes, template)?;
+    // Before codesign, which signs nested code first and seals it into the bundle.
+    crate::extensions::ship_for(project, &bytes, &executable)?;
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
     std::fs::write(
         app.join("Contents").join("Info.plist"),

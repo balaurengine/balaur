@@ -27,23 +27,22 @@ impl Probe {
         let refresh_rate = self.refresh_rate();
         let dark_mode = dark_mode();
         let safe_area = safe_area(window);
-        let keyboard = keyboard_height();
+        let keyboard = keyboard_height(window);
         let screen_size = [window.width() as f32, window.height() as f32];
-        // The UI scale is a script's to set and this crate's to publish:
-        // anything placed in design pixels multiplies by it, and a touch
-        // control is placed in the tick, where the config resource is the
-        // only way to reach it.
+        // Published so a touch control, placed in the tick, can reach it.
         let ui_scale = app
             .engine
             .try_resource::<balaur_ui::UiConfig>()
             .map_or(1.0, |config| config.borrow().scale)
             .max(f32::EPSILON);
+        let game_area = game_area(app, ui_scale);
         balaur_core::facts::update_device(&app.engine, |facts| {
             facts.dark_mode = dark_mode;
             facts.safe_area = safe_area;
             facts.screen_size = screen_size;
             facts.ui_scale = ui_scale;
             facts.keyboard_height = keyboard;
+            facts.game_area = game_area;
             if let Some(rate) = refresh_rate {
                 facts.refresh_rate = rate;
             }
@@ -64,6 +63,18 @@ impl Probe {
         }
         Some((10.0 / median).round() / 10.0)
     }
+}
+
+/// The widget layer's default surface in physical pixels, so touch controls
+/// sit where the game's widgets do: the viewport in the editor, and nowhere
+/// while the host has the game's surface off.
+fn game_area(app: &App, scale: f32) -> Option<[f32; 4]> {
+    let layer = app.engine.try_resource::<balaur_ui::WidgetLayerConfig>()?;
+    let layer = layer.borrow();
+    if !layer.enabled {
+        return Some([0.0; 4]);
+    }
+    layer.rect.map(|rect| rect.map(|v| v * scale))
 }
 
 /// The window came to the front or went behind.
@@ -105,9 +116,10 @@ fn dark_mode() -> bool {
 }
 
 /// What the on-screen keyboard covers: the part of the window the visual
-/// viewport no longer reaches. Only a page can say; nothing else reports it.
+/// viewport no longer reaches. A window asks kiss3d, which asks UIKit or the
+/// Android activity and answers zero on a desktop.
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn keyboard_height() -> f32 {
+fn keyboard_height(_window: &kiss3d::window::Window) -> f32 {
     let Some(window) = web_sys::window() else {
         return 0.0;
     };
@@ -125,8 +137,8 @@ fn keyboard_height() -> f32 {
 }
 
 #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
-fn keyboard_height() -> f32 {
-    0.0
+fn keyboard_height(window: &kiss3d::window::Window) -> f32 {
+    window.keyboard_height()
 }
 
 /// The page reads its insets off the shell's CSS; a window asks kiss3d.

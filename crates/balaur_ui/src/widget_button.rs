@@ -10,12 +10,16 @@ use crate::vocabulary::words as w;
 use crate::widget_layer::{Painting, Widget};
 use crate::widget_theme::Style;
 
-/// What a button paints inside itself: the icon glyph, the caption, and the
-/// box the two of them need.
+/// What a button paints inside itself: a picture, the icon glyph, the
+/// caption, the trailing text, and the box they need between them.
 struct Face {
+    picture: Option<(egui::TextureId, egui::Vec2)>,
+    /// Around the picture when the role puts it on a disc.
+    plate: f32,
     icon: Option<std::sync::Arc<egui::Galley>>,
     shaped: Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)>,
     plain: Option<std::sync::Arc<egui::Galley>>,
+    trailing: Option<std::sync::Arc<egui::Galley>>,
     size: egui::Vec2,
     gap: f32,
 }
@@ -27,8 +31,34 @@ fn face_of(
     index: usize,
     caption: &str,
     font: &egui::FontId,
+    style: &Style,
 ) -> Face {
     let widget = &at.arena[index].widget;
+    // As tall as the caption's type, keeping the picture's own aspect.
+    let picture = (!widget.source.is_empty())
+        .then(|| crate::images::texture_of(at.eng, ui.ctx(), &widget.source).ok())
+        .flatten()
+        .map(|texture| {
+            let native = texture.size_vec2();
+            let aspect = if native.y > 0.0 {
+                native.x / native.y
+            } else {
+                1.0
+            };
+            (texture.id(), vec2(font.size * aspect, font.size))
+        });
+    let plate = if picture.is_some() && style.plate.is_some() {
+        2.0 * at.scale
+    } else {
+        0.0
+    };
+    let trailing = (!widget.trailing.is_empty()).then(|| {
+        ui.painter().layout_no_wrap(
+            widget.trailing.to_string(),
+            font.clone(),
+            Color32::PLACEHOLDER,
+        )
+    });
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(font.size, family(w::ICON));
         ui.painter()
@@ -44,24 +74,74 @@ fn face_of(
         |(shaped, _)| shaped.size,
     );
     let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
-    let gap = if mark.x > 0.0 && text.x > 0.0 {
-        font.size * 0.5
-    } else {
-        0.0
-    };
-    let size = vec2(mark.x + gap + text.x, mark.y.max(text.y));
+    let pic = picture.map_or(egui::Vec2::ZERO, |(_, s)| {
+        s + egui::Vec2::splat(plate * 2.0)
+    });
+    let tail = trailing.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let gap = font.size * 0.5;
+    // One gap between each pair of parts that are there, and a wider one
+    // before the trailing text, which belongs to the far edge.
+    let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
+    let between = gap * parts.saturating_sub(1) as f32;
+    let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
+    let size = vec2(
+        pic.x + mark.x + text.x + between + tail_gap + tail.x,
+        pic.y.max(mark.y).max(text.y).max(tail.y),
+    );
     Face {
+        picture,
+        plate,
         icon,
         shaped,
         plain,
+        trailing,
         size,
         gap,
     }
 }
 
-/// The icon and the caption, centred together in the rect the button took.
-fn paint_face(ui: &egui::Ui, at: &Painting<'_>, face: &Face, rect: egui::Rect, ink: Color32) {
-    let mut at_x = rect.center().x - face.size.x / 2.0;
+/// The face in the rect the button took: centred, or from the left edge for a
+/// role that says `align = "left"`, with the trailing text on the far edge.
+fn paint_face(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    face: &Face,
+    rect: egui::Rect,
+    ink: Color32,
+    style: &Style,
+    pad_x: f32,
+) {
+    let left = style.align.as_deref() == Some(w::LEFT);
+    let mut at_x = if left {
+        rect.min.x + pad_x
+    } else {
+        rect.center().x - face.size.x / 2.0
+    };
+    if let Some(trailing) = &face.trailing {
+        let x = if left {
+            rect.max.x - pad_x - trailing.size().x
+        } else {
+            at_x + face.size.x - trailing.size().x
+        };
+        let y = rect.center().y - trailing.size().y / 2.0;
+        ui.painter().galley(
+            pos2(x, y),
+            std::sync::Arc::clone(trailing),
+            ink.gamma_multiply(0.55),
+        );
+    }
+    if let Some((texture, size)) = face.picture {
+        let disc = egui::Rect::from_min_size(
+            pos2(at_x, rect.center().y - size.y / 2.0 - face.plate),
+            size + egui::Vec2::splat(face.plate * 2.0),
+        );
+        if let Some(plate) = style.plate {
+            ui.painter().rect_filled(disc, disc.height() / 2.0, plate);
+        }
+        let inner = egui::Rect::from_center_size(disc.center(), size);
+        egui::Image::new((texture, size)).paint_at(ui, inner);
+        at_x = disc.max.x + face.gap;
+    }
     if let Some(icon) = &face.icon {
         let y = rect.center().y - icon.size().y / 2.0;
         ui.painter()
@@ -108,7 +188,7 @@ pub(crate) fn button(
     caption: &str,
     font: &egui::FontId,
     color: egui::Color32,
-) {
+) -> egui::Response {
     let (entity, widget) = {
         let placed = &at.arena[index];
         (placed.entity, placed.widget.clone())
@@ -117,7 +197,7 @@ pub(crate) fn button(
     // reads the state off its own response rather than off that box.
     let base = at.resting(index).style.clone();
     let (scale, focused) = (at.scale, at.focused);
-    let face = face_of(ui, at, index, caption, font);
+    let face = face_of(ui, at, index, caption, font, &base);
     let pad_x = base
         .padding_x
         .map_or(ui.spacing().button_padding.x, |p| p * scale);
@@ -174,7 +254,7 @@ pub(crate) fn button(
     } else {
         style.text_color.unwrap_or(color)
     };
-    paint_face(ui, at, &face, response.rect, ink);
+    paint_face(ui, at, &face, response.rect, ink, &style, pad_x);
     if response.clicked() {
         at.clicked.push(entity);
     }
@@ -188,4 +268,5 @@ pub(crate) fn button(
             egui::StrokeKind::Outside,
         );
     }
+    response
 }

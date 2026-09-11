@@ -7,7 +7,6 @@ use crate::history;
 use crate::icons;
 use crate::model;
 use crate::shell;
-use crate::style;
 use crate::theme;
 use crate::util;
 
@@ -137,29 +136,22 @@ fn strip_spot(S, slot) {
 
 // The strip beside the brand, which every control past it lives on.
 const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadStrip";
+const BRAND_NODE = "Editor/Shell/Head/HeadRow/Brand";
 const STATUS_NODE = "Editor/Shell/Body/Centre/Bottom/Status";
 
-/// The brand, drawn into the rect its node hands over: a picture and a name
-/// under one menu, which is the one control here a node cannot yet be.
+/// The brand: the project's mark and name on the menu node the scene lays
+/// out, and the menu's rows under it. Filled once a pass, like the strip.
 pub fn top_bar(S) {
     let k = S.theme;
-    let h = row_h(S);
     let mark = brand(S);
-    // The menu hangs off the whole brand, mark and name and caret alike: the
-    // name beside a picture reads as part of the same control.
-    ui::frame(#{
-        fill: k.sunken, hover_fill: k.raised, radius: 6, padding_x: 3,
-        tooltip: "Menu", menu_click: || crate::menu::draw(S, k),
-    }, || {
-        ui::horizontal(#{ height: h - 4.0, tight: true }, || {
-            ui::spacing(3, 0);
-            ui::image(mark.logo, #{
-                height: h - 12.0, radius: 9, bg: "#ffffff", padding: 2,
-            });
-            ui::label(mark.name, #{ role: "title", color: k.text });
-            ui::label(icons::ui("caret-down"), #{ size: style::SM, text_color: k.faint });
+    let node = scene::get_node(BRAND_NODE);
+    if !util::is_nil(node) {
+        node.patch_component("widget", #{
+            source: mark.logo, text: mark.name, trailing: icons::ui("caret-down"),
+            height: row_h(S) - 4.0, showing: S.menu_open,
         });
-    });
+    }
+    crate::pool::strip(S, BRAND_NODE, crate::menu::rows(S));
     crate::pool::strip(S, STRIP_NODE, bar_controls(S, k));
 }
 

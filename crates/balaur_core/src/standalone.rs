@@ -21,7 +21,7 @@
 //! exception: it appends its own certificate table after the pack and records
 //! where, so a signed Windows game is read at the end of what it signed.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
@@ -149,7 +149,12 @@ pub fn own_pack() -> Result<Option<Vec<u8>>> {
 /// `Contents/Resources/game.bpak`, but only for an executable that really is
 /// inside `<Name>.app/Contents/MacOS/`.
 #[cfg(target_os = "macos")]
-fn macos_bundled_pack(exe: &Path) -> Option<std::path::PathBuf> {
+fn macos_bundled_pack(exe: &Path) -> Option<PathBuf> {
+    app_contents(exe).map(|contents| contents.join("Resources").join(BUNDLED_PACK))
+}
+
+/// `<Name>.app/Contents`, for an executable in its `Contents/MacOS/`.
+fn app_contents(exe: &Path) -> Option<&Path> {
     let macos_dir = exe
         .parent()
         .filter(|d| d.file_name() == Some("MacOS".as_ref()))?;
@@ -159,7 +164,21 @@ fn macos_bundled_pack(exe: &Path) -> Option<std::path::PathBuf> {
     contents
         .parent()
         .filter(|d| d.extension() == Some("app".as_ref()))?;
-    Some(contents.join("Resources").join(BUNDLED_PACK))
+    Some(contents)
+}
+
+/// A project's extension libraries, and a flat game's beside its executable.
+pub const EXTENSIONS_DIR: &str = "extensions";
+
+/// Where a shipped game loads its extensions from, and so where the exporter
+/// puts them: `Contents/PlugIns` in a `.app`, where codesign signs them as
+/// code, else `extensions/` beside the executable.
+#[must_use]
+pub fn extensions_beside(exe: &Path) -> PathBuf {
+    app_contents(exe).map_or_else(
+        || exe.with_file_name(EXTENSIONS_DIR),
+        |contents| contents.join("PlugIns"),
+    )
 }
 
 /// `own_pack`, against a named file — the same logic a test can drive.

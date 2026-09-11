@@ -14,7 +14,7 @@ const LONG_PRESS_SECONDS: f32 = 0.5;
 const LONG_PRESS_SLOP: f32 = 24.0;
 
 /// What a project asked for, or what it gets by not asking.
-pub struct InputSettings {
+pub struct InputConfig {
     /// A finger also moves the mouse, so every widget kind written against a
     /// pointer works on a phone. Godot's default, and for Godot's reason.
     pub emulate_mouse_from_touch: bool,
@@ -32,7 +32,7 @@ pub struct InputSettings {
     loaded: bool,
 }
 
-impl Default for InputSettings {
+impl Default for InputConfig {
     fn default() -> Self {
         Self {
             emulate_mouse_from_touch: true,
@@ -50,60 +50,77 @@ impl Default for InputSettings {
 /// Lazy for the reason the action table is: the manifest is read when the
 /// project loads, which is after every plugin has been built.
 pub(crate) fn ensure_loaded(eng: &Engine) {
-    let settings = eng.resource::<InputSettings>();
-    if settings.borrow().loaded {
+    if eng.resource::<InputConfig>().borrow().loaded {
         return;
     }
-    let parsed = read(eng);
-    let mut settings = settings.borrow_mut();
-    *settings = parsed;
-    settings.loaded = true;
-    let snapshot = eng.resource::<crate::InputSnapshot>();
-    snapshot.borrow_mut().set_emulation(
-        settings.emulate_mouse_from_touch,
-        settings.emulate_touch_from_mouse,
-    );
+    install(eng, read(eng).config());
 }
 
-/// The `[input]` table, or the defaults when it is absent or malformed.
-fn read(eng: &Engine) -> InputSettings {
-    #[derive(serde::Deserialize, Default)]
-    struct InputTable {
-        emulate_mouse_from_touch: Option<bool>,
-        emulate_touch_from_mouse: Option<bool>,
-        swipe_pixels: Option<f32>,
-        long_press_seconds: Option<f32>,
-        long_press_slop: Option<f32>,
+/// Take a project's `[input]` table from a script rather than the manifest:
+/// the editor's engine reads the editor's own `project.toml`, so a game
+/// played there would otherwise keep the editor's settings.
+pub(crate) fn declare(eng: &Engine, table: toml::Value) -> anyhow::Result<()> {
+    let table: InputTable = table.try_into()?;
+    install(eng, table.config());
+    Ok(())
+}
+
+/// Make `config` the one in force, and hand its emulation to the snapshot.
+fn install(eng: &Engine, mut config: InputConfig) {
+    config.loaded = true;
+    eng.resource::<crate::InputSnapshot>()
+        .borrow_mut()
+        .set_emulation(config.emulate_mouse_from_touch, config.emulate_touch_from_mouse);
+    *eng.resource::<InputConfig>().borrow_mut() = config;
+}
+
+/// What `[input]` may say. Every key optional: one left out keeps its default.
+#[derive(serde::Deserialize, Default)]
+struct InputTable {
+    emulate_mouse_from_touch: Option<bool>,
+    emulate_touch_from_mouse: Option<bool>,
+    swipe_pixels: Option<f32>,
+    long_press_seconds: Option<f32>,
+    long_press_slop: Option<f32>,
+}
+
+impl InputTable {
+    fn config(self) -> InputConfig {
+        let out = InputConfig::default();
+        InputConfig {
+            emulate_mouse_from_touch: self
+                .emulate_mouse_from_touch
+                .unwrap_or(out.emulate_mouse_from_touch),
+            emulate_touch_from_mouse: self
+                .emulate_touch_from_mouse
+                .unwrap_or(out.emulate_touch_from_mouse),
+            swipe_pixels: self.swipe_pixels.unwrap_or(out.swipe_pixels).max(0.0),
+            long_press_seconds: self
+                .long_press_seconds
+                .unwrap_or(out.long_press_seconds)
+                .max(0.0),
+            long_press_slop: self.long_press_slop.unwrap_or(out.long_press_slop).max(0.0),
+            loaded: false,
+        }
     }
+}
+
+/// The manifest's `[input]` table, or an empty one when it is absent or
+/// malformed.
+fn read(eng: &Engine) -> InputTable {
     #[derive(serde::Deserialize)]
     struct Manifest {
         #[serde(default)]
         input: InputTable,
     }
-    let out = InputSettings::default();
     let Some(source) = balaur_core::project::manifest_source(eng) else {
-        return out;
+        return InputTable::default();
     };
-    let table = match toml::from_str::<Manifest>(&source) {
+    match toml::from_str::<Manifest>(&source) {
         Ok(manifest) => manifest.input,
         Err(err) => {
             tracing::warn!("project.toml [input]: {err}; touch settings are the defaults");
-            return out;
+            InputTable::default()
         }
-    };
-    InputSettings {
-        emulate_mouse_from_touch: table
-            .emulate_mouse_from_touch
-            .unwrap_or(out.emulate_mouse_from_touch),
-        emulate_touch_from_mouse: table
-            .emulate_touch_from_mouse
-            .unwrap_or(out.emulate_touch_from_mouse),
-        swipe_pixels: table.swipe_pixels.unwrap_or(out.swipe_pixels).max(0.0),
-        long_press_seconds: table
-            .long_press_seconds
-            .unwrap_or(out.long_press_seconds)
-            .max(0.0),
-        long_press_slop: table.long_press_slop.unwrap_or(out.long_press_slop).max(0.0),
-        loaded: false,
     }
 }

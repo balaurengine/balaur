@@ -11,6 +11,9 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
+# Touch geometry runs in the tick, and the platform libm differs across
+# operating systems.
+libm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
