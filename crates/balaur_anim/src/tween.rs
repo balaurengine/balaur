@@ -660,7 +660,7 @@ fn push_segment(
         call: None,
         ease: None,
         wide: Vec::new(),
-            discrete: None,
+        discrete: None,
     });
     track.keys.push(Key {
         t: start + duration,
@@ -668,7 +668,7 @@ fn push_segment(
         call: None,
         ease,
         wide: Vec::new(),
-            discrete: None,
+        discrete: None,
     });
 }
 

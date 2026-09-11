@@ -539,7 +539,11 @@ impl SpriteTexture {
     #[must_use]
     pub fn centre(&self, hx: f32, hy: f32) -> [f32; 2] {
         let [x, y] = self.shift;
-        if self.centered { [x, y] } else { [x + hx, y - hy] }
+        if self.centered {
+            [x, y]
+        } else {
+            [x + hx, y - hy]
+        }
     }
 }
 

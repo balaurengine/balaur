@@ -8,8 +8,9 @@
 use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget_arrange::padding_of;
-use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
+use crate::widget_layer::{Placed, Widget, caption, lays_out};
 use crate::widget_theme::WidgetTheme;
+use crate::widget_theme::theme_of;
 use balaur_core::Engine;
 use egui::vec2;
 use rustc_hash::FxHashMap;
@@ -209,7 +210,7 @@ impl<'a> Measure<'a> {
         };
         let pad = padding_of(
             widget,
-            &crate::widget_layer::styled(theme, widget),
+            &crate::widget_theme::styled(theme, widget),
             self.scale,
         );
         inner + egui::Vec2::splat(pad * 2.0)
@@ -243,7 +244,7 @@ impl<'a> Measure<'a> {
         );
         let pad = padding_of(
             &widget,
-            &crate::widget_layer::styled(theme, &widget),
+            &crate::widget_theme::styled(theme, &widget),
             self.scale,
         );
         inner + egui::Vec2::splat(pad * 2.0)
@@ -257,7 +258,7 @@ impl<'a> Measure<'a> {
         let gap = widget.gap * self.scale;
         let pad = padding_of(
             &widget,
-            &crate::widget_layer::styled(theme, &widget),
+            &crate::widget_theme::styled(theme, &widget),
             self.scale,
         );
         let limit = if widget.width > 0.0 {

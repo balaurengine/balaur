@@ -583,14 +583,22 @@ fn a_control_sits_in_the_game_area_the_host_confines_it_to() {
     let (_dir, mut app) = app(MANIFEST);
     control(&app, "Jump", "touch_button", BUTTON);
     // A 600 x 400 viewport at (200, 100): its bottom right is (800, 500).
-    facts::update_device(&app.engine, |f| f.game_area = Some([200.0, 100.0, 600.0, 400.0]));
+    facts::update_device(&app.engine, |f| {
+        f.game_area = Some([200.0, 100.0, 600.0, 400.0]);
+    });
     frame(&mut app, finger(1, 900.0, 500.0, Start));
-    assert!(value(&app, "jump").abs() < 1e-6, "the window's corner is not the game's");
+    assert!(
+        value(&app, "jump").abs() < 1e-6,
+        "the window's corner is not the game's"
+    );
     frame(&mut app, |input| {
         input.touch_event(1, 900.0, 500.0, End);
         input.touch_event(2, 700.0, 400.0, Start);
     });
-    assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "the viewport's corner is");
+    assert!(
+        (value(&app, "jump") - 1.0).abs() < 1e-6,
+        "the viewport's corner is"
+    );
 }
 
 /// A host that switched the game's surface off, as the editor does while

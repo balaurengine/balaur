@@ -368,7 +368,12 @@ impl GlobalTransform {
     /// and translation, in that order, the way Godot's `Transform2D` does.
     #[must_use]
     pub fn affine_2d(&self) -> glamx::Mat3 {
-        let basis = linear_2d(z_angle(self.rotation), self.skew, self.scale.x, self.scale.y);
+        let basis = linear_2d(
+            z_angle(self.rotation),
+            self.skew,
+            self.scale.x,
+            self.scale.y,
+        );
         glamx::Mat3::from_cols(
             basis.x_axis.extend(0.0),
             basis.y_axis.extend(0.0),
@@ -378,7 +383,8 @@ impl GlobalTransform {
 
     fn mul(&self, local: &Transform) -> Self {
         let flat = |q: Quat| q.x == 0.0 && q.y == 0.0;
-        if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation) {
+        if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation)
+        {
             return Self {
                 position: self.position + self.rotation * (local.position * self.scale),
                 rotation: self.rotation * local.rotation,
@@ -388,12 +394,26 @@ impl GlobalTransform {
         }
         // A shear anywhere above makes the basis a general 2D matrix, so it
         // is composed as one and taken back apart.
-        let parent = linear_2d(z_angle(self.rotation), self.skew, self.scale.x, self.scale.y);
-        let own = linear_2d(z_angle(local.rotation), local.skew, local.scale.x, local.scale.y);
+        let parent = linear_2d(
+            z_angle(self.rotation),
+            self.skew,
+            self.scale.x,
+            self.scale.y,
+        );
+        let own = linear_2d(
+            z_angle(local.rotation),
+            local.skew,
+            local.scale.x,
+            local.scale.y,
+        );
         let at = self.position.truncate() + parent * local.position.truncate();
         let (angle, skew, sx, sy) = decompose_2d(parent * own);
         Self {
-            position: Vec3::new(at.x, at.y, self.position.z + local.position.z * self.scale.z),
+            position: Vec3::new(
+                at.x,
+                at.y,
+                self.position.z + local.position.z * self.scale.z,
+            ),
             rotation: Quat::from_rotation_z(angle),
             scale: Vec3::new(sx, sy, self.scale.z * local.scale.z),
             skew,
@@ -840,7 +860,11 @@ fn sheared_local(parent: &GlobalTransform, child: &GlobalTransform, z: f32) -> T
     let local = parent.affine_2d().inverse() * child.affine_2d();
     let basis = glamx::Mat2::from_cols(local.x_axis.truncate(), local.y_axis.truncate());
     let (angle, skew, sx, sy) = decompose_2d(basis);
-    let scale_z = if parent.scale.z.abs() > f32::EPSILON { child.scale.z / parent.scale.z } else { 1.0 };
+    let scale_z = if parent.scale.z.abs() > f32::EPSILON {
+        child.scale.z / parent.scale.z
+    } else {
+        1.0
+    };
     Transform {
         position: Vec3::new(local.z_axis.x, local.z_axis.y, z),
         rotation: Quat::from_rotation_z(angle),

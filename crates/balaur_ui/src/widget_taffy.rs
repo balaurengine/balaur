@@ -421,7 +421,7 @@ fn sync(
 ) -> NodeId {
     let placed = &arena[index];
     let widget = &placed.widget;
-    let theme = crate::widget_layer::theme_of_owned(&widget.theme, theme);
+    let theme = crate::widget_theme::theme_of_owned(&widget.theme, theme);
     let look = crate::widget_layer::look_of(arena, index, &theme, scale);
     let pad = crate::widget_arrange::padding_of(widget, &look.style, scale);
     let drawn = crate::widget_arrange::measured_of(placed.entity) != egui::Vec2::ZERO;

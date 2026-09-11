@@ -31,6 +31,7 @@ mod widget_arena;
 mod widget_arrange;
 mod widget_bindings;
 mod widget_button;
+mod widget_code;
 mod widget_input;
 mod widget_kinds;
 mod widget_layer;

@@ -297,7 +297,10 @@ mod tests {
     fn an_entity_becomes_a_node_with_the_fields_it_carried() {
         let scene = written(&imported().files, "scenes/cave.toml");
         assert!(scene.contains("name = \"Chest\""), "{scene}");
-        assert!(scene.contains("transform = { position = [2, -1, 0.0] }"), "{scene}");
+        assert!(
+            scene.contains("transform = { position = [2, -1, 0.0] }"),
+            "{scene}"
+        );
         assert!(scene.contains("gold = 12"), "{scene}");
     }
 

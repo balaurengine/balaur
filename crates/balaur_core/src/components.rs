@@ -610,7 +610,7 @@ fn hex_rgba(text: &str) -> Option<[f64; 4]> {
 /// `#rrggbbaa`. A missing alpha is opaque.
 ///
 /// Public because the node-level keys are colours too and are read outside
-/// the schema path, which is where [`expand_colors`] does this.
+/// the schema path, which is where `expand_colors` does this.
 #[must_use]
 pub fn rgba(value: &toml::Value) -> Option<[f32; 4]> {
     if let Some(text) = value.as_str() {

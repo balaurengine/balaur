@@ -110,7 +110,9 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
         }
     }
     if let Some(size) = default_size {
-        for kind in ["label", "button", "field", "check", "dropdown", "tab", "fold"] {
+        for kind in [
+            "label", "button", "field", "check", "dropdown", "tab", "fold",
+        ] {
             let entry = kinds
                 .entry(kind)
                 .or_insert_with(|| Toml::Table(toml::Table::new()));
@@ -120,7 +122,9 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
         }
     }
     for (what, count) in dropped {
-        notes.push(format!("{count} theme `{what}` items have no widget theme key"));
+        notes.push(format!(
+            "{count} theme `{what}` items have no widget theme key"
+        ));
     }
     let mut document = toml::Table::new();
     document.insert("type".into(), Toml::String("widget_theme".into()));
@@ -151,8 +155,15 @@ fn style_of(
     let mut style = item("styles", rest)
         .map(|v| stylebox(v, res))
         .unwrap_or_default();
-    let ink = |name: &str| item("colors", name).and_then(colour).map(|c| Toml::String(hex(&c)));
-    if let Some(color) = ink("font_color").or_else(|| ink("default_color")).or_else(|| ink("title_color")) {
+    let ink = |name: &str| {
+        item("colors", name)
+            .and_then(colour)
+            .map(|c| Toml::String(hex(&c)))
+    };
+    if let Some(color) = ink("font_color")
+        .or_else(|| ink("default_color"))
+        .or_else(|| ink("title_color"))
+    {
         style.insert("color".into(), color);
     }
     if let Some(size) = item("font_sizes", "font_size")
@@ -180,7 +191,11 @@ fn style_of(
         "styles" => [Some(rest), hover, held].contains(&Some(name)),
         "colors" => matches!(
             name,
-            "font_color" | "default_color" | "title_color" | "font_hover_color" | "font_pressed_color"
+            "font_color"
+                | "default_color"
+                | "title_color"
+                | "font_hover_color"
+                | "font_pressed_color"
         ),
         "font_sizes" => matches!(name, "font_size" | "normal_font_size"),
         _ => false,

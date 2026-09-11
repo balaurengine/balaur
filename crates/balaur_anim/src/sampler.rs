@@ -241,7 +241,11 @@ pub fn blend(from: &Clip, mut from_pose: Pose, to: &Clip, to_pose: Pose, weight:
                 .iter()
                 .position(|t| t.target == track.target && t.property == track.property);
             match partner.and_then(|at| from_pose.get_mut(at)) {
-                Some(outgoing) => mix(std::mem::replace(outgoing, TrackValue::None), incoming, weight),
+                Some(outgoing) => mix(
+                    std::mem::replace(outgoing, TrackValue::None),
+                    incoming,
+                    weight,
+                ),
                 None => incoming,
             }
         })
@@ -252,9 +256,13 @@ pub fn blend(from: &Clip, mut from_pose: Pose, to: &Clip, to_pose: Pose, weight:
 /// between two of it — a visibility, a name — changes at the halfway point.
 fn mix(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
     match (a, b) {
-        (TrackValue::Position(a), TrackValue::Position(b)) => TrackValue::Position(a.lerp(b, weight)),
+        (TrackValue::Position(a), TrackValue::Position(b)) => {
+            TrackValue::Position(a.lerp(b, weight))
+        }
         (TrackValue::Scale(a), TrackValue::Scale(b)) => TrackValue::Scale(a.lerp(b, weight)),
-        (TrackValue::Rotation(a), TrackValue::Rotation(b)) => TrackValue::Rotation(a.slerp(b, weight)),
+        (TrackValue::Rotation(a), TrackValue::Rotation(b)) => {
+            TrackValue::Rotation(a.slerp(b, weight))
+        }
         (TrackValue::Tint(a), TrackValue::Tint(b)) => TrackValue::Tint(a.lerp(b, weight)),
         (TrackValue::Property { value: a, .. }, TrackValue::Property { value: b, channels }) => {
             TrackValue::Property {
@@ -263,7 +271,10 @@ fn mix(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
             }
         }
         (TrackValue::Deform(a), TrackValue::Deform(b)) if a.len() == b.len() => TrackValue::Deform(
-            a.iter().zip(&b).map(|(x, y)| x + (y - x) * weight).collect(),
+            a.iter()
+                .zip(&b)
+                .map(|(x, y)| x + (y - x) * weight)
+                .collect(),
         ),
         (a, b) => {
             if weight < 0.5 {
@@ -277,8 +288,14 @@ fn mix(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
 
 /// The value of the last key at or before `time`, or the first before any.
 fn held(track: &Track, time: f32) -> toml::Value {
-    let at = track.keys.partition_point(|k| k.t <= time).saturating_sub(1);
-    track.keys[at].discrete.clone().unwrap_or(toml::Value::Boolean(false))
+    let at = track
+        .keys
+        .partition_point(|k| k.t <= time)
+        .saturating_sub(1);
+    track.keys[at]
+        .discrete
+        .clone()
+        .unwrap_or(toml::Value::Boolean(false))
 }
 
 /// A track wider than four channels at `time`, interpolated channel by

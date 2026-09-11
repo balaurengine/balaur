@@ -186,7 +186,9 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
         entries.extend(crate::bind_layout::sampled_entries(2));
     }
     for slot in 0..SLOTS {
-        entries.extend(crate::bind_layout::sampled_entries(FIRST_SLOT_BINDING + slot * 2));
+        entries.extend(crate::bind_layout::sampled_entries(
+            FIRST_SLOT_BINDING + slot * 2,
+        ));
     }
     [
         uniform("material_frame_layout"),

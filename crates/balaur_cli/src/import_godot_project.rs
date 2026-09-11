@@ -57,17 +57,16 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     }
 
     window(document, &mut out, &mut notes)?;
-    if let Some(theme) = get("gui", "theme/custom")
-        .as_ref()
-        .and_then(Value::as_str)
-    {
+    if let Some(theme) = get("gui", "theme/custom").as_ref().and_then(Value::as_str) {
         let path = resolve(theme, uids, &mut notes);
         if let Some(godot) = path.strip_suffix(".tres") {
             writeln!(out, "\n[ui]")?;
             writeln!(
                 out,
                 "theme = {}",
-                quote(&crate::import_godot_theme::theme_path(&format!("{godot}.tres")))
+                quote(&crate::import_godot_theme::theme_path(&format!(
+                    "{godot}.tres"
+                )))
             )?;
         }
     }
@@ -94,7 +93,10 @@ pub(crate) fn custom_font(
     uids: &BTreeMap<String, String>,
     root: &std::path::Path,
 ) -> Option<String> {
-    let reference = document.first("gui")?.field("theme/custom_font")?.as_str()?;
+    let reference = document
+        .first("gui")?
+        .field("theme/custom_font")?
+        .as_str()?;
     let path = resolve(reference, uids, &mut Vec::new());
     if !crate::import_godot_files::has_extension(&path, "tres") {
         return Some(path).filter(|p| !p.is_empty());

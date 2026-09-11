@@ -76,12 +76,18 @@ pub(crate) fn window(
 /// way the pointer went: an offset from a right or bottom edge runs inward.
 pub(crate) fn drag_signs(anchor: &str) -> (f32, f32) {
     use crate::vocabulary::words as w;
-    let x = if matches!(anchor, w::TOP_RIGHT | w::BOTTOM_RIGHT | w::CENTER_RIGHT | w::FILL_RIGHT) {
+    let x = if matches!(
+        anchor,
+        w::TOP_RIGHT | w::BOTTOM_RIGHT | w::CENTER_RIGHT | w::FILL_RIGHT
+    ) {
         -1.0
     } else {
         1.0
     };
-    let y = if matches!(anchor, w::BOTTOM_LEFT | w::BOTTOM_RIGHT | w::CENTER_BOTTOM | w::FILL_BOTTOM) {
+    let y = if matches!(
+        anchor,
+        w::BOTTOM_LEFT | w::BOTTOM_RIGHT | w::CENTER_BOTTOM | w::FILL_BOTTOM
+    ) {
         -1.0
     } else {
         1.0

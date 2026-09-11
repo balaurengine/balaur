@@ -398,9 +398,7 @@ pub(crate) const DIALOG_CANCEL: &str = "Buttons/Cancel";
 /// for a ConfirmationDialog, Cancel, each of which closes it. Hidden until a
 /// script shows it, as Godot's is.
 fn dialog(class: &str, section: &Section, out: &mut Mapped) {
-    out.keys
-        .entry("visible")
-        .or_insert(Toml::Boolean(false));
+    out.keys.entry("visible").or_insert(Toml::Boolean(false));
     let text = |key: &str, default: &str| {
         section
             .field(key)
@@ -427,10 +425,8 @@ fn dialog(class: &str, section: &Section, out: &mut Mapped) {
         close.insert("action".into(), Toml::String("visible".into()));
         close.insert("target".into(), Toml::String("../..".into()));
         close.insert("value".into(), Toml::Boolean(false));
-        part.keys.insert(
-            "bindings".into(),
-            Toml::Array(vec![Toml::Table(close)]),
-        );
+        part.keys
+            .insert("bindings".into(), Toml::Array(vec![Toml::Table(close)]));
         part
     };
     let mut row = label("row", String::new());
@@ -439,7 +435,8 @@ fn dialog(class: &str, section: &Section, out: &mut Mapped) {
         DIALOG_OK.rsplit('/').next().unwrap_or(DIALOG_OK),
         DIALOG_CANCEL.rsplit('/').next().unwrap_or(DIALOG_CANCEL),
     );
-    row.children.push((ok.into(), button(text("ok_button_text", "OK"))));
+    row.children
+        .push((ok.into(), button(text("ok_button_text", "OK"))));
     if class == "ConfirmationDialog" {
         row.children
             .push((cancel.into(), button(text("cancel_button_text", "Cancel"))));
@@ -452,11 +449,17 @@ fn dialog(class: &str, section: &Section, out: &mut Mapped) {
 /// shown or hidden by `open`, which its cross turns off.
 fn window(section: &Section, out: &mut Mapped) {
     out.set("widget", "anchor", Toml::String("top_left".into()));
-    let [x, y] = section.field("position").and_then(pair).unwrap_or([0.0, 0.0]);
+    let [x, y] = section
+        .field("position")
+        .and_then(pair)
+        .unwrap_or([0.0, 0.0]);
     out.set("widget", "x", Toml::Float(x));
     out.set("widget", "y", Toml::Float(y));
     // Godot's default Window is 100 pixels square.
-    let [w, h] = section.field("size").and_then(pair).unwrap_or([100.0, 100.0]);
+    let [w, h] = section
+        .field("size")
+        .and_then(pair)
+        .unwrap_or([100.0, 100.0]);
     out.set("widget", "width", Toml::Float(w));
     out.set("widget", "height", Toml::Float(h));
     if let Some(Toml::Boolean(shown)) = out.keys.remove("visible") {

@@ -11,7 +11,8 @@ use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2}
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
-use crate::widgets::{Opts, code_editor, panel_frame, pill_radius, sc, text, text_field};
+use crate::widget_code::code_editor;
+use crate::widgets::{Opts, panel_frame, pill_radius, sc, text, text_field};
 use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.

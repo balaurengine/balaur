@@ -377,7 +377,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = box_of(&widget, at.assigned, at.scale);
     let id = format!("balaur-code-{}", entity.to_bits());
-    let opts = crate::widgets::code_opts(&widget, at.scale);
+    let opts = crate::widget_code::code_opts(&widget, at.scale);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -394,7 +394,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ),
     )));
     crate::bridge::push(&mut inner);
-    let edited = crate::widgets::code_editor(at.eng, &id, &widget.text, &opts);
+    let edited = crate::widget_code::code_editor(at.eng, &id, &widget.text, &opts);
     crate::bridge::pop();
     match edited {
         Ok((text, changed, _, _)) if changed => at.edits.push((entity, Edit::Text(text))),

@@ -28,7 +28,8 @@ use std::fmt::Write as _;
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::import_godot_shader_syntax::{Array, Expr, Function, Module, Parser, Stmt, TYPES, lex};
+use crate::import_godot_shader_names::{UNSUPPORTED_BUILTINS, sanitize, wgsl_type};
+use crate::import_godot_shader_syntax::{Array, Expr, Function, Module, Parser, Stmt, lex};
 
 /// Texture pixels per world unit, as every converted 2D node uses.
 const PPU: &str = "100.0";
@@ -87,75 +88,6 @@ enum Stage {
     Vertex,
     Fragment,
     Helper,
-}
-
-/// WGSL's keywords and reserved words a Godot name may collide with, and
-/// the names this translation declares itself.
-const RESERVED: &[&str] = &[
-    "alias", "break", "case", "const", "const_assert", "continue", "continuing", "default",
-    "diagnostic", "discard", "else", "enable", "false", "fn", "for", "if", "let", "loop",
-    "override", "requires", "return", "struct", "switch", "true", "var", "while", "NULL", "Self",
-    "abstract", "active", "alignas", "alignof", "as", "asm", "async", "attribute", "auto",
-    "await", "become", "cast", "catch", "class", "coherent", "column_major", "common", "compile",
-    "concept", "constexpr", "crate", "debugger", "decltype", "delete", "demote", "do", "enum",
-    "explicit", "export", "extends", "extern", "external", "fallthrough", "filter", "final",
-    "finally", "friend", "from", "get", "goto", "handle", "impl", "implements", "import",
-    "inline", "instanceof", "interface", "layout", "macro", "match", "meta", "mod", "module",
-    "move", "mut", "mutable", "namespace", "new", "nil", "noexcept", "noinline", "null",
-    "nullptr", "of", "operator", "package", "packoffset", "partition", "pass", "patch",
-    "precise", "precision", "priv", "protected", "pub", "public", "readonly", "ref", "register",
-    "resource", "restrict", "self", "set", "shared", "sizeof", "smooth", "snorm", "static",
-    "std", "subroutine", "super", "target", "template", "this", "throw", "trait", "try", "type",
-    "typedef", "typeid", "typename", "typeof", "union", "unless", "unorm", "unsafe", "unsized",
-    "use", "using", "virtual", "volatile", "wgsl", "where", "with", "writeonly", "yield", "f32",
-    "f16", "i32", "u32", "bool", "vec2", "vec3", "vec4", "mat2x2", "mat3x3", "mat4x4", "array",
-    "ptr", "sampler", "texture_2d", "in", "out", "params", "Params", "Varyings", "vs_main",
-    "fs_main", "godot_in", "godot_base", "godot_finish", "VertexInput", "VertexOutput",
-    "vertex", "place", "tint", "time", "sample_albedo", "screen_uv", "sample_screen",
-    "texture_pixel_size", "screen_pixel_size", "vertex_pixels", "pixels_to_offset",
-    "model_matrix_pixels", "albedo_texture", "albedo_sampler", "screen_texture",
-    "screen_sampler", "frame", "object", "texture_1", "texture_2", "texture_3", "texture_4",
-    "sampler_1", "sampler_2", "sampler_3", "sampler_4", "select", "atan2", "sample",
-];
-
-/// Godot built-ins that have no counterpart here.
-const UNSUPPORTED_BUILTINS: &[&str] = &[
-    "NORMAL", "NORMAL_MAP", "NORMAL_MAP_DEPTH", "NORMAL_TEXTURE", "SPECULAR_SHININESS",
-    "SPECULAR_SHININESS_TEXTURE", "LIGHT", "LIGHT_COLOR", "LIGHT_POSITION", "LIGHT_DIRECTION",
-    "LIGHT_ENERGY", "LIGHT_IS_DIRECTIONAL", "LIGHT_VERTEX", "SHADOW_VERTEX", "AT_LIGHT_PASS",
-    "POINT_COORD", "POINT_SIZE", "CANVAS_MATRIX", "SCREEN_MATRIX", "INSTANCE_CUSTOM",
-    "INSTANCE_ID", "VERTEX_ID", "CUSTOM0", "CUSTOM1", "REGION_RECT",
-];
-
-fn wgsl_type(ty: &str) -> Result<String> {
-    Ok(match ty {
-        "float" => "f32".into(),
-        "int" => "i32".into(),
-        "uint" => "u32".into(),
-        "bool" => "bool".into(),
-        "vec2" | "vec3" | "vec4" => format!("{ty}<f32>"),
-        "ivec2" | "ivec3" | "ivec4" => format!("vec{}<i32>", &ty[4..]),
-        "uvec2" | "uvec3" | "uvec4" => format!("vec{}<u32>", &ty[4..]),
-        "bvec2" | "bvec3" | "bvec4" => format!("vec{}<bool>", &ty[4..]),
-        "mat2" => "mat2x2<f32>".into(),
-        "mat3" => "mat3x3<f32>".into(),
-        "mat4" => "mat4x4<f32>".into(),
-        other if other.starts_with("sampler") => bail!("a `{other}` outside a uniform"),
-        other if TYPES.contains(&other) => bail!("the type `{other}` has no equivalent"),
-        // A struct the shader declared.
-        other => other.to_string(),
-    })
-}
-
-fn sanitize(name: &str) -> String {
-    let mut out = name.to_string();
-    if out.starts_with("__") {
-        out.insert(0, 'u');
-    }
-    if RESERVED.contains(&out.as_str()) {
-        out.push('_');
-    }
-    out
 }
 
 fn swizzle(member: &str) -> Option<String> {
@@ -221,7 +153,12 @@ fn emit(module: &Module) -> Result<Translated> {
     for (name, fields) in &module.structs {
         writeln!(body, "struct {} {{", sanitize(name))?;
         for (ty, field, array) in fields {
-            writeln!(body, "    {}: {},", sanitize(field), typed(ty, *array, None)?)?;
+            writeln!(
+                body,
+                "    {}: {},",
+                sanitize(field),
+                typed(ty, *array, None)?
+            )?;
         }
         writeln!(body, "}}\n")?;
     }
@@ -234,7 +171,9 @@ fn emit(module: &Module) -> Result<Translated> {
         match function.name.as_str() {
             "vertex" => vertex = Some(function),
             "fragment" => fragment = Some(function),
-            "light" => notes.push("light(): lights here do not run a shader of their own; dropped".into()),
+            "light" => {
+                notes.push("light(): lights here do not run a shader of their own; dropped".into());
+            }
             _ => {
                 e.stage = Stage::Helper;
                 e.helper(function, &mut body)?;
@@ -286,9 +225,13 @@ fn render_modes(modes: &[String]) -> Vec<String> {
         .filter_map(|mode| match mode.as_str() {
             "blend_mix" | "unshaded" => None,
             "blend_add" | "blend_sub" | "blend_mul" | "blend_premul_alpha" | "blend_disabled" => {
-                Some(format!("render_mode {mode}: materials here blend as `blend_mix`"))
+                Some(format!(
+                    "render_mode {mode}: materials here blend as `blend_mix`"
+                ))
             }
-            other => Some(format!("render_mode {other} has no equivalent and was dropped")),
+            other => Some(format!(
+                "render_mode {other} has no equivalent and was dropped"
+            )),
         })
         .collect()
 }
@@ -357,7 +300,11 @@ fn typed(ty: &str, array: Option<Array>, init: Option<&Expr>) -> Result<String> 
 /// The vertex stage's last word: every output handed to `godot_finish`.
 fn finish(varyings: &[(String, String)]) -> String {
     let extra = varyings.iter().fold(String::new(), |mut extra, (_, name)| {
-        let name = if name == "godot_vertex" { "VERTEX" } else { name };
+        let name = if name == "godot_vertex" {
+            "VERTEX"
+        } else {
+            name
+        };
         let _ = write!(extra, ", {name}");
         extra
     });
@@ -450,10 +397,18 @@ fn constant(expr: &Expr) -> Option<Vec<f64>> {
 impl Emitter {
     /// `vs_main`, and the vertex output struct and the finishing function a
     /// Godot `vertex()` or a varying needs; `body` is `vertex()`'s, written.
-    fn vertex_stage(&mut self, body: Option<&str>, varyings: &[(String, String)]) -> Result<String> {
+    fn vertex_stage(
+        &mut self,
+        body: Option<&str>,
+        varyings: &[(String, String)],
+    ) -> Result<String> {
         let mut out = String::new();
         let own_output = !varyings.is_empty();
-        let output = if own_output { "Varyings" } else { "VertexOutput" };
+        let output = if own_output {
+            "Varyings"
+        } else {
+            "VertexOutput"
+        };
         self.imports.extend(["VertexInput", "VertexOutput"]);
         if own_output {
             writeln!(out, "struct Varyings {{")?;
@@ -473,20 +428,29 @@ impl Emitter {
         }
         if body.is_none() && !own_output {
             self.imports.insert("vertex");
-            writeln!(out, "@vertex fn vs_main(in: VertexInput) -> VertexOutput {{")?;
+            writeln!(
+                out,
+                "@vertex fn vs_main(in: VertexInput) -> VertexOutput {{"
+            )?;
             writeln!(out, "    return vertex(in);\n}}\n")?;
             return Ok(out);
         }
-        self.imports.extend(["place", "vertex_pixels", "pixels_to_offset"]);
-        let extra = varyings.iter().fold(String::new(), |mut extra, (ty, name)| {
-            let _ = write!(extra, ", {name}: {ty}");
-            extra
-        });
+        self.imports
+            .extend(["place", "vertex_pixels", "pixels_to_offset"]);
+        let extra = varyings
+            .iter()
+            .fold(String::new(), |mut extra, (ty, name)| {
+                let _ = write!(extra, ", {name}: {ty}");
+                extra
+            });
         writeln!(
             out,
             "fn godot_finish(in: VertexInput, base: vec2<f32>, VERTEX: vec2<f32>, UV: vec2<f32>, COLOR: vec4<f32>{extra}) -> {output} {{"
         )?;
-        writeln!(out, "    let placed = place(in, pixels_to_offset(VERTEX - base, {PPU}));")?;
+        writeln!(
+            out,
+            "    let placed = place(in, pixels_to_offset(VERTEX - base, {PPU}));"
+        )?;
         writeln!(out, "    var out: {output};")?;
         writeln!(out, "    out.clip_position = placed.clip_position;")?;
         writeln!(out, "    out.uv = UV;")?;
@@ -515,9 +479,16 @@ impl Emitter {
     fn fragment_stage(&mut self, body: &str, varyings: &[(String, String)]) -> Result<String> {
         let mut out = String::new();
         let own_output = !varyings.is_empty();
-        let output = if own_output { "Varyings" } else { "VertexOutput" };
+        let output = if own_output {
+            "Varyings"
+        } else {
+            "VertexOutput"
+        };
         self.imports.extend(["sample_albedo", "tint"]);
-        writeln!(out, "@fragment fn fs_main(in: {output}) -> @location(0) vec4<f32> {{")?;
+        writeln!(
+            out,
+            "@fragment fn fs_main(in: {output}) -> @location(0) vec4<f32> {{"
+        )?;
         let base = if own_output {
             writeln!(out, "    var godot_in: VertexOutput;")?;
             for field in ["clip_position", "uv", "color", "world"] {
@@ -538,7 +509,10 @@ impl Emitter {
     }
 
     fn global_const(&mut self, decl: &Stmt, out: &mut String) -> Result<()> {
-        let Stmt::Decl { ty, array, vars, .. } = decl else {
+        let Stmt::Decl {
+            ty, array, vars, ..
+        } = decl
+        else {
             return Ok(());
         };
         for var in vars {
@@ -551,7 +525,11 @@ impl Emitter {
             let value = self.expr(init)?;
             // An array is indexed at run time, which a WGSL const cannot be.
             if array.is_some() {
-                writeln!(out, "var<private> {}: {ty} = {value};\n", sanitize(&var.name))?;
+                writeln!(
+                    out,
+                    "var<private> {}: {ty} = {value};\n",
+                    sanitize(&var.name)
+                )?;
             } else {
                 writeln!(out, "const {}: {ty} = {value};\n", sanitize(&var.name))?;
             }
@@ -594,7 +572,12 @@ impl Emitter {
         } else {
             format!(" -> {}", wgsl_type(&function.ret)?)
         };
-        writeln!(out, "fn {}({}){ret} {{", sanitize(&function.name), params.join(", "))?;
+        writeln!(
+            out,
+            "fn {}({}){ret} {{",
+            sanitize(&function.name),
+            params.join(", ")
+        )?;
         out.push_str(&copies);
         out.push_str(&self.block_of(&function.body, 1)?);
         writeln!(out, "}}\n")?;
@@ -687,7 +670,12 @@ impl Emitter {
 
     /// What goes between a `for`'s parentheses: one declaration or effect,
     /// the condition, and the step.
-    fn for_head(&mut self, init: Option<&Stmt>, cond: Option<&Expr>, step: Option<&Expr>) -> Result<String> {
+    fn for_head(
+        &mut self,
+        init: Option<&Stmt>,
+        cond: Option<&Expr>,
+        step: Option<&Expr>,
+    ) -> Result<String> {
         let init = match init {
             Some(Stmt::Decl { ty, vars, .. }) if vars.len() == 1 => {
                 let var = &vars[0];
@@ -711,7 +699,13 @@ impl Emitter {
 
     /// A switch, its fall-through labels gathered onto the arm that has a
     /// body, since a WGSL case never falls through.
-    fn switch(&mut self, on: &Expr, arms: &[(Option<Expr>, Vec<Stmt>)], depth: usize, out: &mut String) -> Result<()> {
+    fn switch(
+        &mut self,
+        on: &Expr,
+        arms: &[(Option<Expr>, Vec<Stmt>)],
+        depth: usize,
+        out: &mut String,
+    ) -> Result<()> {
         let pad = "    ".repeat(depth);
         writeln!(out, "{pad}switch ({}) {{", self.expr(on)?)?;
         let mut labels: Vec<String> = Vec::new();
@@ -764,7 +758,11 @@ impl Emitter {
                     let value = if *op == "=" {
                         self.expr(rhs)?
                     } else {
-                        format!("{base}.{components} {} ({})", &op[..op.len() - 1], self.expr(rhs)?)
+                        format!(
+                            "{base}.{components} {} ({})",
+                            &op[..op.len() - 1],
+                            self.expr(rhs)?
+                        )
                     };
                     self.temps += 1;
                     let temp = format!("godot_t{}", self.temps);
@@ -873,7 +871,9 @@ impl Emitter {
             self.imports.extend(["screen_texture", "screen_sampler"]);
             return Ok(("screen_texture", "screen_sampler"));
         }
-        let slot = uniform.slot.ok_or_else(|| anyhow!("`{name}` is not a sampler"))?;
+        let slot = uniform
+            .slot
+            .ok_or_else(|| anyhow!("`{name}` is not a sampler"))?;
         let (texture, sampler) = [
             ("texture_1", "sampler_1"),
             ("texture_2", "sampler_2"),
@@ -908,8 +908,8 @@ impl Emitter {
                 if is_struct_field {
                     format!("{base_text}.{}", sanitize(member))
                 } else {
-                    let components = swizzle(member)
-                        .ok_or_else(|| anyhow!("the swizzle `.{member}`"))?;
+                    let components =
+                        swizzle(member).ok_or_else(|| anyhow!("the swizzle `.{member}`"))?;
                     format!("{base_text}.{components}")
                 }
             }
@@ -946,7 +946,9 @@ impl Emitter {
                     ("textureLod", Some(level)) => self.expr(level)?,
                     _ => "0.0".into(),
                 };
-                return Ok(format!("textureSampleLevel({texture}, {sampler}, {uv}, {level})"));
+                return Ok(format!(
+                    "textureSampleLevel({texture}, {sampler}, {uv}, {level})"
+                ));
             }
             "texelFetch" => {
                 let [sampler, at, level] = args else {
@@ -1158,7 +1160,9 @@ mod tests {
 
     #[test]
     fn a_light_pass_or_a_spatial_shader_says_why_it_did_not_carry() {
-        let why = translate("shader_type spatial; void fragment() {}").err().unwrap();
+        let why = translate("shader_type spatial; void fragment() {}")
+            .err()
+            .unwrap();
         assert!(format!("{why}").contains("spatial"));
         let why = translate("shader_type canvas_item; void fragment() { NORMAL = vec3(0.0); }")
             .err()

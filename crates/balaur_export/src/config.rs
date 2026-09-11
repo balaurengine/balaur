@@ -233,7 +233,8 @@ mod tests {
     /// including the ones only its override names.
     #[test]
     fn a_target_takes_the_tags_its_override_names() {
-        let source = "[export]\ntags = [\"demo\"]\n\n[override.android.export]\ntags = [\"store\"]\n";
+        let source =
+            "[export]\ntags = [\"demo\"]\n\n[override.android.export]\ntags = [\"store\"]\n";
         let phone = super::tags_for(source, Some("android")).unwrap();
         let desktop = super::tags_for(source, Some("linux-x64")).unwrap();
         assert!(phone.has("store") && !phone.has("demo"), "{phone:?}");

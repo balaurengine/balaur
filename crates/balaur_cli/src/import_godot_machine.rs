@@ -35,7 +35,10 @@ pub(crate) fn convert(tree: &Section, res: &Resources<'_>) -> Option<Converted> 
     let mut notes = Vec::new();
     let mut states = toml::Table::new();
     for (key, value) in &root.fields {
-        let Some(name) = key.strip_prefix("states/").and_then(|k| k.strip_suffix("/node")) else {
+        let Some(name) = key
+            .strip_prefix("states/")
+            .and_then(|k| k.strip_suffix("/node"))
+        else {
             continue;
         };
         let Some(node) = res.sub(value) else {
@@ -61,7 +64,9 @@ pub(crate) fn convert(tree: &Section, res: &Resources<'_>) -> Option<Converted> 
         .and_then(Value::as_array)
         .unwrap_or_default();
     for triple in flat.chunks(3) {
-        let [from, to, transition] = triple else { continue };
+        let [from, to, transition] = triple else {
+            continue;
+        };
         let (Some(from), Some(to)) = (from.as_str(), to.as_str()) else {
             continue;
         };
@@ -94,7 +99,10 @@ pub(crate) fn convert(tree: &Section, res: &Resources<'_>) -> Option<Converted> 
     document.insert("states".into(), Toml::Table(states));
     document.insert("transitions".into(), Toml::Array(transitions));
     let mut text = String::new();
-    let _ = writeln!(text, "# Converted from a Godot AnimationTree by `balaur import`.");
+    let _ = writeln!(
+        text,
+        "# Converted from a Godot AnimationTree by `balaur import`."
+    );
     text.push_str(&toml::to_string(&Toml::Table(document)).ok()?);
     Some(Converted { toml: text, notes })
 }

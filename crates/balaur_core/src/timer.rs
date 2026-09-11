@@ -99,11 +99,17 @@ fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
     let timer = world.get::<&Timer>(entity).ok()?;
     let mut out = toml::map::Map::new();
-    out.insert(k::WAIT_TIME.into(), toml::Value::Float(f64::from(timer.wait)));
+    out.insert(
+        k::WAIT_TIME.into(),
+        toml::Value::Float(f64::from(timer.wait)),
+    );
     out.insert(k::ONE_SHOT.into(), toml::Value::Boolean(timer.one_shot));
     out.insert(k::AUTOSTART.into(), toml::Value::Boolean(timer.autostart));
     out.insert(k::RUNNING.into(), toml::Value::Boolean(timer.running));
-    out.insert(k::TIME_LEFT.into(), toml::Value::Float(f64::from(timer.left)));
+    out.insert(
+        k::TIME_LEFT.into(),
+        toml::Value::Float(f64::from(timer.left)),
+    );
     Some(toml::Value::Table(out))
 }
 

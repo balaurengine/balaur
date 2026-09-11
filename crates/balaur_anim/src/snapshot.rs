@@ -267,7 +267,11 @@ fn capture(eng: &Engine) -> Value {
                 current: run.current.clone(),
                 travel: run.travel.clone(),
                 jump: run.jump.clone(),
-                conditions: run.conditions.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+                conditions: run
+                    .conditions
+                    .iter()
+                    .map(|(k, v)| (k.clone(), *v))
+                    .collect(),
             })
             .collect(),
     };
@@ -446,7 +450,11 @@ fn clip_for(eng: &Engine, player: &PlayerFrame) -> Option<std::rc::Rc<Clip>> {
 /// The clip a restored crossfade was leaving, re-resolved by name.
 fn fade_for(eng: &Engine, player: &PlayerFrame) -> Option<crate::player::Fade> {
     let fade = player.fade.as_ref()?;
-    let reference = match player.defined.iter().find(|(name, _)| *name == fade.clip_name) {
+    let reference = match player
+        .defined
+        .iter()
+        .find(|(name, _)| *name == fade.clip_name)
+    {
         Some((_, reference)) => reference.clone(),
         None if fade.clip_name.is_empty() => player.library.clone(),
         None => format!("{}#{}", player.library, fade.clip_name),

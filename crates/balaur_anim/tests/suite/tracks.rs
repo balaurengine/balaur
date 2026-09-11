@@ -668,8 +668,14 @@ keys = [ { t = 0.0, value = false }, { t = 0.5, value = true } ]
     balaur_anim::play(&app.engine, entity, "").unwrap();
 
     tick(&mut app, 20);
-    assert_eq!(property(&app, entity, "text2d", "text").as_str(), Some("calm"));
-    assert_eq!(property(&app, entity, "text2d", "markup").as_bool(), Some(false));
+    assert_eq!(
+        property(&app, entity, "text2d", "text").as_str(),
+        Some("calm")
+    );
+    assert_eq!(
+        property(&app, entity, "text2d", "markup").as_bool(),
+        Some(false)
+    );
 
     tick(&mut app, 20);
     assert_eq!(
@@ -677,7 +683,10 @@ keys = [ { t = 0.0, value = false }, { t = 0.5, value = true } ]
         Some("storm"),
         "past the second key the name is the second one, `linear` and all"
     );
-    assert_eq!(property(&app, entity, "text2d", "markup").as_bool(), Some(true));
+    assert_eq!(
+        property(&app, entity, "text2d", "markup").as_bool(),
+        Some(true)
+    );
 }
 
 #[test]

@@ -52,7 +52,10 @@ pub const EMITTED: &str = "emitted:";
 /// node emits.
 #[must_use]
 pub fn is_bindable(event: &str) -> bool {
-    BINDABLE.contains(&event) || event.strip_prefix(EMITTED).is_some_and(|name| !name.is_empty())
+    BINDABLE.contains(&event)
+        || event
+            .strip_prefix(EMITTED)
+            .is_some_and(|name| !name.is_empty())
 }
 
 /// The hook one bindable event name is dispatched as.

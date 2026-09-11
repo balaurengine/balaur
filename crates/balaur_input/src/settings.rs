@@ -70,7 +70,10 @@ fn install(eng: &Engine, mut config: InputConfig) {
     config.loaded = true;
     eng.resource::<crate::InputSnapshot>()
         .borrow_mut()
-        .set_emulation(config.emulate_mouse_from_touch, config.emulate_touch_from_mouse);
+        .set_emulation(
+            config.emulate_mouse_from_touch,
+            config.emulate_touch_from_mouse,
+        );
     *eng.resource::<InputConfig>().borrow_mut() = config;
 }
 

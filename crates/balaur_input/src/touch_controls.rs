@@ -237,7 +237,12 @@ fn area(eng: &Engine) -> Option<[f32; 4]> {
     let [left, top, right, bottom] = facts.safe_area;
     let mut out = [left, top, width - right, height - bottom];
     if let Some([x, y, w, h]) = facts.game_area {
-        out = [out[0].max(x), out[1].max(y), out[2].min(x + w), out[3].min(y + h)];
+        out = [
+            out[0].max(x),
+            out[1].max(y),
+            out[2].min(x + w),
+            out[3].min(y + h),
+        ];
     }
     (out[2] > out[0] && out[3] > out[1]).then_some(out)
 }

@@ -34,12 +34,16 @@
 //! script makes and the nodes a scene holds.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
+use balaur_core::Engine;
 use smol_str::SmolStr;
 
+use crate::theme::family;
 use crate::vocabulary::keys as k;
+use crate::vocabulary::words as w;
+use crate::widget_layer::{Widget, rgba_color};
 use egui::Color32;
 
 /// How one widget kind is drawn.
@@ -367,3 +371,147 @@ pub(crate) const ASSET_DOC: &str = "How each widget kind is drawn: `fill`, `stro
      ancestor that names one, so a screen is themed by its root.";
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";
+
+/// The style a widget is drawn with: its kind's, the `role` it names over
+/// that, and the `fill`, `stroke` and `radius` it states over both.
+///
+/// The measure pass calls this too, so a row is sized at the face it draws at.
+pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
+    let settled = theme.resolved(&widget.kind, &widget.role);
+    // The theme's own answer, shared, unless this widget overrides part of
+    // it — which most do not, and a screen of widgets is mostly one of a few
+    // styles repeated.
+    if widget.fill.is_empty()
+        && widget.stroke.is_empty()
+        && widget.radius < 0.0
+        && widget.padding_x < 0.0
+    {
+        return settled;
+    }
+    let mut style = (*settled).clone();
+    if !widget.fill.is_empty() {
+        style.fill = theme.token(&widget.fill);
+    }
+    if !widget.stroke.is_empty() {
+        style.stroke = theme.token(&widget.stroke);
+    }
+    if widget.radius >= 0.0 {
+        style.radius = Some(widget.radius);
+    }
+    if widget.padding_x >= 0.0 {
+        style.padding_x = Some(widget.padding_x);
+    }
+    Rc::new(style)
+}
+
+/// The near-white a caption takes when neither the widget nor its theme says.
+pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
+
+/// The theme family a widget draws in: the one it names, else its role's,
+/// else `ui`. The shaper needs the name as well as the face.
+pub(crate) fn family_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
+    // Unset is empty before the schema's default lands and `ui` after it, and
+    // both mean the same: whatever the role or the kind asked for.
+    if widget.font.is_empty() || widget.font == w::UI {
+        style.font.as_deref().unwrap_or(w::UI)
+    } else {
+        widget.font.as_str()
+    }
+}
+
+/// The ink and the face a widget draws its caption in.
+///
+/// A property left at its default is the widget saying nothing, so the theme
+/// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
+/// and a weight of 400 each take what the role or the kind carries.
+pub(crate) fn face(
+    theme: &WidgetTheme,
+    style: &Style,
+    widget: &Widget,
+    scale: f32,
+) -> (Color32, egui::FontId) {
+    // The theme's own text colour last, not a constant: a widget with no role
+    // drew in near-white, which is invisible on a light theme.
+    let ink = if widget.text_color[3] > 0.0 {
+        rgba_color(widget.text_color)
+    } else {
+        style
+            .text_color
+            .or_else(|| theme.token("text"))
+            .unwrap_or(DEFAULT_INK)
+    };
+    let size = if widget.font_size > 0.0 {
+        widget.font_size
+    } else {
+        style.font_size.unwrap_or(16.0)
+    };
+    (
+        ink,
+        egui::FontId::new(size * scale, family(family_of(style, widget))),
+    )
+}
+
+/// The weight a widget draws at, the theme answering for one left at 400.
+pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
+    if (widget.font_weight - 400.0).abs() > f32::EPSILON {
+        return widget.font_weight;
+    }
+    style.weight.unwrap_or(400.0)
+}
+
+/// The theme a widget's own subtree is drawn with, for a caller that holds no
+/// `Engine` handy — the layout pass, which walks the same tree the draw does.
+pub(crate) fn theme_of_owned(reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+    if reference.is_empty() {
+        return inherited.clone();
+    }
+    THEMES.with(|held| {
+        held.borrow()
+            .get(reference)
+            .cloned()
+            .unwrap_or_else(|| inherited.clone())
+    })
+}
+
+thread_local! {
+    /// Every theme the draw has resolved this session, by asset path, so the
+    /// layout pass can reach one without an `Engine`.
+    static THEMES: RefCell<HashMap<String, Rc<WidgetTheme>>> = RefCell::new(HashMap::new());
+}
+
+/// The theme in force for a widget: its own, or the nearest ancestor's.
+///
+/// Resolved once per frame per root rather than per widget, because a screen
+/// has one look and walking up the tree for every button to find it out would
+/// be work with a known answer.
+pub(crate) fn theme_of(
+    eng: &Engine,
+    reference: &str,
+    inherited: &Rc<WidgetTheme>,
+) -> Rc<WidgetTheme> {
+    if reference.is_empty() {
+        return inherited.clone();
+    }
+    match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
+        Ok(theme) => {
+            THEMES.with(|held| {
+                held.borrow_mut()
+                    .insert(reference.to_string(), theme.clone());
+            });
+            theme
+        }
+        Err(err) => {
+            // Once per reference: a missing theme is a typo in a scene file,
+            // and repeating it sixty times a second buries everything else.
+            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
+                std::sync::Mutex::new(None);
+            if let Ok(mut seen) = WARNED.lock() {
+                let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
+                if seen.insert(reference.to_string()) {
+                    tracing::warn!("widget theme '{reference}': {err:#}");
+                }
+            }
+            inherited.clone()
+        }
+    }
+}

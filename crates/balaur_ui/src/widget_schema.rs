@@ -280,7 +280,10 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
 /// fold, fill root, sliced image and deadzone scroll carry.
 fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::CHECKED.into(), toml::Value::Boolean(widget.checked));
-    map.insert(k::GROUP.into(), toml::Value::String(widget.group.to_string()));
+    map.insert(
+        k::GROUP.into(),
+        toml::Value::String(widget.group.to_string()),
+    );
     map.insert(k::COLOR.into(), four(widget.color));
     map.insert(k::FONT.into(), toml::Value::String(widget.font.to_string()));
     map.insert(
@@ -558,7 +561,10 @@ mod tests {
     #[test]
     fn an_unstated_size_leaves_the_role_to_answer() {
         let bare = widget(&toml::toml! { kind = "label" role = "meta" }.into());
-        assert!(bare.font_size.abs() < f32::EPSILON, "the default shadowed the role");
+        assert!(
+            bare.font_size.abs() < f32::EPSILON,
+            "the default shadowed the role"
+        );
         let stated = widget(&toml::toml! { kind = "label" font_size = 13.0 }.into());
         assert!(
             (stated.font_size - 13.0).abs() < f32::EPSILON,

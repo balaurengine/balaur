@@ -540,9 +540,10 @@ fn a_material_named_by_absolute_path_belongs_to_its_own_project() {
 /// reads them through `package::sprite`.
 #[test]
 fn a_sprite_material_binds_and_samples_images_of_its_own() {
-    let body: toml::Value =
-        toml::from_str("shader = \"shaders/dissolve.wesl\"\n[params]\ntexture_2 = \"art/noise.png\"")
-            .unwrap();
+    let body: toml::Value = toml::from_str(
+        "shader = \"shaders/dissolve.wesl\"\n[params]\ntexture_2 = \"art/noise.png\"",
+    )
+    .unwrap();
     let material = balaur_render::material::parse(&body).unwrap();
     assert_eq!(
         material.sprite_textures(),

@@ -91,8 +91,8 @@ pub use crate::player::{
     AnimationState, CLIP_ASSET_TYPE, Playback, current, define, is_playing, just_finished, pause,
     play, play_from, queue, resume, seek, set_retarget, set_speed, stop, time,
 };
-pub use crate::system::FINISHED_EVENT;
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
+pub use crate::system::FINISHED_EVENT;
 pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin {

@@ -351,6 +351,8 @@ fn the_websocket_table_of_the_manifest_sets_the_defaults() {
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     let mut app = app_with_websocket(dir.path());
     app.load_project().unwrap();
-    let config = std::cell::RefCell::new(balaur_websocket::WebsocketConfig::from_settings(&app.engine));
+    let config = std::cell::RefCell::new(balaur_websocket::WebsocketConfig::from_settings(
+        &app.engine,
+    ));
     assert!(!config.borrow().compression);
 }

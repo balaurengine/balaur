@@ -305,6 +305,8 @@ mod import_godot_script;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_shader;
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot_shader_names;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_godot_shader_syntax;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_strings;

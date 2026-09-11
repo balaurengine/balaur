@@ -195,5 +195,8 @@ fn a_script_can_declare_the_input_config() {
     }
     app.tick(FIXED_DT);
     let input = app.engine.resource::<InputSnapshot>();
-    assert!(!input.borrow().is_mouse_down(0), "the finger stayed a finger");
+    assert!(
+        !input.borrow().is_mouse_down(0),
+        "the finger stayed a finger"
+    );
 }

@@ -217,7 +217,11 @@ fn advance_playback(
         }
         None => pose,
     };
-    if playback.fade.as_ref().is_some_and(|fade| fade.elapsed >= fade.duration) {
+    if playback
+        .fade
+        .as_ref()
+        .is_some_and(|fade| fade.elapsed >= fade.duration)
+    {
         playback.fade = None;
     }
     write_pose(

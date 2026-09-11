@@ -85,12 +85,36 @@ fn wide(widget: &Widget, area: egui::Rect, scale: f32) -> Option<(egui::Pos2, Al
     let (tall, broad) = (widget.height * scale, widget.width * scale);
     let centre = area.center();
     Some(match widget.anchor.as_str() {
-        w::FILL_TOP => (pos2(area.min.x + left, area.min.y + oy), Align2::LEFT_TOP, vec2(across, tall)),
-        w::FILL_BOTTOM => (pos2(area.min.x + left, area.max.y - oy), Align2::LEFT_BOTTOM, vec2(across, tall)),
-        w::FILL_ACROSS => (pos2(area.min.x + left, centre.y + oy), Align2::LEFT_CENTER, vec2(across, tall)),
-        w::FILL_LEFT => (pos2(area.min.x + ox, area.min.y + top), Align2::LEFT_TOP, vec2(broad, down)),
-        w::FILL_RIGHT => (pos2(area.max.x - ox, area.min.y + top), Align2::RIGHT_TOP, vec2(broad, down)),
-        w::FILL_DOWN => (pos2(centre.x + ox, area.min.y + top), Align2::CENTER_TOP, vec2(broad, down)),
+        w::FILL_TOP => (
+            pos2(area.min.x + left, area.min.y + oy),
+            Align2::LEFT_TOP,
+            vec2(across, tall),
+        ),
+        w::FILL_BOTTOM => (
+            pos2(area.min.x + left, area.max.y - oy),
+            Align2::LEFT_BOTTOM,
+            vec2(across, tall),
+        ),
+        w::FILL_ACROSS => (
+            pos2(area.min.x + left, centre.y + oy),
+            Align2::LEFT_CENTER,
+            vec2(across, tall),
+        ),
+        w::FILL_LEFT => (
+            pos2(area.min.x + ox, area.min.y + top),
+            Align2::LEFT_TOP,
+            vec2(broad, down),
+        ),
+        w::FILL_RIGHT => (
+            pos2(area.max.x - ox, area.min.y + top),
+            Align2::RIGHT_TOP,
+            vec2(broad, down),
+        ),
+        w::FILL_DOWN => (
+            pos2(centre.x + ox, area.min.y + top),
+            Align2::CENTER_TOP,
+            vec2(broad, down),
+        ),
         _ => return None,
     })
 }

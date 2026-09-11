@@ -13,7 +13,9 @@ fn property(app: &balaur_core::App, entity: balaur_core::hecs::Entity, key: &str
 }
 
 fn number(app: &balaur_core::App, entity: balaur_core::hecs::Entity, key: &str) -> f64 {
-    property(app, entity, key).as_float().unwrap_or_else(|| panic!("{key} is not a number"))
+    property(app, entity, key)
+        .as_float()
+        .unwrap_or_else(|| panic!("{key} is not a number"))
 }
 
 #[test]
@@ -31,12 +33,27 @@ fn a_window_moves_with_its_title_bar_and_shuts_on_its_cross() {
     let grab = pos2(118.0, 112.0);
     pass(&app, &ctx, vec![egui::Event::PointerMoved(grab)]);
     pass(&app, &ctx, press(grab, true));
-    pass(&app, &ctx, vec![egui::Event::PointerMoved(pos2(grab.x + 15.0, grab.y + 10.0))]);
-    pass(&app, &ctx, vec![egui::Event::PointerMoved(pos2(grab.x + 30.0, grab.y + 20.0))]);
+    pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(
+            grab.x + 15.0,
+            grab.y + 10.0,
+        ))],
+    );
+    pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(
+            grab.x + 30.0,
+            grab.y + 20.0,
+        ))],
+    );
     pass(&app, &ctx, press(pos2(grab.x + 30.0, grab.y + 20.0), false));
     consume_input(&mut app);
     assert!(
-        (number(&app, window, "x") - 130.0).abs() < 2.0 && (number(&app, window, "y") - 120.0).abs() < 2.0,
+        (number(&app, window, "x") - 130.0).abs() < 2.0
+            && (number(&app, window, "y") - 120.0).abs() < 2.0,
         "the drag moved the window with the pointer: {}, {}",
         number(&app, window, "x"),
         number(&app, window, "y")

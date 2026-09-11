@@ -172,7 +172,12 @@ fn theme(
     let Some(converted) = crate::import_godot_theme::convert(&document, &res) else {
         return Ok(None);
     };
-    write(project, &crate::import_godot_theme::theme_path(relative), &converted.toml, out)?;
+    write(
+        project,
+        &crate::import_godot_theme::theme_path(relative),
+        &converted.toml,
+        out,
+    )?;
     Ok(Some(converted.notes))
 }
 
@@ -779,17 +784,26 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert!(out.path().join("shaders/glow.wesl").is_file());
 
         let tree = node(&scene, "Tree");
-        let machine = read(out.path(), tree["state_machine"]["machine"].as_str().unwrap());
+        let machine = read(
+            out.path(),
+            tree["state_machine"]["machine"].as_str().unwrap(),
+        );
         assert_eq!(machine["start"].as_str(), Some("idle"));
         let go = &machine["transitions"][0];
         assert_eq!(go["condition"].as_str(), Some("moving"));
         assert_eq!(go["advance"].as_str(), Some("auto"));
         assert_eq!(go["fade"].as_float(), Some(0.2));
-        assert!(tree["animation"]["library"].as_str().is_some(), "the tree plays its own clips");
+        assert!(
+            tree["animation"]["library"].as_str().is_some(),
+            "the tree plays its own clips"
+        );
 
         let clock = node(&scene, "Clock");
         assert_eq!(clock["timer"]["wait_time"].as_float(), Some(0.5));
-        assert_eq!(clock["bindings"][0]["event"].as_str(), Some("emitted:timeout"));
+        assert_eq!(
+            clock["bindings"][0]["event"].as_str(),
+            Some("emitted:timeout")
+        );
         assert_eq!(clock["bindings"][0]["value"].as_str(), Some("on_tick"));
 
         let bar = node(&scene, "Bar");
@@ -799,9 +813,19 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert_eq!(bar["widget"]["theme"].as_str(), Some("themes/game.toml"));
 
         let ask = node(&scene, "Ask");
-        assert_eq!(ask["visible"].as_bool(), Some(false), "a dialog waits to be shown");
-        assert_eq!(node(&scene, "Ok")["widget"]["on_click"].as_str(), Some("on_leave"));
-        assert_eq!(node(&scene, "Cancel")["widget"]["text"].as_str(), Some("Cancel"));
+        assert_eq!(
+            ask["visible"].as_bool(),
+            Some(false),
+            "a dialog waits to be shown"
+        );
+        assert_eq!(
+            node(&scene, "Ok")["widget"]["on_click"].as_str(),
+            Some("on_leave")
+        );
+        assert_eq!(
+            node(&scene, "Cancel")["widget"]["text"].as_str(),
+            Some("Cancel")
+        );
 
         let project = read(out.path(), "project.toml");
         assert_eq!(project["ui"]["theme"].as_str(), Some("themes/game.toml"));

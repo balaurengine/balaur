@@ -456,12 +456,14 @@ impl Walk<'_> {
         }
         // A dialog's answer is a click on the button it was given here.
         let (from, signal) = match (class.as_str(), signal) {
-            ("AcceptDialog" | "ConfirmationDialog", "confirmed") => {
-                (format!("{from}/{}", crate::import_godot_controls::DIALOG_OK), "pressed")
-            }
-            ("ConfirmationDialog", "canceled") => {
-                (format!("{from}/{}", crate::import_godot_controls::DIALOG_CANCEL), "pressed")
-            }
+            ("AcceptDialog" | "ConfirmationDialog", "confirmed") => (
+                format!("{from}/{}", crate::import_godot_controls::DIALOG_OK),
+                "pressed",
+            ),
+            ("ConfirmationDialog", "canceled") => (
+                format!("{from}/{}", crate::import_godot_controls::DIALOG_CANCEL),
+                "pressed",
+            ),
             _ => (from, signal),
         };
         let control = family(&class) == Family::Control;
@@ -641,7 +643,10 @@ impl Walk<'_> {
         files.push((file.clone(), machine.toml));
         // Its own libraries make the tree its own player; otherwise it drives
         // the one `anim_player` names.
-        let own = section.fields.iter().any(|(key, _)| key.starts_with("libraries"));
+        let own = section
+            .fields
+            .iter()
+            .any(|(key, _)| key.starts_with("libraries"));
         let player = if own {
             String::new()
         } else {

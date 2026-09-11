@@ -260,7 +260,11 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
         // A tree holding libraries of its own plays them itself; the state
         // machine over them is the scene walker's, beside the clips.
         "AnimationTree" => {
-            if section.fields.iter().any(|(key, _)| key.starts_with("libraries")) {
+            if section
+                .fields
+                .iter()
+                .any(|(key, _)| key.starts_with("libraries"))
+            {
                 out.touch("animation");
             }
         }
@@ -285,7 +289,9 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
         && (res.sub(material).is_some() || res.path(material).is_some())
     {
         if family(class) == Family::Control {
-            out.note("a material on a Control: widgets draw through the UI layer, which runs no shader");
+            out.note(
+                "a material on a Control: widgets draw through the UI layer, which runs no shader",
+            );
         } else {
             crate::import_godot_material::attach(material, res, &mut out);
         }

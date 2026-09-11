@@ -84,7 +84,10 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
                 option(opts.as_ref(), "from_start"),
                 Some(Value::Bool(false))
             );
-            let fade = option(opts.as_ref(), "fade").as_ref().and_then(number).unwrap_or(0.0);
+            let fade = option(opts.as_ref(), "fade")
+                .as_ref()
+                .and_then(number)
+                .unwrap_or(0.0);
             player::play_faded(eng, entity, &name, fade, from_start)
         },
     );

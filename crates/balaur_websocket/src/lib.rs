@@ -378,8 +378,7 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
-            let options =
-                socket_options_of(opts.as_ref(), &WebsocketConfig::from_settings(eng))?;
+            let options = socket_options_of(opts.as_ref(), &WebsocketConfig::from_settings(eng))?;
             let id = eng.next_token();
             let state = eng.resource::<WebsocketState>();
             state.borrow_mut().connect(eng, id, &url, options, handler);

@@ -18,8 +18,8 @@ pub(crate) enum Tok {
 
 pub(crate) const PUNCTS: &[&str] = &[
     "<<=", ">>=", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "==", "!=", "<=",
-    ">=", "&&", "||", "^^", "<<", ">>", "+", "-", "*", "/", "%", "=", "<", ">", "!", "~", "&",
-    "|", "^", "?", ":", ";", ",", ".", "(", ")", "[", "]", "{", "}",
+    ">=", "&&", "||", "^^", "<<", ">>", "+", "-", "*", "/", "%", "=", "<", ">", "!", "~", "&", "|",
+    "^", "?", ":", ";", ",", ".", "(", ")", "[", "]", "{", "}",
 ];
 
 pub(crate) fn lex(source: &str) -> Result<Vec<Tok>> {
@@ -53,7 +53,9 @@ pub(crate) fn lex(source: &str) -> Result<Vec<Tok>> {
                 i += 1;
             }
             out.push(Tok::Ident(chars[start..i].iter().collect()));
-        } else if c.is_ascii_digit() || (c == '.' && chars.get(i + 1).is_some_and(char::is_ascii_digit)) {
+        } else if c.is_ascii_digit()
+            || (c == '.' && chars.get(i + 1).is_some_and(char::is_ascii_digit))
+        {
             let start = i;
             while i < chars.len()
                 && (chars[i].is_ascii_alphanumeric()
@@ -166,9 +168,32 @@ pub(crate) struct Module {
 }
 
 pub(crate) const TYPES: &[&str] = &[
-    "void", "bool", "int", "uint", "float", "vec2", "vec3", "vec4", "ivec2", "ivec3", "ivec4",
-    "uvec2", "uvec3", "uvec4", "bvec2", "bvec3", "bvec4", "mat2", "mat3", "mat4", "sampler2D",
-    "isampler2D", "usampler2D", "samplerCube", "sampler2DArray", "sampler3D",
+    "void",
+    "bool",
+    "int",
+    "uint",
+    "float",
+    "vec2",
+    "vec3",
+    "vec4",
+    "ivec2",
+    "ivec3",
+    "ivec4",
+    "uvec2",
+    "uvec3",
+    "uvec4",
+    "bvec2",
+    "bvec3",
+    "bvec4",
+    "mat2",
+    "mat3",
+    "mat4",
+    "sampler2D",
+    "isampler2D",
+    "usampler2D",
+    "samplerCube",
+    "sampler2DArray",
+    "sampler3D",
 ];
 
 pub(crate) const QUALIFIERS: &[&str] = &["lowp", "mediump", "highp", "flat", "smooth", "in"];
@@ -326,7 +351,9 @@ impl Parser {
                     let ret = self.ident()?;
                     let name = self.ident()?;
                     if !self.is("(") {
-                        bail!("`{ret} {name}` at the top level is neither a function nor a uniform");
+                        bail!(
+                            "`{ret} {name}` at the top level is neither a function nor a uniform"
+                        );
                     }
                     module.functions.push(self.function(ret, name)?);
                 }
@@ -367,7 +394,11 @@ impl Parser {
                 }
             }
         }
-        let init = if self.eat("=") { Some(self.expr()?) } else { None };
+        let init = if self.eat("=") {
+            Some(self.expr()?)
+        } else {
+            None
+        };
         self.want(";")?;
         Ok((
             Uniform {
@@ -470,7 +501,11 @@ impl Parser {
         loop {
             let name = self.ident()?;
             let own = self.array_suffix()?;
-            let init = if self.eat("=") { Some(self.assignment()?) } else { None };
+            let init = if self.eat("=") {
+                Some(self.assignment()?)
+            } else {
+                None
+            };
             vars.push(Declarator {
                 name,
                 array: own,
@@ -527,25 +562,7 @@ impl Parser {
                 };
                 return Ok(Some(Stmt::If(cond, Box::new(then), other)));
             }
-            "for" => {
-                self.at += 1;
-                self.want("(")?;
-                let init = if self.eat(";") {
-                    None
-                } else if self.at_declaration() {
-                    Some(Box::new(self.declaration(false)?))
-                } else {
-                    let e = self.expr()?;
-                    self.want(";")?;
-                    Some(Box::new(Stmt::Expr(e)))
-                };
-                let cond = if self.is(";") { None } else { Some(self.expr()?) };
-                self.want(";")?;
-                let step = if self.is(")") { None } else { Some(self.expr()?) };
-                self.want(")")?;
-                let body = self.statement()?;
-                return Ok(Some(Stmt::For(init, cond, step, Box::new(body))));
-            }
+            "for" => return self.for_loop().map(Some),
             "while" => {
                 self.at += 1;
                 self.want("(")?;
@@ -566,31 +583,14 @@ impl Parser {
                 self.want(";")?;
                 return Ok(Some(Stmt::DoWhile(Box::new(body), cond)));
             }
-            "switch" => {
-                self.at += 1;
-                self.want("(")?;
-                let on = self.expr()?;
-                self.want(")")?;
-                self.want("{")?;
-                let mut arms = Vec::new();
-                while !self.eat("}") {
-                    let label = match self.ident()?.as_str() {
-                        "case" => Some(self.expr()?),
-                        "default" => None,
-                        other => bail!("`{other}` in a switch"),
-                    };
-                    self.want(":")?;
-                    let mut body = Vec::new();
-                    while !self.is("}") && !self.is_word("case") && !self.is_word("default") {
-                        body.push(self.statement()?);
-                    }
-                    arms.push((label, body));
-                }
-                return Ok(Some(Stmt::Switch(on, arms)));
-            }
+            "switch" => return self.switch().map(Some),
             "return" => {
                 self.at += 1;
-                let value = if self.is(";") { None } else { Some(self.expr()?) };
+                let value = if self.is(";") {
+                    None
+                } else {
+                    Some(self.expr()?)
+                };
                 self.want(";")?;
                 return Ok(Some(Stmt::Return(value)));
             }
@@ -608,6 +608,59 @@ impl Parser {
         Ok(None)
     }
 
+    /// `for (init; cond; step) body`, each of the three optional.
+    fn for_loop(&mut self) -> Result<Stmt> {
+        self.at += 1;
+        self.want("(")?;
+        let init = if self.eat(";") {
+            None
+        } else if self.at_declaration() {
+            Some(Box::new(self.declaration(false)?))
+        } else {
+            let e = self.expr()?;
+            self.want(";")?;
+            Some(Box::new(Stmt::Expr(e)))
+        };
+        let cond = if self.is(";") {
+            None
+        } else {
+            Some(self.expr()?)
+        };
+        self.want(";")?;
+        let step = if self.is(")") {
+            None
+        } else {
+            Some(self.expr()?)
+        };
+        self.want(")")?;
+        let body = self.statement()?;
+        Ok(Stmt::For(init, cond, step, Box::new(body)))
+    }
+
+    /// `switch (on) { case x: ... default: ... }`, arms in source order.
+    fn switch(&mut self) -> Result<Stmt> {
+        self.at += 1;
+        self.want("(")?;
+        let on = self.expr()?;
+        self.want(")")?;
+        self.want("{")?;
+        let mut arms = Vec::new();
+        while !self.eat("}") {
+            let label = match self.ident()?.as_str() {
+                "case" => Some(self.expr()?),
+                "default" => None,
+                other => bail!("`{other}` in a switch"),
+            };
+            self.want(":")?;
+            let mut body = Vec::new();
+            while !self.is("}") && !self.is_word("case") && !self.is_word("default") {
+                body.push(self.statement()?);
+            }
+            arms.push((label, body));
+        }
+        Ok(Stmt::Switch(on, arms))
+    }
+
     fn expr(&mut self) -> Result<Expr> {
         let first = self.assignment()?;
         if self.is(",") {
@@ -618,7 +671,9 @@ impl Parser {
 
     fn assignment(&mut self) -> Result<Expr> {
         let lhs = self.ternary()?;
-        for op in ["=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="] {
+        for op in [
+            "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
+        ] {
             if self.is(op) {
                 let op = PUNCTS.iter().find(|p| **p == op).copied().unwrap_or("=");
                 self.at += 1;
@@ -637,7 +692,11 @@ impl Parser {
         let then = self.assignment()?;
         self.want(":")?;
         let other = self.assignment()?;
-        Ok(Expr::Ternary(Box::new(cond), Box::new(then), Box::new(other)))
+        Ok(Expr::Ternary(
+            Box::new(cond),
+            Box::new(then),
+            Box::new(other),
+        ))
     }
 
     fn binary(&mut self, min: u8) -> Result<Expr> {
@@ -684,7 +743,9 @@ impl Parser {
                 }
                 e = Expr::Member(Box::new(e), member);
             } else if self.is("++") || self.is("--") {
-                let op = if self.eat("++") { "++" } else {
+                let op = if self.eat("++") {
+                    "++"
+                } else {
                     self.at += 1;
                     "--"
                 };

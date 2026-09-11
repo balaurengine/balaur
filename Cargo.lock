@@ -3071,6 +3071,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#dce5aec7f0d0485924b456d821c43947bdf1a436"
 dependencies = [
  "android-activity",
  "bitflags 2.13.1",
@@ -3106,6 +3107,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#dce5aec7f0d0485924b456d821c43947bdf1a436"
 dependencies = [
  "proc-macro2",
  "quote",

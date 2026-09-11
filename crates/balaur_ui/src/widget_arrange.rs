@@ -250,7 +250,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let style = at.style_of(&widget);
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
-    let (color, font) = crate::widget_layer::face(&at.theme, &style, &widget, scale);
+    let (color, font) = crate::widget_theme::face(&at.theme, &style, &widget, scale);
     let gap = widget.gap * scale;
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));

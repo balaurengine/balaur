@@ -79,7 +79,10 @@ fn a_machine_enters_its_start_and_crosses_when_a_condition_comes_on() {
     );
     tick(&mut app, 10);
     assert_eq!(machine::state(&app.engine, hero).as_deref(), Some("idle"));
-    assert_eq!(balaur_anim::current(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        balaur_anim::current(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
     assert!(x(&app, hero).abs() < 1e-4);
 
     machine::set_condition(&app.engine, hero, "moving", true).unwrap();
@@ -87,7 +90,10 @@ fn a_machine_enters_its_start_and_crosses_when_a_condition_comes_on() {
     assert_eq!(machine::state(&app.engine, hero).as_deref(), Some("walk"));
     // A quarter of a second into a half-second fade: between the two.
     let mid = x(&app, hero);
-    assert!(mid > 0.2 && mid < 0.8, "mid-fade the node sits between the clips, at {mid}");
+    assert!(
+        mid > 0.2 && mid < 0.8,
+        "mid-fade the node sits between the clips, at {mid}"
+    );
     tick(&mut app, 30);
     assert!((x(&app, hero) - 1.0).abs() < 1e-4, "the fade has run");
 }
@@ -104,7 +110,10 @@ fn an_at_end_transition_waits_for_the_clip_to_finish() {
     assert_eq!(machine::state(&app.engine, hero).as_deref(), Some("jump"));
     tick(&mut app, 20);
     assert_eq!(machine::state(&app.engine, hero).as_deref(), Some("idle"));
-    assert_eq!(balaur_anim::current(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        balaur_anim::current(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
 }
 
 #[test]

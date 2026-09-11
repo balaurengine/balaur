@@ -805,7 +805,8 @@ fn a_handler_taking_fewer_arguments_gets_the_ones_it_declares() {
     let app = app_in(dir.path());
     let node = spawn(&app, "Window");
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(node), "closer.rn").unwrap();
+    host.attach(balaur_core::node_id_of(node), "closer.rn")
+        .unwrap();
     host.call_on(
         balaur_core::node_id_of(node),
         "on_close",

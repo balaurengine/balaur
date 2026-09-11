@@ -5,7 +5,8 @@ use egui::vec2;
 
 use crate::vocabulary::words as w;
 use crate::widget_arrange::box_of;
-use crate::widget_layer::{Edit, Painting, Widget, weight_of};
+use crate::widget_layer::{Edit, Painting, Widget};
+use crate::widget_theme::weight_of;
 
 /// What a widget's text asks the shaper for, at this scale.
 ///
@@ -35,7 +36,7 @@ pub(crate) fn text_request<'a>(
         // A widget names no bitmap font yet; the world's text is where a
         // pixel face is asked for.
         font: "",
-        family: crate::widget_layer::family_of(style, widget),
+        family: crate::widget_theme::family_of(style, widget),
         line_height: 0.0,
         letter_spacing: 0.0,
     }

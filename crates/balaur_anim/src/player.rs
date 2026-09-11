@@ -242,7 +242,13 @@ pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool
 ///
 /// # Errors
 /// As [`play`].
-pub fn play_faded(eng: &Engine, entity: Entity, clip_name: &str, fade: f32, from_start: bool) -> Result<()> {
+pub fn play_faded(
+    eng: &Engine,
+    entity: Entity,
+    clip_name: &str,
+    fade: f32,
+    from_start: bool,
+) -> Result<()> {
     let leaving = {
         let state = eng.resource::<AnimationState>();
         let state = state.borrow();
@@ -259,7 +265,12 @@ pub fn play_faded(eng: &Engine, entity: Entity, clip_name: &str, fade: f32, from
         })
     };
     play_from(eng, entity, clip_name, from_start)?;
-    if let Some(playback) = eng.resource::<AnimationState>().borrow_mut().players.get_mut(&entity) {
+    if let Some(playback) = eng
+        .resource::<AnimationState>()
+        .borrow_mut()
+        .players
+        .get_mut(&entity)
+    {
         playback.fade = leaving;
     }
     Ok(())

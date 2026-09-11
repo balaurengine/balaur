@@ -485,14 +485,51 @@ pub fn is_instanced(node) {
     node.contains_key("owner")
 }
 
-// Structural equality through the encoder, because a scene key's value is a
-// table or an array as often as it is a number, and one spelling of "equal"
-// for all of them is what keeps an override sparse.
+// Structural equality, because a scene key's value is a table or an array as
+// often as it is a number, and one spelling of "equal" keeps an override sparse.
 fn same_value(a, b) {
     match b {
-        Some(b) => toml::encode(#{ v: a }) == toml::encode(#{ v: b }),
+        Some(b) => close(a, b),
         None => false,
     }
+}
+
+// Numbers to f32 precision: an engine value is an f32 widened, and a rotation
+// comes back through a quaternion, so the file's 0.8 reads 0.800000011920929.
+fn close(a, b) {
+    if (a is i64 || a is f64) && (b is i64 || b is f64) {
+        let x = util::f(a);
+        let y = util::f(b);
+        let size = if x.abs() > 1.0 { x.abs() } else { 1.0 };
+        return (x - y).abs() <= 0.00001 * size;
+    }
+    if a is Vec && b is Vec {
+        if a.len() != b.len() {
+            return false;
+        }
+        for i in 0..a.len() {
+            if !close(a[i], b[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if a is Object && b is Object {
+        if a.len() != b.len() {
+            return false;
+        }
+        for (key, inner) in a.iter() {
+            let other = match b.get(key) {
+                Some(other) => other,
+                None => return false,
+            };
+            if !close(inner, other) {
+                return false;
+            }
+        }
+        return true;
+    }
+    toml::encode(#{ v: a }) == toml::encode(#{ v: b })
 }
 
 // Every component key of a node table replaced by the property table the
@@ -530,6 +567,21 @@ fn merged(base, over) {
         },
         None => over,
     }
+}
+
+// The transform a prefab never wrote but one of its components expects: the
+// engine gives the node one at its defaults, as a body's `apply` does.
+fn brought_along(S, base, key) {
+    if key != TRANSFORM {
+        return None;
+    }
+    for (other, _) in base.iter() {
+        if util::contains(expects(S, other), key) {
+            let defaults = scene::component_properties(key, #{});
+            return if defaults is Object { Some(defaults) } else { None };
+        }
+    }
+    None
 }
 
 // What of `value` differs from `base`, so an override holds only the
@@ -1293,7 +1345,11 @@ pub fn record_override(S, node, key) {
     let table = util::obj(owner.get("overrides").unwrap_or(#{}));
     let entry = util::obj(table.get(node.at).unwrap_or(#{}));
     let base = util::obj(node.get("base").unwrap_or(#{}));
-    match differing(node.get(key), base.get(key)) {
+    let prefab = match base.get(key) {
+        Some(value) => Some(value),
+        None => brought_along(S, base, key),
+    };
+    match differing(node.get(key), prefab) {
         Some(value) => entry[key] = value,
         None => entry.remove(key),
     }

@@ -112,7 +112,10 @@ fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
 #[test]
 fn a_clicked_widget_runs_its_pointer_click_bindings() {
     let (_dir, mut app) = app();
-    let go = add_widget(&app, &toml::toml! { kind = "button" text = "Sail" x = 0.0 y = 0.0 }.into());
+    let go = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Sail" x = 0.0 y = 0.0 }.into(),
+    );
     let rows = toml::toml! {
         rows = [{ event = "pointer_click", action = "set_variable", target = "sailed", value = 1.0 }]
     };
@@ -126,7 +129,10 @@ fn a_clicked_widget_runs_its_pointer_click_bindings() {
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     let variables = app.engine.resource::<balaur_core::variables::Variables>();
-    let sailed = variables.borrow().get("sailed").map(balaur_core::variables::as_num);
+    let sailed = variables
+        .borrow()
+        .get("sailed")
+        .map(balaur_core::variables::as_num);
     assert_eq!(sailed, Some(1.0), "the click ran the row");
 }
 
@@ -136,7 +142,10 @@ fn a_clicked_widget_runs_its_pointer_click_bindings() {
 #[test]
 fn a_ticked_check_emits_change_for_its_bindings() {
     let (_dir, mut app) = app();
-    let tick = add_widget(&app, &toml::toml! { kind = "check" text = "Sails" x = 0.0 y = 0.0 }.into());
+    let tick = add_widget(
+        &app,
+        &toml::toml! { kind = "check" text = "Sails" x = 0.0 y = 0.0 }.into(),
+    );
     let rows = toml::toml! {
         rows = [{ event = "emitted:change", action = "add_variable", target = "flips", value = 1.0 }]
     };
@@ -151,6 +160,9 @@ fn a_ticked_check_emits_change_for_its_bindings() {
     consume_input(&mut app);
     app.tick(1.0 / 60.0);
     let variables = app.engine.resource::<balaur_core::variables::Variables>();
-    let flips = variables.borrow().get("flips").map(balaur_core::variables::as_num);
+    let flips = variables
+        .borrow()
+        .get("flips")
+        .map(balaur_core::variables::as_num);
     assert_eq!(flips, Some(1.0), "the tick emitted `change` once");
 }

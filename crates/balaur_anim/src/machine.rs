@@ -114,9 +114,13 @@ pub struct Machine {
 
 impl Machine {
     fn clip_of<'a>(&'a self, state: &'a str) -> &'a str {
-        self.states
-            .get(state)
-            .map_or(state, |clip| if clip.is_empty() { state } else { clip.as_str() })
+        self.states.get(state).map_or(state, |clip| {
+            if clip.is_empty() {
+                state
+            } else {
+                clip.as_str()
+            }
+        })
     }
 
     fn between(&self, from: &str, to: &str) -> Option<&Transition> {
@@ -173,19 +177,25 @@ pub fn parse(value: &toml::Value) -> Result<Machine> {
         ..Machine::default()
     };
     if let Some(states) = value.get(keys::STATES) {
-        let states = states
-            .as_table()
-            .ok_or_else(|| anyhow!("`states` is {}, not a table of state to clip", states.type_str()))?;
+        let states = states.as_table().ok_or_else(|| {
+            anyhow!(
+                "`states` is {}, not a table of state to clip",
+                states.type_str()
+            )
+        })?;
         for (name, clip) in states {
-            let clip = clip
-                .as_str()
-                .ok_or_else(|| anyhow!("`states.{name}` is {}, not a clip name", clip.type_str()))?;
+            let clip = clip.as_str().ok_or_else(|| {
+                anyhow!("`states.{name}` is {}, not a clip name", clip.type_str())
+            })?;
             machine.states.insert(name.clone(), clip.to_string());
         }
     }
     let known = |state: &str| machine.states.contains_key(state);
     if !machine.start.is_empty() && !known(&machine.start) {
-        bail!("`start` names '{}', which is not in `states`", machine.start);
+        bail!(
+            "`start` names '{}', which is not in `states`",
+            machine.start
+        );
     }
     let items = value
         .get(keys::TRANSITIONS)
@@ -264,7 +274,13 @@ pub(crate) fn prepare(eng: &Engine) {
             .machines
             .iter()
             .filter(|(_, run)| run.active && run.resolved_at != Some(generation))
-            .map(|(&entity, run)| (entity, run.reference.clone(), player_of(&world, entity, &run.player)))
+            .map(|(&entity, run)| {
+                (
+                    entity,
+                    run.reference.clone(),
+                    player_of(&world, entity, &run.player),
+                )
+            })
             .collect()
     };
     for (entity, reference, player) in wanted {
@@ -371,7 +387,8 @@ pub(crate) fn step(
         let fires = machine.transitions.iter().find(|t| {
             t.from == run.current
                 && t.advance == Advance::Auto
-                && (t.condition.is_empty() || run.conditions.get(&t.condition).copied().unwrap_or(false))
+                && (t.condition.is_empty()
+                    || run.conditions.get(&t.condition).copied().unwrap_or(false))
                 && ready(t, playback, ended)
         });
         if let Some(t) = fires {
@@ -391,7 +408,11 @@ fn ready(t: &Transition, playback: &Playback, ended: bool) -> bool {
     if ended || wrapped(playback) {
         return true;
     }
-    let Some(clip) = playback.clip.as_ref().filter(|_| t.fade > 0.0 && playback.playing) else {
+    let Some(clip) = playback
+        .clip
+        .as_ref()
+        .filter(|_| t.fade > 0.0 && playback.playing)
+    else {
         return false;
     };
     let into = if clip.wrap == Wrap::None || clip.length <= 0.0 {
@@ -416,19 +437,30 @@ fn wrapped(playback: &Playback) -> bool {
     pass(before) != pass(playback.time)
 }
 
-fn enter(run: &mut MachineRun, machine: &Machine, playback: &mut Playback, to: &str, fade: f32, sync: bool) {
+fn enter(
+    run: &mut MachineRun,
+    machine: &Machine,
+    playback: &mut Playback,
+    to: &str,
+    fade: f32,
+    sync: bool,
+) {
     run.current = to.to_string();
     let Some(clip) = run.clips.get(to).cloned() else {
         return;
     };
-    let leaving = playback.clip.clone().filter(|_| fade > 0.0 && playback.active()).map(|leaving| Fade {
-        clip_name: playback.clip_name.clone(),
-        clip: leaving,
-        time: playback.time,
-        speed: playback.speed,
-        elapsed: 0.0,
-        duration: fade,
-    });
+    let leaving = playback
+        .clip
+        .clone()
+        .filter(|_| fade > 0.0 && playback.active())
+        .map(|leaving| Fade {
+            clip_name: playback.clip_name.clone(),
+            clip: leaving,
+            time: playback.time,
+            speed: playback.speed,
+            elapsed: 0.0,
+            duration: fade,
+        });
     playback.clip_name = machine.clip_of(to).to_string();
     playback.clip = Some(clip);
     if !sync {
@@ -456,7 +488,10 @@ fn with_run<T>(eng: &Engine, entity: Entity, f: impl FnOnce(&mut MachineRun) -> 
 /// When the node runs no machine, or the machine has no such state.
 pub fn travel(eng: &Engine, entity: Entity, to: &str) -> Result<()> {
     with_run(eng, entity, |run| {
-        let machine = run.machine.clone().ok_or_else(|| anyhow!("the state machine has not loaded"))?;
+        let machine = run
+            .machine
+            .clone()
+            .ok_or_else(|| anyhow!("the state machine has not loaded"))?;
         if !machine.states.contains_key(to) {
             bail!("the state machine has no state '{to}'");
         }
@@ -523,7 +558,10 @@ pub(crate) fn apply(eng: &Engine, entity: Entity, params: &toml::Value) {
         run.reference = reference;
         run.player = player;
     }
-    run.active = params.get(keys::ACTIVE).and_then(toml::Value::as_bool).unwrap_or(true);
+    run.active = params
+        .get(keys::ACTIVE)
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(true);
 }
 
 pub(crate) fn remove(eng: &Engine, entity: Entity) {

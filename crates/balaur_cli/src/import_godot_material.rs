@@ -40,7 +40,10 @@ pub(crate) fn attach(value: &Value, res: &Resources<'_>, out: &mut Mapped) {
             return;
         };
         // A resource saved as its own file states its type on the header.
-        let kind = loaded.0.first("gd_resource").and_then(|h| h.attr_str("type"));
+        let kind = loaded
+            .0
+            .first("gd_resource")
+            .and_then(|h| h.attr_str("type"));
         (section, &loaded.1, kind)
     } else {
         return;
@@ -52,7 +55,10 @@ pub(crate) fn attach(value: &Value, res: &Resources<'_>, out: &mut Mapped) {
             return;
         }
         other => {
-            out.note(format!("a {} material has no equivalent", other.unwrap_or("typeless")));
+            out.note(format!(
+                "a {} material has no equivalent",
+                other.unwrap_or("typeless")
+            ));
             return;
         }
     }
@@ -114,7 +120,9 @@ fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option
     let translated = match crate::import_godot_shader::translate(code) {
         Ok(translated) => translated,
         Err(why) => {
-            out.note(format!("its shader, saved in the scene, did not translate: {why:#}"));
+            out.note(format!(
+                "its shader, saved in the scene, did not translate: {why:#}"
+            ));
             return None;
         }
     };
@@ -158,7 +166,10 @@ fn param(uniform: &Uniform, value: &Value, res: &Resources<'_>, out: &mut Mapped
     }
     let values = match value {
         Value::Bool(on) => vec![if *on { 1.0 } else { 0.0 }],
-        other => other.as_f64().map(|n| vec![n]).or_else(|| other.numbers())?,
+        other => other
+            .as_f64()
+            .map(|n| vec![n])
+            .or_else(|| other.numbers())?,
     };
     numbers(uniform, &values)
 }

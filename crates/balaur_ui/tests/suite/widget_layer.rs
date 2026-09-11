@@ -72,7 +72,10 @@ fn an_edge_anchor_pins_one_axis_and_centres_the_other() {
         rect(middle),
     );
     assert!(l.center().x < m.center().x, "center_left sits left: {l:?}");
-    assert!(r.center().x > m.center().x, "center_right sits right: {r:?}");
+    assert!(
+        r.center().x > m.center().x,
+        "center_right sits right: {r:?}"
+    );
     assert!(t.center().y < m.center().y, "center_top sits high: {t:?}");
     assert!(b.center().y > m.center().y, "center_bottom sits low: {b:?}");
     // The axis the anchor does not pin stays centred, which is the whole

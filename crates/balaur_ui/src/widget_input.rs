@@ -148,7 +148,13 @@ fn apply_system(eng: &Engine, _dt: f32) {
             .collect();
         let typed: Vec<_> = typed
             .into_iter()
-            .map(|(entity, method, value)| (recipient(eng, host.as_ref(), entity, &method), method, value))
+            .map(|(entity, method, value)| {
+                (
+                    recipient(eng, host.as_ref(), entity, &method),
+                    method,
+                    value,
+                )
+            })
             .collect();
         for (entity, method) in signals {
             host.call_on(balaur_core::node_id_of(entity), &method, &[]);
