@@ -370,7 +370,8 @@ def item_rules(rel, i, line) -> list[Finding]:
     # which is a store in a tab and the disk on a desktop.
     if (re.search(r"\bstd::fs::", line)
             and str(rel).startswith(("crates/balaur_core/", "crates/balaur_render/",
-                                     "crates/balaur_ui/", "crates/balaur_script_rune/",
+                                     "crates/balaur_text/", "crates/balaur_ui/",
+                                     "crates/balaur_script_rune/",
                                      "crates/balaur/"))
             and not is_test_file(rel)
             and "// os files:" not in line

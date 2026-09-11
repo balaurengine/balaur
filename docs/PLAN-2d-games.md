@@ -44,7 +44,7 @@ Built, and load-bearing for a 2D game:
 | `http.request` (ureq native, Fetch on wasm); websockets with binary frames and deflate, with a browser backend; QUIC natively | `crates/balaur_http`, `crates/balaur_websocket`, `crates/balaur_webtransport` |
 | `gamend.*`: login, REST, `connect`, `join`, `push`, `leave`, `call_hook`, Phoenix Channels V2 | `crates/balaur_gamend` |
 | `save`, `settings`, `fs`, `json`, `toml`; `strings.tr` with interpolation and plurals; `strings/<locale>.toml` | `crates/balaur_core/src/{save,settings,file_api,strings}.rs` |
-| A project's own `fonts/*.ttf` loaded as a fallback chain ahead of the bundled and system faces | `crates/balaur_ui/src/theme.rs:194` |
+| A project's own `fonts/*.ttf` loaded as a fallback chain ahead of the bundled and system faces | `crates/balaur_text/src/fonts.rs` |
 | `platform.*` and its Apple backend: sign-in, Game Center, iCloud, StoreKit, notifications, inbound URLs | `crates/balaur_platform`, `crates/balaur_apple`, `docs/PLAN-apple.md` |
 | A fused desktop binary, a signed macOS `.app`, an unsigned iOS `.app`, an unsigned APK, a wasm build that boots a pack on a canvas | `crates/balaur_export`, `crates/balaur_cli/src/web.rs` |
 | One fixed tick, record and replay, a digest, rollback | `Stage::FixedUpdate`, `balaur_core::{replay,digest,rollback}` |

@@ -572,7 +572,7 @@ fn raster_size(
     let em_world = text.style.size / text.pixels_per_unit.max(0.01);
     let per_unit = if text.in_3d {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot>() else {
-            return balaur_ui::text::bucket(text.style.size);
+            return balaur_text::bucket(text.style.size);
         };
         let snapshot = snapshot.borrow();
         let eye = glamx::Vec3::new(snapshot.eye[0], snapshot.eye[1], snapshot.eye[2]);
@@ -583,10 +583,10 @@ fn raster_size(
         viewport_height / (2.0 * half)
     } else {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot2d>() else {
-            return balaur_ui::text::bucket(text.style.size);
+            return balaur_text::bucket(text.style.size);
         };
         // The 2D camera's zoom is already pixels to the world unit.
         snapshot.borrow().zoom.max(0.01)
     };
-    balaur_ui::text::bucket((em_world * per_unit).clamp(1.0, 512.0))
+    balaur_text::bucket((em_world * per_unit).clamp(1.0, 512.0))
 }

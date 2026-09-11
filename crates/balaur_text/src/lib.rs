@@ -1,4 +1,4 @@
-//! Shaped text for the widget layer.
+//! Shaped text for the widget layer and the renderer's world text.
 //!
 //! cosmic-text lays a string out — bidi, contextual forms, script fallback
 //! across the project's font chain, word breaks that know CJK and Thai —
@@ -22,6 +22,8 @@ use cosmic_text::{
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 pub mod bitmap;
+pub mod fonts;
+pub mod glyph;
 pub mod markup;
 
 pub mod atlas;
@@ -195,7 +197,7 @@ pub struct TextState {
     pages: HashMap<String, BitmapPage>,
     /// The project's and the bundled faces, without the system's: what a
     /// measurement is allowed to see.
-    own: Vec<crate::theme::FontFace>,
+    own: Vec<crate::fonts::FontFace>,
     locale: String,
     /// Built from `own` the first time something measures. Separate from
     /// `fonts` on purpose: drawing may fall back to whatever the machine has,
@@ -232,7 +234,7 @@ impl cosmic_text::Fallback for ChainFallback {
 
 impl TextState {
     /// Build from the faces the theme loaded, in chain order.
-    pub(crate) fn new(faces: &[crate::theme::FontFace], locale: &str) -> Self {
+    pub fn new(faces: &[crate::fonts::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
         let mut chains: HashMap<String, String> = HashMap::new();
@@ -286,11 +288,7 @@ impl TextState {
 
     /// Shape for the widget layer: lays out, then hands egui whatever the
     /// atlas gained, so the texture behind `texture` holds these glyphs.
-    pub(crate) fn shape_for_egui(
-        &mut self,
-        ctx: &egui::Context,
-        request: &RequestRef<'_>,
-    ) -> Rc<Shaped> {
+    pub fn shape_for_egui(&mut self, ctx: &egui::Context, request: &RequestRef<'_>) -> Rc<Shaped> {
         let shaped = self.shape_ref(request);
         self.atlas.flush_egui(ctx);
         shaped
@@ -383,7 +381,7 @@ impl TextState {
     }
 
     /// One font system over `faces`, with those faces as the fallback chain.
-    fn system_of(faces: &[crate::theme::FontFace], locale: &str) -> FontSystem {
+    fn system_of(faces: &[crate::fonts::FontFace], locale: &str) -> FontSystem {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
         for face in faces {
@@ -607,7 +605,7 @@ fn span_attrs<'a>(base: &Attrs<'a>, span: &markup::Span, index: usize, size: f32
 
 /// Draw a shaped block with its top-left corner at `origin`. `time` drives
 /// the wave; `tint` is the label's colour where the markup set none.
-pub(crate) fn paint(
+pub fn paint(
     painter: &egui::Painter,
     texture: Option<egui::TextureId>,
     shaped: &Shaped,
@@ -647,15 +645,15 @@ pub fn state(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<TextState>>>
 mod tests {
     use super::*;
 
-    fn faces() -> Vec<crate::theme::FontFace> {
-        let mut faces = vec![crate::theme::FontFace {
+    fn faces() -> Vec<crate::fonts::FontFace> {
+        let mut faces = vec![crate::fonts::FontFace {
             name: "ui-SourceSans3-Regular".into(),
             chain: "ui",
             bytes: Arc::new(
-                include_bytes!("../../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
+                include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
             ),
         }];
-        faces.extend(crate::theme::system_faces());
+        faces.extend(crate::fonts::system_faces());
         faces
     }
 
@@ -697,11 +695,11 @@ mod tests {
         // The project's face alone, and the same with a system face behind it.
         let own = vec![faces()[0].clone()];
         let mut with_system = own.clone();
-        with_system.push(crate::theme::FontFace {
+        with_system.push(crate::fonts::FontFace {
             name: "system:pretend".into(),
             chain: "system",
             bytes: std::sync::Arc::new(
-                include_bytes!("../../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
+                include_bytes!("../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
             ),
         });
         let strict = TextState::new(&own, "en-US").measure(&request);

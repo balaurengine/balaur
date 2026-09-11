@@ -416,7 +416,7 @@ impl<'a> Measure<'a> {
     ) -> egui::Vec2 {
         let look = crate::widget::arena::look_of(self.arena, index, theme, self.scale);
         let (style, font) = (&look.style, look.font.clone());
-        if let Some(state) = crate::text::state(self.eng) {
+        if let Some(state) = balaur_text::state(self.eng) {
             let request = crate::widget::text::text_request(widget, text, None, &font, style);
             return state
                 .borrow_mut()

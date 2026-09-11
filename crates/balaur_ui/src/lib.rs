@@ -19,12 +19,10 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
-pub mod glyph;
 mod images;
 mod immediate;
 mod pacing;
 mod splash;
-pub mod text;
 mod theme;
 mod vocabulary;
 mod widget;
@@ -158,7 +156,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(UiFocus::default());
-        glyph::install(reg);
+        balaur_text::glyph::install(reg);
         reg.register_asset_type(
             widget::theme::ASSET_TYPE,
             "themes",
@@ -196,10 +194,10 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         if !state.fonts_installed {
             // Fonts registered mid-pass only take effect next pass; skip one
             // frame of drawing so widgets never see unbound families.
-            let faces = theme::font_faces(eng);
+            let faces = balaur_text::fonts::font_faces(eng);
             theme::load_fonts(ctx, &faces);
             let locale = balaur_core::strings::locale(eng);
-            eng.insert_resource(text::TextState::new(&faces, &locale));
+            eng.insert_resource(balaur_text::TextState::new(&faces, &locale));
             state.fonts_installed = true;
             // A host that reruns the pass (`Context::will_discard`) draws
             // this frame with the fonts bound.

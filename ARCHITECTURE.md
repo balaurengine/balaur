@@ -345,7 +345,7 @@ and the triangles on screen are the same triangles.
 - Ten 3D primitives, six 2D; `path` adds beziers and what they extrude, revolve
   and sweep into; `csg` combines two with a BSP over their faces — written out
   because the candidate crates reach for parry and a BSP has no transcendental
-  to pin. `balaur_ui::glyph` is the one mesher outside core: shaping a word
+  to pin. `balaur_text::glyph` is the one mesher outside core: shaping a word
   needs that crate's font set.
 - A `mesh` asset names a model file, a primitive, a word or a path to thicken;
   the two that reach another asset resolve through `mesh::load_from`.
@@ -950,6 +950,8 @@ kiss3d window; scripts implement `draw_ui`, run once per frame in the egui pass.
   like Rust egui code.
 - Widgets take colors per call, so themes live in scripts and hot reload. Fonts
   load from `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` always exist.
+- `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
+  renderer's world text, so a label and a `text3d` share one font set.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).

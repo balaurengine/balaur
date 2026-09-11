@@ -18,7 +18,7 @@ struct Face {
     /// Around the picture when the role puts it on a disc.
     plate: f32,
     icon: Option<std::sync::Arc<egui::Galley>>,
-    shaped: Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)>,
+    shaped: Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)>,
     plain: Option<std::sync::Arc<egui::Galley>>,
     trailing: Option<std::sync::Arc<egui::Galley>>,
     size: egui::Vec2,
@@ -151,7 +151,7 @@ fn paint_face(
     }
     if let Some((shaped, texture)) = &face.shaped {
         let origin = pos2(at_x, rect.center().y - shaped.size.y / 2.0);
-        crate::text::paint(ui.painter(), *texture, shaped, origin, ink, at.eng.time());
+        balaur_text::paint(ui.painter(), *texture, shaped, origin, ink, at.eng.time());
         return;
     }
     if let Some(plain) = &face.plain {

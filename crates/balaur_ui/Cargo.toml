@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 balaur_core.workspace = true
 balaur_plugin.workspace = true
+balaur_text.workspace = true
 egui.workspace = true
 taffy.workspace = true
 # The widget pass hashes entity bits and arena indices tens of thousands of
@@ -25,15 +26,6 @@ tracing.workspace = true
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 # The wave in marked-up text is drawn with a sine that must not vary by OS.
 libm.workspace = true
-cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash"] }
-unicode-script = "0.5"
-# A glyph's outline, for text that is geometry rather than an atlas quad.
-# The version is cosmic-text's, so `Font::as_swash` hands back this crate's
-# `FontRef` and not a second copy of it.
-swash = "0.2.10"
-# Triangulation with holes: the ear clipper in core takes one ring, and a
-# letter's counters are rings of their own. `i_overlay`'s sibling, and it
-# scales to integers the same way.
 
 [dev-dependencies]
 balaur.workspace = true

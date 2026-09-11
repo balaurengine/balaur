@@ -19,8 +19,8 @@ pub(crate) fn text_request<'a>(
     width: Option<f32>,
     font: &egui::FontId,
     style: &'a crate::widget::theme::Style,
-) -> crate::text::RequestRef<'a> {
-    crate::text::RequestRef {
+) -> balaur_text::RequestRef<'a> {
+    balaur_text::RequestRef {
         text: caption,
         // The face the caller already resolved, so a role's `size` and
         // `strong` reach the shaper the way they reach egui's own text.
@@ -29,9 +29,9 @@ pub(crate) fn text_request<'a>(
         italic: widget.font_style == w::ITALIC,
         width,
         align: match widget.text_align.as_str() {
-            w::CENTER => crate::text::Align::Center,
-            w::END => crate::text::Align::End,
-            _ => crate::text::Align::Start,
+            w::CENTER => balaur_text::Align::Center,
+            w::END => balaur_text::Align::End,
+            _ => balaur_text::Align::Start,
         },
         markup: widget.markup,
         // A widget names no bitmap font yet; the world's text is where a
@@ -52,8 +52,8 @@ pub(crate) fn shaped_caption(
     widget: &Widget,
     caption: &str,
     font: &egui::FontId,
-) -> Option<(std::rc::Rc<crate::text::Shaped>, Option<egui::TextureId>)> {
-    let state = crate::text::state(at.eng)?;
+) -> Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)> {
+    let state = balaur_text::state(at.eng)?;
     let look = at.look(index);
     let mut state = state.borrow_mut();
     let request = text_request(widget, caption, None, font, &look.style);
@@ -72,7 +72,7 @@ pub(crate) fn shaped_label(
     color: egui::Color32,
     font: &egui::FontId,
 ) -> bool {
-    let Some(state) = crate::text::state(at.eng) else {
+    let Some(state) = balaur_text::state(at.eng) else {
         return false;
     };
     let look = at.look(index);
@@ -107,7 +107,7 @@ pub(crate) fn shaped_label(
         _ => 0.0,
     };
     let origin = rect.min + vec2(shift, 0.0);
-    crate::text::paint(ui.painter(), texture, &shaped, origin, color, at.eng.time());
+    balaur_text::paint(ui.painter(), texture, &shaped, origin, color, at.eng.time());
     for picture in &shaped.pictures {
         if let Ok(handle) = crate::images::texture_of(at.eng, ui.ctx(), &picture.path) {
             ui.painter().image(

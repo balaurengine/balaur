@@ -63,7 +63,7 @@ pub struct GlyphMesher {
 
 impl GlyphMesher {
     /// A mesher over the project's faces, in chain order.
-    pub(crate) fn new(faces: &[crate::theme::FontFace], locale: &str) -> Self {
+    pub fn new(faces: &[crate::fonts::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
         // The family each role loaded under. A request that names no font takes
         // the default family, and an empty database answers with whatever it
@@ -309,7 +309,7 @@ fn cubic(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2], t: f32) -> [f32; 2]
 /// The mesher is built on the first word asked for, not here: the faces come
 /// from the project's `fonts/` directory, and no project is open when a
 /// plugin declares itself.
-pub(crate) fn install(reg: &mut balaur_plugin::Registry<'_>) {
+pub fn install(reg: &mut balaur_plugin::Registry<'_>) {
     let mesher: std::cell::RefCell<Option<GlyphMesher>> = std::cell::RefCell::new(None);
     reg.insert_resource(balaur_core::mesh::TextGeometry(Box::new(
         move |eng, shape| {
@@ -318,7 +318,7 @@ pub(crate) fn install(reg: &mut balaur_plugin::Registry<'_>) {
                 // The project's and the bundled faces only: a text mesh is
                 // real geometry — colliders fit it and rays pick it — so the
                 // machine's own fonts must not reach it.
-                let mut faces = crate::theme::font_faces(eng);
+                let mut faces = crate::fonts::font_faces(eng);
                 faces.retain(|face| face.chain != "system");
                 GlyphMesher::new(&faces, &balaur_core::strings::locale(eng))
             });
