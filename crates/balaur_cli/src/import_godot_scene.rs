@@ -7,7 +7,7 @@
 //! and on any node edited inside one, lands in `overrides` under the path
 //! from the prefab's root.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::Result;
@@ -79,9 +79,14 @@ struct Walk<'a> {
 
 /// Convert one scene. `path` is its project path, for naming the files it
 /// writes beside itself; `root` is the Godot project's root.
-pub(crate) fn convert(document: &Document, path: &str, root: &Path) -> Result<Converted> {
+pub(crate) fn convert(
+    document: &Document,
+    path: &str,
+    root: &Path,
+    keys: &BTreeSet<String>,
+) -> Result<Converted> {
     let mut walk = Walk {
-        res: resources(document, root),
+        res: resources(document, root, keys),
         nodes: Vec::new(),
         assets: Vec::new(),
         slots: BTreeMap::new(),
@@ -123,7 +128,7 @@ pub(crate) fn convert(document: &Document, path: &str, root: &Path) -> Result<Co
     })
 }
 
-fn resources<'a>(document: &Document, root: &'a Path) -> Resources<'a> {
+fn resources<'a>(document: &Document, root: &'a Path, keys: &'a BTreeSet<String>) -> Resources<'a> {
     let mut external = BTreeMap::new();
     for section in document.each("ext_resource") {
         let (Some(id), Some(path)) = (section.attr_str("id"), section.attr_str("path")) else {
@@ -140,6 +145,7 @@ fn resources<'a>(document: &Document, root: &'a Path) -> Resources<'a> {
         external,
         internal,
         root,
+        keys,
     }
 }
 
@@ -423,12 +429,42 @@ impl Walk<'_> {
             ));
             return;
         };
-        let mut row = toml::Table::new();
-        row.insert("event".into(), Toml::String(event.into()));
-        row.insert("action".into(), Toml::String("call".into()));
-        row.insert("target".into(), Toml::String(relative(&from, &to)));
-        row.insert("value".into(), Toml::String(method.to_string()));
-        if let Some(table) = self.table(&from) {
+        // A collision is reported by the collider's own node, and a Godot
+        // area or body holds its shapes as children, so the row goes on each.
+        let colliding = event.starts_with("collision");
+        let holders: Vec<String> = if colliding {
+            let prefix = if from.is_empty() { String::new() } else { format!("{from}/") };
+            self.classes
+                .iter()
+                .filter(|(path, class)| {
+                    let child = path.strip_prefix(&prefix).is_some_and(|rest| !rest.contains('/'));
+                    child && matches!(class.as_str(), "CollisionShape2D" | "CollisionPolygon2D")
+                })
+                .map(|(path, _)| path.clone())
+                .collect()
+        } else {
+            vec![from.clone()]
+        };
+        if holders.is_empty() {
+            self.notes.push(format!(
+                "connection `{signal}` from `{from}`: it has no shape child to report it"
+            ));
+        }
+        for holder in holders {
+            let mut row = toml::Table::new();
+            row.insert("event".into(), Toml::String(event.into()));
+            row.insert("action".into(), Toml::String("call".into()));
+            row.insert("target".into(), Toml::String(relative(&holder, &to)));
+            row.insert("value".into(), Toml::String(method.to_string()));
+            let Some(table) = self.table(&holder) else { continue };
+            if colliding {
+                if let Some(Toml::Table(collider)) = table.get_mut("collider2d") {
+                    collider.insert(
+                        "events".into(),
+                        Toml::Array(vec![Toml::String("collision".into())]),
+                    );
+                }
+            }
             let rows = table
                 .entry("bindings")
                 .or_insert_with(|| Toml::Array(Vec::new()));

@@ -1,6 +1,8 @@
-> **Status:** not started. Written 2026-09-10, after a look at how a material
-> reaches a node found that a node which draws nothing cannot carry one, so
-> there is no node to set a look on for a subtree to take.
+> **Status:** built 2026-09-11, except §3.2 (a shader per dimension). Written
+> 2026-09-10, after a look at how a material reaches a node found that a node
+> which draws nothing cannot carry one, so there is no node to set a look on
+> for a subtree to take. §2 records one departure from the first draft: a
+> renderable's own `material` stayed its own, the way `color` did.
 
 # Plan: a material a subtree inherits
 
@@ -106,8 +108,10 @@ would end that. So the field is an interned id:
 pub struct MaterialId(u32);        // 0 is "no material"
 ```
 
-The engine owns the table, a `Vec<String>` and a `HashMap<String, u32>`.
-References are few and long-lived, so it never needs to shrink.
+The table is process-wide, a `Vec<Arc<str>>` and a `HashMap` behind an
+`RwLock`, like the tree's shape revision beside it. An id only ever means one
+string, so two engines in one test share it harmlessly. References are few and
+long-lived, so it never shrinks.
 
 - `Appearance::material: MaterialId` — what this node and its subtree draw
   with. Composed as "the child's own, or the parent's when the child has
@@ -115,22 +119,34 @@ References are few and long-lived, so it never needs to shrink.
 - `GlobalAppearance::material: MaterialId` — the resolved answer, written by
   the same pass that writes `tint`, and read by `composed_appearance` for a
   caller that cannot wait for the next one.
-- `Renderable::material` and `Renderable2d::material` are deleted. The five
-  component schemas keep their `material` property, and their `apply` hooks
-  write `Appearance::material` instead of the renderable field. What a node
-  names for itself is therefore also what its subtree takes, through one
-  path and not two.
-- A `material` component in `balaur_render`, writing the same field, so a
-  node with no shape can carry one. This is the node you set a look on.
-- The backend reads `GlobalAppearance::material` where it reads
-  `renderable.material` now, and rebuilds when the id differs from the
-  slot's. `channel_changed` already makes exactly this comparison, so the
-  rebuild condition gains a sibling rather than a new shape.
+- A `material` component in `balaur_render`, with one `source` property,
+  writing the field. It goes on any node, shape or none: this is the node
+  you set a look on. A `NodeMaterial` marker keeps it present while it names
+  nothing yet, and it also reads back a material a script set.
+- `node.material()`, `node.set_material(ref)` and `node.global_material()`,
+  the same three verbs the tint has.
+- **A renderable's own `material` stays its own.** `shape3d`, `shape2d`,
+  `mesh`, `sprite` and `tilemap` keep `Renderable::material` and friends. A
+  renderable draws with its own when it names one and with
+  `GlobalAppearance::material` when not. This is the `color` and `tint`
+  split, and Godot's `self_modulate` and `modulate`.
+- The 2D and 3D syncs and the tile map record the inherited id their slot
+  was built with, and rebuild when it moves for a renderable naming none.
+  `channel_changed` already made exactly this comparison, so the rebuild
+  condition gained a sibling rather than a new shape.
 
-Any component can then write the field, and the five that carry a `material`
-property today are just the first five. A component added later that draws
-something inherits the rule without a line of its own, which is the same
-bargain the schema layer already makes.
+**Why a renderable's own did not become the shared field.** The first draft
+had the five components write `Appearance::material` too. Two writers of one
+field meant a node carrying `[nodes.material]` and a `shape3d` with no
+material of its own lost the inherited one to the shape's default `""`,
+depending on apply order. It also meant removing a shape either cleared a
+value some other component still showed, or left one no inspector drew. And
+every existing scene with a material on a shape that has child shapes would
+have changed look. Keeping the renderable's own is the split the engine
+already made for colour, and it has none of the three.
+
+Any renderer reads the inherited field, so a component added later that
+draws something takes it without a line of its own.
 
 **Why the propagate pass and not a walk up the ancestors at rebuild.** A lazy
 walk is less code and no per-frame cost, and it is wrong under two edits.
@@ -183,19 +199,22 @@ import package::mesh::{VertexInput, VertexOutput, vertex};    // 3D
 import package::sprite::{VertexInput, VertexOutput, vertex};  // 2D
 ```
 
-Nothing reads that today. Reading it turns a dimension mismatch from a
+Nothing read that before this plan. Reading it turns a dimension mismatch from a
 pipeline failure into a sentence naming both the material and the node, at
 parse time, with no new syntax in the file.
 
 Two things follow, in order:
 
-1. **A material knows its dimension, and a mismatch is reported.** A material
-   inherited by a node of the other dimension falls back to the built-in one
-   and warns once per reference: the node that caused it is not the node that
-   names it, and a scene must still load. `theme_of` carries the warn-once
-   pattern to copy. A material named on the node itself is the exception,
-   because that is a mistake in the file, and it should say so as loudly as
-   it does today.
+1. **A material knows its dimension, and a mismatch is reported. Built.**
+   `material::contract` reads the imports, following a plugin module into
+   its own, and `fits` refuses a material written for the other dimension
+   before its pipeline is built. The node keeps the built-in material and
+   the cache warns once per reference per dimension, because the node that
+   caused it is not the node that names it and a scene must still load. Both
+   dimensions linked the same way before this, so a 3D material on a sprite
+   reached wgpu's pipeline validation, which inheritance would have made easy
+   to hit. An own material that mismatches warns the same way; telling the
+   two apart would need the cache to know which node asked.
 2. **A material may name a shader per dimension.** `shader` and `shader_2d`
    in the same file, sharing one `[params]` table, which group 3 makes
    possible at no cost. One material then styles a mixed subtree: the meshes
@@ -212,20 +231,23 @@ reference. A node drawing an inherited material would look unstyled, and
 people would set it per node anyway, which is the habit the feature exists to
 break.
 
-- A binding, `render::effective_material(node)`, answering
-  `#{ reference, from }`: the resolved reference and the name of the node it
-  came from, both empty when nothing applies.
-- The property row shows the inherited reference greyed with the source
-  node's name beside it, and `material_rows` draws that material's shader and
-  params as it does for an owned one.
+- `inherited_material(S)` in the inspector walks the live node up with
+  `node.material()` until one names a material, stopping at the edited
+  scene's root. No new binding was needed.
+- An empty `material` or `source` row shows `from <node>: <file>` as its
+  placeholder, and `material_rows` draws that material's shader and params as
+  it does for an owned one. When the source is the node's own `material`
+  component, the rows are left to that component's row.
 - Typing a reference into the row sets the node's own, which takes over.
   Clearing it returns the node to what it inherits.
 
 ## 5. What this does not cover
 
-- **`tilemap`'s material.** A map holds its own reference on its own path
-  (`map.material`) and is one node with one draw. It reads `GlobalMaterial`
-  like the rest and needs no other change.
+- **`tilemap`'s material.** A map keeps its own reference and falls back to
+  the inherited one like the rest. Building it found a bug that predated
+  this: chunks are reused while their cells hold, so a material cleared to
+  none stayed on unchanged chunks. The slot now remembers the material its
+  chunks were built with and starts them over when it changes.
 - **Post-process materials.** `camera.post` is a chain over the frame, not a
   node's look. Untouched.
 - **Per-surface materials.** Godot's `surface_override_material` has no
@@ -237,17 +259,19 @@ break.
 
 ## 6. Tests
 
-In `crates/balaur_render/tests/suite/material.rs`, named for what they claim
-the way the widget theme test is:
+Composition is core's, in `crates/balaur_core/tests/suite/scene.rs`:
+inherited by everything under it, the nearest one wins, a reparented subtree
+takes its new parent's, clearing returns the subtree to none,
+`composed_appearance` agrees with propagation, and interning round-trips.
+`snapshot.rs` holds that a restore puts a material back and that the digest
+notices one moving.
 
-1. A material on a parent draws on a child that names none.
-2. A child's own material wins over the parent's.
-3. A grandchild takes the nearest ancestor's, not the root's, when both name
-   one.
-4. Reparenting a subtree under a different material changes what it draws,
-   with no explicit invalidation.
-5. Clearing a parent's material returns the subtree to the built-in one.
-6. A 3D material inherited by a 2D node falls back and warns once, and the
-   scene still loads.
-7. A material on a node with no renderable at all is legal, reaches its
-   children, and adds no draw.
+The component and the contract are in
+`crates/balaur_render/tests/suite/material.rs`:
+the component on a node that draws nothing, a sprite's own material staying
+its own, removal, an empty component staying on the node, a script-set
+material reading back as the component, and `contract` over each built-in
+module, a plugin chain and a module importing itself.
+
+What a GPU adds, a render of each case, was checked with `balaur run
+--offscreen` on a scratch scene rather than in CI, as the shaders plan did.

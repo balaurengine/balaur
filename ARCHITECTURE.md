@@ -200,6 +200,13 @@ remove hooks.
 - In tree: `body3d`/`collider3d`, `body2d`/`collider2d`;
   `shape3d`/`shape2d`/`sprite`, each with its own `color` property, since a tint
   needs something to tint; `widget`.
+- Materials split the same way. A renderable's `material` is its own; the
+  `material` component goes on any node and names one for the subtree, composed
+  beside the tint as `Appearance::material`. That is an interned `MaterialId`,
+  so `Appearance` stays `Copy`, and the digest and snapshot store the reference
+  since ids follow load order. A shader's contract import (`package::sprite`,
+  `package::mesh`) says which dimension it draws, and an inherited material that
+  reaches the other one keeps the built-in material.
 
 **Browsing them.** The list is flat — a node is exactly its components.
 

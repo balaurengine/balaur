@@ -26,8 +26,8 @@
 //!
 //! **One key may hold more than one answer.** A setting's path under
 //! `override/<tag>/` is what that platform reads instead:
-//! `[override.android.window] fullscreen = true` is `window/fullscreen` on a
-//! phone and nowhere else. The storage rule needs no exception for it, since
+//! `[override.android.window] orientation = "portrait"` is `window/orientation`
+//! on a phone and nowhere else. The storage rule needs no exception for it, since
 //! the override is a path like any other. [`get`] resolves against the tags
 //! this run answers to, narrowest first; [`base`] answers what the file says,
 //! which is what the editor edits. See [`crate::tags`].
@@ -691,7 +691,7 @@ fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::R
             r#"
 width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
 height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
-fullscreen = { type = "bool", default = false, order = 3, applies = "restart", help = "Open filling the screen. A script toggles the same state later, so starting fullscreen and switching into it take one path." }
+mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. render.set_window_mode changes it later through the same state." }
 orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
 vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
 msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }

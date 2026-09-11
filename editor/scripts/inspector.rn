@@ -990,17 +990,28 @@ fn read_now(S, comp, prop, fallback) {
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(S, k, comp, prop, spec, value) {
+    let asset_type = spec.get("asset").unwrap_or("");
+    // An empty material draws with the nearest one up, so the field says which.
+    let (inherited, from, here) = if asset_type == "material" && as_text(value) == "" {
+        inherited_material(S)
+    } else {
+        ("", "", false)
+    };
+    let placeholder = if inherited == "" {
+        "— none —"
+    } else {
+        format!("from {}: {}", from, util::last_segment(inherited))
+    };
     spec_row(S, k, prop, spec, || {
         let reference = model::relative_file(S, as_text(value));
         let inline = reference.starts_with("#!");
-        let asset_type = spec.get("asset").unwrap_or("");
         let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
         if inline {
             ui::label("— inline —", style::mono(k.faint));
         } else {
             let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
             let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
-            let (text, _, submitted) = ui::text_field(id, "— none —",
+            let (text, _, submitted) = ui::text_field(id, placeholder,
                 util::merge(style::field(k, width), #{ value: reference }));
             if submitted {
                 write(S, comp, prop, text);
@@ -1028,9 +1039,34 @@ fn edit_asset(S, k, comp, prop, spec, value) {
             }
         });
     });
-    if spec.get("asset").unwrap_or("") == "material" {
-        material_rows(S, k, model::relative_file(S, as_text(value)));
+    // Not when the node's own `material` component is the source: it draws them.
+    if asset_type == "material" && !here {
+        let own = as_text(value);
+        let shown = if own == "" { inherited } else { own };
+        material_rows(S, k, model::relative_file(S, shown));
     }
+}
+
+/// The material the selection draws with while it names none, the name of the
+/// node naming it, and whether that is the selection itself. The nearest one
+/// up wins, and the walk stops at the edited scene.
+fn inherited_material(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return ("", "", false),
+    };
+    let at = found;
+    while at is balaur::Node && at.is_valid() {
+        let own = at.material();
+        if own != "" {
+            return (own, at.name(), at.path() == found.path());
+        }
+        if S.mirror is balaur::Node && at.path() == S.mirror.path() {
+            break;
+        }
+        at = at.parent();
+    }
+    ("", "", false)
 }
 
 // The values a material's shader takes, read off the linked shader so the

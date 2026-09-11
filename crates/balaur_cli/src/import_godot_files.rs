@@ -30,16 +30,23 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     write(project, "project.toml", &converted.project_toml, &mut out)?;
     report.section("project.godot", converted.notes);
 
+    let files = walk(root)?;
+    let strings = crate::import_godot_strings::convert(root, &files);
+    for (path, text) in strings.files()? {
+        write(project, &path, &text, &mut out)?;
+    }
+    report.section("translations", strings.notes.clone());
+
     let mut scenes = 0;
     let mut failed = 0;
-    for relative in walk(root)? {
+    for relative in files {
         let extension = Path::new(&relative)
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
         if extension == "tscn" {
-            match scene(root, &relative, project, &mut out) {
+            match scene(root, &relative, project, &strings.keys, &mut out) {
                 Ok(notes) => {
                     scenes += 1;
                     report.section(&relative, notes);
@@ -49,7 +56,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
                     report.section(&relative, vec![format!("not converted: {why:#}")]);
                 }
             }
-        } else if COPIED.contains(&extension.as_str()) {
+        } else if COPIED.contains(&extension.as_str()) && !is_translation(root, &relative) {
             let target = project.join(&relative);
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -81,7 +88,8 @@ pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
         .to_string_lossy()
         .replace('\\', "/");
     let mut out = Imported::default();
-    let notes = scene(&root, &relative, project, &mut out)?;
+    let strings = crate::import_godot_strings::convert(&root, &walk(&root)?);
+    let notes = scene(&root, &relative, project, &strings.keys, &mut out)?;
     let mut report = Report::default();
     report.section(&relative, notes);
     let lines = report.write(project, &mut out)?;
@@ -95,16 +103,30 @@ pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
 }
 
 /// Convert the scene at `relative` under `root`, writing it into `project`.
-fn scene(root: &Path, relative: &str, project: &Path, out: &mut Imported) -> Result<Vec<String>> {
+fn scene(
+    root: &Path,
+    relative: &str,
+    project: &Path,
+    keys: &std::collections::BTreeSet<String>,
+    out: &mut Imported,
+) -> Result<Vec<String>> {
     let text = std::fs::read_to_string(root.join(relative))?;
     let document = crate::import_godot::parse(&text)?;
-    let converted = crate::import_godot_scene::convert(&document, relative, root)?;
+    let converted = crate::import_godot_scene::convert(&document, relative, root, keys)?;
     let path = crate::import_godot_scene::scene_path(relative);
     write(project, &path, &converted.scene_toml, out)?;
     for (file, text) in &converted.files {
         write(project, file, text, out)?;
     }
     Ok(converted.notes)
+}
+
+/// Whether a CSV is a translation table, which becomes `strings/` rather
+/// than a copy.
+fn is_translation(root: &Path, relative: &str) -> bool {
+    relative.ends_with(".csv")
+        && std::fs::read_to_string(root.join(format!("{relative}.import")))
+            .is_ok_and(|text| text.contains("importer=\"csv_translation\""))
 }
 
 /// The directory holding the `project.godot` a file belongs to.
@@ -192,5 +214,263 @@ impl Report {
         }
         write(project, "import-report.md", &text, out)?;
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::import_project;
+    use std::path::Path;
+
+    const HULL: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../balaur_render/tests/fixtures/sprite_200x100.png"
+    );
+
+    const PROJECT: &str = r#"config_version=5
+
+[application]
+
+config/name="Harbour"
+run/main_scene="res://scenes/main.tscn"
+"#;
+
+    /// Every mapping this converter makes, in one scene small enough to read:
+    /// a scripted root with an export, a sprite, an area with a shape, an
+    /// instance edited inside, a VBox of widgets, a player and two signals.
+    const MAIN: &str = r#"[gd_scene load_steps=8 format=3 uid="uid://cmain"]
+
+[ext_resource type="Texture2D" path="res://art/hull.png" id="1_hull"]
+[ext_resource type="PackedScene" path="res://scenes/crate.tscn" id="2_crate"]
+[ext_resource type="Script" path="res://scripts/root.gd" id="3_root"]
+
+[sub_resource type="RectangleShape2D" id="Rect_1"]
+size = Vector2(40, 20)
+
+[sub_resource type="Animation" id="Animation_fade"]
+resource_name = "fade"
+length = 1.0
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/path = NodePath("Ship:modulate")
+tracks/0/interp = 1
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 1), Color(1, 1, 1, 0)]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Ship:position")
+tracks/1/interp = 1
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(100, 50)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1"]
+_data = {
+&"fade": SubResource("Animation_fade")
+}
+
+[node name="World" type="Node2D"]
+script = ExtResource("3_root")
+speed = 4.5
+
+[node name="Ship" type="Sprite2D" parent="." groups=["boats"]]
+position = Vector2(200, 100)
+rotation = 0.5
+modulate = Color(1, 0.5, 0.5, 1)
+texture = ExtResource("1_hull")
+flip_h = true
+
+[node name="Dock" type="Area2D" parent="."]
+
+[node name="Shape" type="CollisionShape2D" parent="Dock"]
+shape = SubResource("Rect_1")
+
+[node name="Box" parent="." instance=ExtResource("2_crate")]
+position = Vector2(-50, 0)
+
+[node name="Lid" parent="Box"]
+visible = false
+
+[node name="Hud" type="VBoxContainer" parent="."]
+offset_left = 16.0
+offset_top = 24.0
+offset_right = 216.0
+offset_bottom = 124.0
+
+[node name="Title" type="Label" parent="Hud"]
+text = "Ahoy"
+horizontal_alignment = 1
+
+[node name="Go" type="Button" parent="Hud"]
+text = "Sail"
+size_flags_vertical = 3
+
+[node name="Player" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_1")
+}
+autoplay = "fade"
+
+[connection signal="pressed" from="Hud/Go" to="." method="on_go"]
+[connection signal="body_entered" from="Dock" to="." method="on_dock"]
+"#;
+
+    const CRATE: &str = r#"[gd_scene format=3 uid="uid://ccrate"]
+
+[node name="Crate" type="Node2D"]
+
+[node name="Lid" type="Sprite2D" parent="."]
+position = Vector2(0, -10)
+"#;
+
+    const SCRIPT: &str = "extends Node2D\n\n@export var speed := 2.0\nvar hidden := 1\n";
+
+    fn godot() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| {
+            let file = dir.path().join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, text).unwrap();
+        };
+        put("project.godot", PROJECT);
+        put("scenes/main.tscn", MAIN);
+        put("scenes/crate.tscn", CRATE);
+        put("scripts/root.gd", SCRIPT);
+        std::fs::create_dir_all(dir.path().join("art")).unwrap();
+        std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
+        dir
+    }
+
+    fn read(dir: &Path, path: &str) -> toml::Value {
+        let text = std::fs::read_to_string(dir.join(path)).unwrap();
+        toml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}\n{text}"))
+    }
+
+    fn node<'a>(scene: &'a toml::Value, name: &str) -> &'a toml::Value {
+        scene["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("no node {name} in {scene:#?}"))
+    }
+
+    fn floats(value: &toml::Value) -> Vec<f64> {
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_float().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn a_godot_project_converts_node_by_node() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/main.toml");
+
+        let ship = node(&scene, "Ship");
+        assert_eq!(
+            floats(&ship["transform"]["position"]),
+            vec![2.0, -1.0, 0.0],
+            "pixels become units, and y flips"
+        );
+        assert_eq!(floats(&ship["transform"]["rotation_euler"]), vec![0.0, 0.0, -0.5]);
+        assert_eq!(floats(&ship["tint"]), vec![1.0, 0.5, 0.5, 1.0], "modulate is the inherited tint");
+        assert_eq!(ship["sprite"]["texture"].as_str(), Some("art/hull.png"));
+        assert_eq!(ship["sprite"]["flip_x"].as_bool(), Some(true));
+        assert_eq!(ship["tags"][0].as_str(), Some("boats"));
+
+        let shape = node(&scene, "Shape");
+        assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rect"));
+        assert_eq!(floats(&shape["collider2d"]["half_extents"]), vec![0.2, 0.1]);
+        assert_eq!(shape["collider2d"]["sensor"].as_bool(), Some(true), "an area's shape senses");
+        assert_eq!(shape["collider2d"]["events"][0].as_str(), Some("collision"));
+        let row = &shape["bindings"][0];
+        assert_eq!(row["event"].as_str(), Some("collision_start"));
+        assert_eq!(row["action"].as_str(), Some("call"));
+        assert_eq!(row["target"].as_str(), Some("../.."), "from the shape up to the root");
+        assert_eq!(row["value"].as_str(), Some("on_dock"));
+
+        let boxed = node(&scene, "Box");
+        assert_eq!(boxed["instance"].as_str(), Some("scenes/crate.toml"));
+        let overrides = &boxed["overrides"];
+        assert_eq!(
+            floats(&overrides["Crate"]["transform"]["position"]),
+            vec![-0.5, 0.0, 0.0],
+            "the instance line moves the prefab's root"
+        );
+        assert_eq!(
+            overrides["Crate/Lid"]["visible"].as_bool(),
+            Some(false),
+            "an edit inside the instance is an override under the prefab's root"
+        );
+
+        let hud = node(&scene, "Hud");
+        assert_eq!(hud["widget"]["kind"].as_str(), Some("column"));
+        assert_eq!(hud["widget"]["x"].as_float(), Some(16.0));
+        assert_eq!(hud["widget"]["width"].as_float(), Some(200.0));
+        let go = node(&scene, "Go");
+        assert_eq!(go["widget"]["kind"].as_str(), Some("button"));
+        assert_eq!(go["widget"]["on_click"].as_str(), Some("on_go"));
+        assert_eq!(go["widget"]["grow"].as_float(), Some(1.0), "EXPAND along a VBox");
+        assert_eq!(node(&scene, "Title")["widget"]["text_align"].as_str(), Some("center"));
+
+        let world = node(&scene, "World");
+        assert_eq!(world["script"]["source"].as_str(), Some("scripts/root.rn"));
+        assert_eq!(world["script"]["props"]["speed"].as_float(), Some(4.5));
+
+        let player = node(&scene, "Player");
+        let library = player["animation"]["library"].as_str().unwrap();
+        assert_eq!(player["animation"]["autoplay"].as_str(), Some("fade"));
+        let clips = read(out.path(), library);
+        let fade = &clips["clips"]["fade"];
+        assert_eq!(fade["loop"].as_str(), Some("loop"));
+        let tracks = fade["tracks"].as_array().unwrap();
+        assert_eq!(tracks[0]["property"].as_str(), Some("tint"));
+        assert_eq!(tracks[0]["target"].as_str(), Some("Ship"));
+        assert_eq!(tracks[1]["property"].as_str(), Some("position"));
+        assert_eq!(floats(&tracks[1]["keys"][1]["value"]), vec![1.0, -0.5, 0.0]);
+
+        assert!(out.path().join("art/hull.png").is_file(), "the art is copied");
+    }
+
+    /// The converted project booted by the engine: every component, override,
+    /// binding and clip above has to parse for the scene to load at all.
+    #[test]
+    fn the_converted_project_loads_in_the_engine() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        // The script phase writes these; a stub stands in so what is tested
+        // is the scene, not whether its script exists yet.
+        std::fs::create_dir_all(out.path().join("scripts")).unwrap();
+        std::fs::write(out.path().join("scripts/root.rn"), "pub fn init(self) {}\n").unwrap();
+
+        let mut config = balaur::AppConfig::dev(out.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+
+        let world = app.engine.world();
+        let root = app.engine.root();
+        let lid = balaur_core::scene::find_node(&world, root, "World/Box/Crate/Lid")
+            .expect("the instance built its prefab under the instance node");
+        assert!(
+            !world.get::<&balaur_core::scene::Appearance>(lid).unwrap().visible,
+            "the override inside the instance reached the prefab's node"
+        );
+        let ship = balaur_core::scene::find_node(&world, root, "World/Ship").unwrap();
+        let tint = world.get::<&balaur_core::scene::Appearance>(ship).unwrap().tint;
+        assert!(tint.w < 1.0, "autoplay started the fade: alpha {}", tint.w);
     }
 }

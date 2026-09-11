@@ -9,7 +9,7 @@
 //! 100 pixels per unit every 2D component defaults to. A widget stays in
 //! design pixels, y down, because that is what widgets measure in.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use balaur_plugin::toml;
@@ -29,6 +29,9 @@ pub(crate) struct Resources<'a> {
     pub internal: BTreeMap<String, Section>,
     /// The Godot project's root, for reading an image's size off disk.
     pub root: &'a Path,
+    /// Every translation key, so a caption that is one draws as `text_key`,
+    /// which is what Godot's auto-translation made of it.
+    pub keys: &'a BTreeSet<String>,
 }
 
 impl Resources<'_> {
@@ -655,6 +658,9 @@ fn widget(class: &str, section: &Section, parent: &str, res: &Resources<'_>, out
     let number = |key: &str| section.field(key).and_then(Value::as_f64);
 
     if let Some(caption) = text("text").or_else(|| text("title")) {
+        if res.keys.contains(&caption) {
+            out.set("widget", "text_key", Toml::String(caption.clone()));
+        }
         out.set("widget", "text", Toml::String(caption));
     }
     if class == "RichTextLabel" {

@@ -57,7 +57,7 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     }
 
     window(document, &mut out, &mut notes)?;
-    locale(document, &mut out, &mut notes)?;
+    locale(document, &mut out)?;
     actions(document, &mut out, &mut notes)?;
 
     for section in document.each("autoload") {
@@ -109,11 +109,15 @@ fn window(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Res
         0 | 2 | 4 => "landscape",
         _ => "any",
     });
-    // Godot's Window.Mode: 3 and 4 are its two fullscreens. 2 is maximized,
-    // which is a windowed size balaur has no word for.
-    let mode = number("window/size/mode");
-    let fullscreen = mode.map(|mode| matches!(mode, 3 | 4));
-    if width.is_none() && height.is_none() && orientation.is_none() && fullscreen.is_none() {
+    // Godot's Window.Mode: 0 and 1 open a window (1 minimized, which balaur
+    // does not start in), 2 maximized, 3 borderless fullscreen, 4 exclusive.
+    let mode = number("window/size/mode").map(|mode| match mode {
+        2 => "maximized",
+        3 => "fullscreen",
+        4 => "exclusive",
+        _ => "windowed",
+    });
+    if width.is_none() && height.is_none() && orientation.is_none() && mode.is_none() {
         return Ok(());
     }
     writeln!(out, "\n[window]")?;
@@ -123,17 +127,11 @@ fn window(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Res
     if let Some(height) = height {
         writeln!(out, "height = {height}")?;
     }
-    if let Some(fullscreen) = fullscreen {
-        writeln!(out, "fullscreen = {fullscreen}")?;
+    if let Some(mode) = mode {
+        writeln!(out, "mode = {}", quote(mode))?;
     }
     if let Some(orientation) = orientation {
         writeln!(out, "orientation = {}", quote(orientation))?;
-    }
-    if mode == Some(2) {
-        notes.push(
-            "the window opens maximized, which balaur has no setting for: it opens at the stated size"
-                .to_string(),
-        );
     }
     if display.field("window/stretch/mode").is_some() {
         notes.push(
@@ -146,7 +144,7 @@ fn window(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Res
 
 /// `[locale]`, from the `.translation` files the project lists. Each is named
 /// `<locale>.<locale>.translation`, so the locale is the file's first stem.
-fn locale(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Result<()> {
+fn locale(document: &Document, out: &mut String) -> Result<()> {
     let Some(section) = document.first("internationalization") else {
         return Ok(());
     };
@@ -181,10 +179,6 @@ fn locale(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Res
     writeln!(out, "\n[locale]")?;
     writeln!(out, "default = {}", quote(default))?;
     writeln!(out, "fallback = {}", quote(default))?;
-    notes.push(format!(
-        "{} locales listed: write each as `strings/<locale>.toml`, from the `.csv` the `.translation` was built from",
-        locales.len()
-    ));
     Ok(())
 }
 
@@ -518,13 +512,8 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
     fn a_maximized_sensor_window_is_neither_fullscreen_nor_portrait() {
         let out = converted();
         let doc: toml::Value = toml::from_str(&out.project_toml).unwrap();
-        assert_eq!(doc["window"]["fullscreen"].as_bool(), Some(false));
+        assert_eq!(doc["window"]["mode"].as_str(), Some("maximized"));
         assert_eq!(doc["window"]["orientation"].as_str(), Some("any"));
-        assert!(
-            out.notes.iter().any(|n| n.contains("maximized")),
-            "{:?}",
-            out.notes
-        );
     }
 
     #[test]

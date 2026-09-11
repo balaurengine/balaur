@@ -293,6 +293,8 @@ mod import_godot_project;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot_scene;
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot_strings;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_ldtk;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_tiled;

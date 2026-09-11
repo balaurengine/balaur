@@ -97,13 +97,38 @@ impl Orientation {
     }
 }
 
+/// How a window opens, and what `render.set_window_mode` switches between.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowMode {
+    #[default]
+    Windowed,
+    Maximized,
+    /// Borderless over the whole screen, at the desktop's own resolution.
+    Fullscreen,
+    /// The monitor's largest video mode. The web has none, so it is
+    /// borderless there.
+    Exclusive,
+}
+
+impl WindowMode {
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "windowed" => Some(Self::Windowed),
+            "maximized" => Some(Self::Maximized),
+            "fullscreen" => Some(Self::Fullscreen),
+            "exclusive" => Some(Self::Exclusive),
+            _ => None,
+        }
+    }
+}
+
 /// `[window]`: the window a windowed build opens, and how it is drawn.
 ///
 /// A headless run holds these and opens nothing, so a project states them
 /// once and still ticks identically in CI. Read through the settings
 /// registry, so `[override.android.window]` answers on a phone.
-#[derive(Clone, Deserialize)]
-#[serde(default)]
+#[derive(Clone)]
 pub struct WindowSettings {
     /// Logical width. The backing store is this times the display's scale,
     /// which is what the render targets are sized from.
@@ -116,10 +141,10 @@ pub struct WindowSettings {
     pub msaa: u32,
     /// Present in step with the display.
     pub vsync: bool,
-    /// Open filling the screen. Scripts toggle it later through the same
-    /// state this seeds, so a game that starts fullscreen and a game that
-    /// switches into it take one path.
-    pub fullscreen: bool,
+    /// How it opens. Scripts switch it later through the same state this
+    /// seeds, so a game that starts fullscreen and a game that switches into
+    /// it take one path.
+    pub mode: WindowMode,
     pub orientation: Orientation,
 }
 
@@ -130,7 +155,7 @@ impl Default for WindowSettings {
             height: 1000,
             msaa: 1,
             vsync: true,
-            fullscreen: false,
+            mode: WindowMode::Windowed,
             orientation: Orientation::Any,
         }
     }
@@ -146,7 +171,7 @@ impl WindowSettings {
             height: setting_u32(eng, "window/height", fallback.height),
             msaa: setting_u32(eng, "window/msaa", fallback.msaa),
             vsync: setting_bool(eng, "window/vsync", fallback.vsync),
-            fullscreen: setting_bool(eng, "window/fullscreen", fallback.fullscreen),
+            mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
             orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
         }
     }
@@ -179,8 +204,7 @@ fn setting_string(eng: &Engine, path: &str) -> String {
 
 /// `[ui]`: what the UI layer loads before it draws. Read through the settings
 /// registry, so a platform may answer differently.
-#[derive(Clone, Deserialize)]
-#[serde(default)]
+#[derive(Clone)]
 pub struct UiSettings {
     /// Append the operating system's own faces to every font chain, so text
     /// in a script balaur does not vendor draws instead of tofu.

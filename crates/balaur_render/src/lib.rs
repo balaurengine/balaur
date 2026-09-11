@@ -176,12 +176,12 @@ pub struct AppIconConfig {
 /// Fullscreen and cursor state scripts asked for, applied by windowed
 /// backends when changed. Headless runs hold the values and touch nothing,
 /// so a game that grabs the cursor still ticks identically in CI.
-// Three independent switches plus the dirty flag — a state enum would invent
-// coupling these do not have.
+// Independent switches plus the dirty flag; the window's own mode is the one
+// that is an enum, since its four states exclude each other.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Default)]
 pub struct WindowConfig {
-    pub fullscreen: bool,
+    pub mode: balaur_core::project::WindowMode,
     pub cursor_grabbed: bool,
     pub cursor_hidden: bool,
     /// Keep the screen from dimming while the game runs; a page asks the

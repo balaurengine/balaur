@@ -336,11 +336,11 @@ pub async fn run_windowed_async(
     };
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
-    if window_settings.fullscreen {
+    if window_settings.mode != balaur_core::project::WindowMode::Windowed {
         // Seed the state a script's own toggle drives, so `apply_window_config`
         // puts the window up on the first frame through one path.
         app.engine.insert_resource(WindowConfig {
-            fullscreen: true,
+            mode: window_settings.mode,
             changed: true,
             ..WindowConfig::default()
         });
@@ -532,10 +532,24 @@ fn apply_window_config(app: &App, window: &Window) {
         return;
     }
     config.changed = false;
-    // Fullscreen is a window-manager idea: on a phone the app already owns the
-    // screen, and kiss3d exposes no toggle there.
+    // A window mode is a window-manager idea: on a phone the app already owns
+    // the screen, and kiss3d exposes no toggle there.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    window.set_fullscreen(config.fullscreen);
+    {
+        use balaur_core::project::WindowMode;
+        match config.mode {
+            WindowMode::Windowed => {
+                window.set_fullscreen(false);
+                window.set_maximized(false);
+            }
+            WindowMode::Maximized => {
+                window.set_fullscreen(false);
+                window.set_maximized(true);
+            }
+            WindowMode::Fullscreen => window.set_fullscreen(true),
+            WindowMode::Exclusive => window.set_exclusive_fullscreen(true),
+        }
+    }
     window.set_cursor_grab(config.cursor_grabbed);
     window.hide_cursor(config.cursor_hidden);
     crate::device::keep_awake(config.keep_awake);

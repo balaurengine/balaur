@@ -171,14 +171,14 @@ fn the_netcode_page_produces_the_faults_it_describes() {
     assert_eq!(faults.delay, 9);
 }
 
-/// `[override.android.window] fullscreen` is what `window/fullscreen` reads
+/// `[override.android.window] vsync` is what `window/vsync` reads
 /// on a phone, and nothing at all anywhere else.
 #[test]
 fn an_override_answers_only_where_its_tag_is_in_force() {
     let app = app();
     settings::load(
         &app.engine,
-        "[window]\nfullscreen = false\n\n[override.android.window]\nfullscreen = true\n",
+        "[window]\nvsync = false\n\n[override.android.window]\nvsync = true\n",
     )
     .unwrap();
 
@@ -187,7 +187,7 @@ fn an_override_answers_only_where_its_tag_is_in_force() {
         "linux".into(),
     ]));
     assert_eq!(
-        settings::get(&app.engine, "window/fullscreen"),
+        settings::get(&app.engine, "window/vsync"),
         Some(toml::Value::Boolean(false))
     );
 
@@ -196,7 +196,7 @@ fn an_override_answers_only_where_its_tag_is_in_force() {
         "android".into(),
     ]));
     assert_eq!(
-        settings::get(&app.engine, "window/fullscreen"),
+        settings::get(&app.engine, "window/vsync"),
         Some(toml::Value::Boolean(true))
     );
 }
@@ -227,19 +227,19 @@ fn the_narrower_tag_outranks_the_broader_one() {
 #[test]
 fn the_base_read_ignores_every_override() {
     let app = app();
-    let source = "[window]\nfullscreen = false\n\n[override.android.window]\nfullscreen = true\n";
+    let source = "[window]\nvsync = false\n\n[override.android.window]\nvsync = true\n";
     settings::load(&app.engine, source).unwrap();
     app.engine
         .insert_resource(balaur_core::tags::Tags(vec!["android".into()]));
 
     assert_eq!(
-        settings::base(&app.engine, "window/fullscreen"),
+        settings::base(&app.engine, "window/vsync"),
         Some(toml::Value::Boolean(false))
     );
     let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
     let parsed: toml::Value = toml::from_str(&written).unwrap();
     assert_eq!(
-        parsed["override"]["android"]["window"]["fullscreen"].as_bool(),
+        parsed["override"]["android"]["window"]["vsync"].as_bool(),
         Some(true),
         "an override no page declares survives a write: {written}"
     );
@@ -268,13 +268,13 @@ fn an_override_is_written_and_removed_by_the_same_write() {
     let app = app();
     settings::set(
         &app.engine,
-        "override/android/window/fullscreen",
+        "override/android/window/vsync",
         toml::Value::Boolean(true),
     );
     let written = settings::to_toml(&app.engine, Scope::Project, "").unwrap();
     assert!(written.contains("[override.android.window]"), "{written}");
 
-    settings::clear(&app.engine, "override/android/window/fullscreen");
+    settings::clear(&app.engine, "override/android/window/vsync");
     let written = settings::to_toml(&app.engine, Scope::Project, &written).unwrap();
     assert!(
         !written.contains("override"),
@@ -300,12 +300,12 @@ fn a_write_keeps_comments_and_adds_no_defaults() {
     let app = app();
     let source = "# The game.\n[application]\nname = \"g\" # shown in the title\nmain_scene = \"main.toml\"\n";
     settings::load(&app.engine, source).unwrap();
-    settings::set(&app.engine, "window/fullscreen", toml::Value::Boolean(true));
+    settings::set(&app.engine, "window/vsync", toml::Value::Boolean(true));
 
     let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
     assert!(written.contains("# The game."), "{written}");
     assert!(written.contains("# shown in the title"), "{written}");
-    assert!(written.contains("[window]\nfullscreen = true"), "{written}");
+    assert!(written.contains("[window]\nvsync = true"), "{written}");
     assert!(
         !written.contains("width") && !written.contains("solver"),
         "a default nobody chose was written: {written}"
@@ -339,17 +339,23 @@ fn a_table_folds_each_override_on_key_by_key() {
 #[test]
 fn a_pack_answers_to_the_tags_its_export_wrote() {
     let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
-                    [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nfullscreen = true\n";
+                    [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nvsync = false\n";
     let mut pack = balaur_core::Pack::default();
     pack.manifest = manifest.to_string();
     pack.scenes.insert("main.toml".to_string(), String::new());
     let mut app = App::new(AppConfig::packed(pack)).unwrap();
     app.load_project().unwrap();
 
-    assert!(app.engine.resource::<balaur_core::tags::Tags>().borrow().has("demo"));
+    assert!(
+        app.engine
+            .resource::<balaur_core::tags::Tags>()
+            .borrow()
+            .has("demo")
+    );
     assert_eq!(
-        settings::get(&app.engine, "window/fullscreen"),
-        Some(toml::Value::Boolean(true))
+        settings::get(&app.engine, "window/vsync"),
+        Some(toml::Value::Boolean(false)),
+        "the default is true, so only the demo's override answers false"
     );
     let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
     assert_eq!(

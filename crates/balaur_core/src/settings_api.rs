@@ -36,8 +36,8 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
          project.toml. A project setting ships with the game; an editor one \
          stays on the machine that set it. Define your own with `define` and \
          it appears in the settings screen beside the engine's. One key may \
-         hold an answer per platform: `[override.android.window] fullscreen` \
-         is what `window/fullscreen` reads on a phone.",
+         hold an answer per platform: `[override.android.window] orientation` \
+         is what `window/orientation` reads on a phone.",
     );
     m.describe(&[
         ("all", &[], "()", "Every defined setting as `{ path, scope, spec }`, in definition order."),

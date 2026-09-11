@@ -105,6 +105,7 @@ fn load_library<'a>(res: &Resources<'a>, path: &str) -> Option<(Section, Resourc
         external: BTreeMap::new(),
         internal,
         root: res.root,
+        keys: res.keys,
     };
     Some((resource, lookup))
 }
