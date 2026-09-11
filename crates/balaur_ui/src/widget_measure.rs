@@ -152,8 +152,13 @@ impl<'a> Measure<'a> {
             }
             // Drawn as a button once its rows are nodes, so measured as one; a
             // menu of strings is egui's own button, measured by its caption.
-            w::MENU if !self.arena[index].children.is_empty() => self.button(index, widget, theme),
-            w::MENU => self.text(index, widget, theme),
+            w::MENU => {
+                if self.arena[index].children.is_empty() {
+                    self.text(index, widget, theme)
+                } else {
+                    self.button(index, widget, theme)
+                }
+            }
             w::GRID => self.grid(index, theme),
             w::FLOW => self.flow(index, theme),
             _ if lays_out(&widget.kind) => self.container(index, theme),

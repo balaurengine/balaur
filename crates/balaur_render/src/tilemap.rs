@@ -835,6 +835,11 @@ pub(crate) struct TilemapSlot {
     /// Which frame the map's animated tiles were built at. A picture, not a
     /// rule: it moves on the frame clock and stays out of the digest.
     frame: i64,
+    /// The node's inherited material at the last build, for a map naming none.
+    inherited: balaur_core::scene::MaterialId,
+    /// The material the chunks were built with. A chunk outlives a rebuild
+    /// while its cells hold, so a change here starts every chunk over.
+    drawn: String,
 }
 
 /// One block of the map's mesh, and what its cells were when it was built.
@@ -868,10 +873,15 @@ pub(crate) fn sync_tilemaps(
         // atlas it names — so a reload rebuilds all of them.
         let frame = balaur_core::assets::load_typed::<TileSet>(&app.engine, &map.tileset)
             .map_or(0, |set| animation_frame(&set, app.engine.time() as f32));
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
         let rebuild = reloaded
-            || slots
-                .get(&entity)
-                .is_none_or(|slot| slot.version != map.version || slot.frame != frame);
+            || slots.get(&entity).is_none_or(|slot| {
+                slot.version != map.version
+                    || slot.frame != frame
+                    || (map.material.is_empty() && slot.inherited != appearance.material)
+            });
         if reloaded && let Some(mut old) = slots.remove(&entity) {
             // Every map is built from files, so a reload starts them over.
             old.node.detach();
@@ -884,9 +894,23 @@ pub(crate) fn sync_tilemaps(
                 chunks: std::collections::HashMap::new(),
                 version: map.version,
                 frame,
+                inherited: appearance.material,
+                drawn: String::new(),
             }
         });
         if rebuild {
+            let inherited = appearance.material.reference();
+            let reference = if map.material.is_empty() {
+                &inherited
+            } else {
+                map.material.as_str()
+            };
+            if slot.drawn != reference {
+                for (_, mut chunk) in slot.chunks.drain() {
+                    chunk.node.detach();
+                }
+                slot.drawn = reference.to_string();
+            }
             // A failed build leaves the chunks it had, so a missing texture is
             // reported once rather than sixty times a second.
             if let Err(err) = rebuild_chunks(app, slot, map, frame) {
@@ -897,7 +921,7 @@ pub(crate) fn sync_tilemaps(
                     chunk.node.detach();
                 }
             }
-            let material = materials.for_node(app, &map.material, &channel);
+            let material = materials.for_node(app, reference, &channel);
             for chunk in slot.chunks.values_mut() {
                 if let Some(material) = material.clone() {
                     chunk.node.set_material(material);
@@ -905,11 +929,9 @@ pub(crate) fn sync_tilemaps(
             }
             slot.version = map.version;
             slot.frame = frame;
+            slot.inherited = appearance.material;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-        let appearance = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
         let visible = appearance.visible;
         // A map has no colour of its own, so the inherited tint is the whole
         // colour, and untinted is the white that leaves the atlas alone.

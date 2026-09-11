@@ -487,18 +487,23 @@ fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial {
     ShaderMaterial::new(compiled, None, false)
 }
 
-/// A material and, when its shader carries one, the probe it writes into.
+/// A material and, when its shader carries one, the probe it writes into;
+/// `None` for one whose shader draws the other dimension.
 fn build(
     app: &balaur_core::App,
     reference: &str,
-) -> anyhow::Result<(ShaderMaterial, Option<std::rc::Rc<Probe>>)> {
+) -> anyhow::Result<Option<(ShaderMaterial, Option<std::rc::Rc<Probe>>)>> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
+    let found = crate::material::contract(&source, &modules);
+    if !crate::material::fits(reference, found, crate::material::Contract::Sprite) {
+        return Ok(None);
+    }
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
     let material = ShaderMaterial::new(&compiled, probe.as_deref(), asset.reads_screen());
-    Ok((material, probe))
+    Ok(Some((material, probe)))
 }

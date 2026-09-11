@@ -151,6 +151,11 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             }
             h.write(&a.z_index.to_le_bytes());
             h.write_u64(u64::from(a.z_relative));
+            // The reference, not the id: ids follow load order. Skipped when
+            // unset so a digest recorded before materials inherited still holds.
+            if !a.material.is_none() {
+                h.write_str(&a.material.reference());
+            }
             out.push(Entry {
                 label: format!("{label}/appearance"),
                 digest: h.finish(),

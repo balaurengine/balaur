@@ -209,6 +209,18 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: global_tint,
     },
     NodeOp {
+        name: "material",
+        call: material,
+    },
+    NodeOp {
+        name: "set_material",
+        call: set_material,
+    },
+    NodeOp {
+        name: "global_material",
+        call: global_material,
+    },
+    NodeOp {
         name: "z_index",
         call: z_index,
     },
@@ -296,6 +308,9 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
         ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
         ("global_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
+        ("material", &[], "(node)", "The `material` asset the node names itself, empty when it takes its parent's."),
+        ("set_material", &[], "(node, material: string)", "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's."),
+        ("global_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
         ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
         ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
@@ -416,6 +431,30 @@ fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
     let world = eng.world();
     Ok(Value::Color(
         scene::composed_appearance(&world, e).tint.into(),
+    ))
+}
+
+fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| {
+        Value::Str(a.material.reference().to_string())
+    })
+}
+
+fn set_material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let id = scene::MaterialId::intern(text(args, 1)?);
+    with_appearance(eng, node(args)?, |a| a.material = id)?;
+    Ok(Value::Nil)
+}
+
+/// What the renderer draws with: the nearest material from the node up.
+fn global_material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Str(
+        scene::composed_appearance(&world, e)
+            .material
+            .reference()
+            .to_string(),
     ))
 }
 

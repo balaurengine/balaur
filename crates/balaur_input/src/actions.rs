@@ -401,21 +401,11 @@ pub(crate) fn add_replay_setup(reg: &mut balaur_plugin::Registry<'_>) {
 /// usable binding still exists, reading zero, because a game asking for it
 /// should get a neutral answer rather than a crash.
 fn load(eng: &Engine) -> BTreeMap<String, Vec<Binding>> {
-    #[derive(serde::Deserialize, Default)]
-    struct InputTable {
-        #[serde(default)]
-        actions: BTreeMap<String, Vec<String>>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Manifest {
-        #[serde(default)]
-        input: InputTable,
-    }
-    let Some(source) = balaur_core::project::manifest_source(eng) else {
-        return BTreeMap::new();
-    };
-    let declared = match toml::from_str::<Manifest>(&source) {
-        Ok(manifest) => manifest.input.actions,
+    // Resolved, so `[override.mobile.input.actions]` rebinds an action on a
+    // phone and leaves the rest as the file has them.
+    let table = balaur_core::settings::table(eng, "input/actions");
+    let declared: BTreeMap<String, Vec<String>> = match toml::Value::Table(table).try_into() {
+        Ok(declared) => declared,
         Err(err) => {
             tracing::warn!("project.toml [input.actions]: {err}; no actions declared");
             return BTreeMap::new();

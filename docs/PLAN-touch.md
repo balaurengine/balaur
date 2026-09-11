@@ -152,7 +152,10 @@ decision, not an oversight.
 | A touch button | Have: the `touch_button` component: the `action` it feeds, a `shape` of `rect` or `circle`, `visibility`, and two colours. The finger that pressed it keeps it when it slides off |
 | A touch stick | Have: the `touch_stick` component: `action_x` and `action_y`, `radius`, `deadzone` rescaled so the first live reading is near zero, `recenter`, `visibility`. Y is positive away from the player, as `axis:LeftStickY` is |
 | Binding a control to an action | Have: the control names the action it feeds. No new binding kind: an action already bound to a key gains a second source |
-| Placing a control | Have: `anchor`, nine of the widget vocabulary's ten words, and an `offset` in design pixels to the control's centre, against the screen less its safe area |
+| Placing a control | Have: `anchor`, nine of the widget vocabulary's ten words, and an `offset` in design pixels to the control's centre, against the game's area less the safe area |
+| A control in the editor | Have: `DeviceFacts::game_area` carries the widget layer's default surface, so a played game's controls sit in the viewport, and a zero area while nothing plays leaves them dead |
+| Knowing there is a touch screen | Have: `touchscreen` on the recorded platform facts: every phone, and a page whose browser reports touch points. `emulate_touch_from_mouse` counts as one too |
+| A game's `[input]` in the editor | Have: `input.declare_config(table)`, beside `declare_actions`, which the editor calls with the played game's table |
 | The screen's size inside the tick | Have: `screen_size` and `ui_scale` on `DeviceFacts`, recorded beside `safe_area` |
 | A touch control drawn without a window | Have: not drawn, and still hit-tested. `balaur_render` paints both kinds on an egui layer below the widget tree, so a menu covers a stick |
 | Scroll inertia after a finger lifts | Have: the drag's speed, smoothed over two frames, carries on after a lift past 120 points a second and decays by time, so a flick throws the same distance at any frame rate |
@@ -162,6 +165,7 @@ decision, not an oversight.
 | A layout that moves for the keyboard | Have: `avoid_keyboard` on a root widget measures the surface's bottom from the keyboard's top. A new key rather than `inset`, which is design pixels a scene author types |
 | Raising the keyboard for a `field` | Have, from before this plan: the backend shows the system keyboard while egui holds keyboard focus, through the fork's `set_keyboard_visible` |
 | Mouse as a touch on the web | Have: a page reports both, and the emulation covers the rest |
+| An example | Have: `examples/hello` carries a stick on `spin` and a button on `reverse`, with the mouse standing in for a finger |
 | A phone's vibration | Have: `input.vibrate(milliseconds)` |
 | A gesture the widget layer consumes | Not planned. A gesture is read from the snapshot by whoever wants it; only pointer and keyboard are claimed |
 
@@ -225,3 +229,7 @@ the navigation bar both at the bottom and at the side.
    never lowers it would read the keyboard as the bar, and zero as its
    height. The GameActivity glue has `WindowInsets.ime` and would end the
    guess.
+5. **Whether a game's emulation should reach the editor's own tools.** The
+   editor takes a played game's `[input]` at load, as it takes its actions. A
+   game that turns `emulate_mouse_from_touch` off also turns it off for the
+   gizmo, which reads the snapshot's mouse, on a tablet running the web editor.

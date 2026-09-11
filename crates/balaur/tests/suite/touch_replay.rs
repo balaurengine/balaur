@@ -137,10 +137,11 @@ fn nobody_touching_the_stick_leaves_the_runner_still() {
 const VERBS: &str = "pub fn update(this, dt) {
     input::feed_action(\"jump\", 1.0);
     input::feed_touch(3, 500.0, 300.0, \"start\");
-    let p = input::pinch();
-    let s = input::swipe();
-    let l = input::long_press();
-    let n = input::pan();
+    let zoom = 1.0;
+    if let Some(scale) = input::pinch().get(\"scale\") { zoom *= scale; }
+    let pan = input::pan();
+    if let Some(dx) = input::swipe().get(\"x\") { zoom += dx; }
+    if input::long_press().get(\"x\").is_some() { zoom = 1.0; }
     input::feed_action(\"reached\", 1.0);
 }
 pub fn fixed_update(this, dt) {

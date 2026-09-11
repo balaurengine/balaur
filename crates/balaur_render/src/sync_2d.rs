@@ -78,6 +78,7 @@ pub(crate) fn build_slot_2d(
     materials: &mut crate::shader_material::MaterialCache,
     channel: &str,
     renderable: &Renderable2d,
+    inherited: balaur_core::scene::MaterialId,
 ) -> Option<Slot2d> {
     let mut pieces = Vec::new();
     let built = match renderable.shape {
@@ -96,12 +97,19 @@ pub(crate) fn build_slot_2d(
     }
     // After the texture: a material reads it, and kiss3d's own material stays
     // on a node whose shader would not link.
-    if let Some(material) = materials.for_node(app, &renderable.material, channel) {
+    let from_parent = inherited.reference();
+    let reference = if renderable.material.is_empty() {
+        &from_parent
+    } else {
+        renderable.material.as_str()
+    };
+    if let Some(material) = materials.for_node(app, reference, channel) {
         node.set_material(material);
     }
     Some(Slot2d {
         node,
         version: renderable.version,
+        inherited,
         flip: (false, false),
         skin,
         deform,
@@ -137,6 +145,12 @@ pub(crate) fn sync_2d(
             continue;
         };
         seen.insert(entity);
+        // Read once: the ancestors' tint, visibility and material come off
+        // the same propagated component.
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let owns_material = !renderable.material.is_empty();
         // A sprite's image and a polyline's mesh are both files; a reload
         // re-reads them, as it does in three dimensions.
         let from_file = renderable.sprite.is_some() || renderable.polyline.is_some();
@@ -144,8 +158,9 @@ pub(crate) fn sync_2d(
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
-                    || (relinked && !renderable.material.is_empty())
+                    || (relinked && (owns_material || !appearance.material.is_none()))
                     || (reloaded && from_file)
+                    || (!owns_material && slot.inherited != appearance.material)
             }
             None => true,
         };
@@ -153,18 +168,20 @@ pub(crate) fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            let Some(slot) = build_slot_2d(app, scene, materials, &channel, &renderable) else {
+            let Some(slot) = build_slot_2d(
+                app,
+                scene,
+                materials,
+                &channel,
+                &renderable,
+                appearance.material,
+            ) else {
                 continue;
             };
             slots.insert(entity, slot);
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
-        // Read once: the ancestors' tint and their visibility come off the
-        // same propagated component.
-        let appearance = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
         let inherited = appearance.tint.to_array();
         let [r, g, b, a] = modulate(renderable.color, inherited);
         // A sprite is the one 2D shape still built at unit size: its extents

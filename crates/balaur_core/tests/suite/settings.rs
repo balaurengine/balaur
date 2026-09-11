@@ -311,3 +311,22 @@ fn a_write_keeps_comments_and_adds_no_defaults() {
         "a default nobody chose was written: {written}"
     );
 }
+
+/// A table of the game's own names takes an override key by key: rebinding
+/// one action on a phone leaves every other action as the file wrote it.
+#[test]
+fn a_table_folds_each_override_on_key_by_key() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[input.actions]\njump = [\"Space\"]\nfire = [\"KeyF\"]\n\n\
+         [override.mobile.input.actions]\njump = [\"touch:jump\"]\n",
+    )
+    .unwrap();
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["mobile".into(), "android".into()]));
+
+    let actions = settings::table(&app.engine, "input/actions");
+    assert_eq!(actions["jump"][0].as_str(), Some("touch:jump"));
+    assert_eq!(actions["fire"][0].as_str(), Some("KeyF"));
+}

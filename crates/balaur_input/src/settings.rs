@@ -105,22 +105,33 @@ impl InputTable {
     }
 }
 
-/// The manifest's `[input]` table, or an empty one when it is absent or
-/// malformed.
+/// `[input]` as this run resolves it, so `[override.desktop.input]` can turn
+/// the mouse into a finger on the machine a phone game is tested on.
 fn read(eng: &Engine) -> InputTable {
-    #[derive(serde::Deserialize)]
-    struct Manifest {
-        #[serde(default)]
-        input: InputTable,
-    }
-    let Some(source) = balaur_core::project::manifest_source(eng) else {
-        return InputTable::default();
-    };
-    match toml::from_str::<Manifest>(&source) {
-        Ok(manifest) => manifest.input,
-        Err(err) => {
-            tracing::warn!("project.toml [input]: {err}; touch settings are the defaults");
-            InputTable::default()
-        }
-    }
+    let table = balaur_core::settings::table(eng, "input");
+    toml::Value::Table(table).try_into().unwrap_or_else(|err| {
+        tracing::warn!("project.toml [input]: {err}; touch settings are the defaults");
+        InputTable::default()
+    })
+}
+
+/// The `[input]` keys, declared so the settings screen lists them and a
+/// misspelled one is refused at load. `[input.actions]` is the game's own
+/// names and is not declared.
+pub(crate) fn declare_settings(eng: &Engine) {
+    balaur_core::settings::define_group(
+        eng,
+        "input",
+        balaur_core::settings::Scope::Project,
+        &balaur_core::ComponentDef::parse_schema(
+            "settings.input",
+            r#"
+emulate_mouse_from_touch = { type = "bool", default = true, order = 1, help = "A finger also moves the mouse, so every widget written against a pointer works on a phone." }
+emulate_touch_from_mouse = { type = "bool", default = false, order = 2, help = "The mouse also reports a finger, so touch code runs on a desktop. Off by default: a game reading both would see one press twice." }
+swipe_pixels = { type = "float", default = 48.0, min = 0.0, max = 1000.0, order = 3, help = "How far a finger travels before a lift counts as a swipe, in design pixels." }
+long_press_seconds = { type = "float", default = 0.5, min = 0.0, max = 10.0, order = 4, help = "How long a finger holds before it counts as a long press." }
+long_press_slop = { type = "float", default = 24.0, min = 0.0, max = 1000.0, order = 5, help = "How far a held finger may wander and still be holding, in design pixels." }
+"#,
+        ),
+    );
 }

@@ -384,6 +384,7 @@ impl balaur_plugin::Plugin for InputPlugin {
         reg.insert_resource(GamepadState::default());
         reg.insert_resource(InputActions::default());
         reg.insert_resource(InputConfig::default());
+        settings::declare_settings(reg.engine());
         reg.insert_resource(Gestures::default());
         touch_controls::register_touch_button(reg);
         touch_controls::register_touch_stick(reg);

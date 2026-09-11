@@ -44,7 +44,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
         ("get", &[], "(path: string)", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
         ("base", &[], "(path: string)", "What the file says, ignoring every override: what a settings screen edits."),
         ("tags", &[], "()", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
-        ("known_tags", &[], "()", "Every tag a project may write an override for."),
+        ("known_tags", &[], "()", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
         ("overrides", &[], "(path: string)", "The tags this project holds an override for at `path`, in tag order."),
         ("clear", &[], "(path: string)", "Forget one value, so the next write drops the key: how an override is removed."),
         ("set", &[], "(path: string, value: any)", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
@@ -126,12 +126,9 @@ fn install_override_api(m: &mut dyn Bindings<Engine>) {
             tags.0.iter().cloned().map(Value::Str).collect(),
         ))
     });
-    m.function("known_tags", |_: &Engine, (): ()| {
+    m.function("known_tags", |eng: &Engine, (): ()| {
         Ok(Value::List(
-            crate::tags::ALL
-                .iter()
-                .map(|tag| Value::Str((*tag).to_string()))
-                .collect(),
+            settings::known_tags(eng).into_iter().map(Value::Str).collect(),
         ))
     });
     m.function("overrides", |eng: &Engine, path: String| {

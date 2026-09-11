@@ -187,7 +187,11 @@ mod tests {
         let project = project_with(&["greeter.dylib"]);
         let out = tempfile::tempdir().unwrap();
 
-        let shipped = ship(&in_project(project.path()), "dll", &out.path().join("game.exe"));
+        let shipped = ship(
+            &in_project(project.path()),
+            "dll",
+            &out.path().join("game.exe"),
+        );
 
         assert!(shipped.unwrap().is_empty());
         assert!(!out.path().join("extensions").exists());

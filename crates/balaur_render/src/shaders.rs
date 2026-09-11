@@ -57,6 +57,13 @@ pub const CHANNELS: &[&str] = &["albedo", "normals", "uv", "depth"];
 #[derive(Default)]
 pub struct ShaderModules(pub Vec<(String, String)>);
 
+/// The contract modules a material's shader imports; which one says what
+/// it draws. See [`crate::material::contract`].
+pub(crate) const SPRITE_MODULE: &str = "package::sprite";
+pub(crate) const MESH_MODULE: &str = "package::mesh";
+pub(crate) const PBR_MODULE: &str = "package::pbr";
+pub(crate) const POST_MODULE: &str = "package::post";
+
 /// Make `source` importable as `path` — `package::water`, say.
 ///
 /// For a plugin shipping shader code of its own: a project's material imports
@@ -93,10 +100,10 @@ pub fn link(
     let mut resolver = wesl::VirtualResolver::new();
     let mounted = [
         ("package::common", COMMON),
-        ("package::sprite", SPRITE),
-        ("package::mesh", MESH),
-        ("package::pbr", PBR),
-        ("package::post", POST),
+        (SPRITE_MODULE, SPRITE),
+        (MESH_MODULE, MESH),
+        (PBR_MODULE, PBR),
+        (POST_MODULE, POST),
     ];
     for (path, source) in mounted.iter().chain(modules) {
         let parsed = path

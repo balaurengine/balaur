@@ -1,5 +1,7 @@
 //! A pack carried inside the executable that runs it.
 
+use std::path::Path;
+
 use balaur_core::standalone;
 
 #[test]
@@ -32,6 +34,27 @@ fn a_lying_trailer_is_refused_rather_than_panicking() {
     nearly.extend_from_slice(&99u64.to_le_bytes());
     nearly.extend_from_slice(b"BPAKSELF");
     assert_eq!(standalone::extract(&nearly), None);
+}
+
+#[test]
+fn a_flat_game_keeps_its_extensions_beside_it() {
+    assert_eq!(
+        standalone::extensions_beside(Path::new("/opt/tide/tide")),
+        Path::new("/opt/tide/extensions")
+    );
+}
+
+#[test]
+fn a_macos_app_keeps_its_extensions_in_plugins() {
+    assert_eq!(
+        standalone::extensions_beside(Path::new("/Applications/Tide.app/Contents/MacOS/Tide")),
+        Path::new("/Applications/Tide.app/Contents/PlugIns")
+    );
+    assert_eq!(
+        standalone::extensions_beside(Path::new("/opt/Contents/MacOS/tide")),
+        Path::new("/opt/Contents/MacOS/extensions"),
+        "only an executable inside a .app is in a bundle"
+    );
 }
 
 #[test]

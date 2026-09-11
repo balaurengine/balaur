@@ -128,7 +128,65 @@ impl Transform {
     }
 }
 
-/// Whether a node draws, what it is tinted by, and which layer it draws on.
+/// A `material` asset reference, interned so [`Appearance`] stays `Copy`.
+///
+/// Ids are handed out per process, in the order references are first seen,
+/// so anything saved or hashed stores [`MaterialId::reference`] instead.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct MaterialId(u32);
+
+/// Every reference interned so far; index 0 is the empty one.
+static MATERIALS: std::sync::LazyLock<std::sync::RwLock<MaterialTable>> =
+    std::sync::LazyLock::new(|| {
+        std::sync::RwLock::new(MaterialTable {
+            references: vec![std::sync::Arc::from("")],
+            ids: std::collections::HashMap::new(),
+        })
+    });
+
+struct MaterialTable {
+    references: Vec<std::sync::Arc<str>>,
+    ids: std::collections::HashMap<std::sync::Arc<str>, u32>,
+}
+
+impl MaterialId {
+    /// No material: the node takes its parent's.
+    pub const NONE: Self = Self(0);
+
+    /// The id for `reference`, the same one every time; empty is [`Self::NONE`].
+    #[must_use]
+    pub fn intern(reference: &str) -> Self {
+        if reference.is_empty() {
+            return Self::NONE;
+        }
+        if let Some(&id) = MATERIALS.read().unwrap().ids.get(reference) {
+            return Self(id);
+        }
+        let mut table = MATERIALS.write().unwrap();
+        if let Some(&id) = table.ids.get(reference) {
+            return Self(id);
+        }
+        let id = u32::try_from(table.references.len()).expect("fewer than 2^32 materials");
+        let shared: std::sync::Arc<str> = std::sync::Arc::from(reference);
+        table.references.push(shared.clone());
+        table.ids.insert(shared, id);
+        Self(id)
+    }
+
+    /// The reference this id was interned from; empty for [`Self::NONE`].
+    #[must_use]
+    pub fn reference(self) -> std::sync::Arc<str> {
+        MATERIALS.read().unwrap().references[self.0 as usize].clone()
+    }
+
+    #[must_use]
+    pub const fn is_none(self) -> bool {
+        self.0 == 0
+    }
+}
+
+/// Whether a node draws, what it is tinted by, which layer it draws on, and
+/// the material it and its subtree draw with.
 ///
 /// Nothing in physics reads any field: a hidden collider still collides,
 /// which is what a game hiding a sprite for a frame expects.
@@ -143,6 +201,9 @@ pub struct Appearance {
     /// Add `z_index` to the parent's rather than replacing it, so moving a
     /// subtree between layers keeps the order inside it.
     pub z_relative: bool,
+    /// The material this node and every descendant naming none draw with.
+    /// [`MaterialId::NONE`] takes the parent's.
+    pub material: MaterialId,
 }
 
 impl Appearance {
@@ -152,6 +213,7 @@ impl Appearance {
             tint: Vec4::ONE,
             z_index: 0,
             z_relative: true,
+            material: MaterialId::NONE,
         }
     }
 }
@@ -212,6 +274,8 @@ pub struct GlobalAppearance {
     /// channel. What a renderer multiplies its own colour by.
     pub tint: Vec4,
     pub z_index: i32,
+    /// The nearest material from this node up; what a renderer draws with.
+    pub material: MaterialId,
 }
 
 impl GlobalAppearance {
@@ -220,6 +284,7 @@ impl GlobalAppearance {
             visible: true,
             tint: Vec4::ONE,
             z_index: 0,
+            material: MaterialId::NONE,
         }
     }
 
@@ -231,6 +296,11 @@ impl GlobalAppearance {
                 self.z_index.saturating_add(local.z_index)
             } else {
                 local.z_index
+            },
+            material: if local.material.is_none() {
+                self.material
+            } else {
+                local.material
             },
         }
     }

@@ -174,21 +174,11 @@ fn declared(eng: &Engine) -> BTreeMap<String, Bus> {
     fn one() -> f32 {
         1.0
     }
-    #[derive(serde::Deserialize, Default)]
-    struct Audio {
-        #[serde(default)]
-        buses: BTreeMap<String, Declared>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Manifest {
-        #[serde(default)]
-        audio: Audio,
-    }
-    let Some(source) = balaur_core::project::manifest_source(eng) else {
-        return BTreeMap::new();
-    };
-    let parsed = match toml::from_str::<Manifest>(&source) {
-        Ok(manifest) => manifest.audio.buses,
+    // Resolved, so a platform may mix its buses differently: a phone's
+    // speaker wants less of the bass bus than a desktop's headphones.
+    let table = balaur_core::settings::table(eng, "audio/buses");
+    let parsed: BTreeMap<String, Declared> = match toml::Value::Table(table).try_into() {
+        Ok(parsed) => parsed,
         Err(err) => {
             tracing::warn!("project.toml [audio.buses]: {err}; no buses declared");
             return BTreeMap::new();

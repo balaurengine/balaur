@@ -297,6 +297,150 @@ pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> 
     Ok(())
 }
 
+/// Which pipeline a shader was written for, read off the contract it imports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Contract {
+    /// `package::sprite`: a 2D node.
+    Sprite,
+    /// `package::mesh` or `package::pbr`: a 3D node.
+    Mesh,
+    /// `package::post`: a pass over the frame, never a node.
+    Post,
+}
+
+impl std::fmt::Display for Contract {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Contract::Sprite => "2D",
+            Contract::Mesh => "3D",
+            Contract::Post => "a post-process pass",
+        })
+    }
+}
+
+/// The contract `source` imports, following a plugin's module into its own
+/// imports. `None` names none, and links as it would have.
+#[must_use]
+pub fn contract(source: &str, modules: &[(String, String)]) -> Option<Contract> {
+    contract_within(source, modules, 0)
+}
+
+fn contract_within(source: &str, modules: &[(String, String)], depth: u32) -> Option<Contract> {
+    // Deep enough for any honest chain, and a stop for one that imports itself.
+    if depth > 8 {
+        return None;
+    }
+    for line in source.lines() {
+        let Some(path) = line.trim_start().strip_prefix("import ") else {
+            continue;
+        };
+        let module = path
+            .split("::")
+            .take(2)
+            .map(|segment| segment.trim().trim_end_matches(';'))
+            .collect::<Vec<_>>()
+            .join("::");
+        let found = match module.as_str() {
+            crate::shaders::SPRITE_MODULE => Some(Contract::Sprite),
+            crate::shaders::MESH_MODULE | crate::shaders::PBR_MODULE => Some(Contract::Mesh),
+            crate::shaders::POST_MODULE => Some(Contract::Post),
+            _ => modules
+                .iter()
+                .find(|(name, _)| *name == module)
+                .and_then(|(_, text)| contract_within(text, modules, depth + 1)),
+        };
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
+}
+
+/// Whether a material written against `found` draws on a node of `wanted`,
+/// warning when not. An inherited material reaches nodes nobody named it on,
+/// so a mismatch keeps the built-in material rather than failing a pipeline.
+pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -> bool {
+    match found {
+        Some(found) if found != wanted => {
+            tracing::warn!(
+                material = reference,
+                "the material's shader draws {found}, so a {wanted} node keeps the built-in one"
+            );
+            false
+        }
+        _ => true,
+    }
+}
+
+/// The component that names a material for a node and its subtree.
+pub const MATERIAL_COMPONENT: &str = "material";
+
+/// Marks a node the `material` component was put on. The reference itself is
+/// `Appearance::material`, where the tree composes it.
+pub(crate) struct NodeMaterial;
+
+/// The `material` component: any node, shape or none, naming the material it
+/// and every descendant draw with. A renderable's own `material` wins over it
+/// for that renderable alone.
+pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
+    use balaur_core::components::ComponentDef;
+    use balaur_core::scene::{Appearance, MaterialId};
+    reg.register_component(
+        MATERIAL_COMPONENT,
+        ComponentDef {
+            doc: "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
+            schema: ComponentDef::parse_schema(
+                MATERIAL_COMPONENT,
+                &ComponentDef::schema(&[(
+                    crate::shape::keys::SOURCE,
+                    &format!(
+                        r#"{{ type = "asset", asset = "{MATERIAL_ASSET_TYPE}", default = "", description = "The material asset; empty takes the parent's" }}"#
+                    ),
+                )]),
+            ),
+            tags: &[balaur_core::components::tag::RENDER],
+            expects: &[],
+            apply: Box::new(|eng, entity, params| {
+                let reference = params
+                    .get(crate::shape::keys::SOURCE)
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or_default();
+                let mut world = eng.world_mut();
+                world
+                    .get::<&mut Appearance>(entity)
+                    .map_err(|_| anyhow!("node is dead"))?
+                    .material = MaterialId::intern(reference);
+                world
+                    .insert_one(entity, NodeMaterial)
+                    .map_err(|_| anyhow!("node is dead"))
+            }),
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<NodeMaterial>(entity);
+                if let Ok(mut appearance) = world.get::<&mut Appearance>(entity) {
+                    appearance.material = MaterialId::NONE;
+                }
+                Ok(())
+            }),
+            // Present when put on, or when a script named a material for the
+            // node: either way the node carries one.
+            get: Box::new(|eng, entity| {
+                let world = eng.world();
+                let material = world.get::<&Appearance>(entity).ok()?.material;
+                if material.is_none() && world.get::<&NodeMaterial>(entity).is_err() {
+                    return None;
+                }
+                let mut map = toml::map::Map::new();
+                map.insert(
+                    crate::shape::keys::SOURCE.into(),
+                    toml::Value::String(material.reference().to_string()),
+                );
+                Some(toml::Value::Table(map))
+            }),
+        },
+    );
+}
+
 /// The `material` asset type: files live in `materials/`.
 pub(crate) fn register_material_asset(reg: &mut Registry<'_>) {
     reg.register_asset_type(

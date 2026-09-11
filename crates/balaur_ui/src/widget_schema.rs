@@ -544,8 +544,8 @@ mod tests {
     use super::*;
     use crate::widget_theme::Style;
 
-    fn widget(params: toml::Value) -> Widget {
-        widget_from(&params)
+    fn widget(params: &toml::Value) -> Widget {
+        widget_from(params)
     }
 
     /// A widget that states no size reads as 0, which is what tells `face`
@@ -553,17 +553,20 @@ mod tests {
     /// made that sentinel unreachable, so no role ever set a text size.
     #[test]
     fn an_unstated_size_leaves_the_role_to_answer() {
-        let bare = widget(toml::toml! { kind = "label" role = "meta" }.into());
-        assert_eq!(bare.font_size, 0.0, "the default shadowed the role");
-        let stated = widget(toml::toml! { kind = "label" font_size = 13.0 }.into());
-        assert_eq!(stated.font_size, 13.0, "a stated size must still win");
+        let bare = widget(&toml::toml! { kind = "label" role = "meta" }.into());
+        assert!(bare.font_size.abs() < f32::EPSILON, "the default shadowed the role");
+        let stated = widget(&toml::toml! { kind = "label" font_size = 13.0 }.into());
+        assert!(
+            (stated.font_size - 13.0).abs() < f32::EPSILON,
+            "a stated size must still win"
+        );
     }
 
     /// The shaper is told which family to use. It shaped everything in `ui`
     /// before, so a node label could not be mono however it asked.
     #[test]
     fn the_shaper_is_told_the_role_s_family() {
-        let widget = widget(toml::toml! { kind = "label" role = "meta" }.into());
+        let widget = widget(&toml::toml! { kind = "label" role = "meta" }.into());
         let style = Style {
             font: Some("mono".to_string()),
             ..Style::default()
@@ -576,7 +579,7 @@ mod tests {
     /// A widget naming its own family keeps it over the role's.
     #[test]
     fn a_widget_s_own_family_wins() {
-        let widget = widget(toml::toml! { kind = "label" font = "heading" }.into());
+        let widget = widget(&toml::toml! { kind = "label" font = "heading" }.into());
         let style = Style {
             font: Some("mono".to_string()),
             ..Style::default()

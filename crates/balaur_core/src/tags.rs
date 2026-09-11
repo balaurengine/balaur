@@ -45,6 +45,42 @@ pub const ALL: [&str; 12] = [
     DESKTOP, MOBILE, WINDOWS, MACOS, LINUX, ANDROID, IOS, WEB, X86_64, ARM64, WASM32, DEBUG,
 ];
 
+/// Where a project names tags of its own: `[export] tags = ["demo"]`, and
+/// per target under an override of the same key.
+pub const DECLARED: &str = "export/tags";
+
+/// Where an export writes the tags it resolved, for the runtime to answer to:
+/// `[build] tags`. Written into the pack's manifest, never by hand.
+pub const BUILT: &str = "build/tags";
+
+/// Every tag a manifest names of its own, in the order it first names them:
+/// the base `[export] tags` and every override's.
+///
+/// What makes `[override.demo]` a tag rather than a typo, and
+/// `hero.demo.png` a variant rather than a file with a dot in its name.
+#[must_use]
+pub fn declared_in(doc: &toml::value::Table) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut take = |table: &toml::value::Table| {
+        let names = table
+            .get("export")
+            .and_then(|export| export.get("tags"))
+            .and_then(toml::Value::as_array);
+        for name in names.into_iter().flatten().filter_map(toml::Value::as_str) {
+            if !found.iter().any(|held| held == name) {
+                found.push(name.to_string());
+            }
+        }
+    };
+    take(doc);
+    if let Some(toml::Value::Table(overrides)) = doc.get(OVERRIDE) {
+        for layer in overrides.values().filter_map(toml::Value::as_table) {
+            take(layer);
+        }
+    }
+    found
+}
+
 /// The tags in force, broad to narrow: the kind of machine, the operating
 /// system, the architecture, the build, then whatever a target added.
 ///
@@ -196,6 +232,15 @@ mod tests {
         tags.push("demo");
         let order: Vec<&str> = tags.narrowest_first().collect();
         assert_eq!(order, ["demo", "android", "mobile"]);
+    }
+
+    #[test]
+    fn a_project_s_own_tags_are_read_from_every_export_table() {
+        let doc: toml::value::Table = toml::from_str(
+            "[export]\ntags = [\"demo\"]\n\n[override.android.export]\ntags = [\"store\", \"demo\"]\n",
+        )
+        .unwrap();
+        assert_eq!(super::declared_in(&doc), ["demo", "store"]);
     }
 
     #[test]

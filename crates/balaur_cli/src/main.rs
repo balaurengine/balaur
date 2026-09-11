@@ -283,7 +283,15 @@ mod import;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_godot;
 #[cfg(not(target_arch = "wasm32"))]
+mod import_godot_anim;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_files;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_nodes;
+#[cfg(not(target_arch = "wasm32"))]
 mod import_godot_project;
+#[cfg(not(target_arch = "wasm32"))]
+mod import_godot_scene;
 #[cfg(not(target_arch = "wasm32"))]
 mod import_ldtk;
 #[cfg(not(target_arch = "wasm32"))]

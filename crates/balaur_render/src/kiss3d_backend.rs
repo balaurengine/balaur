@@ -24,6 +24,9 @@ use crate::{
 struct Slot {
     node: SceneNode3d,
     version: u64,
+    /// The node's inherited material when this was built; a change rebuilds
+    /// a renderable that names none of its own.
+    inherited: balaur_core::scene::MaterialId,
     /// A skinned mesh's rest geometry and bindings: where the palette comes
     /// from, and the vertices the CPU path deforms when there is no handle.
     skin: Option<MeshSkinSlot>,
@@ -46,6 +49,9 @@ struct MeshSkinSlot {
 pub(crate) struct Slot2d {
     pub(crate) node: SceneNode2d,
     pub(crate) version: u64,
+    /// The node's inherited material when this was built; a change rebuilds
+    /// a renderable that names none of its own.
+    pub(crate) inherited: balaur_core::scene::MaterialId,
     /// The flip pair last written into the node's UVs: sheetless sprites only
     /// touch UVs when it changes, so un-flipping writes the identity rect once.
     pub(crate) flip: (bool, bool),
@@ -604,6 +610,12 @@ fn sync(
         &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
+        // Read once: the ancestors' tint, visibility and material come off
+        // the same propagated component.
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let owns_material = !renderable.material.is_empty();
         // A reload rebuilds what was built from a file: the mesh is read
         // again and the texture uploaded under the new generation's name.
         let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
@@ -611,8 +623,9 @@ fn sync(
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
-                    || (relinked && !renderable.material.is_empty())
+                    || (relinked && (owns_material || !appearance.material.is_none()))
                     || (reloaded && from_file)
+                    || (!owns_material && slot.inherited != appearance.material)
             }
             None => true,
         };
@@ -640,7 +653,13 @@ fn sync(
             };
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.
-            let custom = materials.for_node(app, &renderable.material, &channel);
+            let inherited = appearance.material.reference();
+            let reference = if owns_material {
+                renderable.material.as_str()
+            } else {
+                &inherited
+            };
+            let custom = materials.for_node(app, reference, &channel);
             let mut palette = None;
             if let Some(material) = custom {
                 node.set_material(material);
@@ -652,6 +671,7 @@ fn sync(
                 Slot {
                     node,
                     version: renderable.version,
+                    inherited: appearance.material,
                     skin,
                     palette,
                 },
@@ -662,11 +682,6 @@ fn sync(
         if let Some(skin) = &slot.skin {
             pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
-        // Read once: the ancestors' tint and their visibility come off the
-        // same propagated component.
-        let appearance = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
         let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.

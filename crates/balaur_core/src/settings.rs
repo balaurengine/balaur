@@ -176,6 +176,29 @@ pub fn stated(eng: &Engine, path: &str) -> Option<toml::Value> {
     stored(eng, path)
 }
 
+/// A whole table as this run resolves it: the file's own, with each tag's
+/// override folded on, broad to narrow.
+///
+/// The read for a table whose keys are the game's rather than the engine's:
+/// `[input.actions]` names actions and `[audio.buses]` names buses, so
+/// `[override.mobile.input.actions] jump = ["touch:..."]` rebinds one action
+/// and leaves the rest as the file has them.
+#[must_use]
+pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
+    let mut out = match stored(eng, path) {
+        Some(toml::Value::Table(base)) => base,
+        _ => toml::value::Table::new(),
+    };
+    if let Some(tags) = eng.try_resource::<Tags>() {
+        for tag in &tags.borrow().0 {
+            if let Some(toml::Value::Table(layer)) = stored(eng, &format!("{OVERRIDE}/{tag}/{path}")) {
+                merge(&mut out, layer);
+            }
+        }
+    }
+    out
+}
+
 /// What the file says, whatever platform is reading it.
 ///
 /// The editor's own read: a settings screen showing the override its machine
@@ -250,16 +273,46 @@ pub fn load(eng: &Engine, text: &str) -> Result<()> {
     Ok(())
 }
 
+/// Every tag an override may be written for here: the engine's, then the
+/// project's own from `[export] tags`.
+#[must_use]
+pub fn known_tags(eng: &Engine) -> Vec<String> {
+    let mut all: Vec<String> = crate::tags::ALL.iter().map(|t| (*t).to_string()).collect();
+    if let Some(values) = eng.try_resource::<SettingsValues>() {
+        for own in crate::tags::declared_in(&values.borrow().0) {
+            if !all.contains(&own) {
+                all.push(own);
+            }
+        }
+    }
+    all
+}
+
+/// Push the tags an export resolved, from `[build] tags`, onto the ones this
+/// run answers to. Called wherever a manifest is loaded, so a shipped demo
+/// reads `[override.demo]` from its first setting on.
+pub fn answer_to_built_tags(eng: &Engine) {
+    let Some(toml::Value::Array(names)) = stored(eng, crate::tags::BUILT) else {
+        return;
+    };
+    let Some(tags) = eng.try_resource::<Tags>() else {
+        return;
+    };
+    let mut tags = tags.borrow_mut();
+    for name in names.iter().filter_map(toml::Value::as_str) {
+        tags.push(name);
+    }
+}
+
 /// The tags this manifest holds an override for at `path`, in tag order.
 ///
 /// What the settings screen lists under a row: the answers this key has
 /// besides the one in front of you.
 #[must_use]
 pub fn overrides(eng: &Engine, path: &str) -> Vec<String> {
-    crate::tags::ALL
-        .iter()
+    known_tags(eng)
+        .into_iter()
         .filter(|tag| stored(eng, &format!("{OVERRIDE}/{tag}/{path}")).is_some())
-        .map(|tag| (*tag).to_string())
         .collect()
 }
 
@@ -398,6 +451,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .filter(|d| d.scope == scope)
         .map(|d| d.path.clone())
         .collect();
+    let tags = known_tags(eng);
     for path in paths {
         if let Some(value) = stored(eng, &path) {
             write_at(&mut doc, &path, &value);
@@ -407,7 +461,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         if scope != Scope::Project {
             continue;
         }
-        for tag in crate::tags::ALL {
+        for tag in &tags {
             let at = format!("{OVERRIDE}/{tag}/{path}");
             match stored(eng, &at) {
                 Some(value) => write_at(&mut doc, &at, &value),

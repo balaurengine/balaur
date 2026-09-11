@@ -1007,6 +1007,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         cloner::register_cloner_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
+        material::register_material_component(reg);
         sheet::register_sheet_asset(reg);
         tilemap::register_tileset_asset(reg);
         text_component::register_text2d_component(reg);

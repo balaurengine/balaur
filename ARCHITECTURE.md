@@ -431,6 +431,15 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin` —
   tree has one dependency.
 - Only the desktop builds carry `extensions`. Web, iOS and Android builds leave
   it off, so a game shipping there takes its plugins as modules.
+- An exported desktop game carries its extensions. A fused executable has them
+  in `extensions/` beside it. A `.app` has them in `Contents/PlugIns`, signed
+  with the game's identity before the bundle, since the hardened runtime's
+  library validation refuses a library from another team.
+  `standalone::extensions_beside` names that place for exporter and runtime
+  alike, and the template's own format picks `.so`, `.dylib` or `.dll`.
+- A packed boot loads from there, never from the working directory, which is
+  `/` for a `.app` Finder opened. `balaur play` loads from beside the pack. A
+  web, iOS or Android export warns and ships without them.
 
 **Two boundaries, because Rust has no stable ABI.** `load_extension` picks by
 exported symbols.
@@ -1046,8 +1055,10 @@ fire = ["mouse:left"]
 - `touch_button` and `touch_stick` are components, not widget kinds, as
   Godot's `TouchScreenButton` is a `Node2D`: the widget pass runs in the
   backend's draw, after actions derive and never headless. They are hit-tested
-  in `First` against `DeviceFacts`' recorded `screen_size`, `ui_scale` and
-  `safe_area`, and `balaur_render` only paints them.
+  in `First` against `DeviceFacts`' recorded `screen_size`, `ui_scale`,
+  `safe_area` and `game_area`, the widget layer's default surface, so a game
+  played in the editor keeps them in the viewport. `balaur_render` only paints
+  them.
 - A control *feeds* an action (`InputActions::feed`, `input.feed_action`)
   rather than being bound to one: the furthest from rest wins against the
   bindings, and a fed action answers even if undeclared.

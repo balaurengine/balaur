@@ -82,8 +82,7 @@ impl Default for SocketOptions {
 /// ```
 ///
 /// A call's own options override these.
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct WebsocketConfig {
     pub compression: bool,
 }
@@ -95,26 +94,16 @@ impl Default for WebsocketConfig {
 }
 
 impl WebsocketConfig {
-    /// The `[websocket]` table of the project's manifest, or the defaults when
-    /// the file or the table is missing. A table that does not parse is
-    /// reported and ignored rather than failing the boot over a networking
-    /// setting.
+    /// `[websocket]` as this run resolves it, or the defaults. Read through
+    /// the settings registry, which a shipped pack also answers from.
     #[must_use]
-    pub fn load(files: &balaur_core::project::ProjectFiles) -> Self {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            websocket: WebsocketConfig,
-        }
-        let Ok(bytes) = files.read("project.toml") else {
-            return Self::default();
-        };
-        match toml::from_str::<Manifest>(&String::from_utf8_lossy(&bytes)) {
-            Ok(manifest) => manifest.websocket,
-            Err(err) => {
-                tracing::warn!("project.toml [websocket]: {err}; using the defaults");
-                Self::default()
-            }
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            compression: balaur_core::settings::get(eng, "websocket/compression")
+                .as_ref()
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(fallback.compression),
         }
     }
 }
@@ -319,7 +308,6 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        reg.insert_resource(reg.with_project_files(WebsocketConfig::load));
         reg.insert_resource(WebsocketState::default());
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);
@@ -391,7 +379,7 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
             let options =
-                socket_options_of(opts.as_ref(), &eng.resource::<WebsocketConfig>().borrow())?;
+                socket_options_of(opts.as_ref(), &WebsocketConfig::from_settings(eng))?;
             let id = eng.next_token();
             let state = eng.resource::<WebsocketState>();
             state.borrow_mut().connect(eng, id, &url, options, handler);
