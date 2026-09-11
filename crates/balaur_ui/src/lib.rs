@@ -21,29 +21,13 @@
 mod bridge;
 pub mod glyph;
 mod images;
+mod immediate;
 mod pacing;
 mod splash;
 pub mod text;
 mod theme;
 mod vocabulary;
-mod widget_anchor;
-mod widget_arena;
-mod widget_arrange;
-mod widget_bindings;
-mod widget_button;
-mod widget_code;
-mod widget_input;
-mod widget_kinds;
-mod widget_layer;
-mod widget_layout;
-mod widget_measure;
-mod widget_schema;
-mod widget_scroll;
-mod widget_taffy;
-mod widget_text;
-mod widget_theme;
-mod widget_window;
-mod widgets;
+mod widget;
 
 use anyhow::Result;
 use balaur_core::Engine;
@@ -51,18 +35,18 @@ use std::collections::{HashMap, HashSet};
 
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
-pub use widget_input::{CHANGE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot};
-pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
-pub use widget_theme::WidgetTheme;
+pub use widget::input::{CHANGE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot};
+pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
+pub use widget::theme::WidgetTheme;
 
 /// Where the layer last drew a widget, in device pixels, or `None` for one
 /// it did not draw last frame. What `ui.widget_rect` answers a script.
 #[must_use]
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
-    widget_arrange::drawn_at(entity)
+    widget::arrange::drawn_at(entity)
 }
 
-pub use widgets::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
+pub use immediate::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
 /// writes, and the global UI scale (all widget metrics multiply by it, so
@@ -176,17 +160,17 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(UiFocus::default());
         glyph::install(reg);
         reg.register_asset_type(
-            widget_theme::ASSET_TYPE,
+            widget::theme::ASSET_TYPE,
             "themes",
-            widget_theme::ASSET_DOC,
+            widget::theme::ASSET_DOC,
             |value| {
-                Ok(std::rc::Rc::new(widget_theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
+                Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        widgets::install_ui_api(reg)?;
-        widget_input::register(reg);
-        widget_layer::register_widget_component(reg);
-        widget_layer::register_widget_presets(reg)?;
+        immediate::install_ui_api(reg)?;
+        widget::input::register(reg);
+        widget::schema::register_widget_component(reg);
+        widget::schema::register_widget_presets(reg)?;
         Ok(())
     }
 }
@@ -245,7 +229,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     bridge::enter_pass(ctx, scale, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
     // `Foreground` — so what is on top does not depend on which ran first.
-    widget_layer::draw(eng, ctx, scale);
+    widget::layer::draw(eng, ctx, scale);
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }

@@ -5,7 +5,7 @@
 use egui::{Align2, pos2, vec2};
 
 use crate::vocabulary::words as w;
-use crate::widget_layer::Widget;
+use crate::widget::node::Widget;
 
 /// Where a root goes and what box it is handed: `fill` takes the surface
 /// less its insets so a container at the root fills the screen, a dialog

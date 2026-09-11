@@ -1,7 +1,11 @@
 //! The `ui` module: panels, containers, and the design system's widget
 //! shapes (pill, circle button, field, toggle, slider, code line, modal).
 //! Every color arrives per call from the script's token table, so themes are
-//! entirely script-defined. The code editor is [`crate::widget_code`].
+//! entirely script-defined. The code editor is [`code`].
+
+pub(crate) mod bindings;
+pub(crate) mod code;
+pub(crate) mod layout;
 
 use anyhow::Result;
 use balaur_core::Engine;
@@ -489,23 +493,23 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }
-    crate::widget_bindings::install_theme(m);
-    crate::widget_bindings::install_panels(m);
-    crate::widget_bindings::install_containers(m);
-    crate::widget_bindings::install_text(m);
-    crate::widget_bindings::install_buttons(m);
-    crate::widget_bindings::install_controls(m);
-    crate::widget_bindings::install_text_input(m);
-    crate::widget_bindings::install_code(m);
-    crate::widget_bindings::install_modal(m);
-    crate::widget_bindings::install_window(m);
-    crate::widget_bindings::install_widget_layer(m);
-    crate::widget_bindings::install_scale(m);
+    crate::immediate::bindings::install_theme(m);
+    crate::immediate::bindings::install_panels(m);
+    crate::immediate::bindings::install_containers(m);
+    crate::immediate::bindings::install_text(m);
+    crate::immediate::bindings::install_buttons(m);
+    crate::immediate::bindings::install_controls(m);
+    crate::immediate::bindings::install_text_input(m);
+    crate::immediate::bindings::install_code(m);
+    crate::immediate::bindings::install_modal(m);
+    crate::immediate::bindings::install_window(m);
+    crate::immediate::bindings::install_widget_layer(m);
+    crate::immediate::bindings::install_scale(m);
     crate::pacing::install(m);
-    crate::widget_bindings::install_code_editor(m);
-    crate::widget_bindings::install_dropdown_select(m);
-    crate::widget_bindings::install_images(m);
-    crate::widget_bindings::install_queries(m);
+    crate::immediate::bindings::install_code_editor(m);
+    crate::immediate::bindings::install_dropdown_select(m);
+    crate::immediate::bindings::install_images(m);
+    crate::immediate::bindings::install_queries(m);
 
     Ok(())
 }
@@ -714,7 +718,7 @@ pub(crate) fn left_pill(
     if let Some(tip) = opts.string(k::TOOLTIP) {
         response = response.on_hover_text(tip);
     }
-    crate::widget_layout::attach_menus(eng, &response, opts);
+    crate::immediate::layout::attach_menus(eng, &response, opts);
     Ok(response.clicked())
 }
 

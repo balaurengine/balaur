@@ -7,8 +7,9 @@ use egui::{Color32, Stroke, pos2, vec2};
 
 use crate::theme::family;
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Painting, Widget};
-use crate::widget_theme::Style;
+use crate::widget::layer::Painting;
+use crate::widget::node::Widget;
+use crate::widget::theme::Style;
 
 /// What a button paints inside itself: a picture, the icon glyph, the
 /// caption, the trailing text, and the box they need between them.
@@ -64,7 +65,7 @@ fn face_of(
         ui.painter()
             .layout_no_wrap(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
     });
-    let shaped = crate::widget_text::shaped_caption(ui, at, index, widget, caption, font);
+    let shaped = crate::widget::text::shaped_caption(ui, at, index, widget, caption, font);
     let plain = (shaped.is_none() && !caption.is_empty()).then(|| {
         ui.painter()
             .layout_no_wrap(caption.to_owned(), font.clone(), Color32::PLACEHOLDER)
@@ -220,7 +221,7 @@ pub(crate) fn button(
     let style = base.in_state(response.hovered(), down);
     let radius = corner(&style, &widget, scale, response.rect.height());
     match style.image.as_ref() {
-        Some(path) => crate::widget_kinds::nine_patch_plate(
+        Some(path) => crate::widget::kinds::nine_patch_plate(
             ui,
             at.eng,
             plate,
@@ -246,7 +247,7 @@ pub(crate) fn button(
     // answers the pointer, and a theme refines what that looks like.
     if (response.hovered() || widget.checked) && base.hover.is_none() && base.active.is_none() {
         ui.painter()
-            .rect_filled(response.rect, radius, crate::widgets::wash(ui, down));
+            .rect_filled(response.rect, radius, crate::immediate::wash(ui, down));
     }
     let ink = if widget.text_color[3] > 0.0 {
         color

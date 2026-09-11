@@ -291,8 +291,8 @@ fn godot_root(file: &Path) -> Result<PathBuf> {
 }
 
 /// Every file under `root`, project-relative with `/`, sorted. `.godot` is
-/// the editor's cache and every dot-directory is someone's tooling, so both
-/// are skipped.
+/// the editor's cache, every dot-directory is someone's tooling, and a
+/// folder with a `.gdignore` is one Godot skips, so all three are.
 fn walk(root: &Path) -> Result<Vec<String>> {
     let mut files = Vec::new();
     let mut dirs = vec![root.to_path_buf()];
@@ -307,7 +307,10 @@ fn walk(root: &Path) -> Result<Vec<String>> {
             }
             let path = entry.path();
             if entry.file_type().is_ok_and(|t| t.is_dir()) {
-                dirs.push(path);
+                // Godot's own rule: a folder holding `.gdignore` is not the game's.
+                if !path.join(".gdignore").exists() {
+                    dirs.push(path);
+                }
             } else if let Ok(relative) = path.strip_prefix(root) {
                 files.push(relative.to_string_lossy().replace('\\', "/"));
             }
@@ -620,6 +623,8 @@ PanelContainer/styles/panel = SubResource("Plain")
         put("scenes/extras.tscn", EXTRAS);
         put("shaders/glow.gdshader", GLOW);
         put("themes/game.tres", THEME);
+        put("store/.gdignore", "");
+        std::fs::copy(HULL, dir.path().join("store/shot.png")).unwrap();
         put("scripts/root.gd", SCRIPT);
         std::fs::create_dir_all(dir.path().join("art")).unwrap();
         std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
@@ -749,6 +754,10 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert!(
             out.path().join("art/hull.png").is_file(),
             "the art is copied"
+        );
+        assert!(
+            !out.path().join("store/shot.png").exists(),
+            "a folder Godot ignores is not the game's"
         );
     }
 

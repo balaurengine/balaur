@@ -7,11 +7,11 @@ use balaur_core::components::ComponentDef;
 use balaur_plugin::Registry;
 
 use crate::vocabulary::{self as v, keys as k, words as w};
-use crate::widget_layer::Widget;
+use crate::widget::node::Widget;
 
 /// The `widget` key, backed by exactly one `Widget` component on the node.
 ///
-/// `clicked` is declared `readonly`: [`crate::widget_input`] writes it every
+/// `clicked` is declared `readonly`: [`crate::widget::input`] writes it every
 /// tick and `apply` always clears it, but it is in the schema so that `get`'s
 /// output round-trips and the inspector can see it.
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
@@ -39,7 +39,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a container puts its children across its own direction", group = "layout" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::FOCUSABLE, r#"{ type = "bool", default = true, description = "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be", group = "events" }"#),
                     (k::ON_FOCUS, r#"{ type = "string", default = "", description = "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
-                    (k::THEME, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one", group = "paint" }}"#, crate::widget_theme::ASSET_TYPE)),
+                    (k::THEME, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one", group = "paint" }}"#, crate::widget::theme::ASSET_TYPE)),
                     (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once", group = "type" }"#),
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
@@ -95,13 +95,13 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                crate::widget_arena::widget_changed(entity);
+                crate::widget::arena::widget_changed(entity);
                 eng.world_mut()
                     .insert_one(entity, widget_from(params))
                     .map_err(|_| anyhow::anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
-                crate::widget_arena::widget_changed(entity);
+                crate::widget::arena::widget_changed(entity);
                 let _ = eng.world_mut().remove_one::<Widget>(entity);
                 Ok(())
             }),
@@ -530,9 +530,9 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
         .unwrap_or_default();
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);
-    widget.inset = crate::widget_theme::four_of(params.get(k::INSET));
+    widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
     widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
-    widget.slice = crate::widget_theme::four_of(params.get(k::SLICE));
+    widget.slice = crate::widget::theme::four_of(params.get(k::SLICE));
     widget.deadzone = f(k::DEADZONE);
 }
 
@@ -549,7 +549,7 @@ fn four(values: [f32; 4]) -> toml::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget_theme::Style;
+    use crate::widget::theme::Style;
 
     fn widget(params: &toml::Value) -> Widget {
         widget_from(params)
@@ -582,7 +582,7 @@ mod tests {
             ..Style::default()
         };
         let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
-        let request = crate::widget_text::text_request(&widget, "editing", None, &font, &style);
+        let request = crate::widget::text::text_request(&widget, "editing", None, &font, &style);
         assert_eq!(request.family, "mono");
     }
 
@@ -595,7 +595,7 @@ mod tests {
             ..Style::default()
         };
         let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
-        let request = crate::widget_text::text_request(&widget, "x", None, &font, &style);
+        let request = crate::widget::text::text_request(&widget, "x", None, &font, &style);
         assert_eq!(request.family, "heading");
     }
 }

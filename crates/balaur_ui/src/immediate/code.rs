@@ -7,9 +7,9 @@ use egui::{Align2, Color32, CornerRadius, FontId, Sense, pos2, vec2};
 
 use crate::UiState;
 use crate::bridge::with_ui;
+use crate::immediate::{Opts, sc};
 use crate::theme;
 use crate::vocabulary::{keys as k, words as w};
-use crate::widgets::{Opts, sc};
 
 pub(crate) struct SyntaxColors {
     key: Color32,
@@ -383,7 +383,7 @@ pub(crate) struct Caret {
 /// one.
 /// A `code` widget's values as the options `code_editor` reads, so the node
 /// and the script call reach the same editor.
-pub(crate) fn code_opts(widget: &crate::widget_layer::Widget, scale: f32) -> Opts {
+pub(crate) fn code_opts(widget: &crate::widget::node::Widget, scale: f32) -> Opts {
     let size = if widget.font_size > 0.0 {
         widget.font_size
     } else {

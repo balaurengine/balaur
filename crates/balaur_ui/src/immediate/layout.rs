@@ -1,7 +1,7 @@
 //! `ui.*` script bindings for layout: the containers that arrange other
 //! widgets, the spacing helpers between them, and the buttons.
 //!
-//! Split out of [`crate::widget_bindings`] so neither file grows past the
+//! Split out of [`crate::immediate::bindings`] so neither file grows past the
 //! house limits; `install_containers` and `install_buttons` there are the
 //! only callers.
 
@@ -10,9 +10,9 @@ use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{Align, Color32, CursorIcon, FontId, Layout, Margin, Sense, Stroke, pos2, vec2};
 
 use crate::bridge::{scoped, with_ui};
+use crate::immediate::{Opts, left_pill, pill_radius, sc, text};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
-use crate::widgets::{Opts, left_pill, pill_radius, sc, text};
 
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
 pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
@@ -347,7 +347,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     ui.painter().rect_filled(
                         response.rect,
                         corner,
-                        crate::widgets::wash(ui, response.is_pointer_button_down_on()),
+                        crate::immediate::wash(ui, response.is_pointer_button_down_on()),
                     );
                 }
                 if let Some(tip) = opts.string(k::TOOLTIP) {
@@ -380,7 +380,7 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
     if response.hovered() {
         let lit = opts
             .opt_color(k::FILL)
-            .unwrap_or_else(|| crate::widgets::wash(ui, false));
+            .unwrap_or_else(|| crate::immediate::wash(ui, false));
         ui.painter().rect_filled(rect, pill_radius(h), lit);
     }
     let color = opts.color(k::COLOR, Color32::WHITE);
@@ -447,7 +447,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                 // A theme that dresses no state still lights the button up, so
                 // a rail of glyphs answers the pointer out of the box.
                 if hovered && !opts.dressed() {
-                    let lit = crate::widgets::wash(ui, response.is_pointer_button_down_on());
+                    let lit = crate::immediate::wash(ui, response.is_pointer_button_down_on());
                     ui.painter().circle_filled(rect.center(), d / 2.0, lit);
                 }
                 if let Some(stroke) = opts.opt_color(k::STROKE) {

@@ -5,12 +5,83 @@
 //! only the slots that were written are re-read.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
+use egui::Color32;
 use smol_str::SmolStr;
 
-use crate::widget_layer::{Placed, Widget, lays_out};
+use crate::widget::node::{Widget, lays_out};
+use crate::widget::theme::{Style, WidgetTheme, face, styled, theme_of};
+
+/// One widget and the widgets laid out inside it, as an arena so the draw can
+/// recurse without holding a borrow of the world.
+pub(crate) struct Placed {
+    pub(crate) entity: Entity,
+    /// The arena index of the widget that lays this one out, or `None` for a
+    /// root. What lets a patched node work out the theme it inherits without
+    /// the walk from the root that put it there.
+    pub(crate) parent: Option<usize>,
+    /// The node's name: what a tab strip labels a page with when the page
+    /// says nothing itself.
+    pub(crate) name: SmolStr,
+    pub(crate) widget: Widget,
+    pub(crate) children: Vec<usize>,
+    /// The look resolved for this widget, worked out once a frame.
+    ///
+    /// Both the measure and the draw ask for it, and each of them more than
+    /// once: without this the theme was walked, the role merged and the face
+    /// built five times a widget a frame.
+    pub(crate) look: RefCell<Option<Rc<Look>>>,
+    /// The alpha of the node's inherited tint: every ancestor's multiplied
+    /// in, so a fade on a panel reaches what it lays out.
+    pub(crate) alpha: f32,
+}
+
+/// A widget's resolved look: what to paint it with and what face to draw its
+/// caption in, with the theme's roles and its own overrides already applied.
+pub(crate) struct Look {
+    pub(crate) style: Rc<Style>,
+    pub(crate) font: egui::FontId,
+    pub(crate) ink: Color32,
+}
+
+/// The theme in force at one node, folded down its ancestors.
+///
+/// The walk from the root does this on the way past; a node patched on its
+/// own has to climb to it instead.
+pub(crate) fn theme_at(
+    eng: &Engine,
+    arena: &[Placed],
+    index: usize,
+    base: &Rc<WidgetTheme>,
+) -> Rc<WidgetTheme> {
+    let mut chain = Vec::new();
+    let mut at = Some(index);
+    while let Some(i) = at {
+        chain.push(i);
+        at = arena[i].parent;
+    }
+    let mut theme = base.clone();
+    for i in chain.into_iter().rev() {
+        theme = theme_of(eng, &arena[i].widget.theme, &theme);
+    }
+    theme
+}
+
+/// The look of one widget, resolved once and kept for the rest of the frame.
+pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme, scale: f32) -> Rc<Look> {
+    let placed = &arena[index];
+    if let Some(held) = placed.look.borrow().as_ref() {
+        return Rc::clone(held);
+    }
+    let style = styled(theme, &placed.widget);
+    let (ink, font) = face(theme, &style, &placed.widget, scale);
+    let made = Rc::new(Look { style, font, ink });
+    *placed.look.borrow_mut() = Some(Rc::clone(&made));
+    made
+}
 
 thread_local! {
     /// Last pass's arena, kept whole. Rebuilding it walked the world, looked

@@ -12,7 +12,8 @@ use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Edit, Widget};
+use crate::widget::layer::Edit;
+use crate::widget::node::Widget;
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -188,7 +189,7 @@ fn settle_edits(
         };
         // Written straight onto the component, so the arena's copy of this one
         // is stale until the next pass re-reads it.
-        crate::widget_arena::widget_changed(entity);
+        crate::widget::arena::widget_changed(entity);
         match edit {
             Edit::Width(w) => widget.width = *w,
             Edit::Height(h) => widget.height = *h,
@@ -245,7 +246,7 @@ fn settle_edits(
                 }
             }
             Edit::Moved([dx, dy]) => {
-                let (sx, sy) = crate::widget_window::drag_signs(&widget.anchor);
+                let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);
                 widget.x += dx * sx;
                 widget.y += dy * sy;
             }
@@ -283,7 +284,7 @@ fn settle_clicks(
         // write that put the same `false` back would rebuild the whole arena.
         if widget.clicked != struck {
             widget.clicked = struck;
-            crate::widget_arena::widget_changed(entity);
+            crate::widget::arena::widget_changed(entity);
         }
         if !struck {
             continue;
@@ -299,7 +300,7 @@ fn settle_clicks(
             // click flips.
             widget.checked = if grouped { true } else { !was };
             if widget.checked != was {
-                crate::widget_arena::widget_changed(entity);
+                crate::widget::arena::widget_changed(entity);
                 emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
                 if !widget.on_change.is_empty() {
                     changes.push((
@@ -326,7 +327,7 @@ fn settle_clicks(
                 continue;
             }
             widget.checked = false;
-            crate::widget_arena::widget_changed(entity);
+            crate::widget::arena::widget_changed(entity);
             emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
             if !widget.on_change.is_empty() {
                 changes.push((entity, widget.on_change.to_string(), Value::Bool(false)));

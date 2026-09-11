@@ -2,17 +2,17 @@
 //!
 //! Split out of `widgets.rs` so neither the file nor any single registration
 //! function grows past the house limits. Registration order is the order
-//! [`crate::widgets::install_ui_api`] calls these.
+//! [`crate::immediate::install_ui_api`] calls these.
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
+use crate::immediate::code::code_editor;
+use crate::immediate::{Opts, panel_frame, pill_radius, sc, text, text_field};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
-use crate::widget_code::code_editor;
-use crate::widgets::{Opts, panel_frame, pill_radius, sc, text, text_field};
 use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.
@@ -223,8 +223,8 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: containers.
 pub(crate) fn install_containers(m: &mut dyn Bindings<Engine>) {
-    crate::widget_layout::install_layout_containers(m);
-    crate::widget_layout::install_spacing_helpers(m);
+    crate::immediate::layout::install_layout_containers(m);
+    crate::immediate::layout::install_spacing_helpers(m);
 }
 
 /// `ui.*` bindings: text.
@@ -268,8 +268,8 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: buttons.
 pub(crate) fn install_buttons(m: &mut dyn Bindings<Engine>) {
-    crate::widget_layout::install_button_widgets(m);
-    crate::widget_layout::install_button_shapes(m);
+    crate::immediate::layout::install_button_widgets(m);
+    crate::immediate::layout::install_button_shapes(m);
 }
 
 /// `ui.*` bindings: controls.
@@ -550,7 +550,7 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                 let layer = eng.resource::<crate::WidgetLayerConfig>();
                 layer.borrow_mut().layers.insert(
                     name,
-                    crate::widget_layer::Surface {
+                    crate::widget::node::Surface {
                         enabled,
                         rect: rect_of(x, y, w, h),
                     },
@@ -563,7 +563,7 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
             |_eng: &Engine, node: balaur_script::NodeId| {
                 let scale = scale();
                 Ok(
-                    crate::widget_layer::drawn_at(balaur_core::entity_of(node)?).map_or(
+                    crate::widget::arrange::drawn_at(balaur_core::entity_of(node)?).map_or(
                         Value::Nil,
                         |r| {
                             Value::Map(vec![
@@ -595,7 +595,7 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 /// pad: a game maps its `ui_next` / `ui_previous` / `ui_accept` actions onto
 /// them, and `standard_app` does it for a project that declares those names.
 fn install_focus(m: &mut dyn Bindings<Engine>) {
-    use crate::widget_layer::Move;
+    use crate::widget::node::Move;
     m.describe(&[
         ("focused", &[], "()", "The widget node focus is on, or nil."),
         (

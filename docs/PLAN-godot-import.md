@@ -277,7 +277,9 @@ deciding**, which is `any`, not portrait.
 ## 5. Phase 2: assets — built
 
 `balaur import project.godot` walks the whole tree once and writes each file
-kind the way the engine reads it. Run against `../polyglot-pirates-game` on
+kind the way the engine reads it, skipping a folder that holds a `.gdignore`
+as Godot does; in this game that drops 390 MB of store screenshots, videos and
+unused art. Run against `../polyglot-pirates-game` on
 2026-09-11 it takes about twenty seconds.
 
 | Input | Output | State |

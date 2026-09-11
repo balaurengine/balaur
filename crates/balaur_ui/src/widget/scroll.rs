@@ -51,7 +51,7 @@ pub(crate) fn deadzone_drag(
     let (origin, latest) = (origin?, latest?);
     if let std::collections::hash_map::Entry::Vacant(slot) = state.scroll_drags.entry(key) {
         let inside =
-            crate::widget_arrange::drawn_at(entity).is_some_and(|rect| rect.contains(origin));
+            crate::widget::arrange::drawn_at(entity).is_some_and(|rect| rect.contains(origin));
         if !inside {
             return None;
         }

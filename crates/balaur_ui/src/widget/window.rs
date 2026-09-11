@@ -4,8 +4,8 @@
 
 use egui::{Color32, Sense, Stroke};
 
-use crate::widget_arrange::{Axis, box_of, hold_to, lay_out, padding_of};
-use crate::widget_layer::{Edit, Painting};
+use crate::widget::arrange::{Axis, box_of, hold_to, lay_out, padding_of};
+use crate::widget::layer::{Edit, Painting};
 
 /// The cross on the title bar.
 const CLOSE: &str = "×";

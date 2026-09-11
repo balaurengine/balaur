@@ -17,9 +17,10 @@ use taffy::prelude::*;
 use taffy::style_helpers::TaffyMaxContent;
 
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Placed, Widget, lays_out};
-use crate::widget_measure::Measure;
-use crate::widget_theme::WidgetTheme;
+use crate::widget::arena::Placed;
+use crate::widget::measure::Measure;
+use crate::widget::node::{Widget, lays_out};
+use crate::widget::theme::WidgetTheme;
 
 thread_local! {
     /// The tree, kept between frames: a scene that did not change restyles
@@ -320,7 +321,7 @@ pub(crate) fn solve(
         // The slots a write touched, pushed straight at their own nodes: the
         // walk that would have found them is what this pass is skipping.
         for &index in touched {
-            let at = crate::widget_layer::theme_at(arena, index, theme);
+            let at = crate::widget::arena::theme_at(eng, arena, index, theme);
             sync(
                 &mut held,
                 arena,
@@ -421,10 +422,10 @@ fn sync(
 ) -> NodeId {
     let placed = &arena[index];
     let widget = &placed.widget;
-    let theme = crate::widget_theme::theme_of_owned(&widget.theme, theme);
-    let look = crate::widget_layer::look_of(arena, index, &theme, scale);
-    let pad = crate::widget_arrange::padding_of(widget, &look.style, scale);
-    let drawn = crate::widget_arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
+    let theme = crate::widget::theme::theme_of(measure.eng, &widget.theme, theme);
+    let look = crate::widget::arena::look_of(arena, index, &theme, scale);
+    let pad = crate::widget::arrange::padding_of(widget, &look.style, scale);
+    let drawn = crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
     let key = placed.entity.to_bits().get();
     let stamp = style_key(widget, pad, scale, drawn, fills);
     // A kind that places its own children is measured as a leaf, and so is an

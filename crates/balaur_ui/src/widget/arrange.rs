@@ -5,7 +5,8 @@
 //! over the world, and this is the arithmetic between them.
 
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Edit, Painting, Widget, draw_one};
+use crate::widget::layer::{Edit, Painting, draw_one};
+use crate::widget::node::Widget;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
 use rustc_hash::FxHashMap;
@@ -54,7 +55,7 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     // A `draw` node's size comes from the script that filled it, not from any
     // property, so this is the one layout input no component write announces.
     if measured_of(entity) != size {
-        crate::widget_arena::widget_changed(entity);
+        crate::widget::arena::widget_changed(entity);
     }
 }
 
@@ -89,7 +90,7 @@ pub(crate) fn settle_rects() {
 /// `padding` where it states one, else the theme's entry for its kind, else
 /// the built-in — 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
-pub(crate) fn padding_of(widget: &Widget, style: &crate::widget_theme::Style, scale: f32) -> f32 {
+pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     let stated = if widget.padding > 0.0 {
         widget.padding
@@ -105,7 +106,7 @@ pub(crate) fn padding_of(widget: &Widget, style: &crate::widget_theme::Style, sc
 /// The frame carries the look and no margin: `egui::Margin` is whole device
 /// pixels, and a caller shrinks its own rect by the float padding instead.
 fn themed_frame(
-    style: &crate::widget_theme::Style,
+    style: &crate::widget::theme::Style,
     scale: f32,
     fill: Option<Color32>,
 ) -> egui::Frame {
@@ -161,7 +162,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // that far, so a tap on a child lands; past it, this drags the
         // offset itself.
         let dragged = (dead > 0.0)
-            .then(|| crate::widget_scroll::deadzone_drag(ui, at.eng, entity, dead))
+            .then(|| crate::widget::scroll::deadzone_drag(ui, at.eng, entity, dead))
             .flatten();
         if dead > 0.0 {
             area = area.scroll_source(egui::scroll_area::ScrollSource {
@@ -175,11 +176,11 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
-            let room = crate::widget_taffy::Room::scrolling(egui::Rect::from_min_size(
+            let room = crate::widget::taffy::Room::scrolling(egui::Rect::from_min_size(
                 ui.max_rect().min,
                 vec2(inner.x, inner.y),
             ));
-            let solved = crate::widget_taffy::solve_subtree(
+            let solved = crate::widget::taffy::solve_subtree(
                 at.eng,
                 at.arena,
                 index,
@@ -250,7 +251,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let style = at.style_of(&widget);
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
-    let (color, font) = crate::widget_theme::face(&at.theme, &style, &widget, scale);
+    let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget, scale);
     let gap = widget.gap * scale;
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
@@ -292,8 +293,8 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The page is solved on its own: only one of them is on screen, so the
     // strip's siblings never take part in the same flex line.
     let showing = pages[showing].0;
-    let room = crate::widget_taffy::Room::fixed(page);
-    let solved = crate::widget_taffy::solve_subtree(
+    let room = crate::widget::taffy::Room::fixed(page);
+    let solved = crate::widget::taffy::solve_subtree(
         at.eng,
         at.arena,
         showing,

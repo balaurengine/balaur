@@ -34,7 +34,7 @@
 //! script makes and the nodes a scene holds.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
@@ -43,7 +43,7 @@ use smol_str::SmolStr;
 use crate::theme::family;
 use crate::vocabulary::keys as k;
 use crate::vocabulary::words as w;
-use crate::widget_layer::{Widget, rgba_color};
+use crate::widget::node::{Widget, rgba_color};
 use egui::Color32;
 
 /// How one widget kind is drawn.
@@ -459,26 +459,6 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
     style.weight.unwrap_or(400.0)
 }
 
-/// The theme a widget's own subtree is drawn with, for a caller that holds no
-/// `Engine` handy — the layout pass, which walks the same tree the draw does.
-pub(crate) fn theme_of_owned(reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
-    if reference.is_empty() {
-        return inherited.clone();
-    }
-    THEMES.with(|held| {
-        held.borrow()
-            .get(reference)
-            .cloned()
-            .unwrap_or_else(|| inherited.clone())
-    })
-}
-
-thread_local! {
-    /// Every theme the draw has resolved this session, by asset path, so the
-    /// layout pass can reach one without an `Engine`.
-    static THEMES: RefCell<HashMap<String, Rc<WidgetTheme>>> = RefCell::new(HashMap::new());
-}
-
 /// The theme in force for a widget: its own, or the nearest ancestor's.
 ///
 /// Resolved once per frame per root rather than per widget, because a screen
@@ -493,13 +473,7 @@ pub(crate) fn theme_of(
         return inherited.clone();
     }
     match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
-        Ok(theme) => {
-            THEMES.with(|held| {
-                held.borrow_mut()
-                    .insert(reference.to_string(), theme.clone());
-            });
-            theme
-        }
+        Ok(theme) => theme,
         Err(err) => {
             // Once per reference: a missing theme is a typo in a scene file,
             // and repeating it sixty times a second buries everything else.

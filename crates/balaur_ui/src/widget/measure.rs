@@ -7,10 +7,12 @@
 
 use crate::theme::family;
 use crate::vocabulary::words as w;
-use crate::widget_arrange::padding_of;
-use crate::widget_layer::{Placed, Widget, caption, lays_out};
-use crate::widget_theme::WidgetTheme;
-use crate::widget_theme::theme_of;
+use crate::widget::arena::Placed;
+use crate::widget::arrange::padding_of;
+use crate::widget::layer::caption;
+use crate::widget::node::{Widget, lays_out};
+use crate::widget::theme::WidgetTheme;
+use crate::widget::theme::theme_of;
 use balaur_core::Engine;
 use egui::vec2;
 use rustc_hash::FxHashMap;
@@ -21,7 +23,7 @@ use std::rc::Rc;
 /// galleys by text and font, so the repeat is a hash lookup rather than a
 /// re-layout.
 pub(crate) struct Measure<'a> {
-    eng: &'a Engine,
+    pub(super) eng: &'a Engine,
     arena: &'a [Placed],
     /// The painter is how text is measured without drawing it, and the
     /// padding is what egui will put around a button's own text.
@@ -99,12 +101,12 @@ impl<'a> Measure<'a> {
             // or with nothing. A script's rect can only be remembered: what
             // it drew last frame is the one thing anything knows about it.
             w::SCROLL => egui::Vec2::ZERO,
-            w::DRAW => crate::widget_arrange::measured_of(self.arena[index].entity),
+            w::DRAW => crate::widget::arrange::measured_of(self.arena[index].entity),
             // A picture knows its own size, so a row can divide by it.
             w::IMAGE => {
                 crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
                     .map_or(egui::Vec2::ZERO, |texture| {
-                        crate::widget_layer::image_size(
+                        crate::widget::layer::image_size(
                             vec2(widget.width, widget.height) * self.scale,
                             texture.size_vec2(),
                         )
@@ -210,7 +212,7 @@ impl<'a> Measure<'a> {
         };
         let pad = padding_of(
             widget,
-            &crate::widget_theme::styled(theme, widget),
+            &crate::widget::theme::styled(theme, widget),
             self.scale,
         );
         inner + egui::Vec2::splat(pad * 2.0)
@@ -221,7 +223,7 @@ impl<'a> Measure<'a> {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let children = placed.children.clone();
-        let columns = crate::widget_kinds::grid_columns(&widget);
+        let columns = crate::widget::kinds::grid_columns(&widget);
         let gap = widget.gap * self.scale;
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
@@ -244,7 +246,7 @@ impl<'a> Measure<'a> {
         );
         let pad = padding_of(
             &widget,
-            &crate::widget_theme::styled(theme, &widget),
+            &crate::widget::theme::styled(theme, &widget),
             self.scale,
         );
         inner + egui::Vec2::splat(pad * 2.0)
@@ -258,7 +260,7 @@ impl<'a> Measure<'a> {
         let gap = widget.gap * self.scale;
         let pad = padding_of(
             &widget,
-            &crate::widget_theme::styled(theme, &widget),
+            &crate::widget::theme::styled(theme, &widget),
             self.scale,
         );
         let limit = if widget.width > 0.0 {
@@ -324,7 +326,7 @@ impl<'a> Measure<'a> {
     /// floor its role carries. The same arithmetic the draw does, or a strip
     /// of buttons is handed less room than it paints into.
     fn button(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let look = crate::widget_layer::look_of(self.arena, index, theme, self.scale);
+        let look = crate::widget::arena::look_of(self.arena, index, theme, self.scale);
         let (style, font) = (&look.style, look.font.clone());
         let text = self.text(index, widget, theme);
         let mark = if widget.icon.is_empty() {
@@ -368,7 +370,7 @@ impl<'a> Measure<'a> {
     fn picture(
         &self,
         widget: &Widget,
-        style: &crate::widget_theme::Style,
+        style: &crate::widget::theme::Style,
         line: f32,
     ) -> egui::Vec2 {
         if widget.source.is_empty() {
@@ -412,10 +414,10 @@ impl<'a> Measure<'a> {
         widget: &Widget,
         theme: &Rc<WidgetTheme>,
     ) -> egui::Vec2 {
-        let look = crate::widget_layer::look_of(self.arena, index, theme, self.scale);
+        let look = crate::widget::arena::look_of(self.arena, index, theme, self.scale);
         let (style, font) = (&look.style, look.font.clone());
         if let Some(state) = crate::text::state(self.eng) {
-            let request = crate::widget_text::text_request(widget, text, None, &font, style);
+            let request = crate::widget::text::text_request(widget, text, None, &font, style);
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)
