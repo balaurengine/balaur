@@ -123,16 +123,12 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
 /// so the first time it happens.
 fn key_name(key: kiss3d::event::Key) -> String {
     let name = format!("{key:?}");
-    if !balaur_input::is_known_key(&name) {
-        use std::sync::atomic::{AtomicBool, Ordering};
-        static WARNED: AtomicBool = AtomicBool::new(false);
-        if !WARNED.swap(true, Ordering::Relaxed) {
-            tracing::warn!(
-                key = name,
-                "the window backend reported a key balaur_input does not know; \
-                 scripts cannot match it"
-            );
-        }
+    if !balaur_input::is_known_key(&name) && balaur_core::logbuf::first_time("window key", "") {
+        tracing::warn!(
+            key = name,
+            "the window backend reported a key balaur_input does not know; \
+             scripts cannot match it"
+        );
     }
     name
 }

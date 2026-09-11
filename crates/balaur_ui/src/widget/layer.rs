@@ -840,12 +840,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// Report a source once. Repeating it sixty times a second buries everything
 /// else in the log.
 fn warn_once(source: &str, err: &anyhow::Error) {
-    static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
-        std::sync::Mutex::new(None);
-    if let Ok(mut seen) = WARNED.lock() {
-        let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
-        if seen.insert(source.to_string()) {
-            tracing::warn!("widget image '{source}': {err:#}");
-        }
+    if balaur_core::logbuf::first_time("widget image", source) {
+        tracing::warn!("widget image '{source}': {err:#}");
     }
 }

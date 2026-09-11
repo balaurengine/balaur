@@ -649,12 +649,7 @@ fn check_key(key: &str) {
     if is_known_key(key) {
         return;
     }
-    thread_local! {
-        static WARNED: std::cell::RefCell<std::collections::BTreeSet<String>> =
-            const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
-    }
-    let fresh = WARNED.with_borrow_mut(|w| w.insert(key.to_string()));
-    if fresh {
+    if balaur_core::logbuf::first_time("input key", key) {
         tracing::warn!(key, "unknown key name; it will never match");
     }
 }
@@ -1061,12 +1056,7 @@ fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
     if known.contains(&name) {
         return;
     }
-    thread_local! {
-        static WARNED: std::cell::RefCell<std::collections::BTreeSet<String>> =
-            const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
-    }
-    let fresh = WARNED.with_borrow_mut(|w| w.insert(format!("{what}:{name}")));
-    if fresh {
+    if balaur_core::logbuf::first_time(what, name) {
         tracing::warn!(what, name, "unknown name; it will never match");
     }
 }

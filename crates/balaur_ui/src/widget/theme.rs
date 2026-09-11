@@ -475,15 +475,9 @@ pub(crate) fn theme_of(
     match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
         Ok(theme) => theme,
         Err(err) => {
-            // Once per reference: a missing theme is a typo in a scene file,
-            // and repeating it sixty times a second buries everything else.
-            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
-                std::sync::Mutex::new(None);
-            if let Ok(mut seen) = WARNED.lock() {
-                let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
-                if seen.insert(reference.to_string()) {
-                    tracing::warn!("widget theme '{reference}': {err:#}");
-                }
+            // A missing theme is a typo in a scene file: said once per reference.
+            if balaur_core::logbuf::first_time("widget theme", reference) {
+                tracing::warn!("widget theme '{reference}': {err:#}");
             }
             inherited.clone()
         }

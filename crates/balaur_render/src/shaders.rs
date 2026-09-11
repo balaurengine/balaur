@@ -132,14 +132,8 @@ pub(crate) fn fits(reference: &str, found: Option<Contract>, wanted: Contract) -
         Some(found) if found != wanted => {
             // Once per material and dimension: a reload empties the cache that
             // would otherwise have remembered it.
-            static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
-                std::sync::Mutex::new(None);
             let key = format!("{wanted}:{reference}");
-            if let Ok(mut seen) = WARNED.lock()
-                && seen
-                    .get_or_insert_with(std::collections::BTreeSet::new)
-                    .insert(key)
-            {
+            if balaur_core::logbuf::first_time("shader contract", &key) {
                 tracing::warn!(
                     material = reference,
                     "the material's shader draws {found}, so a {wanted} node keeps the built-in one"

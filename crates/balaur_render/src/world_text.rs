@@ -610,10 +610,7 @@ pub(crate) fn depth_of(layer: usize) -> f32 {
 /// and a missing plugin forever after, and neither wants a line per call.
 #[cfg(feature = "kiss3d")]
 pub(crate) fn warn_once(err: &anyhow::Error) {
-    thread_local! {
-        static SAID: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    }
-    if !SAID.replace(true) {
+    if balaur_core::logbuf::first_time("text shaper", "") {
         tracing::warn!("{err:#}");
     }
 }

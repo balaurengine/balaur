@@ -484,11 +484,7 @@ fn check_action(eng: &Engine, name: &str) {
     if eng.resource::<InputActions>().borrow().is_declared(name) {
         return;
     }
-    thread_local! {
-        static WARNED: std::cell::RefCell<std::collections::BTreeSet<String>> =
-            const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
-    }
-    if WARNED.with_borrow_mut(|w| w.insert(name.to_string())) {
+    if balaur_core::logbuf::first_time("input action", name) {
         tracing::warn!(
             action = name,
             "no such action in [input.actions]; it reads 0"

@@ -49,3 +49,11 @@ fn the_buffer_is_bounded_and_keeps_the_newest() {
         "the newest event should survive"
     );
 }
+
+#[test]
+fn a_repeated_report_is_first_only_once_per_site_and_key() {
+    assert!(logbuf::first_time("observability test", "a"));
+    assert!(!logbuf::first_time("observability test", "a"));
+    assert!(logbuf::first_time("observability test", "b"));
+    assert!(logbuf::first_time("another site", "a"));
+}

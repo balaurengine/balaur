@@ -12,8 +12,6 @@ use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, CallbackId, Value};
 use egui::{Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind, pos2, vec2};
-use std::cell::RefCell;
-use std::collections::BTreeSet;
 
 use crate::UiState;
 use crate::bridge::{scale, with_ui};
@@ -148,18 +146,13 @@ const KNOWN_KEYS: &[&str] = &[
 /// path is a binary search and nothing else: `KNOWN_KEYS` is sorted, checked
 /// by the test below, and the miss path is the only one that allocates.
 fn warn_unknown(entries: &[(String, Value)]) {
-    thread_local! {
-        static WARNED: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
-    }
     for (key, _) in entries {
         if KNOWN_KEYS.binary_search(&key.as_str()).is_ok() {
             continue;
         }
-        WARNED.with(|warned| {
-            if warned.borrow_mut().insert(key.clone()) {
-                tracing::warn!("ui: no widget reads the option `{key}`");
-            }
-        });
+        if balaur_core::logbuf::first_time("ui option", key) {
+            tracing::warn!("ui: no widget reads the option `{key}`");
+        }
     }
 }
 
