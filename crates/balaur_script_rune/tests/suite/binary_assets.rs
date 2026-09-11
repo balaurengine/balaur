@@ -36,11 +36,8 @@ fn project(files: &[(&str, &[u8])]) -> tempfile::TempDir {
 
 fn app_in(dir: &Path) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: true,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::dev(dir.to_path_buf())
     })
     .unwrap()
 }
