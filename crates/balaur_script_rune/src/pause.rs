@@ -57,8 +57,9 @@ impl RuneHost {
         name: &str,
         args: A,
         allow_async: bool,
+        done: Option<u64>,
     ) -> Option<balaur_script::Value> {
-        let stepping = {
+        let stepping = done.is_none() && {
             let state = self.state.borrow();
             // Breaking where a script threw needs the instruction it threw
             // on, which only the stepping executor still has; an asked-for
@@ -103,7 +104,7 @@ impl RuneHost {
                     );
                     return None;
                 }
-                self.settle_call(owner, key, name, value)
+                self.settle_call(owner, key, name, value, done)
             }
             Err(err) => {
                 self.report(key, name, &err);
@@ -179,7 +180,7 @@ impl RuneHost {
         };
         match debugger::run(&mut exec, lines, &halts, &ips, stops, leaving) {
             Outcome::Finished(value) => {
-                self.settle_call(callee.owner, callee.key, callee.label, value)
+                self.settle_call(callee.owner, callee.key, callee.label, value, None)
             }
             Outcome::Failed { error, line } => {
                 self.report(callee.key, callee.label, &error);
@@ -565,7 +566,7 @@ impl RuneHost {
                     );
                     return None;
                 }
-                self.settle_call(owner, key, name, value)
+                self.settle_call(owner, key, name, value, None)
             }
             Err(err) => {
                 self.report(key, name, &err);

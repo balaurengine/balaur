@@ -590,6 +590,7 @@ language = { type = "enum", default = "rune", options = ["rune"], order = 3, app
 assets = { type = "enum", default = "files", options = ["files", "embedded", "embeddedthenfiles"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
 splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time." }
+init_order = { type = "enum", default = "scene", options = ["scene", "children_first"], order = 7, applies = "restart", help = "The order a loading scene's scripts run init in: the file's, or every child before its parent, as Godot runs _ready." }
 "#,
         ),
     );

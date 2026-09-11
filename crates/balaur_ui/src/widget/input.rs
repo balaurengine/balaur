@@ -131,6 +131,9 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
 /// scene does.
 pub const CHANGE_EVENT: &str = "change";
 pub const SUBMIT_EVENT: &str = "submit";
+/// What a clicked widget emits from its node, Godot's `pressed`: what a
+/// script awaits as `task::wait(events::next("pressed", button))`.
+pub const PRESSED_EVENT: &str = "pressed";
 
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
@@ -158,6 +161,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
     // node's script from the scene alone, as a world object's click can.
     for entity in clicked.iter().filter_map(|key| resolve(eng, key)) {
         balaur_core::bindings::fire(eng, entity, balaur_core::hooks::POINTER_CLICK, &[]);
+        balaur_core::events::emit_from(eng, entity, PRESSED_EVENT, Value::Nil);
     }
     // Dispatch once the world borrow is gone: a handler may spawn, free or
     // reparent nodes, and it must not do that mid-iteration.

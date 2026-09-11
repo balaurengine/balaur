@@ -94,6 +94,12 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
   being ticked. Not recorded — a replay re-runs the script, which emits again.
+- Awaiting, GDScript's `await`: `task::wait(events.next(name, from?))` wakes
+  with the next matching event's payload, and
+  `task::wait(node.call_async(method, args))` with that method's return value,
+  however many ticks it suspended for. Both wake on the next step, like a timer.
+- `application/init_order = "children_first"` inits a scene's scripts children
+  before parents, Godot's `_ready` order; `balaur import` writes it.
 - `language` in `project.toml` picks the language; absent means Rune, the one
   this build ships.
 

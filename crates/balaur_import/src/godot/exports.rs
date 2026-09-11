@@ -217,18 +217,20 @@ fn class_kind(class: &str, classes: &Classes) -> Option<Kind> {
         _ => {}
     }
     let mut current = class;
-    // A project class extends another, eventually a Godot one.
+    // A project class extends another, eventually a Godot one. Its own name
+    // says nothing: `PirateShipAnimation` is a node, not an `Animation`.
     for _ in 0..16 {
+        if let Some(base) = classes.bases.get(current) {
+            current = base;
+            continue;
+        }
         if is_resource(current) {
             return Some(Kind::Path);
         }
         if is_node(current) {
             return Some(Kind::Node);
         }
-        {
-            let base = classes.bases.get(current)?;
-            current = base;
-        }
+        return None;
     }
     None
 }
@@ -533,6 +535,16 @@ mod tests {
             one("@export var weights: Array[float]", &none),
             (None, None)
         );
+    }
+
+    /// `PirateShipAnimation extends Node2D`: a project class is what it
+    /// extends, whatever its name ends in.
+    #[test]
+    fn a_project_class_named_like_a_resource_is_still_a_node() {
+        let mut classes = Classes::default();
+        classes.bases.insert("PirateShipAnimation".into(), "Node2D".into());
+        assert_eq!(super::class_kind("PirateShipAnimation", &classes), Some(Kind::Node));
+        assert_eq!(super::class_kind("Animation", &classes), Some(Kind::Path));
     }
 
     /// `Controllers extends Node` in this game: a project class is traced

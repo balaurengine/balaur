@@ -18,6 +18,7 @@ graph TD
   balaur_export[balaur_export]
   balaur_gamend[balaur_gamend]
   balaur_http[balaur_http]
+  balaur_import[balaur_import]
   balaur_input[balaur_input]
   balaur_physics[balaur_physics]
   balaur_platform[balaur_platform]
@@ -68,8 +69,8 @@ graph TD
   balaur_cli --> balaur
   balaur_cli --> balaur_core
   balaur_cli --> balaur_export
+  balaur_cli --> balaur_import
   balaur_cli --> balaur_plugin
-  balaur_cli --> balaur_render
   balaur_cli --> balaur_script
   balaur_core --> balaur_script
   balaur_export --> balaur
@@ -80,6 +81,10 @@ graph TD
   balaur_http --> balaur_core
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
+  balaur_import --> balaur
+  balaur_import --> balaur_core
+  balaur_import --> balaur_plugin
+  balaur_import --> balaur_render
   balaur_input --> balaur_core
   balaur_input --> balaur_plugin
   balaur_input --> balaur_script

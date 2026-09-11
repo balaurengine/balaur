@@ -15,7 +15,7 @@ cannot drift from what scripts actually see.
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
 | [`engine`](#engine) | 20 | 0 | the engine |
-| [`events`](#events) | 5 | 0 | the engine |
+| [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 5 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
@@ -28,7 +28,7 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 56 | 0 | the engine |
+| [`node`](#node) | 57 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 66 | 48 | the engine |
 | [`physics3d`](#physics3d) | 89 | 62 | the engine |
@@ -88,7 +88,7 @@ cannot drift from what scripts actually see.
 
 ## `events`
 
-**Functions:** `emit`, `emitted`, `emitted_from`, `subscribe`, `unsubscribe`
+**Functions:** `emit`, `emitted`, `emitted_from`, `next`, `subscribe`, `unsubscribe`
 
 ## `export`
 
@@ -179,7 +179,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_material`, `global_position`, `global_rotation_euler`, `global_scale`, `global_tint`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_material`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_sibling_index`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `tint`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_material`, `global_position`, `global_rotation_euler`, `global_scale`, `global_tint`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_material`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_sibling_index`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `tint`, `translate`, `visible`, `z_index`
 
 ## `physics`
 

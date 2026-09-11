@@ -169,6 +169,10 @@ pub const NODE_OPS: &[NodeOp] = &[
     },
     NodeOp { name: "call", call },
     NodeOp {
+        name: "call_async",
+        call: call_async,
+    },
+    NodeOp {
         name: "emit",
         call: emit,
     },
@@ -300,6 +304,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
+        ("call_async", &[], "(method: string, args: any?)", "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`."),
         ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
@@ -925,6 +930,22 @@ fn call(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(host
         .call_on(crate::node_id_of(e), method, args.get(2..).unwrap_or(&[]))
         .unwrap_or(Value::Nil))
+}
+
+/// `node.call_async`: a token woken with the method's result once it has
+/// returned, on the next step at the earliest so the caller has parked.
+fn call_async(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let method = text(args, 1)?;
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    let token = eng.next_token();
+    let rest = args.get(2..).unwrap_or(&[]);
+    if let Some(result) = host.call_on_async(crate::node_id_of(e), method, rest, token) {
+        crate::timers::wake_next_step(eng, token, result);
+    }
+    Ok(Value::Int(i64::try_from(token).unwrap_or(i64::MAX)))
 }
 
 fn emit(eng: &Engine, args: &[Value]) -> Result<Value> {

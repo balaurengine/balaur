@@ -5079,6 +5079,7 @@
         "emit": "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
         "emitted": "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
         "emitted_from": "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
+        "next": "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
         "subscribe": "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Subscribing twice is once.",
         "unsubscribe": "Stop hearing an event on this node, `from` being the emitter it was subscribed with. Not an error when it was never subscribed."
       },
@@ -5086,6 +5087,7 @@
         "emit",
         "emitted",
         "emitted_from",
+        "next",
         "subscribe",
         "unsubscribe"
       ],
@@ -5094,6 +5096,7 @@
         "emit": "(String, Option<Value>) -> ()",
         "emitted": "String -> Value",
         "emitted_from": "(NodeId, String) -> Value",
+        "next": "(String, Option<NodeId>) -> i64",
         "subscribe": "(NodeId, String, Option<NodeId>) -> ()",
         "unsubscribe": "(NodeId, String, Option<NodeId>) -> ()"
       }
@@ -6413,6 +6416,7 @@
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
         "attach_script": "Attach the script at a path, with an optional table overriding what the script exports.",
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
+        "call_async": "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`.",
         "children": "The node's direct children, an empty list when it has none.",
         "component_names": "The names of every component on the node.",
         "descendants": "Every node under this one, in tree order, the node itself excluded.",
@@ -6471,6 +6475,7 @@
         "add_tag",
         "attach_script",
         "call",
+        "call_async",
         "children",
         "component_names",
         "descendants",
@@ -6530,6 +6535,7 @@
         "add_tag": "(node, tag: string)",
         "attach_script": "(path: string, props: any?)",
         "call": "(method: string, args: any?)",
+        "call_async": "(method: string, args: any?)",
         "children": "()",
         "component_names": "()",
         "descendants": "()",

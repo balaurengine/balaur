@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use hecs::Entity;
 use rune::TypeHash as _;
+use rune::alloc::clone::TryClone as _;
 use rune::runtime::VmResult;
 use std::future::Future as _;
 
@@ -60,6 +61,7 @@ impl RuneHost {
         key: &str,
         label: &str,
         value: rune::Value,
+        done: Option<u64>,
     ) -> Option<balaur_script::Value> {
         if value.type_hash() != rune::runtime::Future::HASH {
             return match value::to_neutral(&value) {
@@ -79,6 +81,7 @@ impl RuneHost {
         };
         self.state.borrow_mut().tasks.push(RuneTask {
             owner,
+            done,
             key: Rc::from(key),
             label: label.to_string(),
             future: Box::pin(future),
@@ -96,19 +99,109 @@ impl RuneHost {
         let tasks = std::mem::take(&mut self.state.borrow_mut().tasks);
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         let mut kept = Vec::new();
+        let mut finished = Vec::new();
         for mut task in tasks {
             match task.future.as_mut().poll(&mut context) {
-                std::task::Poll::Ready(VmResult::Ok(_)) => {}
+                std::task::Poll::Ready(VmResult::Ok(value)) => {
+                    if let Some(done) = task.done {
+                        finished.push((
+                            done,
+                            value::to_neutral(&value).unwrap_or(balaur_script::Value::Nil),
+                        ));
+                    }
+                }
                 std::task::Poll::Ready(VmResult::Err(err)) => {
                     self.report(&task.key, &task.label, &err);
+                    // A caller awaiting a method that threw resumes with nil
+                    // rather than waiting forever.
+                    if let Some(done) = task.done {
+                        finished.push((done, balaur_script::Value::Nil));
+                    }
                 }
                 std::task::Poll::Pending => kept.push(task),
             }
         }
-        let mut state = self.state.borrow_mut();
-        // Tasks spawned while polling queue up behind the survivors.
-        kept.append(&mut state.tasks);
-        state.tasks = kept;
+        {
+            let mut state = self.state.borrow_mut();
+            // Tasks spawned while polling queue up behind the survivors.
+            kept.append(&mut state.tasks);
+            state.tasks = kept;
+        }
+        for (done, result) in finished {
+            balaur_core::timers::wake_next_step(&self.engine, done, result);
+        }
+    }
+
+    /// [`Self::call_on`], waking `done` with the result once the method has
+    /// returned, however many ticks it suspended for.
+    pub(crate) fn call_on_done(
+        &self,
+        entity: Entity,
+        method: &str,
+        args: &[balaur_script::Value],
+        done: Option<u64>,
+    ) -> Option<balaur_script::Value> {
+        let found = {
+            let state = self.state.borrow();
+            if self.is_held(entity, &state) {
+                return None;
+            }
+            state
+                .instances
+                .get(&entity)
+                .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
+        };
+        let (key, state) = found?;
+        // A handler may take fewer arguments than its event carries; the rest drop.
+        let takes = self
+            .state
+            .borrow()
+            .scripts
+            .get(&*key)
+            .and_then(|script| script.functions.iter().find(|f| f.name == method))
+            .map_or(usize::MAX, |declared| declared.arity);
+        // The instance first, then the payload: `pub fn on_x(this, a, b)`.
+        let mut call_args = vec![state];
+        for arg in args.iter().take(takes.saturating_sub(1)) {
+            match value::from_neutral(arg) {
+                Ok(value) => call_args.push(value),
+                Err(err) => {
+                    tracing::error!("[{key}] {method}: {err}");
+                    return None;
+                }
+            }
+        }
+        self.invoke(entity, &key, method, call_args, true, done)
+    }
+
+    /// `node.call_async`: `None` while the method is suspended, and `done`
+    /// wakes with its result when it returns.
+    pub(crate) fn call_awaited(
+        &self,
+        node: balaur_script::NodeId,
+        method: &str,
+        args: &[balaur_script::Value],
+        done: u64,
+    ) -> Option<balaur_script::Value> {
+        let Ok(entity) = balaur_core::entity_of(node) else {
+            return Some(balaur_script::Value::Nil);
+        };
+        // Nothing to run is a call that finished with nothing.
+        if !balaur_script::ScriptHost::has_method(self, node, method) {
+            return Some(balaur_script::Value::Nil);
+        }
+        let finished = self.call_on_done(entity, method, args, Some(done));
+        let suspended = self
+            .state
+            .borrow()
+            .tasks
+            .iter()
+            .any(|t| t.done == Some(done));
+        if suspended {
+            None
+        } else {
+            Some(finished.unwrap_or(balaur_script::Value::Nil))
+        }
     }
 
     /// Resume every task suspended on `token` with `payload`, in suspension

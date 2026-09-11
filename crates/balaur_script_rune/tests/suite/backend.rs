@@ -845,3 +845,42 @@ fn a_task_waits_on_the_next_event_and_gets_its_payload() {
         .unwrap();
     assert_eq!(rune.number_field(node, "got"), Some(7.0));
 }
+
+/// `await door.open()` in GDScript: a caller parks until another node's
+/// method returns, however long it suspended, and gets what it returned. A
+/// method that never suspends is awaited the same way.
+#[test]
+fn a_task_awaits_another_nodes_method_and_gets_its_result() {
+    let dir = project(&[
+        (
+            "door.rn",
+            r"pub async fn open(this) { task::frames(3).await; 42.0 }
+              pub fn knock(this) { 7.0 }",
+        ),
+        (
+            "caller.rn",
+            r#"pub async fn init(this) {
+                   this.opened = 0.0;
+                   this.knocked = 0.0;
+                   let door = this.node.get_node("../Door");
+                   this.knocked = task::wait(door.call_async("knock")).await;
+                   this.opened = task::wait(door.call_async("open")).await;
+               }"#,
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let door = spawn(&app, "Door");
+    let caller = spawn(&app, "Caller");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(door), "door.rn").unwrap();
+    host.attach(balaur_core::node_id_of(caller), "caller.rn").unwrap();
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(caller, "knocked"), Some(7.0));
+    assert_eq!(rune.number_field(caller, "opened"), Some(42.0));
+}

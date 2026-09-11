@@ -189,4 +189,9 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
     let variables = app.engine.resource::<balaur_core::variables::Variables>();
     let sailed = variables.borrow().get("sailed").map(balaur_core::variables::as_num);
     assert_eq!(sailed, Some(1.0), "one click, from the enabled button");
+    assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, go, balaur_ui::PRESSED_EVENT).len(),
+        1,
+        "the click is also the button's `pressed`"
+    );
 }

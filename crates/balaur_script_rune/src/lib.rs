@@ -121,6 +121,9 @@ use crate::script::{Instance, Method, Script};
 struct RuneTask {
     /// The node whose script suspended; freeing it cancels the task.
     owner: Entity,
+    /// Woken with the method's result when it returns, for a caller that
+    /// awaits it through `node.call_async`.
+    done: Option<u64>,
     /// The script key, so reloading the script cancels its tasks rather than
     /// resuming code that no longer exists.
     key: Rc<str>,
@@ -551,7 +554,10 @@ impl RuneHost {
         }
         // A `node` export arrives as the node its path names, relative to this
         // one, or nil: what a Godot `@export var x: Node` holds.
-        for (name, spec) in declared.iter().filter(|(_, spec)| inspect::is_node_export(spec)) {
+        for (name, spec) in declared
+            .iter()
+            .filter(|(_, spec)| inspect::is_node_export(spec))
+        {
             let path = props
                 .iter()
                 .find(|(n, _)| n == name)
@@ -586,7 +592,7 @@ impl RuneHost {
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
-        self.invoke(entity, &key, "init", (state,), true);
+        self.invoke(entity, &key, "init", (state,), true, None);
         Ok(())
     }
 
@@ -722,37 +728,7 @@ impl RuneHost {
         method: &str,
         args: &[balaur_script::Value],
     ) -> Option<balaur_script::Value> {
-        let found = {
-            let state = self.state.borrow();
-            if self.is_held(entity, &state) {
-                return None;
-            }
-            state
-                .instances
-                .get(&entity)
-                .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
-        };
-        let (key, state) = found?;
-        // A handler may take fewer arguments than its event carries; the rest drop.
-        let takes = self
-            .state
-            .borrow()
-            .scripts
-            .get(&*key)
-            .and_then(|script| script.functions.iter().find(|f| f.name == method))
-            .map_or(usize::MAX, |declared| declared.arity);
-        // The instance first, then the payload: `pub fn on_x(this, a, b)`.
-        let mut call_args = vec![state];
-        for arg in args.iter().take(takes.saturating_sub(1)) {
-            match value::from_neutral(arg) {
-                Ok(value) => call_args.push(value),
-                Err(err) => {
-                    tracing::error!("[{key}] {method}: {err}");
-                    return None;
-                }
-            }
-        }
-        self.invoke(entity, &key, method, call_args, true)
+        self.call_on_done(entity, method, args, None)
     }
 
     pub fn call_all(&self, method: &str) {
@@ -871,7 +847,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, "hot_reload", (state,), false);
+            self.invoke(entity, key, "hot_reload", (state,), false, None);
         }
     }
 
@@ -1067,6 +1043,16 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
     ) -> Option<balaur_script::Value> {
         let entity = balaur_core::entity_of(node).ok()?;
         RuneHost::call_on(self, entity, method, args)
+    }
+
+    fn call_on_async(
+        &self,
+        node: balaur_script::NodeId,
+        method: &str,
+        args: &[balaur_script::Value],
+        done: u64,
+    ) -> Option<balaur_script::Value> {
+        RuneHost::call_awaited(self, node, method, args, done)
     }
 
     fn has_method(&self, node: balaur_script::NodeId, method: &str) -> bool {

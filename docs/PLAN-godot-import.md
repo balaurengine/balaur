@@ -430,6 +430,12 @@ also found one in the game: its offline login button is hidden and never
 shown, so Godot's runner passed by emitting `pressed` on an invisible
 button. The port's runner does the same, and warns.
 
+`main_menu_ready` found four more: `await` on a signal (`events.next`) and on
+another node's async method (`node.call_async`), a clicked widget emitting
+`pressed`, and Godot's children-first `_ready` order (`init_order`). The
+importer typed a project class named like a resource (`InitialAnimation`) as
+a string; it now follows the class chain first.
+
 ## 11. What the game still needs
 
 Every row the 2026-09-11 gap table named is built: shaders and materials, a

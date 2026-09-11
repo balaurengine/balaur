@@ -513,3 +513,46 @@ fn a_node_export_arrives_as_the_node_it_names() {
     assert_eq!(text(&app, hunter, "seen_target"), Some(String::from("Prey")));
     assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
 }
+
+/// `application/init_order = "children_first"` runs a child's `init` before
+/// its parent's, as Godot runs `_ready`; left alone, the file's order.
+#[test]
+fn children_first_inits_a_child_before_its_parent() {
+    let script = "pub fn init(this) {\n\
+         let order = scene::variable(\"order\");\n\
+         scene::set_variable(\"order\", order + this.node.name());\n\
+     }\n";
+    let scene = "[variables]\n\
+         order = { type = \"string\", value = \"\" }\n\
+         \n\
+         [[nodes]]\n\
+         id = \"p\"\n\
+         name = \"P\"\n\
+         script = \"scripts/enemy.rn\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"C\"\n\
+         parent = \"p\"\n\
+         script = \"scripts/enemy.rn\"\n";
+    let order = |children_first: bool| {
+        let dir = project(&[("scripts/enemy.rn", script)]);
+        let app = app_in(dir.path());
+        if children_first {
+            balaur_core::settings::set(
+                &app.engine,
+                "application/init_order",
+                toml::Value::String("children_first".into()),
+            );
+        }
+        let root = app.engine.root();
+        balaur_core::project::instantiate_scene(&app.engine, scene, root, true).unwrap();
+        let variables = app.engine.resource::<balaur_core::variables::Variables>();
+        let order = variables.borrow().get("order").cloned();
+        match order {
+            Some(balaur_script::Value::Str(text)) => Some(String::from(&*text)),
+            _ => None,
+        }
+    };
+    assert_eq!(order(false), Some(String::from("PC")));
+    assert_eq!(order(true), Some(String::from("CP")));
+}

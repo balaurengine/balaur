@@ -500,7 +500,30 @@ pub fn instantiate_scene(
         merge_into: None,
     };
     build_scene(eng, source, base, &mut build)?;
+    if setting_string(eng, "application/init_order") == INIT_CHILDREN_FIRST {
+        children_first(eng, base, &mut build.pending);
+    }
     attach_pending(eng, &build)
+}
+
+/// `application/init_order` that runs a child's `init` before its parent's.
+const INIT_CHILDREN_FIRST: &str = "children_first";
+
+/// Reorder scripts waiting to attach so every child's comes before its
+/// parent's and siblings keep their order: Godot's `_ready` order.
+fn children_first(eng: &Engine, base: Entity, pending: &mut [PendingScript]) {
+    fn walk(world: &hecs::World, node: Entity, order: &mut DetHashMap<Entity, usize>) {
+        if let Ok(children) = world.get::<&scene::Children>(node) {
+            for &child in &children.0 {
+                walk(world, child, order);
+            }
+        }
+        let next = order.len();
+        order.insert(node, next);
+    }
+    let mut order = DetHashMap::default();
+    walk(&eng.world(), base, &mut order);
+    pending.sort_by_key(|(entity, _, _)| order.get(entity).copied().unwrap_or(usize::MAX));
 }
 
 /// One scene being built, and everything a prefab inside it needs to know.
