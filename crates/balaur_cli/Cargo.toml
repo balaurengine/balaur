@@ -58,7 +58,7 @@ tracing.workspace = true
 balaur_import.workspace = true
 ureq.workspace = true
 sha2.workspace = true
-dirs = "6"
+dirs = "7"
 
 [target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]
 flate2 = "1"
