@@ -11,7 +11,7 @@
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use balaur_input::{TouchButton, TouchStick};
-use kiss3d::egui::{self, Color32, Order, pos2};
+use egui::{Color32, Order, pos2};
 
 fn color(channels: [f32; 4]) -> Color32 {
     let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;

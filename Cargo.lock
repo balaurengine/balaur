@@ -757,6 +757,7 @@ dependencies = [
  "balaur_text",
  "balaur_ui",
  "bytemuck",
+ "egui",
  "glamx",
  "image",
  "js-sys",

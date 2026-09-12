@@ -11,6 +11,12 @@ all-features = true
 multiple-versions = "warn"
 wildcards = "deny"
 
+# egui types cross the kiss3d boundary: the window hands `balaur_ui` its
+# `egui::Context`, so two versions would not unify. A warning is not enough.
+[[bans.deny]]
+name = "egui"
+deny-multiple-versions = true
+
 [advisories]
 yanked = "deny"
 # The unmaintained crates (rusttype, ttf-parser, paste) all come from kiss3d.
