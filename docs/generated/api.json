@@ -4123,7 +4123,7 @@
       },
       "anchor": {
         "default": "top_left",
-        "description": "Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset`",
+        "description": "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`",
         "options": [
           "top_left",
           "top_right",
@@ -4349,7 +4349,8 @@
           "dialog",
           "window",
           "separator",
-          "code"
+          "code",
+          "stack"
         ],
         "type": "enum"
       },
@@ -9121,6 +9122,10 @@
         {
           "name": "WIDGET_SLIDER",
           "value": "slider"
+        },
+        {
+          "name": "WIDGET_STACK",
+          "value": "stack"
         },
         {
           "name": "WIDGET_TAB",

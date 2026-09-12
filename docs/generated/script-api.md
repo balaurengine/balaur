@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 59 | 56 | the engine |
+| [`ui`](#ui) | 59 | 57 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -351,7 +351,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `window`
 
-**Constants** (56):
+**Constants** (57):
 
 | Name | Value |
 | --- | --- |
@@ -380,7 +380,7 @@ cannot drift from what scripts actually see.
 | `FONT_STYLE_ITALIC` | `italic` |
 | `FONT_STYLE_NORMAL` | `normal` |
 
-…and 32 more.
+…and 33 more.
 
 ## `web`
 

@@ -609,6 +609,10 @@ write. It walks widgets in scene order and wraps.
   one in. Hidden, freed or unfocusable releases focus.
 - An accept is a click by another name (same `clicked`, same `on_click`), so a
   mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
+- **A `stack` lays its children over one another**, each placed in its box by
+  its own `anchor`: what a Godot MarginContainer does, and what a plain
+  Control's anchored children do. Every other container queues its children
+  up, so `anchor` is read on a root and inside a stack, nowhere else.
 - A widget calls the method its `on_<verb>` key names and emits the event of
   that name without the `on_`: `click`, `change`, `submit`. The key reaches one
   method, the event reaches whoever subscribed or is awaiting it.
