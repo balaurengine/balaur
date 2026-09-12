@@ -314,10 +314,10 @@ fn settle_clicks(
         if !struck {
             continue;
         }
-        // A click on a check is the tick itself, by mouse or by `accept`. One
-        // in a group is a radio: it ticks and stays ticked, and the pass below
-        // unticks the rest of its group.
-        if widget.kind == w::CHECK {
+        // A click on a check or toggle is the tick itself, by mouse or by
+        // `accept`. One in a group is a radio: it ticks and stays ticked, and
+        // the pass below unticks the rest of its group.
+        if flips(widget) {
             let grouped = !widget.group.is_empty();
             let was = widget.checked;
             // Grouped, a click picks: it ticks and a second click leaves it
@@ -345,7 +345,7 @@ fn settle_clicks(
     }
     for (struck, group) in &ticked {
         for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
-            if entity == *struck || widget.kind != w::CHECK || widget.group != *group {
+            if entity == *struck || !flips(widget) || widget.group != *group {
                 continue;
             }
             if !widget.checked {
@@ -360,6 +360,11 @@ fn settle_clicks(
         }
     }
     signals
+}
+
+/// A widget a click ticks and unticks: a `check`, or a `toggle` button.
+fn flips(widget: &Widget) -> bool {
+    widget.kind == w::CHECK || widget.toggle
 }
 
 /// Tell the newly focused widget's script that focus arrived.

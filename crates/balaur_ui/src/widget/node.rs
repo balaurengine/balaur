@@ -123,8 +123,10 @@ pub struct Widget {
     /// Which of the theme's families the widget draws in: `ui`, `mono`,
     /// `heading` or `icon`.
     pub font: SmolStr,
-    /// Whether a `check` is ticked.
+    /// Whether a `check` is ticked, or a `toggle` button held down.
     pub checked: bool,
+    /// A `button` a click holds down and the next releases, as a check ticks.
+    pub toggle: bool,
     /// The name a `check` shares with the checks it is exclusive with: ticking
     /// one unticks the rest, and a ticked one clicked again stays ticked.
     /// Empty leaves the check on its own, flipping with every click.

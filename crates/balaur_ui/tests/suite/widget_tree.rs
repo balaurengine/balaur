@@ -195,3 +195,36 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
         "the click is also the button's `pressed`"
     );
 }
+
+/// Godot's toggle mode: a click holds a `toggle` button down and the next
+/// releases it; in a group, pressing one lets the others up.
+#[test]
+fn a_toggle_button_stays_down_and_lets_its_group_up() {
+    let (_dir, mut app) = app();
+    let checked = |app: &balaur_core::App, entity| {
+        balaur::components::get(&app.engine, entity, "widget")
+            .and_then(|w| w.get("checked").cloned())
+            .and_then(|v| v.as_bool())
+    };
+    let alone = add_widget(&app, &toml::toml! { kind = "button" text = "Map" toggle = true }.into());
+    let tabs: Vec<_> = ["Food", "Verbs"]
+        .into_iter()
+        .map(|text| {
+            let params = toml::toml! { kind = "button" text = text toggle = true group = "tabs" };
+            add_widget(&app, &params.into())
+        })
+        .collect();
+    app.tick(1.0 / 60.0);
+    for (entity, down) in [(alone, true), (alone, false), (tabs[0], true)] {
+        assert!(balaur_ui::click(&app.engine, entity, false));
+        app.tick(1.0 / 60.0);
+        assert_eq!(checked(&app, entity), Some(down));
+    }
+    balaur_ui::click(&app.engine, tabs[1], false);
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        (checked(&app, tabs[0]), checked(&app, tabs[1])),
+        (Some(false), Some(true)),
+        "the group keeps one down"
+    );
+}

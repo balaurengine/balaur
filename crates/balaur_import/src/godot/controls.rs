@@ -141,6 +141,10 @@ pub(crate) fn widget(
         if let Some(Value::Bool(on)) = section.field("button_pressed") {
             out.set("widget", "checked", Toml::Boolean(*on));
         }
+        if let Some(Value::Bool(true)) = section.field("toggle_mode") {
+            out.set("widget", "toggle", Toml::Boolean(true));
+            button_group(section, out);
+        }
     }
     if let Some(theme) = section.field("theme") {
         match res.path(theme) {
@@ -272,6 +276,19 @@ fn spacing(section: &Section, out: &mut Mapped) {
     }
 }
 
+/// A `ButtonGroup` as the widget's `group`, named by its resource id.
+fn button_group(section: &Section, out: &mut Mapped) {
+    if let Some(group) = section.field("button_group") {
+        let name = group
+            .call("SubResource")
+            .or_else(|| group.call("ExtResource"))
+            .and_then(|a| a.first())
+            .and_then(Value::as_str)
+            .unwrap_or("group");
+        out.set("widget", "group", Toml::String(name.to_string()));
+    }
+}
+
 /// The properties one kind of Control has beyond what every widget does: a
 /// check's tick, a field's hint, a range's bounds, a picture's source.
 fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) {
@@ -287,15 +304,7 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
             if let Some(Value::Bool(on)) = section.field("button_pressed") {
                 out.set("widget", "checked", Toml::Boolean(*on));
             }
-            if let Some(group) = section.field("button_group") {
-                let name = group
-                    .call("SubResource")
-                    .or_else(|| group.call("ExtResource"))
-                    .and_then(|a| a.first())
-                    .and_then(Value::as_str)
-                    .unwrap_or("group");
-                out.set("widget", "group", Toml::String(name.to_string()));
-            }
+            button_group(section, out);
         }
         "LineEdit" | "SpinBox" | "TextEdit" => {
             if let Some(hint) = text("placeholder_text") {

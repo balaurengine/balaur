@@ -346,11 +346,13 @@ fn catmull_rom_f32(p0: f32, p1: f32, p2: f32, p3: f32, u: f32) -> f32 {
 /// every caller can treat `u == 0` as "exactly on key `index`".
 fn segment(keys: &[Key], time: f32) -> (usize, f32) {
     let last = keys.len() - 1;
-    if time <= keys[0].t {
-        return (0, 0.0);
-    }
+    // The end first: keys sharing a time are a jump, and at that instant the
+    // later one holds, even when every key is at that instant.
     if time >= keys[last].t {
         return (last, 0.0);
+    }
+    if time <= keys[0].t {
+        return (0, 0.0);
     }
     let mut index = 0;
     while index + 1 < last && keys[index + 1].t <= time {

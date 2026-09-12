@@ -252,6 +252,26 @@ pub const NODE_OPS: &[NodeOp] = &[
         name: "remove_tag",
         call: remove_tag,
     },
+    NodeOp {
+        name: "get_meta",
+        call: crate::node_meta::get_meta,
+    },
+    NodeOp {
+        name: "has_meta",
+        call: crate::node_meta::has_meta,
+    },
+    NodeOp {
+        name: "set_meta",
+        call: crate::node_meta::set_meta,
+    },
+    NodeOp {
+        name: "remove_meta",
+        call: crate::node_meta::remove_meta,
+    },
+    NodeOp {
+        name: "meta_names",
+        call: crate::node_meta::meta_names,
+    },
 ];
 
 /// Register every node operation into a binding group as a free function.
@@ -325,13 +345,18 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("has_tag", &[], "(node, tag: string)", "Whether the node is filed under a name."),
         ("add_tag", &[], "(node, tag: string)", "File the node under a name; `scene.tagged` finds it from then on."),
         ("remove_tag", &[], "(node, tag: string)", "Take a name off the node; a name it never had is left alone."),
+        ("get_meta", &[], "(name: string, default: any?)", "A value filed on the node with `set_meta`, or `default` (nil) when there is none."),
+        ("has_meta", &[], "(name: string)", "Whether the node has a value filed under that name."),
+        ("set_meta", &[], "(name: string, value: any)", "File a value on the node by name, for whoever holds the node: state that belongs to it rather than to its script, as Godot's `set_meta`. Nil removes it. Runtime only; a snapshot does not carry it."),
+        ("remove_meta", &[], "(name: string)", "Drop a value filed on the node; a name it never had is left alone."),
+        ("meta_names", &[], "()", "The names of every value filed on the node, sorted."),
     ]);
     for d in NODE_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }
 }
 
-fn node(args: &[Value]) -> Result<Entity> {
+pub(crate) fn node(args: &[Value]) -> Result<Entity> {
     match args.first() {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id)),
         _ => Err(anyhow!("expected a node as the first argument")),

@@ -366,7 +366,8 @@ impl RuneHost {
             }
         };
         let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
+        let source = inspect::with_constants(source);
+        sources.insert(Source::with_path(key, &*source, path)?)?;
         // Warnings are the language server's business; an error report
         // should be the error.
         let mut diagnostics = Diagnostics::without_warnings();
@@ -921,6 +922,12 @@ impl RuneHost {
                 rune::alloc::String::try_from(declared.name.as_str())?,
                 rune::to_value(wrapper)?,
             )?;
+        }
+        if let Some(constants) = self.method(key, inspect::CONSTANTS_FN) {
+            let table = constants.call::<rune::runtime::Object>(()).into_result()?;
+            for (name, value) in table {
+                object.insert(name, value)?;
+            }
         }
         // A module that lost a function keeps the slot for its next refresh,
         // so the high-water mark is per file rather than per save.

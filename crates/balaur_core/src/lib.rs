@@ -44,6 +44,7 @@ pub mod math_api;
 pub mod mesh;
 pub mod netsession;
 pub mod node_api;
+pub mod node_meta;
 pub mod pack;
 pub mod path;
 pub mod plugins;

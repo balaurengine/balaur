@@ -471,6 +471,8 @@ horizontal_alignment = 1
 [node name="Go" type="Button" parent="Hud"]
 text = "Sail"
 size_flags_vertical = 3
+toggle_mode = true
+button_group = SubResource("ButtonGroup_tabs")
 
 [node name="Player" type="AnimationPlayer" parent="."]
 libraries/ = SubResource("AnimationLibrary_1")
@@ -713,6 +715,8 @@ PanelContainer/styles/panel = SubResource("Plain")
         let go = node(&scene, "Go");
         assert_eq!(go["widget"]["kind"].as_str(), Some("button"));
         assert_eq!(go["widget"]["on_click"].as_str(), Some("on_go"));
+        assert_eq!(go["widget"]["toggle"].as_bool(), Some(true));
+        assert_eq!(go["widget"]["group"].as_str(), Some("ButtonGroup_tabs"));
         assert_eq!(
             go["widget"]["grow"].as_float(),
             Some(1.0),

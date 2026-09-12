@@ -17,6 +17,35 @@ use crate::handles;
 use crate::packed::PackSourceLoader;
 use crate::{RuneHost, value};
 
+/// The function `script::require` reads a module's constants through.
+pub(crate) const CONSTANTS_FN: &str = "__balaur_constants";
+
+/// The source with one more function, returning every top-level `pub const`
+/// by name: Rune keeps constants inside the unit, where a caller holding the
+/// module cannot reach them. A source with none comes back as it was.
+pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
+    let names: Vec<&str> = source
+        .lines()
+        .filter_map(|line| line.strip_prefix("pub const "))
+        .map(|rest| {
+            let end = rest
+                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .unwrap_or(rest.len());
+            &rest[..end]
+        })
+        .filter(|name| !name.is_empty())
+        .collect();
+    if names.is_empty() {
+        return source.into();
+    }
+    let fields: Vec<String> = names.iter().map(|n| format!("{n}: {n}")).collect();
+    format!(
+        "{source}\npub fn {CONSTANTS_FN}() {{ #{{ {} }} }}\n",
+        fields.join(", ")
+    )
+    .into()
+}
+
 /// A `pub fn` a script declares, read off its source text. A `pub fn`
 /// starting a line is the whole public surface of the script model; its
 /// parameter list may run on to the next line.

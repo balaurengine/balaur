@@ -120,6 +120,7 @@ pub(crate) mod keys {
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const GROUP: &str = "group";
+    pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";

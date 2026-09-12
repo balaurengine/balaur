@@ -14,6 +14,12 @@ pub struct Node {
     pub(crate) id: u64,
 }
 
+impl Node {
+    fn same(&self, other: rune::Value) -> bool {
+        other.borrow_ref::<Node>().is_ok_and(|n| n.id == self.id)
+    }
+}
+
 /// A vector as scripts see it. Rune has no tuple-struct literals across the
 /// FFI, so bindings take and return this.
 #[derive(rune::Any, Clone, Copy)]
@@ -60,6 +66,9 @@ pub(crate) fn install(
     engine: &balaur_core::Engine,
 ) -> Result<(), rune::ContextError> {
     m.ty::<Node>()?;
+    // `a == b` on two handles: the same node. Anything else is not equal.
+    m.associated_function(&rune::runtime::Protocol::PARTIAL_EQ, Node::same)?;
+    m.associated_function(&rune::runtime::Protocol::EQ, Node::same)?;
     m.ty::<Vec2>()?;
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;

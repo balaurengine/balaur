@@ -132,6 +132,36 @@ fn a_script_calls_another_and_gets_the_return_value() {
     assert_eq!(rune.number_field(consumer, "out"), Some(21.0));
 }
 
+/// A GDScript `PanelFade.DEFAULT_SECONDS`: a module's top-level `pub const`s
+/// arrive with its functions, and a nested one stays inside.
+#[test]
+fn a_required_module_carries_its_constants() {
+    let dir = project(&[
+        (
+            "fade.rn",
+            "pub const SECONDS = 0.3;\npub const NAMES = [\"in\", \"out\"];\nconst HIDDEN = 9;\nmod inner {\n    pub const DEEP = 1;\n}\npub fn seconds() { SECONDS }\n",
+        ),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                let fade = script::require("fade.rn");
+                this.out = fade.SECONDS + (fade.seconds)() + fade.NAMES.len() as f64;
+                this.hidden = if fade.get("HIDDEN").is_some() || fade.get("DEEP").is_some() { 1.0 } else { 0.0 };
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn").unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "out"), Some(2.6));
+    assert_eq!(rune.number_field(node, "hidden"), Some(0.0), "only `pub` and top-level");
+}
+
 #[test]
 fn a_required_module_shares_functions_and_hot_reloads_in_place() {
     let dir = project(&[
@@ -883,4 +913,48 @@ fn a_task_awaits_another_nodes_method_and_gets_its_result() {
         .unwrap();
     assert_eq!(rune.number_field(caller, "knocked"), Some(7.0));
     assert_eq!(rune.number_field(caller, "opened"), Some(42.0));
+}
+
+/// Godot's `set_meta`: a value filed on a node for whoever holds the node,
+/// here one script reading back what another left on a third node.
+#[test]
+fn a_value_filed_on_a_node_is_read_back_by_another_script() {
+    let dir = project(&[
+        (
+            "filer.rn",
+            r#"pub fn init(this) {
+                   let panel = this.node.get_node("../Panel");
+                   panel.set_meta("fade", 5.0);
+                   panel.set_meta("gone", 1.0);
+                   panel.set_meta("gone", ());
+               }"#,
+        ),
+        (
+            "reader.rn",
+            r#"pub fn update(this, dt) {
+                   let panel = this.node.get_node("../Panel");
+                   this.fade = panel.get_meta("fade", 0.0);
+                   this.gone = if panel.has_meta("gone") { 1.0 } else { panel.get_meta("gone", 2.0) };
+                   this.names = panel.meta_names().len() as f64;
+                   let same = panel == this.node.get_node("../Panel") && panel != this.node && !(panel == 1);
+                   this.same = if same { 1.0 } else { 0.0 };
+               }"#,
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    spawn(&app, "Panel");
+    let filer = spawn(&app, "Filer");
+    let reader = spawn(&app, "Reader");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(filer), "filer.rn").unwrap();
+    host.attach(balaur_core::node_id_of(reader), "reader.rn").unwrap();
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(reader, "fade"), Some(5.0));
+    assert_eq!(rune.number_field(reader, "gone"), Some(2.0), "nil removes");
+    assert_eq!(rune.number_field(reader, "names"), Some(1.0));
+    assert_eq!(rune.number_field(reader, "same"), Some(1.0), "node handles compare");
 }

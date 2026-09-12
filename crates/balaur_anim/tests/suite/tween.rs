@@ -939,3 +939,31 @@ fn a_value_tween_is_read_not_written() {
         "widths differ"
     );
 }
+
+/// A fade-out that hides the node when it lands and puts its alpha back,
+/// Godot's `tween.finished.connect(hide)`: zero-length steps at the end are
+/// where the tween leaves the node.
+#[test]
+fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
+    let mut app = app();
+    let panel = spawn(&app, "Panel");
+    start(
+        &app,
+        panel,
+        r#"steps = [
+            { property = "tint", to = [1.0, 1.0, 1.0, 0.0], duration = 0.3, ease = "in_sine" },
+            { property = "visible", to = 0.0, duration = 0.0 },
+            { property = "tint", to = [1.0, 1.0, 1.0, 1.0], duration = 0.0 },
+        ]"#,
+    );
+    let appearance = |app: &App| {
+        let world = app.engine.world();
+        let a = world.get::<&scene::Appearance>(panel).unwrap();
+        (a.visible, a.tint[3])
+    };
+    tick(&mut app, 6);
+    let (shown, alpha) = appearance(&app);
+    assert!(shown && alpha < 1.0 && alpha > 0.0, "fading: {shown} {alpha}");
+    tick(&mut app, 30);
+    assert_eq!(appearance(&app), (false, 1.0), "hidden, and opaque again");
+}

@@ -66,7 +66,8 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ON_CHANGE, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::ON_SUBMIT, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::CHECKED, r#"{ type = "bool", default = false, description = "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look" }"#),
-                    (k::GROUP, r#"{ type = "string", default = "", description = "A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
+                    (k::GROUP, r#"{ type = "string", default = "", description = "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
+                    (k::TOGGLE, r#"{ type = "bool", default = false, description = "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode", group = "value" }"#),
                     (k::VALUE, r#"{ type = "float", default = 0.0, description = "Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it" }"#),
                     (k::MIN, r#"{ type = "float", default = 0.0, description = "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
                     (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
@@ -280,6 +281,7 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
 /// fold, fill root, sliced image and deadzone scroll carry.
 fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(k::CHECKED.into(), toml::Value::Boolean(widget.checked));
+    map.insert(k::TOGGLE.into(), toml::Value::Boolean(widget.toggle));
     map.insert(
         k::GROUP.into(),
         toml::Value::String(widget.group.to_string()),
@@ -489,6 +491,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         justify: s(k::JUSTIFY),
         padding_x: f(k::PADDING_X),
         checked: false,
+        toggle: false,
         value: 0.0,
         min: 0.0,
         max: 1.0,
@@ -512,6 +515,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     let r = Read(params);
     let (f, b) = (|k: &str| r.num(k), |k: &str| r.flag(k));
     widget.checked = b(k::CHECKED);
+    widget.toggle = b(k::TOGGLE);
     widget.group = r.str(k::GROUP);
     widget.value = f(k::VALUE);
     widget.min = f(k::MIN);
