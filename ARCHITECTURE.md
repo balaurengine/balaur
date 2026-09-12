@@ -130,6 +130,8 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   scripted node once the whole scene exists, or nil: Godot's `@export var x:
   Node`. One that also names a `component` arrives as that node's handle for
   it, the way an `asset` property names its asset type.
+- A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
+  resolved the way one is, and a path naming nothing is nil in its place.
 - `script::require` hands back a module's `pub fn`s and its top-level `pub
   const`s, so a shared constant is read where it is declared.
 

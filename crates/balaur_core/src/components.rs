@@ -242,9 +242,9 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 13] = [
+pub const PROPERTY_TYPES: [&str; 14] = [
     "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
-    "node", "strings",
+    "node", "nodes", "strings",
 ];
 
 /// The tags a component or preset carries, which the editor's picker
@@ -371,13 +371,13 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
     }
     // As `asset` names its asset type, a node property may name the component
     // the node it points at has to carry; the script is handed that handle.
-    match (declared == "node", spec.get("component")) {
+    match (matches!(declared, "node" | "nodes"), spec.get("component")) {
         (true, Some(name)) if name.as_str().is_none() => {
             return Err(format!("`component` is {}, not a name", name.type_str()));
         }
         (false, Some(_)) => {
             return Err(format!(
-                "`component` belongs to `type = \"node\"`, not `type = \"{declared}\"`"
+                "`component` belongs to a node property, not `type = \"{declared}\"`"
             ));
         }
         _ => {}

@@ -13,8 +13,11 @@ use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
+use hecs::Entity;
+
 use crate::handles;
 use crate::packed::PackSourceLoader;
+use crate::value::Node;
 use crate::{RuneHost, value};
 
 /// The function `script::require` reads a module's constants through.
@@ -319,15 +322,26 @@ fn export_type(default: &balaur_script::Value) -> &'static str {
 /// The `default` an export declares, which is what the host writes onto an
 /// instance before `init`.
 #[must_use]
-/// Whether an export is declared `type = "node"`: a path the scene writes and
-/// the script receives as the node it names.
+/// Whether an export is declared `type = "node"` or `type = "nodes"`: paths
+/// the scene writes and the script receives as the nodes they name.
 pub(crate) fn is_node_export(spec: &balaur_script::Value) -> bool {
+    declared_type(spec).is_some_and(|kind| matches!(kind, "node" | "nodes"))
+}
+
+/// Whether the export takes a list of them rather than one.
+pub(crate) fn is_node_list(spec: &balaur_script::Value) -> bool {
+    declared_type(spec) == Some("nodes")
+}
+
+/// What an export's spec declares as its `type`, where it declares one.
+fn declared_type(spec: &balaur_script::Value) -> Option<&str> {
     let balaur_script::Value::Map(fields) = spec else {
-        return false;
+        return None;
     };
-    fields
-        .iter()
-        .any(|(k, v)| k == "type" && matches!(v, balaur_script::Value::Str(t) if t == "node"))
+    fields.iter().find_map(|(k, v)| match v {
+        balaur_script::Value::Str(kind) if k == "type" => Some(kind.as_str()),
+        _ => None,
+    })
 }
 
 /// The component a `node` export names, whose handle the script is handed
@@ -388,6 +402,40 @@ fn order_of(spec: &balaur_script::Value) -> f64 {
 }
 
 impl RuneHost {
+    /// One `node` export's value: the node its path names from `entity`, its
+    /// handle for the `component` the spec asks for, or nil.
+    pub(crate) fn node_prop(
+        &self,
+        entity: Entity,
+        key: &str,
+        name: &str,
+        path: &str,
+        spec: &balaur_script::Value,
+    ) -> Result<rune::Value> {
+        let found = (!path.is_empty())
+            .then(|| balaur_core::scene::find_node(&self.engine.world(), entity, path))
+            .flatten();
+        if found.is_none() && !path.is_empty() {
+            tracing::warn!("[{key}] node property '{name}' names '{path}', which is not there");
+        }
+        let component = export_component(spec);
+        if let (Some(node), Some(component)) = (found, component)
+            && balaur_core::components::get(&self.engine, node, component).is_none()
+        {
+            tracing::warn!("[{key}] property '{name}' names '{path}', which carries no {component}");
+        }
+        Ok(match (found, component) {
+            (Some(node), Some(component)) => rune::to_value(value::component::Component {
+                node: balaur_core::node_id_of(node).0,
+                name: component.to_string(),
+            })?,
+            (Some(node), None) => rune::to_value(Node {
+                id: node.to_bits().get(),
+            })?,
+            (None, _) => rune::to_value(())?,
+        })
+    }
+
     /// Log a runtime error at the line that threw, with the script backtrace
     /// under it.
     ///

@@ -38,6 +38,8 @@ pub(crate) enum Kind {
     Vec2,
     Vec3,
     Color,
+    /// A list of nodes in the scene, each by path.
+    Nodes,
     /// A list of paths or names.
     Strings,
 }
@@ -67,6 +69,7 @@ impl Export {
             Kind::Vec3 => typed("vec3"),
             Kind::Color => typed("color"),
             Kind::Strings => typed("strings"),
+            Kind::Nodes => typed("nodes"),
         })
     }
 }
@@ -169,7 +172,7 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
     };
     let default = match (kind, written) {
         (Some(Kind::Float), Some(n)) if !n.contains(['.', 'e', 'E']) => format!("{n}.0"),
-        (Some(Kind::Strings), Some(list)) if list.starts_with('[') => list,
+        (Some(Kind::Strings | Kind::Nodes), Some(list)) if list.starts_with('[') => list,
         (Some(Kind::Node | Kind::Path), _) => "\"\"".to_string(),
         (Some(_), Some(literal)) => literal,
         (Some(kind), None) => zero(kind).to_string(),
@@ -198,7 +201,8 @@ fn kind_of_hint(hint: &str, classes: &Classes) -> Option<Kind> {
         h => {
             if let Some(element) = h.strip_prefix("Array[").and_then(|e| e.strip_suffix(']')) {
                 return match class_kind(element, classes) {
-                    Some(Kind::Node | Kind::Path | Kind::Str) => Some(Kind::Strings),
+                    Some(Kind::Node) => Some(Kind::Nodes),
+                    Some(Kind::Path | Kind::Str) => Some(Kind::Strings),
                     _ => None,
                 };
             }
@@ -325,7 +329,7 @@ fn zero(kind: Kind) -> &'static str {
         Kind::Vec2 => "[0.0, 0.0]",
         Kind::Vec3 => "[0.0, 0.0, 0.0]",
         Kind::Color => "[1.0, 1.0, 1.0, 1.0]",
-        Kind::Strings => "[]",
+        Kind::Strings | Kind::Nodes => "[]",
     }
 }
 
@@ -354,7 +358,7 @@ pub(crate) fn scene_value(
         Kind::Vec2 | Kind::Vec3 | Kind::Color => {
             Toml::Array(value.numbers()?.into_iter().map(Toml::Float).collect())
         }
-        Kind::Strings => {
+        Kind::Strings | Kind::Nodes => {
             let items = value
                 .as_array()
                 .or_else(|| value.call("PackedStringArray"))?;
@@ -522,6 +526,10 @@ mod tests {
             one("@export var hearts: Array[CanvasItem]", &none)
                 .1
                 .as_deref(),
+            Some("#{ \"type\": \"nodes\", \"default\": [] }")
+        );
+        assert_eq!(
+            one("@export var names: Array[String]", &none).1.as_deref(),
             Some("#{ \"type\": \"strings\", \"default\": [] }")
         );
         assert_eq!(

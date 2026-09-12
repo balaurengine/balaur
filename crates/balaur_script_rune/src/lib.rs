@@ -564,33 +564,28 @@ impl RuneHost {
                 .iter()
                 .find(|(n, _)| n == name)
                 .map_or_else(|| inspect::export_default(spec), |(_, v)| v.clone());
+            // A list export takes each of its paths the same way.
+            if inspect::is_node_list(spec) {
+                let balaur_script::Value::List(paths) = path else {
+                    continue;
+                };
+                let mut found = Vec::new();
+                for path in &paths {
+                    let balaur_script::Value::Str(path) = path else {
+                        continue;
+                    };
+                    found.push(self.node_prop(entity, &key, name, path, spec)?);
+                }
+                obj.insert(
+                    rune::alloc::String::try_from(name.as_str())?,
+                    rune::to_value(found)?,
+                )?;
+                continue;
+            }
             let balaur_script::Value::Str(path) = path else {
                 continue;
             };
-            let found = (!path.is_empty())
-                .then(|| balaur_core::scene::find_node(&self.engine.world(), entity, &path))
-                .flatten();
-            if found.is_none() && !path.is_empty() {
-                tracing::warn!("[{key}] node property '{name}' names '{path}', which is not there");
-            }
-            let component = inspect::export_component(spec);
-            if let (Some(node), Some(component)) = (found, component)
-                && balaur_core::components::get(&self.engine, node, component).is_none()
-            {
-                tracing::warn!(
-                    "[{key}] property '{name}' names '{path}', which carries no {component}"
-                );
-            }
-            let resolved = match (found, component) {
-                (Some(node), Some(component)) => rune::to_value(value::component::Component {
-                    node: balaur_core::node_id_of(node).0,
-                    name: component.to_string(),
-                })?,
-                (Some(node), None) => rune::to_value(Node {
-                    id: node.to_bits().get(),
-                })?,
-                (None, _) => rune::to_value(())?,
-            };
+            let resolved = self.node_prop(entity, &key, name, &path, spec)?;
             obj.insert(rune::alloc::String::try_from(name.as_str())?, resolved)?;
         }
         let state = rune::to_value(obj)?;

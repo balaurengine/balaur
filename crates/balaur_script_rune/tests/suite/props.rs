@@ -539,6 +539,38 @@ fn a_node_export_arrives_as_the_node_it_names() {
     assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
 }
 
+/// A `nodes` export is a list of them: Godot's `Array[Node]`, each path
+/// resolved the way one is.
+#[test]
+fn a_nodes_export_arrives_as_the_list_of_nodes_it_names() {
+    let script = "pub fn exports() {\n\
+         #{ crew: #{ \"type\": \"nodes\", \"default\": [] } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.crew.len() as f64;\n\
+         this.first = this.crew[0].name();\n\
+         this.lost = if this.crew[2] is Tuple { \"nil\" } else { \"node\" };\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { crew = [\"Cook\", \"Bosun\", \"Ghost\"] } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Cook\"\n\
+         parent = \"Ship\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Bosun\"\n\
+         parent = \"Ship\"\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen"), Some(3.0));
+    assert_eq!(text(&app, ship, "first"), Some(String::from("Cook")));
+    assert_eq!(text(&app, ship, "lost"), Some(String::from("nil")));
+}
+
 /// A `node` export that names a `component` hands the script that node's
 /// handle for it, so it calls the component straight off the export.
 #[test]
