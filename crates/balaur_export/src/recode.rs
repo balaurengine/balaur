@@ -481,34 +481,13 @@ mod tests {
         out
     }
 
-    /// The samples symphonia reads back, which is the decoder the runtime uses.
+    /// The samples symphonia reads back, decoding what a player decodes.
     fn decode_flac(bytes: &[u8]) -> Vec<i32> {
         use symphonia::core::audio::{Audio, GenericAudioBufferRef};
-        use symphonia::core::codecs::CodecParameters;
-        use symphonia::core::codecs::audio::AudioDecoderOptions;
-        use symphonia::core::formats::probe::Hint;
-        use symphonia::core::formats::{FormatOptions, TrackType};
-        use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-        use symphonia::core::meta::MetadataOptions;
 
-        let source = std::io::Cursor::new(bytes.to_vec());
-        let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
-        let mut hint = Hint::new();
-        hint.with_extension("flac");
-        let mut format = symphonia::default::get_probe()
-            .probe(
-                &hint,
-                stream,
-                FormatOptions::default(),
-                MetadataOptions::default(),
-            )
-            .unwrap();
-        let track = format.default_track(TrackType::Audio).unwrap();
-        let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else {
-            panic!("the default track carries no audio codec parameters");
-        };
+        let (mut format, params) = probe_audio(bytes, "flac");
         let mut decoder = symphonia::default::get_codecs()
-            .make_audio_decoder(&params, &AudioDecoderOptions::default())
+            .make_audio_decoder(&params, &Default::default())
             .unwrap();
 
         let mut samples = Vec::new();
@@ -521,6 +500,41 @@ mod tests {
             }
         }
         samples
+    }
+
+    /// The container's reader and its audio codec parameters. The parameters
+    /// are cloned so the reader is free to be borrowed for packets after.
+    fn probe_audio(
+        bytes: &[u8],
+        extension: &str,
+    ) -> (
+        Box<dyn symphonia::core::formats::FormatReader>,
+        symphonia::core::codecs::audio::AudioCodecParameters,
+    ) {
+        use symphonia::core::formats::probe::Hint;
+        use symphonia::core::formats::{FormatOptions, TrackType};
+        use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
+        use symphonia::core::meta::MetadataOptions;
+
+        let source = std::io::Cursor::new(bytes.to_vec());
+        let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
+        let mut hint = Hint::new();
+        hint.with_extension(extension);
+        let format = symphonia::default::get_probe()
+            .probe(
+                &hint,
+                stream,
+                FormatOptions::default(),
+                MetadataOptions::default(),
+            )
+            .unwrap();
+        let params = format
+            .default_track(TrackType::Audio)
+            .and_then(|t| t.codec_params.as_ref())
+            .and_then(|p| p.audio())
+            .expect("an audio track")
+            .clone();
+        (format, params)
     }
 
     #[test]
@@ -541,34 +555,11 @@ mod tests {
         assert_eq!(decoded, expected);
     }
 
-    /// How many frames symphonia reads back out of an Ogg Vorbis stream,
-    /// which is the decoder the runtime uses.
+    /// How many frames symphonia reads back out of an Ogg Vorbis stream.
     fn decode_ogg_frames(bytes: &[u8]) -> u64 {
-        use symphonia::core::codecs::CodecParameters;
-        use symphonia::core::codecs::audio::AudioDecoderOptions;
-        use symphonia::core::formats::probe::Hint;
-        use symphonia::core::formats::{FormatOptions, TrackType};
-        use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-        use symphonia::core::meta::MetadataOptions;
-
-        let source = std::io::Cursor::new(bytes.to_vec());
-        let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
-        let mut hint = Hint::new();
-        hint.with_extension("ogg");
-        let mut format = symphonia::default::get_probe()
-            .probe(
-                &hint,
-                stream,
-                FormatOptions::default(),
-                MetadataOptions::default(),
-            )
-            .unwrap();
-        let track = format.default_track(TrackType::Audio).unwrap();
-        let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else {
-            panic!("the default track carries no audio codec parameters");
-        };
+        let (mut format, params) = probe_audio(bytes, "ogg");
         let mut decoder = symphonia::default::get_codecs()
-            .make_audio_decoder(&params, &AudioDecoderOptions::default())
+            .make_audio_decoder(&params, &Default::default())
             .unwrap();
 
         let mut frames = 0;

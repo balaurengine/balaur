@@ -170,9 +170,9 @@ fn parse_scene(c: &mut Criterion) {
 /// common case and steps a different solver.
 fn physics_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_step");
+    let count = 1000usize;
     for body in ["body2d", "body3d"] {
         {
-        let count = 1000usize;
             let project = Project::new(Backend::Rune, EMPTY).unwrap();
             let mut app = app(Backend::Rune, &project).unwrap();
             let root = app.engine.root();
