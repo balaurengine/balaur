@@ -41,6 +41,17 @@ else
   rolling=true
 fi
 
+# The rolling tag is the branch's head. A run the branch has moved past would
+# tag workflow files that differ from it, which no GITHUB_TOKEN may do.
+if [ "$rolling" = true ] && [ -n "${GITHUB_REF:-}" ]; then
+  tip=$(git ls-remote origin "$GITHUB_REF" | cut -f1)
+  if [ -n "$tip" ] && [ "$tip" != "${GITHUB_SHA:-$(git rev-parse HEAD)}" ]; then
+    printf '%s is at %s now; the run for that commit publishes the nightly\n' \
+      "${GITHUB_REF#refs/heads/}" "${tip:0:7}"
+    exit 0
+  fi
+fi
+
 # The VERSION asset names the build this release holds; binaries compare it
 # to their own baked id (see balaur_cli/src/version.rs). A v* tag must match
 # the workspace version, or the id the binaries baked disagrees with the tag.
