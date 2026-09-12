@@ -91,6 +91,11 @@ pub(crate) fn settle_rects() {
 /// the built-in — 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
+    // A stack is a box to place things in, so the theme's padding is not its
+    // own: it insets only by what the scene asked for.
+    if widget.kind == w::STACK {
+        return widget.padding.max(0.0) * scale;
+    }
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     let stated = if widget.padding > 0.0 {
         widget.padding

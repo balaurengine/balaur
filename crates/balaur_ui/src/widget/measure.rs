@@ -163,6 +163,7 @@ impl<'a> Measure<'a> {
                     self.button(index, widget, theme)
                 }
             }
+            w::STACK => self.stack(index, theme),
             w::GRID => self.grid(index, theme),
             w::FLOW => self.flow(index, theme),
             _ if lays_out(&widget.kind) => self.container(index, theme),
@@ -219,6 +220,24 @@ impl<'a> Measure<'a> {
     }
 
     /// A grid: the biggest child's cell, tiled `columns` wide.
+    /// A stack: its biggest child on each axis, plus its own padding, since
+    /// every child is laid over the same box.
+    fn stack(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let placed = &self.arena[index];
+        let widget = placed.widget.clone();
+        let children = placed.children.clone();
+        let mut want = egui::Vec2::ZERO;
+        for child in &children {
+            want = want.max(self.of(*child, theme));
+        }
+        let pad = padding_of(
+            &widget,
+            &crate::widget::theme::styled(theme, &widget),
+            self.scale,
+        );
+        want + egui::Vec2::splat(pad * 2.0)
+    }
+
     fn grid(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();

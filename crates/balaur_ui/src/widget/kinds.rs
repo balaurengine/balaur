@@ -11,6 +11,7 @@ use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 use crate::widget::arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
+use crate::widget::node::Widget;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -442,6 +443,105 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         extent + egui::Vec2::splat(pad * 2.0),
     );
     ui.allocate_rect(taken, Sense::hover());
+}
+
+/// Children over one another, each in the whole box or placed in it by its
+/// own `anchor`: Godot's MarginContainer, and a Control whose children anchor
+/// themselves rather than queue up.
+pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let children = placed.children.clone();
+    if children.is_empty() {
+        return;
+    }
+    let widget = placed.widget.clone();
+    let scale = at.scale;
+    let style = at.style_of(&widget);
+    let pad = padding_of(&widget, &style, scale);
+    let box_size = box_of(&widget, at.assigned, scale);
+    // The box this widget was handed, not what is left after the cursor: a
+    // root reserves its box up front, and a stack fills what it was given.
+    let room = ui.max_rect();
+    let outer = Rect::from_min_size(
+        room.min,
+        vec2(
+            if box_size.x > 0.0 { box_size.x } else { room.width() },
+            if box_size.y > 0.0 { box_size.y } else { room.height() },
+        ),
+    );
+    // The frame first, under everything the stack holds, as a container's is.
+    if style.fill.is_some() || style.stroke.is_some() {
+        ui.painter().rect(
+            outer,
+            egui::CornerRadius::same((style.radius.unwrap_or(0.0) * scale) as u8),
+            style.fill.unwrap_or(Color32::TRANSPARENT),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+            egui::StrokeKind::Inside,
+        );
+    }
+    let area = outer.shrink(pad);
+    for child in &children {
+        let want = {
+            let mut measure = Measure::new(at.eng, at.arena, ui, scale);
+            measure.of(*child, &at.theme)
+        };
+        let rect = anchored_in(area, &at.arena[*child].widget, want, scale);
+        // This kind placed the child, so taffy has not solved what is under
+        // it: its subtree is solved against the box it was just given.
+        let space = crate::widget::taffy::Room::fixed(rect);
+        let solved = crate::widget::taffy::solve_subtree(
+            at.eng,
+            at.arena,
+            *child,
+            ui,
+            scale,
+            &at.theme,
+            &space,
+            at.deep(*child),
+        );
+        let held = std::mem::replace(&mut at.rects, solved);
+        place_child(ui, at, *child, rect, rect.size());
+        at.rects = held;
+    }
+    ui.allocate_rect(outer, Sense::hover());
+}
+
+/// Where one child of a stack sits: its `anchor` decides whether each axis
+/// stretches or holds the child's own size at an edge or the middle, and `x`
+/// and `y` push it in from the edges the anchor names.
+fn anchored_in(area: Rect, widget: &Widget, want: egui::Vec2, scale: f32) -> Rect {
+    let (across, down) = crate::widget::anchor::in_box(&widget.anchor);
+    let stated = box_of(widget, egui::Vec2::ZERO, scale);
+    let size = vec2(
+        if stated.x > 0.0 { stated.x } else { want.x },
+        if stated.y > 0.0 { stated.y } else { want.y },
+    );
+    let (left, width) = along(area.min.x, area.width(), size.x, across, widget.x * scale);
+    let (top, height) = along(area.min.y, area.height(), size.y, down, widget.y * scale);
+    Rect::from_min_size(egui::pos2(left, top), vec2(width, height))
+}
+
+/// One axis of a stack placement: where the child starts and how wide it is.
+///
+/// The offset runs inward from the edge the anchor names, as it does on a
+/// root; an axis that stretches or centres names no edge and takes none.
+fn along(
+    start: f32,
+    room: f32,
+    want: f32,
+    place: crate::widget::anchor::In,
+    offset: f32,
+) -> (f32, f32) {
+    use crate::widget::anchor::In;
+    let want = want.min(room);
+    match place {
+        In::Stretch => (start, room),
+        In::Start => (start + offset, want),
+        In::Middle => (start + (room - want) / 2.0, want),
+        In::End => (start + room - want - offset, want),
+    }
 }
 
 /// Children left to right at their own size, wrapping to a new line when

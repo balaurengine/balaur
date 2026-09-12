@@ -614,6 +614,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::PROGRESS => crate::widget::kinds::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget::kinds::separator(ui, at, index),
         w::GRID => crate::widget::kinds::grid(ui, at, index),
+        w::STACK => crate::widget::kinds::stack(ui, at, index),
         w::FLOW => crate::widget::kinds::flow(ui, at, index),
         w::FOLD => crate::widget::kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.

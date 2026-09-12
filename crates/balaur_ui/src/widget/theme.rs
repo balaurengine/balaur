@@ -180,6 +180,9 @@ impl WidgetTheme {
     /// The style for a kind, or the empty one — which means "as before".
     #[must_use]
     pub fn style(&self, kind: &str) -> Style {
+        // A stack is a panel that lays its children over one another, so it
+        // wears the panel's look; a scene that wants none says so in `fill`.
+        let kind = if kind == w::STACK { w::PANEL } else { kind };
         self.kinds.get(kind).cloned().unwrap_or_default()
     }
 

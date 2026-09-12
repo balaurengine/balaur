@@ -10,6 +10,7 @@ pub(crate) mod words {
     pub(crate) const BUTTON: &str = "button";
     pub(crate) const PANEL: &str = "panel";
     pub(crate) const ROW: &str = "row";
+    pub(crate) const STACK: &str = "stack";
     pub(crate) const COLUMN: &str = "column";
     pub(crate) const SCROLL: &str = "scroll";
     pub(crate) const TEXT_AREA: &str = "text_area";
@@ -38,7 +39,7 @@ pub(crate) mod words {
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
         COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
-        DIALOG, WINDOW, SEPARATOR, CODE,
+        DIALOG, WINDOW, SEPARATOR, CODE, STACK,
     ];
 
     pub(crate) const TOP_LEFT: &str = "top_left";

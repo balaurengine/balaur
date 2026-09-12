@@ -1,11 +1,41 @@
-//! Where a root widget goes on its surface: a corner, an edge, the middle,
-//! the whole of it, or one axis of it. A widget inside a container is placed
-//! by the container, so only a root is ever asked.
+//! Where a widget goes in the box it was given: a corner, an edge, the
+//! middle, the whole of it, or one axis of it. A root asks about its surface;
+//! a child of a `stack` asks about its parent's box. Every other widget is
+//! placed by the container it is in.
 
 use egui::{Align2, pos2, vec2};
 
 use crate::vocabulary::words as w;
 use crate::widget::node::Widget;
+
+/// Where a widget sits on one axis of the box it was given.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum In {
+    Start,
+    Middle,
+    End,
+    Stretch,
+}
+
+/// What an `anchor` means inside a `stack`, per axis: across, then down.
+pub(crate) fn in_box(anchor: &str) -> (In, In) {
+    match anchor {
+        w::TOP_LEFT => (In::Start, In::Start),
+        w::TOP_RIGHT => (In::End, In::Start),
+        w::BOTTOM_LEFT => (In::Start, In::End),
+        w::BOTTOM_RIGHT => (In::End, In::End),
+        w::CENTER => (In::Middle, In::Middle),
+        w::CENTER_LEFT => (In::Start, In::Middle),
+        w::CENTER_RIGHT => (In::End, In::Middle),
+        w::CENTER_TOP => (In::Middle, In::Start),
+        w::CENTER_BOTTOM => (In::Middle, In::End),
+        w::FILL_TOP => (In::Stretch, In::Start),
+        w::FILL_BOTTOM => (In::Stretch, In::End),
+        w::FILL_LEFT => (In::Start, In::Stretch),
+        w::FILL_RIGHT => (In::End, In::Stretch),
+        _ => (In::Stretch, In::Stretch),
+    }
+}
 
 /// Where a root goes and what box it is handed: `fill` takes the surface
 /// less its insets so a container at the root fills the screen, a dialog

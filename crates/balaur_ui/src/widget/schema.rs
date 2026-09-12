@@ -27,7 +27,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The HUD element the widget layer draws" }}"#, w::LABEL, v::options(w::WIDGET_KINDS))),
                     (k::TEXT, r#"{ type = "string", default = "label", description = "Label or button caption" }"#),
                     (k::VISIBLE, r#"{ type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }"#),
-                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset`" }}"#, w::TOP_LEFT, v::options(w::ANCHORS))),
+                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`" }}"#, w::TOP_LEFT, v::options(w::ANCHORS))),
                     (k::X, r#"{ type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels", group = "placement" }"#),
                     (k::Y, r#"{ type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels", group = "placement" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel width in design pixels; 0 sizes to content", group = "placement" }"#),
@@ -346,6 +346,10 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
         (
             w::SCROLL,
             "A box that holds its size and clips what runs past it",
+        ),
+        (
+            w::STACK,
+            "Children over one another, each placed in the box by its `anchor`",
         ),
         (
             w::TAB,

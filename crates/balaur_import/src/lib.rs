@@ -3,6 +3,8 @@
 
 mod godot;
 mod ldtk;
+#[cfg(test)]
+mod scene_check;
 mod tiled_map;
 
 use std::path::Path;

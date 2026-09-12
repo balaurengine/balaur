@@ -28,13 +28,13 @@ const WIDGET_KINDS: &[(&str, &str)] = &[
     ("TextureProgressBar", "progress"),
     ("TextureRect", "image"),
     ("NinePatchRect", "image"),
-    ("ColorRect", "panel"),
-    ("Panel", "panel"),
-    ("PanelContainer", "panel"),
-    ("MarginContainer", "panel"),
-    ("CenterContainer", "panel"),
-    ("AspectRatioContainer", "panel"),
-    ("SubViewportContainer", "panel"),
+    ("ColorRect", "stack"),
+    ("Panel", "stack"),
+    ("PanelContainer", "stack"),
+    ("MarginContainer", "stack"),
+    ("CenterContainer", "stack"),
+    ("AspectRatioContainer", "stack"),
+    ("SubViewportContainer", "stack"),
     ("HBoxContainer", "row"),
     ("VBoxContainer", "column"),
     ("BoxContainer", "row"),
@@ -112,8 +112,15 @@ pub(crate) fn widget(
     }
     if class == "Window" {
         window(section, out);
-    } else if family(parent) != Family::Control {
+    } else if !lays_out_children(parent) {
+        // Nothing above it decides where it goes, so its own anchors do.
         placement(section, out);
+    } else if STACK_CONTAINERS.contains(&parent) {
+        // Its size flags say where in the box it sits, and a container child
+        // is flush against that edge: Godot gives it no offset of its own.
+        out.set("widget", "anchor", Toml::String(flag_anchor(section)));
+        out.set("widget", "x", Toml::Float(0.0));
+        out.set("widget", "y", Toml::Float(0.0));
     }
     // These lay out and paint nothing in Godot; a `panel` here is framed by
     // its theme, so its fill and its outline are made clear.
@@ -368,6 +375,72 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
         }
         _ => {}
     }
+}
+
+/// Godot containers that hand every child the whole box, so the children lie
+/// over one another and each is placed in it by its size flags.
+const STACK_CONTAINERS: &[&str] = &[
+    "PanelContainer",
+    "MarginContainer",
+    "CenterContainer",
+    "AspectRatioContainer",
+    "SubViewportContainer",
+];
+
+/// Whether a class positions its children. A Godot container does; a plain
+/// Control or a Panel does not, and its children keep their own anchors.
+fn lays_out_children(class: &str) -> bool {
+    family(class) == Family::Control
+        && !matches!(
+            class,
+            "Control" | "Panel" | "ColorRect" | "TextureRect" | "NinePatchRect"
+        )
+}
+
+/// Where a size flag puts a child on one axis: FILL is bit 1, SHRINK_CENTER
+/// is 4 and SHRINK_END is 8; nothing at all is the start.
+fn flag_place(flag: i64) -> &'static str {
+    if flag & 8 != 0 {
+        "end"
+    } else if flag & 4 != 0 {
+        "middle"
+    } else if flag & 1 != 0 {
+        "stretch"
+    } else {
+        "start"
+    }
+}
+
+/// A child's `anchor` inside a stacking container, from its two size flags.
+/// Godot defaults both to FILL, which is `fill` here.
+fn flag_anchor(section: &Section) -> String {
+    let flag = |key: &str| section.field(key).and_then(Value::as_i64).unwrap_or(1);
+    let across = flag_place(flag("size_flags_horizontal"));
+    let down = flag_place(flag("size_flags_vertical"));
+    #[allow(
+        clippy::match_same_arms,
+        reason = "the last arm is the fallback, not a repeat of the first"
+    )]
+    match (across, down) {
+        ("stretch", "stretch") => "fill",
+        ("stretch", "start") => "fill_top",
+        ("stretch", "end") => "fill_bottom",
+        ("start", "stretch") => "fill_left",
+        ("end", "stretch") => "fill_right",
+        ("start", "start") => "top_left",
+        ("middle", "start") => "center_top",
+        ("end", "start") => "top_right",
+        ("start", "middle") => "center_left",
+        ("middle", "middle") => "center",
+        ("end", "middle") => "center_right",
+        ("start", "end") => "bottom_left",
+        ("middle", "end") => "center_bottom",
+        ("end", "end") => "bottom_right",
+        // Stretched on one axis and centred on the other: no anchor says
+        // both, and stretching is the half that decides the layout.
+        _ => "fill",
+    }
+    .to_string()
 }
 
 /// A picture Control's source, and a nine-patch's slice.

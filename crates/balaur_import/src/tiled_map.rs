@@ -182,16 +182,8 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-
-    /// Nodes the scene declares with no parent.
-    fn roots(scene: &str) -> usize {
-        scene
-            .split("[[nodes]]")
-            .skip(1)
-            .filter(|node| !node.split("[nodes.").next().unwrap_or("").contains("parent ="))
-            .count()
-    }
     use super::*;
+    use crate::scene_check::loaded;
 
     const MAP: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" orientation="orthogonal" renderorder="right-down" width="2" height="2" tilewidth="16" tileheight="16" infinite="0" nextlayerid="2" nextobjectid="1">
@@ -246,8 +238,11 @@ mod tests {
         let out = imported();
         let scene = written(&out.files, "scenes/level.toml");
         assert!(scene.contains("[nodes.tilemap]"), "{scene}");
-        assert_eq!(roots(&scene), 1, "a scene has one root: {scene}");
-        assert!(scene.contains("name = \"ground\""), "{scene}");
+        assert_eq!(
+            loaded(&scene),
+            vec![("level".to_string(), vec!["ground".to_string()])],
+            "the map is the one root and its layers hang from it: {scene}"
+        );
         assert!(
             scene.contains("[0, 1],") && scene.contains("[-1, 0],"),
             "gid 0 is an empty cell, and the rest count from zero: {scene}"

@@ -869,3 +869,37 @@ fn a_menu_button_holds_its_room_in_a_row() {
         "the next button draws over the menu: {mine:?} {next:?}"
     );
 }
+
+/// A `stack` lays its children over one another, each placed in the box by
+/// its own `anchor`: Godot's MarginContainer, and the top and bottom bars a
+/// phone game pins to the edges of one screen.
+#[test]
+fn a_stack_lays_its_children_over_one_another() {
+    let (_dir, app) = app();
+    let stack = add_widget(&app, &toml::toml! { kind = "stack" anchor = "fill" }.into());
+    let child = |name: &str, anchor: &str| {
+        let params = toml::toml! {
+            kind = "panel" text = "" width = 100.0 height = 40.0 anchor = anchor
+        };
+        add_child_widget(&app, stack, name, &params.into())
+    };
+    let top = child("Top", "center_top");
+    let bottom = child("Bottom", "center_bottom");
+    let whole = child("Whole", "fill");
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity| balaur_ui::widget_rect(entity).expect("the widget was placed");
+    let (top, bottom, whole) = (rect(top), rect(bottom), rect(whole));
+    assert!(
+        top.bottom() < bottom.top(),
+        "one at each edge: {top:?} {bottom:?}"
+    );
+    assert!(
+        (top.center().x - bottom.center().x).abs() < 1.0,
+        "both centred across: {top:?} {bottom:?}"
+    );
+    assert!(
+        whole.height() > top.height() * 4.0,
+        "a child anchored `fill` takes the whole box: {whole:?}"
+    );
+}

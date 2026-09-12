@@ -182,6 +182,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
         kind,
         w::ROW
             | w::COLUMN
+            | w::STACK
             | w::PANEL
             | w::SCROLL
             | w::TAB

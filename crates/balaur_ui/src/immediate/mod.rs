@@ -432,6 +432,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_WINDOW", w::WINDOW),
     ("WIDGET_SEPARATOR", "separator"),
     ("WIDGET_CODE", w::CODE),
+    ("WIDGET_STACK", w::STACK),
 ];
 
 /// Where a container puts its children, and where text sits in its width.

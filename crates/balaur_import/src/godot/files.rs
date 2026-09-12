@@ -476,6 +476,14 @@ size_flags_vertical = 3
 toggle_mode = true
 button_group = SubResource("ButtonGroup_tabs")
 
+[node name="Bars" type="MarginContainer" parent="."]
+theme_override_constants/margin_left = 12
+
+[node name="Bottom" type="Button" parent="Bars"]
+text = "Menu"
+size_flags_horizontal = 4
+size_flags_vertical = 8
+
 [node name="Player" type="AnimationPlayer" parent="."]
 libraries/ = SubResource("AnimationLibrary_1")
 autoplay = "fade"
@@ -718,6 +726,13 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert_eq!(go["widget"]["kind"].as_str(), Some("button"));
         assert_eq!(go["widget"]["on_click"].as_str(), Some("on_go"));
         assert_eq!(go["widget"]["toggle"].as_bool(), Some(true));
+        // A MarginContainer lays its children over one another, and each is
+        // placed in the box by its size flags.
+        assert_eq!(node(&scene, "Bars")["widget"]["kind"].as_str(), Some("stack"));
+        assert_eq!(
+            node(&scene, "Bottom")["widget"]["anchor"].as_str(),
+            Some("center_bottom")
+        );
         assert_eq!(go["widget"]["group"].as_str(), Some("ButtonGroup_tabs"));
         assert_eq!(
             go["widget"]["grow"].as_float(),

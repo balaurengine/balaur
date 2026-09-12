@@ -97,7 +97,11 @@ fn tileset_toml(set: &Value, texture: &str) -> Vec<u8> {
 ///
 /// LDtk lists its layers top first, so the z-index counts down as the file
 /// reads and what it drew on top draws on top here too.
-fn level_toml(level: &Value, level_name: &str, sets: &BTreeMap<i64, String>) -> Result<(String, usize)> {
+fn level_toml(
+    level: &Value,
+    level_name: &str,
+    sets: &BTreeMap<i64, String>,
+) -> Result<(String, usize)> {
     let layers = array(level, &["layerInstances"]);
     // A tileset kept in a file is named by its path, not re-declared here.
     let mut out = String::new();
@@ -243,16 +247,8 @@ fn spell_value(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-
-    /// Nodes the scene declares with no parent.
-    fn roots(scene: &str) -> usize {
-        scene
-            .split("[[nodes]]")
-            .skip(1)
-            .filter(|node| !node.split("[nodes.").next().unwrap_or("").contains("parent ="))
-            .count()
-    }
     use super::*;
+    use crate::scene_check::loaded;
 
     const PROJECT: &str = r#"{
       "defs": { "tilesets": [
@@ -297,7 +293,14 @@ mod tests {
         assert_eq!(out.layers, 1);
         let scene = written(&out.files, "scenes/cave.toml");
         assert!(scene.contains("[nodes.tilemap]"), "{scene}");
-        assert_eq!(roots(&scene), 1, "a scene has one root: {scene}");
+        assert_eq!(
+            loaded(&scene),
+            vec![(
+                "cave".to_string(),
+                vec!["Walls".to_string(), "Chest".to_string()]
+            )],
+            "the level is the one root, over its layers and entities: {scene}"
+        );
         assert!(
             scene.contains("[3, -1],") && scene.contains("[-1, 2],"),
             "a tile sits where its pixel place puts it: {scene}"
