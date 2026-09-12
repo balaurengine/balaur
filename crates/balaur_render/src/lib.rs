@@ -492,6 +492,22 @@ impl Shape2d {
 /// half of that conversion: at the default, a 100px image is one unit across.
 pub const DEFAULT_PIXELS_PER_UNIT: f32 = 100.0;
 
+/// Whether the system is in dark mode, asked of the platform rather than of
+/// the frame's facts: the shell publishes it before a project loads, so a
+/// script's `init` can theme itself. A build with no window backend has
+/// nothing to ask and says false.
+#[cfg(feature = "kiss3d")]
+#[must_use]
+pub fn dark_mode() -> bool {
+    device::dark_mode()
+}
+
+#[cfg(not(feature = "kiss3d"))]
+#[must_use]
+pub const fn dark_mode() -> bool {
+    false
+}
+
 /// A grid of equally sized frames packed into one texture.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SpriteSheet2d {

@@ -42,6 +42,13 @@ pub(crate) mod words {
         DIALOG, WINDOW, SEPARATOR, CODE, STACK,
     ];
 
+    pub(crate) const CONTAIN: &str = "contain";
+    pub(crate) const COVER: &str = "cover";
+    /// How a picture sits in the box it was given; empty is the picture's own
+    /// size, which is what decides the box instead.
+    pub(crate) const NONE_FIT: &str = "none";
+    pub(crate) const FITS: &[&str] = &["", CONTAIN, COVER, FILL, NONE_FIT];
+
     pub(crate) const TOP_LEFT: &str = "top_left";
     pub(crate) const TOP_RIGHT: &str = "top_right";
     pub(crate) const BOTTOM_LEFT: &str = "bottom_left";
@@ -210,6 +217,7 @@ pub(crate) mod keys {
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const SIZE: &str = "size";
+    pub(crate) const FIT: &str = "fit";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const SOURCE: &str = "source";
     pub(crate) const SPEED: &str = "speed";

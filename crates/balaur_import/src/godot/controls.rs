@@ -475,6 +475,31 @@ fn picture(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped
     if class == "TextureButton" {
         out.note("TextureButton: name its `on_click` handler, which is what makes a picture a button here");
     }
+    if class == "TextureRect" {
+        fit(section, out);
+    }
+}
+
+/// Godot's `expand_mode` and `stretch_mode` as one `fit`. Keeping its size
+/// (mode 0) is what a picture does here anyway, and says nothing.
+fn fit(section: &Section, out: &mut Mapped) {
+    let mode = |key: &str| section.field(key).and_then(Value::as_i64).unwrap_or(0);
+    if mode("expand_mode") == 0 {
+        return;
+    }
+    // StretchMode: 0 scale, 1 tile, 2 keep, 3 keep centred, 4 keep aspect,
+    // 5 keep aspect centred, 6 keep aspect covered.
+    let fit = match mode("stretch_mode") {
+        0 => "fill",
+        4 | 5 => "contain",
+        6 => "cover",
+        1 => {
+            out.note("TextureRect tiles its texture, which a widget cannot: it is drawn once");
+            "none"
+        }
+        _ => "none",
+    };
+    out.set("widget", "fit", Toml::String(fit.into()));
 }
 
 /// The node a dialog's OK button becomes, under its `Buttons` row, and its

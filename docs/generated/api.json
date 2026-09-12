@@ -4204,6 +4204,19 @@
         "group": "paint",
         "type": "string"
       },
+      "fit": {
+        "default": "",
+        "description": "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead",
+        "group": "value",
+        "options": [
+          "",
+          "contain",
+          "cover",
+          "fill",
+          "none"
+        ],
+        "type": "enum"
+      },
       "focusable": {
         "default": true,
         "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",

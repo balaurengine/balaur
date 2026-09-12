@@ -638,6 +638,11 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     if let Some(scene) = scene {
         app.set_main_scene(scene.clone());
     }
+    // Before the project loads: a script that themes itself in `init` asks
+    // for this, and the frame that publishes it has not run yet.
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.dark_mode = balaur::render::dark_mode();
+    });
     app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));

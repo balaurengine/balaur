@@ -91,7 +91,7 @@ pub(crate) fn keep_awake(on: bool) {
 }
 
 #[cfg(target_os = "macos")]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
     // The system setting first: an offscreen run has no application to ask,
     // and one that has not opened a window yet answers with the default
     // light appearance whatever the desktop is set to.
@@ -111,7 +111,7 @@ fn dark_mode() -> bool {
 }
 
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
     web::dark_mode()
 }
 
@@ -119,7 +119,7 @@ fn dark_mode() -> bool {
     target_os = "macos",
     all(target_family = "wasm", not(target_os = "emscripten"))
 )))]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
     false
 }
 

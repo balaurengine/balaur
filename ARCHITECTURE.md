@@ -607,6 +607,10 @@ write. It walks widgets in scene order and wraps.
 - Whether a widget is a stop is **derived, not declared** — focus exists to
   activate something. `focusable = false` takes a candidate out; it cannot put
   one in. Hidden, freed or unfocusable releases focus.
+- An `image` states how it sits in its box with `fit` — `contain`, `cover`,
+  `fill` or `none`, CSS's object-fit and Godot's expand and stretch modes.
+  Without one the picture's own size decides the box, which is the default a
+  scene written by hand wants.
 - A button fills the box the layout handed it and never hugs its caption
   inside one: a button in a column is as wide as the column, as it is in a
   browser and in Godot.

@@ -903,3 +903,28 @@ fn a_stack_lays_its_children_over_one_another() {
         "a child anchored `fill` takes the whole box: {whole:?}"
     );
 }
+
+/// `fit` is Godot's expand and stretch modes: a picture with one is sized by
+/// the box it was given rather than sizing that box itself.
+#[test]
+fn a_picture_with_a_fit_takes_the_box_it_was_given() {
+    let (dir, app) = app();
+    let mut picture = image::RgbaImage::new(200, 40);
+    for pixel in picture.pixels_mut() {
+        *pixel = image::Rgba([0, 128, 255, 255]);
+    }
+    picture.save(dir.path().join("wide.png")).unwrap();
+    let row = add_widget(&app, &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into());
+    let params = toml::toml! { kind = "image" source = "wide.png" fit = "contain" width = 40.0 };
+    let fitted = add_child_widget(&app, row, "Fitted", &params.into());
+    let own = toml::toml! { kind = "image" source = "wide.png" };
+    let native = add_child_widget(&app, row, "Native", &own.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity| balaur_ui::widget_rect(entity).expect("the widget was placed");
+    let (fitted, native) = (rect(fitted), rect(native));
+    assert!(
+        fitted.width() < native.width(),
+        "the fitted picture does not ask for the image's own width: {fitted:?} {native:?}"
+    );
+}

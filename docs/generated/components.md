@@ -1401,7 +1401,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 67 properties
+`ui` · 68 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1420,6 +1420,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>disabled</code></td><td>bool</td><td><code>false</code></td><td>Grey the widget out and swallow its clicks</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
+<tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>font</code></td><td>enum</td><td><code>ui</code></td><td>Which of the theme&#x27;s families the widget draws in One of <code>ui</code>, <code>mono</code>, <code>heading</code>, <code>icon</code>.</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>

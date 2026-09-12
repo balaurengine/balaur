@@ -720,6 +720,20 @@ pub(crate) fn across(align: &str) -> egui::Align {
 
 /// The box an image takes: what it states, else its own size, keeping the
 /// aspect where only one axis is given.
+/// Where a picture with a `fit` sits in the box it was given: its own shape
+/// kept inside it, kept over it, stretched to it, or its own size centred.
+fn fitted(fit: &str, box_rect: egui::Rect, native: egui::Vec2) -> egui::Rect {
+    if fit == w::FILL || native.x <= 0.0 || native.y <= 0.0 {
+        return box_rect;
+    }
+    let scale = match fit {
+        w::CONTAIN => (box_rect.width() / native.x).min(box_rect.height() / native.y),
+        w::COVER => (box_rect.width() / native.x).max(box_rect.height() / native.y),
+        _ => 1.0,
+    };
+    egui::Rect::from_center_size(box_rect.center(), native * scale)
+}
+
 pub(crate) fn image_size(stated: egui::Vec2, native: egui::Vec2) -> egui::Vec2 {
     let aspect = if native.y > 0.0 {
         native.x / native.y
@@ -827,11 +841,26 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 if response.clicked() {
                     at.clicked.push(entity);
                 }
-            } else if ui
-                .add(egui::Image::new((texture.id(), size)).sense(sense))
-                .clicked()
-            {
-                at.clicked.push(entity);
+            } else if widget.fit.is_empty() {
+                if ui
+                    .add(egui::Image::new((texture.id(), size)).sense(sense))
+                    .clicked()
+                {
+                    at.clicked.push(entity);
+                }
+            } else {
+                let box_size = box_of(widget, at.assigned, at.scale).max(size);
+                let (rect, response) = ui.allocate_exact_size(box_size, sense);
+                let held = fitted(&widget.fit, rect, texture.size_vec2());
+                ui.painter().image(
+                    texture.id(),
+                    held,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+                if response.clicked() {
+                    at.clicked.push(entity);
+                }
             }
         }
         Err(err) => warn_once(&widget.source, &err),

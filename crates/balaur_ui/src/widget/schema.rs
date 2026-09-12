@@ -56,6 +56,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
                     (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::SOURCE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights" }"#),
+                    (k::FIT, &format!(r#"{{ type = "enum", default = "", options = [{}], description = "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead", group = "value" }}"#, v::options(w::FITS))),
                     (k::MARKUP, r#"{ type = "bool", default = false, description = "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text", group = "type" }"#),
                     (k::FONT_WEIGHT, r#"{ type = "float", default = 400.0, min = 100.0, max = 900.0, description = "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold", group = "type" }"#),
                     (k::FONT_STYLE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Slant, from an italic face the project ships", group = "type" }}"#, w::NORMAL, v::options(w::FONT_STYLES))),
@@ -219,6 +220,7 @@ fn text_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::SOURCE.into(),
         toml::Value::String(widget.source.to_string()),
     );
+    map.insert(k::FIT.into(), toml::Value::String(widget.fit.to_string()));
     map.insert(k::MARKUP.into(), toml::Value::Boolean(widget.markup));
     map.insert(
         k::FONT_WEIGHT.into(),
@@ -476,6 +478,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         showing: r.flag(k::SHOWING),
         text_align: s(k::TEXT_ALIGN),
         source: s(k::SOURCE),
+        fit: s(k::FIT),
         markup: r.flag(k::MARKUP),
         font_weight: f(k::FONT_WEIGHT),
         font_style: s(k::FONT_STYLE),

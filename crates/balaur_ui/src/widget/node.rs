@@ -94,6 +94,10 @@ pub struct Widget {
     pub text_align: SmolStr,
     /// A project-relative image for an `image` widget.
     pub source: SmolStr,
+    /// How the picture sits in the box it was given: `contain`, `cover`,
+    /// `fill` or `none`. Empty is the picture's own size, which then decides
+    /// the box rather than the other way round.
+    pub fit: SmolStr,
     /// Whether the text carries inline marks: `[b]`, `[i]`, `[color=#hex]`,
     /// `[center]`, `[wave]`, `[img=path width=N]`.
     pub markup: bool,
