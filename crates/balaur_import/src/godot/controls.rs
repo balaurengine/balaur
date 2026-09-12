@@ -134,6 +134,12 @@ pub(crate) fn widget(
     ) {
         out.set("widget", "fill", Toml::String("#00000000".into()));
         out.set("widget", "stroke", Toml::String("#00000000".into()));
+        // Nor do they inset what is inside them: a MarginContainer's own
+        // margins are the constants `spacing` already read, and a panel's
+        // padding is the theme's business, not a bare box's.
+        if !out.has("widget", "padding") {
+            out.set("widget", "padding", Toml::Float(0.0));
+        }
     }
     kind_properties(class, section, res, out);
     if matches!(class, "AcceptDialog" | "ConfirmationDialog") {

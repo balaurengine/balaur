@@ -165,6 +165,15 @@ impl Mapped {
         }
     }
 
+    /// Whether a key has already been written, so a default does not land
+    /// over what the scene said.
+    pub(crate) fn has(&self, component: &str, key: &str) -> bool {
+        self.components
+            .get(component)
+            .and_then(Toml::as_table)
+            .is_some_and(|table| table.contains_key(key))
+    }
+
     pub(crate) fn touch(&mut self, component: &str) {
         self.components
             .entry(component)
