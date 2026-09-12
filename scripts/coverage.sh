@@ -29,9 +29,9 @@ cargo llvm-cov nextest \
 # Extensions are off by default, so the C ABI and the dlopen path compiled
 # above without a line of either running: their tests are behind the flag.
 cargo llvm-cov nextest -p balaur_plugin --features dylib \
-  --no-fail-fast --no-report || status=$?
+  --no-fail-fast --no-report --no-clean || status=$?
 cargo llvm-cov nextest -p balaur --features extensions \
-  --no-fail-fast --no-report || status=$?
+  --no-fail-fast --no-report --no-clean || status=$?
 
 # The CLI is a binary, and e2e.sh spawns it: exporting the profile environment
 # is what makes those runs record anything. One example walks every command.

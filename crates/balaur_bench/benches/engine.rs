@@ -35,7 +35,8 @@ value = [1.0, 0.0, 0.0]
 /// Transform propagation over a tree, which runs every frame for every node.
 fn propagate(c: &mut Criterion) {
     let mut group = c.benchmark_group("propagate_transforms");
-    for count in [1000usize] {
+    {
+        let count = 1000usize;
         let project = Project::new(Backend::Rune, EMPTY).unwrap();
         let app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
@@ -56,9 +57,14 @@ fn propagate(c: &mut Criterion) {
 }
 
 /// Spawning nodes, which a game does whenever it instantiates anything.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
 fn spawn(c: &mut Criterion) {
     let mut group = c.benchmark_group("spawn_nodes");
-    for count in [1000usize] {
+    {
+        let count = 1000usize;
         let project = Project::new(Backend::Rune, EMPTY).unwrap();
         let app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
@@ -88,9 +94,14 @@ fn spawn(c: &mut Criterion) {
 
 /// Instantiating a scene document: parsing plus spawning, which is what
 /// loading a level costs.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
 fn instantiate_scene(c: &mut Criterion) {
     let mut group = c.benchmark_group("instantiate_scene");
-    for count in [500usize] {
+    {
+        let count = 500usize;
         let mut doc = String::new();
         for i in 0..count {
             use std::fmt::Write as _;
@@ -137,7 +148,8 @@ fn instantiate_scene(c: &mut Criterion) {
 /// clear whether to optimise the engine or accept the TOML crate's cost.
 fn parse_scene(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse_scene_only");
-    for count in [500usize] {
+    {
+        let count = 500usize;
         let mut doc = String::new();
         for i in 0..count {
             use std::fmt::Write as _;
@@ -159,7 +171,8 @@ fn parse_scene(c: &mut Criterion) {
 fn physics_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_step");
     for body in ["body2d", "body3d"] {
-        for count in [1000usize] {
+        {
+        let count = 1000usize;
             let project = Project::new(Backend::Rune, EMPTY).unwrap();
             let mut app = app(Backend::Rune, &project).unwrap();
             let root = app.engine.root();
@@ -180,7 +193,8 @@ fn physics_step(c: &mut Criterion) {
 /// Sampling clips onto nodes, which every animated scene pays every frame.
 fn animation_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("animation_step");
-    for count in [1000usize] {
+    {
+        let count = 1000usize;
         let project = Project::new(Backend::Rune, EMPTY).unwrap();
         std::fs::create_dir_all(project.path().join("animations")).unwrap();
         std::fs::write(project.path().join("animations/bench.toml"), CLIP).unwrap();
@@ -207,7 +221,8 @@ fn animation_step(c: &mut Criterion) {
 /// timed, and `node_ops_rust/tick_empty` is what it is worth reading against.
 fn event_delivery(c: &mut Criterion) {
     let mut group = c.benchmark_group("event_delivery");
-    for count in [1000usize] {
+    {
+        let count = 1000usize;
         let project = Project::new(Backend::Rune, EMPTY).unwrap();
         let mut app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
