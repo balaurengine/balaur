@@ -166,11 +166,18 @@ cannot describe an engine that does not exist.
 
 ## Performance
 
-Budgets live in `crates/balaur_bench/budgets.toml`, one ceiling per benchmark,
-each ten times a measured run and written by `scripts/bench.py --record`.
-`scripts/bench.py --check` reports against them. Nothing in CI gates on them: a
-shared, throttled runner times a benchmark badly, and a gate that cries wolf
-gets ignored. Read them when a change should have moved a number.
+Readings live in `crates/balaur_bench/budgets.toml`, one per benchmark, written
+by `scripts/bench.py --record` along with a `[machine]` table naming the CPU,
+core count, OS, toolchain and commit they came off. A number with no machine
+beside it compares to nothing.
+
+Two ways to read them back. `scripts/bench.py --compare` is the one to use on
+the machine that recorded them: it prints every benchmark's shift, worst first,
+and fails on anything a fifth slower than its reading. `scripts/bench.py
+--check` is the loose one, against a ceiling ten times each reading, for a
+machine that is not the recorded one. Nothing in CI gates on either: a shared,
+throttled runner times a benchmark badly, and a gate that cries wolf gets
+ignored.
 
 `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a real run, case for
 case against Godot with Rapier, Box2D v3 and Jolt.

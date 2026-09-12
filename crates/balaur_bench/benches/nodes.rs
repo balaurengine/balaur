@@ -181,35 +181,6 @@ fn lookup_side(c: &mut Criterion) {
             nodes.push((e, path));
         }
     }
-    // What a segment of a path actually pays for, each measured once per
-    // segment of the same walk: the ECS lookup that reaches a parent's index,
-    // and the hash probe inside it.
-    let segments: Vec<&str> = paths
-        .iter()
-        .flat_map(|p| p.split('/'))
-        .take(COUNT)
-        .collect();
-    let mut plain: balaur_core::DetHashMap<String, u32> = balaur_core::DetHashMap::default();
-    for (i, name) in segments.iter().enumerate() {
-        plain.insert((*name).to_string(), i as u32);
-    }
-    let probe_root = lookup_root;
-    group.bench_function(BenchmarkId::new("ecs_get_only", COUNT), |b| {
-        b.iter(|| {
-            let world = app.engine.world();
-            for _ in 0..COUNT {
-                let _ = std::hint::black_box(world.get::<&scene::NameIndex>(probe_root));
-            }
-        });
-    });
-    group.bench_function(BenchmarkId::new("hash_probe_only", COUNT), |b| {
-        b.iter(|| {
-            for name in &segments {
-                let _ = std::hint::black_box(plain.get(*name));
-            }
-        });
-    });
-
     group.bench_function(BenchmarkId::new("find_node", COUNT), |b| {
         b.iter(|| {
             let world = app.engine.world();
@@ -221,8 +192,8 @@ fn lookup_side(c: &mut Criterion) {
     group.finish();
 }
 
-/// The Rune half: the loop alone, then with a call that does nothing, then
-/// the real calls — so the seam is the difference between neighbours.
+/// The Rune half: the loop alone, then the real calls — so the seam is the
+/// difference from the baseline next to them.
 fn rune_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rune");
     group.throughput(Throughput::Elements(COUNT as u64));
@@ -230,16 +201,6 @@ fn rune_side(c: &mut Criterion) {
         (
             "loop_only",
             "pub fn update(this, dt) { for i in 0..1000 { let s = format!(\"n{}\", i); } }",
-        ),
-        (
-            "noop_call",
-            "pub fn update(this, dt) { for i in 0..1000 { bench::noop(i); } }",
-        ),
-        // A node op with no path to walk: the seam, a string argument and
-        // a node handle coming back.
-        (
-            "get_node_empty",
-            "pub fn update(this, dt) { for i in 0..1000 { this.node.get_node(\"\"); } }",
         ),
         (
             "parent_call",

@@ -47,7 +47,7 @@ impl Body {
 fn update_across_nodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("update_per_node");
     for body in [Body::Empty, Body::State, Body::NodeApi] {
-        for count in [100usize, 1000] {
+        for count in [1000usize] {
             group.throughput(Throughput::Elements(count as u64));
             for backend in Backend::ALL {
                 let project = Project::new(backend, &source(backend, body)).unwrap();
@@ -195,10 +195,9 @@ fn compile_second_script(c: &mut Criterion) {
 /// is converted to a neutral value and back, so a map is not a free parameter.
 fn binding_arg_shapes(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_arg");
-    let shapes: [(&str, &str); 4] = [
+    // A scalar and a table: the two shapes the seam converts differently.
+    let shapes: [(&str, &str); 2] = [
         ("int", "42"),
-        ("str", "\"a moderate string\""),
-        ("list", "[1, 2, 3]"),
         ("map", "#{x: 1.0, y: 2.0, name: \"widget\"}"),
     ];
     // A literal is rebuilt by the script on every call, so those numbers are
