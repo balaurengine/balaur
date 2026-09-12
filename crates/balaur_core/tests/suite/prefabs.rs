@@ -133,20 +133,39 @@ tint = "#ff0000"
 size = 5.0
 "##,
     );
-    assert_eq!(label(&app, "Enemy"), Some(String::from("body")), "the root's components");
-    assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("arm")), "the root's children");
+    assert_eq!(
+        label(&app, "Enemy"),
+        Some(String::from("body")),
+        "the root's components"
+    );
+    assert_eq!(
+        label(&app, "Enemy/Arm"),
+        Some(String::from("arm")),
+        "the root's children"
+    );
     assert_eq!(label(&app, "Enemy/Body"), None, "no second level");
     assert_eq!(stable_id(&app, "Enemy"), Some(String::from("n_enemy")));
     let world = app.engine.world();
     let enemy = find_node(&world, app.engine.root(), "Enemy").unwrap();
-    let tint = world.get::<&balaur_core::scene::Appearance>(enemy).unwrap().tint;
-    assert!((tint.y).abs() < 1e-6, "the `.` override reached the node itself");
+    let tint = world
+        .get::<&balaur_core::scene::Appearance>(enemy)
+        .unwrap()
+        .tint;
+    assert!(
+        (tint.y).abs() < 1e-6,
+        "the `.` override reached the node itself"
+    );
     let arm = find_node(&world, enemy, "./Arm").unwrap();
     assert!(
         find_node(&world, arm, "Patch").is_some(),
         "a prefab node parented by a path from the prefab's root, merged away"
     );
-    let size = world.get::<&Marker>(arm).unwrap().0.get("size").and_then(toml::Value::as_float);
+    let size = world
+        .get::<&Marker>(arm)
+        .unwrap()
+        .0
+        .get("size")
+        .and_then(toml::Value::as_float);
     assert_eq!(size, Some(5.0));
 }
 

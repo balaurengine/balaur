@@ -154,7 +154,8 @@ fn a_required_module_carries_its_constants() {
     let app = app_in(dir.path());
     let node = spawn(&app, "User");
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(node), "user.rn").unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
     let rune = host
         .as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
@@ -869,7 +870,8 @@ fn a_task_waits_on_the_next_event_and_gets_its_payload() {
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Waiter");
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(node), "waiter.rn").unwrap();
+    host.attach(balaur_core::node_id_of(node), "waiter.rn")
+        .unwrap();
     app.tick(1.0 / 60.0);
     balaur_core::events::emit(&app.engine, "opened", balaur_script::Value::Num(7.0));
     app.tick(1.0 / 60.0);
@@ -907,8 +909,10 @@ fn a_task_awaits_another_nodes_method_and_gets_its_result() {
     let door = spawn(&app, "Door");
     let caller = spawn(&app, "Caller");
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(door), "door.rn").unwrap();
-    host.attach(balaur_core::node_id_of(caller), "caller.rn").unwrap();
+    host.attach(balaur_core::node_id_of(door), "door.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(caller), "caller.rn")
+        .unwrap();
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
     }
@@ -949,15 +953,33 @@ fn values_filed_on_a_node_are_read_back_by_another_script() {
     let filer = spawn(&app, "Filer");
     let reader = spawn(&app, "Reader");
     let host = app.engine.script_host().unwrap();
-    host.attach(balaur_core::node_id_of(filer), "filer.rn").unwrap();
-    host.attach(balaur_core::node_id_of(reader), "reader.rn").unwrap();
+    host.attach(balaur_core::node_id_of(filer), "filer.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(reader), "reader.rn")
+        .unwrap();
     app.tick(1.0 / 60.0);
     let rune = host
         .as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
         .unwrap();
-    assert_eq!(rune.number_field(reader, "fade"), Some(6.0), "the index writes one key");
-    assert_eq!(rune.number_field(reader, "kept"), Some(1.0), "and leaves the rest");
-    assert_eq!(rune.number_field(reader, "missing"), Some(1.0), "an unfiled key is nil");
-    assert_eq!(rune.number_field(reader, "same"), Some(1.0), "node handles compare");
+    assert_eq!(
+        rune.number_field(reader, "fade"),
+        Some(6.0),
+        "the index writes one key"
+    );
+    assert_eq!(
+        rune.number_field(reader, "kept"),
+        Some(1.0),
+        "and leaves the rest"
+    );
+    assert_eq!(
+        rune.number_field(reader, "missing"),
+        Some(1.0),
+        "an unfiled key is nil"
+    );
+    assert_eq!(
+        rune.number_field(reader, "same"),
+        Some(1.0),
+        "node handles compare"
+    );
 }

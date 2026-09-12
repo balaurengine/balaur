@@ -609,7 +609,11 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let mut scene_root: Option<(&str, Entity)> = None;
     for (index, node) in doc.nodes.iter().enumerate() {
         let parent = resolve_parent(eng, node, root, scene_root, &by_id)?;
-        let merged = if node.parent.is_empty() { merge_into.take() } else { None };
+        let merged = if node.parent.is_empty() {
+            merge_into.take()
+        } else {
+            None
+        };
         // One root, as a Godot scene and a Unity prefab have: it is what a
         // path, a stable id and an instance all address.
         if node.parent.is_empty() && scene_root.is_some() {
@@ -649,7 +653,13 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
 }
 
 /// Build the prefab `node` names into `entity`, which is its root.
-fn instance(eng: &Engine, node: &SceneNode, id: &str, entity: Entity, build: &mut Build) -> Result<()> {
+fn instance(
+    eng: &Engine,
+    node: &SceneNode,
+    id: &str,
+    entity: Entity,
+    build: &mut Build,
+) -> Result<()> {
     build.merge_into = Some(entity);
     let prefab = node.instance.as_deref().unwrap_or_default();
     let outcome = build_instance(eng, node, id, entity, build)
@@ -905,14 +915,16 @@ fn resolve_parent(
             .then(|| scene::find_node(&world, entity, rest))
             .flatten()
     });
-    from_root.or_else(|| scene::find_node(&world, root, &node.parent)).ok_or_else(|| {
-        anyhow!(
-            "node '{}' names parent '{}', which no earlier node declares as an id \
+    from_root
+        .or_else(|| scene::find_node(&world, root, &node.parent))
+        .ok_or_else(|| {
+            anyhow!(
+                "node '{}' names parent '{}', which no earlier node declares as an id \
              or a path of names",
-            node.name,
-            node.parent
-        )
-    })
+                node.name,
+                node.parent
+            )
+        })
 }
 
 /// Give every node a unique id, repairing what the file got wrong.

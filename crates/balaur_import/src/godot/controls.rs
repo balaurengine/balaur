@@ -5,10 +5,10 @@
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::godot::{Section, Value};
 use crate::godot::nodes::{
     Family, Mapped, Resources, colour, family, floats, hex, image_path, pair,
 };
+use crate::godot::{Section, Value};
 
 /// Each `Control` subclass, and the widget kind it becomes.
 const WIDGET_KINDS: &[(&str, &str)] = &[

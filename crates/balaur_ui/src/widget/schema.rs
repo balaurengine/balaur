@@ -152,10 +152,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ON_CLICK.into(),
         toml::Value::String(widget.on_click.to_string()),
     );
-    map.insert(
-        k::PADDING.into(),
-        four(widget.padding),
-    );
+    map.insert(k::PADDING.into(), four(widget.padding));
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
     map.insert(
         k::ALIGN.into(),

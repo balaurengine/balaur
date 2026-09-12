@@ -14,9 +14,9 @@ use anyhow::Result;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::godot::{Document, Section, Value};
 use crate::godot::anim::{join, node_path};
 use crate::godot::nodes::{Family, Mapped, Resources, family, map};
+use crate::godot::{Document, Section, Value};
 
 /// A converted scene, the files written beside it, and what did not carry.
 pub(crate) struct Converted {
@@ -594,8 +594,7 @@ impl Walk<'_> {
             Some("") => name.to_string(),
             Some(p) => format!("{p}/{name}"),
         };
-        let Some(clips) =
-            crate::godot::anim::convert(section, &path, &self.classes, &self.res)
+        let Some(clips) = crate::godot::anim::convert(section, &path, &self.classes, &self.res)
         else {
             return;
         };
@@ -715,7 +714,11 @@ impl Walk<'_> {
         if let Some(id) = self.ids.get(parent) {
             return id.clone();
         }
-        let root = self.nodes.first().and_then(|n| n.get("name")).and_then(Toml::as_str);
+        let root = self
+            .nodes
+            .first()
+            .and_then(|n| n.get("name"))
+            .and_then(Toml::as_str);
         match root {
             Some(root) => format!("{root}/{parent}"),
             None => String::new(),
@@ -800,8 +803,10 @@ fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
 /// The class of the node `inner` names inside `prefab`, looking through the
 /// prefabs it instances in turn; empty when nothing there declares one.
 fn class_in(res: &Resources<'_>, prefab: &Outline, inner: &str, depth: usize) -> String {
-    find_in(res, prefab, inner, depth, &|o, p| o.classes.get(p).filter(|c| !c.is_empty()).cloned())
-        .unwrap_or_default()
+    find_in(res, prefab, inner, depth, &|o, p| {
+        o.classes.get(p).filter(|c| !c.is_empty()).cloned()
+    })
+    .unwrap_or_default()
 }
 
 /// The Godot script the node `inner` names inside `prefab` carries.

@@ -114,7 +114,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// is the result of a call that finished here, and `None` means the
     /// method suspended and the host wakes `done` with its result when it
     /// returns. A backend with no suspension finishes every call here.
-    fn call_on_async(&self, node: NodeId, method: &str, args: &[Value], done: u64) -> Option<Value> {
+    fn call_on_async(
+        &self,
+        node: NodeId,
+        method: &str,
+        args: &[Value],
+        done: u64,
+    ) -> Option<Value> {
         let _ = done;
         Some(self.call_on(node, method, args).unwrap_or(Value::Nil))
     }

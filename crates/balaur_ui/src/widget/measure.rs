@@ -104,9 +104,7 @@ impl<'a> Measure<'a> {
             w::DRAW => crate::widget::arrange::measured_of(self.arena[index].entity),
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
-            w::IMAGE if !widget.fit.is_empty() => {
-                vec2(widget.width, widget.height) * self.scale
-            }
+            w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height) * self.scale,
             // A picture knows its own size, so a row can divide by it.
             w::IMAGE => {
                 crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)

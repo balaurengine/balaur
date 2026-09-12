@@ -14,8 +14,8 @@ use std::fmt::Write as _;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::godot::{Document, Section, Value};
 use crate::godot::nodes::{Mapped, Resources, colour, hex, image_path};
+use crate::godot::{Document, Section, Value};
 
 /// A fill or an outline that draws nothing.
 const CLEAR: &str = "#00000000";

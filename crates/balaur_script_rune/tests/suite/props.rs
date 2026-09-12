@@ -535,7 +535,10 @@ fn a_node_export_arrives_as_the_node_it_names() {
         script,
     );
     let hunter = node_named(&app, "Scene/Hunter");
-    assert_eq!(text(&app, hunter, "seen_target"), Some(String::from("Prey")));
+    assert_eq!(
+        text(&app, hunter, "seen_target"),
+        Some(String::from("Prey"))
+    );
     assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
 }
 

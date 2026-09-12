@@ -106,7 +106,7 @@ fn place(S, name, parts) {
     let entry = #{
         id: model::fresh_id(S.doc, unique),
         name: unique,
-        parent: "",
+        parent: model::root_id(S.doc),
         transform: #{ position: drop_point(S) },
     };
     for (key, value) in parts.iter() {

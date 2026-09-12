@@ -963,7 +963,10 @@ fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
     };
     tick(&mut app, 6);
     let (shown, alpha) = appearance(&app);
-    assert!(shown && alpha < 1.0 && alpha > 0.0, "fading: {shown} {alpha}");
+    assert!(
+        shown && alpha < 1.0 && alpha > 0.0,
+        "fading: {shown} {alpha}"
+    );
     tick(&mut app, 30);
     assert_eq!(appearance(&app), (false, 1.0), "hidden, and opaque again");
 }

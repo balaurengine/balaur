@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::godot::{Section, Value};
 use crate::godot::nodes::{Family, PIXELS_PER_UNIT, Resources, colour, family, floats};
+use crate::godot::{Section, Value};
 
 /// The clip file a player's libraries made, and what would not carry.
 pub(crate) struct Clips {

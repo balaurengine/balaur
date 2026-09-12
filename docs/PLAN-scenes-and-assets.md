@@ -21,9 +21,9 @@
 - `sprite` draws a sheet by frame index and a clip can key `sprite/frame`.
   Nothing reads an `.aseprite` file; the artist exports a PNG and types the
   grid by hand.
-- Promoting a subtree to a prefab file is still missing, and wants a decision
-  first: with a prefab's roots becoming the instance node's children,
-  promoting `X` gives `X` (the instance) containing `X` (the prefab's root).
+- Promoting a subtree to a prefab file is still missing. A prefab's root and
+  the node that names it are one node, so promoting `X` gives one `X` back,
+  and the decision that blocked this is gone.
 
 ## Stable asset ids and hot reload
 

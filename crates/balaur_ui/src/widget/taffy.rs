@@ -460,11 +460,21 @@ fn sync(
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
         let kept = nodes.entry(key).or_insert_with(|| {
-            kept_of(tree, styled(widget, pad, gap, scale, drawn, fills), index, stamp)
+            kept_of(
+                tree,
+                styled(widget, pad, gap, scale, drawn, fills),
+                index,
+                stamp,
+            )
         });
         // A record can outlive the node it names, when the tree dropped it.
         if tree.style(kept.id).is_err() {
-            *kept = kept_of(tree, styled(widget, pad, gap, scale, drawn, fills), index, stamp);
+            *kept = kept_of(
+                tree,
+                styled(widget, pad, gap, scale, drawn, fills),
+                index,
+                stamp,
+            );
         }
         // Only on a change: `set_style` marks the node dirty, and a shell
         // that is not moving should re-solve nothing. The stamp is what

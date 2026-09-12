@@ -706,7 +706,6 @@ fn named_child(world: &World, parent: Entity, name: &str) -> Option<Entity> {
     }
 }
 
-
 /// Absolute path of a node from the root, for debugging and editor display.
 pub fn node_path(world: &World, entity: Entity) -> String {
     let mut segments = Vec::new();

@@ -422,7 +422,9 @@ impl RuneHost {
         if let (Some(node), Some(component)) = (found, component)
             && balaur_core::components::get(&self.engine, node, component).is_none()
         {
-            tracing::warn!("[{key}] property '{name}' names '{path}', which carries no {component}");
+            tracing::warn!(
+                "[{key}] property '{name}' names '{path}', which carries no {component}"
+            );
         }
         Ok(match (found, component) {
             (Some(node), Some(component)) => rune::to_value(value::component::Component {

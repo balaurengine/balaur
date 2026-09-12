@@ -152,7 +152,6 @@ impl Pad {
             rect.max + vec2(self.right, self.bottom),
         )
     }
-
 }
 
 /// The gap between a container's children, in device pixels: the widget's

@@ -592,10 +592,14 @@ pub fn tiles_tool(S) {
     check(tiles::cell(S, 0, 0) == 40, "the id form holds the tile");
 
     let layers = S.doc.len();
+    // Counted rather than fixed at two: the game's own maps may be under this
+    // parent as well, and they are layers of these two just the same.
+    let beside = tiles::layers(S).len();
     check(tiles::add_layer(S), "a layer is added beside the map");
     check(S.doc.len() == layers + 1, format!("the layer is a new node ({})", S.doc.len()));
     check(tiles::grid(S).len() == 0 || tiles::columns(tiles::grid(S)) == 0, "the layer has no tiles in it");
-    check(tiles::layers(S).len() == 2, format!("both maps are layers of one another ({})", tiles::layers(S).len()));
+    check(tiles::layers(S).len() == beside + 1,
+        format!("both maps are layers of one another ({})", tiles::layers(S).len()));
     check(mirror_resolves(S), "every tilemap node resolves in the mirror");
 
     undo_all(S);
@@ -983,6 +987,24 @@ pub fn instances(S) {
     model::set_component_prop(S, comp, prop, was);
     check(!entry_of(owner, node.at).contains_key(comp),
         format!("a {} back at the prefab's stops being an override", prop));
+
+    // A prefab's root and the node that named it are one node, the way the
+    // engine merges them: the row shows the root's keys and the file, which
+    // the prefab already holds them for, is not given them.
+    let file_rows = #{};
+    for row in model::authored(S.doc) {
+        file_rows[row.get("id").unwrap_or("")] = row;
+    }
+    for row in S.doc {
+        let inherited = util::obj(row.get("inherited").unwrap_or(#{}));
+        let written = util::obj(file_rows.get(row.get("id").unwrap_or("")).unwrap_or(#{}));
+        for (key, _) in inherited.iter() {
+            check(row.contains_key(key),
+                format!("{} shows the prefab root's {}", row.name, key));
+            check(!written.contains_key(key),
+                format!("and the file is not given {} back", key));
+        }
+    }
 
     // Structure is the prefab's.
     let before = S.doc.len();

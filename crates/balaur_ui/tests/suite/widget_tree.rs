@@ -172,22 +172,35 @@ fn a_ticked_check_emits_change_for_its_bindings() {
 #[test]
 fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
     let (_dir, mut app) = app();
-    let go = add_widget(&app, &toml::toml! { kind = "button" text = "Sail" x = 0.0 y = 0.0 }.into());
-    let shut = add_widget(&app, &toml::toml! { kind = "button" text = "Shut" disabled = true }.into());
+    let go = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Sail" x = 0.0 y = 0.0 }.into(),
+    );
+    let shut = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Shut" disabled = true }.into(),
+    );
     let rows = toml::toml! {
         rows = [{ event = "pointer_click", action = "add_variable", target = "sailed", value = 1.0 }]
     };
     for button in [go, shut] {
-        balaur::components::add(&app.engine, button, "bindings", Some(&rows.clone().into())).unwrap();
+        balaur::components::add(&app.engine, button, "bindings", Some(&rows.clone().into()))
+            .unwrap();
     }
     let declared = toml::toml! { sailed = { type = "float", value = 0.0 } };
     balaur_core::variables::declare_from_toml(&app.engine, &declared).unwrap();
     app.tick(1.0 / 60.0);
     assert!(balaur_ui::click(&app.engine, go, false));
-    assert!(!balaur_ui::click(&app.engine, shut, true), "a disabled button takes no click");
+    assert!(
+        !balaur_ui::click(&app.engine, shut, true),
+        "a disabled button takes no click"
+    );
     app.tick(1.0 / 60.0);
     let variables = app.engine.resource::<balaur_core::variables::Variables>();
-    let sailed = variables.borrow().get("sailed").map(balaur_core::variables::as_num);
+    let sailed = variables
+        .borrow()
+        .get("sailed")
+        .map(balaur_core::variables::as_num);
     assert_eq!(sailed, Some(1.0), "one click, from the enabled button");
     assert_eq!(
         balaur_core::events::delivered_from(&app.engine, go, balaur_ui::CLICK_EVENT).len(),
@@ -206,7 +219,10 @@ fn a_toggle_button_stays_down_and_lets_its_group_up() {
             .and_then(|w| w.get("checked").cloned())
             .and_then(|v| v.as_bool())
     };
-    let alone = add_widget(&app, &toml::toml! { kind = "button" text = "Map" toggle = true }.into());
+    let alone = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Map" toggle = true }.into(),
+    );
     let tabs: Vec<_> = ["Food", "Verbs"]
         .into_iter()
         .map(|text| {

@@ -64,9 +64,7 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
             writeln!(
                 out,
                 "theme = {}",
-                quote(&crate::godot::theme::theme_path(&format!(
-                    "{godot}.tres"
-                )))
+                quote(&crate::godot::theme::theme_path(&format!("{godot}.tres")))
             )?;
         }
     }

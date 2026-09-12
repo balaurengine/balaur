@@ -64,8 +64,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
         } else if extension == "gd" {
             let source = std::fs::read_to_string(root.join(&relative))
                 .with_context(|| format!("reading {relative}"))?;
-            let converted =
-                crate::godot::script::convert(&source, &relative, &lookups.classes);
+            let converted = crate::godot::script::convert(&source, &relative, &lookups.classes);
             let target = format!("{}.rn", relative.trim_end_matches(".gd"));
             write(project, &target, &converted.rune, &mut out)?;
             scripts += 1;
@@ -657,7 +656,10 @@ PanelContainer/styles/panel = SubResource("Plain")
         put("store/.gdignore", "");
         std::fs::copy(HULL, dir.path().join("store/shot.png")).unwrap();
         put("scripts/root.gd", SCRIPT);
-        put("scripts/crate.gd", "extends Node2D\n\n@export var weight := 1.0\n");
+        put(
+            "scripts/crate.gd",
+            "extends Node2D\n\n@export var weight := 1.0\n",
+        );
         std::fs::create_dir_all(dir.path().join("art")).unwrap();
         std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
         dir
@@ -741,7 +743,10 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert_eq!(go["widget"]["toggle"].as_bool(), Some(true));
         // A MarginContainer lays its children over one another, and each is
         // placed in the box by its size flags.
-        assert_eq!(node(&scene, "Bars")["widget"]["kind"].as_str(), Some("stack"));
+        assert_eq!(
+            node(&scene, "Bars")["widget"]["kind"].as_str(),
+            Some("stack")
+        );
         assert_eq!(
             node(&scene, "Bottom")["widget"]["anchor"].as_str(),
             Some("center_bottom")

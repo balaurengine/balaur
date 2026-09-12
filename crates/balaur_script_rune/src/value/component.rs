@@ -115,9 +115,10 @@ fn index_access(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextE
     };
     let read = hold_node_fn(eng.clone(), read);
     let write = hold_node_fn(eng.clone(), write);
-    m.associated_function(&Protocol::INDEX_GET, move |this: &Component, key: String| {
-        read_key(this, &key, read)
-    })?;
+    m.associated_function(
+        &Protocol::INDEX_GET,
+        move |this: &Component, key: String| read_key(this, &key, read),
+    )?;
     m.associated_function(
         &Protocol::INDEX_SET,
         move |this: &Component, key: String, value: rune::Value| {
@@ -166,12 +167,7 @@ fn write_key(this: &Component, key: &str, handle: usize, value: &rune::Value) ->
 }
 
 /// `node.<component> = table`: the whole component, as a scene key writes it.
-fn set_whole(
-    node: Node,
-    name: &'static str,
-    handle: usize,
-    value: &rune::Value,
-) -> VmResult<()> {
+fn set_whole(node: Node, name: &'static str, handle: usize, value: &rune::Value) -> VmResult<()> {
     let _scope = CallbackScope::enter();
     let value = match to_neutral(value) {
         Ok(v) => v,

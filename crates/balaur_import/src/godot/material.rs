@@ -12,9 +12,9 @@ use std::rc::Rc;
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
-use crate::godot::{Section, Value};
 use crate::godot::nodes::{Asset, Mapped, Resources, image_path};
 use crate::godot::shader::{Translated, Uniform, field_name, linear};
+use crate::godot::{Section, Value};
 
 /// A shader translated once for the whole import, and where it was written.
 pub(crate) struct Shader {

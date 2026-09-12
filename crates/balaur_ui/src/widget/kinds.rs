@@ -426,8 +426,7 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
     }
     if box_size.x > 0.0 {
-        let shared =
-            (box_size.x - pad.taken().x - gap * (columns as f32 - 1.0)) / columns as f32;
+        let shared = (box_size.x - pad.taken().x - gap * (columns as f32 - 1.0)) / columns as f32;
         cell.x = shared.max(0.0);
     }
     let origin = pad.origin(ui.available_rect_before_wrap().min);
@@ -463,8 +462,16 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let outer = Rect::from_min_size(
         room.min,
         vec2(
-            if box_size.x > 0.0 { box_size.x } else { room.width() },
-            if box_size.y > 0.0 { box_size.y } else { room.height() },
+            if box_size.x > 0.0 {
+                box_size.x
+            } else {
+                room.width()
+            },
+            if box_size.y > 0.0 {
+                box_size.y
+            } else {
+                room.height()
+            },
         ),
     );
     // The frame first, under everything the stack holds, as a container's is.

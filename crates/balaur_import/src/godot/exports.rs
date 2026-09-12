@@ -550,8 +550,13 @@ mod tests {
     #[test]
     fn a_project_class_named_like_a_resource_is_still_a_node() {
         let mut classes = Classes::default();
-        classes.bases.insert("PirateShipAnimation".into(), "Node2D".into());
-        assert_eq!(super::class_kind("PirateShipAnimation", &classes), Some(Kind::Node));
+        classes
+            .bases
+            .insert("PirateShipAnimation".into(), "Node2D".into());
+        assert_eq!(
+            super::class_kind("PirateShipAnimation", &classes),
+            Some(Kind::Node)
+        );
         assert_eq!(super::class_kind("Animation", &classes), Some(Kind::Path));
     }
 

@@ -914,7 +914,10 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         *pixel = image::Rgba([0, 128, 255, 255]);
     }
     picture.save(dir.path().join("wide.png")).unwrap();
-    let row = add_widget(&app, &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into());
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
+    );
     let params = toml::toml! { kind = "image" source = "wide.png" fit = "contain" width = 40.0 };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
     let own = toml::toml! { kind = "image" source = "wide.png" };
@@ -997,7 +1000,12 @@ fn a_theme_spaces_a_column_and_inks_an_icon() {
 fn a_button_fills_the_box_the_layout_gave_it() {
     let (_dir, app) = app();
     let column = add_widget(&app, &toml::toml! { kind = "column" width = 300.0 }.into());
-    let short = add_child_widget(&app, column, "Short", &toml::toml! { kind = "button" text = "Go" }.into());
+    let short = add_child_widget(
+        &app,
+        column,
+        "Short",
+        &toml::toml! { kind = "button" text = "Go" }.into(),
+    );
     let long = add_child_widget(
         &app,
         column,

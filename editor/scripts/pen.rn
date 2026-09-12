@@ -297,7 +297,7 @@ pub fn new_path(S) {
     S.doc.push(#{
         id: model::fresh_id(S.doc, name),
         name: name,
-        parent: "",
+        parent: model::root_id(S.doc),
         transform: #{ position: [0.0, 0.0, 0.0] },
         shape2d: #{ kind: render::SHAPE_POLYLINE, mesh: rel, width: 0.06 },
     });
