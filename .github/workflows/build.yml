@@ -198,7 +198,7 @@ jobs:
           if-no-files-found: error
       - name: Attest what was built
         if: github.event_name == 'push'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/balaur-example-*
 
