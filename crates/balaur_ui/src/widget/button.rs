@@ -140,7 +140,13 @@ fn paint_face(
             ui.painter().rect_filled(disc, disc.height() / 2.0, plate);
         }
         let inner = egui::Rect::from_center_size(disc.center(), size);
-        egui::Image::new((texture, size)).paint_at(ui, inner);
+        // A theme that names an `icon_color` tints the picture with it, the
+        // way Godot's `icon_normal_color` dresses a button's icon.
+        let mut picture = egui::Image::new((texture, size));
+        if let Some(tint) = style.icon_color {
+            picture = picture.tint(tint);
+        }
+        picture.paint_at(ui, inner);
         at_x = disc.max.x + face.gap;
     }
     if let Some(icon) = &face.icon {

@@ -141,7 +141,14 @@ fn floor_or_none(px: f32, scale: f32) -> LengthPercentageAuto {
 /// Everything [`style_of`] and the `fills` override read, hashed into one
 /// number. Must name every input either of them touches: a field left out is
 /// a change that never reaches taffy.
-fn style_key(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<egui::Vec2>) -> u64 {
+fn style_key(
+    widget: &Widget,
+    pad: f32,
+    gap: f32,
+    scale: f32,
+    drawn: bool,
+    fills: Option<egui::Vec2>,
+) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
     let mut hasher = rustc_hash::FxHasher::default();
     widget.visible.hash(&mut hasher);
@@ -155,6 +162,7 @@ fn style_key(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<e
     widget.align.hash(&mut hasher);
     widget.justify.hash(&mut hasher);
     pad.to_bits().hash(&mut hasher);
+    gap.to_bits().hash(&mut hasher);
     scale.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
     fills
@@ -164,8 +172,15 @@ fn style_key(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<e
 }
 
 /// The style a node takes, with the box it was handed already applied.
-fn styled(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<egui::Vec2>) -> Style {
-    let mut want = style_of(widget, pad, scale, drawn);
+fn styled(
+    widget: &Widget,
+    pad: f32,
+    gap: f32,
+    scale: f32,
+    drawn: bool,
+    fills: Option<egui::Vec2>,
+) -> Style {
+    let mut want = style_of(widget, pad, gap, scale, drawn);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -179,7 +194,7 @@ fn styled(widget: &Widget, pad: f32, scale: f32, drawn: bool, fills: Option<egui
     want
 }
 
-fn style_of(widget: &Widget, pad: f32, scale: f32, drawn: bool) -> Style {
+fn style_of(widget: &Widget, pad: f32, gap: f32, scale: f32, drawn: bool) -> Style {
     if !widget.visible {
         return Style {
             display: Display::None,
@@ -216,8 +231,8 @@ fn style_of(widget: &Widget, pad: f32, scale: f32, drawn: bool) -> Style {
             height: floor_or_none(widget.min_height, scale),
         },
         gap: Size {
-            width: length(widget.gap * scale),
-            height: length(widget.gap * scale),
+            width: length(gap),
+            height: length(gap),
         },
         padding: Rect {
             left: length(pad),
@@ -425,9 +440,10 @@ fn sync(
     let theme = crate::widget::theme::theme_of(measure.eng, &widget.theme, theme);
     let look = crate::widget::arena::look_of(arena, index, &theme, scale);
     let pad = crate::widget::arrange::padding_of(widget, &look.style, scale);
+    let gap = crate::widget::arrange::gap_of(widget, &look.style, scale);
     let drawn = crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
     let key = placed.entity.to_bits().get();
-    let stamp = style_key(widget, pad, scale, drawn, fills);
+    let stamp = style_key(widget, pad, gap, scale, drawn, fills);
     // A kind that places its own children is measured as a leaf, and so is an
     // empty container. Neither recurses, so the measure can happen here.
     let owns = is_root || owns_children(&widget.kind);
@@ -436,17 +452,17 @@ fn sync(
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
         let kept = nodes.entry(key).or_insert_with(|| {
-            kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp)
+            kept_of(tree, styled(widget, pad, gap, scale, drawn, fills), index, stamp)
         });
         // A record can outlive the node it names, when the tree dropped it.
         if tree.style(kept.id).is_err() {
-            *kept = kept_of(tree, styled(widget, pad, scale, drawn, fills), index, stamp);
+            *kept = kept_of(tree, styled(widget, pad, gap, scale, drawn, fills), index, stamp);
         }
         // Only on a change: `set_style` marks the node dirty, and a shell
         // that is not moving should re-solve nothing. The stamp is what
         // says so without building a style to compare against.
         if kept.style != stamp {
-            let _ = tree.set_style(kept.id, styled(widget, pad, scale, drawn, fills));
+            let _ = tree.set_style(kept.id, styled(widget, pad, gap, scale, drawn, fills));
             kept.style = stamp;
         }
         // Only on a change, because setting a context marks the node dirty and

@@ -24,6 +24,9 @@ const CLEAR: &str = "#00000000";
 pub(crate) struct Converted {
     pub toml: String,
     pub notes: Vec<String>,
+    /// The font files the theme draws with, project-relative: a face a kind
+    /// names is only a weight here, so the project has to ship it.
+    pub fonts: Vec<String>,
 }
 
 /// Where the theme converted from the `.tres` at `godot` is written: beside
@@ -76,6 +79,7 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
         types.entry(ty).or_default().push((group, item, value));
     }
     let default_size = resource.field("default_font_size").and_then(Value::as_f64);
+    let mut fonts: Vec<String> = Vec::new();
     let mut kinds = toml::Table::new();
     let mut roles = toml::Table::new();
     let mut dropped: BTreeMap<String, usize> = BTreeMap::new();
@@ -88,6 +92,11 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
         let class = base.get(ty).copied().unwrap_or(ty);
         let is_class = kind_of(ty).is_some();
         let mut style = style_of(class, items, res, &mut dropped);
+        for (group, name, value) in items {
+            if *group == "fonts" && *name == "font" {
+                fonts.extend(face_files(value, res));
+            }
+        }
         if style.is_empty() {
             continue;
         }
@@ -134,7 +143,30 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
     }
     let mut text = String::from("# Converted from a Godot Theme by `balaur import`.\n");
     let _ = write!(text, "{}", toml::to_string(&Toml::Table(document)).ok()?);
-    Some(Converted { toml: text, notes })
+    fonts.sort();
+    fonts.dedup();
+    Some(Converted {
+        toml: text,
+        notes,
+        fonts,
+    })
+}
+
+/// The font files behind one theme item: a `FontVariation` names the face it
+/// varies, a `FontFile` is one itself.
+fn face_files(value: &Value, res: &Resources<'_>) -> Vec<String> {
+    if let Some(path) = res.path(value) {
+        return vec![path.to_string()];
+    }
+    let Some(section) = res.sub(value) else {
+        return Vec::new();
+    };
+    section
+        .field("base_font")
+        .and_then(|base| res.path(base))
+        .map(str::to_string)
+        .into_iter()
+        .collect()
 }
 
 /// One type's items as a style table: its resting stylebox, the states over
@@ -166,6 +198,28 @@ fn style_of(
     {
         style.insert("color".into(), color);
     }
+    if let Some(color) = ink("icon_normal_color") {
+        style.insert("icon_color".into(), color);
+    }
+    // Godot's separations are the gap between a container's children; the
+    // one along the axis it stacks is the one a widget reads.
+    if let Some(gap) = item("constants", "separation")
+        .or_else(|| item("constants", "h_separation"))
+        .or_else(|| item("constants", "v_separation"))
+        .and_then(Value::as_f64)
+    {
+        style.insert("gap".into(), Toml::Float(gap.max(0.0)));
+    }
+    // A type drawn in a heavier face is `strong` here: the weight is the
+    // face's, and the chain the project ships is what resolves it.
+    if let Some(font) = item("fonts", "font")
+        && res
+            .sub(font)
+            .and_then(|face| face.field("resource_name").and_then(Value::as_str))
+            .is_some_and(|name| name.contains("bold") || name.contains("black"))
+    {
+        style.insert("strong".into(), Toml::Boolean(true));
+    }
     if let Some(size) = item("font_sizes", "font_size")
         .or_else(|| item("font_sizes", "normal_font_size"))
         .and_then(Value::as_f64)
@@ -196,8 +250,11 @@ fn style_of(
                 | "title_color"
                 | "font_hover_color"
                 | "font_pressed_color"
+                | "icon_normal_color"
         ),
         "font_sizes" => matches!(name, "font_size" | "normal_font_size"),
+        "constants" => matches!(name, "separation" | "h_separation" | "v_separation"),
+        "fonts" => name == "font",
         _ => false,
     };
     for (group, name, _) in items {

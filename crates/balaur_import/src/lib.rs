@@ -51,7 +51,8 @@ pub fn import_file(file: &Path, project: &Path, layers: &[String]) -> Result<Imp
 }
 
 /// `balaur import level.tmx --project game`: the atlas, a `tileset` per
-/// sheet, and a scene of `tilemap` nodes, one per tile layer.
+/// sheet, and a scene rooted at the level, a `tilemap` node per tile layer
+/// under it.
 fn import_level(file: &Path, project: &Path) -> Result<Imported> {
     let stem = import_stem(file)?;
     let ldtk = file
@@ -202,6 +203,20 @@ mod tests {
         "/../balaur_render/tests/fixtures/walk.aseprite"
     );
 
+    const LDTK: &str = r#"{
+      "defs": { "tilesets": [
+        { "uid": 1, "identifier": "Blocks", "relPath": "blocks.png",
+          "tileGridSize": 16, "__cWid": 4 }
+      ]},
+      "levels": [
+        { "identifier": "Cave", "layerInstances": [
+          { "__identifier": "Walls", "__type": "Tiles", "__cWid": 1, "__cHei": 1,
+            "__gridSize": 16, "__tilesetDefUid": 1,
+            "gridTiles": [ { "px": [0, 0], "f": 0, "t": 3 } ]}
+        ]}
+      ]
+    }"#;
+
     /// The importer's three files, parsed by the parsers the engine loads
     /// them with: the sheet as a `sprite_sheet`, every clip as a clip.
     #[test]
@@ -228,6 +243,24 @@ mod tests {
                 .unwrap_or_else(|e| panic!("clip {name} does not parse: {e:#}"));
             assert_eq!(clip.tracks.len(), 1, "clip {name}");
         }
+    }
+
+    /// A level goes to the importer its extension names, and what lands on
+    /// disk is a scene the engine loads: one root, the layers under it.
+    #[test]
+    fn a_ldtk_level_is_routed_by_extension_and_lands_as_a_scene_that_loads() {
+        let project = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("cave.ldtk"), LDTK).unwrap();
+        std::fs::write(source.path().join("blocks.png"), b"not really a png").unwrap();
+        let out = import_file(&source.path().join("cave.ldtk"), project.path(), &[]).unwrap();
+        assert_eq!(out.scene.as_deref(), Some("scenes/cave.toml"));
+        assert!(out.note.contains("1 layer"), "unhelpful: {}", out.note);
+        let scene = std::fs::read_to_string(project.path().join("scenes/cave.toml")).unwrap();
+        assert_eq!(
+            crate::scene_check::loaded(&scene),
+            vec![("cave".to_string(), vec!["Walls".to_string()])]
+        );
     }
 
     #[test]

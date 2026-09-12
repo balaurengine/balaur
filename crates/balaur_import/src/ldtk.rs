@@ -2,8 +2,9 @@
 //!
 //! The `.ldtk` is JSON with a published shape, so it is read here directly
 //! rather than through a generated type: what a project keeps is a `tileset`
-//! per sheet, the atlas beside it, and a scene per level — tile layers as
-//! `tilemap` nodes, entities as nodes with the fields they carried.
+//! per sheet, the atlas beside it, and a scene per level, rooted at that
+//! level: tile layers as `tilemap` nodes under it, entities as nodes with the
+//! fields they carried.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

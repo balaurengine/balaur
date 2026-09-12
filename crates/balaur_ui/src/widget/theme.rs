@@ -84,6 +84,12 @@ pub struct Style {
     pub width: Option<f32>,
     /// The gap either side of a caption, in design pixels.
     pub padding_x: Option<f32>,
+    /// The gap between a container's children, in design pixels: Godot's
+    /// theme separations, which a scene overrides with its own `gap`.
+    pub gap: Option<f32>,
+    /// The ink a control's picture is drawn in — a button's icon — where the
+    /// theme tints it rather than showing the artwork's own colours.
+    pub icon_color: Option<Color32>,
     /// As round as it is tall, whatever `radius` says.
     pub round: Option<bool>,
     /// What replaces this style while the pointer is over the widget, and
@@ -142,6 +148,8 @@ impl Style {
             height: self.height.or(base.height),
             width: self.width.or(base.width),
             padding_x: self.padding_x.or(base.padding_x),
+            gap: self.gap.or(base.gap),
+            icon_color: self.icon_color.or(base.icon_color),
             round: self.round.or(base.round),
             hover: self.hover.clone().or_else(|| base.hover.clone()),
             active: self.active.clone().or_else(|| base.active.clone()),
@@ -301,6 +309,8 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
         height: number(k::HEIGHT).or(square),
         width: number(k::WIDTH).or(square),
         padding_x: number(k::PADDING_X),
+        gap: number(k::GAP),
+        icon_color: body.get(k::ICON_COLOR).and_then(|v| color(v, what, colors)),
         round: flag(k::ROUND),
         // `hover_fill` is the one-line spelling the editor's roles already
         // use; a whole `[x.hover]` table wins over it.

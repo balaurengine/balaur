@@ -31,7 +31,8 @@
   sibling map, every stroke through `history`. No autotile, no bucket, line,
   eyedropper or stamp.
 - `balaur import file.aseprite` writes an atlas, a `sprite_sheet` and a clip
-  per tag; `.glb` writes a scene. Nothing reads `.tmx` or `.ldtk`.
+  per tag; `.glb` writes a scene. A `.tmx` or `.ldtk` writes a tileset per
+  sheet and a scene per level, rooted at that level.
 
 Three constraints the code imposes on everything below:
 
@@ -364,7 +365,7 @@ Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 6. The tileset document tab, behind D24.
 7. Quarter-tile sheets. *Built 2026-09-07.*
 8. Isometric and hexagonal layouts, and the hex rule widget.
-9. Tiled and LDtk import.
+9. Tiled and LDtk import. *Built 2026-09-11.*
 
 ## 7. What CI can prove, and what it cannot
 

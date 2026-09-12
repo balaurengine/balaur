@@ -1,8 +1,8 @@
 //! `balaur import level.tmx`: a Tiled map as the files the editor edits.
 //!
 //! The engine never reads a `.tmx`: what a project keeps is a `tileset` asset
-//! per sheet, the atlas beside it, and a scene of `tilemap` nodes — one per
-//! tile layer, in the order Tiled drew them.
+//! per sheet, the atlas beside it, and a scene rooted at the map, holding one
+//! `tilemap` node per tile layer, in the order Tiled drew them.
 
 use std::fmt::Write as _;
 use std::path::Path;

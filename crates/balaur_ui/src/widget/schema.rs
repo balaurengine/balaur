@@ -34,7 +34,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content", group = "placement" }"#),
                     (k::FONT_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Text size in design pixels; 0 takes the size the role or the kind carries", group = "type" }"#),
                     (k::TEXT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white", group = "paint" }"#),
-                    (k::PADDING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Space inside a container's edge, in design pixels", group = "layout" }"#),
+                    (k::PADDING, r#"{ type = "float", default = -1.0, description = "Space inside a container's edge, in design pixels; below zero takes the theme's own, and a stated zero is no space at all", group = "layout" }"#),
                     (k::GAP, r#"{ type = "float", default = 8.0, min = 0.0, description = "Space between a container's children, in design pixels", group = "layout" }"#),
                     (k::ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a container puts its children across its own direction", group = "layout" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::FOCUSABLE, r#"{ type = "bool", default = true, description = "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be", group = "events" }"#),

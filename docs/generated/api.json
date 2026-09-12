@@ -4455,10 +4455,9 @@
         "type": "strings"
       },
       "padding": {
-        "default": 0.0,
-        "description": "Space inside a container's edge, in design pixels",
+        "default": -1.0,
+        "description": "Space inside a container's edge, in design pixels; below zero takes the theme's own, and a stated zero is no space at all",
         "group": "layout",
-        "min": 0.0,
         "type": "float"
       },
       "padding_x": {

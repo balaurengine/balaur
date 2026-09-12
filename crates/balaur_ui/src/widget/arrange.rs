@@ -92,10 +92,22 @@ pub(crate) fn settle_rects() {
 /// nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
-    let stated = if widget.padding > 0.0 {
+    let stated = if widget.padding >= 0.0 {
         widget.padding
     } else {
         style.padding.unwrap_or(built_in)
+    };
+    stated * scale
+}
+
+/// The gap between a container's children, in device pixels: the widget's
+/// own where it states one, else the theme's entry for its kind, which is
+/// where a converted Godot theme's separations land.
+pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
+    let stated = if widget.gap > 0.0 {
+        widget.gap
+    } else {
+        style.gap.unwrap_or(0.0)
     };
     stated * scale
 }
@@ -252,7 +264,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
     let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget, scale);
-    let gap = widget.gap * scale;
+    let gap = gap_of(&widget, &at.style_of(&widget), scale);
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     let chosen = strip

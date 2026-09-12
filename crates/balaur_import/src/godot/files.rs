@@ -34,14 +34,8 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     write(project, "project.toml", &converted.project_toml, &mut out)?;
     report.section("project.godot", converted.notes);
     // A project's own faces come first in every font chain, from `fonts/`.
-    if let Some(font) = crate::godot::project::custom_font(&document, &uids, root)
-        && let Some(name) = Path::new(&font).file_name()
-    {
-        let target = Path::new("fonts").join(name);
-        std::fs::create_dir_all(project.join("fonts"))?;
-        std::fs::copy(root.join(&font), project.join(&target))
-            .with_context(|| format!("copying the project font {font}"))?;
-        out.files.push(target.to_string_lossy().replace('\\', "/"));
+    if let Some(font) = crate::godot::project::custom_font(&document, &uids, root) {
+        copy_font(root, project, &font, &mut out)?;
     }
 
     let files = walk(root)?;
@@ -178,7 +172,26 @@ fn theme(
         &converted.toml,
         out,
     )?;
+    for font in &converted.fonts {
+        copy_font(root, project, font, out)?;
+    }
     Ok(Some(converted.notes))
+}
+
+/// One face into the project's `fonts/`, where every chain reads it.
+fn copy_font(root: &Path, project: &Path, font: &str, out: &mut Imported) -> Result<()> {
+    let Some(name) = Path::new(font).file_name() else {
+        return Ok(());
+    };
+    let target = Path::new("fonts").join(name);
+    if project.join(&target).exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(project.join("fonts"))?;
+    std::fs::copy(root.join(font), project.join(&target))
+        .with_context(|| format!("copying the font {font}"))?;
+    out.files.push(target.to_string_lossy().replace('\\', "/"));
+    Ok(())
 }
 
 /// The project-wide lookups every scene reads: translation keys, which are
