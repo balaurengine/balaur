@@ -92,8 +92,16 @@ pub(crate) fn keep_awake(on: bool) {
 
 #[cfg(target_os = "macos")]
 fn dark_mode() -> bool {
+    // The system setting first: an offscreen run has no application to ask,
+    // and one that has not opened a window yet answers with the default
+    // light appearance whatever the desktop is set to.
     use objc2_app_kit::NSApplication;
-    use objc2_foundation::MainThreadMarker;
+    use objc2_foundation::{MainThreadMarker, NSString, NSUserDefaults};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let style = defaults.stringForKey(&NSString::from_str("AppleInterfaceStyle"));
+    if let Some(style) = style {
+        return style.to_string().contains("Dark");
+    }
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
