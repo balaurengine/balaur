@@ -269,15 +269,17 @@ fn spacing(section: &Section, out: &mut Mapped) {
     {
         out.set("widget", "gap", Toml::Float(gap.max(0.0)));
     }
+    // A MarginContainer's four margins are the four sides of the padding.
     let margins: Vec<f64> = ["left", "top", "right", "bottom"]
         .iter()
-        .filter_map(|side| number(&format!("theme_override_constants/margin_{side}")))
+        .map(|side| {
+            number(&format!("theme_override_constants/margin_{side}"))
+                .unwrap_or(0.0)
+                .max(0.0)
+        })
         .collect();
-    if let Some(most) = margins.iter().copied().reduce(f64::max) {
-        out.set("widget", "padding", Toml::Float(most.max(0.0)));
-        if margins.iter().any(|m| (m - most).abs() > 0.5) {
-            out.note("MarginContainer with unequal margins: balaur pads evenly, at the largest");
-        }
+    if margins.iter().any(|m| *m > 0.0) {
+        out.set("widget", "padding", floats(&margins));
     }
     if let Some([w, h]) = section.field("custom_minimum_size").and_then(pair) {
         if w > 0.0 {

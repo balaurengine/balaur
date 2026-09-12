@@ -928,3 +928,88 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         "the fitted picture does not ask for the image's own width: {fitted:?} {native:?}"
     );
 }
+
+/// `padding` takes one number for every side or four for left, top, right
+/// and bottom, which is what a Godot MarginContainer's margins convert to.
+#[test]
+fn padding_takes_one_number_or_four() {
+    let (_dir, app) = app();
+    let sided = add_widget(
+        &app,
+        &toml::toml! { kind = "panel" text = "" width = 200.0 height = 200.0 padding = [40.0, 0.0, 0.0, 0.0] }
+            .into(),
+    );
+    let child = add_child_widget(
+        &app,
+        sided,
+        "Inside",
+        &toml::toml! { kind = "panel" text = "" height = 20.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(child).expect("the child was placed");
+    let outer = balaur_ui::widget_rect(sided).expect("the panel was placed");
+    assert!(
+        (rect.left() - outer.left() - 40.0).abs() < 1.0,
+        "the left side pads by 40: {rect:?} in {outer:?}"
+    );
+    assert!(
+        (rect.top() - outer.top()).abs() < 1.0,
+        "and the top by nothing: {rect:?} in {outer:?}"
+    );
+}
+
+/// A theme entry's `gap` spaces a container's children and its `icon_color`
+/// dresses a button's picture: Godot's separations and icon colours.
+#[test]
+fn a_theme_spaces_a_column_and_inks_an_icon() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/game.toml"),
+        "type = \"widget_theme\"\n\n[column]\ngap = 24.0\n\n[button]\nicon_color = \"#ff8800\"\n",
+    )
+    .unwrap();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" theme = "themes/game.toml" width = 200.0 }.into(),
+    );
+    let rows: Vec<_> = ["One", "Two"]
+        .into_iter()
+        .map(|name| {
+            let params = toml::toml! { kind = "button" text = name height = 30.0 };
+            add_child_widget(&app, column, name, &params.into())
+        })
+        .collect();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity| balaur_ui::widget_rect(entity).expect("the row was placed");
+    let (first, second) = (rect(rows[0]), rect(rows[1]));
+    assert!(
+        (second.top() - first.bottom() - 24.0).abs() < 1.0,
+        "the theme's gap is between them: {first:?} {second:?}"
+    );
+}
+
+/// A button is as wide as the box the layout gave it, not as wide as its
+/// caption: a row of them in a column lines up.
+#[test]
+fn a_button_fills_the_box_the_layout_gave_it() {
+    let (_dir, app) = app();
+    let column = add_widget(&app, &toml::toml! { kind = "column" width = 300.0 }.into());
+    let short = add_child_widget(&app, column, "Short", &toml::toml! { kind = "button" text = "Go" }.into());
+    let long = add_child_widget(
+        &app,
+        column,
+        "Long",
+        &toml::toml! { kind = "button" text = "A much longer caption" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity| balaur_ui::widget_rect(entity).expect("the button was placed");
+    let (short, long) = (rect(short), rect(long));
+    assert!(
+        (short.width() - long.width()).abs() < 1.0,
+        "both take the column's width: {short:?} {long:?}"
+    );
+}

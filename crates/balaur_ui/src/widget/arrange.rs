@@ -84,30 +84,86 @@ pub(crate) fn settle_rects() {
     });
 }
 
-/// The space inside a container's edge, in device pixels.
+/// The space inside a container's edge, per side and in device pixels.
 ///
 /// One rule, wherever a container is measured or drawn: the widget's own
-/// `padding` where it states one, else the theme's entry for its kind, else
-/// the built-in — 8 for a panel, which is the frame it has always drawn, and
+/// `padding` where it states one — one number for every side, or four for
+/// left, top, right and bottom — else the theme's entry for its kind, else
+/// the built-in: 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
-pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
+pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> Pad {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
-    let stated = if widget.padding >= 0.0 {
-        widget.padding
-    } else {
-        style.padding.unwrap_or(built_in)
-    };
-    stated * scale
+    if widget.padding.iter().any(|side| *side >= 0.0) {
+        return Pad::of(widget.padding.map(|side| side.max(0.0) * scale));
+    }
+    Pad::all(style.padding.unwrap_or(built_in) * scale)
+}
+
+/// The space inside a container's edge, per side.
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) struct Pad {
+    pub(crate) left: f32,
+    pub(crate) top: f32,
+    pub(crate) right: f32,
+    pub(crate) bottom: f32,
+}
+
+impl Pad {
+    pub(crate) const fn all(side: f32) -> Self {
+        Self {
+            left: side,
+            top: side,
+            right: side,
+            bottom: side,
+        }
+    }
+
+    const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
+        Self {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+
+    /// What the padding takes off a box, across and down.
+    pub(crate) fn taken(self) -> egui::Vec2 {
+        vec2(self.left + self.right, self.top + self.bottom)
+    }
+
+    /// The box inside the padding.
+    pub(crate) fn inside(self, rect: egui::Rect) -> egui::Rect {
+        egui::Rect::from_min_max(
+            rect.min + vec2(self.left, self.top),
+            rect.max - vec2(self.right, self.bottom),
+        )
+    }
+
+    /// Where content starts inside a box beginning at `min`.
+    pub(crate) fn origin(self, min: egui::Pos2) -> egui::Pos2 {
+        min + vec2(self.left, self.top)
+    }
+
+    /// The box with the padding put back round it.
+    pub(crate) fn around(self, rect: egui::Rect) -> egui::Rect {
+        egui::Rect::from_min_max(
+            rect.min - vec2(self.left, self.top),
+            rect.max + vec2(self.right, self.bottom),
+        )
+    }
+
 }
 
 /// The gap between a container's children, in device pixels: the widget's
 /// own where it states one, else the theme's entry for its kind, which is
 /// where a converted Godot theme's separations land.
 pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
-    let stated = if widget.gap > 0.0 {
+    let stated = if widget.gap >= 0.0 {
         widget.gap
     } else {
-        style.gap.unwrap_or(0.0)
+        // 8 is the space a container has always left between its children.
+        style.gap.unwrap_or(8.0)
     };
     stated * scale
 }
@@ -157,12 +213,12 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style, at.scale);
     let frame = themed_frame(&style, at.scale, None);
-    let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
+    let inner = (size - pad.taken()).max(egui::Vec2::ZERO);
     frame.show(ui, |frame_ui| {
         // The padding comes off the box in floats; the frame itself carries
         // none, so a scroll at a fractional scale keeps the size it was given.
         let held = frame_ui.max_rect();
-        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
+        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(held)));
         let ui = &mut inner_ui;
         hold_to(ui, inner);
         let dead = widget.deadzone * at.scale;
@@ -208,7 +264,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         });
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
-        let used = inner_ui.min_rect().expand(pad);
+        let used = pad.around(inner_ui.min_rect());
         frame_ui.allocate_rect(used, egui::Sense::hover());
     });
 }

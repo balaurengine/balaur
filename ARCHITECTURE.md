@@ -610,9 +610,13 @@ write. It walks widgets in scene order and wraps.
   activate something. `focusable = false` takes a candidate out; it cannot put
   one in. Hidden, freed or unfocusable releases focus.
 - A theme entry carries `gap` and `icon_color` as well as its frame and its
-  type: Godot's separations and its `icon_normal_color`, which a scene
-  overrides with its own `gap`. A widget's `padding` below zero takes the
-  theme's, and a stated zero is no padding at all.
+  type: Godot's separations and its `icon_normal_color`. A widget's `padding`
+  and `gap` below zero take the theme's, and a stated zero is none at all;
+  `padding` takes one number for every side or four for left, top, right and
+  bottom, which is what a MarginContainer's margins convert to.
+- A `button` with `toggle` holds down when clicked and releases on the next,
+  flipping `checked` before `on_click` runs; a `group` makes a set of them
+  exclusive, as it does for a `check`.
 - An `image` states how it sits in its box with `fit` — `contain`, `cover`,
   `fill` or `none`, CSS's object-fit and Godot's expand and stretch modes.
   Without one the picture's own size decides the box, which is the default a

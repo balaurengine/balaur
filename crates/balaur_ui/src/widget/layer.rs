@@ -768,8 +768,8 @@ fn panel(
     let pad = padding_of(widget, &style, scale);
     let box_size = box_of(widget, at.assigned, scale);
     let plate = ui.painter().add(egui::Shape::Noop);
-    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
-    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect().shrink(pad)));
+    let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(ui.max_rect())));
     hold_to(&mut inner, min);
     if !caption.is_empty() {
         inner.label(egui::RichText::new(caption).font(font.clone()).color(color));
@@ -778,7 +778,7 @@ fn panel(
     let held = std::mem::replace(&mut at.bounds, min);
     lay_out(&mut inner, at, index, Axis::Column);
     at.bounds = held;
-    let background = inner.min_rect().expand(pad);
+    let background = pad.around(inner.min_rect());
     if let Some(path) = style.image.as_ref() {
         crate::widget::kinds::nine_patch_plate(
             ui,

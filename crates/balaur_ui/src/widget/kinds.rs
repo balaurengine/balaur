@@ -373,7 +373,7 @@ pub(crate) fn fold(
         return;
     }
     let room = ui.available_rect_before_wrap();
-    let body = Rect::from_min_max(pos2(room.min.x + pad, room.min.y), room.max);
+    let body = Rect::from_min_max(pos2(room.min.x + pad.left, room.min.y), room.max);
     // Solved on its own: the header is drawn here rather than authored, so
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget::taffy::Room::scrolling(body);
@@ -426,10 +426,11 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
     }
     if box_size.x > 0.0 {
-        let shared = (box_size.x - 2.0 * pad - gap * (columns as f32 - 1.0)) / columns as f32;
+        let shared =
+            (box_size.x - pad.taken().x - gap * (columns as f32 - 1.0)) / columns as f32;
         cell.x = shared.max(0.0);
     }
-    let origin = ui.available_rect_before_wrap().min + egui::Vec2::splat(pad);
+    let origin = pad.origin(ui.available_rect_before_wrap().min);
     let mut extent = egui::Vec2::ZERO;
     for (slot, child) in children.iter().enumerate() {
         let (column, row) = ((slot % columns) as f32, (slot / columns) as f32);
@@ -438,10 +439,7 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         place_child(ui, at, *child, rect, cell);
         extent = extent.max(rect.max - origin);
     }
-    let taken = Rect::from_min_size(
-        origin - egui::Vec2::splat(pad),
-        extent + egui::Vec2::splat(pad * 2.0),
-    );
+    let taken = pad.around(Rect::from_min_size(origin, extent));
     ui.allocate_rect(taken, Sense::hover());
 }
 
@@ -481,7 +479,7 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             egui::StrokeKind::Inside,
         );
     }
-    let area = outer.shrink(pad);
+    let area = pad.inside(outer);
     for child in &children {
         let want = {
             let mut measure = Measure::new(at.eng, at.arena, ui, scale);
@@ -563,7 +561,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         box_size.x
     } else {
         room.width()
-    } - 2.0 * pad;
+    } - pad.taken().x;
     let sizes: Vec<egui::Vec2> = {
         let mut measure = Measure::new(at.eng, at.arena, ui, scale);
         children
@@ -571,7 +569,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             .map(|child| measure.of(*child, &at.theme))
             .collect()
     };
-    let origin = room.min + egui::Vec2::splat(pad);
+    let origin = pad.origin(room.min);
     let mut cursor = egui::Vec2::ZERO;
     let mut line_height = 0.0f32;
     let mut extent = egui::Vec2::ZERO;
@@ -589,7 +587,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         line_height = line_height.max(size.y);
         extent = extent.max(rect.max - origin);
     }
-    let taken = Rect::from_min_size(room.min, extent + egui::Vec2::splat(pad * 2.0));
+    let taken = Rect::from_min_size(room.min, extent + pad.taken());
     ui.allocate_rect(taken, Sense::hover());
 }
 

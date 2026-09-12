@@ -49,7 +49,9 @@ pub struct Widget {
     pub on_click: SmolStr,
     pub clicked: bool,
     /// Space inside a container's edge, in design pixels.
-    pub padding: f32,
+    /// Space inside a container's edge: left, top, right and bottom, in
+    /// design pixels. Below zero on every side takes the theme's.
+    pub padding: [f32; 4],
     /// Space between a container's children.
     pub gap: f32,
     /// Cross-axis placement of a container's children.

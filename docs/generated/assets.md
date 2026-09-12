@@ -355,7 +355,7 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `size`, `color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
+How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
 
 
 ## The `assets` script module

@@ -50,7 +50,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `size`, `color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
+      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
     }
   },
   "component_docs": {
@@ -4261,10 +4261,9 @@
         "type": "float"
       },
       "gap": {
-        "default": 8.0,
-        "description": "Space between a container's children, in design pixels",
+        "default": -1.0,
+        "description": "Space between a container's children, in design pixels; below zero takes the theme's own, which is 8 where it says nothing, and a stated zero puts them edge to edge",
         "group": "layout",
-        "min": 0.0,
         "type": "float"
       },
       "group": {
@@ -4455,10 +4454,15 @@
         "type": "strings"
       },
       "padding": {
-        "default": -1.0,
-        "description": "Space inside a container's edge, in design pixels; below zero takes the theme's own, and a stated zero is no space at all",
+        "default": [
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        "description": "Space inside a container's edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme's own, and a stated zero is no space at all",
         "group": "layout",
-        "type": "float"
+        "type": "vec4"
       },
       "padding_x": {
         "default": -1.0,

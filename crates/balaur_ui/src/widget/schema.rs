@@ -34,8 +34,8 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content", group = "placement" }"#),
                     (k::FONT_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Text size in design pixels; 0 takes the size the role or the kind carries", group = "type" }"#),
                     (k::TEXT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "Text color; fully transparent takes the theme's colour for this widget's role or kind, and failing that a near-white", group = "paint" }"#),
-                    (k::PADDING, r#"{ type = "float", default = -1.0, description = "Space inside a container's edge, in design pixels; below zero takes the theme's own, and a stated zero is no space at all", group = "layout" }"#),
-                    (k::GAP, r#"{ type = "float", default = 8.0, min = 0.0, description = "Space between a container's children, in design pixels", group = "layout" }"#),
+                    (k::PADDING, r#"{ type = "vec4", default = [-1.0, -1.0, -1.0, -1.0], description = "Space inside a container's edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme's own, and a stated zero is no space at all", group = "layout" }"#),
+                    (k::GAP, r#"{ type = "float", default = -1.0, description = "Space between a container's children, in design pixels; below zero takes the theme's own, which is 8 where it says nothing, and a stated zero puts them edge to edge", group = "layout" }"#),
                     (k::ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a container puts its children across its own direction", group = "layout" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::FOCUSABLE, r#"{ type = "bool", default = true, description = "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be", group = "events" }"#),
                     (k::ON_FOCUS, r#"{ type = "string", default = "", description = "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
@@ -154,7 +154,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     );
     map.insert(
         k::PADDING.into(),
-        toml::Value::Float(f64::from(widget.padding)),
+        four(widget.padding),
     );
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
     map.insert(
@@ -438,6 +438,17 @@ impl Read<'_> {
     }
 }
 
+/// Four sides from a key that takes one number for all of them or four for
+/// left, top, right and bottom, so `padding = 8.0` and
+/// `padding = [50.0, 0.0, 50.0, 32.0]` are both what they read as.
+fn sides(params: &toml::Value, key: &str) -> [f32; 4] {
+    let read = Read(params);
+    match params.get(key).map(toml::Value::is_array) {
+        Some(true) => read.quad(key),
+        _ => [read.num(key); 4],
+    }
+}
+
 fn widget_from(params: &toml::Value) -> Widget {
     let r = Read(params);
     let (s, f) = (|k: &str| r.str(k), |k: &str| r.num(k));
@@ -458,7 +469,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         font: s(k::FONT),
         on_click: s(k::ON_CLICK),
         clicked: false,
-        padding: f(k::PADDING),
+        padding: sides(params, k::PADDING),
         gap: f(k::GAP),
         align: s(k::ALIGN),
         focusable: r.flag(k::FOCUSABLE),

@@ -221,7 +221,7 @@ impl<'a> Measure<'a> {
             &crate::widget::theme::styled(theme, widget),
             self.scale,
         );
-        inner + egui::Vec2::splat(pad * 2.0)
+        inner + pad.taken()
     }
 
     /// A grid: the biggest child's cell, tiled `columns` wide.
@@ -240,7 +240,7 @@ impl<'a> Measure<'a> {
             &crate::widget::theme::styled(theme, &widget),
             self.scale,
         );
-        want + egui::Vec2::splat(pad * 2.0)
+        want + pad.taken()
     }
 
     fn grid(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
@@ -273,7 +273,7 @@ impl<'a> Measure<'a> {
             &crate::widget::theme::styled(theme, &widget),
             self.scale,
         );
-        inner + egui::Vec2::splat(pad * 2.0)
+        inner + pad.taken()
     }
 
     /// A flow: its children on one line, or wrapped to a stated width.
@@ -288,7 +288,7 @@ impl<'a> Measure<'a> {
             self.scale,
         );
         let limit = if widget.width > 0.0 {
-            widget.width * self.scale - 2.0 * pad
+            widget.width * self.scale - pad.taken().x
         } else {
             f32::INFINITY
         };
@@ -311,7 +311,7 @@ impl<'a> Measure<'a> {
         if extent == egui::Vec2::ZERO {
             return extent;
         }
-        extent + egui::Vec2::splat(pad * 2.0)
+        extent + pad.taken()
     }
 
     /// A tab's strip: every page's label side by side, as buttons.

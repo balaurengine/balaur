@@ -143,7 +143,7 @@ fn floor_or_none(px: f32, scale: f32) -> LengthPercentageAuto {
 /// a change that never reaches taffy.
 fn style_key(
     widget: &Widget,
-    pad: f32,
+    pad: crate::widget::arrange::Pad,
     gap: f32,
     scale: f32,
     drawn: bool,
@@ -161,7 +161,9 @@ fn style_key(
     widget.gap.to_bits().hash(&mut hasher);
     widget.align.hash(&mut hasher);
     widget.justify.hash(&mut hasher);
-    pad.to_bits().hash(&mut hasher);
+    for side in [pad.left, pad.top, pad.right, pad.bottom] {
+        side.to_bits().hash(&mut hasher);
+    }
     gap.to_bits().hash(&mut hasher);
     scale.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
@@ -174,7 +176,7 @@ fn style_key(
 /// The style a node takes, with the box it was handed already applied.
 fn styled(
     widget: &Widget,
-    pad: f32,
+    pad: crate::widget::arrange::Pad,
     gap: f32,
     scale: f32,
     drawn: bool,
@@ -194,7 +196,13 @@ fn styled(
     want
 }
 
-fn style_of(widget: &Widget, pad: f32, gap: f32, scale: f32, drawn: bool) -> Style {
+fn style_of(
+    widget: &Widget,
+    pad: crate::widget::arrange::Pad,
+    gap: f32,
+    scale: f32,
+    drawn: bool,
+) -> Style {
     if !widget.visible {
         return Style {
             display: Display::None,
@@ -235,10 +243,10 @@ fn style_of(widget: &Widget, pad: f32, gap: f32, scale: f32, drawn: bool) -> Sty
             height: length(gap),
         },
         padding: Rect {
-            left: length(pad),
-            right: length(pad),
-            top: length(pad),
-            bottom: length(pad),
+            left: length(pad.left),
+            right: length(pad.right),
+            top: length(pad.top),
+            bottom: length(pad.bottom),
         },
         align_items: container.then(|| align_of(&widget.align)),
         justify_content: container.then(|| justify_of(&widget.justify)),
