@@ -50,8 +50,8 @@ Hot reload: run `cargo run -p balaur_cli -- run examples/hello --headless` and e
 # scenes/main.toml
 [[nodes]]
 name = "Ball"
-position = [0.0, 6.0, 0.0]
 script = { source = "scripts/ball.rn", props = { speed = 3.5 } }
+transform = { position = [0.0, 6.0, 0.0] }        # from balaur_core
 body3d = "dynamic"                                # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
 shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
@@ -65,7 +65,7 @@ pub fn init(this) { this.angle = 0.0; }
 
 pub fn update(this, dt) {                         // per frame; fixed_update is per 60 Hz tick
     this.angle += dt * this.speed;
-    this.node.set_rotation_euler(0.0, this.angle, 0.0);
+    this.node.transform.rotation_euler = [0.0, this.angle, 0.0];
 }
 ```
 

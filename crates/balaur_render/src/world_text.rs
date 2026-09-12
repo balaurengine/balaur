@@ -250,7 +250,7 @@ mod backend {
 
     use anyhow::{Result, anyhow};
     use balaur_core::Engine;
-    use balaur_ui::text::{Align as ShaperAlign, Request, Shaped};
+    use balaur_text::{Align as ShaperAlign, Request, Shaped};
     use glamx::Vec2;
     use kiss3d::context::Context;
     use kiss3d::resource::{GpuMesh2d, GpuMesh3d, Texture, TextureManager};
@@ -267,7 +267,7 @@ mod backend {
     /// The atlas as a texture, uploaded when the shaper has drawn into it
     /// since the last call.
     pub(crate) fn atlas_texture(eng: &Engine) -> Option<std::sync::Arc<Texture>> {
-        let state = balaur_ui::text::state(eng)?;
+        let state = balaur_text::state(eng)?;
         let state = state.borrow();
         let atlas = state.atlas();
         let side = atlas.side() as u32;
@@ -312,7 +312,7 @@ mod backend {
         text: &str,
         style: &super::TextStyle,
     ) -> Result<std::rc::Rc<Shaped>> {
-        shape_at(eng, text, style, balaur_ui::text::bucket(style.size))
+        shape_at(eng, text, style, balaur_text::bucket(style.size))
     }
 
     /// The same, rasterised at `raster` pixels rather than the style's size:
@@ -323,7 +323,7 @@ mod backend {
         style: &super::TextStyle,
         raster: f32,
     ) -> Result<std::rc::Rc<Shaped>> {
-        let state = balaur_ui::text::state(eng)
+        let state = balaur_text::state(eng)
             .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
         // A bitmap face is loaded the first time it is asked for: the page
         // goes into the atlas beside the rasterised glyphs.
@@ -344,7 +344,7 @@ mod backend {
     pub(crate) fn request_of(text: &str, style: &super::TextStyle) -> Request {
         Request {
             text: text.to_string(),
-            size: balaur_ui::text::bucket(style.size),
+            size: balaur_text::bucket(style.size),
             weight: style.weight,
             italic: style.italic,
             width: style.max_width,
@@ -364,13 +364,13 @@ mod backend {
     /// How far the shaped block has to be scaled to land at the asked size:
     /// it was rasterised at the bucket above it.
     pub(crate) fn bucket_ratio(style: &super::TextStyle) -> f32 {
-        style.size.max(1.0) / balaur_ui::text::bucket(style.size)
+        style.size.max(1.0) / balaur_text::bucket(style.size)
     }
 
     /// Read a `.fnt` and its page out of the project and hand them to the
     /// shaper, once per face. Later calls find it already there.
     fn load_bitmap_font(eng: &Engine, path: &str) -> Result<()> {
-        let state = balaur_ui::text::state(eng)
+        let state = balaur_text::state(eng)
             .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
         if state.borrow().has_bitmap_font(path) {
             return Ok(());
@@ -379,7 +379,7 @@ mod backend {
         let descriptor = String::from_utf8(files.borrow().read(path)?)
             .map_err(|_| anyhow!("{path} is not a text .fnt descriptor"))?;
         // The page sits beside the descriptor, as the tool that wrote it left it.
-        let page_name = balaur_ui::text::bitmap::parse(&descriptor)?.page;
+        let page_name = balaur_text::bitmap::parse(&descriptor)?.page;
         let directory = path.rsplit_once('/').map_or("", |(head, _)| head);
         let page_path = if directory.is_empty() {
             page_name
@@ -580,7 +580,7 @@ mod backend {
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
     #[cfg(feature = "kiss3d")]
     {
-        let state = balaur_ui::text::state(eng)
+        let state = balaur_text::state(eng)
             .ok_or_else(|| anyhow::anyhow!("no text shaper: the ui plugin installs it"))?;
         if !style.font.is_empty() {
             let shaped = shape(eng, text, style)?;
@@ -610,10 +610,7 @@ pub(crate) fn depth_of(layer: usize) -> f32 {
 /// and a missing plugin forever after, and neither wants a line per call.
 #[cfg(feature = "kiss3d")]
 pub(crate) fn warn_once(err: &anyhow::Error) {
-    thread_local! {
-        static SAID: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    }
-    if !SAID.replace(true) {
+    if balaur_core::logbuf::first_time("text shaper", "") {
         tracing::warn!("{err:#}");
     }
 }

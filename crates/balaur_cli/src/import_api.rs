@@ -1,10 +1,10 @@
 //! `import.*` for the editor: bring a model, a sprite sheet or a level into
 //! the edited project, through the same code `balaur import` runs.
 //!
-//! The verb lives in the CLI because the importers do; the engine never reads
-//! a `.glb` off disk on its own. What the editor gets back is the list of
-//! project-relative files that were written and, for a model or a level, the
-//! scene it can instantiate.
+//! The verb lives in the CLI, which assembles the editor's plugins; the
+//! importers are `balaur_import`, and the engine never reads a `.glb` off
+//! disk. What the editor gets back is the list of project-relative files that
+//! were written and, for a model or a level, the scene it can instantiate.
 
 use std::path::{Path, PathBuf};
 
@@ -92,7 +92,7 @@ fn handles(file: &Path) -> bool {
 
 #[cfg(not(target_family = "wasm"))]
 fn import(file: &Path, project: &Path) -> Value {
-    match crate::import::import_file(file, project, &[]) {
+    match balaur_import::import_file(file, project, &[]) {
         Ok(imported) => {
             let files = imported.files.into_iter().map(Value::Str).collect();
             Value::Map(vec![

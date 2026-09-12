@@ -76,6 +76,11 @@ STOPWORDS = {
 }
 
 
+# A string or char literal, so a brace inside one (`self.want("{")`) is not
+# taken for a block when a function's length is measured.
+LITERAL = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
+
+
 @dataclass
 class Finding:
     path: Path
@@ -365,7 +370,8 @@ def item_rules(rel, i, line) -> list[Finding]:
     # which is a store in a tab and the disk on a desktop.
     if (re.search(r"\bstd::fs::", line)
             and str(rel).startswith(("crates/balaur_core/", "crates/balaur_render/",
-                                     "crates/balaur_ui/", "crates/balaur_script_rune/",
+                                     "crates/balaur_text/", "crates/balaur_ui/",
+                                     "crates/balaur_script_rune/",
                                      "crates/balaur/"))
             and not is_test_file(rel)
             and "// os files:" not in line
@@ -584,7 +590,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                              r"(?:extern\s+\"[^\"]*\"\s+)?fn\s+", line):
                 fn_start = i
                 fn_depth = depth
-            depth += raw.count("{") - raw.count("}")
+            code = LITERAL.sub("", raw)
+            depth += code.count("{") - code.count("}")
             if fn_start is not None and fn_depth is not None and depth <= fn_depth and i > fn_start:
                 length = i - fn_start + 1
                 if length > MAX_FN_LINES:

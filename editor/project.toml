@@ -1,3 +1,8 @@
 [application]
 name = "balaur-editor"
 main_scene = "scenes/main.toml"
+
+# The editor holds itself to its own checker: a warning here is a failure,
+# not a line in the output someone might read.
+[check]
+strict = true

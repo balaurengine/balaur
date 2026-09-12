@@ -15,6 +15,18 @@ use crate::engine::Engine;
 pub struct Timers {
     frames: Vec<(u64, u32)>,
     seconds: Vec<(u64, f32)>,
+    /// Tokens to wake on the next step with a payload: an awaited call's
+    /// result, which cannot be delivered before its caller has parked.
+    #[serde(skip)]
+    results: Vec<(u64, balaur_script::Value)>,
+}
+
+/// Wake `token` with `payload` on the next fixed step.
+pub fn wake_next_step(eng: &Engine, token: u64, payload: balaur_script::Value) {
+    eng.resource::<Timers>()
+        .borrow_mut()
+        .results
+        .push((token, payload));
 }
 
 /// A token woken after `count` fixed steps; zero wakes on the next.
@@ -38,6 +50,12 @@ pub fn after_seconds(eng: &Engine, seconds: f32) -> u64 {
 }
 
 pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
+    let results = std::mem::take(&mut eng.resource::<Timers>().borrow_mut().results);
+    if let Some(host) = eng.script_host() {
+        for (token, payload) in &results {
+            host.wake(*token, payload);
+        }
+    }
     let due: Vec<u64> = {
         let timers = eng.resource::<Timers>();
         let mut timers = timers.borrow_mut();

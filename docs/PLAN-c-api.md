@@ -4,6 +4,7 @@ Status: **Tier 1 shipped.** `crates/balaur_plugin/src/capi.rs` is the
 implementation, `crates/balaur_plugin/include/balaur_extension.h` the committed
 header, and `examples/extension_c_counter/counter.c` an extension in C that a
 script calls. The tiers above it are open, and this is what they would be.
+`docs/PLAN-wasm-extensions.md` carries the same ABI into a `.wasm` module.
 
 ## What Tier 1 does not do
 

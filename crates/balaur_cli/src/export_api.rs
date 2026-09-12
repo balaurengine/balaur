@@ -59,6 +59,9 @@ impl balaur_plugin::Plugin for ExportPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        // The tables the exporter reads, described where every other table is:
+        // the sheet is a button, and the settings screen is the configuration.
+        balaur_export::settings::declare(reg.engine());
         reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
         reg.add_system(Stage::First, pump::<ExportState>);
         let mut m = reg.script_module("export")?;
@@ -92,7 +95,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.function("output", |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
         let project = state.borrow().0.project.clone();
-        let config = balaur_export::ExportConfig::load(&project).unwrap_or_default();
+        let config = balaur_export::ExportConfig::load(&project, Some(&target)).unwrap_or_default();
         Ok(Value::Str(
             config
                 .output_for(&project, &target, "")
@@ -200,7 +203,7 @@ fn run_export(
     output: Option<PathBuf>,
 ) -> Result<PathBuf> {
     let fetch = move |wanted: &str| crate::templates::obtain(wanted, true);
-    let config = balaur_export::ExportConfig::load(project)?;
+    let config = balaur_export::ExportConfig::load(project, Some(target))?;
     let name = project
         .file_name()
         .map_or_else(|| "game".to_string(), |n| n.to_string_lossy().into_owned());

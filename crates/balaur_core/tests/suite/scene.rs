@@ -271,6 +271,26 @@ fn hiding_a_node_hides_everything_under_it() {
 }
 
 #[test]
+fn a_tint_multiplies_down_the_subtree() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        world.get::<&mut scene::Appearance>(a).unwrap().tint = glamx::Vec4::new(1.0, 0.5, 1.0, 0.5);
+        world.get::<&mut scene::Appearance>(b).unwrap().tint = glamx::Vec4::new(1.0, 1.0, 1.0, 0.5);
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    let tint = |e| world.get::<&scene::GlobalAppearance>(e).unwrap().tint;
+    assert_eq!(tint(a), glamx::Vec4::new(1.0, 0.5, 1.0, 0.5));
+    assert_eq!(tint(b), glamx::Vec4::new(1.0, 0.5, 1.0, 0.25));
+    assert_eq!(
+        tint(c),
+        glamx::Vec4::new(1.0, 0.5, 1.0, 0.25),
+        "a node with no tint of its own takes its parent's"
+    );
+}
+
+#[test]
 fn a_relative_z_index_adds_to_its_parents_and_an_absolute_one_does_not() {
     let (engine, a, b, c) = tree();
     {
@@ -304,6 +324,7 @@ fn composed_appearance_matches_what_propagation_wrote() {
         let propagated = *world.get::<&scene::GlobalAppearance>(entity).unwrap();
         let composed = scene::composed_appearance(&world, entity);
         assert_eq!(propagated.visible, composed.visible);
+        assert_eq!(propagated.tint, composed.tint);
         assert_eq!(propagated.z_index, composed.z_index);
     }
 }
@@ -318,7 +339,8 @@ fn a_scene_files_a_node_under_its_tags() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nname = \"Gate\"\ntags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\n",
+        "[[nodes]]\nname = \"Scene\"\n[[nodes]]\nname = \"Gate\"\nparent = \"Scene\"\n\
+         tags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\nparent = \"Scene\"\n",
     )
     .unwrap();
     let mut app =
@@ -420,4 +442,182 @@ fn freeing_every_child_at_once_forgets_all_their_names() {
     assert_eq!(find_node(&engine.world(), holder, "n3"), None);
     let again = scene::spawn_node(&mut engine.world_mut(), "n3", holder);
     assert_eq!(find_node(&engine.world(), holder, "n3"), Some(again));
+}
+
+fn material(world: &hecs::World, e: Entity) -> String {
+    world
+        .get::<&scene::GlobalAppearance>(e)
+        .unwrap()
+        .material
+        .reference()
+        .to_string()
+}
+
+fn set_material(eng: &Engine, e: Entity, reference: &str) {
+    eng.world()
+        .get::<&mut scene::Appearance>(e)
+        .unwrap()
+        .material = scene::MaterialId::intern(reference);
+}
+
+#[test]
+fn a_material_is_inherited_by_everything_under_it() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        assert_eq!(material(&world, entity), "materials/metal.toml");
+    }
+    assert_eq!(
+        material(&world, engine.root()),
+        "",
+        "the root above names none"
+    );
+}
+
+#[test]
+fn the_nearest_material_wins_over_one_further_up() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    set_material(&engine, b, "materials/glass.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert_eq!(material(&world, a), "materials/metal.toml");
+    assert_eq!(material(&world, b), "materials/glass.toml");
+    assert_eq!(material(&world, c), "materials/glass.toml");
+}
+
+#[test]
+fn a_reparented_subtree_takes_its_new_parents_material() {
+    let (engine, a, b, c) = tree();
+    let other = scene::spawn_node(&mut engine.world_mut(), "Other", engine.root());
+    set_material(&engine, a, "materials/metal.toml");
+    set_material(&engine, other, "materials/glass.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    assert_eq!(material(&engine.world(), c), "materials/metal.toml");
+
+    scene::reparent(&mut engine.world_mut(), b, other).unwrap();
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert_eq!(material(&world, b), "materials/glass.toml");
+    assert_eq!(material(&world, c), "materials/glass.toml");
+}
+
+#[test]
+fn clearing_a_material_returns_the_subtree_to_none() {
+    let (engine, a, _, c) = tree();
+    set_material(&engine, a, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    set_material(&engine, a, "");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert!(
+        world
+            .get::<&scene::GlobalAppearance>(c)
+            .unwrap()
+            .material
+            .is_none()
+    );
+}
+
+#[test]
+fn composed_appearance_finds_the_same_material_propagation_does() {
+    let (engine, a, b, c) = tree();
+    set_material(&engine, b, "materials/metal.toml");
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        let propagated = world
+            .get::<&scene::GlobalAppearance>(entity)
+            .unwrap()
+            .material;
+        assert_eq!(
+            propagated,
+            scene::composed_appearance(&world, entity).material
+        );
+    }
+}
+
+#[test]
+fn a_material_reference_interns_to_one_id_and_back() {
+    let first = scene::MaterialId::intern("materials/interned.toml");
+    assert_eq!(first, scene::MaterialId::intern("materials/interned.toml"));
+    assert_ne!(first, scene::MaterialId::intern("materials/other.toml"));
+    assert_eq!(&*first.reference(), "materials/interned.toml");
+    assert!(scene::MaterialId::intern("").is_none());
+    assert_eq!(&*scene::MaterialId::NONE.reference(), "");
+}
+
+/// Godot's `Transform2D` with skew, written out independently: the x axis is
+/// the rotation times the x scale, and the y axis is turned `skew` further.
+fn godot_2d(angle: f32, skew: f32, sx: f32, sy: f32, at: [f32; 2]) -> glamx::Mat3 {
+    glamx::Mat3::from_cols(
+        glamx::Vec3::new(
+            balaur_core::libm::cosf(angle) * sx,
+            balaur_core::libm::sinf(angle) * sx,
+            0.0,
+        ),
+        glamx::Vec3::new(
+            -balaur_core::libm::sinf(angle + skew) * sy,
+            balaur_core::libm::cosf(angle + skew) * sy,
+            0.0,
+        ),
+        glamx::Vec3::new(at[0], at[1], 1.0),
+    )
+}
+
+fn close(a: glamx::Mat3, b: glamx::Mat3) -> bool {
+    a.to_cols_array()
+        .iter()
+        .zip(b.to_cols_array())
+        .all(|(x, y)| (x - y).abs() < 1e-4)
+}
+
+/// A skewed parent carries its shear into its child, as Godot's does: the
+/// child's world matrix is the parent's times its own, exactly.
+#[test]
+fn a_skewed_parent_places_its_child_by_the_full_matrix() {
+    let (engine, a, b, _) = tree();
+    {
+        let world = engine.world();
+        let mut parent = world.get::<&mut scene::Transform>(a).unwrap();
+        parent.position = glamx::Vec3::new(3.0, -1.0, 0.0);
+        parent.rotation = glamx::Quat::from_rotation_z(0.2);
+        parent.scale = glamx::Vec3::new(2.0, 0.5, 1.0);
+        parent.skew = 0.3;
+        drop(parent);
+        let mut child = world.get::<&mut scene::Transform>(b).unwrap();
+        child.position = glamx::Vec3::new(1.0, 1.0, 0.0);
+        child.rotation = glamx::Quat::from_rotation_z(0.1);
+        child.skew = -0.15;
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    let expected =
+        godot_2d(0.2, 0.3, 2.0, 0.5, [3.0, -1.0]) * godot_2d(0.1, -0.15, 1.0, 1.0, [1.0, 1.0]);
+    let got = world.get::<&scene::GlobalTransform>(b).unwrap().affine_2d();
+    assert!(close(got, expected), "got {got:?}\nwanted {expected:?}");
+}
+
+#[test]
+fn reparenting_under_a_skewed_parent_keeps_the_world_pose() {
+    let (engine, a, _, c) = tree();
+    {
+        let world = engine.world();
+        let mut parent = world.get::<&mut scene::Transform>(a).unwrap();
+        parent.rotation = glamx::Quat::from_rotation_z(0.4);
+        parent.skew = 0.5;
+        parent.scale = glamx::Vec3::new(1.5, 1.0, 1.0);
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let before = scene::composed_global(&engine.world(), c).affine_2d();
+    scene::reparent(&mut engine.world_mut(), c, a).unwrap();
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let after = engine
+        .world()
+        .get::<&scene::GlobalTransform>(c)
+        .unwrap()
+        .affine_2d();
+    assert!(close(before, after), "moved from {before:?}\nto {after:?}");
 }

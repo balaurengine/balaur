@@ -329,3 +329,32 @@ fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
     .join()
     .unwrap();
 }
+
+/// `application/ignore`: work in progress beside the art it came from stays
+/// out of the shipped pack, folder and file pattern alike.
+#[test]
+fn a_pack_leaves_out_what_the_project_ignores() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\nignore = [\"art/wip/**\", \"**/*.blend1\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("art/wip")).unwrap();
+    std::fs::write(dir.path().join("art/wip/sketch.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("art/hero.blend1"), "backup").unwrap();
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    let held: Vec<&String> = pack.assets.keys().chain(pack.scenes.keys()).collect();
+    assert!(
+        held.iter().any(|path| path.as_str() == "art/hero.png"),
+        "the art itself still travels: {held:?}"
+    );
+    assert!(
+        !held.iter().any(|path| path.starts_with("art/wip")),
+        "an ignored folder is not shipped: {held:?}"
+    );
+    assert!(
+        !held.iter().any(|path| path.ends_with(".blend1")),
+        "nor a file the pattern names: {held:?}"
+    );
+}

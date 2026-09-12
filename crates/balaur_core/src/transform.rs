@@ -20,6 +20,7 @@ pub(crate) mod k {
     pub(crate) const POSITION: &str = "position";
     pub(crate) const ROTATION_EULER: &str = "rotation_euler";
     pub(crate) const SCALE: &str = "scale";
+    pub(crate) const SKEW: &str = "skew";
 }
 
 fn schema() -> String {
@@ -37,6 +38,10 @@ fn schema() -> String {
         (
             k::SCALE,
             r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Size relative to the parent's" }"#,
+        ),
+        (
+            k::SKEW,
+            r#"{ type = "float", default = 0.0, unit = "degrees", description = "A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it" }"#,
         ),
     ])
 }
@@ -58,6 +63,7 @@ fn transform_of(params: &toml::Value) -> Transform {
         position: vec3(k::POSITION),
         rotation: rotation_of(vec3(k::ROTATION_EULER)),
         scale: vec3(k::SCALE),
+        skew: crate::components::prop_f32(params, k::SKEW),
     }
 }
 
@@ -87,6 +93,7 @@ fn get(eng: &crate::Engine, entity: Entity) -> Option<toml::Value> {
     out.insert(k::POSITION.into(), numbers(held.position.to_array()));
     out.insert(k::ROTATION_EULER.into(), numbers(euler_of(held.rotation)));
     out.insert(k::SCALE.into(), numbers(held.scale.to_array()));
+    out.insert(k::SKEW.into(), toml::Value::Float(f64::from(held.skew)));
     Some(toml::Value::Table(out))
 }
 

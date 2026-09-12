@@ -6,8 +6,8 @@ use egui::{Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::UiState;
 use crate::bridge::with_ui;
+use crate::immediate::{DEFAULT_RADIUS, Opts, pill_radius, sc};
 use crate::vocabulary::keys as k;
-use crate::widgets::{DEFAULT_RADIUS, Opts, pill_radius, sc};
 
 /// A project image as an egui texture, cached by path.
 ///
@@ -191,7 +191,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
             Some(tip) => response.on_hover_text(tip),
             None => response,
         };
-        crate::widget_layout::attach_menus(eng, &response, opts);
+        crate::immediate::layout::attach_menus(eng, &response, opts);
         Ok(response.clicked())
     })
 }

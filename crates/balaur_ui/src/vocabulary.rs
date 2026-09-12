@@ -10,6 +10,7 @@ pub(crate) mod words {
     pub(crate) const BUTTON: &str = "button";
     pub(crate) const PANEL: &str = "panel";
     pub(crate) const ROW: &str = "row";
+    pub(crate) const STACK: &str = "stack";
     pub(crate) const COLUMN: &str = "column";
     pub(crate) const SCROLL: &str = "scroll";
     pub(crate) const TEXT_AREA: &str = "text_area";
@@ -30,6 +31,7 @@ pub(crate) mod words {
     pub(crate) const FLOW: &str = "flow";
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
+    pub(crate) const WINDOW: &str = "window";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
@@ -37,18 +39,52 @@ pub(crate) mod words {
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
         COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
-        DIALOG, SEPARATOR, CODE,
+        DIALOG, WINDOW, SEPARATOR, CODE, STACK,
     ];
+
+    pub(crate) const CONTAIN: &str = "contain";
+    pub(crate) const COVER: &str = "cover";
+    /// How a picture sits in the box it was given; empty is the picture's own
+    /// size, which is what decides the box instead.
+    pub(crate) const NONE_FIT: &str = "none";
+    pub(crate) const FITS: &[&str] = &["", CONTAIN, COVER, FILL, NONE_FIT];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
     pub(crate) const TOP_RIGHT: &str = "top_right";
     pub(crate) const BOTTOM_LEFT: &str = "bottom_left";
     pub(crate) const BOTTOM_RIGHT: &str = "bottom_right";
     pub(crate) const CENTER: &str = "center";
+    pub(crate) const CENTER_LEFT: &str = "center_left";
+    pub(crate) const CENTER_RIGHT: &str = "center_right";
+    pub(crate) const CENTER_TOP: &str = "center_top";
+    pub(crate) const CENTER_BOTTOM: &str = "center_bottom";
     pub(crate) const FILL: &str = "fill";
-    /// Screen anchors.
-    pub(crate) const ANCHORS: &[&str] =
-        &[TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER, FILL];
+    pub(crate) const FILL_TOP: &str = "fill_top";
+    pub(crate) const FILL_BOTTOM: &str = "fill_bottom";
+    pub(crate) const FILL_LEFT: &str = "fill_left";
+    pub(crate) const FILL_RIGHT: &str = "fill_right";
+    pub(crate) const FILL_ACROSS: &str = "fill_across";
+    pub(crate) const FILL_DOWN: &str = "fill_down";
+    /// Screen anchors: the four corners, the four edge midpoints, the middle,
+    /// the whole surface, and one axis of it along an edge or the middle.
+    pub(crate) const ANCHORS: &[&str] = &[
+        TOP_LEFT,
+        TOP_RIGHT,
+        BOTTOM_LEFT,
+        BOTTOM_RIGHT,
+        CENTER,
+        CENTER_LEFT,
+        CENTER_RIGHT,
+        CENTER_TOP,
+        CENTER_BOTTOM,
+        FILL,
+        FILL_TOP,
+        FILL_BOTTOM,
+        FILL_LEFT,
+        FILL_RIGHT,
+        FILL_ACROSS,
+        FILL_DOWN,
+    ];
 
     pub(crate) const START: &str = "start";
     pub(crate) const END: &str = "end";
@@ -86,10 +122,13 @@ pub(crate) mod keys {
     pub(crate) const ALIGN: &str = "align";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const AUTOFOCUS: &str = "autofocus";
+    pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
     pub(crate) const BG: &str = "bg";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const BREAKPOINTS: &str = "breakpoints";
     pub(crate) const CHECKED: &str = "checked";
+    pub(crate) const GROUP: &str = "group";
+    pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";
@@ -178,6 +217,7 @@ pub(crate) mod keys {
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const SIZE: &str = "size";
+    pub(crate) const FIT: &str = "fit";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const SOURCE: &str = "source";
     pub(crate) const SPEED: &str = "speed";
@@ -196,6 +236,8 @@ pub(crate) mod keys {
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const TOP: &str = "top";
     pub(crate) const TRAILING: &str = "trailing";
+    pub(crate) const PLATE: &str = "plate";
+    pub(crate) const SHOWING: &str = "showing";
     pub(crate) const TRAILING_COLOR: &str = "trailing_color";
     pub(crate) const TRAILING_SIZE: &str = "trailing_size";
     pub(crate) const TRANSPARENT: &str = "transparent";

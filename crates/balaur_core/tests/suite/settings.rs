@@ -170,3 +170,241 @@ fn the_netcode_page_produces_the_faults_it_describes() {
     let faults = settings::faults(&app.engine).expect("turned on");
     assert_eq!(faults.delay, 9);
 }
+
+/// `[override.android.window] vsync` is what `window/vsync` reads
+/// on a phone, and nothing at all anywhere else.
+#[test]
+fn an_override_answers_only_where_its_tag_is_in_force() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[window]\nvsync = false\n\n[override.android.window]\nvsync = true\n",
+    )
+    .unwrap();
+
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "desktop".into(),
+        "linux".into(),
+    ]));
+    assert_eq!(
+        settings::get(&app.engine, "window/vsync"),
+        Some(toml::Value::Boolean(false))
+    );
+
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
+    assert_eq!(
+        settings::get(&app.engine, "window/vsync"),
+        Some(toml::Value::Boolean(true))
+    );
+}
+
+/// The narrow tag wins wherever the file wrote it: precedence is the tag
+/// order this run holds, not the order two tables happen to appear in.
+#[test]
+fn the_narrower_tag_outranks_the_broader_one() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[override.android.physics]\nsolver_iterations = 3.0\n\n\
+         [override.mobile.physics]\nsolver_iterations = 2.0\n",
+    )
+    .unwrap();
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
+    assert_eq!(
+        settings::get(&app.engine, "physics/solver_iterations"),
+        Some(toml::Value::Float(3.0))
+    );
+}
+
+/// What the editor edits is the file's own value, not the one this machine
+/// resolves: a screen showing the override would write it onto the base key.
+#[test]
+fn the_base_read_ignores_every_override() {
+    let app = app();
+    let source = "[window]\nvsync = false\n\n[override.android.window]\nvsync = true\n";
+    settings::load(&app.engine, source).unwrap();
+    app.engine
+        .insert_resource(balaur_core::tags::Tags(vec!["android".into()]));
+
+    assert_eq!(
+        settings::base(&app.engine, "window/vsync"),
+        Some(toml::Value::Boolean(false))
+    );
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    let parsed: toml::Value = toml::from_str(&written).unwrap();
+    assert_eq!(
+        parsed["override"]["android"]["window"]["vsync"].as_bool(),
+        Some(true),
+        "an override no page declares survives a write: {written}"
+    );
+}
+
+/// A table core knows nothing about is the game's own space, readable by the
+/// same call as everything else.
+#[test]
+fn an_undeclared_table_is_readable_by_path() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[mygame]\nlocal_server_url = \"http://localhost:8080\"\n",
+    )
+    .unwrap();
+    assert_eq!(
+        settings::get(&app.engine, "mygame/local_server_url"),
+        Some(toml::Value::String(String::from("http://localhost:8080")))
+    );
+}
+
+/// The screen owns the override tree: setting one writes it, clearing one
+/// takes it out, and the table it lived in goes with it.
+#[test]
+fn an_override_is_written_and_removed_by_the_same_write() {
+    let app = app();
+    settings::set(
+        &app.engine,
+        "override/android/window/vsync",
+        toml::Value::Boolean(true),
+    );
+    let written = settings::to_toml(&app.engine, Scope::Project, "").unwrap();
+    assert!(written.contains("[override.android.window]"), "{written}");
+
+    settings::clear(&app.engine, "override/android/window/vsync");
+    let written = settings::to_toml(&app.engine, Scope::Project, &written).unwrap();
+    assert!(
+        !written.contains("override"),
+        "the emptied table stayed behind: {written}"
+    );
+}
+
+/// An override on a key nothing declares is not the screen's to write, and a
+/// hand-written one has to survive the screen's save.
+#[test]
+fn an_override_the_screen_does_not_know_survives_a_write() {
+    let app = app();
+    let source = "[override.ios.mygame]\nurl = \"https://example.test\"\n";
+    settings::load(&app.engine, source).unwrap();
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    assert!(written.contains("example.test"), "{written}");
+}
+
+/// A save from the settings screen is a small diff: comments stay, and a key
+/// nobody set is not written out as its default.
+#[test]
+fn a_write_keeps_comments_and_adds_no_defaults() {
+    let app = app();
+    let source = "# The game.\n[application]\nname = \"g\" # shown in the title\nmain_scene = \"main.toml\"\n";
+    settings::load(&app.engine, source).unwrap();
+    settings::set(&app.engine, "window/vsync", toml::Value::Boolean(true));
+
+    let written = settings::to_toml(&app.engine, Scope::Project, source).unwrap();
+    assert!(written.contains("# The game."), "{written}");
+    assert!(written.contains("# shown in the title"), "{written}");
+    assert!(written.contains("[window]\nvsync = true"), "{written}");
+    assert!(
+        !written.contains("width") && !written.contains("solver"),
+        "a default nobody chose was written: {written}"
+    );
+}
+
+/// A table of the game's own names takes an override key by key: rebinding
+/// one action on a phone leaves every other action as the file wrote it.
+#[test]
+fn a_table_folds_each_override_on_key_by_key() {
+    let app = app();
+    settings::load(
+        &app.engine,
+        "[input.actions]\njump = [\"Space\"]\nfire = [\"KeyF\"]\n\n\
+         [override.mobile.input.actions]\njump = [\"touch:jump\"]\n",
+    )
+    .unwrap();
+    app.engine.insert_resource(balaur_core::tags::Tags(vec![
+        "mobile".into(),
+        "android".into(),
+    ]));
+
+    let actions = settings::table(&app.engine, "input/actions");
+    assert_eq!(actions["jump"][0].as_str(), Some("touch:jump"));
+    assert_eq!(actions["fire"][0].as_str(), Some("KeyF"));
+}
+
+/// A shipped pack answers to the tags its export stamped into it, from the
+/// first setting read: a demo build reads `[override.demo]` and nothing
+/// else does.
+#[test]
+fn a_pack_answers_to_the_tags_its_export_wrote() {
+    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
+                    [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nvsync = false\n";
+    let mut pack = balaur_core::Pack {
+        manifest: manifest.to_string(),
+        ..balaur_core::Pack::default()
+    };
+    pack.scenes.insert("main.toml".to_string(), String::new());
+    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+
+    assert!(
+        app.engine
+            .resource::<balaur_core::tags::Tags>()
+            .borrow()
+            .has("demo")
+    );
+    assert_eq!(
+        settings::get(&app.engine, "window/vsync"),
+        Some(toml::Value::Boolean(false)),
+        "the default is true, so only the demo's override answers false"
+    );
+    let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
+    assert_eq!(
+        files.borrow().source(),
+        balaur_core::project::AssetSource::Embedded,
+        "application/assets is read through the registry before the files exist"
+    );
+}
+
+/// What a host reads before an engine exists resolves too: `[plugins]` on
+/// one platform, and the scene a demo build opens with.
+#[test]
+fn the_boot_manifest_takes_overrides() {
+    use balaur_core::project::ProjectManifest;
+    use balaur_core::tags::Tags;
+    let source = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n\
+                  [plugins]\nhttp = true\n\n[override.ios.plugins]\nhttp = false\n\n\
+                  [override.demo.application]\nmain_scene = \"demo.toml\"\n";
+
+    let phone =
+        ProjectManifest::parse_for(source, &Tags(vec!["mobile".into(), "ios".into()])).unwrap();
+    assert!(!phone.plugins["http"].wanted());
+    assert_eq!(phone.main_scene, "main.toml");
+
+    let desktop = ProjectManifest::parse_for(source, &Tags(vec!["desktop".into()])).unwrap();
+    assert!(desktop.plugins["http"].wanted());
+
+    let demo = ProjectManifest::parse_for(source, &Tags(vec!["demo".into()])).unwrap();
+    assert_eq!(demo.main_scene, "demo.toml");
+}
+
+/// A pack built as a demo opens the demo's scene: `[build] tags` is read
+/// before the manifest decides what `main_scene` is.
+#[test]
+fn a_demo_pack_opens_the_demo_s_scene() {
+    let mut pack = balaur_core::Pack {
+        manifest: "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n\
+                     [build]\ntags = [\"demo\"]\n\n\
+                     [override.demo.application]\nmain_scene = \"demo.toml\"\n"
+            .to_string(),
+        ..balaur_core::Pack::default()
+    };
+    pack.scenes.insert(
+        "demo.toml".to_string(),
+        "[[nodes]]\nid = \"d\"\nname = \"DemoOnly\"\n".to_string(),
+    );
+    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+    assert_eq!(app.manifest().unwrap().main_scene, "demo.toml");
+}

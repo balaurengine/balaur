@@ -32,8 +32,13 @@ const DOOR: &str = r#"
 score = { type = "int", value = 0 }
 
 [[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
 id = "n_ball"
 name = "Ball"
+parent = "n_scene"
 
 [[nodes.bindings]]
 event = "pointer_click"
@@ -51,6 +56,7 @@ value = "open"
 [[nodes]]
 id = "n_door"
 name = "Door"
+parent = "n_scene"
 
 [nodes.shape3d]
 kind = "cuboid"
@@ -68,7 +74,8 @@ shape3d = { color = [0.3, 0.75, 0.4, 1] }
 
 fn node(app: &balaur::App, name: &str) -> balaur::hecs::Entity {
     let world = app.engine.world();
-    balaur::scene::find_node(&world, app.engine.root(), name)
+    // Every node in these scenes hangs off the document's one root, `Scene`.
+    balaur::scene::find_node(&world, app.engine.root(), &format!("Scene/{name}"))
         .unwrap_or_else(|| panic!("no node `{name}`"))
 }
 
@@ -230,4 +237,65 @@ fn every_deferred_action_has_a_runner() {
             "`{word}` has no runner: a binding naming it would log rather than act"
         );
     }
+}
+
+/// A timer's `timeout` and a clip's `animation_finished`, each counted by a
+/// binding row: Godot connections to those signals, with no script at all.
+const SIGNALS: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_clock"
+name = "Clock"
+parent = "n_scene"
+
+[nodes.timer]
+wait_time = 0.25
+autostart = true
+
+[[nodes.bindings]]
+event = "emitted:timeout"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes]]
+id = "n_wave"
+name = "Wave"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0, 0, 0]
+
+[nodes.animation]
+autoplay = "rise"
+
+[nodes.animation.library.clips.rise]
+length = 0.5
+[[nodes.animation.library.clips.rise.tracks]]
+property = "position"
+keys = [ { t = 0.0, value = [0, 0, 0] }, { t = 0.5, value = [0, 1, 0] } ]
+
+[[nodes.bindings]]
+event = "emitted:animation_finished"
+action = "add_variable"
+target = "score"
+value = 100
+"#;
+
+#[test]
+fn a_timer_and_a_finished_clip_drive_bindings_with_no_script() {
+    let (_dir, mut app) = app_from(SIGNALS);
+    for _ in 0..60 {
+        app.tick(1.0 / 60.0);
+    }
+    // Timeouts at a quarter, a half and three quarters of the second, each
+    // heard the frame after; the one at the full second is still in flight.
+    // The half-second clip ends once.
+    assert_eq!(score(&app), 3 + 100);
 }

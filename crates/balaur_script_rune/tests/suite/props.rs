@@ -99,15 +99,23 @@ fn the_string_form_of_the_script_key_still_attaches() {
 fn two_nodes_on_one_script_get_their_own_values() {
     let (_dir, app) = build(
         "[[nodes]]\n\
+         name = \"Scene\"\n\
+         \n\
+         [[nodes]]\n\
          name = \"Fast\"\n\
+         parent = \"Scene\"\n\
          script = { source = \"scripts/enemy.rn\", props = { speed = 9.0 } }\n\
          \n\
          [[nodes]]\n\
          name = \"Slow\"\n\
+         parent = \"Scene\"\n\
          script = { source = \"scripts/enemy.rn\", props = { speed = 0.5 } }\n",
         ENEMY,
     );
-    let (fast, slow) = (node_named(&app, "Fast"), node_named(&app, "Slow"));
+    let (fast, slow) = (
+        node_named(&app, "Scene/Fast"),
+        node_named(&app, "Scene/Slow"),
+    );
     assert_eq!(number(&app, fast, "seen_speed"), Some(9.0));
     assert_eq!(number(&app, slow, "seen_speed"), Some(0.5));
 }
@@ -298,20 +306,26 @@ fn scripts_inside_a_prefab_attach_with_their_properties() {
     balaur_core::project::instantiate_scene(
         &app.engine,
         "[[nodes]]\n\
+         id = \"n_scene\"\n\
+         name = \"Scene\"\n\
+         \n\
+         [[nodes]]\n\
          id = \"n_left\"\n\
          name = \"Left\"\n\
+         parent = \"n_scene\"\n\
          instance = \"scenes/enemy.toml\"\n\
          \n\
          [[nodes]]\n\
          id = \"n_right\"\n\
          name = \"Right\"\n\
+         parent = \"n_scene\"\n\
          instance = \"scenes/enemy.toml\"\n",
         root,
         true,
     )
     .unwrap();
 
-    for name in ["Left/Body", "Right/Body"] {
+    for name in ["Scene/Left", "Scene/Right"] {
         let node = node_named(&app, name);
         assert_eq!(number(&app, node, "seen_speed"), Some(1.5), "{name}");
         assert_eq!(number(&app, node, "seen_jumps"), Some(2.0), "{name}");
@@ -357,7 +371,7 @@ fn a_packed_game_builds_its_prefabs() {
     .unwrap();
     app.load_project().unwrap();
 
-    let body = node_named(&app, "Enemy/Body");
+    let body = node_named(&app, "Enemy");
     assert_eq!(number(&app, body, "seen_speed"), Some(6.5));
 }
 
@@ -380,16 +394,22 @@ fn an_override_retunes_a_prefabs_script() {
     balaur_core::project::instantiate_scene(
         &app.engine,
         "[[nodes]]\n\
+         id = \"n_scene\"\n\
+         name = \"Scene\"\n\
+         \n\
+         [[nodes]]\n\
          id = \"n_slow\"\n\
          name = \"Slow\"\n\
+         parent = \"n_scene\"\n\
          instance = \"scenes/enemy.toml\"\n\
          \n\
          [[nodes]]\n\
          id = \"n_fast\"\n\
          name = \"Fast\"\n\
+         parent = \"n_scene\"\n\
          instance = \"scenes/enemy.toml\"\n\
          \n\
-         [nodes.overrides.\"Body\".script.props]\n\
+         [nodes.overrides.\".\".script.props]\n\
          speed = 12.0\n",
         root,
         true,
@@ -397,16 +417,16 @@ fn an_override_retunes_a_prefabs_script() {
     .unwrap();
 
     assert_eq!(
-        number(&app, node_named(&app, "Slow/Body"), "seen_speed"),
+        number(&app, node_named(&app, "Scene/Slow"), "seen_speed"),
         Some(1.5)
     );
     assert_eq!(
-        number(&app, node_named(&app, "Fast/Body"), "seen_speed"),
+        number(&app, node_named(&app, "Scene/Fast"), "seen_speed"),
         Some(12.0)
     );
     // Untouched by the override, so both still take the export's default.
     assert_eq!(
-        number(&app, node_named(&app, "Fast/Body"), "seen_jumps"),
+        number(&app, node_named(&app, "Scene/Fast"), "seen_jumps"),
         Some(2.0)
     );
 }
@@ -487,4 +507,132 @@ fn an_exported_asset_says_where_to_declare_it() {
         err.contains("exports()"),
         "it points at the form that works: {err}"
     );
+}
+
+/// A `node` export is the node its path names, relative to the scripted one,
+/// even one declared later in the file; a path to nothing is nil.
+#[test]
+fn a_node_export_arrives_as_the_node_it_names() {
+    let script = "pub fn exports() {\n\
+         #{ target: #{ \"type\": \"node\", \"default\": \"\" }, lost: #{ \"type\": \"node\", \"default\": \"\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen_target = this.target.name();\n\
+         this.seen_lost = if this.lost is Tuple { \"nil\" } else { \"node\" };\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Scene\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Hunter\"\n\
+         parent = \"Scene\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { target = \"../Prey\", lost = \"../Nobody\" } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Prey\"\n\
+         parent = \"Scene\"\n",
+        script,
+    );
+    let hunter = node_named(&app, "Scene/Hunter");
+    assert_eq!(
+        text(&app, hunter, "seen_target"),
+        Some(String::from("Prey"))
+    );
+    assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
+}
+
+/// A `nodes` export is a list of them: Godot's `Array[Node]`, each path
+/// resolved the way one is.
+#[test]
+fn a_nodes_export_arrives_as_the_list_of_nodes_it_names() {
+    let script = "pub fn exports() {\n\
+         #{ crew: #{ \"type\": \"nodes\", \"default\": [] } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.crew.len() as f64;\n\
+         this.first = this.crew[0].name();\n\
+         this.lost = if this.crew[2] is Tuple { \"nil\" } else { \"node\" };\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { crew = [\"Cook\", \"Bosun\", \"Ghost\"] } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Cook\"\n\
+         parent = \"Ship\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Bosun\"\n\
+         parent = \"Ship\"\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen"), Some(3.0));
+    assert_eq!(text(&app, ship, "first"), Some(String::from("Cook")));
+    assert_eq!(text(&app, ship, "lost"), Some(String::from("nil")));
+}
+
+/// A `node` export that names a `component` hands the script that node's
+/// handle for it, so it calls the component straight off the export.
+#[test]
+fn a_node_export_naming_a_component_arrives_as_that_handle() {
+    let script = "pub fn exports() {\n\
+         #{ wheel: #{ \"type\": \"node\", \"component\": \"transform\", \"default\": \"\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.wheel.position = [1.0, 2.0, 0.0];\n\
+         this.seen_x = this.wheel.position.x;\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Scene\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Cart\"\n\
+         parent = \"Scene\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { wheel = \"../Wheel\" } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Wheel\"\n\
+         parent = \"Scene\"\n\
+         transform = { position = [0.0, 0.0, 0.0] }\n",
+        script,
+    );
+    let cart = node_named(&app, "Scene/Cart");
+    assert_eq!(number(&app, cart, "seen_x"), Some(1.0));
+}
+
+/// A child's `init` runs before its parent's, as Godot runs `_ready`: a
+/// parent composes children that have already set themselves up.
+#[test]
+fn a_child_inits_before_its_parent() {
+    let script = "pub fn init(this) {\n\
+         let order = scene::variable(\"order\");\n\
+         scene::set_variable(\"order\", order + this.node.name());\n\
+     }\n";
+    let scene = "[variables]\n\
+         order = { type = \"string\", value = \"\" }\n\
+         \n\
+         [[nodes]]\n\
+         id = \"p\"\n\
+         name = \"P\"\n\
+         script = \"scripts/enemy.rn\"\n\
+         \n\
+         [[nodes]]\n\
+         name = \"C\"\n\
+         parent = \"p\"\n\
+         script = \"scripts/enemy.rn\"\n";
+    let dir = project(&[("scripts/enemy.rn", script)]);
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, scene, root, true).unwrap();
+    let variables = app.engine.resource::<balaur_core::variables::Variables>();
+    let order = variables.borrow().get("order").cloned();
+    let order = match order {
+        Some(balaur_script::Value::Str(text)) => Some(String::from(&*text)),
+        _ => None,
+    };
+    assert_eq!(order, Some(String::from("CP")));
 }

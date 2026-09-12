@@ -11,6 +11,12 @@ const TALL_EXTRA = 62.0;
 // its sheets. The scene states the resting pair; this is the tighter one.
 const TIGHT_GUTTER = 8.0;
 const TIGHT_GAP = 6.0;
+// The floor a seam stops a dock at, and what the scene keeps whatever the
+// seams either side of it are dragged to.
+const LEFT_MIN = 180.0;
+const RIGHT_MIN = 220.0;
+const BOTTOM_MIN = 84.0;
+const STAGE_MIN = 260.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
 const EASE_S = 0.16;
@@ -33,9 +39,6 @@ pub fn state() {
         // The scene's own numbers, adopted before anything writes over them.
         // Zero until `adopt` has run, which is what `asked` says.
         asked: false,
-        // What each open dock last measured, so folding one at its floor can
-        // put the size it had back when it opens again.
-        reopen: #{},
         gutter: 0.0, gap: 0.0, pad: 0.0,
         tree_w: 0.0, insp_w: 0.0, dock_h: 0.0, hooks_w: 0.0,
         status_h: 0.0,
@@ -165,26 +168,13 @@ fn dragged(S, id, key, into) {
     }
 }
 
-// What each open dock measured, so folding one at its floor can put the size
-// it had back when it opens again.
-fn remember_open(S) {
+// A dragged size, held between its floor and what the scene can spare. Kept
+// on `S.layout` rather than clamped on the way out, so the next drag carries
+// on from where this one stopped instead of from where the pointer went.
+fn held(S, key, floor, ceiling) {
     let m = S.layout;
-    for (side, key) in #{ left: "tree_w", right: "insp_w", bottom: "dock_h" } {
-        if !S.docks[side].shut && m[key] > 0.0 {
-            m.reopen[side] = m[key];
-        }
-    }
-}
-
-// A dock dragged down to the size it cannot go under is folded instead, and
-// the size it had is kept so opening it again lands where it was.
-fn fold_at_floor(S, side, key, floor) {
-    let m = S.layout;
-    if S.docks[side].shut || m[key] > floor + 1.0 {
-        return;
-    }
-    m[key] = m.reopen.get(side).unwrap_or(floor * 1.4);
-    S.docks[side].shut = true;
+    m[key] = util::clamp(m[key], floor, util::max(floor, ceiling));
+    m[key]
 }
 
 fn size(S, id, key, value) {
@@ -278,28 +268,23 @@ pub fn compute(S) {
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
-    remember_open(S);
     dragged(S, "left", "width", "tree_w");
     dragged(S, "right", "width", "insp_w");
     dragged(S, "bottom", "height", "dock_h");
-    // Dragged to its floor, a dock folds: the gesture that makes it smallest
-    // is the one that means "put it away".
-    fold_at_floor(S, "left", "tree_w", 180.0);
-    fold_at_floor(S, "right", "insp_w", 220.0);
-    fold_at_floor(S, "bottom", "dock_h", 84.0);
 
-    // A narrow window would leave no scene at all, so the sheets give way
-    // before the stage does. A dock with every tab closed gives its column
-    // back to the scene; the logo menu is what puts a panel in it again.
-    let tree_w = side_w(S, "left", util::clamp(m.tree_w, 180.0, w * 0.28));
-    let insp_w = side_w(S, "right", util::clamp(m.insp_w, 220.0, w * 0.32));
+    // A seam resizes and only resizes: a dock is put away by the mark in its
+    // own tab row, so a drag that reaches the floor stops there. The ceiling is
+    // what the other dock and the stage leave.
+    let tree_w = side_w(S, "left", held(S, "tree_w", LEFT_MIN, w - STAGE_MIN - RIGHT_MIN));
+    let insp_w = side_w(S, "right", held(S, "insp_w", RIGHT_MIN, w - STAGE_MIN - tree_w));
     let tall = if crate::docks::bottom_tall(S) { TALL_EXTRA } else { 0.0 };
+    let body_h = held(S, "dock_h", BOTTOM_MIN, S.screen_h - m.bar.h - STAGE_MIN - tall - m.status_h);
     // Minimised, the dock is gone: its handle sits beside the zoom reading,
     // the way each side dock's sits at the edge it folded towards.
     let dock_h = if crate::docks::folded(S, "bottom") {
         0.0
     } else {
-        m.dock_h + tall + m.status_h
+        body_h + tall + m.status_h
     };
     let grid = crate::center::rail_grid(S, m.rail_room);
     let rail_w = if S.rail_visible { crate::center::rail_span(grid, grid.cols) } else { 0.0 };
@@ -332,6 +317,10 @@ pub fn compute(S) {
     // below it rather than beside it.
     size(S, "railtop", "height", crate::docks::rail_top_h(S));
     size(S, "hooks", "width", hooks_w);
+    // The side docks' rule again: a zero-width box still takes its row's gap,
+    // so the rail slot and the hooks list go rather than shrink.
+    show(S, "railslot", rail_w > 0.0);
+    show(S, "hooks", hooks_w > 0.0);
 
     // The widget layer draws after `draw_ui`, so these are a frame behind.
     // A size that just changed shows on the next one, the way `bar_fit` has

@@ -185,6 +185,7 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         ("screenshot", &[], "", "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so."),
         ("set_app_icon", &[], "", "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path."),
         ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
+        ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
         ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
         ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
@@ -222,7 +223,21 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
     m.function("set_fullscreen", |eng: &Engine, fullscreen: bool| {
         let config = eng.resource::<WindowConfig>();
         let mut config = config.borrow_mut();
-        config.fullscreen = fullscreen;
+        config.mode = if fullscreen {
+            balaur_core::project::WindowMode::Fullscreen
+        } else {
+            balaur_core::project::WindowMode::Windowed
+        };
+        config.changed = true;
+        Ok(())
+    });
+    m.function("set_window_mode", |eng: &Engine, mode: String| {
+        let Some(mode) = balaur_core::project::WindowMode::parse(&mode) else {
+            anyhow::bail!("no window mode '{mode}': windowed, maximized, fullscreen or exclusive");
+        };
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.mode = mode;
         config.changed = true;
         Ok(())
     });
@@ -409,6 +424,9 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                 eng,
                 entity_of(node)?,
                 SpriteTexture {
+                    offset: [0.0, 0.0],
+                    centered: true,
+                    shift: [0.0, 0.0],
                     path,
                     sheet: None,
                     frame: 0,
@@ -432,6 +450,9 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                 eng,
                 entity_of(node)?,
                 SpriteTexture {
+                    offset: [0.0, 0.0],
+                    centered: true,
+                    shift: [0.0, 0.0],
                     path,
                     sheet: Some(SpriteSheet2d {
                         columns: columns.max(1),

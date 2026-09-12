@@ -27,9 +27,22 @@ impl Probe {
         let refresh_rate = self.refresh_rate();
         let dark_mode = dark_mode();
         let safe_area = safe_area(window);
+        let keyboard = keyboard_height(window);
+        let screen_size = [window.width() as f32, window.height() as f32];
+        // Published so a touch control, placed in the tick, can reach it.
+        let ui_scale = app
+            .engine
+            .try_resource::<balaur_ui::UiConfig>()
+            .map_or(1.0, |config| config.borrow().scale)
+            .max(f32::EPSILON);
+        let game_area = game_area(app, ui_scale);
         balaur_core::facts::update_device(&app.engine, |facts| {
             facts.dark_mode = dark_mode;
             facts.safe_area = safe_area;
+            facts.screen_size = screen_size;
+            facts.ui_scale = ui_scale;
+            facts.keyboard_height = keyboard;
+            facts.game_area = game_area;
             if let Some(rate) = refresh_rate {
                 facts.refresh_rate = rate;
             }
@@ -52,6 +65,18 @@ impl Probe {
     }
 }
 
+/// The widget layer's default surface in physical pixels, so touch controls
+/// sit where the game's widgets do: the viewport in the editor, and nowhere
+/// while the host has the game's surface off.
+fn game_area(app: &App, scale: f32) -> Option<[f32; 4]> {
+    let layer = app.engine.try_resource::<balaur_ui::WidgetLayerConfig>()?;
+    let layer = layer.borrow();
+    if !layer.enabled {
+        return Some([0.0; 4]);
+    }
+    layer.rect.map(|rect| rect.map(|v| v * scale))
+}
+
 /// The window came to the front or went behind.
 pub(crate) fn set_focused(app: &App, focused: bool) {
     balaur_core::facts::update_device(&app.engine, |facts| facts.focused = focused);
@@ -66,9 +91,17 @@ pub(crate) fn keep_awake(on: bool) {
 }
 
 #[cfg(target_os = "macos")]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
+    // The system setting first: an offscreen run has no application to ask,
+    // and one that has not opened a window yet answers with the default
+    // light appearance whatever the desktop is set to.
     use objc2_app_kit::NSApplication;
-    use objc2_foundation::MainThreadMarker;
+    use objc2_foundation::{MainThreadMarker, NSString, NSUserDefaults};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let style = defaults.stringForKey(&NSString::from_str("AppleInterfaceStyle"));
+    if let Some(style) = style {
+        return style.to_string().contains("Dark");
+    }
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
@@ -78,7 +111,7 @@ fn dark_mode() -> bool {
 }
 
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
     web::dark_mode()
 }
 
@@ -86,8 +119,34 @@ fn dark_mode() -> bool {
     target_os = "macos",
     all(target_family = "wasm", not(target_os = "emscripten"))
 )))]
-fn dark_mode() -> bool {
+pub(crate) fn dark_mode() -> bool {
     false
+}
+
+/// What the on-screen keyboard covers: the part of the window the visual
+/// viewport no longer reaches. A window asks kiss3d, which asks UIKit or the
+/// Android activity and answers zero on a desktop.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+fn keyboard_height(_window: &kiss3d::window::Window) -> f32 {
+    let Some(window) = web_sys::window() else {
+        return 0.0;
+    };
+    let inner = window
+        .inner_height()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let Some(viewport) = window.visual_viewport() else {
+        return 0.0;
+    };
+    let covered = inner - viewport.height() - viewport.offset_top();
+    let ratio = window.device_pixel_ratio();
+    (covered.max(0.0) * ratio) as f32
+}
+
+#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+fn keyboard_height(window: &kiss3d::window::Window) -> f32 {
+    window.keyboard_height()
 }
 
 /// The page reads its insets off the shell's CSS; a window asks kiss3d.

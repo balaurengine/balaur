@@ -34,11 +34,10 @@ fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
 
 fn app_in(dir: &Path, watch: bool, pack: Option<Pack>) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
         pack,
         watch,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap()
 }

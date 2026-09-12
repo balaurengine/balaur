@@ -1,6 +1,6 @@
 //! Conversions between the neutral `balaur_script::Value` and Rune's.
 
-mod component;
+pub(crate) mod component;
 
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
@@ -12,6 +12,19 @@ use rune::alloc::clone::TryClone as _;
 #[rune(item = ::balaur)]
 pub struct Node {
     pub(crate) id: u64,
+}
+
+impl Node {
+    // The shape Rune's protocol registration takes: the receiver by reference
+    // and the operand as a value it can convert.
+    #[allow(
+        clippy::trivially_copy_pass_by_ref,
+        clippy::needless_pass_by_value,
+        reason = "an associated function registered with Rune"
+    )]
+    fn same(&self, other: rune::Value) -> bool {
+        other.borrow_ref::<Node>().is_ok_and(|n| n.id == self.id)
+    }
 }
 
 /// A vector as scripts see it. Rune has no tuple-struct literals across the
@@ -60,6 +73,9 @@ pub(crate) fn install(
     engine: &balaur_core::Engine,
 ) -> Result<(), rune::ContextError> {
     m.ty::<Node>()?;
+    // `a == b` on two handles: the same node. Anything else is not equal.
+    m.associated_function(&rune::runtime::Protocol::PARTIAL_EQ, Node::same)?;
+    m.associated_function(&rune::runtime::Protocol::EQ, Node::same)?;
     m.ty::<Vec2>()?;
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;

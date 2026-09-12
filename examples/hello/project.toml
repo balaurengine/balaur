@@ -8,6 +8,11 @@ main_scene = "scenes/main.toml"
 reverse = ["Space", "gamepad:South"]
 spin = ["keys:A,D", "axis:LeftStickX"]
 
+# The mouse stands in for a finger, so the on-screen stick and button in the
+# scene work on a desktop too. A phone game leaves this off.
+[input]
+emulate_touch_from_mouse = true
+
 # The language a run starts in, and where a key it lacks is looked for next.
 # `strings.set_locale("ro")` switches at run time.
 [locale]

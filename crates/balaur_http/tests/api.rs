@@ -138,8 +138,11 @@ fn the_http_table_of_the_manifest_sets_the_default_timeout() {
         "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n\n[http]\ntimeout = 2.5\n",
     )
     .unwrap();
-    let app = app_with_http(dir.path());
-    let config = app.engine.resource::<balaur_http::HttpConfig>();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
+    let mut app = app_with_http(dir.path());
+    app.load_project().unwrap();
+    let config = std::cell::RefCell::new(balaur_http::HttpConfig::from_settings(&app.engine));
     let config = config.borrow();
     assert!((config.timeout - 2.5).abs() < f64::EPSILON);
 }

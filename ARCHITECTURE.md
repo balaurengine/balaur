@@ -50,9 +50,11 @@ the direction, and it is what keeps core language-free.
   script bindings see one state, unmarshalled. Single-threaded by design;
   parallelism goes inside a system.
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
-  `Children`, `Transform`, `GlobalTransform`. Paths, transform propagation and
-  recursive free are core systems; plugins hang components off the same
-  entities, so "node" is an API surface, not a cost.
+  `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
+  component, `[nodes.transform]` in a file, and a node without one sits at its
+  parent. Paths, transform propagation and recursive free are core systems;
+  plugins hang components off the same entities, so "node" is an API surface,
+  not a cost.
 - A scene's `parent` is an id or a path of names; ids resolve first, and a path
   may not climb out with `..`. The editor normalizes paths to ids on load — a
   replay addresses a node by id.
@@ -92,6 +94,13 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
   being ticked. Not recorded — a replay re-runs the script, which emits again.
+- Awaiting, GDScript's `await`: `task::wait(events.next(name, from?))` wakes
+  with the next matching event's payload, and
+  `task::wait(node.call_async(method, args))` with that method's return value,
+  however many ticks it suspended for. Both wake on the next step, like a timer.
+- A scene inits its scripts children before parents, Godot's `_ready` order: a
+  child can always reach its parent node, while a parent reading a child's
+  script state is the one that would find nothing.
 - `language` in `project.toml` picks the language; absent means Rune, the one
   this build ships.
 
@@ -117,12 +126,22 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.
 - It is scene data — packed, digested, replayed. `node:attach_script(path,
   props)` is the same thing at run time.
+- A `node` export arrives as the node its path names, resolved from the
+  scripted node once the whole scene exists, or nil: Godot's `@export var x:
+  Node`. One that also names a `component` arrives as that node's handle for
+  it, the way an `asset` property names its asset type.
+- A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
+  resolved the way one is, and a path naming nothing is nil in its place.
+- `script::require` hands back a module's `pub fn`s and its top-level `pub
+  const`s, so a shared constant is read where it is declared.
 
 ### Prefabs
 
-`instance = "scenes/crate.toml"` makes the prefab's roots the node's children,
-the same rule `scene::instantiate` follows. The node keeps its own name,
-transform and components.
+A scene has exactly one root, as a Godot scene and a Unity prefab do: it is
+what a path, a stable id and an instance all address, and a second root is an
+error naming it. `instance = "scenes/crate.toml"` makes the node *be* that
+prefab's root — the root's keys, components and script land on the node, under
+the node's own, and the root's children become the node's.
 
 - `overrides` is keyed by path from the instance node and holds scene keys,
   including `script.props`.
@@ -133,6 +152,8 @@ transform and components.
   replication will address.
 - A path naming nothing is reported and kept; a self-containing prefab is an
   error naming the cycle. Scripts attach when the outermost scene finishes.
+- Overrides name paths from the instance node, `.` for the node itself, so a
+  Godot path reads the same here.
 - In the editor: placed from the palette, opened from its row, drawn one shade
   quieter. Editing a prefab row writes a sparse `overrides` entry, removed again
   when the value returns to the prefab's. Comparison needs
@@ -192,14 +213,27 @@ remove hooks.
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `shape/radius` with the
   first would reset `half_extents`.
+- `meta` is the one component with no schema, so every key on it is the
+  author's: values filed on a node for whoever holds the node rather than for
+  its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script
+  reads `node.meta["fade"]`, and `node.meta = #{ … }` replaces the table.
+- A handle indexes as well as it reads fields: `node.widget["checked"]` names
+  a property at run time, which is the only way to reach a schema-less one.
 - One registration buys the scene key, the node API (`set_component`,
   `get_component`, `has_component`, `remove_component`, `component_names`,
   `scene.component_types`, `scene.component_schema`) and the editor: the
   Add-component palette and every inspector row are generated from the registry,
   so a third-party component needs no editor change.
-- In tree: `body3d`/`collider3d`, `body2d`/`collider2d`;
+- In tree: `transform` in core; `body3d`/`collider3d`, `body2d`/`collider2d`;
   `shape3d`/`shape2d`/`sprite`, each with its own `color` property, since a tint
   needs something to tint; `widget`.
+- Materials split the same way. A renderable's `material` is its own; the
+  `material` component goes on any node and names one for the subtree, composed
+  beside the tint as `Appearance::material`. That is an interned `MaterialId`,
+  so `Appearance` stays `Copy`, and the digest and snapshot store the reference
+  since ids follow load order. A shader's contract import (`package::sprite`,
+  `package::mesh`) says which dimension it draws, and an inherited material that
+  reaches the other one keeps the built-in material.
 
 **Browsing them.** The list is flat — a node is exactly its components.
 
@@ -216,7 +250,7 @@ remove hooks.
 
 ### 2D
 
-A second set of components over the same tree, on the regular `Transform`.
+A second set of components over the same tree, on the same `transform`.
 
 - `shape2d` (`rect`/`circle`) and `sprite` render through a pan/zoom
   orthographic camera: `render.set_camera_2d(cx, cy, zoom)` in logical px per
@@ -255,6 +289,10 @@ content is `asset`.
   doc, parse)` returns an opaque `Rc<dyn Any>` the plugin downcasts.
   `AssetState` is the `DetHashMap` cache keyed by resolved reference;
   `AssetTypeRegistry` is the parser table, read-only after plugin build.
+- `application/ignore` in `project.toml` lists what is not the game's, as
+  globs (`art/wip/**`, `**/*.blend1`): the asset index skips it and a pack
+  leaves it out, so nothing there reaches a shipped game. One list rather than
+  a marker file per folder, so it is visible and versioned.
 - Sharing is the default; `assets.duplicate` opts out. Cache keys use a
   hand-written FNV-1a over bytes and TOML structure — `std`'s hashers specify
   nothing about their output, and this key must agree across platforms.
@@ -299,11 +337,13 @@ its `Cargo.toml` and fails if one appears.
   `widget/x` animate, and a third-party component animates the day it registers.
   A track with no `property` is a method track, calling through `call_on`.
 - Rotation keys are authored as euler radians (the spelling
-  `set_rotation_euler` uses, readable in a diff) and interpolated as
+  `transform.rotation_euler` uses, readable in a diff) and interpolated as
   quaternions, the only way past ±180° that takes the short way. A `rotation`
   track takes the quaternion — what an imported `.glb` holds.
 - The sampler is `(clip, time) -> pose`, pure and reachable with no `Engine`, so
-  blend trees can compose samples later.
+  blend trees can compose samples later. Keys sharing one time are a jump, and
+  at that instant the last of them holds — including a track whose every key
+  sits at the end, which is what "hide when the fade lands" generates.
 - **A tween is a generated clip**: one sampler, two authoring front-ends, no
   second interpolation path. Steps are sequential; `parallel = true` joins the
   previous, and the next non-parallel step waits for the group. `to`, `by`,
@@ -336,7 +376,7 @@ and the triangles on screen are the same triangles.
 - Ten 3D primitives, six 2D; `path` adds beziers and what they extrude, revolve
   and sweep into; `csg` combines two with a BSP over their faces — written out
   because the candidate crates reach for parry and a BSP has no transcendental
-  to pin. `balaur_ui::glyph` is the one mesher outside core: shaping a word
+  to pin. `balaur_text::glyph` is the one mesher outside core: shaping a word
   needs that crate's font set.
 - A `mesh` asset names a model file, a primitive, a word or a path to thicken;
   the two that reach another asset resolve through `mesh::load_from`.
@@ -426,6 +466,20 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin` —
   for one nothing registered is an error naming the feature to rebuild with;
   turning off one every build has is refused — a setting that cannot be honoured
   must not look like it was.
+- `balaur_plugin` re-exports every crate its API names (`balaur_core`,
+  `balaur_script`, `anyhow`, `toml`) plus a `prelude`, so a plugin outside the
+  tree has one dependency.
+- Only the desktop builds carry `extensions`. Web, iOS and Android builds leave
+  it off, so a game shipping there takes its plugins as modules.
+- An exported desktop game carries its extensions. A fused executable has them
+  in `extensions/` beside it. A `.app` has them in `Contents/PlugIns`, signed
+  with the game's identity before the bundle, since the hardened runtime's
+  library validation refuses a library from another team.
+  `standalone::extensions_beside` names that place for exporter and runtime
+  alike, and the template's own format picks `.so`, `.dylib` or `.dll`.
+- A packed boot loads from there, never from the working directory, which is
+  `/` for a `.app` Finder opened. `balaur play` loads from beside the pack. A
+  web, iOS or Android export warns and ships without them.
 
 **Two boundaries, because Rust has no stable ABI.** `load_extension` picks by
 exported symbols.
@@ -546,9 +600,8 @@ like anything else.
   not be a menu.
 - A widget's parent is its nearest *widget* ancestor, so a grouping node changes
   nothing. Only containers adopt what is under them.
-- The layout is egui's own, the same arithmetic the editor's panels use. Layout
-  is presentation and never touches the digest; wrapping or percentages are what
-  would justify `taffy`.
+- The layout is `taffy`'s flexbox, solved per root before anything draws.
+  Layout is presentation and never touches the digest.
 
 **Focus.** One focused widget per screen, held as a resource so moving it is one
 write. It walks widgets in scene order and wraps.
@@ -556,8 +609,33 @@ write. It walks widgets in scene order and wraps.
 - Whether a widget is a stop is **derived, not declared** — focus exists to
   activate something. `focusable = false` takes a candidate out; it cannot put
   one in. Hidden, freed or unfocusable releases focus.
+- A theme entry carries `gap` and `icon_color` as well as its frame and its
+  type: Godot's separations and its `icon_normal_color`. A widget's `padding`
+  and `gap` below zero take the theme's, and a stated zero is none at all;
+  `padding` takes one number for every side or four for left, top, right and
+  bottom, which is what a MarginContainer's margins convert to.
+- A `button` with `toggle` holds down when clicked and releases on the next,
+  flipping `checked` before `on_click` runs; a `group` makes a set of them
+  exclusive, as it does for a `check`.
+- An `image` states how it sits in its box with `fit` — `contain`, `cover`,
+  `fill` or `none`, CSS's object-fit and Godot's expand and stretch modes.
+  Without one the picture's own size decides the box, which is the default a
+  scene written by hand wants.
+- A button fills the box the layout handed it and never hugs its caption
+  inside one: a button in a column is as wide as the column, as it is in a
+  browser and in Godot.
 - An accept is a click by another name (same `clicked`, same `on_click`), so a
   mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
+- **2D draws in one order**: every sprite, polygon and tilemap under the root
+  by `z_index`, then z, then tree order. A tilemap's mesh is built by a pass
+  of its own, so it is put back in that order after both passes have run.
+- **A `stack` lays its children over one another**, each placed in its box by
+  its own `anchor`: what a Godot MarginContainer does, and what a plain
+  Control's anchored children do. Every other container queues its children
+  up, so `anchor` is read on a root and inside a stack, nowhere else.
+- A widget calls the method its `on_<verb>` key names and emits the event of
+  that name without the `on_`: `click`, `change`, `submit`. The key reaches one
+  method, the event reaches whoever subscribed or is awaiting it.
 - egui drives keyboard focus, so a menu needs no input plugin. A pad goes
   through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
   to the actions `ui_next`, `ui_previous`, `ui_accept` — wiring in the
@@ -928,6 +1006,8 @@ kiss3d window; scripts implement `draw_ui`, run once per frame in the egui pass.
   like Rust egui code.
 - Widgets take colors per call, so themes live in scripts and hot reload. Fonts
   load from `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` always exist.
+- `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
+  renderer's world text, so a label and a `text3d` share one font set.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).
@@ -1030,6 +1110,29 @@ fire = ["mouse:left"]
 - Rumble is output through `gilrs::ff`, so a recording never carries it — the
   script asks again on replay. `can_rumble` *is* recorded, because a script may
   branch on it. No gyroscope, no HID and no pad all read zero.
+
+**Touch.** The whole design is `docs/PLAN-touch.md`; the rules it keeps:
+
+- Pointer and finger convert into each other at the top of the tick, once per
+  frame, not per event: `emulate_mouse_from_touch` (on) makes a finger a left
+  click, which is why every widget kind works on a phone;
+  `emulate_touch_from_mouse` (off) makes a held button a finger. The snapshot
+  records what the conversion produced, so a replay converts nothing.
+- `touch_button` and `touch_stick` are components, not widget kinds, as
+  Godot's `TouchScreenButton` is a `Node2D`: the widget pass runs in the
+  backend's draw, after actions derive and never headless. They are hit-tested
+  in `First` against `DeviceFacts`' recorded `screen_size`, `ui_scale`,
+  `safe_area` and `game_area`, the widget layer's default surface, so a game
+  played in the editor keeps them in the viewport. `balaur_render` only paints
+  them.
+- A control *feeds* an action (`InputActions::feed`, `input.feed_action`)
+  rather than being bound to one: the furthest from rest wins against the
+  bindings, and a fed action answers even if undeclared.
+- Pinch, pan, swipe and long press are derived from the recorded touches and
+  the fixed step, never recorded, and skipped on a rollback's second run of a
+  tick, where their timers would count twice.
+- The keyboard height lives on `DeviceFacts`, beside the safe area a layout
+  reads with it; `avoid_keyboard` on a root widget measures from its top.
 
 ## Showcase: the manual's pictures are a test
 

@@ -20,6 +20,9 @@ pub fn state() {
         compact: false,
         // Where `--state settingsdemo` has got to; -1 when it is not running.
         demo: -1,
+        // The tag the header offers an override for, "" for none: one choice
+        // for the page, as Godot's "Override For", not a picker per row.
+        target: "",
     }
 }
 
@@ -61,10 +64,6 @@ pub fn load_files(S) {
         settings::load(prefs);
     }
     apply(S);
-}
-
-pub fn close(S) {
-    crate::window::hide(S);
 }
 
 // The editor's own settings live beside its sessions, not in any project.
@@ -219,7 +218,12 @@ fn body(S, k) {
         if S.settings.query != "" {
             ui::label(format!("{} matching \"{}\"", rows.len(), S.settings.query), style::mono_sm(k.faint));
         } else if scope_of(current(S)) == "project" {
-            ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+            ui::horizontal(#{ height: 24 }, || {
+                ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+                ui::right(|| {
+                    target_picker(S, k);
+                });
+            });
         } else {
             ui::label("Kept in this editor only, and never written to the project.", style::mono_sm(k.faint));
         }
@@ -257,29 +261,86 @@ fn row(S, k, def) {
     ui::horizontal(#{ height: 24 }, || {
         ui::label(name, style::mono(k.text));
         ui::right(|| {
-            edit(S, k, def);
+            edit(S, k, def, def.path);
         });
     });
     let spec = util::obj(def.spec);
     let help = spec.get("help").unwrap_or("");
     if help != "" {
         let suffix = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
-        ui::label(help + suffix, style::mono_sm(k.faint));
+        // Wrapped: one long sentence otherwise widens the page, and every
+        // editor aligned to its right edge goes off the sheet with it.
+        ui::label(help + suffix, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
+    }
+    if def.scope == "project" {
+        overrides(S, k, def);
     }
     ui::add_space(8);
 }
 
-fn edit(S, k, def) {
+// The answers this key has besides the one above: one row per tag the project
+// overrides it for, and, when the header names a tag, a pill that adds one.
+fn overrides(S, k, def) {
+    let held = settings::overrides(def.path);
+    for tag in held {
+        let path = override_path(tag, def.path);
+        ui::horizontal(#{ height: 22 }, || {
+            ui::label("  on " + tag, style::mono_sm(k.dim));
+            ui::right(|| {
+                if ui::pill("×", #{ height: 20, size: style::SM, radius: 6, fill: k.panel, color: k.faint }) {
+                    settings::clear(path);
+                    S.settings.dirty = true;
+                }
+                ui::add_space(6);
+                edit(S, k, def, path);
+            });
+        });
+    }
+    let tag = S.settings.target;
+    if tag == "" || held.iter().any(|t| t == tag) {
+        return;
+    }
+    if ui::pill("+ on " + tag, #{ height: 20, size: style::SM, radius: 6, fill: k.panel, color: k.faint }) {
+        // Seeded with what the key already answers, so the row that appears
+        // says what it is overriding rather than a type's empty value.
+        settings::set(override_path(tag, def.path), settings::base(def.path));
+        S.settings.dirty = true;
+    }
+}
+
+// The page's one override choice. The dropdown draws what it is handed, so the
+// prompt is its own text until a tag is picked.
+fn target_picker(S, k) {
+    let options = ["none"];
+    for tag in settings::known_tags() {
+        options.push(tag);
+    }
+    let showing = if S.settings.target == "" { "override for…" } else { "override for " + S.settings.target };
+    let (picked, changed) = ui::dropdown("settings:target", showing, options,
+        #{ width: 170, size: style::SM, color: k.dim });
+    if changed {
+        S.settings.target = if picked == "none" { "" } else { picked };
+    }
+}
+
+fn override_path(tag, path) {
+    "override/" + tag + "/" + path
+}
+
+// `base`, never `get`: the editor edits what the file says. A screen showing
+// the override this machine happened to match would write it onto the key it
+// overrides.
+fn edit(S, k, def, path) {
     let spec = util::obj(def.spec);
     let datatype = spec.get("type").unwrap_or("string");
-    let value = settings::get(def.path);
+    let value = settings::base(path);
     if datatype == "bool" {
         let (on, changed) = ui::toggle(value == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
         });
         if changed {
-            write(S, def.path, on);
+            write(S, path, on);
         }
     } else if datatype == "float" {
         let low = util::f(spec.get("min").unwrap_or(0.0));
@@ -289,29 +350,98 @@ fn edit(S, k, def) {
         let now = if value is Tuple { low } else { util::f(value) };
         let (v, changed) = ui::slider(now, low, high, #{ width: 220 });
         if changed {
-            write(S, def.path, v);
+            write(S, path, v);
+        }
+    } else if datatype == "int" {
+        let low = util::f(spec.get("min").unwrap_or(0.0));
+        let high = util::f(spec.get("max").unwrap_or(1000000.0));
+        // A drag rather than the slider a float gets: a count is read as
+        // often as it is changed, and the slider draws no number at all.
+        let now = if value is i64 { util::f(value) } else { low };
+        let (v, changed) = ui::drag_value(now, #{
+            width: 220.0, speed: 0.05, decimals: 0,
+            fill: k.sunken, stroke: k.line, color: k.text,
+        });
+        if changed {
+            write(S, path, math::round(util::clamp(v, low, high)) as i64);
         }
     } else if datatype == "enum" {
         let (v, changed) = ui::dropdown(
-            "set:" + def.path,
+            "set:" + path,
             if value is String { value } else { "" },
             util::vec(spec.get("options").unwrap_or([])),
             #{ width: 220, size: style::MD, height: 24, color: k.text },
         );
         if changed {
-            write(S, def.path, v);
+            write(S, path, v);
         }
+    } else if datatype == "strings" {
+        // Comma-separated: a list of globs or ranges is short, and a row of
+        // its own per entry would be a page per setting.
+        let (text, _, submitted) = ui::text_field("set:" + path, "",
+            util::merge(style::field(k, 220.0), #{ value: commas(value) }));
+        if submitted {
+            write(S, path, split_commas(text));
+        }
+    } else if datatype == "flags" {
+        let held = util::vec(value);
+        ui::horizontal(#{ height: 22 }, || {
+            for option in util::vec(spec.get("options").unwrap_or([])) {
+                let on = held.iter().any(|h| h == option);
+                if ui::pill(option, #{
+                    height: 20, size: style::SM, radius: 6,
+                    fill: if on { k.accent_fill } else { k.panel },
+                    color: if on { k.on_accent } else { k.dim },
+                }) {
+                    let next = [];
+                    for name in held {
+                        if name != option {
+                            next.push(name);
+                        }
+                    }
+                    if !on {
+                        next.push(option);
+                    }
+                    write(S, path, next);
+                }
+                ui::add_space(4);
+            }
+        });
     } else {
         // Committed on submit rather than per keystroke: a settings file
         // rewritten on every character is noise in a diff.
-        let (text, _, submitted) = ui::text_field("set:" + def.path, "",
+        let (text, _, submitted) = ui::text_field("set:" + path, "",
             util::merge(style::field(k, 220.0), #{
                 value: if value is String { value } else { "" },
             }));
         if submitted {
-            write(S, def.path, text);
+            write(S, path, text);
         }
     }
+}
+
+// A list as one line, and back. `Vec` has no join, so the separator is put
+// in by hand.
+fn commas(value) {
+    let out = "";
+    for item in util::vec(value) {
+        if out != "" {
+            out += ", ";
+        }
+        out += `${item}`;
+    }
+    out
+}
+
+fn split_commas(text) {
+    let out = [];
+    for part in text.split(',') {
+        let item = part.trim();
+        if item != "" {
+            out.push(item);
+        }
+    }
+    out
 }
 
 pub fn write(S, path, value) {

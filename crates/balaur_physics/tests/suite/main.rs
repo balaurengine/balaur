@@ -19,6 +19,7 @@ mod joints_and_characters;
 mod queries;
 mod ragdoll;
 mod script_api;
+mod settings;
 mod shapes_and_geometry;
 // The thread count only means anything with the solver on rayon, which is
 // what `parallel` brings in.

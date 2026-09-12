@@ -1,7 +1,7 @@
-> **Status:** in progress, 2026-09-08. Written from the inspector question
-> "why is Transform hand-written when every other section is generated". Step 3
-> depends on component property fields, which are in the working tree
-> uncommitted (`crates/balaur_script_rune/src/value/component.rs`).
+> **Status:** steps 1 to 6 built, the last on 2026-09-11. Appearance has not
+> moved: `visible`, `tint`, `z_index` and `z_relative` are still keys at the
+> node. Written 2026-09-08 from the inspector question "why is Transform
+> hand-written when every other section is generated".
 
 # Plan: transform as a component
 

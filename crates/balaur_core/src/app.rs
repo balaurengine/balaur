@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::time::Instant;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize as _;
 
 use crate::engine::{Command, Engine};
@@ -92,6 +92,9 @@ pub struct AppConfig {
     pub script_args: Vec<String>,
     /// Which script backend to run. `None` means no scripting.
     pub script_backend: Option<ScriptHostFactory>,
+    /// Where extension libraries load from; `None` is the project's own
+    /// `extensions/`. Only a build with the `extensions` feature reads it.
+    pub extensions: Option<PathBuf>,
 }
 
 impl AppConfig {
@@ -102,6 +105,7 @@ impl AppConfig {
             watch: true,
             script_args: Vec::new(),
             script_backend: None,
+            extensions: None,
         }
     }
 
@@ -124,9 +128,14 @@ impl AppConfig {
         }
     }
 
+    /// A shipped game. Its extensions sit beside its executable, never in the
+    /// working directory, which is `/` for a `.app` opened from Finder.
     pub fn packed(pack: Pack) -> Self {
         Self {
             pack: Some(pack),
+            extensions: std::env::current_exe()
+                .ok()
+                .map(|exe| crate::standalone::extensions_beside(&exe)),
             ..Self::bare(".")
         }
     }
@@ -138,6 +147,8 @@ pub struct App {
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
+    /// A scene to open instead of the manifest's `main_scene`.
+    main_scene: Option<String>,
     fixed_dt: Option<f32>,
     accumulator: f32,
 }
@@ -155,6 +166,18 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
     eng.insert_resource(crate::assets::AssetState::default());
     eng.insert_resource(ProjectRoot(config.project_root.clone()));
+    eng.insert_resource(crate::settings::SettingsRegistry::default());
+    eng.insert_resource(crate::settings::SettingsValues::default());
+    // Before any setting is read, since the tags in force decide which
+    // `[override.<tag>]` a read answers from.
+    eng.insert_resource(crate::tags::Tags::current());
+    // A pack's manifest is here already, and `application/assets` decides
+    // how its files are served, so it is read before the files exist.
+    if let Some(pack) = config.pack.as_ref()
+        && crate::settings::load(eng, &pack.manifest).is_ok()
+    {
+        crate::settings::answer_to_built_tags(eng);
+    }
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
     eng.insert_resource(
@@ -162,8 +185,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
             Some(pack) => crate::project::ProjectFiles::packed(
                 config.project_root.clone(),
                 pack.assets.clone(),
-                crate::project::ProjectManifest::parse(&pack.manifest)
-                    .map(|m| m.assets)
+                crate::settings::stated(eng, "application/assets")
+                    .and_then(|v| v.try_into().ok())
                     .unwrap_or_default(),
             )
             .with_index(pack.scenes.get(crate::assets::INDEX_PATH).cloned()),
@@ -174,8 +197,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
     eng.insert_resource(crate::ids::IdAllocator::default());
-    eng.insert_resource(crate::settings::SettingsRegistry::default());
-    eng.insert_resource(crate::settings::SettingsValues::default());
     eng.insert_resource(crate::netsession::PeerTraffic::default());
     eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
@@ -255,7 +276,9 @@ fn register_core_content(app: &mut App) {
     crate::skeleton::register_bone2d_component(app);
     crate::skeleton::register_bone3d_component(app);
     crate::states::register_states_component(app);
+    crate::timer::register_timer_component(app);
     crate::bindings::register_bindings_component(app);
+    crate::node_meta::register_meta_component(app);
     app.engine
         .insert_resource(crate::variables::Variables::default());
     app.engine
@@ -288,6 +311,7 @@ impl App {
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
+            main_scene: None,
             fixed_dt: None,
             accumulator: 0.0,
         };
@@ -308,6 +332,7 @@ impl App {
         app.add_system(Stage::First, crate::facts::read_clock_system);
         app.add_system(Stage::First, crate::facts::announce_device_system);
         app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
+        app.add_system(Stage::FixedUpdate, crate::timer::step_system);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
@@ -615,34 +640,55 @@ impl App {
 
     /// Load `project.toml` and instantiate the main scene. Call after all
     /// plugins are added so their scene keys are known.
+    /// Open `scene` (project-relative) when the project loads, instead of the
+    /// manifest's `main_scene`: a test harness booting its own scene around
+    /// the game's.
+    pub fn set_main_scene(&mut self, scene: impl Into<String>) -> &mut Self {
+        self.main_scene = Some(scene.into());
+        self
+    }
+
     pub fn load_project(&mut self) -> Result<&mut Self> {
-        let (manifest_src, scene_src);
-        if let Some(pack) = &self.pack {
-            manifest_src = pack.manifest.clone();
-            let manifest = ProjectManifest::parse(&manifest_src)?;
-            scene_src = pack
-                .scenes
-                .get(&manifest.main_scene)
-                .cloned()
-                .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?;
-            self.manifest = Some(manifest);
+        let fs = crate::files::backend(&self.engine);
+        let manifest_src = if let Some(pack) = &self.pack {
+            pack.manifest.clone()
         } else {
-            let fs = crate::files::backend(&self.engine);
             let path = self.project_root.join("project.toml");
-            manifest_src = fs
-                .read(&path)
+            fs.read(&path)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
-                .with_context(|| format!("no project.toml in {}", self.project_root.display()))?;
-            let manifest = ProjectManifest::parse(&manifest_src)?;
-            let scene_path = self.project_root.join(&manifest.main_scene);
-            scene_src = fs
-                .read(&scene_path)
-                .ok()
-                .and_then(|b| String::from_utf8(b).ok())
-                .with_context(|| format!("reading {}", scene_path.display()))?;
-            self.manifest = Some(manifest);
+                .with_context(|| format!("no project.toml in {}", self.project_root.display()))?
+        };
+        // Every table in the file, as values the settings registry answers
+        // from: one reader for what a project declares, whoever declared it.
+        // First, because the tags it adds decide what the manifest says.
+        crate::settings::load(&self.engine, &manifest_src)?;
+        crate::settings::answer_to_built_tags(&self.engine);
+        let unknown = crate::settings::unknown(&self.engine, &manifest_src);
+        if !unknown.is_empty() {
+            bail!(
+                "project.toml has {} nothing declares. A misspelled key is a \
+                 setting that silently does not apply; a table of your own \
+                 (`[mygame] url`) is not checked.",
+                unknown.join(", ")
+            );
         }
+        let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
+        let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
+        let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
+        let scene_src = if let Some(pack) = &self.pack {
+            pack.scenes
+                .get(main_scene)
+                .cloned()
+                .with_context(|| format!("scene {main_scene} missing from pack"))?
+        } else {
+            let scene_path = self.project_root.join(main_scene);
+            fs.read(&scene_path)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .with_context(|| format!("reading {}", scene_path.display()))?
+        };
+        self.manifest = Some(manifest);
         // A resource too, so subsystems can read the project's language and
         // name without reaching back through App.
         if let Some(manifest) = &self.manifest {

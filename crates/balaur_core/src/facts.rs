@@ -9,11 +9,18 @@ use crate::engine::Engine;
 
 /// What never changes for one run: recorded once, in the recording's
 /// header, so a replay on another machine answers as the original did.
+// Four facts about one machine, each read on its own: an enum would claim
+// they exclude each other, and a page on a phone is web, mobile and touch.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PlatformFacts {
     pub os: String,
     pub web: bool,
     pub mobile: bool,
+    /// Whether a finger can reach the screen: every phone, and a page whose
+    /// browser reports touch points. What `visibility = "touchscreen"` asks.
+    #[serde(default)]
+    pub touchscreen: bool,
     pub editor: bool,
     pub system_locale: Option<String>,
     pub device_id: String,
@@ -31,11 +38,29 @@ impl PlatformFacts {
             os: os.to_string(),
             web: cfg!(target_family = "wasm"),
             mobile: cfg!(any(target_os = "ios", target_os = "android")),
+            touchscreen: touchscreen(),
             editor: eng.debug_scope().is_some(),
             system_locale: sys_locale::get_locale(),
             device_id: device_id(eng),
         }
     }
+}
+
+/// A phone always has one; a page asks the browser, since a desktop tab and a
+/// tablet run the same build.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+fn touchscreen() -> bool {
+    let navigator = js_sys::Reflect::get(&js_sys::global(), &"navigator".into());
+    navigator
+        .and_then(|n| js_sys::Reflect::get(&n, &"maxTouchPoints".into()))
+        .ok()
+        .and_then(|points| points.as_f64())
+        .is_some_and(|points| points > 0.0)
+}
+
+#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+const fn touchscreen() -> bool {
+    cfg!(any(target_os = "ios", target_os = "android"))
 }
 
 /// The facts once read, or restored from a recording's header. Read lazily,
@@ -135,6 +160,37 @@ pub struct DeviceFacts {
     pub safe_area: [f32; 4],
     /// Frames per second the display refreshes at, as measured.
     pub refresh_rate: f32,
+    /// The drawing surface in physical pixels, the space `safe_area` and the
+    /// touches are measured in. Zero where nothing draws, which is what a
+    /// headless run reads.
+    #[serde(default)]
+    pub screen_size: [f32; 2],
+    /// Physical pixels per design pixel: what a layout authored in design
+    /// pixels multiplies by to reach the screen. Recorded, because anything
+    /// placed against the screen replays through it.
+    #[serde(default = "one")]
+    pub ui_scale: f32,
+    /// How much of the screen the on-screen keyboard covers, in physical
+    /// pixels from the bottom: what a form moves up by. Zero with no keyboard
+    /// up, and always zero on a desktop.
+    ///
+    /// Here rather than in the input snapshot, where it started, because it
+    /// is a fact about the display rather than a thing a player did, and
+    /// because a layout reading the safe area has to read this beside it.
+    #[serde(default)]
+    pub keyboard_height: f32,
+    /// Where a game's screen-space controls go, as x, y, width and height in
+    /// physical pixels. `None` is the whole window, which is a game with
+    /// nothing confining it; the editor sets its viewport, and a zero size
+    /// while nothing is playing.
+    #[serde(default)]
+    pub game_area: Option<[f32; 4]>,
+}
+
+/// A missing scale is 1, not 0: a recording made before the field existed had
+/// no zoom, and a zero would collapse every layout that reads it.
+const fn one() -> f32 {
+    1.0
 }
 
 impl Default for DeviceFacts {
@@ -144,6 +200,10 @@ impl Default for DeviceFacts {
             dark_mode: false,
             safe_area: [0.0; 4],
             refresh_rate: 60.0,
+            screen_size: [0.0; 2],
+            ui_scale: 1.0,
+            keyboard_height: 0.0,
+            game_area: None,
         }
     }
 }

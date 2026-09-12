@@ -22,8 +22,9 @@ use crate::engine::Engine;
 /// A project with no `[save]` table writes version 1 and migrates nothing,
 /// which is the right behaviour for a game that has not needed to change a
 /// save's shape yet.
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(default, deny_unknown_fields)]
+/// Read through the settings registry, so `[override.<tag>.save]` answers
+/// and a misspelled key is caught with every other declared table's.
+#[derive(Clone, Debug)]
 pub struct SaveConfig {
     /// The version this build writes. A file read at a lower one is migrated;
     /// a file at a higher one is refused, because a future save is not
@@ -44,24 +45,18 @@ impl Default for SaveConfig {
 }
 
 impl SaveConfig {
-    /// The `[save]` table of the project's manifest, or the defaults.
+    /// `[save]` as this run resolves it, or the defaults.
     #[must_use]
     pub fn load(eng: &Engine) -> Self {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            save: SaveConfig,
-        }
-        let Some(source) = crate::project::manifest_source(eng) else {
-            return Self::default();
-        };
-        match toml::from_str::<Manifest>(&source) {
-            Ok(manifest) => manifest.save,
-            Err(err) => {
-                tracing::warn!("project.toml [save]: {err}; using the defaults");
-                Self::default()
-            }
-        }
+        let fallback = Self::default();
+        let version = crate::settings::get(eng, "save/version")
+            .and_then(|v| v.as_integer())
+            .and_then(|v| u32::try_from(v).ok())
+            .unwrap_or(fallback.version);
+        let migrate = crate::settings::get(eng, "save/migrate")
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or(fallback.migrate);
+        Self { version, migrate }
     }
 }
 

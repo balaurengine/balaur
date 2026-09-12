@@ -59,6 +59,18 @@ pub struct EventState {
     /// the next one replaces it. This is what `delivered` reads, so asking
     /// and being called see the same frame.
     delivered: DetHashMap<SmolStr, Vec<(Option<Entity>, Value)>>,
+    /// Tokens parked on the next delivery of a name, from one emitter or,
+    /// `None`, from any: what a script's `await` on an event is.
+    waiters: Vec<(SmolStr, Option<Entity>, u64)>,
+}
+
+/// A token `task.wait` parks on until `name` is next delivered, from `from`
+/// or from anyone, and wakes with that event's payload.
+pub fn next(eng: &Engine, name: &str, from: Option<Entity>) -> u64 {
+    let token = eng.next_token();
+    let state = eng.resource::<EventState>();
+    state.borrow_mut().waiters.push((name.into(), from, token));
+    token
 }
 
 /// Hear `name` on this node, through its script's `on_<name>` method.
@@ -147,6 +159,14 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
     if queued.is_empty() {
         return;
     }
+    // The emitter's own `emitted:<name>` rows first, the way a node's
+    // bindings run before its script: they need no script to be heard.
+    for (name, from, payload) in &queued {
+        if let Some(from) = from {
+            let event = format!("{}{name}", crate::hooks::EMITTED);
+            crate::bindings::fire(eng, *from, &event, std::slice::from_ref(payload));
+        }
+    }
     let Some(host) = eng.script_host() else {
         return;
     };
@@ -190,6 +210,23 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
                 &method,
                 std::slice::from_ref(&payload),
             );
+        }
+        // Every task parked on this event resumes with it, once.
+        let woken: Vec<u64> = {
+            let state = eng.resource::<EventState>();
+            let mut state = state.borrow_mut();
+            let mut woken = Vec::new();
+            state.waiters.retain(|(waited, emitter, token)| {
+                let hit = *waited == name && emitter.is_none_or(|e| Some(e) == from);
+                if hit {
+                    woken.push(*token);
+                }
+                !hit
+            });
+            woken
+        };
+        for token in woken {
+            host.wake(token, &payload);
         }
         let state = eng.resource::<EventState>();
         state
@@ -264,6 +301,12 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
             "(node: node, name: string)",
             "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
         ),
+        (
+            "next",
+            &[],
+            "(name: string, from: node?)",
+            "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
+        ),
     ]);
     m.function(
         "subscribe",
@@ -286,6 +329,13 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (name, payload): (String, Option<Value>)| {
             emit(eng, &name, payload.unwrap_or(Value::Nil));
             Ok(())
+        },
+    );
+    m.function(
+        "next",
+        |eng: &Engine, (name, from): (String, Option<NodeId>)| {
+            let from = from.map(crate::entity_of).transpose()?;
+            Ok(i64::try_from(next(eng, &name, from)).unwrap_or(i64::MAX))
         },
     );
     m.function("emitted", |eng: &Engine, name: String| {

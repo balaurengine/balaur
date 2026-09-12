@@ -1,7 +1,6 @@
 // Inspector (308 px): live node properties, editable, per-persona sections.
 
 use crate::anim;
-use crate::history;
 use crate::icons;
 use crate::model;
 use crate::polygon;
@@ -13,11 +12,6 @@ use crate::util;
 const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 184.0;
-// Above the scroll: the dock's tab row, the node header and the search
-// field. Below it: the Add component button and its margins.
-const HEAD_H = 112.0;
-const FOOT_H = 58.0;
-
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
 // tree's, under an `inspector/` key so the two never collide.
@@ -996,17 +990,29 @@ fn read_now(S, comp, prop, fallback) {
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(S, k, comp, prop, spec, value) {
+    let asset_type = spec.get("asset").unwrap_or("");
+    // An empty material draws with the nearest one up, so the field says which
+    // and where from: `red ← Rig`.
+    let (inherited, from, here) = if asset_type == "material" && as_text(value) == "" {
+        inherited_material(S)
+    } else {
+        ("", "", false)
+    };
+    let placeholder = if inherited == "" {
+        "— none —"
+    } else {
+        format!("{} ← {}", inherited_label(S, inherited), util::last_segment(from))
+    };
     spec_row(S, k, prop, spec, || {
         let reference = model::relative_file(S, as_text(value));
         let inline = reference.starts_with("#!");
-        let asset_type = spec.get("asset").unwrap_or("");
         let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
         if inline {
             ui::label("— inline —", style::mono(k.faint));
         } else {
             let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
             let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
-            let (text, _, submitted) = ui::text_field(id, "— none —",
+            let (text, _, submitted) = ui::text_field(id, placeholder,
                 util::merge(style::field(k, width), #{ value: reference }));
             if submitted {
                 write(S, comp, prop, text);
@@ -1034,9 +1040,45 @@ fn edit_asset(S, k, comp, prop, spec, value) {
             }
         });
     });
-    if spec.get("asset").unwrap_or("") == "material" {
-        material_rows(S, k, model::relative_file(S, as_text(value)));
+    // Not when the node's own `material` component is the source: it draws them.
+    if asset_type == "material" && !here {
+        // The live spelling, which the editor's own engine can load and save.
+        let own = as_text(value);
+        let loadable = if own == "" { inherited } else { own };
+        material_rows(S, k, loadable);
     }
+}
+
+/// What the placeholder calls an inherited material: its file's stem.
+fn inherited_label(S, reference) {
+    let file = model::relative_file(S, reference);
+    if file.starts_with("#!") {
+        "inline"
+    } else {
+        util::last_segment(file).replace(".toml", "")
+    }
+}
+
+/// The material the selection draws with while it names none, the path of the
+/// node naming it, and whether that is the selection itself. The nearest one
+/// up wins, and the walk stops at the edited scene.
+fn inherited_material(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return ("", "", false),
+    };
+    let at = found;
+    while at is balaur::Node && at.is_valid() {
+        let own = at.material();
+        if own != "" {
+            return (own, at.path(), at.path() == found.path());
+        }
+        if S.mirror is balaur::Node && at.path() == S.mirror.path() {
+            break;
+        }
+        at = at.parent();
+    }
+    ("", "", false)
 }
 
 // The values a material's shader takes, read off the linked shader so the
@@ -1144,7 +1186,13 @@ fn material_row(S, k, reference, name, datatype, value) {
     // Indented, because these belong to the row above rather than the node.
     tip_row(S, k, "  " + util::prop_label(name), util::prop_label(name), || {
         if datatype == "color" {
-            let (rgba, changed) = ui::color(#{ value: util::vec(value) });
+            // `material_params` hands a colour back as a `balaur::Color`.
+            let channels = if value is balaur::Color {
+                [value.r, value.g, value.b, value.a]
+            } else {
+                util::vec(value)
+            };
+            let (rgba, changed) = ui::color(#{ value: channels });
             if changed {
                 write_material_param(S, reference, name, rgba);
             }
@@ -1535,11 +1583,11 @@ pub fn body(S, k) {
 }
 
 /// The one control under the scroll, so a long form cannot push it away.
-pub fn foot(S, k) {
-    ui::add_space(3);
-    if ui::pill(icons::ui("add") + "  Add component", #{
-        role: "button", height: 30, min_width: S.layout.right.w - 26.0,
-    }) {
-        shell::open_palette(S, "add ");
-    }
+pub fn foot_controls(S) {
+    [#{
+        kind: "button", role: "button", height: 30,
+        width: S.layout.right.w - 26.0,
+        icon: icons::ui("add"), text: "Add component",
+        on: |_| { shell::open_palette(S, "add "); },
+    }]
 }

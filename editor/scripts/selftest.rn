@@ -592,10 +592,14 @@ pub fn tiles_tool(S) {
     check(tiles::cell(S, 0, 0) == 40, "the id form holds the tile");
 
     let layers = S.doc.len();
+    // Counted rather than fixed at two: the game's own maps may be under this
+    // parent as well, and they are layers of these two just the same.
+    let beside = tiles::layers(S).len();
     check(tiles::add_layer(S), "a layer is added beside the map");
     check(S.doc.len() == layers + 1, format!("the layer is a new node ({})", S.doc.len()));
     check(tiles::grid(S).len() == 0 || tiles::columns(tiles::grid(S)) == 0, "the layer has no tiles in it");
-    check(tiles::layers(S).len() == 2, format!("both maps are layers of one another ({})", tiles::layers(S).len()));
+    check(tiles::layers(S).len() == beside + 1,
+        format!("both maps are layers of one another ({})", tiles::layers(S).len()));
     check(mirror_resolves(S), "every tilemap node resolves in the mirror");
 
     undo_all(S);
@@ -702,6 +706,23 @@ pub fn imports(S) {
 
     importer::write(S, rel, "filter", ());
     check(!fs::exists(side), "clearing the last key removes the sidecar");
+
+    // A number rather than the text the dropdown handed back, or the engine
+    // reads no anisotropy at all.
+    importer::write(S, rel, "anisotropy", 8);
+    importer::write(S, rel, "mipmaps", true);
+    importer::write(S, rel, "repeat", "mirror");
+    importer::write(S, rel, "premultiply", true);
+    let sampler = importer::sidecar(S, rel);
+    check(sampler.get("anisotropy") == Some(8), "anisotropy is written as a count");
+    check(sampler.get("mipmaps") == Some(true), "and mipmaps as a flag");
+    check(sampler.get("repeat") == Some("mirror"), "and repeat as a word");
+    check(sampler.get("premultiply") == Some(true), "and premultiply as a flag");
+
+    for key in ["anisotropy", "mipmaps", "repeat", "premultiply"] {
+        importer::write(S, rel, key, ());
+    }
+    check(!fs::exists(side), "clearing every key removes the sidecar again");
 
     fs::remove(root + rel);
     log::info("selftest imports: done");
@@ -966,6 +987,24 @@ pub fn instances(S) {
     model::set_component_prop(S, comp, prop, was);
     check(!entry_of(owner, node.at).contains_key(comp),
         format!("a {} back at the prefab's stops being an override", prop));
+
+    // A prefab's root and the node that named it are one node, the way the
+    // engine merges them: the row shows the root's keys and the file, which
+    // the prefab already holds them for, is not given them.
+    let file_rows = #{};
+    for row in model::authored(S.doc) {
+        file_rows[row.get("id").unwrap_or("")] = row;
+    }
+    for row in S.doc {
+        let inherited = util::obj(row.get("inherited").unwrap_or(#{}));
+        let written = util::obj(file_rows.get(row.get("id").unwrap_or("")).unwrap_or(#{}));
+        for (key, _) in inherited.iter() {
+            check(row.contains_key(key),
+                format!("{} shows the prefab root's {}", row.name, key));
+            check(!written.contains_key(key),
+                format!("and the file is not given {} back", key));
+        }
+    }
 
     // Structure is the prefab's.
     let before = S.doc.len();
@@ -1400,6 +1439,57 @@ pub fn menu_panels(S) {
             format!("and {} toggles back", id));
     }
     log::info("selftest menu panels: done");
+}
+
+/// `--state focusdemo`: focus folds the shell round the code, and leaving it
+/// puts back exactly the layout it folded.
+pub fn focusing(S) {
+    if !shell::select_scripted(S) {
+        log::info("selftest: no scripted node in this scene; focus skipped");
+        return;
+    }
+    // A panel up on every side, so folding them has something to fold.
+    for id in ["outline", "inspector", "output"] {
+        crate::docks::show(S, id);
+    }
+    let was = #{};
+    for side in crate::docks::sides() {
+        was[side] = S.docks[side].shut;
+    }
+    check(shell::focus_target(S), "the selection has a script to focus");
+    shell::toggle_focus(S);
+    crate::center::modes(S);
+    check(S.focus && S.doctab == "script", "focus takes, and the code is what shows");
+    check(!S.split, "the split is off under it");
+    check(crate::docks::all_folded(S), "every dock is folded away");
+    check(S.hooks_open, "and the file's symbols stay beside the code");
+    shell::toggle_focus(S);
+    crate::center::modes(S);
+    check(!S.focus, "leaving focus clears it");
+    let back = true;
+    for side in crate::docks::sides() {
+        if S.docks[side].shut != was[side] {
+            back = false;
+        }
+    }
+    check(back, "and every dock comes back to what it was");
+    // Leaving the code is leaving focus: the shell comes back with the tab.
+    shell::toggle_focus(S);
+    shell::open_doc(S, "scene");
+    crate::center::modes(S);
+    check(!S.focus, "showing the scene again ends focus");
+    check(!crate::docks::all_folded(S), "and the docks come back with it");
+    // A panel asked for under focus keeps its dock; the record goes instead.
+    shell::open_doc(S, "script");
+    shell::toggle_focus(S);
+    crate::docks::show(S, "output");
+    crate::center::modes(S);
+    check(!S.focus, "a panel opened under focus ends it");
+    check(!crate::docks::folded(S, "bottom"), "and stays open");
+    for side in crate::docks::sides() {
+        S.docks[side].shut = was[side];
+    }
+    log::info("selftest focus: done");
 }
 
 /// `--state settingsdemo`: the settings screen's search field and the query it

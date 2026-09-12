@@ -6,7 +6,7 @@
 
 use std::cell::RefCell;
 
-use glamx::{Quat, Vec3};
+use glamx::{Quat, Vec3, Vec4};
 use hecs::{Entity, World};
 use smol_str::SmolStr;
 
@@ -34,6 +34,18 @@ pub fn shape_revision() -> u64 {
 
 fn shape_changed() {
     SHAPE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Bumped whenever a node's world visibility or tint changes, so a layer that
+/// caches what it drew knows when the tree hid, showed or faded something.
+/// Outside the digest for the same reason [`SHAPE`] is.
+static APPEARANCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What the tree's appearance is at now. The same number twice means no node
+/// was hidden, shown or re-tinted in between.
+#[must_use]
+pub fn appearance_revision() -> u64 {
+    APPEARANCE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// A parent's children by name, so a path segment is one lookup rather than
@@ -98,6 +110,10 @@ pub struct Transform {
     pub position: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+    /// A 2D shear: how far the y axis is turned past square with the x axis,
+    /// in radians, before the scale. Zero on everything that is not a 2D node
+    /// asking for one, and the composition takes the plain path when it is.
+    pub skew: f32,
 }
 
 impl Transform {
@@ -106,6 +122,7 @@ impl Transform {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
+            skew: 0.0,
         }
     }
 
@@ -128,25 +145,103 @@ impl Transform {
     }
 }
 
-/// Whether a node draws, and which layer it draws on.
+/// A `material` asset reference, interned so [`Appearance`] stays `Copy`.
 ///
-/// Nothing in physics reads either field: a hidden collider still collides,
+/// Ids are handed out per process, in the order references are first seen,
+/// so anything saved or hashed stores [`MaterialId::reference`] instead.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct MaterialId(u32);
+
+/// Every reference interned so far; index 0 is the empty one.
+static MATERIALS: std::sync::LazyLock<std::sync::RwLock<MaterialTable>> =
+    std::sync::LazyLock::new(|| {
+        std::sync::RwLock::new(MaterialTable {
+            references: vec![std::sync::Arc::from("")],
+            ids: std::collections::HashMap::new(),
+        })
+    });
+
+struct MaterialTable {
+    references: Vec<std::sync::Arc<str>>,
+    ids: std::collections::HashMap<std::sync::Arc<str>, u32>,
+}
+
+impl MaterialId {
+    /// No material: the node takes its parent's.
+    pub const NONE: Self = Self(0);
+
+    /// The id for `reference`, the same one every time; empty is [`Self::NONE`].
+    #[must_use]
+    pub fn intern(reference: &str) -> Self {
+        if reference.is_empty() {
+            return Self::NONE;
+        }
+        if let Some(&id) = MATERIALS
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .ids
+            .get(reference)
+        {
+            return Self(id);
+        }
+        let mut table = MATERIALS
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(&id) = table.ids.get(reference) {
+            return Self(id);
+        }
+        let id = u32::try_from(table.references.len()).expect("fewer than 2^32 materials");
+        let shared: std::sync::Arc<str> = std::sync::Arc::from(reference);
+        table.references.push(shared.clone());
+        table.ids.insert(shared, id);
+        Self(id)
+    }
+
+    /// The reference this id was interned from; empty for [`Self::NONE`].
+    #[must_use]
+    pub fn reference(self) -> std::sync::Arc<str> {
+        MATERIALS
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .references[self.0 as usize]
+            .clone()
+    }
+
+    #[must_use]
+    pub const fn is_none(self) -> bool {
+        self.0 == 0
+    }
+}
+
+/// Whether a node draws, what it is tinted by, which layer it draws on, and
+/// the material it and its subtree draw with.
+///
+/// Nothing in physics reads any field: a hidden collider still collides,
 /// which is what a game hiding a sprite for a frame expects.
 #[derive(Clone, Copy)]
 pub struct Appearance {
     pub visible: bool,
+    /// A colour multiplied into whatever the node draws, and into every
+    /// descendant's, so one key fades a whole rig. A renderable's own `color`
+    /// is the node's alone; this is the one that inherits.
+    pub tint: Vec4,
     pub z_index: i32,
     /// Add `z_index` to the parent's rather than replacing it, so moving a
     /// subtree between layers keeps the order inside it.
     pub z_relative: bool,
+    /// The material this node and every descendant naming none draw with.
+    /// [`MaterialId::NONE`] takes the parent's.
+    pub material: MaterialId,
 }
 
 impl Appearance {
     pub const fn identity() -> Self {
         Self {
             visible: true,
+            tint: Vec4::ONE,
             z_index: 0,
             z_relative: true,
+            material: MaterialId::NONE,
         }
     }
 }
@@ -203,24 +298,37 @@ pub fn tagged(world: &World, root: Entity, tag: &str) -> Vec<Entity> {
 #[derive(Clone, Copy)]
 pub struct GlobalAppearance {
     pub visible: bool,
+    /// Every `Appearance::tint` from the root down, multiplied channel by
+    /// channel. What a renderer multiplies its own colour by.
+    pub tint: Vec4,
     pub z_index: i32,
+    /// The nearest material from this node up; what a renderer draws with.
+    pub material: MaterialId,
 }
 
 impl GlobalAppearance {
     pub const fn identity() -> Self {
         Self {
             visible: true,
+            tint: Vec4::ONE,
             z_index: 0,
+            material: MaterialId::NONE,
         }
     }
 
     fn mul(self, local: Appearance) -> Self {
         Self {
             visible: self.visible && local.visible,
+            tint: self.tint * local.tint,
             z_index: if local.z_relative {
                 self.z_index.saturating_add(local.z_index)
             } else {
                 local.z_index
+            },
+            material: if local.material.is_none() {
+                self.material
+            } else {
+                local.material
             },
         }
     }
@@ -240,6 +348,10 @@ pub struct GlobalTransform {
     pub position: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+    /// The world shear, in the same terms as [`Transform::skew`]: every 2D
+    /// basis is exactly a rotation, a shear and a scale, so a skewed parent's
+    /// children are placed exactly rather than approximately.
+    pub skew: f32,
 }
 
 impl GlobalTransform {
@@ -248,16 +360,97 @@ impl GlobalTransform {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
+            skew: 0.0,
         }
     }
 
+    /// The 2D affine matrix this pose places with: rotation, shear, scale
+    /// and translation, in that order, the way Godot's `Transform2D` does.
+    #[must_use]
+    pub fn affine_2d(&self) -> glamx::Mat3 {
+        let basis = linear_2d(
+            z_angle(self.rotation),
+            self.skew,
+            self.scale.x,
+            self.scale.y,
+        );
+        glamx::Mat3::from_cols(
+            basis.x_axis.extend(0.0),
+            basis.y_axis.extend(0.0),
+            Vec3::new(self.position.x, self.position.y, 1.0),
+        )
+    }
+
     fn mul(&self, local: &Transform) -> Self {
+        let flat = |q: Quat| q.x == 0.0 && q.y == 0.0;
+        if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation)
+        {
+            return Self {
+                position: self.position + self.rotation * (local.position * self.scale),
+                rotation: self.rotation * local.rotation,
+                scale: self.scale * local.scale,
+                skew: 0.0,
+            };
+        }
+        // A shear anywhere above makes the basis a general 2D matrix, so it
+        // is composed as one and taken back apart.
+        let parent = linear_2d(
+            z_angle(self.rotation),
+            self.skew,
+            self.scale.x,
+            self.scale.y,
+        );
+        let own = linear_2d(
+            z_angle(local.rotation),
+            local.skew,
+            local.scale.x,
+            local.scale.y,
+        );
+        let at = self.position.truncate() + parent * local.position.truncate();
+        let (angle, skew, sx, sy) = decompose_2d(parent * own);
         Self {
-            position: self.position + self.rotation * (local.position * self.scale),
-            rotation: self.rotation * local.rotation,
-            scale: self.scale * local.scale,
+            position: Vec3::new(
+                at.x,
+                at.y,
+                self.position.z + local.position.z * self.scale.z,
+            ),
+            rotation: Quat::from_rotation_z(angle),
+            scale: Vec3::new(sx, sy, self.scale.z * local.scale.z),
+            skew,
         }
     }
+}
+
+/// The angle a rotation about z turns by. Only asked of one that is.
+fn z_angle(rotation: Quat) -> f32 {
+    2.0 * libm::atan2f(rotation.z, rotation.w)
+}
+
+/// Rotation, then a shear turning the y axis `skew` further, then scale.
+/// Every 2D linear map is exactly one of these.
+fn linear_2d(angle: f32, skew: f32, sx: f32, sy: f32) -> glamx::Mat2 {
+    let (x_sin, x_cos) = (libm::sinf(angle), libm::cosf(angle));
+    let (y_sin, y_cos) = (libm::sinf(angle + skew), libm::cosf(angle + skew));
+    glamx::Mat2::from_cols(
+        glamx::Vec2::new(x_cos * sx, x_sin * sx),
+        glamx::Vec2::new(-y_sin * sy, y_cos * sy),
+    )
+}
+
+/// [`linear_2d`] taken apart: the rotation is the x axis's direction, and
+/// the y axis read in that frame gives the shear and its scale, negative for
+/// a mirror.
+fn decompose_2d(m: glamx::Mat2) -> (f32, f32, f32, f32) {
+    let angle = libm::atan2f(m.x_axis.y, m.x_axis.x);
+    let sx = libm::hypotf(m.x_axis.x, m.x_axis.y);
+    let (sin, cos) = (libm::sinf(-angle), libm::cosf(-angle));
+    let across = cos * m.y_axis.x - sin * m.y_axis.y;
+    let up = sin * m.y_axis.x + cos * m.y_axis.y;
+    let sy = libm::hypotf(across, up).copysign(up);
+    if sy == 0.0 {
+        return (angle, 0.0, sx, 0.0);
+    }
+    (angle, libm::atan2f(-across / sy, up / sy), sx, sy)
 }
 
 /// The components every node has, whatever else it carries, plus whatever the
@@ -484,29 +677,33 @@ fn child_named(world: &World, parent: Entity, name: &str) -> Option<Entity> {
         .find(|&c| world.get::<&Name>(c).is_ok_and(|n| n.0 == name))
 }
 
-/// Resolve a `A/B/C` path relative to `from` by matching child names; a
-/// `..` segment climbs to the parent, as a Godot NodePath does.
+/// Resolve a `A/B/C` path relative to `from` by matching child names; `.`
+/// is the node itself and `..` climbs to the parent, as a Godot NodePath does.
 pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
     let mut current = from;
-    for segment in path.split('/').filter(|s| !s.is_empty()) {
+    for segment in path.split('/').filter(|s| !s.is_empty() && *s != ".") {
         if segment == ".." {
             current = world.get::<&Parent>(current).ok()?.0;
             continue;
         }
-        current = match world.get::<&NameIndex>(current) {
-            Ok(index) => {
-                let found = index.0.get(segment)?.first;
-                debug_assert!(
-                    world.get::<&Name>(found).is_ok_and(|n| n.0 == segment)
-                        && world.get::<&Parent>(found).is_ok_and(|p| p.0 == current),
-                    "the name index of {current:?} is stale for {segment:?}"
-                );
-                found
-            }
-            Err(_) => child_named(world, current, segment)?,
-        };
+        current = named_child(world, current, segment)?;
     }
     Some(current)
+}
+
+fn named_child(world: &World, parent: Entity, name: &str) -> Option<Entity> {
+    match world.get::<&NameIndex>(parent) {
+        Ok(index) => {
+            let found = index.0.get(name)?.first;
+            debug_assert!(
+                world.get::<&Name>(found).is_ok_and(|n| n.0 == name)
+                    && world.get::<&Parent>(found).is_ok_and(|p| p.0 == parent),
+                "the name index of {parent:?} is stale for {name:?}"
+            );
+            Some(found)
+        }
+        Err(_) => child_named(world, parent, name),
+    }
 }
 
 /// Absolute path of a node from the root, for debugging and editor display.
@@ -557,6 +754,9 @@ pub fn propagate_transforms(world: &mut World, root: Entity) {
                 Err(_) => parent_appearance,
             };
             if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+                if slot.visible != appearance.visible || slot.tint != appearance.tint {
+                    APPEARANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
                 *slot = appearance;
             }
             if let Ok(children) = world.get::<&Children>(entity) {
@@ -636,6 +836,13 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
             child_global.scale.y / safe(parent_global.scale.y),
             child_global.scale.z / safe(parent_global.scale.z),
         ),
+        skew: 0.0,
+    };
+    // A shear on either side is only undone exactly through the matrices.
+    let local = if parent_global.skew != 0.0 || child_global.skew != 0.0 {
+        sheared_local(&parent_global, &child_global, local.position.z)
+    } else {
+        local
     };
     if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0) {
         detach(world, old_parent, entity);
@@ -649,6 +856,25 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
         .insert(entity, (Parent(new_parent), local))
         .map_err(|_| anyhow::anyhow!("node is dead"))?;
     Ok(())
+}
+
+/// The local transform that puts a node at `child` under `parent`, when a
+/// shear is in either and the plain division would drop it.
+fn sheared_local(parent: &GlobalTransform, child: &GlobalTransform, z: f32) -> Transform {
+    let local = parent.affine_2d().inverse() * child.affine_2d();
+    let basis = glamx::Mat2::from_cols(local.x_axis.truncate(), local.y_axis.truncate());
+    let (angle, skew, sx, sy) = decompose_2d(basis);
+    let scale_z = if parent.scale.z.abs() > f32::EPSILON {
+        child.scale.z / parent.scale.z
+    } else {
+        1.0
+    };
+    Transform {
+        position: Vec3::new(local.z_axis.x, local.z_axis.y, z),
+        rotation: Quat::from_rotation_z(angle),
+        scale: Vec3::new(sx, sy, scale_z),
+        skew,
+    }
 }
 
 /// Collect a subtree in despawn order (children before parents is not

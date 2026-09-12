@@ -2,9 +2,13 @@
 # swaying on the clip the file carried, plus a camera and a floor.
 
 [[nodes]]
+id = "n_main"
+name = "Main"
+
+[[nodes]]
 id = "n_column"
 name = "Column"
-parent = ""
+parent = "n_main"
 
 [nodes.animation]
 autoplay = "sway"
@@ -69,7 +73,7 @@ source = "models/column.glb"
 [[nodes]]
 id = "n_camera"
 name = "Camera"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [4.0, 3.2, 5.5]
@@ -81,7 +85,7 @@ look_at = [0.0, 1.5, 0.0]
 [[nodes]]
 id = "n_floor"
 name = "Floor"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [0.0, 0.0, 0.0]

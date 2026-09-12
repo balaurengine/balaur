@@ -142,9 +142,7 @@ impl LightMap {
 }
 
 fn warn_once_about_light_count(found: usize) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static WARNED: AtomicBool = AtomicBool::new(false);
-    if !WARNED.swap(true, Ordering::Relaxed) {
+    if balaur_core::logbuf::first_time("light2d count", "") {
         tracing::warn!("{found} light2d nodes in the scene; only the first {MAX_LIGHTS} are drawn");
     }
 }

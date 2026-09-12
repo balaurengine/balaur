@@ -507,14 +507,20 @@ fn place(
         let Ok(text) = world.get::<&TextRenderable>(*entity) else {
             return true;
         };
-        let visible = world
+        let appearance = world
             .get::<&GlobalAppearance>(*entity)
-            .is_ok_and(|a| a.visible);
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let visible = appearance.visible;
+        // Per frame rather than at build: the block is rebuilt only when the
+        // text or its layout changes, and an ancestor's tint moves every tick.
+        let [r, g, b, a] = crate::sync_2d::modulate(text.style.color, appearance.tint.to_array());
+        let tint = kiss3d::color::Color::new(r, g, b, a);
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         for node in &mut slot.two_d {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
             node.set_rotation(angle);
             node.set_visible(visible);
+            node.set_color(tint);
         }
         // A billboard turns to the eye every frame; otherwise the block sits
         // in the node's own plane, like a sign painted on a wall.
@@ -527,6 +533,7 @@ fn place(
             node.set_position(global.position);
             node.set_visible(visible);
             node.set_rotation(turned);
+            node.set_color(tint);
         }
         true
     });
@@ -565,7 +572,7 @@ fn raster_size(
     let em_world = text.style.size / text.pixels_per_unit.max(0.01);
     let per_unit = if text.in_3d {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot>() else {
-            return balaur_ui::text::bucket(text.style.size);
+            return balaur_text::bucket(text.style.size);
         };
         let snapshot = snapshot.borrow();
         let eye = glamx::Vec3::new(snapshot.eye[0], snapshot.eye[1], snapshot.eye[2]);
@@ -576,10 +583,10 @@ fn raster_size(
         viewport_height / (2.0 * half)
     } else {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot2d>() else {
-            return balaur_ui::text::bucket(text.style.size);
+            return balaur_text::bucket(text.style.size);
         };
         // The 2D camera's zoom is already pixels to the world unit.
         snapshot.borrow().zoom.max(0.01)
     };
-    balaur_ui::text::bucket((em_world * per_unit).clamp(1.0, 512.0))
+    balaur_text::bucket((em_world * per_unit).clamp(1.0, 512.0))
 }

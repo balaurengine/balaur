@@ -1,9 +1,7 @@
 //! An extension: the same `Plugin` a module implements, built as a cdylib and
 //! loaded at run time rather than linked in.
 
-use balaur_core::Engine;
-use balaur_plugin::{Manifest, Plugin, Registry};
-use balaur_script::BindingsExt as _;
+use balaur_plugin::prelude::*;
 
 pub struct Greeter {
     manifest: Manifest,
@@ -28,7 +26,7 @@ impl Plugin for Greeter {
         &self.manifest
     }
 
-    fn declare(&mut self, reg: &mut Registry<'_>) -> anyhow::Result<()> {
+    fn declare(&mut self, reg: &mut Registry<'_>) -> Result<()> {
         reg.insert_resource(GreetingCount(0));
         let mut m = reg.script_module("greeter")?;
         m.function("greet", |eng: &Engine, name: String| {
@@ -42,17 +40,13 @@ impl Plugin for Greeter {
         // Reads a host-inserted resource across the dylib boundary: the real
         // test that both compiled copies of balaur_core agree on the TypeId.
         m.function("project_root", |eng: &Engine, ()| {
-            Ok(
-                match eng.try_resource::<balaur_core::project::ProjectRoot>() {
-                    Some(root) => root.borrow().0.display().to_string(),
-                    None => NOT_VISIBLE.to_string(),
-                },
-            )
+            use balaur_plugin::balaur_core::project::ProjectRoot;
+            Ok(match eng.try_resource::<ProjectRoot>() {
+                Some(root) => root.borrow().0.display().to_string(),
+                None => NOT_VISIBLE.to_string(),
+            })
         });
-        m.constant(
-            "VERSION",
-            balaur_script::Value::Str(env!("CARGO_PKG_VERSION").into()),
-        );
+        m.constant("VERSION", Value::Str(env!("CARGO_PKG_VERSION").into()));
         Ok(())
     }
 }

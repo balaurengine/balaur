@@ -11,6 +11,8 @@ ARCHITECTURE.md's plugin section is the record. What is left is below.
   into script across the C boundary. `Registry` is now the whole surface a
   plugin registers through and `app()` is gone, so that list is exactly what a
   C extension is still short of, with nothing left to reach around it.
+- **Extensions in WebAssembly**, roadmap 1.1: the C ABI in a `.wasm` module
+  that loads in the browser too. `docs/PLAN-wasm-extensions.md`.
 - **A package manager**, roadmap 1.1. Nothing resolves a dependency: a plugin
   is a file somebody copies in, and a version is whatever they copied. What it
   wants is `[dependencies]` in `project.toml`, `balaur add`, a lockfile with a

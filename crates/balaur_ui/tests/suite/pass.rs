@@ -354,7 +354,7 @@ fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
 }
 
 /// One pass over the same context, with the events the caller feeds it.
-fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) {
+fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::pos2(0.0, 0.0),
@@ -367,6 +367,18 @@ fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) {
     balaur_ui::run_pass(&app.engine, ctx);
     let mut out = ctx.end_pass();
     out.textures_delta.clear();
+    out
+}
+
+/// The colours of the filled boxes a pass painted.
+fn fills(out: &egui::FullOutput) -> Vec<egui::Color32> {
+    out.shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Rect(rect) => Some(rect.fill),
+            _ => None,
+        })
+        .collect()
 }
 
 fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
@@ -379,6 +391,77 @@ fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
             modifiers: egui::Modifiers::NONE,
         },
     ]
+}
+
+/// A frame with `menu_click` answers the pointer over all of itself, so a
+/// mark and the name beside it read as one control: a click on the caption
+/// used to fall through to nothing.
+#[test]
+fn a_frame_menu_opens_from_a_click_on_its_caption() {
+    let (app, ctx, errors) = draw_with(
+        r#"
+        this.rows = 0.0;
+        ui::central_panel(#{}, || {
+            ui::frame(#{ padding_x: 8, menu_click: || {
+                this.rows = this.rows + 1.0;
+                ui::menu_item("Open", #{ width: 120 });
+            } }, || {
+                ui::label("Balaur", #{});
+            });
+        });
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert_eq!(field(&app, "rows"), Some(0.0), "the menu drew unopened");
+    let at = egui::pos2(30.0, 14.0);
+    feed(&app, &ctx, tap(at, true));
+    feed(&app, &ctx, tap(at, false));
+    feed(&app, &ctx, vec![]);
+    let drawn = field(&app, "rows").unwrap_or(0.0);
+    assert!(drawn > 0.0, "a click on the caption opened no menu");
+}
+
+/// The same frame takes `hover_fill` while the pointer is over it, painted
+/// under the callback's own widgets rather than over them.
+#[test]
+fn a_frame_menu_lights_up_under_the_pointer() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        ui::central_panel(#{}, || {
+            ui::frame(#{
+                padding_x: 8, fill: "#101215", hover_fill: "#2b3037",
+                menu_click: || { ui::menu_item("Open", #{ width: 120 }); },
+            }, || {
+                ui::label("Balaur", #{});
+            });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let cold = egui::Color32::from_rgb(0x10, 0x12, 0x15);
+    let warm = egui::Color32::from_rgb(0x2b, 0x30, 0x37);
+    let away = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))],
+    );
+    assert!(
+        fills(&away).contains(&cold),
+        "the resting fill went missing"
+    );
+    assert!(
+        !fills(&away).contains(&warm),
+        "it lit up with the pointer away"
+    );
+    let over = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(30.0, 14.0))],
+    );
+    assert!(
+        fills(&over).contains(&warm),
+        "the pointer over it lit nothing"
+    );
 }
 
 /// `menu_click` hangs a menu off a left click. The rows are the callback's,
@@ -529,4 +612,99 @@ fn laid_out(app: &App) -> std::sync::Arc<egui::Galley> {
         .next()
         .expect("the code editor laid nothing out");
     std::sync::Arc::clone(galley)
+}
+
+/// An overlay given a size keeps its layer inside it. egui grows an area to
+/// its content, and an area is a layer: a row one chip too long took the
+/// pointer off every control under the whole of it.
+#[test]
+fn a_sized_overlay_keeps_its_layer_inside_the_box_it_was_given() {
+    let (app, ctx, errors) = draw_with(
+        r#"
+        ui::overlay("chips", #{ x: 10, y: 10, w: 60, h: 24 }, || {
+            ui::horizontal(#{ height: 24 }, || {
+                for n in 0..8 {
+                    ui::pill("chip", #{ height: 20 });
+                }
+            });
+        });
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    feed(&app, &ctx, vec![]);
+    feed(&app, &ctx, vec![]);
+    let rect = ctx
+        .memory(|m| m.area_rect(egui::Id::new("chips")))
+        .expect("the overlay drew");
+    assert_eq!(
+        rect,
+        egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(60.0, 24.0)),
+        "eight chips do not widen the layer past the box the caller stated"
+    );
+}
+
+/// A role's `hover` table repaints the control under the pointer, and its
+/// colours are spelled from the same tokens the rest of the role names.
+#[test]
+fn a_roles_hover_table_repaints_the_pill_under_the_pointer() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        ui::set_theme(#{
+            dark: true, ink: "#101215", warm: "#2b3037",
+            roles: #{ tile: #{ fill: "ink", hover: #{ fill: "warm" } } },
+        });
+        ui::central_panel(#{}, || {
+            ui::pill("Go", #{ role: "tile", height: 24, min_width: 60 });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let cold = egui::Color32::from_rgb(0x10, 0x12, 0x15);
+    let warm = egui::Color32::from_rgb(0x2b, 0x30, 0x37);
+    let away = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))],
+    );
+    assert!(
+        fills(&away).contains(&cold) && !fills(&away).contains(&warm),
+        "at rest the role's own fill is painted"
+    );
+    // Twice: egui reads a hover off the widget rects of the pass before.
+    let on = egui::pos2(20.0, 20.0);
+    feed(&app, &ctx, vec![egui::Event::PointerMoved(on)]);
+    let over = feed(&app, &ctx, vec![egui::Event::PointerMoved(on)]);
+    assert!(
+        fills(&over).contains(&warm),
+        "under the pointer the role's `hover` table paints instead"
+    );
+}
+
+/// The same, for a control inside a sized overlay: the box the overlay keeps
+/// its layer inside must not cost the controls in it their own state.
+#[test]
+fn a_pill_in_a_sized_overlay_still_lights_up() {
+    let (app, ctx, errors) = draw_with(
+        r##"
+        ui::overlay("bar", #{ x: 0, y: 0, w: 200, h: 40 }, || {
+            ui::horizontal(#{ height: 30 }, || {
+                ui::pill("Go", #{ height: 24, min_width: 60, fill: "#101215" });
+            });
+        });
+        "##,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let away = feed(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(500.0, 400.0))],
+    );
+    let cold = fills(&away).len();
+    let on = egui::pos2(20.0, 15.0);
+    feed(&app, &ctx, vec![egui::Event::PointerMoved(on)]);
+    let over = feed(&app, &ctx, vec![egui::Event::PointerMoved(on)]);
+    assert!(
+        fills(&over).len() > cold,
+        "the pill painted nothing more under the pointer: {cold} boxes either way"
+    );
 }

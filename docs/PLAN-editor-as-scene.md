@@ -63,7 +63,7 @@ Only the rows on screen are built, which is where the saving was, and
 
 `taffy` 0.14, a retained flexbox tree, replaced `widget_arrange`'s
 `share_out`, `Ask`, `contain` and the head-and-far walk, and
-`widget_measure`'s whole container recursion. `crates/balaur_ui/src/widget_taffy.rs`
+`widget_measure`'s whole container recursion. `crates/balaur_ui/src/widget/taffy.rs`
 maps a `Widget` to a `taffy::Style` and solves each root before anything
 draws; the draw then pins a `Ui` to each rect, which is what
 `widget_arrange.rs` already did with rects of its own.

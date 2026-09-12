@@ -608,23 +608,34 @@ fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial3d {
     ShaderMaterial3d::new(compiled, None)
 }
 
-/// A material and, when its shader carries one, the probe it writes into.
+/// A material and, when its shader carries one, the probe it writes into;
+/// `None` for one whose shader draws the other dimension.
 fn build(
     app: &balaur_core::App,
     reference: &str,
-) -> anyhow::Result<(ShaderMaterial3d, Option<std::rc::Rc<Probe>>)> {
+) -> anyhow::Result<Option<(ShaderMaterial3d, Option<std::rc::Rc<Probe>>)>> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
+    let found = crate::shaders::contract(&source, &modules);
+    if !crate::shaders::fits(reference, found, crate::shaders::Contract::Mesh) {
+        return Ok(None);
+    }
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
     let slots = asset
         .textures()
         .into_iter()
-        .map(|path| path.and_then(|path| crate::texture::upload(&app.engine, path)))
+        .map(|path| {
+            path.and_then(|path| {
+                let path = crate::material::project_path(&app.engine, reference, path)
+                    .unwrap_or_else(|| path.to_string());
+                crate::texture::upload(&app.engine, &path, crate::texture::PREMULTIPLY_DROPPED)
+            })
+        })
         .collect();
     let material = ShaderMaterial3d::with_textures(&compiled, probe.as_deref(), slots);
-    Ok((material, probe))
+    Ok(Some((material, probe)))
 }

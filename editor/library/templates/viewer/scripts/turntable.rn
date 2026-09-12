@@ -6,6 +6,6 @@ pub fn exports() {
 
 pub fn update(this, dt) {
     let radians = this.turns_per_minute / 60.0 * 6.2831853 * dt;
-    let r = this.node.rotation_euler();
-    this.node.set_rotation_euler(r.x, r.y + radians, r.z);
+    let r = this.node.transform.rotation_euler;
+    this.node.transform.rotation_euler = [r.x, r.y + radians, r.z];
 }

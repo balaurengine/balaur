@@ -23,6 +23,14 @@
 //! game declares its own from a script with `settings.define`. Nothing
 //! distinguishes them afterwards, which is what makes the screen a complete
 //! list rather than a curated one.
+//!
+//! **One key may hold more than one answer.** A setting's path under
+//! `override/<tag>/` is what that platform reads instead:
+//! `[override.android.window] orientation = "portrait"` is `window/orientation`
+//! on a phone and nowhere else. The storage rule needs no exception for it, since
+//! the override is a path like any other. [`get`] resolves against the tags
+//! this run answers to, narrowest first; [`base`] answers what the file says,
+//! which is what the editor edits. See [`crate::tags`].
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,6 +38,7 @@ use std::rc::Rc;
 use anyhow::{Context, Result};
 
 use crate::engine::Engine;
+use crate::tags::{OVERRIDE, Tags};
 
 /// Whose setting this is, and therefore where it is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,9 +150,70 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
     Some((parts, key))
 }
 
-/// One setting's value: what was set, else what its definition defaults to.
+/// One setting's value here: the narrowest override this run answers to,
+/// else what the file set, else what its definition defaults to.
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
+    stated(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+}
+
+/// What this run was told, and nothing more: the narrowest override, else what
+/// the file set, else `None`.
+///
+/// The read for a subsystem whose own default is not a number a schema can
+/// hold — rapier's solver, say, where absent means "leave it alone" and a
+/// declared default would quietly become an instruction.
+#[must_use]
+pub fn stated(eng: &Engine, path: &str) -> Option<toml::Value> {
+    if let Some(tags) = eng.try_resource::<Tags>() {
+        let tags = tags.borrow();
+        for tag in tags.narrowest_first() {
+            if let Some(found) = stored(eng, &format!("{OVERRIDE}/{tag}/{path}")) {
+                return Some(found);
+            }
+        }
+    }
+    stored(eng, path)
+}
+
+/// A whole table as this run resolves it: the file's own, with each tag's
+/// override folded on, broad to narrow.
+///
+/// The read for a table whose keys are the game's rather than the engine's:
+/// `[input.actions]` names actions and `[audio.buses]` names buses, so
+/// `[override.mobile.input.actions] jump = ["touch:..."]` rebinds one action
+/// and leaves the rest as the file has them.
+#[must_use]
+pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
+    let mut out = match stored(eng, path) {
+        Some(toml::Value::Table(base)) => base,
+        _ => toml::value::Table::new(),
+    };
+    if let Some(tags) = eng.try_resource::<Tags>() {
+        for tag in &tags.borrow().0 {
+            if let Some(toml::Value::Table(layer)) =
+                stored(eng, &format!("{OVERRIDE}/{tag}/{path}"))
+            {
+                merge(&mut out, layer);
+            }
+        }
+    }
+    out
+}
+
+/// What the file says, whatever platform is reading it.
+///
+/// The editor's own read: a settings screen showing the override its machine
+/// happened to match would write that value back onto the base key.
+#[must_use]
+pub fn base(eng: &Engine, path: &str) -> Option<toml::Value> {
+    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+}
+
+/// One path's value as loaded, with no definition behind it: what an override
+/// has, and what an undeclared table of the game's own has.
+#[must_use]
+fn stored(eng: &Engine, path: &str) -> Option<toml::Value> {
     if let Some(values) = eng.try_resource::<SettingsValues>()
         && let Some((tables, key)) = split(path)
     {
@@ -162,7 +232,7 @@ pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
             return Some(found.clone());
         }
     }
-    def(eng, path).and_then(|d| d.spec.get("default").cloned())
+    None
 }
 
 /// Change one setting. Not written to disk until a caller asks for the text.
@@ -205,6 +275,131 @@ pub fn load(eng: &Engine, text: &str) -> Result<()> {
     Ok(())
 }
 
+/// Every tag an override may be written for here: the engine's, then the
+/// project's own from `[export] tags`.
+#[must_use]
+pub fn known_tags(eng: &Engine) -> Vec<String> {
+    let mut all: Vec<String> = crate::tags::ALL.iter().map(|t| (*t).to_string()).collect();
+    if let Some(values) = eng.try_resource::<SettingsValues>() {
+        for own in crate::tags::declared_in(&values.borrow().0) {
+            if !all.contains(&own) {
+                all.push(own);
+            }
+        }
+    }
+    all
+}
+
+/// Push the tags an export resolved, from `[build] tags`, onto the ones this
+/// run answers to. Called wherever a manifest is loaded, so a shipped demo
+/// reads `[override.demo]` from its first setting on.
+pub fn answer_to_built_tags(eng: &Engine) {
+    let (Some(values), Some(tags)) = (
+        eng.try_resource::<SettingsValues>(),
+        eng.try_resource::<Tags>(),
+    ) else {
+        return;
+    };
+    let built = crate::tags::built_in(&values.borrow().0);
+    let mut tags = tags.borrow_mut();
+    for name in &built {
+        tags.push(name);
+    }
+}
+
+/// The tags this manifest holds an override for at `path`, in tag order.
+///
+/// What the settings screen lists under a row: the answers this key has
+/// besides the one in front of you.
+#[must_use]
+pub fn overrides(eng: &Engine, path: &str) -> Vec<String> {
+    known_tags(eng)
+        .into_iter()
+        .filter(|tag| stored(eng, &format!("{OVERRIDE}/{tag}/{path}")).is_some())
+        .collect()
+}
+
+/// Keys a manifest holds that nothing declares, inside tables that something
+/// does.
+///
+/// The rule a typo has to fall foul of: `[window] fullscren` is an error
+/// because `[window]` is a table the engine describes, while `[mygame]
+/// local_server_url` is not, because the table is the game's own space. An
+/// override is checked against the setting it overrides, so
+/// `[override.android.window] fullscren` is caught too.
+#[must_use]
+pub fn unknown(eng: &Engine, text: &str) -> Vec<String> {
+    let Ok(doc) = toml::from_str::<toml::value::Table>(text) else {
+        return Vec::new();
+    };
+    let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
+        return Vec::new();
+    };
+    let declared: Vec<String> = registry.borrow().0.iter().map(|d| d.path.clone()).collect();
+    let mut found = Vec::new();
+    walk(&doc, "", &mut |path: &str| {
+        let named = without_tag(path);
+        if declared.iter().any(|d| d == named) {
+            return;
+        }
+        let Some((table, _)) = named.rsplit_once('/') else {
+            return;
+        };
+        // A table nothing describes is the game's own, and a key in it is
+        // whatever the game meant by it.
+        if declared.iter().any(|d| d.starts_with(&format!("{table}/"))) {
+            found.push(path.to_string());
+        }
+    });
+    found
+}
+
+/// An override's path without the `override/<tag>/` it is stored under, so it
+/// is checked against the setting it answers for.
+fn without_tag(path: &str) -> &str {
+    path.strip_prefix(&format!("{OVERRIDE}/"))
+        .and_then(|rest| rest.split_once('/'))
+        .map_or(path, |(_, rest)| rest)
+}
+
+/// Every leaf key in a document, as the path it is stored at.
+fn walk(table: &toml::value::Table, prefix: &str, found: &mut impl FnMut(&str)) {
+    for (key, value) in table {
+        let path = if prefix.is_empty() {
+            key.clone()
+        } else {
+            format!("{prefix}/{key}")
+        };
+        match value {
+            toml::Value::Table(inner) => walk(inner, &path, found),
+            _ => found(&path),
+        }
+    }
+}
+
+/// A manifest's tables with `tags`' overrides folded onto the keys they
+/// override, and `[override]` itself dropped.
+///
+/// What an export reads. The engine resolves per read, against the tags the
+/// machine running it holds; a build resolves for a machine it is not, so it
+/// asks for the whole document at once. The precedence is the same one: the
+/// narrowest tag the target answers to wins.
+///
+/// # Errors
+/// When the text is not valid TOML.
+pub fn resolve(text: &str, tags: &Tags) -> Result<toml::value::Table> {
+    let mut doc: toml::value::Table = toml::from_str(text).context("parsing settings")?;
+    let Some(toml::Value::Table(overrides)) = doc.remove(OVERRIDE) else {
+        return Ok(doc);
+    };
+    for tag in &tags.0 {
+        if let Some(toml::Value::Table(layer)) = overrides.get(tag.as_str()) {
+            merge(&mut doc, layer.clone());
+        }
+    }
+    Ok(doc)
+}
+
 /// Fold one table into another, table by table rather than wholesale, so
 /// loading the editor's file after the project's does not drop the project's.
 fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
@@ -220,22 +415,37 @@ fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
     }
 }
 
+/// Forget one value, so the next write drops the key it was stored at.
+///
+/// What removing an override is: the base value is a row that always exists,
+/// but an override is one the project either holds or does not.
+pub fn clear(eng: &Engine, path: &str) {
+    let Some(values) = eng.try_resource::<SettingsValues>() else {
+        return;
+    };
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut values = values.borrow_mut();
+    table_at(&mut values.0, &tables).remove(key);
+}
+
 /// The text one scope's settings would write, starting from `existing` so
 /// anything no setting describes survives.
 ///
-/// Only the paths that scope defines are touched, which is what lets a
-/// manifest keep its comments, its ordering and its unrelated tables.
+/// Edits the document rather than rebuilding it, so a manifest keeps its
+/// comments, its key order and its unrelated tables. Only a value something
+/// set is written: a key the project never named stays absent rather than
+/// arriving as its default, which would turn "the engine decides" into a
+/// number nobody chose.
 ///
 /// # Errors
-/// When `existing` is not valid TOML, or the result cannot be written.
+/// When `existing` is not valid TOML.
 pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
-    let mut doc: toml::value::Table = if existing.trim().is_empty() {
-        toml::value::Table::new()
-    } else {
-        toml::from_str(existing).context("parsing the file being written")?
-    };
+    let mut doc: toml_edit::DocumentMut =
+        existing.parse().context("parsing the file being written")?;
     let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
-        return toml::to_string_pretty(&doc).context("writing settings");
+        return Ok(doc.to_string());
     };
     let paths: Vec<String> = registry
         .borrow()
@@ -244,16 +454,124 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .filter(|d| d.scope == scope)
         .map(|d| d.path.clone())
         .collect();
+    let tags = known_tags(eng);
     for path in paths {
-        let Some(value) = get(eng, &path) else {
+        if let Some(value) = stored(eng, &path) {
+            write_at(&mut doc, &path, &value);
+        }
+        // An override is a key the project either holds or does not, so a
+        // cleared one is removed rather than written back as it was.
+        if scope != Scope::Project {
             continue;
-        };
-        let Some((tables, key)) = split(&path) else {
-            continue;
-        };
-        table_at(&mut doc, &tables).insert(key.to_string(), value);
+        }
+        for tag in &tags {
+            let at = format!("{OVERRIDE}/{tag}/{path}");
+            match stored(eng, &at) {
+                Some(value) => write_at(&mut doc, &at, &value),
+                None => remove_at(&mut doc, &at),
+            }
+        }
     }
-    toml::to_string_pretty(&doc).context("writing settings")
+    prune_overrides(&mut doc);
+    Ok(doc.to_string())
+}
+
+/// One value written into a manifest's text at its path, keeping everything
+/// else as written: what an export uses to stamp its pack's copy.
+///
+/// # Errors
+/// When `existing` is not valid TOML.
+pub fn patch(existing: &str, path: &str, value: &toml::Value) -> Result<String> {
+    let mut doc: toml_edit::DocumentMut =
+        existing.parse().context("parsing the file being written")?;
+    write_at(&mut doc, path, value);
+    Ok(doc.to_string())
+}
+
+/// Put one value at its path, making the tables on the way. A value that has
+/// not changed is left as written, so a save touches only what moved.
+fn write_at(doc: &mut toml_edit::DocumentMut, path: &str, value: &toml::Value) {
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut at: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    for table in tables {
+        let entry = at.entry(table).or_insert_with(|| {
+            let mut made = toml_edit::Table::new();
+            // Only the table holding the key gets a header of its own.
+            made.set_implicit(true);
+            toml_edit::Item::Table(made)
+        });
+        if entry.as_table_like().is_none() {
+            *entry = toml_edit::Item::Table(toml_edit::Table::new());
+        }
+        at = entry.as_table_like_mut().expect("made a table above");
+    }
+    let item = crate::file_api::as_item(value);
+    // Compared without decor: `name = "g" # shown in the title` is the same
+    // value as `"g"`, and rewriting it would take the comment with it.
+    let bare = |v: &toml_edit::Value| {
+        let mut v = v.clone();
+        v.decor_mut().clear();
+        v.to_string()
+    };
+    let same = at
+        .get(key)
+        .and_then(toml_edit::Item::as_value)
+        .zip(item.as_value())
+        .is_some_and(|(held, new)| bare(held) == bare(new));
+    if !same {
+        at.insert(key, item);
+    }
+}
+
+/// Remove one key without making the tables on the way to it.
+fn remove_at(doc: &mut toml_edit::DocumentMut, path: &str) {
+    let Some((tables, key)) = split(path) else {
+        return;
+    };
+    let mut at: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    for table in tables {
+        let Some(next) = at
+            .get_mut(table)
+            .and_then(toml_edit::Item::as_table_like_mut)
+        else {
+            return;
+        };
+        at = next;
+    }
+    at.remove(key);
+}
+
+/// Drop the tables a removed override left behind. Only under `override`: an
+/// empty `[plugins]` elsewhere is a project saying something.
+fn prune_overrides(doc: &mut toml_edit::DocumentMut) {
+    let Some(overrides) = doc
+        .get_mut(OVERRIDE)
+        .and_then(toml_edit::Item::as_table_like_mut)
+    else {
+        return;
+    };
+    prune_empty(overrides);
+    if overrides.is_empty() {
+        doc.remove(OVERRIDE);
+    }
+}
+
+fn prune_empty(table: &mut dyn toml_edit::TableLike) {
+    let keys: Vec<String> = table.iter().map(|(k, _)| k.to_string()).collect();
+    for key in keys {
+        let Some(inner) = table
+            .get_mut(&key)
+            .and_then(toml_edit::Item::as_table_like_mut)
+        else {
+            continue;
+        };
+        prune_empty(inner);
+        if inner.is_empty() {
+            table.remove(&key);
+        }
+    }
 }
 
 /// Core's own settings. Plugins define theirs from their own `build`.
@@ -269,9 +587,14 @@ pub(crate) fn build_core_settings(eng: &Engine) {
 name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
 language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
+assets = { type = "enum", default = "files", options = ["files", "embedded", "embeddedthenfiles"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
+splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
+splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time." }
+ignore = { type = "strings", default = [], order = 7, applies = "restart", help = "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out." }
 "#,
         ),
     );
+    build_window_settings(eng, &parse);
     define_group(
         eng,
         "save",
@@ -310,6 +633,25 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
 "#,
         ),
     );
+    // The defaults every file of a kind is read with, which a sidecar beside
+    // one file then overrides. The manifest is parsed once while starting, so
+    // a change here reaches the picture on the next run.
+    define_group(
+        eng,
+        "import/texture",
+        Scope::Project,
+        &parse(
+            "settings.import.texture",
+            r#"
+filter = { type = "enum", default = "linear", options = ["linear", "nearest"], order = 1, applies = "restart", help = "Between texels. Nearest is what keeps pixel art crisp when it is magnified." }
+repeat = { type = "enum", default = "clamp", options = ["clamp", "repeat", "mirror"], order = 2, applies = "restart", help = "What a coordinate past the edge reads. Mirror tiles without a seam." }
+mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering." }
+anisotropy = { type = "int", default = 1, min = 1, max = 16, order = 4, applies = "restart", help = "Samples per fetch on a surface seen edge-on. Needs every filter linear." }
+premultiply = { type = "bool", default = false, order = 5, applies = "restart", help = "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only." }
+srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "Off for a normal map or a mask, which carry data rather than colour." }
+"#,
+        ),
+    );
     // A prefix may nest, so a subsystem with many settings declares them a
     // group at a time and the editor shows each group under its own heading.
     define_group(
@@ -334,6 +676,39 @@ compact = { type = "bool", default = false, order = 3, help = "Drop labels the i
             r#"
 keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
 verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
+"#,
+        ),
+    );
+}
+
+/// `[window]` and `[ui]`: what a windowed build opens and draws with, which
+/// is the table a platform most often answers differently.
+fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+    define_group(
+        eng,
+        "window",
+        Scope::Project,
+        &parse(
+            "settings.window",
+            r#"
+width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
+height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
+mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. render.set_window_mode changes it later through the same state." }
+orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
+vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
+msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "ui",
+        Scope::Project,
+        &parse(
+            "settings.ui",
+            r#"
+system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
+theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
 "#,
         ),
     );

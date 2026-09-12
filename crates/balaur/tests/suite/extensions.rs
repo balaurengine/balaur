@@ -1,5 +1,6 @@
 #![cfg(feature = "extensions")]
 
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use balaur::{AppConfig, standard_app};
@@ -60,15 +61,19 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     )
     .unwrap();
     if with_extension {
-        let dest = dir.path().join("extensions");
-        std::fs::create_dir_all(&dest).unwrap();
-        std::fs::copy(
-            greeter(),
-            dest.join(format!("greeter.{}", balaur_plugin::library_suffix())),
-        )
-        .unwrap();
+        ship_greeter(&dir.path().join("extensions"));
     }
     dir
+}
+
+/// Put the greeter in `dir` under the name a project gives it.
+fn ship_greeter(dir: &Path) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::copy(
+        greeter(),
+        dir.join(format!("greeter.{}", balaur_plugin::library_suffix())),
+    )
+    .unwrap();
 }
 
 /// The scene's `Root`, the node the project's script is attached to.
@@ -116,4 +121,92 @@ fn an_extension_survives_many_frames() {
         Some(1.0),
         "the extension's state did not survive the run"
     );
+}
+
+/// Set on the copy of this binary that plays the exported game.
+const AS_GAME: &str = "BALAUR_TEST_AS_GAME";
+
+/// What an exported game does at startup, checked: boot the pack this
+/// executable carries and call into the extension shipped with it.
+fn play_own_pack() {
+    let pack = balaur::standalone::own_pack()
+        .unwrap()
+        .expect("the game carries its pack");
+    let config = AppConfig::packed(balaur::Pack::decode(&pack).unwrap());
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    let said = balaur::rune::rune_of(&app.engine).text_field(root_node(&app), "said");
+    assert_eq!(said.as_deref(), Some("hello, world"));
+}
+
+/// Run `game`, a copy of this binary, as the calling test, from a directory
+/// with no `extensions/` in it.
+fn run_from_elsewhere(game: &Path) {
+    let test = std::thread::current()
+        .name()
+        .expect("libtest names a test's thread after the test")
+        .to_string();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(game)
+        .args(["--exact", &test, "--nocapture"])
+        .env(AS_GAME, "1")
+        .current_dir(elsewhere.path())
+        .output()
+        .expect("the game should start");
+    let said = String::from_utf8_lossy(&out.stdout) + String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success() && said.contains("1 passed"),
+        "the exported game did not load its extension:\n{said}"
+    );
+}
+
+#[test]
+fn a_fused_game_loads_the_extensions_beside_it_from_any_directory() {
+    if std::env::var_os(AS_GAME).is_some() {
+        return play_own_pack();
+    }
+    let dir = project(true);
+    let pack = balaur::build_pack(dir.path()).unwrap().encode();
+    let install = tempfile::tempdir().unwrap();
+    let game = install
+        .path()
+        .join(format!("game{}", std::env::consts::EXE_SUFFIX));
+    // Fusing appends `build(&[], pack)`; copying first lets a cloning
+    // filesystem store only that, not a second copy of this binary.
+    std::fs::copy(std::env::current_exe().unwrap(), &game).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&game)
+        .unwrap()
+        .write_all(&balaur::standalone::build(&[], &pack))
+        .unwrap();
+    ship_greeter(&install.path().join("extensions"));
+
+    run_from_elsewhere(&game);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_macos_app_loads_the_extensions_in_its_plugins_from_any_directory() {
+    if std::env::var_os(AS_GAME).is_some() {
+        return play_own_pack();
+    }
+    let dir = project(true);
+    let pack = balaur::build_pack(dir.path()).unwrap().encode();
+    let install = tempfile::tempdir().unwrap();
+    let contents = install.path().join("Game.app/Contents");
+    std::fs::create_dir_all(contents.join("MacOS")).unwrap();
+    std::fs::create_dir_all(contents.join("Resources")).unwrap();
+    let game = contents.join("MacOS/Game");
+    std::fs::copy(std::env::current_exe().unwrap(), &game).unwrap();
+    std::fs::write(
+        contents
+            .join("Resources")
+            .join(balaur::standalone::BUNDLED_PACK),
+        pack,
+    )
+    .unwrap();
+    ship_greeter(&contents.join("PlugIns"));
+
+    run_from_elsewhere(&game);
 }

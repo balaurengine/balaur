@@ -275,9 +275,16 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
     Ok(rewritten)
 }
 
-/// Every `.toml` under `root`, project-relative and sorted. Dot directories
-/// and `target` are skipped: neither holds content a scene names.
+/// Every `.toml` under `root`, project-relative and sorted. Dot directories,
+/// `target` and what `application/ignore` names are skipped: none of them
+/// holds content a scene names.
 fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
+    let manifest = backend
+        .read(&root.join("project.toml"))
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_default();
+    let ignored = crate::ignore::from_manifest(&manifest);
     let mut out = Vec::new();
     let mut pending = vec![String::new()];
     while let Some(dir) = pending.pop() {
@@ -295,6 +302,9 @@ fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
             } else {
                 format!("{dir}/{name}")
             };
+            if crate::ignore::ignored(&ignored, &rel) {
+                continue;
+            }
             if is_dir {
                 pending.push(rel);
             } else if is_toml(&rel) {

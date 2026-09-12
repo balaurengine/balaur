@@ -10,6 +10,7 @@ mod api;
 mod authoring;
 mod clip;
 mod ease;
+mod machine;
 mod modifier;
 mod retarget;
 mod rollback;

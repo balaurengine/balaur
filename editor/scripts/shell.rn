@@ -113,6 +113,85 @@ pub fn toggle_split(S) {
     if S.split && S.doctab == "events" {
         S.doctab = "scene";
     }
+    // Under focus this is the reader asking for the scene back beside the
+    // code, so the record goes rather than undoing it on the way out.
+    drop_focus(S);
+}
+
+/// Select the first node in the scene carrying a script; whether it found one.
+pub fn select_scripted(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.contains_key("script") {
+            crate::selection::only(S, i);
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether there is code to give the window to: the selection's script, or a
+/// shader opened from a material.
+pub fn focus_target(S) {
+    S.shader_rel != "" || model::script_rel(model::selected_node(S)).is_some()
+}
+
+// The code with the window to itself: the three docks fold, the split goes,
+// and the layout they were in is kept for the way back.
+pub fn toggle_focus(S) {
+    if S.focus {
+        leave_focus(S);
+        return;
+    }
+    if !focus_target(S) {
+        log::warn("nothing to focus: the selection has no script");
+        return;
+    }
+    let was = #{ split: S.split };
+    for side in crate::docks::sides() {
+        was[side] = S.docks[side].shut;
+        S.docks[side].shut = true;
+    }
+    S.focus_was = was;
+    S.focus = true;
+    S.split = false;
+    open_doc(S, "script");
+}
+
+/// Put back the layout focus folded away. A record that is gone means a panel
+/// was opened under it, and what is open now is what was asked for.
+pub fn leave_focus(S) {
+    let was = S.focus_was;
+    S.focus = false;
+    S.focus_was = ();
+    if !(was is Object) {
+        return;
+    }
+    for side in crate::docks::sides() {
+        S.docks[side].shut = was.get(side).unwrap_or(false);
+    }
+    S.split = was.get("split").unwrap_or(false);
+}
+
+/// Forget the layout focus folded, without putting it back: a verb asked for
+/// under focus wins over the record it would have restored.
+pub fn drop_focus(S) {
+    S.focus = false;
+    S.focus_was = ();
+}
+
+/// Whether focus still holds, asked once a frame before the centre is laid
+/// out. A panel opened under it keeps its dock; leaving the code ends it.
+pub fn keep_focus(S) {
+    if !S.focus {
+        return;
+    }
+    if !crate::docks::all_folded(S) {
+        drop_focus(S);
+        return;
+    }
+    if S.doctab != "script" {
+        leave_focus(S);
+    }
 }
 
 pub fn set_zoom(S, z) {
@@ -604,6 +683,8 @@ fn states() {
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
         "paneldemo": crate::selftest::menu_panels,
+        "focusdemo": crate::selftest::focusing,
+        "focus": state_focus,
         "seldemo": crate::selftest::selecting,
         "dropdemo": crate::selftest::dropping,
         "eventsdemo": crate::selftest::eventviews,
@@ -623,6 +704,7 @@ fn prefixed_states() {
         ("find:", state_find),
         ("settings?", state_settings_search),
         ("settings:", state_settings),
+        ("override:", state_override),
         ("shot=", state_shot),
         ("frames=", state_frames),
         ("show:", state_show),
@@ -640,12 +722,27 @@ fn prefixed_states() {
     ]
 }
 
+// `focus`: the shell folded round the code, over the first scripted node when
+// the selection has none of its own.
+fn state_focus(S) {
+    if !focus_target(S) {
+        select_scripted(S);
+    }
+    toggle_focus(S);
+}
+
 fn state_settings(S, category) {
     crate::settings::open_at(S, category);
 }
 
 fn state_settings_search(S, query) {
     crate::settings::open_search(S, query);
+}
+
+// `override:<tag>` picks the settings page's override target, for a screenshot
+// of the rows that add one.
+fn state_override(S, tag) {
+    S.settings.target = tag;
 }
 
 // `find:<query>` fills the scene tree's search, for a screenshot.

@@ -1,22 +1,15 @@
 # Quality
 
-Every rule is a script that fails, and every script runs on every push and pull
-request. `AGENTS.md` and `docs/NAMING.md` say what the rules are; this says what
-enforces them.
+Tools and processes for ensuring the code quality remains high.
 
-## One entry point
-
-`.github/workflows/runner.yml` owns the triggers — a push to `main`, a `v*` tag,
-every pull request — and calls four reusable workflows, so a red X names itself.
+## CI/CD
 
 | Workflow | Covers |
 | --- | --- |
-| `lint.yml` | everything that reads the code without running it |
-| `docs.yml` | both kinds of documentation |
-| `test.yml` | everything that runs the engine |
-| `build.yml` | everything that produces a download |
-
-`build.yml` runs on pull requests too, minus its publishing job.
+| `lint.yml` | runs format, clippy, house rules and supply chain checks |
+| `docs.yml` | checks if the documentation is generated correctly |
+| `test.yml` | runs the tests |
+| `build.yml` | builds and exports |
 
 ## Before you push
 
@@ -24,37 +17,26 @@ every pull request — and calls four reusable workflows, so a red X names itsel
 scripts/precommit.sh
 ```
 
-Everything below that one machine can run, in parallel streams, each feature
-shape in its own target directory. `AGENTS.md` holds the tiers and what each
-covers, and `CONTRIBUTING.md` what each costs cold and warm. Install the lints
-as a pre-push hook: `git config core.hooksPath .githooks`.
+## The compiler
 
-## The compiler, per platform and per feature
-
-The toolchain is pinned in `rust-toolchain.toml` to the dependency tree's MSRV,
+The toolchain is pinned in `rust-toolchain.toml`,
 with `rustfmt` and `clippy`, so every machine runs one linter version.
 
 - `cargo fmt --all --check`.
-- `cargo clippy --workspace --all-targets -- -D warnings` on Linux, macOS and
-  Windows — `#[cfg(windows)]` code compiles nowhere else.
-- Once per default-off feature, since code behind one is not compiled at all:
-  `window` (kiss3d, wgpu, egui, the macOS dock icon), `extensions` (dlopen and
-  the cdylib), `apple` (Game Center, StoreKit, objc2; macOS only).
-- Once for `wasm32-unknown-unknown` with the web template's own flags: nothing
-  else compiles `#[cfg(target_family = "wasm")]`, so a browser-only mistake
-  used to reach CI as a failed download.
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- Once for `window`, `extensions`, `apple`
+- Once for `wasm32-unknown-unknown`
 - `examples/extension_greeter`, deliberately outside the workspace: the only
   thing proving an extension builds without the engine's build tree.
 
 ## House rules no compiler enforces
 
 `scripts/house_lints.py` walks every `.rs` and `.rn`. **ERROR** fails CI and is
-mechanical; **REPORT** prints only — failing a build on a heuristic teaches
-people to game the heuristic.
+mechanical; **REPORT** prints only.
 
 | Rule | Fails on |
 | --- | --- |
-| `platform-float-math` | `.sin()`, `f32::sin(x)`, `.powf()` and the rest of the inexact list; `sqrt`, `abs`, `floor` and friends are IEEE-exact and deliberately absent |
+| `platform-float-math` | `.sin()`, `f32::sin(x)`, `.powf()` and the rest of the inexact list |
 | `nondeterministic-iteration` | iterating a `HashMap`/`HashSet`; `DetHashMap`/`DetHashSet` are the substitutes |
 | `channel-outside-external-io` | an `mpsc` channel in a file naming neither `ExternalIo` nor `replay::suppressed` |
 | `allow-without-reason` | `#[allow(..)]` with no `reason = ".."` and no comment |
@@ -65,12 +47,6 @@ people to game the heuristic.
 | `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
 | `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
-
-- **The ratchet.** `scripts/house_lints_baseline.txt` records, per file and rule,
-  how many violations predate the rule; anything above fails. Counts rather than
-  line numbers, so it survives edits above them. `--debt` prints what is
-  outstanding; deleting a line is progress, and nothing may be added by hand.
-- **Adding a rule:** when the same bad pattern shows up twice, it becomes a lint.
 
 ## Comments
 
@@ -147,8 +123,12 @@ desktop platforms. Beyond `cargo test --workspace`:
 `scripts/e2e.sh` runs each of the nine examples thirty-one ways, on three
 platforms:
 
-- **check** — every script a scene attaches, compiled. The cheapest gate, and
-  the only one that names a file and a line rather than a symptom.
+- **check** — every script a scene attaches, compiled, plus the handle calls
+  no compiler can see. The cheapest gate, and the only one that names a file
+  and a line rather than a symptom. Run `--strict`, so a warning fails.
+  Before the examples, the same gate over the editor, the library it copies
+  from and each template it starts a project with: each carries a manifest,
+  so each is checked from its own root.
 - **run** — dev mode from sources.
 - **export**, twice — the packs must be identical.
 - **play** — the exported pack, no sources, no compiler.

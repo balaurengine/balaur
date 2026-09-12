@@ -14,7 +14,7 @@
 //! way a scene file does instead of building a table for one number.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use rustc_hash::FxHashMap;
 
@@ -24,7 +24,8 @@ use balaur_script::Value as Neutral;
 use rune::runtime::{InstAddress, Memory, Output, Protocol, VmError, VmResult};
 
 use super::{Node, from_neutral, to_neutral};
-use crate::bindings::{CallbackScope, api_docs, bound_handle, call_bound, hold_node_fn};
+use crate::bindings::{CallbackScope, bound_handle, call_bound, hold_node_fn};
+use crate::handles::{self, GENERIC, is_identifier};
 
 /// A component on a node, as scripts see it.
 #[derive(rune::Any, Clone)]
@@ -51,21 +52,6 @@ fn intern(name: &str) -> &'static str {
     })
 }
 
-fn is_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-
-/// Component operations the handle offers for every component.
-const GENERIC: &[(&str, &str)] = &[
-    ("get", "get_component"),
-    ("set", "set_component"),
-    ("patch", "patch_component"),
-    ("has", "has_component"),
-    ("remove", "remove_component"),
-];
-
 /// Give `Node` a field per registered component, and the handle its methods.
 pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextError> {
     m.ty::<Component>()?;
@@ -80,49 +66,123 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
             node: node.id,
             name: name.to_string(),
         })?;
+        // `node.meta = #{ ... }` describes the component whole, the scene
+        // file's spelling; the handle's fields and index are the sparse one.
+        let Some(set) = node_op("set_component") else {
+            continue;
+        };
+        let set = hold_node_fn(eng.clone(), set);
+        m.field_function(
+            &Protocol::SET,
+            name,
+            move |node: &Node, value: rune::Value| set_whole(*node, name, set, &value),
+        )?;
     }
 
-    for (method, op) in GENERIC {
-        let Some(declared) = NODE_OPS.iter().find(|d| d.name == *op) else {
+    for op in GENERIC {
+        let Some(declared) = NODE_OPS.iter().find(|d| d.name == op.node_op) else {
             continue;
         };
         let handle = hold_node_fn(eng.clone(), declared.call);
-        m.raw_function(*method, generic_handler(handle))
+        m.raw_function(op.method, generic_handler(handle))
             .build_associated::<Component>()?;
     }
 
-    // Method name -> component -> bound function, from what each function
-    // declared it acts on.
-    let mut methods: BTreeMap<String, FxHashMap<String, usize>> = BTreeMap::new();
-    for entry in api_docs() {
-        if entry.acts_on.is_empty() {
+    // The drives table, with each module's function resolved to the bound
+    // handle that calls it.
+    for (method, modules) in handles::drives() {
+        let targets: FxHashMap<String, usize> = modules
+            .into_iter()
+            .filter_map(|(component, module)| Some((component, bound_handle(&module, &method)?)))
+            .collect();
+        if targets.is_empty() {
             continue;
         }
-        let Some(handle) = bound_handle(&entry.module, &entry.name) else {
-            continue;
-        };
-        if GENERIC.iter().any(|(g, _)| *g == entry.name) {
-            tracing::warn!(
-                "{}::{} hides the handle's own `{}`",
-                entry.module,
-                entry.name,
-                entry.name
-            );
-            continue;
-        }
-        let targets = methods.entry(entry.name.clone()).or_default();
-        for component in entry.acts_on {
-            if targets.insert(component.clone(), handle).is_some() {
-                tracing::warn!("two modules act on `{component}` with a `{}`", entry.name);
-            }
-        }
-    }
-    for (method, targets) in methods {
         let name = intern(&method);
         m.raw_function(name, method_handler(name, targets))
             .build_associated::<Component>()?;
     }
-    property_fields(m, eng)
+    property_fields(m, eng)?;
+    index_access(m, eng)
+}
+
+/// `node.meta["fade"]` and `node.meta["fade"] = 0.3`: a property named at run
+/// time rather than by the schema, which is the only way to reach a
+/// schema-less component's keys. A key the component does not hold is nil.
+fn index_access(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextError> {
+    let (Some(read), Some(write)) = (node_op("get_component"), node_op("patch_component")) else {
+        return Ok(());
+    };
+    let read = hold_node_fn(eng.clone(), read);
+    let write = hold_node_fn(eng.clone(), write);
+    m.associated_function(
+        &Protocol::INDEX_GET,
+        move |this: &Component, key: String| read_key(this, &key, read),
+    )?;
+    m.associated_function(
+        &Protocol::INDEX_SET,
+        move |this: &Component, key: String, value: rune::Value| {
+            write_key(this, &key, write, &value)
+        },
+    )?;
+    Ok(())
+}
+
+fn read_key(this: &Component, key: &str, handle: usize) -> VmResult<rune::Value> {
+    let _scope = CallbackScope::enter();
+    let got = match call_bound(handle, &receiver(this)) {
+        Some(Ok(v)) => v,
+        Some(Err(err)) => return fail(err),
+        None => return fail("component index was registered on another thread"),
+    };
+    let Neutral::Map(props) = got else {
+        return match rune::to_value(()) {
+            Ok(nil) => VmResult::Ok(nil),
+            Err(err) => fail(err),
+        };
+    };
+    let found = props
+        .into_iter()
+        .find(|(name, _)| name == key)
+        .map_or(Neutral::Nil, |(_, value)| value);
+    match from_neutral(&found) {
+        Ok(v) => VmResult::Ok(v),
+        Err(err) => fail(err),
+    }
+}
+
+fn write_key(this: &Component, key: &str, handle: usize, value: &rune::Value) -> VmResult<()> {
+    let _scope = CallbackScope::enter();
+    let value = match to_neutral(value) {
+        Ok(v) => v,
+        Err(err) => return fail(err),
+    };
+    let [node, name] = receiver(this);
+    let args = [node, name, Neutral::Map(vec![(key.to_string(), value)])];
+    match call_bound(handle, &args) {
+        Some(Ok(_)) => VmResult::Ok(()),
+        Some(Err(err)) => fail(err),
+        None => fail("component index was registered on another thread"),
+    }
+}
+
+/// `node.<component> = table`: the whole component, as a scene key writes it.
+fn set_whole(node: Node, name: &'static str, handle: usize, value: &rune::Value) -> VmResult<()> {
+    let _scope = CallbackScope::enter();
+    let value = match to_neutral(value) {
+        Ok(v) => v,
+        Err(err) => return fail(err),
+    };
+    let args = [
+        Neutral::Node(node.id),
+        Neutral::Str(name.to_string()),
+        value,
+    ];
+    match call_bound(handle, &args) {
+        Some(Ok(_)) => VmResult::Ok(()),
+        Some(Err(err)) => fail(err),
+        None => fail("component assignment was registered on another thread"),
+    }
 }
 
 /// Give the handle a field per schema property, over every component that
@@ -138,34 +198,13 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
     };
     let read = hold_node_fn(eng.clone(), read);
     let write = hold_node_fn(eng.clone(), write);
-    // Property name -> the components declaring it, so dispatch is by
-    // component name at call time, as the methods are.
-    let mut owners: BTreeMap<String, HashSet<String>> = BTreeMap::new();
-    // The same, narrowed to where the schema says `vec3`, so a position reads
-    // back as the `Vec3` the node's own accessors answer with rather than as
-    // three numbers in a list.
-    let mut vectors: BTreeMap<String, HashSet<String>> = BTreeMap::new();
-    for (component, schema) in balaur_core::components::schemas(eng) {
-        let Some(table) = schema.as_table() else {
-            continue;
-        };
-        for (prop, spec) in table {
-            if !is_identifier(prop) {
-                tracing::warn!("`{component}.{prop}` is not a script identifier; no field");
-                continue;
-            }
-            owners
-                .entry(prop.clone())
-                .or_default()
-                .insert(component.clone());
-            if spec.get("type").and_then(|v| v.as_str()) == Some("vec3") {
-                vectors
-                    .entry(prop.clone())
-                    .or_default()
-                    .insert(component.clone());
-            }
-        }
-    }
+    // Dispatch is by component name at call time, as the methods are: a
+    // property reads back as the `Vec3` the node's own accessors answer with
+    // where the schema says `vec3`, and as what it wrote otherwise.
+    let handles::Properties {
+        owners,
+        mut vectors,
+    } = handles::properties(eng);
     for (prop, components) in owners {
         let name = intern(&prop);
         let readers = components.clone();

@@ -53,11 +53,14 @@ A clip keys node properties over time. `length` is in seconds and may be
 left out to end at the last key; `loop` is `none` (hold the last key),
 `loop` or `pingpong`. Each track names a `target` node path relative to the
 playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
-`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
-an optional `ease`. A track with no `property` is a method track whose keys
-call the node's script. A file holds one clip, or several under
-`[clips.<name>]`, addressed as `file.toml#name`.
+`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
+`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
+`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
+and always stepped; `tint` is the `[r, g, b, a]` every descendant is
+multiplied by, which a renderable's own `color` is not. A component
+property's value may be a string or a bool, held from key to key. A track with no
+`property` is a method track whose keys call the node's script. A file holds
+one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
 
 ```toml
 type = "animation_clip"
@@ -115,7 +118,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 
 ### `material`
 
-Files: `materials/`. Used by: `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
+Files: `materials/`. Used by: `material.source`, `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
 
 A shader and the values it draws with. `shader` names a `.wesl` file
 (project-relative); `[features]` are the `@if` flags that pick a variant when
@@ -262,6 +265,36 @@ direction = "forward"
 rect = [8, 4, 16, 28]
 ```
 
+### `state_machine`
+
+Files: `animations/`. Used by: `state_machine.machine`.
+
+A state machine switches a player between clips. `start` is the state
+entered first; `[states]` maps each state to the clip it plays from the
+player's library (an empty clip is the state's own name). Each transition
+names `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never
+fires, `enabled` fires only on `animation.travel`, `auto` also fires on its
+own), a `switch` (`immediate` once any fade already running has finished,
+`sync` the same keeping the playhead, `at_end` fading so the fade ends with
+the clip) and an optional `condition` that `animation.set_condition` turns
+on.
+
+```toml
+type = "state_machine"
+start = "idle"
+
+[states]
+idle = "idle"
+walk = "walk_cycle"
+
+[[transitions]]
+from = "idle"
+to = "walk"
+fade = 0.2
+advance = "auto"
+condition = "moving"
+```
+
 ### `tileset`
 
 Files: `tilesets/`. Used by: `tilemap.tileset`.
@@ -322,12 +355,58 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `size`, `color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
+How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
 
 
 ## The `assets` script module
 
 `assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`.
+
+## Import settings
+
+How a file is *read* is stated beside the file, not in the scene that
+names it. `art/hero.png.toml` holds one image's settings, and
+`[import.texture]` in `project.toml` sets the default for every image
+in the project. The sidecar overrides the project key by key.
+
+```toml
+# project.toml: every texture in a pixel-art project
+[import.texture]
+filter = "nearest"
+
+# art/hero.png.toml: this one image
+premultiply = true
+```
+
+Settings change pixels and samples, never sizes. A headless run reads
+them for nothing and computes the same world, so turning mipmaps on
+cannot move a replay or a network session.
+
+### Texture keys
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `filter` | `linear`, `nearest` | `linear` | Between texels. `nearest` is what keeps pixel art crisp. |
+| `mag_filter`, `min_filter` | as `filter` | `filter` | One direction alone, where magnifying and minifying differ. |
+| `repeat` | `clamp`, `repeat`, `mirror` | `clamp` | What a coordinate past the edge reads. `mirror` tiles without a seam. |
+| `repeat_u`, `repeat_v` | as `repeat` | `repeat` | One axis alone, for art that tiles across and clamps down. |
+| `mipmaps` | `true`, `false` | `false` | Build the smaller copies a texture drawn small samples, which stops it shimmering. |
+| `mipmap_filter` | `linear`, `nearest` | `linear` | Between mip levels, read only when `mipmaps` is on. |
+| `anisotropy` | `1` to `16` | `1` | Samples per fetch on a surface seen edge-on. Needs every filter `linear`. |
+| `srgb` | `true`, `false` | `true` | Off for a normal map or a mask, which carry data rather than colour. |
+| `premultiply` | `true`, `false` | `false` | Scale colour by alpha at upload, so a soft edge blends with no dark fringe. |
+| `recode` | `keep` | unset | Ship this file's own bytes whatever `[export]` says. |
+
+A value nothing knows reads as the default rather than refusing the
+texture, because a settings file is written by hand. `anisotropy`
+above `1` is dropped with a warning when a filter is `nearest`, which
+is a pair no GPU samples. `premultiply` is honoured on 2D nodes, which
+carry the blend mode that matches it; a 3D mesh draws the same image
+straight.
+
+The Import tab in the editor writes the sidecar, one row per key,
+each saying whether the value is the file's own, the project's or the
+engine's.
 
 ## Plugins define asset types
 

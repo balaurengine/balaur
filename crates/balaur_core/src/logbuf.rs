@@ -235,3 +235,17 @@ pub fn clear() {
         buffer.entries.clear();
     }
 }
+
+/// Whether this thread is reporting `key` under `site` for the first time. A
+/// problem hit every frame is logged once, not sixty times a second.
+pub fn first_time(site: &'static str, key: &str) -> bool {
+    use std::cell::RefCell;
+    use std::collections::{HashMap, HashSet};
+    thread_local! {
+        static SAID: RefCell<HashMap<&'static str, HashSet<String>>> = RefCell::new(HashMap::new());
+    }
+    SAID.with_borrow_mut(|said| {
+        let keys = said.entry(site).or_default();
+        !keys.contains(key) && keys.insert(key.to_owned())
+    })
+}

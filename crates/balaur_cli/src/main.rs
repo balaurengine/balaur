@@ -11,14 +11,18 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+mod api_dump;
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
+mod check;
+mod debugger;
 mod export_api;
 mod export_shared;
 mod fmt;
 mod import_api;
 mod lsp;
 mod new_project;
+mod project_tests;
 mod templates;
 mod update;
 mod version;
@@ -44,6 +48,10 @@ enum Command {
     Run {
         #[arg(default_value = ".")]
         path: PathBuf,
+        /// Open this scene (project-relative) instead of the project's
+        /// `main_scene`: a test harness's own scene around the game's.
+        #[arg(long, value_name = "SCENE")]
+        scene: Option<String>,
         /// Run without a window even when built with rendering support.
         #[arg(long)]
         headless: bool,
@@ -176,7 +184,8 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Report warnings too, and fail on them.
+        /// Report warnings too, and fail on them. `[check] strict = true` in
+        /// `project.toml` says the same thing for every run.
         #[arg(long)]
         strict: bool,
     },
@@ -274,14 +283,6 @@ enum Command {
     },
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-mod import;
-// Both read a level file through `tiled`, which is a non-wasm dependency:
-// `balaur import` is a command line the browser has not got.
-#[cfg(not(target_arch = "wasm32"))]
-mod import_ldtk;
-#[cfg(not(target_arch = "wasm32"))]
-mod import_tiled;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
@@ -352,15 +353,16 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
 #[cfg(not(target_arch = "wasm32"))]
 fn dispatch(command: Command) -> Result<()> {
     match command {
-        Command::Api => dump_api(),
+        Command::Api => api_dump::dump_api(),
         Command::Import {
             file,
             project,
             layers,
-        } => import::import_and_report(&file, &project, &layers),
+        } => balaur_import::import_and_report(&file, &project, &layers),
         Command::New { path, template } => new_project::create(&path, template.as_deref()),
         Command::Run {
             path,
+            scene,
             headless,
             frames,
             offscreen,
@@ -373,6 +375,7 @@ fn dispatch(command: Command) -> Result<()> {
             args,
         } => run_project(&RunOpts {
             path,
+            scene,
             display: Display::of(headless, offscreen),
             frames,
             fixed_tick,
@@ -431,12 +434,12 @@ fn dispatch(command: Command) -> Result<()> {
             pkg,
             report,
         }),
-        Command::Check { path, strict } => check_project(&path, strict),
+        Command::Check { path, strict } => check::project(&path, strict),
         Command::Test {
             path,
             frames,
             filter,
-        } => test_project(&path, frames, filter.as_deref()),
+        } => project_tests::test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
         Command::Fmt { paths, check } => fmt::run(&paths, check),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
@@ -447,16 +450,21 @@ fn dispatch(command: Command) -> Result<()> {
 /// `balaur play`: an exported pack, windowed, or headless for a frame budget.
 fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
+    let mut config = AppConfig::packed(Pack::decode(&bytes)?);
+    // Beside the pack: this executable is the CLI, not the game.
+    config.extensions = Some(pack.with_file_name(balaur::standalone::EXTENSIONS_DIR));
+    let mut app = balaur::standard_app(config)?;
+    app.load_project()?;
     if let Some(frames) = frames {
-        let pack = Pack::decode(&bytes)?;
-        let mut app = balaur::standard_app(AppConfig::packed(pack))?;
-        app.load_project()?;
         for _ in 0..frames {
             app.tick(balaur::FIXED_DT);
         }
         return Ok(());
     }
-    balaur::boot_pack(&bytes)
+    let title = app
+        .manifest()
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+    balaur::run(app, &title)
 }
 
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.
@@ -486,6 +494,7 @@ impl Display {
 
 struct RunOpts {
     path: PathBuf,
+    scene: Option<String>,
     display: Display,
     frames: Option<u64>,
     fixed_tick: bool,
@@ -602,6 +611,7 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
 fn run_project(opts: &RunOpts) -> Result<()> {
     let RunOpts {
         path,
+        scene,
         display,
         frames,
         fixed_tick,
@@ -618,13 +628,21 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let mut app = balaur::standard_app(config)?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
-    let _debugger = start_debugger(&mut app, *debug, *debug_wait)?;
+    let _debugger = debugger::start_debugger(&mut app, *debug, *debug_wait)?;
     // Before the project loads, for the same reason a replay sets its mode
     // there: a script's `init` already takes await tokens and draws from the
     // RNG, and the header has to hold the values it started from.
     if let Some(out) = record {
         record_to(&app, out, path)?;
     }
+    if let Some(scene) = scene {
+        app.set_main_scene(scene.clone());
+    }
+    // Before the project loads: a script that themes itself in `init` asks
+    // for this, and the frame that publishes it has not run yet.
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.dark_mode = balaur::render::dark_mode();
+    });
     app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
@@ -642,10 +660,14 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     // Registered last, so the frame it folds in is the whole frame.
     let timings = opts.timings.then(|| log_timings(&mut app));
+    let engine = app.engine.clone();
     if display == Display::Headless {
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
+                    if engine.quit_requested() {
+                        break;
+                    }
                     app.tick(balaur::FIXED_DT);
                 }
             }
@@ -654,6 +676,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         if let Some(log) = &timings {
             print!("{}", log.borrow().report());
         }
+        exit_with(engine.exit_code());
         return Ok(());
     }
     // Windowed, offscreen, or the headless fallback when built without the
@@ -669,65 +692,32 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         });
     }
     let ran = if display == Display::Offscreen {
-        balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+        // The game's own window size, so a shot is framed as a player sees it:
+        // a portrait phone game rendered 16:9 is a picture of the wrong game.
+        let window = balaur_core::project::WindowSettings::from_settings(&app.engine);
+        balaur::run_offscreen(app, &title, window.width, window.height)
     } else {
         balaur::run(app, &title)
     };
     if let Some(log) = &timings {
         print!("{}", log.borrow().report());
     }
-    ran
+    ran?;
+    exit_with(engine.exit_code());
+    Ok(())
 }
 
-/// How long `--debug-wait` holds the boot for a client. Long enough to start
-/// one by hand, short enough that a forgotten flag in CI fails rather than
-/// hangs.
-const DEBUG_ATTACH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
-
-/// Serve the debug adapter for `--debug`, held open for the run.
-///
-/// # Errors
-/// If the port cannot be bound, or no client attaches under `--debug-wait`.
-#[cfg(not(target_family = "wasm"))]
-fn start_debugger(
-    app: &mut App,
-    port: Option<u16>,
-    wait: bool,
-) -> Result<Option<balaur::dap::Server>> {
-    let Some(port) = port else {
-        return Ok(None);
-    };
-    let server = balaur::dap::serve(app, port)?;
-    println!("debug adapter listening on {}", server.addr());
-    if wait {
-        println!("waiting for a debugger to attach");
-        server.wait_for_attach(DEBUG_ATTACH_TIMEOUT)?;
+/// End the process with the code a script quit with, once the run is over.
+fn exit_with(code: i32) {
+    if code != 0 {
+        std::process::exit(code);
     }
-    Ok(Some(server))
 }
 
-/// The adapter speaks over a TCP listener, which a web build has none of, so
-/// `--debug` is refused there rather than quietly doing nothing.
-///
-/// # Errors
-/// If `--debug` was given.
-#[cfg(target_family = "wasm")]
-fn start_debugger(_app: &mut App, port: Option<u16>, _wait: bool) -> Result<Option<()>> {
-    anyhow::ensure!(
-        port.is_none(),
-        "--debug needs a TCP listener, and a web build has none"
-    );
-    Ok(None)
-}
-
-/// The offscreen framebuffer: 16:9, which is what every screen a showcase
-/// image or clip is watched on happens to be, and what a video site expects
-/// uploaded to it.
-///
-/// This no longer matches `WindowSettings::default`, which is 1600x1000. A
-/// screenshot of a *game* is therefore framed a little wider than the window
-/// a player would get by default; the editor, which is what almost every
-/// showcase take is of, has no such default to disagree with.
+/// The editor's offscreen framebuffer: 16:9, which is what every screen a
+/// showcase image or clip is watched on happens to be, and what a video site
+/// expects uploaded to it. A *game* renders offscreen at its own
+/// `window/width` and `window/height` instead.
 const OFFSCREEN_SIZE: (u32, u32) = (1920, 1080);
 
 /// A canonical path the rest of the engine can join to with `/`.
@@ -812,98 +802,6 @@ fn edit_project(
     ran
 }
 
-/// Boot a standard app in a scratch project and print what scripts can reach.
-///
-/// The engine is asked, not the source: constants like `input.KEY_SPACE` are
-/// derived at registration, so parsing Rust would miss them.
-/// `balaur test`: each test script on its own node in its own headless app,
-/// failed by any script error the run logs. The project's main scene loads
-/// first, so a test finds the nodes a game would.
-fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Result<()> {
-    let tests = test_scripts(path);
-    let mut failed = 0usize;
-    let mut ran = 0usize;
-    for rel in tests {
-        if filter.is_some_and(|f| !rel.contains(f)) {
-            continue;
-        }
-        ran += 1;
-        balaur::logbuf::clear();
-        let outcome = run_test(path, &rel, frames);
-        let errors: Vec<String> = balaur::logbuf::recent(500)
-            .into_iter()
-            .filter(|entry| entry.level == "error")
-            .map(|entry| entry.message)
-            .collect();
-        match (outcome, errors.is_empty()) {
-            (Ok(()), true) => println!("test {rel} ... ok"),
-            (Ok(()), false) => {
-                failed += 1;
-                println!("test {rel} ... FAILED");
-                for message in errors {
-                    println!("    {message}");
-                }
-            }
-            (Err(why), _) => {
-                failed += 1;
-                println!("test {rel} ... FAILED\n    {why:#}");
-            }
-        }
-    }
-    if ran == 0 {
-        println!("no tests: put `.rn` files under tests/");
-        return Ok(());
-    }
-    println!("{} passed, {failed} failed", ran - failed);
-    if failed > 0 {
-        anyhow::bail!("{failed} of {ran} tests failed");
-    }
-    Ok(())
-}
-
-/// Every `.rn` under `tests/`, project-relative and sorted.
-fn test_scripts(project_root: &Path) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut dirs = vec![project_root.join("tests")];
-    while let Some(dir) = dirs.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                dirs.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
-                && let Ok(rel) = path.strip_prefix(project_root)
-            {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-            }
-        }
-    }
-    out.sort();
-    out
-}
-
-fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()> {
-    let mut app = balaur::standard_app(AppConfig::export(project_root))?;
-    app.load_project()?;
-    let root = app.engine.root();
-    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Test", root);
-    let host = app
-        .engine
-        .script_host()
-        .context("no script backend for the project")?;
-    host.attach(balaur::node_id_of(node), rel)?;
-    for _ in 0..frames {
-        app.tick(balaur::FIXED_DT);
-    }
-    Ok(())
-}
-
-/// `balaur check`: the editor's Problems list, headless, for CI.
-///
-/// Exits non-zero when anything would stop the project running, so a broken
-/// script fails a build rather than a play session.
 /// Everything `balaur export` was asked for, as the command line spells it.
 #[allow(
     clippy::struct_excessive_bools,
@@ -975,129 +873,6 @@ fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plug
     }
 }
 
-fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
-    #[cfg(not(target_family = "wasm"))]
-    let found = balaur::check_project_using(
-        path,
-        &mut [
-            Box::new(export_api::ExportPlugin::new(path.to_path_buf())),
-            Box::new(import_api::ImportPlugin::new(path.to_path_buf())),
-        ],
-    )?;
-    #[cfg(target_family = "wasm")]
-    let found = balaur::check_project(path)?;
-    let mut errors = 0;
-    let mut warnings = 0;
-    for one in &found {
-        if one.severity == "error" {
-            errors += 1;
-        } else {
-            warnings += 1;
-            if !strict {
-                continue;
-            }
-        }
-        let at = if one.line > 0 {
-            format!("{}:{}:{}", one.file, one.line, one.column)
-        } else {
-            one.file.clone()
-        };
-        println!("{at}: {}: {}", one.severity, one.message);
-    }
-    if errors == 0 && (!strict || warnings == 0) {
-        // Warnings are counted even when they are not printed, so a quiet
-        // run still says there is something --strict would show.
-        let quiet = if strict || warnings == 0 {
-            String::new()
-        } else {
-            format!(" ({warnings} warning(s); --strict shows them)")
-        };
-        println!("no problems{quiet}");
-        return Ok(());
-    }
-    std::process::exit(1);
-}
-
-fn dump_api() -> Result<()> {
-    let dir = std::env::temp_dir().join("balaur-api-probe");
-    std::fs::create_dir_all(dir.join("scenes"))?;
-    std::fs::write(
-        dir.join("project.toml"),
-        "[application]\nname = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
-    )?;
-    std::fs::write(
-        dir.join("scenes/main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
-    )?;
-
-    let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
-    // `export` and `import` are the editor's, registered by this binary rather
-    // than by the engine, so the probe loads both or the reference would list
-    // neither.
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(dir.clone()))?;
-    app.load_project()?;
-    let host = balaur::rune::rune_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
-    // Component schemas ride along, so docs and tools read one probe.
-    let components: std::collections::BTreeMap<String, serde_json::Value> =
-        balaur::components::schemas(&app.engine)
-            .into_iter()
-            .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
-            .collect::<Result<_>>()?;
-    api["components"] = serde_json::to_value(components)?;
-    // What each component is for, and the facets it belongs to, so the
-    // reference can describe and group them.
-    let component_docs: std::collections::BTreeMap<String, &'static str> = app
-        .engine
-        .try_resource::<balaur::components::ComponentRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, def)| (name.clone(), def.doc))
-                .collect()
-        })
-        .unwrap_or_default();
-    api["component_docs"] = serde_json::to_value(component_docs)?;
-    let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
-        .engine
-        .try_resource::<balaur::components::ComponentRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, def)| (name.clone(), def.tags.to_vec()))
-                .collect()
-        })
-        .unwrap_or_default();
-    api["component_tags"] = serde_json::to_value(component_tags)?;
-    let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
-        .engine
-        .try_resource::<balaur::assets::AssetTypeRegistry>()
-        .map(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .map(|(name, t)| {
-                    (
-                        name.clone(),
-                        serde_json::json!({"directory": t.directory, "doc": t.doc}),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    api["asset_types"] = serde_json::to_value(asset_types)?;
-    println!("{}", serde_json::to_string_pretty(&api)?);
-    Ok(())
-}
-
 /// The command line, plus the arguments a double-clicked bundle cannot give
 /// itself: Finder starts an app with none and a working directory of `/`, so
 /// `Balaur.app` would open on clap's help and quit.
@@ -1134,7 +909,8 @@ fn bundle_project() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{joinable, run_test, test_scripts};
+    use super::joinable;
+    use crate::project_tests::{run_test, test_scripts};
     use std::path::{Path, PathBuf};
 
     /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path

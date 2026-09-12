@@ -159,9 +159,12 @@ macro_rules! define {
                 if let Some(hit) = self.linked.get(reference) {
                     return hit.clone();
                 }
+                // `Ok(None)` is a material written for the other dimension,
+                // already warned about by `fits`.
                 let built = build(app, reference)
                     .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
                     .ok()
+                    .flatten()
                     .map(|(material, probe)| {
                         self.probe = probe;
                         let boxed: $Boxed = Box::new(material);

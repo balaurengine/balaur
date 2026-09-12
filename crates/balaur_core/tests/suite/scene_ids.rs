@@ -29,19 +29,29 @@ parent = "n_root"
 /// Hand-edited scenes are missing ids; they are generated, not rejected.
 const NO_ID: &str = r#"
 [[nodes]]
+name = "Scene"
+
+[[nodes]]
 name = "World"
+parent = "Scene"
 
 [[nodes]]
 name = "Player"
+parent = "Scene"
 "#;
 
 /// Two nodes may share a display name; the second id is regenerated.
 const DUP_NAMES: &str = r#"
 [[nodes]]
-name = "Pupil"
+name = "Scene"
 
 [[nodes]]
 name = "Pupil"
+parent = "Scene"
+
+[[nodes]]
+name = "Pupil"
+parent = "Scene"
 "#;
 
 /// Parents must be declared before the children that name them.
@@ -98,12 +108,29 @@ parent = "../Elsewhere"
 
 const DUPLICATE: &str = r#"
 [[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
 id = "same"
 name = "A"
+parent = "n_scene"
 
 [[nodes]]
 id = "same"
 name = "B"
+parent = "n_scene"
+"#;
+
+/// Two nodes with no parent: a document with no single node to address.
+const TWO_ROOTS: &str = r#"
+[[nodes]]
+id = "n_first"
+name = "World"
+
+[[nodes]]
+id = "n_second"
+name = "Sky"
 "#;
 
 /// Every node's absolute path, sorted — the shape of the tree that loaded.
@@ -185,6 +212,15 @@ fn a_parent_id_wins_over_a_sibling_name_that_matches_it() {
     assert_eq!(
         paths(ID_BEATS_NAME).expect("an id parent should resolve"),
         ["Root/World", "Root/World/Ground", "Root/World/Pebble"]
+    );
+}
+
+#[test]
+fn a_second_root_is_rejected() {
+    let err = load(TWO_ROOTS).expect_err("a scene has one root");
+    assert!(
+        err.to_string().contains("'Sky' is a second"),
+        "unhelpful message: {err}"
     );
 }
 

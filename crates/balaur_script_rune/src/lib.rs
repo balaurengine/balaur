@@ -15,6 +15,7 @@
 mod api;
 mod bindings;
 mod debugger;
+mod handles;
 mod inspect;
 mod packed;
 mod pause;
@@ -120,6 +121,9 @@ use crate::script::{Instance, Method, Script};
 struct RuneTask {
     /// The node whose script suspended; freeing it cancels the task.
     owner: Entity,
+    /// Woken with the method's result when it returns, for a caller that
+    /// awaits it through `node.call_async`.
+    done: Option<u64>,
     /// The script key, so reloading the script cancels its tasks rather than
     /// resuming code that no longer exists.
     key: Rc<str>,
@@ -362,7 +366,8 @@ impl RuneHost {
             }
         };
         let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
+        let source = inspect::with_constants(source);
+        sources.insert(Source::with_path(key, &*source, path)?)?;
         // Warnings are the language server's business; an error report
         // should be the error.
         let mut diagnostics = Diagnostics::without_warnings();
@@ -548,6 +553,41 @@ impl RuneHost {
                 value::from_neutral(value)?,
             )?;
         }
+        // A `node` export arrives as the node its path names, relative to this
+        // one, or nil: what a Godot `@export var x: Node` holds. One naming a
+        // `component` arrives as that node's handle for it.
+        for (name, spec) in declared
+            .iter()
+            .filter(|(_, spec)| inspect::is_node_export(spec))
+        {
+            let path = props
+                .iter()
+                .find(|(n, _)| n == name)
+                .map_or_else(|| inspect::export_default(spec), |(_, v)| v.clone());
+            // A list export takes each of its paths the same way.
+            if inspect::is_node_list(spec) {
+                let balaur_script::Value::List(paths) = path else {
+                    continue;
+                };
+                let mut found = Vec::new();
+                for path in &paths {
+                    let balaur_script::Value::Str(path) = path else {
+                        continue;
+                    };
+                    found.push(self.node_prop(entity, &key, name, path, spec)?);
+                }
+                obj.insert(
+                    rune::alloc::String::try_from(name.as_str())?,
+                    rune::to_value(found)?,
+                )?;
+                continue;
+            }
+            let balaur_script::Value::Str(path) = path else {
+                continue;
+            };
+            let resolved = self.node_prop(entity, &key, name, &path, spec)?;
+            obj.insert(rune::alloc::String::try_from(name.as_str())?, resolved)?;
+        }
         let state = rune::to_value(obj)?;
         let shared = self.shared_key(&key);
         self.state.borrow_mut().instances.insert(
@@ -561,7 +601,7 @@ impl RuneHost {
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
-        self.invoke(entity, &key, "init", (state,), true);
+        self.invoke(entity, &key, "init", (state,), true, None);
         Ok(())
     }
 
@@ -697,30 +737,7 @@ impl RuneHost {
         method: &str,
         args: &[balaur_script::Value],
     ) -> Option<balaur_script::Value> {
-        let found = {
-            let state = self.state.borrow();
-            if self.is_held(entity, &state) {
-                return None;
-            }
-            state
-                .instances
-                .get(&entity)
-                .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
-        };
-        let (key, state) = found?;
-        // The instance first, then the payload: `pub fn on_x(this, a, b)`,
-        // the same shape `update(this, dt)` already has.
-        let mut call_args = vec![state];
-        for arg in args {
-            match value::from_neutral(arg) {
-                Ok(value) => call_args.push(value),
-                Err(err) => {
-                    tracing::error!("[{key}] {method}: {err}");
-                    return None;
-                }
-            }
-        }
-        self.invoke(entity, &key, method, call_args, true)
+        self.call_on_done(entity, method, args, None)
     }
 
     pub fn call_all(&self, method: &str) {
@@ -839,7 +856,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, "hot_reload", (state,), false);
+            self.invoke(entity, key, "hot_reload", (state,), false, None);
         }
     }
 
@@ -913,6 +930,12 @@ impl RuneHost {
                 rune::alloc::String::try_from(declared.name.as_str())?,
                 rune::to_value(wrapper)?,
             )?;
+        }
+        if let Some(constants) = self.method(key, inspect::CONSTANTS_FN) {
+            let table = constants.call::<rune::runtime::Object>(()).into_result()?;
+            for (name, value) in table {
+                object.insert(name, value)?;
+            }
         }
         // A module that lost a function keeps the slot for its next refresh,
         // so the high-water mark is per file rather than per save.
@@ -1035,6 +1058,16 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
     ) -> Option<balaur_script::Value> {
         let entity = balaur_core::entity_of(node).ok()?;
         RuneHost::call_on(self, entity, method, args)
+    }
+
+    fn call_on_async(
+        &self,
+        node: balaur_script::NodeId,
+        method: &str,
+        args: &[balaur_script::Value],
+        done: u64,
+    ) -> Option<balaur_script::Value> {
+        RuneHost::call_awaited(self, node, method, args, done)
     }
 
     fn has_method(&self, node: balaur_script::NodeId, method: &str) -> bool {

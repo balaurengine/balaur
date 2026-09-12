@@ -206,45 +206,9 @@ pub fn check_project_using(
 /// imports — and its diagnostics arrive through the root that imports it.
 #[must_use]
 pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
-    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut dirs = vec![project_root.to_path_buf()];
-    while let Some(dir) = dirs.pop() {
-        let fs = balaur_core::files::default_backend();
-        for (name, is_dir) in fs.list(&dir) {
-            let path = dir.join(&name);
-            if is_dir {
-                dirs.push(path);
-                continue;
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
-                continue;
-            }
-            let Some(text) = text_of(&path) else {
-                continue;
-            };
-            let Ok(document) = text.parse::<toml::Table>() else {
-                continue;
-            };
-            let Some(nodes) = document.get("nodes").and_then(toml::Value::as_array) else {
-                continue;
-            };
-            for node in nodes {
-                // `script` is a path, or a table whose `source` is one.
-                let script = match node.get("script") {
-                    Some(toml::Value::String(path)) => Some(path.clone()),
-                    Some(toml::Value::Table(table)) => table
-                        .get("source")
-                        .and_then(toml::Value::as_str)
-                        .map(str::to_string),
-                    _ => None,
-                };
-                if let Some(script) = script {
-                    out.insert(script);
-                }
-            }
-        }
-    }
-    out.into_iter().collect()
+    balaur_core::attachments::scene_attachments(project_root)
+        .into_keys()
+        .collect()
 }
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
@@ -252,13 +216,18 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         config.script_backend = Some(backend_for(&config)?);
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
+    #[cfg(feature = "extensions")]
+    let extensions = config
+        .extensions
+        .clone()
+        .unwrap_or_else(|| config.project_root.join(standalone::EXTENSIONS_DIR));
     let mut app = App::new(config)?;
     app.engine.insert_resource(configs_from(&asked));
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
     interact::install(&mut app);
     #[cfg(feature = "extensions")]
-    load_project_extensions(&mut app, &asked)?;
+    load_extensions(&mut app, &asked, &extensions)?;
     refuse_absent(&app, &asked)?;
     deliver_launch_url();
     Ok(app)
@@ -392,18 +361,18 @@ fn drive_ui_focus(app: &mut App) {
     );
 }
 
-/// Load every extension in the project's `extensions/` directory.
+/// Load every extension in `dir`: the project's `extensions/`, or what a
+/// packed game ships beside its executable (`AppConfig::extensions`).
 ///
 /// # Errors
 /// If a library fails to load, disagrees about the build, or requires
 /// something absent.
 #[cfg(feature = "extensions")]
-fn load_project_extensions(app: &mut App, asked: &Selection) -> Result<()> {
-    let dir = app.project_root().join("extensions");
+fn load_extensions(app: &mut App, asked: &Selection, dir: &std::path::Path) -> Result<()> {
     let modules = balaur_core::plugins::names(&app.engine);
     // Safety: opening a library runs its initialisers, and the fingerprint
     // check inside refuses a build that cannot share this process.
-    let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir, &modules) }?;
+    let mut loaded = unsafe { balaur_plugin::load_extensions_in(dir, &modules) }?;
     for extension in &mut loaded {
         let name = extension.manifest().name.clone();
         if asked.get(&name).is_some_and(|choice| !choice.wanted()) {

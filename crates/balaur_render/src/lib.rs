@@ -24,6 +24,8 @@ mod instancing;
 pub mod light;
 pub mod light3d;
 pub mod material;
+mod material_check;
+mod material_compile;
 pub mod mesh;
 /// The URL the app was launched with, taken once.
 ///
@@ -64,6 +66,8 @@ mod texture;
 #[cfg(feature = "kiss3d")]
 mod tile_quad;
 mod tilemap;
+#[cfg(feature = "kiss3d")]
+mod tilemap_mesh;
 pub mod world_text;
 pub use camera::{Camera, CameraKind, Post, PostPass};
 pub use cloner::Clones;
@@ -122,6 +126,8 @@ mod shader_material_3d;
 mod skinned_2d;
 #[cfg(feature = "kiss3d")]
 mod skinned_3d;
+#[cfg(feature = "kiss3d")]
+mod touch_draw;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor
@@ -174,12 +180,12 @@ pub struct AppIconConfig {
 /// Fullscreen and cursor state scripts asked for, applied by windowed
 /// backends when changed. Headless runs hold the values and touch nothing,
 /// so a game that grabs the cursor still ticks identically in CI.
-// Three independent switches plus the dirty flag — a state enum would invent
-// coupling these do not have.
+// Independent switches plus the dirty flag; the window's own mode is the one
+// that is an enum, since its four states exclude each other.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Default)]
 pub struct WindowConfig {
-    pub fullscreen: bool,
+    pub mode: balaur_core::project::WindowMode,
     pub cursor_grabbed: bool,
     pub cursor_hidden: bool,
     /// Keep the screen from dimming while the game runs; a page asks the
@@ -486,6 +492,22 @@ impl Shape2d {
 /// half of that conversion: at the default, a 100px image is one unit across.
 pub const DEFAULT_PIXELS_PER_UNIT: f32 = 100.0;
 
+/// Whether the system is in dark mode, asked of the platform rather than of
+/// the frame's facts: the shell publishes it before a project loads, so a
+/// script's `init` can theme itself. A build with no window backend has
+/// nothing to ask and says false.
+#[cfg(feature = "kiss3d")]
+#[must_use]
+pub fn dark_mode() -> bool {
+    device::dark_mode()
+}
+
+#[cfg(not(feature = "kiss3d"))]
+#[must_use]
+pub const fn dark_mode() -> bool {
+    false
+}
+
 /// A grid of equally sized frames packed into one texture.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SpriteSheet2d {
@@ -494,7 +516,11 @@ pub struct SpriteSheet2d {
 }
 
 /// What a `Shape2d::Sprite` draws.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own authored sprite property, not a state machine"
+)]
 pub struct SpriteTexture {
     /// Project-relative (or absolute) path to the image.
     pub path: String,
@@ -515,6 +541,30 @@ pub struct SpriteTexture {
     /// Whether `path` came from the sheet rather than the component, so
     /// `get` reports the texture as the author left it: unset.
     pub sheet_texture: bool,
+    /// Where the quad sits against its node, in texture pixels with y down,
+    /// as authored; `shift` is the same in node units.
+    pub offset: [f32; 2],
+    /// Whether the quad is centred on its node. Off, its top-left corner is,
+    /// which is where a sprite cut to sit on a point wants its origin.
+    pub centered: bool,
+    /// `offset` and `centered` in the node's own units, y up, worked out
+    /// where the pixels per unit are known: how far the quad's centre sits
+    /// from the node before the node's rotation and scale.
+    pub shift: [f32; 2],
+}
+
+impl SpriteTexture {
+    /// The quad centre's distance from its node, in node units, for a quad
+    /// of these half extents.
+    #[must_use]
+    pub fn centre(&self, hx: f32, hy: f32) -> [f32; 2] {
+        let [x, y] = self.shift;
+        if self.centered {
+            [x, y]
+        } else {
+            [x + hx, y - hy]
+        }
+    }
 }
 
 /// How a polyline is dressed beyond its colour.
@@ -1005,6 +1055,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         cloner::register_cloner_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
+        material::register_material_component(reg);
         sheet::register_sheet_asset(reg);
         tilemap::register_tileset_asset(reg);
         text_component::register_text2d_component(reg);

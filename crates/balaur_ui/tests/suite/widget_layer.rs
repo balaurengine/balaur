@@ -40,6 +40,60 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
     assert!(!clicked(&app, entity), "a hidden button took a click");
 }
 
+/// The four edge anchors, which the corners and the centre did not cover and
+/// which every Godot `Control` preset short of the wide ones needs.
+#[test]
+fn an_edge_anchor_pins_one_axis_and_centres_the_other() {
+    let (_dir, app) = app();
+    let at = |anchor: &str| {
+        let params = toml::toml! { kind = "label" text = "x" x = 0.0 y = 0.0 anchor = anchor };
+        add_widget(&app, &params.into())
+    };
+    let (left, right, top, bottom, middle) = (
+        at("center_left"),
+        at("center_right"),
+        at("center_top"),
+        at("center_bottom"),
+        at("center"),
+    );
+    let ctx = egui::Context::default();
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+
+    let rect = |entity: Entity| {
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+            .expect("the label drew, so its area has a rect")
+    };
+    let (l, r, t, b, m) = (
+        rect(left),
+        rect(right),
+        rect(top),
+        rect(bottom),
+        rect(middle),
+    );
+    assert!(l.center().x < m.center().x, "center_left sits left: {l:?}");
+    assert!(
+        r.center().x > m.center().x,
+        "center_right sits right: {r:?}"
+    );
+    assert!(t.center().y < m.center().y, "center_top sits high: {t:?}");
+    assert!(b.center().y > m.center().y, "center_bottom sits low: {b:?}");
+    // The axis the anchor does not pin stays centred, which is the whole
+    // difference between an edge anchor and the corner beside it.
+    for (name, edge) in [("center_left", l), ("center_right", r)] {
+        assert!(
+            (edge.center().y - m.center().y).abs() < 1.0,
+            "{name} moved off the vertical centre: {edge:?}"
+        );
+    }
+    for (name, edge) in [("center_top", t), ("center_bottom", b)] {
+        assert!(
+            (edge.center().x - m.center().x).abs() < 1.0,
+            "{name} moved off the horizontal centre: {edge:?}"
+        );
+    }
+}
+
 #[test]
 fn a_panel_takes_an_explicit_size() {
     let (_dir, app) = app();
@@ -663,6 +717,51 @@ fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
     );
 }
 
+/// The pointer over a seam asks to look like a resize. The host is what sets
+/// the shape; this is the half egui carries, and it is the half that broke
+/// when nobody read `platform_output` at all.
+#[test]
+fn a_seam_asks_the_pointer_to_look_like_a_resize() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 handle = 8.0 }
+            .into(),
+    );
+    add_child_widget(
+        &app,
+        row,
+        "fixed",
+        &toml::toml! { kind = "panel" text = "" width = 120.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        row,
+        "rest",
+        &toml::toml! { kind = "panel" text = "" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let seam = pos2(124.0, 50.0);
+    pass(&app, &ctx, vec![egui::Event::PointerMoved(seam)]);
+    let over = pass(&app, &ctx, vec![egui::Event::PointerMoved(seam)]);
+    assert_eq!(
+        over.platform_output.cursor_icon,
+        egui::CursorIcon::ResizeHorizontal,
+        "the seam asked for no cursor of its own"
+    );
+    let away = pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(300.0, 50.0))],
+    );
+    assert_eq!(
+        away.platform_output.cursor_icon,
+        egui::CursorIcon::Default,
+        "and it asks for nothing away from the seam"
+    );
+}
+
 /// A grouping node with no widget of its own should not break the chain: a
 /// menu is usually a panel with an empty node or two inside it.
 #[test]
@@ -987,4 +1086,40 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
         "hiding one of two 60px children takes its room off the column: \
          {without} against {with}"
     );
+}
+
+/// A root that avoids the keyboard measures its bottom from the keyboard's
+/// top, and one that does not stays where it was.
+#[test]
+fn a_root_can_keep_above_the_on_screen_keyboard() {
+    let (_dir, app) = app();
+    let at = |avoid: bool| {
+        let params = toml::toml! {
+            kind = "label" text = "send" anchor = "center_bottom"
+            x = 0.0 y = 0.0 avoid_keyboard = avoid
+        };
+        add_widget(&app, &params.into())
+    };
+    let (lifted, left) = (at(true), at(false));
+    let ctx = egui::Context::default();
+    let bottom = |entity: Entity| {
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+            .expect("the label drew")
+            .max
+            .y
+    };
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let (before, unmoved) = (bottom(lifted), bottom(left));
+    assert!((before - unmoved).abs() < 1.0, "no keyboard, no difference");
+
+    balaur_core::facts::update_device(&app.engine, |f| f.keyboard_height = 200.0);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        (before - bottom(lifted) - 200.0).abs() < 1.0,
+        "lifted by the keyboard: {before} -> {}",
+        bottom(lifted)
+    );
+    assert!((bottom(left) - unmoved).abs() < 1.0, "the other stays put");
 }

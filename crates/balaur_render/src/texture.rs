@@ -77,56 +77,112 @@ pub(crate) fn upload_name(path: &str, stamp: Option<f64>, settings: &str) -> Str
     name
 }
 
+/// The settings half of an upload name, once this call site has said whether
+/// it can blend a premultiplied texture.
+///
+/// The same image straight is a different upload, so a mesh and a sprite
+/// naming one premultiplied file each get their own rather than sharing
+/// whichever was drawn first.
+#[cfg(any(feature = "kiss3d", test))]
+pub(crate) fn upload_stamp(settings: &str, premultiply: bool) -> String {
+    if premultiply {
+        return settings.to_string();
+    }
+    format!("{settings}s")
+}
+
 #[cfg(feature = "kiss3d")]
 mod windowed {
     use std::sync::Arc;
 
     use balaur_core::Engine;
-    use kiss3d::resource::{Texture, TextureManager};
-    use kiss3d::scene::{SceneNode2d, SceneNode3d};
+    use kiss3d::resource::{Texture, TextureManager, TextureSampling, TextureWrapping};
+    use kiss3d::scene::{Blend2d, SceneNode2d, SceneNode3d};
 
     /// Give a freshly built 2D node its image; a path that is empty or does
     /// not decode leaves kiss3d's default white texture, which is what a
     /// sprite with no image chosen yet already draws.
     pub(crate) fn attach_texture_2d(eng: &Engine, node: &mut SceneNode2d, path: &str) {
-        if let Some(texture) = upload(eng, path) {
+        if let Some(texture) = upload(eng, path, PREMULTIPLY_HONOURED) {
+            // A premultiplied texture blended the ordinary way is multiplied
+            // by its alpha a second time and comes out dark, so the blend
+            // follows the upload rather than the other way round.
+            node.set_blend(if texture.premultiplied {
+                Blend2d::PremultipliedAlpha
+            } else {
+                Blend2d::Alpha
+            });
             node.set_texture(texture);
         }
     }
 
     /// The same for a 3D mesh's `texture`.
     pub(crate) fn attach_texture_3d(eng: &Engine, node: &mut SceneNode3d, path: &str) {
-        if let Some(texture) = upload(eng, path) {
+        if let Some(texture) = upload(eng, path, PREMULTIPLY_DROPPED) {
             node.set_texture(texture);
         }
     }
 
-    /// Hand the image to the manager the way its settings ask.
+    /// Whether a `premultiply = true` reaches the upload.
     ///
-    /// A data texture takes the colour-space call, which samples linearly:
-    /// kiss3d exposes no call that is both nearest and linear-data, so a
-    /// `nearest` normal map is filtered until it does.
-    fn place(
-        tm: &mut TextureManager,
-        image: image::DynamicImage,
-        name: &str,
-        settings: &toml::Table,
-    ) -> Arc<Texture> {
-        use balaur_core::import::{flag, keys, word, words};
-        if !flag(settings, keys::SRGB, true) {
-            return tm.add_image_with_color_space(image, name, false);
+    /// A 3D node has no blend mode to match it — kiss3d blends every mesh
+    /// straight — so the setting is dropped there rather than drawing the
+    /// mesh dark. Named so the two call sites read as the choice they are.
+    pub(crate) const PREMULTIPLY_HONOURED: bool = true;
+    pub(crate) const PREMULTIPLY_DROPPED: bool = false;
+
+    /// The sampler these settings ask for, in kiss3d's own words, with what
+    /// this call site cannot honour taken back out.
+    ///
+    /// Reported here rather than in `balaur_core`, which resolves the same
+    /// settings for a headless run that samples nothing.
+    fn sampling(path: &str, resolved: &toml::Table, premultiply_allowed: bool) -> TextureSampling {
+        use balaur_core::import::texture::{self, Filter, Wrap};
+        let asked = texture::sampling(resolved);
+        if texture::anisotropy_refused(&asked) {
+            tracing::warn!(
+                "{path} asks for anisotropy with a nearest filter, which no GPU samples; \
+                 drawing it without"
+            );
         }
-        if word(settings, keys::FILTER, words::LINEAR) == words::NEAREST {
-            return tm.add_image_pixelated(image, name);
+        if asked.premultiply && !premultiply_allowed {
+            tracing::warn!(
+                "{path} is premultiplied, which a 3D mesh does not blend; drawing it straight"
+            );
         }
-        tm.add_image(image, name)
+        let filter = |which| match which {
+            Filter::Nearest => wgpu::FilterMode::Nearest,
+            Filter::Linear => wgpu::FilterMode::Linear,
+        };
+        let wrap = |which| match which {
+            Wrap::Repeat => TextureWrapping::Repeat,
+            Wrap::Mirror => TextureWrapping::MirroredRepeat,
+            Wrap::Clamp => TextureWrapping::ClampToEdge,
+        };
+        TextureSampling {
+            wrap_u: wrap(asked.wrap_u),
+            wrap_v: wrap(asked.wrap_v),
+            mag_filter: filter(asked.mag),
+            min_filter: filter(asked.min),
+            mipmap_filter: match asked.mipmap {
+                Filter::Nearest => wgpu::MipmapFilterMode::Nearest,
+                Filter::Linear => wgpu::MipmapFilterMode::Linear,
+            },
+            mipmaps: asked.mipmaps,
+            anisotropy: asked.anisotropy,
+            srgb: asked.srgb,
+            premultiply: asked.premultiply && premultiply_allowed,
+        }
+        // `sane` inside kiss3d lowers an anisotropy the filters refuse; the
+        // warning above is what says so.
+        .sane()
     }
 
     /// The uploaded texture, or `None` to leave the node's default one.
     ///
     /// Decoded here rather than through kiss3d's `add_image_from_memory`,
     /// which is an `expect` on content a scene file names.
-    pub(crate) fn upload(eng: &Engine, path: &str) -> Option<Arc<Texture>> {
+    pub(crate) fn upload(eng: &Engine, path: &str, premultiply: bool) -> Option<Arc<Texture>> {
         if path.is_empty() {
             return None;
         }
@@ -134,7 +190,8 @@ mod windowed {
         // Resolved rather than read: this runs on every attach, and a sprite
         // is attached on every frame that draws it.
         let settings = balaur_core::import::resolved(eng, path);
-        let name = super::upload_name(path, files.borrow().mtime(path), &settings.stamp);
+        let stamp = super::upload_stamp(&settings.stamp, premultiply);
+        let name = super::upload_name(path, files.borrow().mtime(path), &stamp);
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
             return Some(cached);
         }
@@ -150,9 +207,14 @@ mod windowed {
             }
         };
         match image::load_from_memory(&bytes) {
-            Ok(image) => Some(TextureManager::get_global_manager(|tm| {
-                place(tm, image.clone(), &name, &settings.settings)
-            })),
+            Ok(image) => {
+                // Built on the miss rather than on every attach, which is
+                // also what keeps the two warnings above to one a texture.
+                let asked = sampling(path, &settings.settings, premultiply);
+                Some(TextureManager::get_global_manager(|tm| {
+                    tm.add_image_sampled(image.clone(), &name, asked)
+                }))
+            }
             Err(why) => {
                 tracing::error!("decoding the image {path}: {why}");
                 None
@@ -162,11 +224,16 @@ mod windowed {
 }
 
 #[cfg(feature = "kiss3d")]
-pub(crate) use windowed::{attach_texture_2d, attach_texture_3d, upload};
+pub(crate) use windowed::{PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, upload};
 
 #[cfg(test)]
 mod tests {
-    use super::{image_size, upload_name};
+    use super::{image_size, upload_name, upload_stamp};
+
+    /// The two ways a call site answers `premultiply`, named as they are in
+    /// the windowed build, which a headless test does not compile.
+    const PREMULTIPLY_HONOURED: bool = true;
+    const PREMULTIPLY_DROPPED: bool = false;
 
     /// A 1x1 PNG, so the header the size comes from is a real one.
     fn png() -> Vec<u8> {
@@ -223,5 +290,17 @@ mod tests {
             upload_name("art/hero.png", None, ""),
             upload_name("art/hero.png", None, "a1b2")
         );
+    }
+
+    /// A 3D mesh has no premultiplied blend to draw with, so it uploads the
+    /// same file straight — and under its own name, or whichever node was
+    /// built first would decide what the other one draws.
+    #[test]
+    fn the_same_image_straight_is_a_second_upload() {
+        assert_ne!(
+            upload_stamp("a1b2", PREMULTIPLY_HONOURED),
+            upload_stamp("a1b2", PREMULTIPLY_DROPPED)
+        );
+        assert_eq!(upload_stamp("a1b2", PREMULTIPLY_HONOURED), "a1b2");
     }
 }

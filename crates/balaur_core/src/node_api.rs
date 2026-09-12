@@ -169,6 +169,10 @@ pub const NODE_OPS: &[NodeOp] = &[
     },
     NodeOp { name: "call", call },
     NodeOp {
+        name: "call_async",
+        call: call_async,
+    },
+    NodeOp {
         name: "emit",
         call: emit,
     },
@@ -195,6 +199,30 @@ pub const NODE_OPS: &[NodeOp] = &[
     NodeOp {
         name: "global_visible",
         call: global_visible,
+    },
+    NodeOp {
+        name: "tint",
+        call: tint,
+    },
+    NodeOp {
+        name: "set_tint",
+        call: set_tint,
+    },
+    NodeOp {
+        name: "global_tint",
+        call: global_tint,
+    },
+    NodeOp {
+        name: "material",
+        call: material,
+    },
+    NodeOp {
+        name: "set_material",
+        call: set_material,
+    },
+    NodeOp {
+        name: "global_material",
+        call: global_material,
     },
     NodeOp {
         name: "z_index",
@@ -232,10 +260,12 @@ pub const NODE_OPS: &[NodeOp] = &[
 /// itself instead; this is the plain path.
 pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "What every node has: its name and path, its transform in local and \
-         world space, its children, its components and its script. Each \
-         operation takes the node as its first argument, so scripts normally \
-         call them as methods on a node value (`this.node.position()`).",
+        "What every node has: its name and path, its place in the world, its \
+         children, its components and its script. Each operation takes the \
+         node as its first argument, so scripts normally call them as methods \
+         on a node value (`this.node.get_node(\"Arm\")`). `position`, \
+         `rotation_euler` and `scale` read the `transform` component, which \
+         `this.node.transform.position` reads and writes directly.",
     );
     m.describe(&[
         ("is_valid", &[], "()", "Whether the node is still in the world; false rather than an error when the value is not a node."),
@@ -274,6 +304,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
+        ("call_async", &[], "(method: string, args: any?)", "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`."),
         ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
@@ -281,6 +312,12 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
         ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides."),
         ("global_visible", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
+        ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
+        ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
+        ("global_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
+        ("material", &[], "(node)", "The `material` asset the node names itself, empty when it takes its parent's."),
+        ("set_material", &[], "(node, material: string)", "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's."),
+        ("global_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
         ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
         ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
@@ -294,7 +331,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
     }
 }
 
-fn node(args: &[Value]) -> Result<Entity> {
+pub(crate) fn node(args: &[Value]) -> Result<Entity> {
     match args.first() {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id)),
         _ => Err(anyhow!("expected a node as the first argument")),
@@ -375,6 +412,57 @@ fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Bool(scene::composed_appearance(&world, e).visible))
+}
+
+fn tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| Value::Color(a.tint.into()))
+}
+
+/// `set_tint(node, r, g, b, a)`, the alpha optional and one when left out.
+/// It multiplies into every descendant's, which is what a renderable's own
+/// `color` does not do.
+fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let alpha = if args.len() > 4 {
+        number(args, 4)?
+    } else {
+        1.0
+    };
+    let colour = glamx::Vec4::new(number(args, 1)?, number(args, 2)?, number(args, 3)?, alpha);
+    with_appearance(eng, node(args)?, |a| a.tint = colour)?;
+    Ok(Value::Nil)
+}
+
+/// What the renderer sees: every ancestor's tint multiplied into this one's.
+fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Color(
+        scene::composed_appearance(&world, e).tint.into(),
+    ))
+}
+
+fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| {
+        Value::Str(a.material.reference().to_string())
+    })
+}
+
+fn set_material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let id = scene::MaterialId::intern(text(args, 1)?);
+    with_appearance(eng, node(args)?, |a| a.material = id)?;
+    Ok(Value::Nil)
+}
+
+/// What the renderer draws with: the nearest material from the node up.
+fn global_material(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Str(
+        scene::composed_appearance(&world, e)
+            .material
+            .reference()
+            .to_string(),
+    ))
 }
 
 fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -842,6 +930,22 @@ fn call(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(host
         .call_on(crate::node_id_of(e), method, args.get(2..).unwrap_or(&[]))
         .unwrap_or(Value::Nil))
+}
+
+/// `node.call_async`: a token woken with the method's result once it has
+/// returned, on the next step at the earliest so the caller has parked.
+fn call_async(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let method = text(args, 1)?;
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    let token = eng.next_token();
+    let rest = args.get(2..).unwrap_or(&[]);
+    if let Some(result) = host.call_on_async(crate::node_id_of(e), method, rest, token) {
+        crate::timers::wake_next_step(eng, token, result);
+    }
+    Ok(Value::Int(i64::try_from(token).unwrap_or(i64::MAX)))
 }
 
 fn emit(eng: &Engine, args: &[Value]) -> Result<Value> {

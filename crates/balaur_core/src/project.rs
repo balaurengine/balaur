@@ -25,6 +25,8 @@ use serde::Deserialize;
 use crate::engine::Engine;
 use crate::scene::{self, Appearance, Tags};
 
+pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
+
 /// A project's manifest, `project.toml`.
 ///
 /// What the game is lives under `[application]`, so the file reads the way
@@ -38,32 +40,89 @@ pub struct ProjectManifest {
     /// Which scripting language this project is written in. The assembling
     /// crate maps the name to a backend; core does not know the set.
     pub language: String,
-    /// Where a shipped game may read assets from. Only bites once packed;
-    /// a dev run always reads the source tree.
-    pub assets: AssetSource,
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
-    /// A project-relative picture the runtime shows over the first frames,
-    /// on every target; empty shows none.
-    pub splash: String,
-    /// How long the splash stays, in seconds of engine time.
-    pub splash_seconds: f32,
-    /// The window a windowed build opens, and how it is drawn.
-    pub window: WindowSettings,
-    /// What the UI layer loads before it draws.
-    pub ui: UiSettings,
-    /// `[import.<kind>]`: the default settings for every file of a kind.
-    /// See [`crate::import`].
-    pub import: BTreeMap<String, toml::Table>,
+    /// `[check]`: how hard `balaur check` is on this project.
+    pub check: CheckSettings,
+}
+
+/// What `[check]` sets.
+///
+/// A project that means to stay clean says so once, here, rather than every
+/// caller — CI, a hook, a person at a prompt — having to remember a flag.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct CheckSettings {
+    /// Treat a warning as an error, so the next one to arrive fails the run.
+    #[serde(default)]
+    pub strict: bool,
+}
+
+/// Which way up a phone may hold the game.
+///
+/// A device decides this before the game runs, so it is written into the
+/// export's own manifest rather than read at startup like the rest.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Orientation {
+    #[default]
+    Any,
+    Portrait,
+    Landscape,
+}
+
+impl Orientation {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::Portrait => "portrait",
+            Self::Landscape => "landscape",
+        }
+    }
+
+    #[must_use]
+    pub fn parse(name: &str) -> Self {
+        match name {
+            "portrait" => Self::Portrait,
+            "landscape" => Self::Landscape,
+            _ => Self::Any,
+        }
+    }
+}
+
+/// How a window opens, and what `render.set_window_mode` switches between.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowMode {
+    #[default]
+    Windowed,
+    Maximized,
+    /// Borderless over the whole screen, at the desktop's own resolution.
+    Fullscreen,
+    /// The monitor's largest video mode. The web has none, so it is
+    /// borderless there.
+    Exclusive,
+}
+
+impl WindowMode {
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "windowed" => Some(Self::Windowed),
+            "maximized" => Some(Self::Maximized),
+            "fullscreen" => Some(Self::Fullscreen),
+            "exclusive" => Some(Self::Exclusive),
+            _ => None,
+        }
+    }
 }
 
 /// `[window]`: the window a windowed build opens, and how it is drawn.
 ///
 /// A headless run holds these and opens nothing, so a project states them
-/// once and still ticks identically in CI.
-#[derive(Clone, Deserialize)]
-#[serde(default)]
+/// once and still ticks identically in CI. Read through the settings
+/// registry, so `[override.android.window]` answers on a phone.
+#[derive(Clone)]
 pub struct WindowSettings {
     /// Logical width. The backing store is this times the display's scale,
     /// which is what the render targets are sized from.
@@ -76,10 +135,11 @@ pub struct WindowSettings {
     pub msaa: u32,
     /// Present in step with the display.
     pub vsync: bool,
-    /// Open filling the screen. Scripts toggle it later through the same
-    /// state this seeds, so a game that starts fullscreen and a game that
-    /// switches into it take one path.
-    pub fullscreen: bool,
+    /// How it opens. Scripts switch it later through the same state this
+    /// seeds, so a game that starts fullscreen and a game that switches into
+    /// it take one path.
+    pub mode: WindowMode,
+    pub orientation: Orientation,
 }
 
 impl Default for WindowSettings {
@@ -89,14 +149,56 @@ impl Default for WindowSettings {
             height: 1000,
             msaa: 1,
             vsync: true,
-            fullscreen: false,
+            mode: WindowMode::Windowed,
+            orientation: Orientation::Any,
         }
     }
 }
 
-/// `[ui]`: what the UI layer loads before it draws.
-#[derive(Clone, Deserialize)]
-#[serde(default)]
+impl WindowSettings {
+    /// `[window]` as this run resolves it, overrides and all.
+    #[must_use]
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            width: setting_u32(eng, "window/width", fallback.width),
+            height: setting_u32(eng, "window/height", fallback.height),
+            msaa: setting_u32(eng, "window/msaa", fallback.msaa),
+            vsync: setting_bool(eng, "window/vsync", fallback.vsync),
+            mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
+            orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
+        }
+    }
+}
+
+/// The settings registry answers in `toml::Value`; these are the three shapes
+/// a manifest key comes back as, each falling back to the schema's own.
+fn setting_u32(eng: &Engine, path: &str, fallback: u32) -> u32 {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(crate::components::as_f64)
+        .filter(|n| *n >= 0.0)
+        .map_or(fallback, |n| n as u32)
+}
+
+fn setting_bool(eng: &Engine, path: &str, fallback: bool) -> bool {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(fallback)
+}
+
+fn setting_string(eng: &Engine, path: &str) -> String {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// `[ui]`: what the UI layer loads before it draws. Read through the settings
+/// registry, so a platform may answer differently.
+#[derive(Clone)]
 pub struct UiSettings {
     /// Append the operating system's own faces to every font chain, so text
     /// in a script balaur does not vendor draws instead of tofu.
@@ -106,11 +208,29 @@ pub struct UiSettings {
     /// ever draws the faces it vendors can turn them off and not pay for
     /// them.
     pub system_fonts: bool,
+    /// The `widget_theme` every root widget starts from; empty is the
+    /// built-in look.
+    pub theme: String,
 }
 
 impl Default for UiSettings {
     fn default() -> Self {
-        Self { system_fonts: true }
+        Self {
+            system_fonts: true,
+            theme: String::new(),
+        }
+    }
+}
+
+impl UiSettings {
+    /// `[ui]` as this run resolves it.
+    #[must_use]
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
+            theme: setting_string(eng, "ui/theme"),
+        }
     }
 }
 
@@ -166,11 +286,7 @@ struct RawManifest {
     #[serde(default)]
     plugins: BTreeMap<String, PluginChoice>,
     #[serde(default)]
-    window: WindowSettings,
-    #[serde(default)]
-    ui: UiSettings,
-    #[serde(default)]
-    import: BTreeMap<String, toml::Table>,
+    check: CheckSettings,
 }
 
 #[derive(Deserialize)]
@@ -179,16 +295,6 @@ struct Application {
     main_scene: String,
     #[serde(default = "default_language")]
     language: String,
-    #[serde(default)]
-    assets: AssetSource,
-    #[serde(default)]
-    splash: String,
-    #[serde(default = "default_splash_seconds")]
-    splash_seconds: f32,
-}
-
-fn default_splash_seconds() -> f32 {
-    1.5
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -197,13 +303,8 @@ impl From<RawManifest> for ProjectManifest {
             name: raw.application.name,
             main_scene: raw.application.main_scene,
             language: raw.application.language,
-            assets: raw.application.assets,
             plugins: raw.plugins,
-            splash: raw.application.splash,
-            splash_seconds: raw.application.splash_seconds.max(0.0),
-            window: raw.window,
-            ui: raw.ui,
-            import: raw.import,
+            check: raw.check,
         }
     }
 }
@@ -219,8 +320,26 @@ fn default_language() -> String {
 }
 
 impl ProjectManifest {
+    /// The manifest as this machine resolves it: its own tags, and any a pack
+    /// was built with. What a host reads before an engine exists, so
+    /// `[override.ios.plugins] http = false` decides what loads.
     pub fn parse(source: &str) -> Result<Self> {
-        toml::from_str(source).context("parsing project.toml")
+        let doc: toml::value::Table = toml::from_str(source).context("parsing project.toml")?;
+        let mut tags = crate::tags::Tags::current();
+        for name in crate::tags::built_in(&doc) {
+            tags.push(&name);
+        }
+        Self::parse_for(source, &tags)
+    }
+
+    /// The manifest as `tags` resolve it: `App::load_project` passes the
+    /// engine's, so a demo build's `[override.demo.application] main_scene`
+    /// is the scene it opens.
+    pub fn parse_for(source: &str, tags: &crate::tags::Tags) -> Result<Self> {
+        let resolved = crate::settings::resolve(source, tags).context("parsing project.toml")?;
+        toml::Value::Table(resolved)
+            .try_into()
+            .context("parsing project.toml")
     }
 }
 
@@ -239,7 +358,7 @@ struct SceneDoc {
 }
 
 #[derive(Deserialize)]
-struct SceneNode {
+pub(crate) struct SceneNode {
     /// Stable identity, assigned once and never reused.
     ///
     /// `parent` refers to this, so renaming a node cannot silently reparent
@@ -254,18 +373,21 @@ struct SceneNode {
     parent: String,
     /// Hides the node and everything under it. Physics is unaffected.
     visible: Option<bool>,
+    /// A colour multiplied into what this node and its descendants draw,
+    /// as `[r, g, b, a]` or `#rrggbb` / `#rrggbbaa`.
+    tint: Option<toml::Value>,
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
     z_relative: Option<bool>,
     /// Names the node is filed under, for `scene.tagged`.
     #[serde(default)]
     tags: Vec<String>,
-    script: Option<ScriptRef>,
-    /// A prefab: another scene file, built as this node's children.
+    pub(crate) script: Option<ScriptRef>,
+    /// A prefab: another scene file, and this node *is* its root.
     ///
-    /// The node keeps its own name, transform and components — they are the
-    /// instance's, not the prefab's — and the prefab's roots become its
-    /// children, which is what `scene::instantiate` does from a script.
+    /// The prefab root's keys, components and script land on this node, under
+    /// this node's own, and the root's children are this node's children.
+    /// Overrides then name paths from this node, `.` for the node itself.
     instance: Option<String>,
     /// Per-node edits inside the instance, keyed by path from this node:
     /// `[nodes.overrides."Body/Arm"]`. Each holds scene keys, applied after
@@ -274,7 +396,7 @@ struct SceneNode {
     overrides: toml::Table,
     /// Plugin-owned keys, dispatched to scene key handlers.
     #[serde(flatten)]
-    extra: HashMap<String, toml::Value>,
+    pub(crate) extra: HashMap<String, toml::Value>,
 }
 
 /// A node's `script`: a path, or a path with the properties this node sets.
@@ -283,7 +405,7 @@ struct SceneNode {
 /// changed default reaches every node that did not override it.
 #[derive(Deserialize)]
 #[serde(untagged)]
-enum ScriptRef {
+pub(crate) enum ScriptRef {
     Source(String),
     Tuned {
         /// Absent in an override, which retunes the script the prefab already
@@ -297,7 +419,7 @@ enum ScriptRef {
 }
 
 impl ScriptRef {
-    fn source(&self) -> &str {
+    pub(crate) fn source(&self) -> &str {
         match self {
             Self::Source(path) | Self::Tuned { source: path, .. } => path,
         }
@@ -349,276 +471,6 @@ pub fn manifest_source(eng: &Engine) -> Option<String> {
 /// any plugin resolving project-relative paths).
 pub struct ProjectRoot(pub std::path::PathBuf);
 
-/// Where a project is allowed to read its bytes from, set by `assets` in
-/// `project.toml`. The default is deliberately the strict one: a shipped game
-/// that quietly falls back to the working directory runs on the machine that
-/// built it and nowhere else.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AssetSource {
-    /// The pack only. A miss is an error naming the file.
-    #[default]
-    Embedded,
-    /// The project directory only, ignoring anything packed.
-    Files,
-    /// The pack first, then the directory — loose DLC, mods, or an override
-    /// folder shipped beside the executable.
-    #[serde(rename = "embedded+files")]
-    EmbeddedThenFiles,
-}
-
-/// Where a project's bytes come from: the source tree while developing, the
-/// pack itself in a shipped game. Every reader of a binary asset goes through
-/// this, which is what lets a packed game ship as one file.
-pub struct ProjectFiles {
-    root: std::path::PathBuf,
-    packed: std::collections::BTreeMap<String, Vec<u8>>,
-    source: AssetSource,
-    /// Where loose files come from. Held rather than reached for through the
-    /// engine, because an asset loader has the files and not the engine.
-    fs: std::rc::Rc<dyn crate::files::FileBackend>,
-    /// The `assets/index.toml` a pack carries; a dev run reads the file.
-    packed_index: Option<String>,
-    /// `id → path`, parsed on the first `id:
-    // ` and dropped by
-    /// [`Self::reload_index`].
-    index: std::cell::RefCell<Option<BTreeMap<String, String>>>,
-}
-
-impl ProjectFiles {
-    /// Reads from the source tree. Nothing is packed, so `assets` cannot
-    /// forbid the only source there is.
-    #[must_use]
-    pub fn directory(root: std::path::PathBuf) -> Self {
-        Self {
-            root,
-            packed: std::collections::BTreeMap::new(),
-            source: AssetSource::Files,
-            fs: crate::files::default_backend(),
-            packed_index: None,
-            index: std::cell::RefCell::new(None),
-        }
-    }
-
-    /// Serves a pack's assets under the project's `assets` rule.
-    #[must_use]
-    pub fn packed(
-        root: std::path::PathBuf,
-        assets: std::collections::BTreeMap<String, Vec<u8>>,
-        source: AssetSource,
-    ) -> Self {
-        Self {
-            root,
-            packed: assets,
-            source,
-            fs: crate::files::default_backend(),
-            packed_index: None,
-            index: std::cell::RefCell::new(None),
-        }
-    }
-
-    /// Serve loose files from `fs` rather than the disk.
-    #[must_use]
-    pub fn on(mut self, fs: std::rc::Rc<dyn crate::files::FileBackend>) -> Self {
-        self.fs = fs;
-        self
-    }
-
-    /// The id index a pack carries, as the text of `assets/index.toml`.
-    #[must_use]
-    pub fn with_index(mut self, text: Option<String>) -> Self {
-        self.packed_index = text;
-        self
-    }
-
-    /// Drop the parsed id index so the next `id:
-    // ` re-reads
-    /// `assets/index.toml`. What the watcher calls when that file is saved.
-    pub fn reload_index(&self) {
-        *self.index.borrow_mut() = None;
-    }
-
-    /// The path an `id:
-    // <id>` reference names, with any `#entry` kept; a
-    /// reference that is already a path comes back as it is.
-    ///
-    /// # Errors
-    /// When the id is not in `assets/index.toml`.
-    pub fn path_of(&self, reference: &str) -> Result<String> {
-        let Some(rest) = reference.strip_prefix(crate::assets::ID_PREFIX) else {
-            return Ok(reference.to_string());
-        };
-        let (id, entry) = rest.split_once('#').map_or((rest, ""), |(id, e)| (id, e));
-        let path = self.index_entry(id).ok_or_else(|| {
-            anyhow!(
-                "'{reference}' names no asset: '{id}' is not in {}",
-                crate::assets::INDEX_PATH
-            )
-        })?;
-        Ok(if entry.is_empty() {
-            path
-        } else {
-            format!("{path}#{entry}")
-        })
-    }
-
-    /// The id `assets/index.toml` gives a project-relative path, if any.
-    #[must_use]
-    pub fn id_of(&self, path: &str) -> Option<String> {
-        self.ensure_index();
-        self.index
-            .borrow()
-            .as_ref()?
-            .iter()
-            .find(|(_, p)| p.as_str() == path)
-            .map(|(id, _)| id.clone())
-    }
-
-    fn index_entry(&self, id: &str) -> Option<String> {
-        self.ensure_index();
-        self.index.borrow().as_ref()?.get(id).cloned()
-    }
-
-    fn ensure_index(&self) {
-        if self.index.borrow().is_some() {
-            return;
-        }
-        let text = match (&self.packed_index, self.source) {
-            (Some(text), _) => Some(text.clone()),
-            (None, AssetSource::Embedded) => None,
-            (None, _) => self
-                .fs
-                .read(&self.root.join(crate::assets::INDEX_PATH))
-                .ok()
-                .and_then(|bytes| String::from_utf8(bytes).ok()),
-        };
-        let parsed = text.map_or_else(BTreeMap::new, |text| {
-            crate::asset_index::parse(&text).unwrap_or_else(|err| {
-                tracing::warn!("{}: {err}", crate::assets::INDEX_PATH);
-                BTreeMap::new()
-            })
-        });
-        *self.index.borrow_mut() = Some(parsed);
-    }
-
-    #[must_use]
-    pub const fn source(&self) -> AssetSource {
-        self.source
-    }
-
-    #[must_use]
-    pub fn root(&self) -> &std::path::Path {
-        &self.root
-    }
-
-    /// When the file behind a path last changed, in the backend's own units,
-    /// or `None` for one only the pack holds — the pack never changes.
-    #[must_use]
-    pub fn mtime(&self, path: &str) -> Option<f64> {
-        let path = &self.path_of(path).ok()?;
-        let p = std::path::Path::new(path);
-        if crate::files::rooted(p) {
-            return self.fs.mtime(p);
-        }
-        if self.source == AssetSource::Embedded {
-            return None;
-        }
-        self.fs.mtime(&self.root.join(p))
-    }
-
-    /// The bytes for a project-relative path. An absolute path is read from
-    /// disk as given, so a tool pointing outside the project still works.
-    ///
-    /// # Errors
-    /// If no permitted source has the file. The message names every place
-    /// that was tried, because "asset not found" without a location is the
-    /// least useful sentence a shipped game can print.
-    pub fn read(&self, path: &str) -> Result<Vec<u8>> {
-        let path = &self.path_of(path)?;
-        let p = std::path::Path::new(path);
-        if crate::files::rooted(p) {
-            return self.fs.read(p);
-        }
-        // Separators are normalised because a pack is keyed the way it was
-        // built, which is always with forward slashes. Rewritten only where
-        // there is a separator to rewrite: every read takes this path.
-        let key = if path.contains('\\') {
-            std::borrow::Cow::Owned(path.replace('\\', "/"))
-        } else {
-            std::borrow::Cow::Borrowed(path.as_str())
-        };
-        let embedded = matches!(
-            self.source,
-            AssetSource::Embedded | AssetSource::EmbeddedThenFiles
-        );
-        if embedded && let Some(bytes) = self.packed.get(key.as_ref()) {
-            return Ok(bytes.clone());
-        }
-        if self.source != AssetSource::Embedded {
-            let full = self.root.join(p);
-            if let Ok(bytes) = self.fs.read(&full) {
-                return Ok(bytes);
-            }
-            if embedded {
-                return Err(anyhow!(
-                    "no asset '{path}': not in the pack, and not at {}",
-                    full.display()
-                ));
-            }
-            return Err(anyhow!("no asset '{path}': nothing at {}", full.display()));
-        }
-        Err(anyhow!(
-            "no asset '{path}' in the pack. It ships only what `balaur export` \
-             collected; set `assets = \"embedded+files\"` in project.toml to also \
-             read files beside the game."
-        ))
-    }
-
-    /// Project-relative paths directly under `dir`, from the pack and from
-    /// disk, sorted and deduplicated. A packed game has no directory to walk,
-    /// so anything that discovers files by scanning one asks here instead.
-    #[must_use]
-    pub fn list(&self, dir: &str) -> Vec<String> {
-        let prefix = format!("{}/", dir.trim_end_matches('/'));
-        let mut out: Vec<String> = if self.source == AssetSource::Files {
-            Vec::new()
-        } else {
-            self.packed
-                .keys()
-                .filter(|k| k.starts_with(&prefix) && !k[prefix.len()..].contains('/'))
-                .cloned()
-                .collect()
-        };
-        if self.source != AssetSource::Embedded {
-            for (name, is_dir) in self.fs.list(&self.root.join(dir)) {
-                if !is_dir {
-                    out.push(format!("{prefix}{name}"));
-                }
-            }
-        }
-        out.sort();
-        out.dedup();
-        out
-    }
-}
-
-/// The path a reference names: what `id:
-// <id>` resolves to through
-/// `assets/index.toml`, or the reference itself when it is already a path.
-///
-/// # Errors
-/// When the id is not in the index.
-pub fn path_of(eng: &Engine, reference: &str) -> Result<String> {
-    if !reference.starts_with(crate::assets::ID_PREFIX) {
-        return Ok(reference.to_string());
-    }
-    let files = eng
-        .try_resource::<ProjectFiles>()
-        .ok_or_else(|| anyhow!("'{reference}' cannot resolve: this app has no project files"))?;
-    let path = files.borrow().path_of(reference)?;
-    Ok(path)
-}
-
 /// A node's script, held until the whole tree exists: the node, the path, and
 /// the properties the scene set on it.
 type PendingScript = (Entity, String, Vec<(String, Value)>);
@@ -639,9 +491,32 @@ pub fn instantiate_scene(
         open: Vec::new(),
         pending: Vec::new(),
         attach_scripts,
+        merge_into: None,
     };
     build_scene(eng, source, base, &mut build)?;
+    children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)
+}
+
+/// Reorder scripts waiting to attach so every child's comes before its
+/// parent's and siblings keep their order.
+///
+/// A child's `init` can only reach a parent that exists, which it does before
+/// any script runs; a parent's `init` reading a child's script state is the
+/// one that would find nothing, so children go first.
+fn children_first(eng: &Engine, base: Entity, pending: &mut [PendingScript]) {
+    fn walk(world: &hecs::World, node: Entity, order: &mut DetHashMap<Entity, usize>) {
+        if let Ok(children) = world.get::<&scene::Children>(node) {
+            for &child in &children.0 {
+                walk(world, child, order);
+            }
+        }
+        let next = order.len();
+        order.insert(node, next);
+    }
+    let mut order = DetHashMap::default();
+    walk(&eng.world(), base, &mut order);
+    pending.sort_by_key(|(entity, _, _)| order.get(entity).copied().unwrap_or(usize::MAX));
 }
 
 /// One scene being built, and everything a prefab inside it needs to know.
@@ -657,6 +532,9 @@ struct Build {
     /// so `init` can already look up anything the scene declares.
     pending: Vec<PendingScript>,
     attach_scripts: bool,
+    /// The node the prefab being built becomes the root of; taken by that
+    /// prefab's root.
+    merge_into: Option<Entity>,
 }
 
 /// Parse and build one scene document under `base`.
@@ -724,70 +602,135 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let root = base;
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     let ids = repair_ids(&doc.nodes);
+    // Taken once, by this document's root: a nested prefab asks afresh.
+    let mut merge_into = build.merge_into.take();
+    // The document's root, which a parent path may start from by name even
+    // once it has been merged into the node that instanced it.
+    let mut scene_root: Option<(&str, Entity)> = None;
     for (index, node) in doc.nodes.iter().enumerate() {
-        let parent = resolve_parent(eng, node, root, &by_id)?;
-        // The transform is a component, so a node that names none has none.
-        // Chosen at the spawn rather than inserted after, which would move
-        // every node in the file to another archetype.
-        let entity = if node.extra.contains_key(crate::transform::COMPONENT) {
-            scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
+        let parent = resolve_parent(eng, node, root, scene_root, &by_id)?;
+        let merged = if node.parent.is_empty() {
+            merge_into.take()
         } else {
-            scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent)
+            None
+        };
+        // One root, as a Godot scene and a Unity prefab have: it is what a
+        // path, a stable id and an instance all address.
+        if node.parent.is_empty() && scene_root.is_some() {
+            bail!(
+                "a scene has one root; '{}' is a second. Put it under the first",
+                node.name
+            );
+        }
+        let entity = match merged {
+            Some(entity) => entity,
+            // The transform is a component, so a node that names none has
+            // none. Chosen at the spawn rather than inserted after, which
+            // would move every node in the file to another archetype.
+            None if node.extra.contains_key(crate::transform::COMPONENT) => {
+                scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
+            }
+            None => scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent),
         };
         by_id.insert(ids[index].as_str(), entity);
-        eng.world_mut()
-            .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
-        {
-            let world = eng.world();
-            // spawn_node inserts an Appearance on every node it creates.
-            let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
-            if let Some(on) = node.visible {
-                appearance.visible = on;
-            }
-            if let Some(z) = node.z_index {
-                appearance.z_index = z;
-            }
-            if let Some(on) = node.z_relative {
-                appearance.z_relative = on;
-            }
+        if node.parent.is_empty() {
+            scene_root = Some((node.name.as_str(), entity));
         }
-        if !node.tags.is_empty() {
-            let mut tags = Tags::default();
-            for tag in &node.tags {
-                tags.add(tag);
-            }
-            eng.world_mut().insert_one(entity, tags)?;
+        if merged.is_none() {
+            eng.world_mut()
+                .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         }
-        for (key, handler) in handlers {
-            if let Some(value) = node.extra.get(key) {
-                handler(eng, entity, value)
-                    .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
-            }
-        }
-        for key in node.extra.keys() {
-            if !handlers.iter().any(|(k, _)| k == key) {
-                tracing::warn!(
-                    "scene key '{key}' on node '{}' has no registered handler",
-                    node.name
-                );
-            }
-        }
-        if let Some(script) = &node.script {
-            if script.source().is_empty() {
-                bail!("node '{}' has a script key with no source", node.name);
-            }
-            let props = script
-                .props()
-                .with_context(|| format!("script properties on node '{}'", node.name))?;
-            build
-                .pending
-                .push((entity, script.source().to_string(), props));
-        }
-        if let Some(prefab) = &node.instance {
-            build_instance(eng, node, &ids[index], entity, build)
-                .with_context(|| format!("instance '{prefab}' on node '{}'", node.name))?;
+        // The prefab lands first, so the node's own keys win over its root's.
+        if node.instance.is_some() {
+            instance(eng, node, &ids[index], entity, build)?;
+            apply_own_keys(eng, node, entity, handlers, build)?;
             apply_overrides(eng, node, entity, handlers, build);
+        } else {
+            apply_own_keys(eng, node, entity, handlers, build)?;
         }
+    }
+    Ok(())
+}
+
+/// Build the prefab `node` names into `entity`, which is its root.
+fn instance(
+    eng: &Engine,
+    node: &SceneNode,
+    id: &str,
+    entity: Entity,
+    build: &mut Build,
+) -> Result<()> {
+    build.merge_into = Some(entity);
+    let prefab = node.instance.as_deref().unwrap_or_default();
+    let outcome = build_instance(eng, node, id, entity, build)
+        .with_context(|| format!("instance '{prefab}' on node '{}'", node.name));
+    build.merge_into = None;
+    outcome
+}
+
+/// A node's own keys: what every node has, its tags, its components and its
+/// script. A script already pending on the node, a merged prefab root's, is
+/// replaced by the node's own.
+fn apply_own_keys(
+    eng: &Engine,
+    node: &SceneNode,
+    entity: Entity,
+    handlers: &[(String, SceneKeyHandler)],
+    build: &mut Build,
+) -> Result<()> {
+    {
+        let world = eng.world();
+        // spawn_node inserts an Appearance on every node it creates.
+        let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
+        if let Some(on) = node.visible {
+            appearance.visible = on;
+        }
+        if let Some(colour) = node.tint.as_ref().and_then(crate::components::rgba) {
+            appearance.tint = glamx::Vec4::from(colour);
+        }
+        if let Some(z) = node.z_index {
+            appearance.z_index = z;
+        }
+        if let Some(on) = node.z_relative {
+            appearance.z_relative = on;
+        }
+    }
+    if !node.tags.is_empty() {
+        let mut tags = eng
+            .world()
+            .get::<&Tags>(entity)
+            .map(|t| (*t).clone())
+            .unwrap_or_default();
+        for tag in &node.tags {
+            tags.add(tag);
+        }
+        eng.world_mut().insert_one(entity, tags)?;
+    }
+    for (key, handler) in handlers {
+        if let Some(value) = node.extra.get(key) {
+            handler(eng, entity, value)
+                .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
+        }
+    }
+    for key in node.extra.keys() {
+        if !handlers.iter().any(|(k, _)| k == key) {
+            tracing::warn!(
+                "scene key '{key}' on node '{}' has no registered handler",
+                node.name
+            );
+        }
+    }
+    if let Some(script) = &node.script {
+        if script.source().is_empty() {
+            bail!("node '{}' has a script key with no source", node.name);
+        }
+        let props = script
+            .props()
+            .with_context(|| format!("script properties on node '{}'", node.name))?;
+        build.pending.retain(|(e, _, _)| *e != entity);
+        build
+            .pending
+            .push((entity, script.source().to_string(), props));
     }
     Ok(())
 }
@@ -908,7 +851,7 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
 }
 
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 4] = ["visible", "z_index", "z_relative", "tags"];
+const NODE_KEYS: [&str; 5] = ["visible", "tint", "z_index", "z_relative", "tags"];
 
 fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
@@ -917,6 +860,9 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     };
     if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
         appearance.visible = on;
+    }
+    if let Some(colour) = table.get("tint").and_then(crate::components::rgba) {
+        appearance.tint = glamx::Vec4::from(colour);
     }
     if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
         appearance.z_index = z as i32;
@@ -944,6 +890,7 @@ fn resolve_parent(
     eng: &Engine,
     node: &SceneNode,
     root: Entity,
+    scene_root: Option<(&str, Entity)>,
     by_id: &DetHashMap<&str, Entity>,
 ) -> Result<Entity> {
     if node.parent.is_empty() {
@@ -961,14 +908,23 @@ fn resolve_parent(
             node.parent
         );
     }
-    scene::find_node(&eng.world(), root, &node.parent).ok_or_else(|| {
-        anyhow!(
-            "node '{}' names parent '{}', which no earlier node declares as an id \
+    let world = eng.world();
+    let from_root = scene_root.and_then(|(name, entity)| {
+        let rest = node.parent.strip_prefix(name)?;
+        (rest.is_empty() || rest.starts_with('/'))
+            .then(|| scene::find_node(&world, entity, rest))
+            .flatten()
+    });
+    from_root
+        .or_else(|| scene::find_node(&world, root, &node.parent))
+        .ok_or_else(|| {
+            anyhow!(
+                "node '{}' names parent '{}', which no earlier node declares as an id \
              or a path of names",
-            node.name,
-            node.parent
-        )
-    })
+                node.name,
+                node.parent
+            )
+        })
 }
 
 /// Give every node a unique id, repairing what the file got wrong.

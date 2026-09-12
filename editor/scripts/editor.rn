@@ -128,6 +128,10 @@ pub fn init(this) {
         // A document is over the scene; the hooks list is beside it.
         doc_open: false,
         hooks_open: false,
+        // The code with the window to itself. `focus_was` is the layout it
+        // folded, and nothing but leaving focus reads it.
+        focus: false,
+        focus_was: (),
         layout: layout::state(),
         // Whether the centre is showing the viewport this frame, rather than
         // a document over it.
@@ -388,6 +392,11 @@ pub fn draw_ui(this) {
     if ui::shortcut("cmd+shift", "F") {
         refactor::open(S, "replace");
     }
+    // Before the split's chord: shift makes the key `|` on a US layout and
+    // leaves it `\` on others, and `⌘\` matches whatever else is held.
+    if ui::shortcut("cmd+shift", "Pipe") || ui::shortcut("cmd+shift", "Backslash") {
+        shell::toggle_focus(S);
+    }
     if ui::shortcut("cmd", "Backslash") {
         shell::toggle_split(S);
     }
@@ -489,18 +498,20 @@ pub fn draw_ui(this) {
     // Nothing below computes a rect of its own.
     center::modes(S);
     layout::compute(S);
+    // After the layout: the strip drops columns as the dock narrows, so it
+    // cannot be filled until the dock's width is known.
+    chrome::top_bar(S);
+    chrome::status_bar(S, S.theme, S.layout.bottom.w);
+    docks::right_foot(S);
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
-    // `draw_dock_*` and `draw_status` to fill them.
+    // `draw_dock_*` to fill them.
     plugins::draw_windows(S, S.theme);
     if S.show_input {
         inputview::draw(S);
     }
     if S.fontdemo {
         selftest::font_sheet(S);
-    }
-    if S.menu_open {
-        menu::preview(S);
     }
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
@@ -577,10 +588,6 @@ pub fn draw_dock_tools_bottom(this) {
     docks::draw_tools(this.S, this.S.theme, "bottom");
 }
 
-pub fn draw_dock_right_foot(this) {
-    docks::draw_right_foot(this.S, this.S.theme);
-}
-
 // One hatch for every row the inspector's pool draws itself; the cursor in
 // `inspector` keeps the calls in step with the rows that pushed them.
 pub fn draw_form_row(this) {
@@ -589,14 +596,6 @@ pub fn draw_form_row(this) {
 
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
-}
-
-pub fn draw_status(this) {
-    docks::draw_status(this.S, this.S.theme);
-}
-
-pub fn draw_top_bar(this) {
-    chrome::top_bar(this.S);
 }
 
 pub fn hot_reload(this) {

@@ -58,17 +58,6 @@ pub fn sheet(k, id, r, pad_x, pad_y, cb) {
     }, cb);
 }
 
-/// A bar is a sheet that hugs its row. Same corner as every other surface:
-/// one radius across the shell, not a capsule here and a tile there.
-pub fn bar(k, id, r, pad_x, cb) {
-    if !placed(r) {
-        return;
-    }
-    ui::overlay(id, #{
-        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h, padding_x: pad_x,
-    }, cb);
-}
-
 /// A section label: the shell's one way of naming a group of rows.
 pub fn section_label(k, title) {
     ui::add_space(11);

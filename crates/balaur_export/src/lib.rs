@@ -19,9 +19,12 @@ mod android;
 mod apple;
 mod bundle;
 mod config;
+mod extensions;
 pub mod recode;
+pub mod settings;
 mod sign;
 pub mod size;
+mod variants;
 
 use apple::AppleConfig;
 pub use bundle::web_shell;
@@ -151,6 +154,20 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     roots
 }
 
+/// Write the project's own tags for this target into the pack's manifest as
+/// `[build] tags`, where the runtime reads them before its first setting.
+///
+/// Only the pack's copy: the project on disk never carries a build's tags.
+fn bake_tags(pack: &mut balaur::Pack, own: &[String]) -> Result<()> {
+    if own.is_empty() {
+        return Ok(());
+    }
+    let names = toml::Value::Array(own.iter().cloned().map(toml::Value::String).collect());
+    pack.manifest = balaur::settings::patch(&pack.manifest, balaur::tags::BUILT, &names)
+        .context("stamping the pack's manifest with its tags")?;
+    Ok(())
+}
+
 /// Write a `.bpak`, or a standalone game when a template is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
@@ -160,9 +177,23 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
     let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
-    let apple = AppleConfig::load(&opts.path)?;
-    let android = android::AndroidConfig::load(&opts.path)?;
-    let config = ExportConfig::load(&opts.path)?;
+    // One read, resolved for the target: `[override.android.export]` is
+    // folded onto `[export]` before any of these three is parsed.
+    let manifest = config::manifest_for(&opts.path, target)?;
+    let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
+    let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
+    let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
+    // Before the pack is measured or stripped: a variant that lost is not an
+    // unreferenced asset, it is one this target was never going to carry.
+    let source = config::manifest_text(&opts.path).unwrap_or_default();
+    let tags = config::tags_for(&source, target)?;
+    let declared =
+        toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
+    let folded = variants::apply(&mut pack, &tags, &declared);
+    bake_tags(&mut pack, &config.tags)?;
+    if !folded.is_empty() {
+        tracing::info!("variants for {}: {}", tags.0.join(", "), folded.join(", "));
+    }
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));
     if summary.total_saved() > 0 {
@@ -175,6 +206,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.
     if let Some(kind) = bundle {
+        extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
         let template = match opts.template.clone() {
             Some(explicit) => explicit,
             None => find_bundle_template(kind, &opts.template_roots)?,
@@ -218,7 +250,15 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         }
         let identity = identity(opts.sign.as_deref(), &config.macos_identity);
         let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
-        let app = export_macos_app(&template, &pack.encode(), &name, output, identity, &apple)?;
+        let app = export_macos_app(
+            &template,
+            &pack.encode(),
+            &name,
+            output,
+            identity,
+            &apple,
+            &opts.path,
+        )?;
         if opts.notarize || config.notarize {
             sign::notarize(&app)?;
         }
@@ -283,12 +323,15 @@ fn export_desktop(
         template.display(),
         output.display()
     );
+    let shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
     if windows && (opts.sign.is_some() || !config.windows_certificate.is_empty()) {
         let mut config = config.clone();
         if let Some(named) = &opts.sign {
             config.windows_certificate.clone_from(named);
         }
-        sign::sign_windows(&output, &opts.path, &config)?;
+        for file in std::iter::once(&output).chain(&shipped) {
+            sign::sign_windows(file, &opts.path, &config)?;
+        }
     }
     Ok(())
 }

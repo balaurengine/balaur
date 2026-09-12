@@ -34,7 +34,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "balaur_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_script",
@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_core",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_script"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -211,10 +211,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 name = "extension_greeter"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "balaur_core",
  "balaur_plugin",
- "balaur_script",
 ]
 
 [[package]]

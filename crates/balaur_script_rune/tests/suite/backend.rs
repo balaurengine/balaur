@@ -132,6 +132,42 @@ fn a_script_calls_another_and_gets_the_return_value() {
     assert_eq!(rune.number_field(consumer, "out"), Some(21.0));
 }
 
+/// A GDScript `PanelFade.DEFAULT_SECONDS`: a module's top-level `pub const`s
+/// arrive with its functions, and a nested one stays inside.
+#[test]
+fn a_required_module_carries_its_constants() {
+    let dir = project(&[
+        (
+            "fade.rn",
+            "pub const SECONDS = 0.3;\npub const NAMES = [\"in\", \"out\"];\nconst HIDDEN = 9;\nmod inner {\n    pub const DEEP = 1;\n}\npub fn seconds() { SECONDS }\npub fn quoted() { \"pub const FAKE = 1;\" }\n",
+        ),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                let fade = script::require("fade.rn");
+                this.out = fade.SECONDS + (fade.seconds)() + fade.NAMES.len() as f64;
+                let stray = fade.get("HIDDEN").is_some() || fade.get("DEEP").is_some() || fade.get("FAKE").is_some();
+                this.hidden = if stray { 1.0 } else { 0.0 };
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "out"), Some(2.6));
+    assert_eq!(
+        rune.number_field(node, "hidden"),
+        Some(0.0),
+        "only `pub` and top-level, and not one written inside a string"
+    );
+}
+
 #[test]
 fn a_required_module_shares_functions_and_hot_reloads_in_place() {
     let dir = project(&[
@@ -790,5 +826,160 @@ fn call_all_reaches_only_the_scripts_that_declare_the_method() {
         rune.number_field(deaf, "hits"),
         Some(0.0),
         "a script that declares no handler is passed over"
+    );
+}
+
+/// A handler that takes fewer arguments than the call carries gets the ones
+/// it declares, as a Godot method connected to a richer signal does.
+#[test]
+fn a_handler_taking_fewer_arguments_gets_the_ones_it_declares() {
+    let dir = project(&[(
+        "closer.rn",
+        r"pub fn init(this) { this.closed = 0.0; }
+           pub fn on_close(this) { this.closed += 1.0; }",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Window");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "closer.rn")
+        .unwrap();
+    host.call_on(
+        balaur_core::node_id_of(node),
+        "on_close",
+        &[balaur_script::Value::Bool(false)],
+    );
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "closed"), Some(1.0));
+}
+
+/// `await door.opened` in GDScript: a task parks on the next delivery of an
+/// event and resumes with its payload.
+#[test]
+fn a_task_waits_on_the_next_event_and_gets_its_payload() {
+    let dir = project(&[(
+        "waiter.rn",
+        r#"pub async fn init(this) {
+               this.got = 0.0;
+               let payload = task::wait(events::next("opened", ())).await;
+               this.got = payload;
+           }"#,
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "waiter.rn")
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    balaur_core::events::emit(&app.engine, "opened", balaur_script::Value::Num(7.0));
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "got"), Some(7.0));
+}
+
+/// `await door.open()` in GDScript: a caller parks until another node's
+/// method returns, however long it suspended, and gets what it returned. A
+/// method that never suspends is awaited the same way.
+#[test]
+fn a_task_awaits_another_nodes_method_and_gets_its_result() {
+    let dir = project(&[
+        (
+            "door.rn",
+            r"pub async fn open(this) { task::frames(3).await; 42.0 }
+              pub fn knock(this) { 7.0 }",
+        ),
+        (
+            "caller.rn",
+            r#"pub async fn init(this) {
+                   this.opened = 0.0;
+                   this.knocked = 0.0;
+                   let door = this.node.get_node("../Door");
+                   this.knocked = task::wait(door.call_async("knock")).await;
+                   this.opened = task::wait(door.call_async("open")).await;
+               }"#,
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let door = spawn(&app, "Door");
+    let caller = spawn(&app, "Caller");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(door), "door.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(caller), "caller.rn")
+        .unwrap();
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(caller, "knocked"), Some(7.0));
+    assert_eq!(rune.number_field(caller, "opened"), Some(42.0));
+}
+
+/// Godot's `set_meta` as a component: one script files values on a node and
+/// another reads them back, by key and whole.
+#[test]
+fn values_filed_on_a_node_are_read_back_by_another_script() {
+    let dir = project(&[
+        (
+            "filer.rn",
+            r#"pub fn init(this) {
+                   let panel = this.node.get_node("../Panel");
+                   panel.meta = #{ fade: 5.0, gone: 1.0 };
+                   panel.meta["fade"] = 6.0;
+               }"#,
+        ),
+        (
+            "reader.rn",
+            r#"pub fn update(this, dt) {
+                   let panel = this.node.get_node("../Panel");
+                   this.fade = panel.meta["fade"];
+                   this.missing = if panel.meta["nothing"] is Tuple { 1.0 } else { 0.0 };
+                   this.kept = panel.meta["gone"];
+                   this.same = if panel == this.node.get_node("../Panel") { 1.0 } else { 0.0 };
+               }"#,
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    spawn(&app, "Panel");
+    let filer = spawn(&app, "Filer");
+    let reader = spawn(&app, "Reader");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(filer), "filer.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(reader), "reader.rn")
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(reader, "fade"),
+        Some(6.0),
+        "the index writes one key"
+    );
+    assert_eq!(
+        rune.number_field(reader, "kept"),
+        Some(1.0),
+        "and leaves the rest"
+    );
+    assert_eq!(
+        rune.number_field(reader, "missing"),
+        Some(1.0),
+        "an unfiled key is nil"
+    );
+    assert_eq!(
+        rune.number_field(reader, "same"),
+        Some(1.0),
+        "node handles compare"
     );
 }

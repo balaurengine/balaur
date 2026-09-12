@@ -20,6 +20,7 @@ use crate::util;
 // computed, because the rail and the document both change what is left for
 // the scene.
 pub fn modes(S) {
+    shell::keep_focus(S);
     // A tab the centre is showing is open, whoever pointed it there.
     if S.doctab == "script" {
         S.script_open = true;

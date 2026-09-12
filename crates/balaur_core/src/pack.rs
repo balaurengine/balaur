@@ -98,7 +98,8 @@ impl Pack {
             ..Default::default()
         };
         let mut files = Vec::new();
-        collect_files(&*fs, project_root, project_root, &mut files);
+        let ignored = crate::ignore::from_manifest(&pack.manifest);
+        collect_files(&*fs, project_root, project_root, &ignored, &mut files);
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
@@ -658,6 +659,7 @@ fn collect_files(
     fs: &dyn crate::files::FileBackend,
     root: &Path,
     dir: &Path,
+    ignored: &[String],
     out: &mut Vec<String>,
 ) {
     for (name, is_dir) in fs.list(dir) {
@@ -665,10 +667,17 @@ fn collect_files(
             continue;
         }
         let path = dir.join(&name);
+        let rel = path
+            .strip_prefix(root)
+            .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if crate::ignore::ignored(ignored, &rel) {
+            continue;
+        }
         if is_dir {
-            collect_files(fs, root, &path, out);
-        } else if let Ok(rel) = path.strip_prefix(root) {
-            out.push(rel.to_string_lossy().replace('\\', "/"));
+            collect_files(fs, root, &path, ignored, out);
+        } else if !rel.is_empty() {
+            out.push(rel);
         }
     }
 }

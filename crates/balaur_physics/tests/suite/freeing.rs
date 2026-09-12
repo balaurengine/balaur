@@ -259,13 +259,19 @@ fn run(scene: &str, script: &str) -> Vec<String> {
 }
 
 const TWO_BALLS: &str = r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_watcher"
 name = "Watcher"
+parent = "n_world"
 script = "scripts/s.rn"
 
 [[nodes]]
 id = "n_target"
 name = "Target"
+parent = "n_world"
 
 [nodes.transform]
 position = [0.0, 2.0, 0.0]
@@ -289,7 +295,7 @@ pub fn fixed_update(this, dt) {
     if this.ticks == 2 {
         let hit = physics3d::raycast(opts);
         this.hit_before = !(hit is Tuple);
-        let target = scene::get_node("/Target");
+        let target = scene::get_node("/World/Target");
         target.queue_free();
     }
     if this.ticks == 8 {
@@ -309,7 +315,7 @@ pub fn fixed_update(this, dt) {
 fn a_call_on_a_freed_node_errors_rather_than_panicking() {
     let errors = run(
         TWO_BALLS,
-        r#"pub fn init(this) { this.ticks = 0; this.target = scene::get_node("/Target"); }
+        r#"pub fn init(this) { this.ticks = 0; this.target = scene::get_node("/World/Target"); }
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;

@@ -7,13 +7,16 @@ use egui::{Color32, Rect, pos2};
 /// Draw the splash while its seconds last. Engine time, so a replay shows
 /// it for exactly as long as the recording did.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
-    let Some(manifest) = eng.try_resource::<balaur_core::project::ProjectManifest>() else {
-        return;
-    };
-    let (path, seconds) = {
-        let manifest = manifest.borrow();
-        (manifest.splash.clone(), f64::from(manifest.splash_seconds))
-    };
+    let path = balaur_core::settings::get(eng, "application/splash")
+        .as_ref()
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let seconds = balaur_core::settings::get(eng, "application/splash_seconds")
+        .as_ref()
+        .and_then(balaur_core::components::as_f64)
+        .unwrap_or_default()
+        .max(0.0);
     if path.is_empty() || eng.time() >= seconds {
         return;
     }

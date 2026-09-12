@@ -494,6 +494,7 @@ impl Builder<'_> {
             call: Some(method.to_string()),
             ease: None,
             wide: Vec::new(),
+            discrete: None,
         });
         Ok(())
     }
@@ -650,6 +651,7 @@ fn push_segment(
             call: None,
             ease: None,
             wide: Vec::new(),
+            discrete: None,
         });
     }
     track.keys.push(Key {
@@ -658,6 +660,7 @@ fn push_segment(
         call: None,
         ease: None,
         wide: Vec::new(),
+        discrete: None,
     });
     track.keys.push(Key {
         t: start + duration,
@@ -665,6 +668,7 @@ fn push_segment(
         call: None,
         ease,
         wide: Vec::new(),
+        discrete: None,
     });
 }
 
@@ -692,6 +696,18 @@ fn current_value(
     {
         return component_value(eng, entity, component, property, channels);
     }
+    // Both live on `Appearance`, which a node has even where it has no
+    // transform, so they are read before the transform is asked for.
+    if matches!(property, Property::Visible | Property::Tint) {
+        let world = eng.world();
+        let appearance = world
+            .get::<&balaur_core::scene::Appearance>(entity)
+            .map_err(|_| anyhow!("node is dead"))?;
+        return Ok(match property {
+            Property::Visible => Vec4::new(f32::from(u8::from(appearance.visible)), 0.0, 0.0, 0.0),
+            _ => appearance.tint,
+        });
+    }
     let world = eng.world();
     let transform = world
         .get::<&Transform>(entity)
@@ -703,7 +719,12 @@ fn current_value(
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
         Property::Rotation => Vec4::from(transform.rotation),
-        Property::Component { .. } | Property::Call | Property::Deform => Vec4::ZERO,
+        // Visibility and tint were answered above, before the transform.
+        Property::Visible
+        | Property::Tint
+        | Property::Component { .. }
+        | Property::Call
+        | Property::Deform => Vec4::ZERO,
     })
 }
 

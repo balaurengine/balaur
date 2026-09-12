@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 379 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 380 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 `WEB_THREADS=1` builds the second template, which adds `parallel` to that

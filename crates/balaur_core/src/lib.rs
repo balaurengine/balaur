@@ -9,6 +9,7 @@
 pub mod app;
 pub mod asset_index;
 pub mod assets;
+pub mod attachments;
 mod batteries_api;
 pub mod bindings;
 pub mod cloner;
@@ -37,18 +38,21 @@ pub mod handler;
 pub mod heightfield;
 pub mod hooks;
 pub mod ids;
+pub mod ignore;
 pub mod import;
 pub mod logbuf;
 pub mod math_api;
 pub mod mesh;
 pub mod netsession;
 pub mod node_api;
+pub mod node_meta;
 pub mod pack;
 pub mod path;
 pub mod plugins;
 pub mod presets;
 pub mod primitive;
 pub mod project;
+mod project_files;
 pub mod replay;
 pub mod replay_api;
 pub mod resources;
@@ -66,8 +70,10 @@ pub mod snapshot;
 pub mod standalone;
 pub mod states;
 pub mod strings;
+pub mod tags;
 pub mod tiles;
 pub mod time;
+pub mod timer;
 pub mod timers;
 pub mod timings;
 pub mod transform;
@@ -108,6 +114,9 @@ pub struct UserActivation;
 
 pub use glamx;
 pub use hecs;
+/// The platform-identical float math DETERMINISM.md asks for, for a crate
+/// that has no reason to depend on it for anything else.
+pub use libm;
 
 /// Re-hydrate a script's node handle.
 ///

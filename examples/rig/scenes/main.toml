@@ -3,9 +3,13 @@
 # `jiggle`, a `polygon/deform` track, and the ragdoll `scripts/fall.rn` builds.
 
 [[nodes]]
+id = "n_main"
+name = "Main"
+
+[[nodes]]
 id = "n_camera"
 name = "Camera"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [0, 0, 0]
@@ -17,7 +21,7 @@ zoom = 110
 [[nodes]]
 id = "n_ground"
 name = "Ground"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [0, -1.5, 0]
@@ -36,7 +40,7 @@ friction = 0.9
 [[nodes]]
 id = "n_hero"
 name = "Hero"
-parent = ""
+parent = "n_main"
 script = "scripts/fall.rn"
 
 [nodes.transform]
@@ -329,7 +333,7 @@ weights = [0, 0, 0, 0.4, 0.8, 0.4, 0]
 [[nodes]]
 id = "n_hud"
 name = "Hud"
-parent = ""
+parent = "n_main"
 
 [nodes.widget]
 anchor = "top_left"

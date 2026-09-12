@@ -45,8 +45,13 @@ fn run_clean(scene: &str, script: &str) {
 fn a_trigger_calls_its_script_when_something_enters() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_trigger"
 name = "Trigger"
+parent = "n_world"
 script = "scripts/s.rn"
 
 [nodes.collider3d]
@@ -58,6 +63,7 @@ events = ["collision"]
 [[nodes]]
 id = "n_faller"
 name = "Faller"
+parent = "n_world"
 body3d = "dynamic"
 
 [nodes.transform]
@@ -87,8 +93,13 @@ pub fn fixed_update(this, dt) {
 fn a_joint_holds_two_bodies_together() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_anchor"
 name = "Anchor"
+parent = "n_world"
 body3d = "static"
 
 [nodes.collider3d]
@@ -98,6 +109,7 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
+parent = "n_world"
 body3d = "dynamic"
 script = "scripts/s.rn"
 
@@ -110,7 +122,7 @@ radius = 0.2
 
 [nodes.joint3d]
 kind = "revolute"
-body = "/Anchor"
+body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
@@ -135,8 +147,13 @@ pub fn fixed_update(this, dt) {
 fn a_joint_on_a_bodiless_child_ties_the_body_above_it() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_anchor"
 name = "Anchor"
+parent = "n_world"
 body3d = "static"
 
 [nodes.collider3d]
@@ -146,6 +163,7 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
+parent = "n_world"
 body3d = "dynamic"
 script = "scripts/s.rn"
 
@@ -163,7 +181,7 @@ parent = "n_hanging"
 
 [nodes.joint3d]
 kind = "revolute"
-body = "/Anchor"
+body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
@@ -186,8 +204,13 @@ pub fn fixed_update(this, dt) {
 fn a_2d_joint_on_a_bodiless_child_ties_the_body_above_it() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_anchor"
 name = "Anchor"
+parent = "n_world"
 body2d = "static"
 
 [nodes.collider2d]
@@ -197,6 +220,7 @@ radius = 0.2
 [[nodes]]
 id = "n_hanging"
 name = "Hanging"
+parent = "n_world"
 body2d = "dynamic"
 script = "scripts/s.rn"
 
@@ -214,7 +238,7 @@ parent = "n_hanging"
 
 [nodes.joint2d]
 kind = "revolute"
-body = "/Anchor"
+body = "/World/Anchor"
 anchor = [-1.0, 0.0]
 "#,
         r#"pub fn init(this) { this.ticks = 0; }
@@ -238,8 +262,13 @@ pub fn fixed_update(this, dt) {
 fn a_joint_waits_for_a_node_that_comes_later() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_hanging"
 name = "Hanging"
+parent = "n_world"
 body3d = "dynamic"
 script = "scripts/s.rn"
 
@@ -252,12 +281,13 @@ radius = 0.2
 
 [nodes.joint3d]
 kind = "revolute"
-body = "/Anchor"
+body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
 
 [[nodes]]
 id = "n_anchor"
 name = "Anchor"
+parent = "n_world"
 body3d = "static"
 
 [nodes.collider3d]
@@ -284,8 +314,13 @@ pub fn fixed_update(this, dt) {
 fn a_character_slides_along_a_wall_instead_of_entering_it() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_wall"
 name = "Wall"
+parent = "n_world"
 
 [nodes.transform]
 position = [2.0, 0.0, 0.0]
@@ -297,6 +332,7 @@ half_extents = [0.5, 4.0, 8.0]
 [[nodes]]
 id = "n_player"
 name = "Player"
+parent = "n_world"
 script = "scripts/s.rn"
 
 [nodes.collider3d]
@@ -416,8 +452,13 @@ fn joints_and_shape_edits_survive_a_snapshot() {
 fn asking_is_grounded_does_not_move_the_character() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_floor"
 name = "Floor"
+parent = "n_world"
 
 [nodes.transform]
 position = [0.0, -1.0, 0.0]
@@ -429,6 +470,7 @@ half_extents = [8.0, 0.5, 8.0]
 [[nodes]]
 id = "n_player"
 name = "Player"
+parent = "n_world"
 script = "scripts/s.rn"
 
 [nodes.transform]
@@ -513,8 +555,13 @@ pub fn fixed_update(this, dt) {
 fn a_contact_point_is_reported_in_world_space() {
     run_clean(
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_ground"
 name = "Ground"
+parent = "n_world"
 
 [nodes.transform]
 position = [0.0, -10.0, 0.0]
@@ -526,6 +573,7 @@ half_extents = [8.0, 0.5, 8.0]
 [[nodes]]
 id = "n_faller"
 name = "Faller"
+parent = "n_world"
 body3d = "dynamic"
 script = "scripts/s.rn"
 

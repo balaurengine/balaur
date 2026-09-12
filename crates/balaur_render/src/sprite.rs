@@ -42,6 +42,14 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
                 r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }"#,
             ),
             (
+                k::OFFSET,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the image sits against the node, in texture pixels with y down; turns and scales with the node" }"#,
+            ),
+            (
+                k::CENTERED,
+                r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there" }"#,
+            ),
+            (
                 k::HALF_EXTENTS,
                 r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
             ),
@@ -135,6 +143,8 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                     })
                 });
                 let ppu = num(k::PIXELS_PER_UNIT) as f32;
+                let offset = [pair(k::OFFSET, 0), pair(k::OFFSET, 1)];
+                let per = if ppu > 0.0 { ppu } else { crate::DEFAULT_PIXELS_PER_UNIT };
                 set_sprite(
                     eng,
                     entity,
@@ -147,6 +157,9 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                         region,
                         sheet_asset,
                         sheet_texture,
+                        offset,
+                        centered: params.get(k::CENTERED).and_then(toml::Value::as_bool) != Some(false),
+                        shift: [offset[0] / per, -offset[1] / per],
                     },
                     explicit,
                     if ppu > 0.0 {
@@ -234,6 +247,14 @@ fn read_sprite(
     }
     map.insert(k::FRAME.into(), toml::Value::Float(f64::from(sprite.frame)));
     map.insert(k::FLIP_X.into(), toml::Value::Boolean(sprite.flip_x));
+    map.insert(
+        k::OFFSET.into(),
+        toml::Value::Array(vec![
+            toml::Value::Float(f64::from(sprite.offset[0])),
+            toml::Value::Float(f64::from(sprite.offset[1])),
+        ]),
+    );
+    map.insert(k::CENTERED.into(), toml::Value::Boolean(sprite.centered));
     map.insert(k::FLIP_Y.into(), toml::Value::Boolean(sprite.flip_y));
     // A region the sheet chose is derived, and reporting it would pin the
     // quad to one frame the first time anything patched the component.

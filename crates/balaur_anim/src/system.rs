@@ -44,6 +44,9 @@ pub(crate) enum Effect {
     Deform { entity: Entity, offsets: Vec<f32> },
 }
 
+/// What a player's node emits when a clip ends, with the clip's name.
+pub const FINISHED_EVENT: &str = "animation_finished";
+
 /// The method a node's script is called with when a tween on it ends.
 const TWEEN_FINISHED_METHOD: &str = "on_tween_finished";
 
@@ -107,6 +110,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     let mut effects = Vec::new();
     let mut ended: Vec<Entity> = Vec::new();
     refresh_reloaded_clips(eng);
+    crate::machine::prepare(eng);
     {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
@@ -115,6 +119,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         // `Playback` and `Tween` live here, not on the entity, so this is the
         // first place a `queue_free`d node's leftovers can be dropped.
         state.players.retain(|&entity, _| world.contains(entity));
+        state.machines.retain(|&entity, _| world.contains(entity));
         state
             .tweens
             .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
@@ -125,11 +130,14 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         }
         state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
         while state.accumulator >= FIXED_DT {
+            let mut ended_now = Vec::new();
             for (&entity, playback) in &mut state.players {
                 if advance_playback(&world, entity, playback, &mut effects) {
-                    ended.push(entity);
+                    ended_now.push(entity);
                 }
             }
+            crate::machine::step(&world, &mut state.machines, &mut state.players, &ended_now);
+            ended.extend(ended_now);
             // Tweens come after the players, so a tween is what lands on a
             // property both of them drive. One waiting on another sits out
             // the step; the step after that tween is gone, it begins.
@@ -198,6 +206,24 @@ fn advance_playback(
         playback.finished = playback.clip_name.clone();
     }
     let pose = sampler::sample(&clip, time);
+    let pose = match playback.fade.as_mut() {
+        Some(fade) => {
+            fade.elapsed += FIXED_DT;
+            fade.time += FIXED_DT * fade.speed;
+            let (leaving_at, _) = sampler::clip_time(&fade.clip, fade.time);
+            let leaving = sampler::sample(&fade.clip, leaving_at);
+            let weight = fade.elapsed / fade.duration;
+            sampler::blend(&fade.clip, leaving, &clip, pose, weight)
+        }
+        None => pose,
+    };
+    if playback
+        .fade
+        .as_ref()
+        .is_some_and(|fade| fade.elapsed >= fade.duration)
+    {
+        playback.fade = None;
+    }
     write_pose(
         world,
         entity,
@@ -287,6 +313,21 @@ pub(crate) fn write_pose(
             });
             continue;
         }
+        if let TrackValue::Discrete(raw) = value {
+            if let Property::Component {
+                component,
+                property,
+            } = &track.property
+            {
+                effects.push(Effect::Patch {
+                    entity: target,
+                    component: component.clone(),
+                    property: property.clone(),
+                    value: raw,
+                });
+            }
+            continue;
+        }
         if let TrackValue::Property { value, channels } = value {
             let Property::Component {
                 component,
@@ -301,6 +342,19 @@ pub(crate) fn write_pose(
                 property: property.clone(),
                 value: numbers(value, channels),
             });
+            continue;
+        }
+        // On `Appearance`, which every node carries, so these are written
+        // before the transform below is asked for and a bare grouping node
+        // fades and hides like any other.
+        if matches!(value, TrackValue::Visible(_) | TrackValue::Tint(_)) {
+            if let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) {
+                match value {
+                    TrackValue::Visible(on) => appearance.visible = on,
+                    TrackValue::Tint(tint) => appearance.tint = tint,
+                    _ => {}
+                }
+            }
             continue;
         }
         let Ok(mut transform) = world.get::<&mut Transform>(target) else {
@@ -334,7 +388,13 @@ pub(crate) fn write_pose(
                 };
             }
             TrackValue::Scale(scale) => transform.scale = scale,
-            TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => {}
+            // The appearance ones were written above, not on the transform.
+            TrackValue::Visible(_)
+            | TrackValue::Tint(_)
+            | TrackValue::Discrete(_)
+            | TrackValue::Property { .. }
+            | TrackValue::None
+            | TrackValue::Deform(_) => {}
         }
     }
 }
@@ -417,7 +477,14 @@ fn transform_patch(value: &TrackValue) -> Option<(String, toml::Value)> {
                 vector(Vec3::new(roll, pitch, yaw)),
             ))
         }
-        TrackValue::Property { .. } | TrackValue::None | TrackValue::Deform(_) => None,
+        // Not transform properties: visibility and tint are written on the
+        // appearance, which every node has, so they never reach this patch.
+        TrackValue::Visible(_)
+        | TrackValue::Tint(_)
+        | TrackValue::Discrete(_)
+        | TrackValue::Property { .. }
+        | TrackValue::None
+        | TrackValue::Deform(_) => None,
     }
 }
 
@@ -527,6 +594,14 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
                 .map(|playback| playback.finished.clone())
                 .unwrap_or_default()
         };
+        // Also an event from the player's node, which a binding row answers
+        // with no script: Godot's `animation_finished` connected in a scene.
+        balaur_core::events::emit_from(
+            eng,
+            entity,
+            FINISHED_EVENT,
+            balaur_script::Value::Str(finished.clone()),
+        );
         if let Some(host) = eng.script_host() {
             host.call_on(
                 balaur_core::node_id_of(entity),

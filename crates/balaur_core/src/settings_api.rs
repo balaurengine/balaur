@@ -35,11 +35,18 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
          `physics/solver_iterations` is `[physics] solver_iterations` in \
          project.toml. A project setting ships with the game; an editor one \
          stays on the machine that set it. Define your own with `define` and \
-         it appears in the settings screen beside the engine's.",
+         it appears in the settings screen beside the engine's. One key may \
+         hold an answer per platform: `[override.android.window] orientation` \
+         is what `window/orientation` reads on a phone.",
     );
     m.describe(&[
         ("all", &[], "()", "Every defined setting as `{ path, scope, spec }`, in definition order."),
-        ("get", &[], "(path: string)", "One setting's value: what was set, else what its definition defaults to, else nil."),
+        ("get", &[], "(path: string)", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
+        ("base", &[], "(path: string)", "What the file says, ignoring every override: what a settings screen edits."),
+        ("tags", &[], "()", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
+        ("known_tags", &[], "()", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
+        ("overrides", &[], "(path: string)", "The tags this project holds an override for at `path`, in tag order."),
+        ("clear", &[], "(path: string)", "Forget one value, so the next write drops the key: how an override is removed."),
         ("set", &[], "(path: string, value: any)", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
         ("define", &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
         ("load", &[], "(text: string)", "Read values out of a TOML text, folding them onto what is already loaded."),
@@ -69,6 +76,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
             .and_then(|v| from_toml(&v).ok())
             .unwrap_or(Value::Nil))
     });
+    install_override_api(m);
     m.function("set", |eng: &Engine, (path, value): (String, Value)| {
         settings::set(eng, &path, to_toml(&value)?);
         Ok(Value::Nil)
@@ -101,4 +109,41 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
             )?))
         },
     );
+}
+
+/// The calls the settings screen needs for a key with more than one answer:
+/// the file's own value, the tags in play, and the overrides a key carries.
+fn install_override_api(m: &mut dyn Bindings<Engine>) {
+    m.function("base", |eng: &Engine, path: String| {
+        Ok(settings::base(eng, &path)
+            .and_then(|v| from_toml(&v).ok())
+            .unwrap_or(Value::Nil))
+    });
+    m.function("tags", |eng: &Engine, (): ()| {
+        let tags = eng.resource::<crate::tags::Tags>();
+        let tags = tags.borrow();
+        Ok(Value::List(
+            tags.0.iter().cloned().map(Value::Str).collect(),
+        ))
+    });
+    m.function("known_tags", |eng: &Engine, (): ()| {
+        Ok(Value::List(
+            settings::known_tags(eng)
+                .into_iter()
+                .map(Value::Str)
+                .collect(),
+        ))
+    });
+    m.function("overrides", |eng: &Engine, path: String| {
+        Ok(Value::List(
+            settings::overrides(eng, &path)
+                .into_iter()
+                .map(Value::Str)
+                .collect(),
+        ))
+    });
+    m.function("clear", |eng: &Engine, path: String| {
+        settings::clear(eng, &path);
+        Ok(Value::Nil)
+    });
 }

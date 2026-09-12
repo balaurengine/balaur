@@ -19,6 +19,7 @@ use rune::{Source, Sources};
 
 use crate::RuneHost;
 use crate::api::collect_modules;
+use crate::handles;
 
 /// What a completion is, so a client can pick an icon for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -196,38 +197,29 @@ pub(crate) fn classify(source: &str, offset: usize) -> At {
     At::Instance { prefix }
 }
 
-/// The methods each component's handle offers, from what every function
-/// declared it acts on. The same map `value::component` builds the handle
-/// from, so the popup and the call agree.
+/// The methods each component's handle offers, from the drives table
+/// `value::component` builds the handle from, so the popup and the call
+/// agree.
 fn handle_methods() -> BTreeMap<String, BTreeMap<String, (String, String)>> {
+    let modules = collect_modules();
     let mut out: BTreeMap<String, BTreeMap<String, (String, String)>> = BTreeMap::new();
-    for (module_name, module) in collect_modules() {
-        for (name, components) in &module.acts_on {
-            let signature = signature_display(module.signatures.get(name));
-            let doc = module.docs.get(name).cloned().unwrap_or_default();
-            for component in components {
-                out.entry(component.clone()).or_default().insert(
-                    name.clone(),
-                    (format!("{module_name}::{name}{signature}"), doc.clone()),
-                );
-            }
+    for (name, targets) in handles::drives() {
+        for (component, module_name) in targets {
+            let (signature, doc) = match modules.get(&module_name) {
+                Some(module) => (
+                    signature_display(module.signatures.get(&name)),
+                    module.docs.get(&name).cloned().unwrap_or_default(),
+                ),
+                None => (String::new(), String::new()),
+            };
+            out.entry(component).or_default().insert(
+                name.clone(),
+                (format!("{module_name}::{name}{signature}"), doc),
+            );
         }
     }
     out
 }
-
-/// The six a handle answers whatever it is on, from `value::component`.
-const GENERIC: &[(&str, &str)] = &[
-    ("get", "Read one of the component's properties by name."),
-    ("set", "Write one of the component's properties by name."),
-    ("has", "Whether the node carries this component."),
-    (
-        "add",
-        "Give the node this component, with the given properties.",
-    ),
-    ("remove", "Take this component off the node."),
-    ("props", "Every property of this component, as an object."),
-];
 
 impl RuneHost {
     /// Every completion valid at `line`:`column` of `source`, best first.
@@ -306,16 +298,16 @@ impl RuneHost {
                 });
             }
         }
-        for (name, doc) in GENERIC {
-            if !name.starts_with(prefix) {
+        for op in handles::GENERIC {
+            if !op.method.starts_with(prefix) {
                 continue;
             }
             out.push(Completion {
-                label: (*name).to_string(),
+                label: op.method.to_string(),
                 kind: Kind::Method,
                 detail: String::new(),
-                doc: (*doc).to_string(),
-                insert: (*name).to_string(),
+                doc: op.doc.to_string(),
+                insert: op.method.to_string(),
             });
         }
     }
@@ -557,11 +549,11 @@ impl RuneHost {
                     });
                 }
             }
-            if let Some((generic, doc)) = GENERIC.iter().find(|(g, _)| *g == name) {
+            if let Some(op) = handles::GENERIC.iter().find(|g| g.method == name) {
                 return Some(Hover {
-                    title: (*generic).to_string(),
+                    title: op.method.to_string(),
                     detail: "component handle".to_string(),
-                    doc: (*doc).to_string(),
+                    doc: op.doc.to_string(),
                 });
             }
             let node = modules.get("node")?;

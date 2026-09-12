@@ -258,9 +258,11 @@ pub(crate) fn sync_particles(
             slot.nodes.clear();
             slot.texture.clone_from(&emitter.texture);
         }
-        let visible = world
+        let appearance = world
             .get::<&GlobalAppearance>(entity)
-            .is_ok_and(|a| a.visible);
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let visible = appearance.visible;
+        let inherited = appearance.tint.to_array();
         while slot.nodes.len() < slot.particles.len() {
             let mut node = scene.add_rectangle(1.0, 1.0);
             crate::texture::attach_texture_2d(&app.engine, &mut node, &emitter.texture);
@@ -272,7 +274,8 @@ pub(crate) fn sync_particles(
                 continue;
             };
             let t = (particle.age / particle.lifetime).clamp(0.0, 1.0);
-            let color = blend(emitter.color, emitter.color_end, t);
+            let color =
+                crate::sync_2d::modulate(blend(emitter.color, emitter.color_end, t), inherited);
             let end = if emitter.size_end < 0.0 {
                 emitter.size
             } else {

@@ -48,20 +48,18 @@ grow = 1
 gap = 8
 align = "center"
 
-# The brand, which is the shell's one menu, and then everything else as a
-# strip `chrome.rn` fills: how many personas and documents there are changes
-# with the persona and with what is open, so the bar cannot be authored.
+# The brand, the shell's one menu, then a strip: how many personas and
+# documents there are changes with what is open, so `chrome.rn` fills both.
 [[nodes]]
-id = "head_body"
-name = "HeadBody"
+id = "brand"
+name = "Brand"
 parent = "head_row"
 [nodes.widget]
-kind = "draw"
-draw = "draw_top_bar"
-# Stated, both ways: a `draw` node is measured by what it drew, so one that
-# is handed a zero box never draws and never gets a size.
-width = 118
+kind = "menu"
+role = "brand"
+tooltip = "Menu"
 height = 26
+gap = 0
 
 [[nodes]]
 id = "head_strip"
@@ -237,9 +235,10 @@ grow = 1
 id = "right_foot"
 name = "RightFoot"
 parent = "right_sheet"
+# One button, so a pooled row rather than a hatch.
 [nodes.widget]
-kind = "draw"
-draw = "draw_dock_right_foot"
+kind = "row"
+align = "center"
 height = 36
 
 # The Inspector's and Import's rows: a form whose fields change with the
@@ -425,9 +424,12 @@ grow = 1
 id = "status"
 name = "Status"
 parent = "bottom"
+# A pooled row, not a hatch: the strip is labels and a dot, so the theme can
+# dress it and the layout can keep its boxes between passes.
 [nodes.widget]
-kind = "draw"
-draw = "draw_status"
+kind = "row"
+align = "center"
+gap = 8
 height = 24
 
 [[nodes]]

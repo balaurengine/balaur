@@ -33,7 +33,7 @@ matches.
 
 ## 1. What balaur has
 
-`widget` component, drawn by `crates/balaur_ui/src/widget_layer.rs`:
+`widget` component, drawn by `crates/balaur_ui/src/widget/layer.rs`:
 
 This was the table when the research was written; phases 1–2 struck the
 middle three rows.

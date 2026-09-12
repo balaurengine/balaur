@@ -37,14 +37,14 @@ Built, and load-bearing for a 2D game:
 | Rapier 2D: every body kind, sensors with `overlaps`, joints, `character2d`, the query pipeline, 32 layers, one-way platforms | `crates/balaur_physics/src/dim2`, `docs/PLAN-rapier.md` |
 | `tilemap` over a `tileset` atlas; `particles`; `shape2d` polyline with `width`, `closed` and `material`; `light2d` and `occluder2d` | `crates/balaur_render/src/{tilemap,particles,shape,light}.rs` |
 | `material` assets in WESL on `sprite`, `shape2d`, `polygon`, with a vertex stage that displaces, `time()`, hot reload and sourcemapped errors | `crates/balaur_render/src/shaders/sprite.wesl`, `docs/PLAN-shaders.md` phases 1–8 |
-| Widgets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab`, `draw`, `image`; `widget_theme`; focus for pad and keyboard; `ui.set_scale` | `crates/balaur_ui/src/widget_layer.rs`, `docs/PLAN-ui-layout.md` |
+| Widgets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab`, `draw`, `image`; `widget_theme`; focus for pad and keyboard; `ui.set_scale` | `crates/balaur_ui/src/widget/`, `docs/PLAN-ui-layout.md` |
 | Immediate-mode `ui`: `text_field`, `code_editor`, `toggle`, `slider`, `dropdown`, `modal`, `window` | `crates/balaur_ui/src/lib.rs` |
 | Touch with phases and indices, mouse, keyboard, `typed`, actions with rebinding, gamepads with rumble | `crates/balaur_input`, `docs/PLAN-input.md` |
 | Audio from ogg, wav, mp3 and flac, decoded from bytes, played from a project or absolute path; buses as a gain tree; positional audio; audio events | `crates/balaur_audio/src/{cache,bus,spatial,event}.rs` |
 | `http.request` (ureq native, Fetch on wasm); websockets with binary frames and deflate, with a browser backend; QUIC natively | `crates/balaur_http`, `crates/balaur_websocket`, `crates/balaur_webtransport` |
 | `gamend.*`: login, REST, `connect`, `join`, `push`, `leave`, `call_hook`, Phoenix Channels V2 | `crates/balaur_gamend` |
 | `save`, `settings`, `fs`, `json`, `toml`; `strings.tr` with interpolation and plurals; `strings/<locale>.toml` | `crates/balaur_core/src/{save,settings,file_api,strings}.rs` |
-| A project's own `fonts/*.ttf` loaded as a fallback chain ahead of the bundled and system faces | `crates/balaur_ui/src/theme.rs:194` |
+| A project's own `fonts/*.ttf` loaded as a fallback chain ahead of the bundled and system faces | `crates/balaur_text/src/fonts.rs` |
 | `platform.*` and its Apple backend: sign-in, Game Center, iCloud, StoreKit, notifications, inbound URLs | `crates/balaur_platform`, `crates/balaur_apple`, `docs/PLAN-apple.md` |
 | A fused desktop binary, a signed macOS `.app`, an unsigned iOS `.app`, an unsigned APK, a wasm build that boots a pack on a canvas | `crates/balaur_export`, `crates/balaur_cli/src/web.rs` |
 | One fixed tick, record and replay, a digest, rollback | `Stage::FixedUpdate`, `balaur_core::{replay,digest,rollback}` |
@@ -216,7 +216,7 @@ in the game; "not planned" is a deliberate no.
 | Hinting, subpixel positioning, OpenType features | Step 2 for hinting and subpixel; `liga` and `kern` come with the shaper; anything further is a game that has asked |
 | Inline marks in a localized string | Step 2: `markup = true` on `label`, the span parser in §1 |
 | A text input in the scene tree | Step 2: a `field` widget kind, single-line, with `placeholder`, `max_length`, `secret`, `numeric`, `on_change`, `on_submit`; multi-line is `ui.code_editor` today and a `text` kind when asked |
-| Room above the on-screen keyboard | Step 2: `render.keyboard_height()`, in the input snapshot |
+| Room above the on-screen keyboard | Have: `input.keyboard_height()`, recorded on `DeviceFacts`, read from the page, UIKit and the Android activity; `avoid_keyboard` on a root widget lifts it clear. `docs/PLAN-touch.md` |
 | Composed input for CJK | Have: winit's `Ime` events through the fork's `Window::ime_events`; committed text lands in `input.typed`, the preedit in `input.composing()`, and egui's fields compose the same way. A page composes nothing: a browser only composes into an editable element, and a proxy input is **not planned** until a web text field asks |
 | Word wrap that knows CJK and Thai | Step 2: `wrap = "word"` gains the shaper's line breaker; nothing else changes |
 | Text to speech, speech recognition | Not planned; nothing has asked |
@@ -278,7 +278,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Touch, drag, multi-touch by index | Have |
-| Pinch and two-finger pan | Have as raw touches; a gesture recogniser **not planned** — two points and a distance are three lines of script |
+| Pinch and two-finger pan | Have: `input.pinch()` and `input.pan()`, with `swipe()` and `long_press()` beside them, derived from the recorded touches. This row once said *not planned*; `docs/PLAN-touch.md` reversed it, since a scene wanting one wants all four |
 | Mouse as a touch on desktop | Have: a script reads both; a `touch_from_mouse` setting is a step 4 convenience |
 | Actions bound to keys, pad and axes | Have: `[input.actions]` |
 | A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |

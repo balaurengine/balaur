@@ -1,15 +1,15 @@
-> **Status:** step 1 part-built, 2026-09-06. The sidecar is
+> **Status:** steps 1 and 2 built, 2026-09-10. The sidecar is
 > `art/hero.png.toml` and the project's defaults are `[import.<kind>]`, both
 > resolved by `balaur_core::import` for every kind of asset rather than
-> textures alone; `filter` and `srgb` reach the upload, and the resolved
-> settings ride in the name a texture is uploaded under. What is left of step
-> 1: `repeat`, `mipmaps`, `anisotropy`, `premultiply` and the per-axis keys,
-> which kiss3d's `TextureManager` does not expose per texture — `add_image`,
-> `add_image_pixelated` and `add_image_with_color_space` are the whole of what
-> a caller may ask for, so the fork gains a call that takes a sampler before
-> this plan can. The `texture` asset type and the inline table are not built:
-> a sidecar and a project default are, and an inline `{ source = ... }` is
-> not read yet.
+> textures alone. `filter`, `mag_filter`, `min_filter`, `repeat`, `repeat_u`,
+> `repeat_v`, `mipmaps`, `mipmap_filter`, `anisotropy`, `srgb` and
+> `premultiply` all reach the upload through kiss3d's `TextureSampling`, and
+> the resolved settings ride in the name a texture is uploaded under. The
+> Import tab draws a row apiece and Settings draws the project-wide defaults.
+> What is left: step 3, compression and `max_size` at export, and step 4,
+> `balaur atlas`. The `texture` asset type and the inline table are not
+> built: a sidecar and a project default are, and an inline
+> `{ source = ... }` is not read yet.
 
 # Plan: texture import settings
 
@@ -18,11 +18,10 @@
 - A texture is a string: `sprite.texture`, `mesh.texture`,
   `tileset.texture`, `particles.texture`, `widget.source` and `shape2d`'s
   polyline `texture` all name a project-relative image.
-- The image is uploaded through kiss3d's `TextureManager` with what the fork
-  passes at every call site: `AddressMode::Repeat`, `FilterMode::Linear`, no
-  mipmaps (`../kiss3d/src/resource/texture_manager.rs:262-309`). The manager
-  takes an address mode, a filter and a `generate_mipmaps` flag, so the
-  settings exist one call below the engine.
+- The image is uploaded through kiss3d's `TextureManager::add_image_sampled`,
+  which takes a whole `TextureSampling`: wrapping per axis, a filter per
+  magnification, minification and mip level, anisotropy, the colour space and
+  premultiplied alpha.
 - The header is read in every build for the sprite's size, so a headless run
   sizes a sprite as a windowed one does; nothing else about an image is read.
 - Hot reload re-uploads an image under its path and modification time.
@@ -71,7 +70,7 @@ a comparison sampler is what shadow maps use and nothing else).
 | Mipmaps | Step 1: `mipmaps = true` generates the chain on upload through the manager's flag; `mipmap_filter` |
 | Anisotropic filtering | Step 1: `anisotropy = 1..16`; refused with a warning on `nearest` |
 | Colour versus data textures | Step 1: `srgb = true` by default; a normal map or a mask sets `false` so the sampler returns raw values |
-| Premultiplied alpha | Step 1: `premultiply = true` at upload, so a sprite with soft edges blends without a dark fringe |
+| Premultiplied alpha | Step 1: `premultiply = true` at upload, in linear light, so a sprite with soft edges blends without a dark fringe. A 2D node takes `Blend2d::PremultipliedAlpha` to match; a 3D mesh has no blend mode to set, so it draws the same image straight and says so |
 | A project-wide default | Step 1: `[textures]` in `project.toml` |
 | The editor writing the sidecar | Step 2: an Import section when an image is selected in the Assets dock, with the same generated rows every asset type gets; Settings shows the project defaults |
 | Compressed textures on the GPU | Step 3: `compression = "none" \| "bc" \| "etc2" \| "astc"` written at export per target into the pack as KTX2 (`ktx2` crate to read, `basis-universal` or `intel_tex_2` to encode — both carry a C++ build, which is the constraint); wgpu picks the format the adapter has, falling back to the decoded image. A memory and upload-time lever, not a download one: on disk BC7 is a byte a pixel, twelve times a 512² logo's PNG |
@@ -83,16 +82,15 @@ a comparison sampler is what shadow maps use and nothing else).
 
 ## 3. Steps
 
-1. *Part done, 2026-09-06.* The sidecar, the project defaults and the upload
-   path reading them; `examples/rig` moves to `nearest`. Left: a kiss3d call
-   taking a whole sampler, then `repeat`, `mipmaps`, `anisotropy` and
-   `premultiply`; the `texture` asset type and the inline table.
-2. *Part done, 2026-09-06.* An Import tab in the right dock, beside the
-   Inspector, for the file the Assets dock has selected: `filter` and `srgb`,
-   each row saying whether the value is the file's own, the project's or the
-   engine's, with a clear that drops the key and removes an emptied sidecar.
-   `importdemo` covers it. Left: the Settings rows for the project-wide
-   defaults.
+1. *Done, 2026-09-10.* The sidecar, the project defaults and the upload path
+   reading them, over a kiss3d call that takes a whole sampler;
+   `examples/rig` moves to `nearest`. Left for its own step: the `texture`
+   asset type and the inline table.
+2. *Done, 2026-09-10.* An Import tab in the right dock, beside the
+   Inspector, for the file the Assets dock has selected, and the same keys
+   again in Settings as the project-wide defaults. Each row says whether the
+   value is the file's own, the project's or the engine's, with a clear that
+   drops the key and removes an emptied sidecar. `importdemo` covers it.
 3. Compression and `max_size` at export.
 4. `balaur atlas`.
 

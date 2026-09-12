@@ -43,10 +43,10 @@ pub fn update(this, dt) {
     // On a sphere around the pivot, and turned to face back down at it: with
     // no yaw the camera sits at +z and looks along -z, which is the pivot.
     let flat = math::cos(pitch) * this.range;
-    this.node.set_position(
+    this.node.transform.position = [
         math::sin(yaw) * flat,
         -math::sin(pitch) * this.range,
         math::cos(yaw) * flat,
-    );
-    this.node.set_rotation_degrees(this.pitch, this.yaw, 0.0);
+    ];
+    this.node.transform.rotation_euler = [pitch, yaw, 0.0];
 }

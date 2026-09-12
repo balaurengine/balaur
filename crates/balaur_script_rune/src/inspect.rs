@@ -5,6 +5,7 @@
 //! Nothing here runs during a frame — the editor's inspector, the script
 //! checker and `script::functions` are the callers.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
@@ -12,8 +13,61 @@ use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
+use hecs::Entity;
+
+use crate::handles;
 use crate::packed::PackSourceLoader;
+use crate::value::Node;
 use crate::{RuneHost, value};
+
+/// The function `script::require` reads a module's constants through.
+pub(crate) const CONSTANTS_FN: &str = "__balaur_constants";
+
+/// The source with one more function, returning every top-level `pub const`
+/// by name: Rune keeps constants inside the unit, where a caller holding the
+/// module cannot reach them. A source with none comes back as it was.
+///
+/// The names come off a parse rather than the text, so `pub const` inside a
+/// string is not one, and a name a `pub fn` already owns stays the function.
+pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
+    let taken: Vec<String> = public_functions(source)
+        .into_iter()
+        .map(|f| f.name)
+        .collect();
+    let names: Vec<&str> = public_constants(source)
+        .into_iter()
+        .filter(|name| !taken.iter().any(|f| f == name))
+        .collect();
+    if names.is_empty() {
+        return source.into();
+    }
+    let fields: Vec<String> = names.iter().map(|n| format!("{n}: {n}")).collect();
+    format!(
+        "{source}\npub fn {CONSTANTS_FN}() {{ #{{ {} }} }}\n",
+        fields.join(", ")
+    )
+    .into()
+}
+
+/// Every top-level `pub const` in a source, by name. A file Rune cannot parse
+/// has none: the compile below reports that, and better than this could.
+fn public_constants(source: &str) -> Vec<&str> {
+    let Ok(file) = rune::parse::parse_all::<rune::ast::File>(source, rune::SourceId::EMPTY, false)
+    else {
+        return Vec::new();
+    };
+    file.items
+        .iter()
+        .filter_map(|(item, _)| match item {
+            rune::ast::Item::Const(declared)
+                if matches!(declared.visibility, rune::ast::Visibility::Public(_)) =>
+            {
+                source.get(declared.name.span().range())
+            }
+            _ => None,
+        })
+        .collect()
+}
 
 /// A `pub fn` a script declares, read off its source text. A `pub fn`
 /// starting a line is the whole public surface of the script model; its
@@ -101,6 +155,58 @@ pub struct Finding {
     /// `"error"` or `"warning"`.
     pub severity: &'static str,
     pub message: String,
+}
+
+/// The text the compiler read a source from: the caller's own buffer for the
+/// root, and the file for a `mod` submodule, which the loader read from disk.
+///
+/// `Source` keeps its text to itself, so a pass that has to look at the code
+/// under a diagnostic reads it back. `None` where there is no file to read —
+/// a packed run — and the caller then keeps the diagnostic rather than
+/// judging it blind.
+fn read_source(
+    sources: &Sources,
+    id: rune::SourceId,
+    root: rune::SourceId,
+    buffer: &str,
+) -> Option<String> {
+    if id == root {
+        return Some(buffer.to_string());
+    }
+    let read = balaur_core::files::default_backend()
+        .read(sources.get(id)?.path()?)
+        .ok()?;
+    String::from_utf8(read).ok()
+}
+
+/// Whether a "Pattern might panic" is a tuple of names being unpacked.
+///
+/// Rune warns for every refutable pattern in a `let` or a `for`, and a tuple
+/// is refutable: nothing proves a value's arity before it arrives. That is
+/// every multiple return the language has — `let (x, y) = input::mouse_position()`,
+/// `for (i, node) in nodes.iter().enumerate()` — so reporting it says nothing
+/// and drowns the warnings that do. A pattern that tests a value rather than
+/// spreading it (`Some(x)`, a list, an object) is still reported.
+///
+/// The warning's span is the pattern itself. Without the text — a packed run
+/// has no file to read — the diagnostic is kept rather than judged blind.
+fn unpacking_a_tuple(message: &str, text: Option<&str>, span: rune::ast::Span) -> bool {
+    if message != "Pattern might panic" {
+        return false;
+    }
+    let Some(pattern) = text.and_then(|text| text.get(span.range())) else {
+        return false;
+    };
+    let Some(names) = pattern
+        .strip_prefix('(')
+        .and_then(|inner| inner.strip_suffix(')'))
+    else {
+        return false;
+    };
+    !names.is_empty()
+        && names
+            .split(',')
+            .all(|name| handles::is_identifier(name.trim()))
 }
 
 /// Resolve a diagnostic's source and span into a [`Finding`]. A span-less
@@ -216,6 +322,40 @@ fn export_type(default: &balaur_script::Value) -> &'static str {
 /// The `default` an export declares, which is what the host writes onto an
 /// instance before `init`.
 #[must_use]
+/// Whether an export is declared `type = "node"` or `type = "nodes"`: paths
+/// the scene writes and the script receives as the nodes they name.
+pub(crate) fn is_node_export(spec: &balaur_script::Value) -> bool {
+    declared_type(spec).is_some_and(|kind| matches!(kind, "node" | "nodes"))
+}
+
+/// Whether the export takes a list of them rather than one.
+pub(crate) fn is_node_list(spec: &balaur_script::Value) -> bool {
+    declared_type(spec) == Some("nodes")
+}
+
+/// What an export's spec declares as its `type`, where it declares one.
+fn declared_type(spec: &balaur_script::Value) -> Option<&str> {
+    let balaur_script::Value::Map(fields) = spec else {
+        return None;
+    };
+    fields.iter().find_map(|(k, v)| match v {
+        balaur_script::Value::Str(kind) if k == "type" => Some(kind.as_str()),
+        _ => None,
+    })
+}
+
+/// The component a `node` export names, whose handle the script is handed
+/// instead of the node: `#{ type: "node", component: "body2d" }`.
+pub(crate) fn export_component(spec: &balaur_script::Value) -> Option<&str> {
+    let balaur_script::Value::Map(fields) = spec else {
+        return None;
+    };
+    fields.iter().find_map(|(k, v)| match v {
+        balaur_script::Value::Str(name) if k == "component" => Some(name.as_str()),
+        _ => None,
+    })
+}
+
 pub(crate) fn export_default(spec: &balaur_script::Value) -> balaur_script::Value {
     let balaur_script::Value::Map(fields) = spec else {
         return spec.clone();
@@ -262,6 +402,42 @@ fn order_of(spec: &balaur_script::Value) -> f64 {
 }
 
 impl RuneHost {
+    /// One `node` export's value: the node its path names from `entity`, its
+    /// handle for the `component` the spec asks for, or nil.
+    pub(crate) fn node_prop(
+        &self,
+        entity: Entity,
+        key: &str,
+        name: &str,
+        path: &str,
+        spec: &balaur_script::Value,
+    ) -> Result<rune::Value> {
+        let found = (!path.is_empty())
+            .then(|| balaur_core::scene::find_node(&self.engine.world(), entity, path))
+            .flatten();
+        if found.is_none() && !path.is_empty() {
+            tracing::warn!("[{key}] node property '{name}' names '{path}', which is not there");
+        }
+        let component = export_component(spec);
+        if let (Some(node), Some(component)) = (found, component)
+            && balaur_core::components::get(&self.engine, node, component).is_none()
+        {
+            tracing::warn!(
+                "[{key}] property '{name}' names '{path}', which carries no {component}"
+            );
+        }
+        Ok(match (found, component) {
+            (Some(node), Some(component)) => rune::to_value(value::component::Component {
+                node: balaur_core::node_id_of(node).0,
+                name: component.to_string(),
+            })?,
+            (Some(node), None) => rune::to_value(Node {
+                id: node.to_bits().get(),
+            })?,
+            (None, _) => rune::to_value(())?,
+        })
+    }
+
     /// Log a runtime error at the line that threw, with the script backtrace
     /// under it.
     ///
@@ -315,8 +491,9 @@ impl RuneHost {
                 None => (state.project_root.join(key), None),
             }
         };
+        let mut findings = self.handle_findings(key, source);
         let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
+        let root = sources.insert(Source::with_path(key, source, path)?)?;
         // The one place warnings are wanted: an error report should be the
         // error, but a check is exactly the language server's business.
         let mut diagnostics = Diagnostics::new();
@@ -330,7 +507,9 @@ impl RuneHost {
             prepared = prepared.with_source_loader(&mut loader);
         }
         drop(prepared.build());
-        let mut findings = Vec::new();
+        // Each warned-about source, read once: what a diagnostic means can
+        // depend on the code under it, and `Source` does not hand its text out.
+        let mut texts: BTreeMap<rune::SourceId, Option<String>> = BTreeMap::new();
         for diagnostic in diagnostics.diagnostics() {
             findings.push(match diagnostic {
                 rune::diagnostics::Diagnostic::Fatal(fatal) => {
@@ -350,17 +529,45 @@ impl RuneHost {
                         &fatal.to_string(),
                     )
                 }
-                rune::diagnostics::Diagnostic::Warning(warning) => finding(
-                    &sources,
-                    warning.source_id(),
-                    Some(warning.span()),
-                    "warning",
-                    &warning.to_string(),
-                ),
+                rune::diagnostics::Diagnostic::Warning(warning) => {
+                    let id = warning.source_id();
+                    let text = texts
+                        .entry(id)
+                        .or_insert_with(|| read_source(&sources, id, root, source));
+                    if unpacking_a_tuple(&warning.to_string(), text.as_deref(), warning.span()) {
+                        continue;
+                    }
+                    finding(
+                        &sources,
+                        id,
+                        Some(warning.span()),
+                        "warning",
+                        &warning.to_string(),
+                    )
+                }
                 _ => continue,
             });
         }
         Ok(findings)
+    }
+
+    /// What the scene beside the script says about a handle call in it.
+    ///
+    /// The compiler cannot see this: a component handle resolves its method
+    /// by component name at call time, so `this.node.sprite.apply_impulse()`
+    /// compiles clean and fails on the tick that runs it. A packed run has no
+    /// scene tree to read and is checking a game that already shipped.
+    fn handle_findings(&self, key: &str, source: &str) -> Vec<Finding> {
+        let root = {
+            let state = self.state.borrow();
+            if state.pack.is_some() {
+                return Vec::new();
+            }
+            state.project_root.clone()
+        };
+        let attached = balaur_core::attachments::scene_attachments(&root);
+        let carried = attached.get(key).and_then(Option::as_ref);
+        handles::check(&self.engine, key, source, carried)
     }
 
     /// The defaults `exports()` declares for `key`, evaluated once per file.

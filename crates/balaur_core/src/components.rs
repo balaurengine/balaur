@@ -242,9 +242,9 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 13] = [
+pub const PROPERTY_TYPES: [&str; 14] = [
     "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
-    "node", "strings",
+    "node", "nodes", "strings",
 ];
 
 /// The tags a component or preset carries, which the editor's picker
@@ -365,6 +365,19 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
         (false, Some(_)) => {
             return Err(format!(
                 "`asset` belongs to `type = \"asset\"`, not `type = \"{declared}\"`"
+            ));
+        }
+        _ => {}
+    }
+    // As `asset` names its asset type, a node property may name the component
+    // the node it points at has to carry; the script is handed that handle.
+    match (matches!(declared, "node" | "nodes"), spec.get("component")) {
+        (true, Some(name)) if name.as_str().is_none() => {
+            return Err(format!("`component` is {}, not a name", name.type_str()));
+        }
+        (false, Some(_)) => {
+            return Err(format!(
+                "`component` belongs to a node property, not `type = \"{declared}\"`"
             ));
         }
         _ => {}
@@ -604,6 +617,27 @@ fn hex_rgba(text: &str) -> Option<[f64; 4]> {
         8 => Some([channel(0)?, channel(2)?, channel(4)?, channel(6)?]),
         _ => None,
     }
+}
+
+/// A colour written either way: `[r, g, b, a]` floats, or `#rrggbb` /
+/// `#rrggbbaa`. A missing alpha is opaque.
+///
+/// Public because the node-level keys are colours too and are read outside
+/// the schema path, which is where `expand_colors` does this.
+#[must_use]
+pub fn rgba(value: &toml::Value) -> Option<[f32; 4]> {
+    if let Some(text) = value.as_str() {
+        return hex_rgba(text).map(|c| c.map(|v| v as f32));
+    }
+    let array = value.as_array()?;
+    let channel =
+        |i: usize, default: f32| array.get(i).and_then(as_f64).map_or(default, |v| v as f32);
+    Some([
+        channel(0, 1.0),
+        channel(1, 1.0),
+        channel(2, 1.0),
+        channel(3, 1.0),
+    ])
 }
 
 /// Expand hex strings on `color`-typed properties into the float array every

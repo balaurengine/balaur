@@ -7,6 +7,8 @@
 //! iteration, which dirties the box that holds it and re-solves what that
 //! reaches, which is what an animating panel pays.
 
+use std::fmt::Write as _;
+
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 use balaur_core::hecs::Entity;
@@ -140,5 +142,97 @@ fn widgets(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, widgets);
+/// A project whose scene is `scene` and whose one script is `script`.
+fn app_from(scene: &str, script: &str) -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), scene).unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    // The scene is read here, not by `standard_app`: without it the world is
+    // empty and both cases below would benchmark a blank pass.
+    app.load_project().unwrap();
+    (dir, app)
+}
+
+/// `count` captioned cells as one widget node each: what a pooled strip or a
+/// synced form leaves in the scene.
+fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
+    let mut scene = String::from(
+        "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\n\
+         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n",
+    );
+    for i in 0..count {
+        let _ = write!(
+            scene,
+            "\n[[nodes]]\nid = \"c{i}\"\nname = \"Cell\"\nparent = \"screen\"\n\
+             [nodes.widget]\nkind = \"button\"\ntext = \"cell\"\n"
+        );
+    }
+    app_from(&scene, "pub fn init(this) {}\n")
+}
+
+/// The same `count` cells as one `draw` node, painted by a script: what the
+/// top bar and the status strip do.
+fn as_one_draw(count: usize) -> (tempfile::TempDir, App) {
+    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = \"scripts/s.rn\"\n\
+         [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n\
+         \n[[nodes]]\nid = \"hatch\"\nname = \"Hatch\"\nparent = \"screen\"\n\
+         [nodes.widget]\nkind = \"draw\"\ndraw = \"cells\"\n";
+    let script = format!(
+        "pub fn init(this) {{}}\n\
+         pub fn cells(this) {{\n\
+         \x20   ui::horizontal(#{{ tight: true }}, || {{\n\
+         \x20       for i in 0..{count} {{\n\
+         \x20           ui::pill(\"cell\", #{{}});\n\
+         \x20       }}\n\
+         \x20   }});\n\
+         }}\n"
+    );
+    app_from(scene, &script)
+}
+
+/// How many captions a pass painted: a script that failed to compile draws
+/// nothing, and an empty pass would benchmark as a very fast one.
+fn captions(app: &App, ctx: &egui::Context) -> usize {
+    ctx.begin_pass(input());
+    balaur_ui::run_pass(&app.engine, ctx);
+    let out = ctx.end_pass();
+    out.shapes
+        .iter()
+        .filter(|s| matches!(&s.shape, egui::epaint::Shape::Text(_)))
+        .count()
+}
+
+/// The same row of cells, built the two ways the shell builds UI. Not a
+/// controlled comparison of painters — a `button` node and `ui::pill` are
+/// different code — but it is the choice a panel actually faces.
+fn hatch_or_nodes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("widget_hatch");
+    for count in [8usize, 64, 256] {
+        for (way, built) in [("nodes", as_nodes(count)), ("one_draw", as_one_draw(count))] {
+            let (_dir, app) = built;
+            let ctx = egui::Context::default();
+            for _ in 0..3 {
+                one_pass(&app, &ctx);
+            }
+            let drawn = captions(&app, &ctx);
+            assert_eq!(drawn, count, "{way}/{count} painted {drawn} captions");
+            group.throughput(Throughput::Elements(count as u64));
+            group.bench_function(BenchmarkId::new(way, count), |b| {
+                b.iter(|| one_pass(&app, &ctx));
+            });
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, widgets, hatch_or_nodes);
 criterion_main!(benches);

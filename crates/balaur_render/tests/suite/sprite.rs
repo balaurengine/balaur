@@ -316,3 +316,37 @@ fn a_region_sizes_the_quad_from_the_cell_not_the_image() {
     let size = saved["region_size"].as_array().unwrap();
     assert_close(size[1].as_float().unwrap() as f32, 25.0);
 }
+
+/// Godot's `offset` and `centered`: the image sits off its node by pixels,
+/// or with its top-left corner on it. Both are read back as authored, and the
+/// quad's centre is where they put it, before the node turns or scales it.
+#[test]
+fn a_sprite_sits_off_its_node_by_its_offset_or_by_its_corner() {
+    let app = app();
+    let shifted = node(&app);
+    apply(&app, shifted, "offset = [50.0, 20.0]");
+    let cornered = node(&app);
+    apply(&app, cornered, "centered = false");
+
+    let table = components::get(&app.engine, shifted, "sprite").unwrap();
+    assert_eq!(table["offset"].as_array().map(Vec::len), Some(2));
+    assert_eq!(table["centered"].as_bool(), Some(true));
+
+    let world = app.engine.world();
+    let centre = |entity| {
+        let renderable = world.get::<&Renderable2d>(entity).unwrap();
+        let Shape2d::Sprite { hx, hy } = renderable.shape else {
+            panic!("not a sprite");
+        };
+        renderable.sprite.as_ref().unwrap().centre(hx, hy)
+    };
+    // 50 px right and 20 px down, at 100 px a unit and y up.
+    let [x, y] = centre(shifted);
+    assert_close(x, 0.5);
+    assert_close(y, -0.2);
+    // A 200x100 image with its corner on the node: centre half its size
+    // right and half its size down.
+    let [x, y] = centre(cornered);
+    assert_close(x, 100.0 / DEFAULT_PIXELS_PER_UNIT);
+    assert_close(y, -50.0 / DEFAULT_PIXELS_PER_UNIT);
+}

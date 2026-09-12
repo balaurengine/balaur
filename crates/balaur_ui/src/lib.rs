@@ -19,27 +19,13 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
-pub mod glyph;
 mod images;
+mod immediate;
 mod pacing;
 mod splash;
-pub mod text;
 mod theme;
 mod vocabulary;
-mod widget_arena;
-mod widget_arrange;
-mod widget_bindings;
-mod widget_button;
-mod widget_input;
-mod widget_kinds;
-mod widget_layer;
-mod widget_layout;
-mod widget_measure;
-mod widget_schema;
-mod widget_taffy;
-mod widget_text;
-mod widget_theme;
-mod widgets;
+mod widget;
 
 use anyhow::Result;
 use balaur_core::Engine;
@@ -47,18 +33,20 @@ use std::collections::{HashMap, HashSet};
 
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
-pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
-pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
-pub use widget_theme::WidgetTheme;
+pub use widget::input::{
+    CHANGE_EVENT, CLICK_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click,
+};
+pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
+pub use widget::theme::WidgetTheme;
 
 /// Where the layer last drew a widget, in device pixels, or `None` for one
 /// it did not draw last frame. What `ui.widget_rect` answers a script.
 #[must_use]
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
-    widget_arrange::drawn_at(entity)
+    widget::arrange::drawn_at(entity)
 }
 
-pub use widgets::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
+pub use immediate::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
 /// writes, and the global UI scale (all widget metrics multiply by it, so
@@ -103,9 +91,11 @@ pub struct UiState {
     /// pointer.
     pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
     pub focused_once: HashSet<String>,
-    /// A finger down on a `scroll` with a deadzone: where it landed and the
-    /// offset the scroll had then, until it lifts.
-    pub scroll_drags: HashMap<u64, (egui::Pos2, egui::Vec2)>,
+    /// A finger down on a `scroll` with a deadzone, until it lifts.
+    pub scroll_drags: HashMap<u64, ScrollDrag>,
+    /// A `scroll` still moving after the finger lifted: how fast, in points
+    /// per second, and where the offset has got to. Dropped once it stops.
+    pub scroll_flings: HashMap<u64, (egui::Vec2, egui::Vec2)>,
     pub textures: HashMap<String, egui::TextureHandle>,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
@@ -113,6 +103,17 @@ pub struct UiState {
     /// Set by [`forget_scene`], consumed by the next [`run_pass`]: egui's own
     /// memory is keyed by entity, and dropping it needs the context.
     pub forget_egui: bool,
+}
+
+/// A finger dragging a `scroll`: where it started, what the offset was then,
+/// and how fast it is moving now, so a lift can carry on at that speed.
+pub struct ScrollDrag {
+    pub from: egui::Pos2,
+    pub base: egui::Vec2,
+    pub last: egui::Pos2,
+    /// Points per second, smoothed: one jittery frame should not decide how
+    /// far a flick throws the list.
+    pub velocity: egui::Vec2,
 }
 
 /// Drop everything the plugin cached against a scene that is being rebuilt.
@@ -157,19 +158,19 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(UiFocus::default());
-        glyph::install(reg);
+        balaur_text::glyph::install(reg);
         reg.register_asset_type(
-            widget_theme::ASSET_TYPE,
+            widget::theme::ASSET_TYPE,
             "themes",
-            widget_theme::ASSET_DOC,
+            widget::theme::ASSET_DOC,
             |value| {
-                Ok(std::rc::Rc::new(widget_theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
+                Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        widgets::install_ui_api(reg)?;
-        widget_input::register(reg);
-        widget_layer::register_widget_component(reg);
-        widget_layer::register_widget_presets(reg)?;
+        immediate::install_ui_api(reg)?;
+        widget::input::register(reg);
+        widget::schema::register_widget_component(reg);
+        widget::schema::register_widget_presets(reg)?;
         Ok(())
     }
 }
@@ -195,10 +196,10 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         if !state.fonts_installed {
             // Fonts registered mid-pass only take effect next pass; skip one
             // frame of drawing so widgets never see unbound families.
-            let faces = theme::font_faces(eng);
+            let faces = balaur_text::fonts::font_faces(eng);
             theme::load_fonts(ctx, &faces);
             let locale = balaur_core::strings::locale(eng);
-            eng.insert_resource(text::TextState::new(&faces, &locale));
+            eng.insert_resource(balaur_text::TextState::new(&faces, &locale));
             state.fonts_installed = true;
             // A host that reruns the pass (`Context::will_discard`) draws
             // this frame with the fonts bound.
@@ -228,7 +229,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     bridge::enter_pass(ctx, scale, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
     // `Foreground` — so what is on top does not depend on which ran first.
-    widget_layer::draw(eng, ctx, scale);
+    widget::layer::draw(eng, ctx, scale);
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }

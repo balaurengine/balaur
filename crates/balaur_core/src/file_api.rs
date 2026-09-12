@@ -230,7 +230,7 @@ pub(crate) fn toml_patch(_: &Engine, args: &[Value]) -> Result<Value> {
 /// A parsed value as a document item. An array of tables is written as one,
 /// so `[[nodes]]` comes back the way it was written rather than as an inline
 /// list a scene file would not be recognisable in.
-fn as_item(value: &toml::Value) -> toml_edit::Item {
+pub(crate) fn as_item(value: &toml::Value) -> toml_edit::Item {
     if let toml::Value::Table(table) = value {
         let mut out = toml_edit::Table::new();
         for (key, inner) in table {

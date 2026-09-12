@@ -1,7 +1,6 @@
 // The shell's three docks — left, bottom, right — and the panels in them. A
 // panel lives in exactly one dock; its tab menu moves it to another.
 
-use crate::chrome;
 use crate::dock;
 use crate::icons;
 use crate::inspector;
@@ -203,12 +202,16 @@ pub fn bottom_tall(S) {
 }
 
 /// What sits under the right sheet's scroll, whichever panel is up.
-pub fn draw_right_foot(S, k) {
+const RIGHT_FOOT_NODE = "Editor/Shell/Body/Right/RightSheet/RightFoot";
+
+/// The inspector's foot: one button, filled into the row the scene lays out.
+pub fn right_foot(S) {
     let d = S.docks.right;
     if d.shut || d.active != "inspector" {
+        crate::pool::hide(RIGHT_FOOT_NODE);
         return;
     }
-    inspector::foot(S, k);
+    crate::pool::strip(S, RIGHT_FOOT_NODE, inspector::foot_controls(S));
 }
 
 fn body(S, k, id) {
@@ -355,7 +358,7 @@ fn tab_controls(S, k, side, d) {
     // How many characters a name may keep. The fold and the panel's own
     // controls are at the end of this strip, and nothing shrinks a button,
     // so a row of long names would push them off the sheet.
-    let room = S.layout[side].w - 16.0 - 22.0 - 30.0;
+    let room = S.layout[side].w - 16.0 - 22.0 - 33.0;
     let cap = name_cap(S, d, room);
     for id in d.tabs {
         let held = id;
@@ -372,18 +375,20 @@ fn tab_controls(S, k, side, d) {
         // halves inside it paint nothing, so the pair reads as one control.
         let inner = [];
         inner.push(#{
-            kind: "button", height: h, text: label, padding_x: 6, radius: 0, fill: "none",
+            kind: "button", height: h, text: label, padding_x: 6, radius: 4, fill: "none",
             role: if active { "tab_on" } else { "tab" },
             on: |_| { S.docks[side].active = held; },
         });
+        // Its own role, so the half of the tile under the pointer is the half
+        // that lights up: a mark that looked the same either way was aimed at
+        // and missed, and the click landed on the name beside it.
         inner.push(#{
-            kind: "button", height: h, width: 13, padding_x: 0, text: "", radius: 0, fill: "none",
+            kind: "button", height: h, width: 18, text: "", radius: 4, role: "tab_close",
             icon: icons::ui("close"),
-            role: if active { "tab_on" } else { "tab" },
             tooltip: format!("Close {}", p.name),
             on: |_| { close(S, held); },
         });
-        inner.push(#{ kind: "row", width: 5 });
+        inner.push(#{ kind: "row", width: 3 });
         out.push(#{
             height: h, radius: 5, controls: inner,
             fill: if active { "accent_soft" } else { "none" },
@@ -434,20 +439,6 @@ pub fn draw_tools(S, k, side) {
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
 fn hide_tabs(side) {
     util::hide(head_of(side));
-}
-
-fn tab_menu(S, k, side, id, name) {
-    if ui::menu_item(format!("Close {}", name), #{ color: k.text, width: 150 }) {
-        close(S, id);
-    }
-    ui::menu_item("Move to", #{ color: k.faint, width: 150 });
-    for other in sides() {
-        if other != side {
-            if ui::menu_item(format!("   {}", other), #{ color: k.text, width: 150 }) {
-                move_to(S, id, other);
-            }
-        }
-    }
 }
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab
@@ -516,6 +507,16 @@ pub fn folded(S, side) {
     d.shut || d.tabs.len() == 0
 }
 
+/// Whether every dock is down to its rail, which is the layout focus leaves.
+pub fn all_folded(S) {
+    for side in sides() {
+        if !folded(S, side) {
+            return false;
+        }
+    }
+    true
+}
+
 pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
     hide_unused(S, "bottom", d);
@@ -531,14 +532,10 @@ pub fn draw_bottom_body(S, k) {
 
 /// The strip along the foot of the bottom dock: what is playing, and the
 /// control that minimises the dock when it is open.
-pub fn draw_status(S, k) {
-    chrome::status_strip(S, k, S.layout.bottom.w, || {});
-}
-
 /// A dock's contents, drawn into the rect the scene's `draw` node hands over.
 ///
 /// The sheet around it is the node's own paint now, so this draws no frame:
-/// the tab row, the panel, and for the bottom dock the status strip.
+/// the tab row and the panel. The status strip is a pooled row of its own.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
     hide_unused(S, side, d);
@@ -554,8 +551,6 @@ pub fn draw_body(S, k, side) {
     ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
         body(S, k, d.active);
     });
-    ui::separator(k.line);
-    chrome::status_strip(S, k, S.layout[side].w, || {});
 }
 
 /// Whether a side dock is folded with something to go back to.

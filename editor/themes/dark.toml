@@ -94,8 +94,9 @@ radius = 5
 size = 12
 align = "left"
 color = "text"
-hover_fill = "raised"
 font = "mono"
+[roles.row.hover]
+fill = "raised"
 
 [roles.row_on]
 height = 23
@@ -105,6 +106,8 @@ align = "left"
 fill = "accent_fill"
 color = "on_accent"
 font = "mono"
+[roles.row_on.hover]
+fill = "accent"
 
 [roles.list_item]
 height = 25
@@ -113,6 +116,8 @@ size = 12
 align = "left"
 fill = "sunken"
 color = "text"
+[roles.list_item.hover]
+fill = "raised"
 
 [roles.tab]
 height = 22
@@ -121,6 +126,8 @@ size = 12
 strong = true
 padding_x = 7
 color = "faint"
+[roles.tab.hover]
+color = "dim"
 
 [roles.tab_on]
 height = 22
@@ -130,6 +137,19 @@ strong = true
 padding_x = 7
 fill = "accent_soft"
 color = "accent"
+[roles.tab_on.hover]
+color = "text"
+
+[roles.tab_close]
+height = 22
+radius = 4
+size = 12
+padding_x = 0
+color = "faint"
+
+[roles.tab_close.hover]
+fill = "raised"
+color = "text"
 
 [roles.navtab]
 height = 26
@@ -137,6 +157,9 @@ radius = 5
 size = 12
 padding_x = 8
 color = "faint"
+[roles.navtab.hover]
+fill = "raised"
+color = "dim"
 
 [roles.navtab_on]
 height = 26
@@ -145,6 +168,8 @@ size = 12
 padding_x = 8
 fill = "accent_soft"
 color = "accent"
+[roles.navtab_on.hover]
+color = "text"
 
 [roles.field]
 height = 22
@@ -153,6 +178,8 @@ size = 12
 font = "mono"
 fill = "sunken"
 color = "text"
+[roles.field.hover]
+stroke = "line"
 
 [roles.chip]
 height = 22
@@ -162,6 +189,9 @@ strong = true
 padding_x = 8
 fill = "sunken"
 color = "dim"
+[roles.chip.hover]
+fill = "raised"
+color = "text"
 
 [roles.chip_on]
 height = 22
@@ -171,6 +201,19 @@ strong = true
 padding_x = 8
 fill = "accent_soft"
 color = "accent"
+[roles.chip_on.hover]
+color = "text"
+
+[roles.bar]
+radius = 8
+size = 11
+font = "mono"
+fill = "sunken"
+color = "faint"
+
+[roles.bar.hover]
+fill = "raised"
+color = "text"
 
 [roles.button]
 height = 28
@@ -180,6 +223,12 @@ font = "ui"
 strong = true
 fill = "sunken"
 color = "accent"
+[roles.button.hover]
+fill = "raised"
+color = "text"
+
+[roles.button.active]
+fill = "accent_soft"
 
 [roles.icon_button]
 height = 21
@@ -187,17 +236,25 @@ radius = 4
 size = 14
 padding_x = 6
 color = "dim"
+[roles.icon_button.hover]
+fill = "raised"
+color = "text"
 
 [roles.tool]
 d = 28
 size = 14
 color = "dim"
+[roles.tool.hover]
+fill = "raised"
+color = "text"
 
 [roles.tool_on]
 d = 28
 size = 14
 fill = "accent_soft"
 color = "accent"
+[roles.tool_on.hover]
+color = "text"
 
 [roles.transport]
 d = 26
@@ -205,6 +262,9 @@ size = 14
 round = true
 fill = "sunken"
 color = "dim"
+[roles.transport.hover]
+fill = "raised"
+color = "text"
 
 [roles.transport_on]
 d = 26
@@ -212,6 +272,8 @@ size = 14
 round = true
 fill = "accent_fill"
 color = "on_accent"
+[roles.transport_on.hover]
+fill = "accent"
 
 [roles.chip_quiet]
 height = 22
@@ -219,6 +281,8 @@ radius = 6
 size = 11
 strong = true
 color = "faint"
+[roles.chip_quiet.hover]
+color = "dim"
 
 [roles.chip_on_quiet]
 height = 22
@@ -226,6 +290,8 @@ radius = 6
 size = 11
 strong = true
 color = "dim"
+[roles.chip_on_quiet.hover]
+color = "text"
 
 [roles.toggle]
 height = 17
@@ -237,6 +303,9 @@ size = 12
 strong = true
 fill = "sunken"
 color = "dim"
+[roles.row_action.hover]
+fill = "raised"
+color = "text"
 
 [roles.row_action_on]
 height = 20
@@ -245,6 +314,49 @@ size = 12
 strong = true
 fill = "accent_soft"
 color = "accent"
+
+[roles.row_action_on.hover]
+color = "text"
+
+# The mark at the head of the bar, which is the shell's one menu. The disc
+# is white in both themes: the mark is dark, and so is half the sheets.
+[roles.brand]
+font = "heading"
+size = 17
+strong = true
+color = "text"
+fill = "sunken"
+radius = 6
+padding_x = 3
+plate = "#ffffff"
+[roles.brand.hover]
+fill = "raised"
+
+# A row in a menu: an action, or a panel that is open.
+[roles.menu_row]
+height = 22
+radius = 5
+size = 12
+align = "left"
+color = "text"
+[roles.menu_row.hover]
+fill = "raised"
+
+# A panel that is shut: the same row, one level quieter.
+[roles.menu_row_off]
+height = 22
+radius = 5
+size = 12
+align = "left"
+color = "faint"
+[roles.menu_row_off.hover]
+fill = "raised"
+
+# A section heading inside a menu.
+[roles.menu_heading]
+size = 11
+height = 18
+color = "faint"
 
 # The shell's own boxes, as `scenes/main.toml` holds them. `panel` is the
 # sheet a dock is drawn on; the two containers only round what clips inside.

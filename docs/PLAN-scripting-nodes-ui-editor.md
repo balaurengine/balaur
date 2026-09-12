@@ -125,7 +125,7 @@ fork. Bundling the extra arguments into one object is the workaround, and
 |---|---|---|
 | `engine.tick()` answers a float, so Rune refuses `tick % 60` against an int | `crates/balaur_core/src/engine_api.rs:628-630` | `Value::Int`; the doc already calls it "an exact integer" |
 | `node.call` answers nil for a missing method, the same as a method that returned nothing | `node_api.rs:477-485` | `node.has_method(name)`, from the host's cached `resolve` |
-| A misspelled option key or role does nothing, silently (`colour:`); the one test asserts only that nothing crashes | `crates/balaur_ui/src/widgets.rs:47-52`, `tests/pass.rs:164-173` | each widget lists its keys in `describe`; `Opts::with_roles` warns once per widget and key in a dev build; the test asserts the warning |
+| A misspelled option key or role does nothing, silently (`colour:`); the one test asserts only that nothing crashes | `crates/balaur_ui/src/immediate/mod.rs`, `tests/pass.rs:164-173` | each widget lists its keys in `describe`; `Opts::with_roles` warns once per widget and key in a dev build; the test asserts the warning |
 | `obj.field = a \|\| b` overwrites the local `a` (AGENTS.md); a code-generation bug in a compiler this repo already forks | `balaurengine/rune`, branch `deterministic-pow` | fix it in the fork with a test; until then a `.rn` pass in `scripts/house_lints.py`, which today reads only `*.rs` |
 
 Status: **partly done** — `engine.tick()` is an integer and `node.has_method` exists. The options-typo warning and the Rune fork are open; the two Rune traps are now caught by `scripts/house_lints.py`.
@@ -177,7 +177,7 @@ Status: **done** — the `events` module, pumped at the top of `Stage::Update`, 
 ### 3.1 Keyboard focus is opt in
 
 **Now.** `keyboard_move` reads arrows, Tab, Enter and Space on every frame
-the layer draws (`crates/balaur_ui/src/widget_layer.rs:478-496`), `advance`
+the layer draws (`crates/balaur_ui/src/widget/layer.rs`), `advance`
 applies them whenever a visible button exists, and the focused button gets a
 ring (`:756-765`). A game that moves with arrows and jumps with Space clicks
 its own HUD button, and the ring appears the first time an arrow is pressed.

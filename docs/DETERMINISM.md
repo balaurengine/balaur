@@ -112,6 +112,14 @@ Every float method Rune exposes is safe to call: `sqrt`, `abs`, `floor`,
 On the Rust side `scripts/house_lints.py` fails the build on a bare `.sin()`,
 `f32::sin(x)`, `.powf()` and the rest of the inexact list.
 
+`libm` costs little enough that trading its accuracy for speed is not worth
+doing, which was measured in September 2026 rather than assumed. Rapier's step
+calls no `sin`, `cos`, `exp`, `log` or `pow` at all — rotations integrate as
+quaternions and normalise, leaving `atan2` and `sqrt`, and `sqrt` is one exact
+instruction. A script's `sin` is 8 ns of `libm` inside 75 ns of interpreter.
+Polynomial approximations would have bought under 1% of a tick anywhere they
+were tried, so the plan for them was dropped.
+
 ## Rules of thumb
 
 1. Simulation in `fixed_update`, presentation in `update`.

@@ -3,7 +3,6 @@
 // cross-file index, so both show the list before anything is written.
 
 use crate::model;
-use crate::search;
 use crate::style;
 use crate::util;
 

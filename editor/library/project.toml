@@ -1,0 +1,11 @@
+# Not a game: the parts the library dock copies into one. A manifest of its
+# own is what lets `balaur check` read these scenes, whose entries name
+# `scripts/orbit_camera.rn` — beside them here, as it will be there.
+[application]
+name = "balaur-library"
+main_scene = "scenes/studio.toml"
+
+# The editor holds itself to its own checker: a warning here is a failure,
+# not a line in the output someone might read.
+[check]
+strict = true

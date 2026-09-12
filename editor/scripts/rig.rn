@@ -25,9 +25,6 @@ const LABEL_LIFT = 0.12;
 // at: heavier than a bone, because it sits on top of one.
 const HANDLE_PX = 7.0;
 const CHAIN_W = 3.6;
-// The name halves Mirror swaps a bone across, longest first.
-const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"], [".l", ".r"]];
-
 fn has_object(node, key) {
     match node.get(key) {
         Some(v) => v is Object,
@@ -257,10 +254,6 @@ pub fn modifier(node) {
     None
 }
 
-fn modifier_key(node) {
-    if has_object(node, "modifier3d") { "modifier3d" } else { "modifier2d" }
-}
-
 // What a modifier reaches for and with: the world point of its target, and
 // the bones it actually solves, which `chain` makes a number not a shape.
 fn modifier_reach(S, i) {
@@ -437,19 +430,6 @@ pub fn drag_handle(S, i, mx, my) {
     };
     let z = util::f(model::doc_transform(S.doc[at], "position", [0.0, 0.0, 0.0])[2]);
     model::set_transform(S, at, #{ position: [lx, ly, z] });
-}
-
-// Flip the chain a two-bone modifier bends, which is the one property a
-// gizmo can offer that a number cannot: you see which way the elbow goes.
-pub fn flip_modifier(S, i) {
-    let node = S.doc[i];
-    let comp = match modifier(node) {
-        Some(comp) => comp,
-        None => return,
-    };
-    history::record(S, "flip modifier", None);
-    comp.flip = comp.get("flip") != Some(true);
-    model::apply_component(S, modifier_key(node));
 }
 
 // The same name on the other side, or `None`. Shared spelling with the

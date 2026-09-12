@@ -80,6 +80,8 @@ fn commands(S) {
         command("Add an event binding", icons::ui("events"), "", || crate::events::add_row(S)),
         command("Convert bindings to a script", "‹›", "", || crate::events::convert_to_script(S)),
         command("Split code and scene", icons::ui("split"), "⌘\\", || shell::toggle_split(S)),
+        command(if S.focus { "Put the docks back" } else { "Focus the code" },
+            icons::ui(if S.focus { "unfocus" } else { "focus" }), "⇧⌘\\", || shell::toggle_focus(S)),
         command("Select all nodes", icons::ui("select-all"), "⌘A", || crate::selection::select_all(S)),
         command("Group selection", icons::ui("group"), "⌘G", || crate::arrange::group(S)),
         command("Ungroup", icons::ui("ungroup"), "⇧⌘G", || crate::arrange::ungroup(S)),

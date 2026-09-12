@@ -21,6 +21,17 @@ pub use loader::{Extension, load_extension, load_extensions_in, refuse_mismatch}
 pub use manifest::{ENGINE_VERSION, Fingerprint, Manifest, REGISTRY_ABI};
 pub use registry::Registry;
 
+// Every crate `Registry` and `Plugin` name, so a plugin depends on this one.
+pub use ::{anyhow, balaur_core, balaur_script, toml};
+
+/// What a plugin's declaration names: `use balaur_plugin::prelude::*;`.
+pub mod prelude {
+    pub use crate::{Manifest, Plugin, Registry};
+    pub use anyhow::Result;
+    pub use balaur_core::{Engine, Stage};
+    pub use balaur_script::{BindingsExt as _, Value};
+}
+
 use anyhow::{Result, anyhow, bail};
 use balaur_core::App;
 use balaur_core::plugins::PluginInfo;

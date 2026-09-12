@@ -84,6 +84,15 @@ edit_step() { # edit_step <label> <project> [state]
   fi
 }
 
+# The editor is a Balaur project, and so are the library it copies from and
+# each template: a manifest each, so each is checked from its own root.
+printf '== editor\n'
+for project in editor editor/library editor/library/templates/*/; do
+  printf '  check %-38s' "$project"
+  step "check $project" check "$project" --strict
+  printf 'ok\n'
+done
+
 for ex in examples/*/; do
   name=$(basename "$ex")
   if [ ${#only[@]} -gt 0 ]; then
@@ -103,8 +112,9 @@ for ex in examples/*/; do
 
   # The editor's Problems list, headless: every script a scene attaches,
   # compiled. Cheaper than running one, and it names the file and the line.
+  # `--strict` so a new warning fails here rather than sitting in the output.
   printf '  check ...  '
-  step "$name: check" check "$ex"
+  step "$name: check" check "$ex" --strict
   printf 'ok\n'
 
   printf '  run ...    '
@@ -143,6 +153,11 @@ for ex in examples/*/; do
   # The centre's layout: with no document open the viewport must fill it.
   printf '  layout ... '
   edit_step "$name: layout" "$ex" layoutdemo
+  printf 'ok\n'
+
+  # Focus: the shell folds round the code and comes back to what it was.
+  printf '  focus ...  '
+  edit_step "$name: focus" "$ex" focusdemo
   printf 'ok\n'
 
   # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.

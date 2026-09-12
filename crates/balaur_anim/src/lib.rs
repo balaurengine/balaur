@@ -39,7 +39,9 @@ pub mod bindings;
 pub mod clip;
 pub mod ease;
 mod gizmo;
+pub mod machine;
 pub mod modifier;
+mod modifier_solve;
 pub mod player;
 pub mod retarget;
 pub mod sampler;
@@ -91,6 +93,7 @@ pub use crate::player::{
     play, play_from, queue, resume, seek, set_retarget, set_speed, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
+pub use crate::system::FINISHED_EVENT;
 pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin {
@@ -110,11 +113,14 @@ const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `length` 
 left out to end at the last key; `loop` is `none` (hold the last key),
 `loop` or `pingpong`. Each track names a `target` node path relative to the
 playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
-`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
-an optional `ease`. A track with no `property` is a method track whose keys
-call the node's script. A file holds one clip, or several under
-`[clips.<name>]`, addressed as `file.toml#name`.
+`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
+`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
+`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
+and always stepped; `tint` is the `[r, g, b, a]` every descendant is
+multiplied by, which a renderable's own `color` is not. A component
+property's value may be a string or a bool, held from key to key. A track with no
+`property` is a method track whose keys call the node's script. A file holds
+one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
 
 ```toml
 type = "animation_clip"
@@ -160,7 +166,14 @@ impl balaur_plugin::Plugin for AnimationPlugin {
             retarget::PROFILE_ASSET_DOC,
             |value| Ok(Rc::new(retarget::parse_profile(value)?) as Rc<dyn Any>),
         );
+        reg.register_asset_type(
+            machine::MACHINE_ASSET_TYPE,
+            "animations",
+            machine::MACHINE_ASSET_DOC,
+            |value| Ok(Rc::new(machine::parse(value)?) as Rc<dyn Any>),
+        );
         register_animation_component(reg);
+        register_machine_component(reg);
         let mut m = reg.script_module("animation")?;
         install_animation_api(&mut *m);
         Ok(())
@@ -200,6 +213,38 @@ fn register_animation_component(reg: &mut Registry<'_>) {
                 Ok(())
             }),
             get: Box::new(animation_of),
+        },
+    );
+}
+
+/// The `state_machine` scene key: a machine asset run against a player.
+fn register_machine_component(reg: &mut Registry<'_>) {
+    use crate::machine::keys as mk;
+    reg.register_component(
+        machine::COMPONENT,
+        ComponentDef {
+            doc: "Runs a state machine over a player's clips: it enters its start state, \
+                  follows `auto` transitions as their conditions come on, and fades between \
+                  clips as each transition says. `animation.travel` heads for a state.",
+            schema: ComponentDef::parse_schema(
+                machine::COMPONENT,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (mk::MACHINE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The state machine to run" }}"#, machine::MACHINE_ASSET_TYPE)),
+                    (mk::PLAYER, r#"{ type = "string", default = "", description = "Node path to the `animation` player it drives; empty means this node" }"#),
+                    (mk::ACTIVE, r#"{ type = "bool", default = true, description = "Whether the machine is running" }"#),
+                ]),
+            ),
+            tags: &[balaur_core::components::tag::ANIMATION],
+            expects: &[],
+            apply: Box::new(|eng, entity, params| {
+                machine::apply(eng, entity, params);
+                Ok(())
+            }),
+            remove: Box::new(|eng, entity| {
+                machine::remove(eng, entity);
+                Ok(())
+            }),
+            get: Box::new(machine::get),
         },
     );
 }

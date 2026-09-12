@@ -2,7 +2,7 @@
   "asset_types": {
     "animation_clip": {
       "directory": "animations",
-      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an\n`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with\nan optional `ease`. A track with no `property` is a method track whose keys\ncall the node's script. A file holds one clip, or several under\n`[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
+      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or\n`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its\n`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel\nand always stepped; `tint` is the `[r, g, b, a]` every descendant is\nmultiplied by, which a renderable's own `color` is not. A component\nproperty's value may be a string or a bool, held from key to key. A track with no\n`property` is a method track whose keys call the node's script. A file holds\none clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
     },
     "bone_map": {
       "directory": "animations",
@@ -36,6 +36,10 @@
       "directory": "sheets",
       "doc": "An image cut into frames of any size, for `sprite.sheet`: `texture` names\nthe image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels\nwith the `duration` in seconds a clip shows it for. `sprite.frame` indexes\nthe list, past the end drawing the last frame. `[tags.<name>]` is a run of\nframes `from` one index `to` another with a `direction` (`forward`,\n`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for\never; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,\nwith an optional nine-patch `center` and `pivot`, and `keys` when the slice\nmoves between frames. `balaur import file.aseprite` writes one of these\nbeside the atlas it packs and a clip per tag.\n\n```toml\ntype = \"sprite_sheet\"\ntexture = \"art/walk.png\"\nframes = [\n  { rect = [0, 0, 32, 32], duration = 0.1 },\n  { rect = [32, 0, 32, 32], duration = 0.1 },\n]\n\n[tags.walk]\nfrom = 0\nto = 1\ndirection = \"forward\"\n\n[slices.hitbox]\nrect = [8, 4, 16, 28]\n```"
     },
+    "state_machine": {
+      "directory": "animations",
+      "doc": "A state machine switches a player between clips. `start` is the state\nentered first; `[states]` maps each state to the clip it plays from the\nplayer's library (an empty clip is the state's own name). Each transition\nnames `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never\nfires, `enabled` fires only on `animation.travel`, `auto` also fires on its\nown), a `switch` (`immediate` once any fade already running has finished,\n`sync` the same keeping the playhead, `at_end` fading so the fade ends with\nthe clip) and an optional `condition` that `animation.set_condition` turns\non.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]\nidle = \"idle\"\nwalk = \"walk_cycle\"\n\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nfade = 0.2\nadvance = \"auto\"\ncondition = \"moving\"\n```"
+    },
     "tileset": {
       "directory": "tilesets",
       "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is one tile in pixels \u2014 a number, or `[w, h]` for a\nsheet whose tiles are not square \u2014 and `columns` is how many tiles one row of\nthe image holds. `spacing` is the gutter between tiles and `margin` the border\naround the sheet, both zero by default. Tile indices count row by row from the\ntop left.\n\nA `[tiles.<id>]` table says what one tile is. `collision` is `\"full\"` for a\nsolid cell, or a list of polygons in tile pixels with y down from the tile's\ntop-left corner; `one_way` makes a platform a body passes through from below.\nA tile with no table of its own is the plain quad it always was.\n\nA `[[terrains]]` entry paints by value and lets the sheet pick the tiles.\n`mode` is `\"rules\"`, `\"sides\"`, `\"corners\"`, `\"corners_and_sides\"` or\n`\"quarters\"`, and `first_tile` is where the block starts. `\"quarters\"` draws a\ncell as four quarter quads, each chosen by the two cells beside that corner\nand the one across it, from five tiles -- fill, horizontal edge, vertical\nedge, outer corner, inner corner. That is how a five-tile sheet covers all 47\nneighbourhoods; a sheet that keeps the five somewhere else names them with\n`quarters = [...]`.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n\n[tiles.3]\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]\n```"
@@ -46,7 +50,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `size`, `color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
+      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
     }
   },
   "component_docs": {
@@ -70,7 +74,9 @@
     "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
     "light3d": "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
+    "material": "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
+    "meta": "Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.",
     "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.",
     "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
     "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
@@ -81,11 +87,15 @@
     "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
+    "state_machine": "Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.",
     "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
     "text2d": "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
+    "timer": "Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = \"emitted:timeout\"` answers it, and so does a script subscribed to it. Set `running` to start it.",
+    "touch_button": "An on-screen button that presses an `action` while a finger is on it, so a game bound to a key on a desktop needs no second code path on a phone. Placed against the screen less its safe area, not in the scene's world.",
+    "touch_stick": "An on-screen stick that pushes one action per axis while a thumb drags it, reading -1..1 with y positive away from the player, the way a gamepad's stick does. Placed against the screen less its safe area.",
     "transform": "Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.",
     "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
     "wheel3d": "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
@@ -168,9 +178,15 @@
     "listener": [
       "audio"
     ],
+    "material": [
+      "render"
+    ],
     "mesh": [
       "3d",
       "render"
+    ],
+    "meta": [
+      "interaction"
     ],
     "modifier2d": [
       "2d",
@@ -210,6 +226,9 @@
       "2d",
       "render"
     ],
+    "state_machine": [
+      "animation"
+    ],
     "states": [
       "interaction"
     ],
@@ -228,6 +247,17 @@
     "tilemap": [
       "2d",
       "render"
+    ],
+    "timer": [
+      "interaction"
+    ],
+    "touch_button": [
+      "2d",
+      "ui"
+    ],
+    "touch_stick": [
+      "2d",
+      "ui"
     ],
     "transform": [
       "2d",
@@ -2339,6 +2369,14 @@
         "type": "bool"
       }
     },
+    "material": {
+      "source": {
+        "asset": "material",
+        "default": "",
+        "description": "The material asset; empty takes the parent's",
+        "type": "asset"
+      }
+    },
     "mesh": {
       "layers": {
         "default": -1,
@@ -2373,6 +2411,7 @@
         "type": "string"
       }
     },
+    "meta": {},
     "modifier2d": {
       "angle_limit": {
         "default": 0.0,
@@ -2996,6 +3035,11 @@
       }
     },
     "sprite": {
+      "centered": {
+        "default": true,
+        "description": "Centre the image on the node; off puts its top-left corner there",
+        "type": "bool"
+      },
       "color": {
         "default": [
           0.8,
@@ -3042,6 +3086,14 @@
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
       },
+      "offset": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where the image sits against the node, in texture pixels with y down; turns and scales with the node",
+        "type": "vec2"
+      },
       "pixels_per_unit": {
         "default": 100.0,
         "description": "Texture pixels per world unit",
@@ -3079,6 +3131,24 @@
       "texture": {
         "default": "",
         "description": "Image file, project-relative; required",
+        "type": "string"
+      }
+    },
+    "state_machine": {
+      "active": {
+        "default": true,
+        "description": "Whether the machine is running",
+        "type": "bool"
+      },
+      "machine": {
+        "asset": "state_machine",
+        "default": "",
+        "description": "The state machine to run",
+        "type": "asset"
+      },
+      "player": {
+        "default": "",
+        "description": "Node path to the `animation` player it drives; empty means this node",
         "type": "string"
       }
     },
@@ -3708,6 +3778,205 @@
         "type": "asset"
       }
     },
+    "timer": {
+      "autostart": {
+        "default": false,
+        "description": "Start counting as soon as the node is in the scene",
+        "type": "bool"
+      },
+      "one_shot": {
+        "default": false,
+        "description": "Stop after one `timeout`; off, count the next one at once",
+        "type": "bool"
+      },
+      "running": {
+        "default": false,
+        "description": "Whether it is counting; set true to start it from `wait_time`, false to stop it",
+        "type": "bool"
+      },
+      "time_left": {
+        "default": 0.0,
+        "description": "Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes.",
+        "min": 0.0,
+        "type": "float"
+      },
+      "wait_time": {
+        "default": 1.0,
+        "description": "Seconds from starting to `timeout`",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
+    "touch_button": {
+      "action": {
+        "default": "",
+        "description": "The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding",
+        "type": "string"
+      },
+      "anchor": {
+        "default": "bottom_right",
+        "description": "Screen corner or edge the offset is measured from, inside the safe area",
+        "options": [
+          "top_left",
+          "center_top",
+          "top_right",
+          "center_left",
+          "center",
+          "center_right",
+          "bottom_left",
+          "center_bottom",
+          "bottom_right"
+        ],
+        "type": "enum"
+      },
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          0.25
+        ],
+        "description": "Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "height": {
+        "default": 120.0,
+        "description": "Touch area height in design pixels",
+        "min": 0.0,
+        "type": "float"
+      },
+      "offset": {
+        "default": [
+          -110.0,
+          -110.0
+        ],
+        "description": "From the anchor to the button's centre, in design pixels, x right and y down",
+        "type": "vec2"
+      },
+      "pressed_color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          0.5
+        ],
+        "description": "Fill while a finger is on it",
+        "type": "color"
+      },
+      "shape": {
+        "default": "circle",
+        "description": "The touch area's outline; a circle uses the larger half of the box",
+        "options": [
+          "rect",
+          "circle"
+        ],
+        "type": "enum"
+      },
+      "visibility": {
+        "default": "touchscreen",
+        "description": "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen",
+        "options": [
+          "always",
+          "touchscreen"
+        ],
+        "type": "enum"
+      },
+      "width": {
+        "default": 120.0,
+        "description": "Touch area width in design pixels",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "touch_stick": {
+      "action_x": {
+        "default": "",
+        "description": "The action the stick's left and right feed, -1 at the left of its throw",
+        "type": "string"
+      },
+      "action_y": {
+        "default": "",
+        "description": "The action the stick's up and down feed, 1 pushed away from the player",
+        "type": "string"
+      },
+      "anchor": {
+        "default": "bottom_left",
+        "description": "Screen corner or edge the offset is measured from, inside the safe area",
+        "options": [
+          "top_left",
+          "center_top",
+          "top_right",
+          "center_left",
+          "center",
+          "center_right",
+          "bottom_left",
+          "center_bottom",
+          "bottom_right"
+        ],
+        "type": "enum"
+      },
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          0.18
+        ],
+        "description": "The base circle's fill, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "deadzone": {
+        "default": 0.15,
+        "description": "Fraction of the throw that reads zero, so a resting thumb does not drift; the rest is rescaled so the first live reading is near zero",
+        "max": 0.95,
+        "min": 0.0,
+        "type": "float"
+      },
+      "knob_color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          0.45
+        ],
+        "description": "The knob's fill",
+        "type": "color"
+      },
+      "knob_radius": {
+        "default": 38.0,
+        "description": "The knob's own radius in design pixels; drawing only",
+        "min": 1.0,
+        "type": "float"
+      },
+      "offset": {
+        "default": [
+          130.0,
+          -130.0
+        ],
+        "description": "From the anchor to the stick's centre, in design pixels, x right and y down",
+        "type": "vec2"
+      },
+      "radius": {
+        "default": 90.0,
+        "description": "The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in",
+        "min": 1.0,
+        "type": "float"
+      },
+      "recenter": {
+        "default": false,
+        "description": "Move the stick's centre to the thumb that grabbed it, so an off-centre grab does not jerk",
+        "type": "bool"
+      },
+      "visibility": {
+        "default": "touchscreen",
+        "description": "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen",
+        "options": [
+          "always",
+          "touchscreen"
+        ],
+        "type": "enum"
+      }
+    },
     "transform": {
       "position": {
         "default": [
@@ -3736,6 +4005,12 @@
         ],
         "description": "Size relative to the parent's",
         "type": "vec3"
+      },
+      "skew": {
+        "default": 0.0,
+        "description": "A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it",
+        "type": "float",
+        "unit": "degrees"
       }
     },
     "vehicle3d": {
@@ -3848,20 +4123,36 @@
       },
       "anchor": {
         "default": "top_left",
-        "description": "Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset`",
+        "description": "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`",
         "options": [
           "top_left",
           "top_right",
           "bottom_left",
           "bottom_right",
           "center",
-          "fill"
+          "center_left",
+          "center_right",
+          "center_top",
+          "center_bottom",
+          "fill",
+          "fill_top",
+          "fill_bottom",
+          "fill_left",
+          "fill_right",
+          "fill_across",
+          "fill_down"
         ],
         "type": "enum"
       },
+      "avoid_keyboard": {
+        "default": false,
+        "description": "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop",
+        "group": "placement",
+        "type": "bool"
+      },
       "checked": {
         "default": false,
-        "description": "Whether a `check` is ticked; every click flips it and calls `on_change` with the new state",
+        "description": "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
         "type": "bool"
       },
       "clicked": {
@@ -3913,6 +4204,19 @@
         "group": "paint",
         "type": "string"
       },
+      "fit": {
+        "default": "",
+        "description": "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead",
+        "group": "value",
+        "options": [
+          "",
+          "contain",
+          "cover",
+          "fill",
+          "none"
+        ],
+        "type": "enum"
+      },
       "focusable": {
         "default": true,
         "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",
@@ -3932,10 +4236,10 @@
         "type": "enum"
       },
       "font_size": {
-        "default": 16.0,
-        "description": "Text size in design pixels",
+        "default": 0.0,
+        "description": "Text size in design pixels; 0 takes the size the role or the kind carries",
         "group": "type",
-        "min": 6.0,
+        "min": 0.0,
         "type": "float"
       },
       "font_style": {
@@ -3957,11 +4261,16 @@
         "type": "float"
       },
       "gap": {
-        "default": 8.0,
-        "description": "Space between a container's children, in design pixels",
+        "default": -1.0,
+        "description": "Space between a container's children, in design pixels; below zero takes the theme's own, which is 8 where it says nothing, and a stated zero puts them edge to edge",
         "group": "layout",
-        "min": 0.0,
         "type": "float"
+      },
+      "group": {
+        "default": "",
+        "description": "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
+        "group": "value",
+        "type": "string"
       },
       "grow": {
         "default": 0.0,
@@ -4015,6 +4324,12 @@
         ],
         "type": "enum"
       },
+      "keep_open": {
+        "default": false,
+        "description": "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it",
+        "group": "events",
+        "type": "bool"
+      },
       "kind": {
         "default": "label",
         "description": "The HUD element the widget layer draws",
@@ -4044,8 +4359,10 @@
           "flow",
           "fold",
           "dialog",
+          "window",
           "separator",
-          "code"
+          "code",
+          "stack"
         ],
         "type": "enum"
       },
@@ -4102,25 +4419,25 @@
       },
       "on_change": {
         "default": "",
-        "description": "Script method called on this node with a `field`'s text after every edit",
+        "description": "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
       "on_click": {
         "default": "",
-        "description": "Script method called on this node when the button is clicked",
+        "description": "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button",
         "group": "events",
         "type": "string"
       },
       "on_focus": {
         "default": "",
-        "description": "Script method called on this node when focus arrives",
+        "description": "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
       "on_submit": {
         "default": "",
-        "description": "Script method called on this node with a `field`'s text on Enter, or when focus leaves it",
+        "description": "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -4137,11 +4454,15 @@
         "type": "strings"
       },
       "padding": {
-        "default": 0.0,
-        "description": "Space inside a container's edge, in design pixels",
+        "default": [
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        "description": "Space inside a container's edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme's own, and a stated zero is no space at all",
         "group": "layout",
-        "min": 0.0,
-        "type": "float"
+        "type": "vec4"
       },
       "padding_x": {
         "default": -1.0,
@@ -4180,6 +4501,12 @@
         "group": "value",
         "type": "bool"
       },
+      "showing": {
+        "default": false,
+        "description": "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there",
+        "group": "events",
+        "type": "bool"
+      },
       "slice": {
         "default": [
           0.0,
@@ -4193,7 +4520,7 @@
       },
       "source": {
         "default": "",
-        "description": "The project-relative image an `image` widget draws, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
+        "description": "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
         "type": "string"
       },
       "step": {
@@ -4249,9 +4576,21 @@
         "group": "paint",
         "type": "asset"
       },
+      "toggle": {
+        "default": false,
+        "description": "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode",
+        "group": "value",
+        "type": "bool"
+      },
       "tooltip": {
         "default": "",
         "description": "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why",
+        "group": "type",
+        "type": "string"
+      },
+      "trailing": {
+        "default": "",
+        "description": "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret",
         "group": "type",
         "type": "string"
       },
@@ -4304,6 +4643,9 @@
         "is_playing": [
           "animation"
         ],
+        "jump": [
+          "state_machine"
+        ],
         "just_finished": [
           "animation"
         ],
@@ -4322,15 +4664,25 @@
         "seek": [
           "animation"
         ],
+        "set_condition": [
+          "state_machine"
+        ],
+        "state": [
+          "state_machine"
+        ],
         "stop": [
           "animation"
         ],
         "time": [
           "animation"
+        ],
+        "travel": [
+          "state_machine"
         ]
       },
       "components": [
-        "animation"
+        "animation",
+        "state_machine"
       ],
       "constants": [],
       "doc": "Clip playback on a node's `animation` component: starting, holding, seeking, and tweens, short clips generated from a table of steps and addressed by the handle they hand back.",
@@ -4339,14 +4691,18 @@
         "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
+        "jump": "Cut the state machine to the named state on the next step, with no fade.",
         "just_finished": "The clip that ended on this node during the last step, and nil on every other frame.",
         "pause": "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.",
-        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
+        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
         "queue": "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.",
         "resume": "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.",
         "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
+        "set_condition": "Turn on or off a condition that `auto` transitions wait on.",
+        "state": "The state the machine is in, or nil before it has entered one.",
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
+        "travel": "Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly.",
         "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out.",
         "tween_to": "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle.",
         "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
@@ -4357,14 +4713,18 @@
         "define",
         "is_playing",
         "is_tween_running",
+        "jump",
         "just_finished",
         "pause",
         "play",
         "queue",
         "resume",
         "seek",
+        "set_condition",
+        "state",
         "stop",
         "time",
+        "travel",
         "tween",
         "tween_to",
         "tween_value",
@@ -4376,14 +4736,18 @@
         "define": "(NodeId, String, Value) -> ()",
         "is_playing": "NodeId -> bool",
         "is_tween_running": "Value -> bool",
+        "jump": "(NodeId, String) -> ()",
         "just_finished": "NodeId -> Option<String>",
         "pause": "NodeId -> ()",
         "play": "(NodeId, String, Option<Value>) -> ()",
         "queue": "(NodeId, String) -> ()",
         "resume": "NodeId -> ()",
         "seek": "(NodeId, f32) -> ()",
+        "set_condition": "(NodeId, String, bool) -> ()",
+        "state": "NodeId -> Value",
         "stop": "Value -> ()",
         "time": "NodeId -> f32",
+        "travel": "(NodeId, String) -> ()",
         "tween": "(NodeId, Value) -> u64",
         "tween_to": "(NodeId, String, Value, f32, Option<String>) -> u64",
         "tween_value": "(Value, Value, f32, Option<String>) -> u64",
@@ -4674,11 +5038,11 @@
         "focused": "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
         "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
-        "platform": "Where this runs: `{ os, web, mobile, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
+        "platform": "Where this runs: `{ os, web, mobile, touchscreen, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "profile_scripts": "Start or stop counting what each script costs. Turning it on clears the tally.",
-        "quit": "Ask the app to shut down; the frame in flight still finishes.",
+        "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
         "script_costs": "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine.",
@@ -4723,7 +5087,7 @@
         "plugin_version": "(name: string)",
         "plugins": "()",
         "profile_scripts": "(on)",
-        "quit": "()",
+        "quit": "(code: int?)",
         "reload_script": "(key: string)",
         "reveal": "(path: string)",
         "script_costs": "()",
@@ -4743,6 +5107,7 @@
         "emit": "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
         "emitted": "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
         "emitted_from": "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
+        "next": "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
         "subscribe": "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Subscribing twice is once.",
         "unsubscribe": "Stop hearing an event on this node, `from` being the emitter it was subscribed with. Not an error when it was never subscribed."
       },
@@ -4750,6 +5115,7 @@
         "emit",
         "emitted",
         "emitted_from",
+        "next",
         "subscribe",
         "unsubscribe"
       ],
@@ -4758,6 +5124,7 @@
         "emit": "(String, Option<Value>) -> ()",
         "emitted": "String -> Value",
         "emitted_from": "(NodeId, String) -> Value",
+        "next": "(String, Option<NodeId>) -> i64",
         "subscribe": "(NodeId, String, Option<NodeId>) -> ()",
         "unsubscribe": "(NodeId, String, Option<NodeId>) -> ()"
       }
@@ -5771,10 +6138,13 @@
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
         "composing": "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method.",
         "declare_actions": "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor.",
+        "declare_config": "Take the settings a project's `[input]` table would give, from a table: the two emulation switches and the gesture thresholds. For a host running a project other than its own, such as the editor; a key left out keeps its default.",
         "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
+        "feed_action": "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one.",
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
         "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame.",
         "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it.",
+        "feed_touch": "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`.",
         "gamepad_acceleration": "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer.",
         "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
         "gamepad_can_rumble": "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback.",
@@ -5792,12 +6162,16 @@
         "just_pressed": "Whether the `KEY_*` key went down this frame; true for that one frame only.",
         "just_released": "Whether the `KEY_*` key came up this frame; true for that one frame only.",
         "keyboard_height": "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop.",
+        "long_press": "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise.",
         "mouse_delta": "How far the cursor moved this frame, in pixels; movement, not a position.",
         "mouse_just_pressed": "Whether the `MOUSE_*` button went down this frame; true for that one frame only.",
         "mouse_just_released": "Whether the `MOUSE_*` button came up this frame; true for that one frame only.",
         "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner.",
+        "pan": "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down.",
+        "pinch": "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down.",
         "reset_bindings": "Drop every saved rebinding and go back to what the project declared.",
         "scroll_delta": "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn.",
+        "swipe": "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise.",
         "touches": "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`.",
         "touches_ended": "The ids of the fingers that lifted or were cancelled this frame.",
         "touches_started": "The ids of the fingers that touched down this frame.",
@@ -5814,10 +6188,13 @@
         "bindings",
         "composing",
         "declare_actions",
+        "declare_config",
         "dropped_files",
+        "feed_action",
         "feed_key",
         "feed_mouse",
         "feed_mouse_button",
+        "feed_touch",
         "gamepad_acceleration",
         "gamepad_axis",
         "gamepad_can_rumble",
@@ -5835,12 +6212,16 @@
         "just_pressed",
         "just_released",
         "keyboard_height",
+        "long_press",
         "mouse_delta",
         "mouse_just_pressed",
         "mouse_just_released",
         "mouse_position",
+        "pan",
+        "pinch",
         "reset_bindings",
         "scroll_delta",
+        "swipe",
         "touches",
         "touches_ended",
         "touches_started",
@@ -5858,10 +6239,13 @@
         "bindings": "String -> Value",
         "composing": "() -> Value",
         "declare_actions": "Value -> ()",
+        "declare_config": "Value -> ()",
         "dropped_files": "() -> Value",
+        "feed_action": "(String, f32) -> ()",
         "feed_key": "(String, bool) -> ()",
         "feed_mouse": "(f32, f32) -> ()",
         "feed_mouse_button": "(usize, bool) -> ()",
+        "feed_touch": "(i64, f32, f32, String) -> ()",
         "gamepad_acceleration": "i64 -> Value",
         "gamepad_axis": "(i64, String) -> f32",
         "gamepad_can_rumble": "i64 -> bool",
@@ -5879,12 +6263,16 @@
         "just_pressed": "String -> bool",
         "just_released": "String -> bool",
         "keyboard_height": "() -> Value",
+        "long_press": "() -> Value",
         "mouse_delta": "() -> (f32, f32)",
         "mouse_just_pressed": "usize -> bool",
         "mouse_just_released": "usize -> bool",
         "mouse_position": "() -> (f32, f32)",
+        "pan": "() -> Value",
+        "pinch": "() -> Value",
         "reset_bindings": "() -> ()",
         "scroll_delta": "() -> (f32, f32)",
+        "swipe": "() -> Value",
         "touches": "() -> Value",
         "touches_ended": "() -> Value",
         "touches_started": "() -> Value",
@@ -6050,12 +6438,13 @@
         "states"
       ],
       "constants": [],
-      "doc": "What every node has: its name and path, its transform in local and world space, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.position()`).",
+      "doc": "What every node has: its name and path, its place in the world, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.get_node(\"Arm\")`). `position`, `rotation_euler` and `scale` read the `transform` component, which `this.node.transform.position` reads and writes directly.",
       "docs": {
         "add_child": "Create a named child node under this one and return it.",
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
         "attach_script": "Attach the script at a path, with an optional table overriding what the script exports.",
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
+        "call_async": "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`.",
         "children": "The node's direct children, an empty list when it has none.",
         "component_names": "The names of every component on the node.",
         "descendants": "Every node under this one, in tree order, the node itself excluded.",
@@ -6063,9 +6452,11 @@
         "emit": "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it.",
         "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
+        "global_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
+        "global_tint": "What the renderer multiplies by: this node's tint with every ancestor's folded in.",
         "global_visible": "What the renderer sees: false when the node or any ancestor is hidden.",
         "global_z_index": "The layer the node actually draws on, with every ancestor's added in.",
         "go": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
@@ -6073,6 +6464,7 @@
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "has_tag": "Whether the node is filed under a name.",
         "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
+        "material": "The `material` asset the node names itself, empty when it takes its parent's.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
         "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds.",
@@ -6086,6 +6478,7 @@
         "scale": "The node's scale relative to its parent.",
         "script_path": "The path of the script attached to the node, nil when it has none.",
         "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest.",
+        "set_material": "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's.",
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_position": "Move the node to a local position, given as three numbers or one vector.",
@@ -6093,12 +6486,14 @@
         "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
         "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
+        "set_tint": "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.",
         "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
         "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not.",
         "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
+        "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
         "z_index": "The node's own draw layer, added to its parent's unless set absolute."
@@ -6108,6 +6503,7 @@
         "add_tag",
         "attach_script",
         "call",
+        "call_async",
         "children",
         "component_names",
         "descendants",
@@ -6115,9 +6511,11 @@
         "emit",
         "get_component",
         "get_node",
+        "global_material",
         "global_position",
         "global_rotation_euler",
         "global_scale",
+        "global_tint",
         "global_visible",
         "global_z_index",
         "go",
@@ -6125,6 +6523,7 @@
         "has_method",
         "has_tag",
         "is_valid",
+        "material",
         "name",
         "parent",
         "patch_component",
@@ -6138,6 +6537,7 @@
         "scale",
         "script_path",
         "set_component",
+        "set_material",
         "set_name",
         "set_parent",
         "set_position",
@@ -6145,12 +6545,14 @@
         "set_rotation_euler",
         "set_scale",
         "set_sibling_index",
+        "set_tint",
         "set_visible",
         "set_z_index",
         "sibling_index",
         "stable_id",
         "state",
         "tags",
+        "tint",
         "translate",
         "visible",
         "z_index"
@@ -6161,6 +6563,7 @@
         "add_tag": "(node, tag: string)",
         "attach_script": "(path: string, props: any?)",
         "call": "(method: string, args: any?)",
+        "call_async": "(method: string, args: any?)",
         "children": "()",
         "component_names": "()",
         "descendants": "()",
@@ -6168,9 +6571,11 @@
         "emit": "(name: string, payload: any?)",
         "get_component": "(component: string)",
         "get_node": "(path: string)",
+        "global_material": "(node)",
         "global_position": "()",
         "global_rotation_euler": "()",
         "global_scale": "()",
+        "global_tint": "(node)",
         "global_visible": "(node)",
         "global_z_index": "(node)",
         "go": "(state: string)",
@@ -6178,6 +6583,7 @@
         "has_method": "(method: string)",
         "has_tag": "(node, tag: string)",
         "is_valid": "()",
+        "material": "(node)",
         "name": "()",
         "parent": "()",
         "patch_component": "(component: string, params: table)",
@@ -6191,6 +6597,7 @@
         "scale": "()",
         "script_path": "()",
         "set_component": "(component: string, params: any?)",
+        "set_material": "(node, material: string)",
         "set_name": "(name: string)",
         "set_parent": "(parent: node)",
         "set_position": "(x: float, y: float, z: float)",
@@ -6198,12 +6605,14 @@
         "set_rotation_euler": "(x: float, y: float, z: float)",
         "set_scale": "(x: float, y: float, z: float)",
         "set_sibling_index": "(index: int)",
+        "set_tint": "(node, r: float, g: float, b: float, a: float?)",
         "set_visible": "(node, on: bool)",
         "set_z_index": "(node, z: int, relative: bool)",
         "sibling_index": "()",
         "stable_id": "()",
         "state": "()",
         "tags": "(node)",
+        "tint": "(node)",
         "translate": "(x: float, y: float, z: float)",
         "visible": "(node)",
         "z_index": "(node)"
@@ -7910,6 +8319,7 @@
         "set_sprite_size": "Override the size the sprite took from its image, giving half-extents in world units instead.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
         "set_text": "Replace the text a node draws. The block re-shapes on the next frame; a `text_key` on the node still wins over it.",
+        "set_window_mode": "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "shape2d": "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.",
         "shape3d": "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.",
@@ -7977,6 +8387,7 @@
         "set_sprite_size",
         "set_terrain",
         "set_text",
+        "set_window_mode",
         "shader_probe",
         "shape2d",
         "shape3d",
@@ -8045,6 +8456,7 @@
         "set_sprite_size": "(NodeId, f32, f32) -> ()",
         "set_terrain": "(NodeId, i64, i64, i64) -> ()",
         "set_text": "(NodeId, String) -> ()",
+        "set_window_mode": "String -> ()",
         "shader_probe": "() -> Value",
         "shape2d": "NodeId -> (String, f32, f32)",
         "shape3d": "NodeId -> (String, f32, f32, f32)",
@@ -8364,30 +8776,45 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored: `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's.",
+      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored: `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's. One key may hold an answer per platform: `[override.android.window] orientation` is what `window/orientation` reads on a phone.",
       "docs": {
         "all": "Every defined setting as `{ path, scope, spec }`, in definition order.",
+        "base": "What the file says, ignoring every override: what a settings screen edits.",
+        "clear": "Forget one value, so the next write drops the key: how an override is removed.",
         "define": "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game.",
-        "get": "One setting's value: what was set, else what its definition defaults to, else nil.",
+        "get": "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil.",
+        "known_tags": "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`.",
         "load": "Read values out of a TOML text, folding them onto what is already loaded.",
+        "overrides": "The tags this project holds an override for at `path`, in tag order.",
         "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",
+        "tags": "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build.",
         "to_toml": "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."
       },
       "functions": [
         "all",
+        "base",
+        "clear",
         "define",
         "get",
+        "known_tags",
         "load",
+        "overrides",
         "set",
+        "tags",
         "to_toml"
       ],
       "name": "settings",
       "signatures": {
         "all": "() -> Value",
+        "base": "String -> Value",
+        "clear": "String -> Value",
         "define": "(String, Value) -> Value",
         "get": "String -> Value",
+        "known_tags": "() -> Value",
         "load": "String -> Value",
+        "overrides": "String -> Value",
         "set": "(String, Value) -> Value",
+        "tags": "() -> Value",
         "to_toml": "(String, String) -> Value"
       }
     },
@@ -8537,8 +8964,48 @@
           "value": "center"
         },
         {
+          "name": "ANCHOR_CENTER_BOTTOM",
+          "value": "center_bottom"
+        },
+        {
+          "name": "ANCHOR_CENTER_LEFT",
+          "value": "center_left"
+        },
+        {
+          "name": "ANCHOR_CENTER_RIGHT",
+          "value": "center_right"
+        },
+        {
+          "name": "ANCHOR_CENTER_TOP",
+          "value": "center_top"
+        },
+        {
           "name": "ANCHOR_FILL",
           "value": "fill"
+        },
+        {
+          "name": "ANCHOR_FILL_ACROSS",
+          "value": "fill_across"
+        },
+        {
+          "name": "ANCHOR_FILL_BOTTOM",
+          "value": "fill_bottom"
+        },
+        {
+          "name": "ANCHOR_FILL_DOWN",
+          "value": "fill_down"
+        },
+        {
+          "name": "ANCHOR_FILL_LEFT",
+          "value": "fill_left"
+        },
+        {
+          "name": "ANCHOR_FILL_RIGHT",
+          "value": "fill_right"
+        },
+        {
+          "name": "ANCHOR_FILL_TOP",
+          "value": "fill_top"
         },
         {
           "name": "ANCHOR_TOP_LEFT",
@@ -8673,6 +9140,10 @@
           "value": "slider"
         },
         {
+          "name": "WIDGET_STACK",
+          "value": "stack"
+        },
+        {
           "name": "WIDGET_TAB",
           "value": "tab"
         },
@@ -8687,6 +9158,10 @@
         {
           "name": "WIDGET_TREE",
           "value": "tree"
+        },
+        {
+          "name": "WIDGET_WINDOW",
+          "value": "window"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",
@@ -8699,6 +9174,7 @@
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
         "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
+        "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, any line clicked, and the caret as `#{ x, y, index }`.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
@@ -8710,7 +9186,7 @@
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
         "focused": "The widget node focus is on, or nil.",
-        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
+        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does, and `hover_fill` is the colour it takes while the pointer is over it.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time.",
         "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
@@ -8746,6 +9222,7 @@
         "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "vertical": "Lay the callback's widgets out in a column.",
         "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
+        "wants_pointer": "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
         "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
       },
@@ -8758,6 +9235,7 @@
         "central_panel",
         "central_rect",
         "circle_button",
+        "click",
         "clipboard",
         "code_editor",
         "code_line",
@@ -8805,6 +9283,7 @@
         "top_panel",
         "vertical",
         "wants_keyboard",
+        "wants_pointer",
         "widget_rect",
         "window"
       ],
@@ -8818,6 +9297,7 @@
         "central_panel": "(Option<Value>, CallbackId) -> ()",
         "central_rect": "() -> (f32, f32, f32, f32)",
         "circle_button": "(String, Option<Value>) -> bool",
+        "click": "(NodeId, Option<Value>) -> bool",
         "clipboard": "() -> String",
         "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>, Value)",
         "code_line": "(String, Value, Option<Value>) -> ()",
@@ -8865,6 +9345,7 @@
         "top_panel": "(String, Option<Value>, CallbackId) -> f64",
         "vertical": "CallbackId -> ()",
         "wants_keyboard": "() -> bool",
+        "wants_pointer": "() -> bool",
         "widget_rect": "NodeId -> Value",
         "window": "(String, Option<Value>, CallbackId) -> bool"
       }

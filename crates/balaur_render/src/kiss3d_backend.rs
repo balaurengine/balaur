@@ -24,6 +24,9 @@ use crate::{
 struct Slot {
     node: SceneNode3d,
     version: u64,
+    /// The node's inherited material when this was built; a change rebuilds
+    /// a renderable that names none of its own.
+    inherited: balaur_core::scene::MaterialId,
     /// A skinned mesh's rest geometry and bindings: where the palette comes
     /// from, and the vertices the CPU path deforms when there is no handle.
     skin: Option<MeshSkinSlot>,
@@ -46,6 +49,9 @@ struct MeshSkinSlot {
 pub(crate) struct Slot2d {
     pub(crate) node: SceneNode2d,
     pub(crate) version: u64,
+    /// The node's inherited material when this was built; a change rebuilds
+    /// a renderable that names none of its own.
+    pub(crate) inherited: balaur_core::scene::MaterialId,
     /// The flip pair last written into the node's UVs: sheetless sprites only
     /// touch UVs when it changes, so un-flipping writes the identity rect once.
     pub(crate) flip: (bool, bool),
@@ -60,6 +66,9 @@ pub(crate) struct Slot2d {
     /// A polyline's pieces with where along the chain each sits, so a
     /// gradient can colour them every frame under the node's tint.
     pub(crate) pieces: Vec<(SceneNode2d, f32)>,
+    /// The shear last written as the node's instance deformation, so a node
+    /// that never leans never has its instance buffer touched.
+    pub(crate) shear: f32,
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed
@@ -152,6 +161,33 @@ impl Frontend {
         moved
     }
 
+    /// The 2D world: the sprites and polygons, the tilemaps, and the one
+    /// draw order over both of them.
+    fn sync_flat(&mut self, app: &App, reloaded: bool) {
+        crate::sync_2d::sync_2d(
+            app,
+            &mut self.scene_2d,
+            &mut self.slots_2d,
+            &mut self.materials,
+            reloaded,
+        );
+        crate::tilemap::sync_tilemaps(
+            app,
+            &mut self.scene_2d,
+            &mut self.tilemap_slots,
+            &mut self.materials,
+            reloaded,
+        );
+        crate::sync_2d::order_layer_2d(
+            &app.engine.world(),
+            app.engine.root(),
+            &mut self.scene_2d,
+            &mut self.slots_2d,
+            &mut self.tilemap_slots,
+            &mut self.order_2d,
+        );
+    }
+
     /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
@@ -207,21 +243,7 @@ impl Frontend {
         );
         self.lights.sync(app, &mut self.scene);
         crate::light3d::sync_environment(app, window, &mut self.environment);
-        crate::sync_2d::sync_2d(
-            app,
-            &mut self.scene_2d,
-            &mut self.slots_2d,
-            &mut self.order_2d,
-            &mut self.materials,
-            reloaded,
-        );
-        crate::tilemap::sync_tilemaps(
-            app,
-            &mut self.scene_2d,
-            &mut self.tilemap_slots,
-            &mut self.materials,
-            reloaded,
-        );
+        self.sync_flat(app, reloaded);
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
         let dt = app.engine.delta();
@@ -251,7 +273,12 @@ impl Frontend {
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen, idle_motion) {
-            window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+            window.draw_ui(|ctx| {
+                balaur_ui::run_pass(&app.engine, ctx);
+                // After the widget pass and on the layer below it: the pass
+                // owns the context, and a control belongs under a menu.
+                crate::touch_draw::draw(&app.engine, ctx);
+            });
         }
         // On-screen keyboard follows ui keyboard focus, edge-detected after
         // the ui pass has settled focus. A no-op on desktop.
@@ -307,13 +334,10 @@ pub async fn run_windowed_async(
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
     balaur_ui::honour_lazy(&app.engine);
-    // `[window]` in project.toml, or its defaults when a project says
-    // nothing. Read before the window exists, so it cannot come from a
+    // `[window]` as this platform resolves it, or its defaults when a project
+    // says nothing. Read before the window exists, so it cannot come from a
     // resource the first frame inserts.
-    let window_settings = app
-        .manifest()
-        .map(|manifest| manifest.window.clone())
-        .unwrap_or_default();
+    let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,
@@ -328,11 +352,11 @@ pub async fn run_windowed_async(
     };
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
-    if window_settings.fullscreen {
+    if window_settings.mode != balaur_core::project::WindowMode::Windowed {
         // Seed the state a script's own toggle drives, so `apply_window_config`
         // puts the window up on the first frame through one path.
         app.engine.insert_resource(WindowConfig {
-            fullscreen: true,
+            mode: window_settings.mode,
             changed: true,
             ..WindowConfig::default()
         });
@@ -524,10 +548,24 @@ fn apply_window_config(app: &App, window: &Window) {
         return;
     }
     config.changed = false;
-    // Fullscreen is a window-manager idea: on a phone the app already owns the
-    // screen, and kiss3d exposes no toggle there.
+    // A window mode is a window-manager idea: on a phone the app already owns
+    // the screen, and kiss3d exposes no toggle there.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    window.set_fullscreen(config.fullscreen);
+    {
+        use balaur_core::project::WindowMode;
+        match config.mode {
+            WindowMode::Windowed => {
+                window.set_fullscreen(false);
+                window.set_maximized(false);
+            }
+            WindowMode::Maximized => {
+                window.set_fullscreen(false);
+                window.set_maximized(true);
+            }
+            WindowMode::Fullscreen => window.set_fullscreen(true),
+            WindowMode::Exclusive => window.set_exclusive_fullscreen(true),
+        }
+    }
     window.set_cursor_grab(config.cursor_grabbed);
     window.hide_cursor(config.cursor_hidden);
     crate::device::keep_awake(config.keep_awake);
@@ -602,6 +640,12 @@ fn sync(
         &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
+        // Read once: the ancestors' tint, visibility and material come off
+        // the same propagated component.
+        let appearance = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+        let owns_material = !renderable.material.is_empty();
         // A reload rebuilds what was built from a file: the mesh is read
         // again and the texture uploaded under the new generation's name.
         let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
@@ -609,8 +653,9 @@ fn sync(
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
-                    || (relinked && !renderable.material.is_empty())
+                    || (relinked && (owns_material || !appearance.material.is_none()))
                     || (reloaded && from_file)
+                    || (!owns_material && slot.inherited != appearance.material)
             }
             None => true,
         };
@@ -638,7 +683,13 @@ fn sync(
             };
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.
-            let custom = materials.for_node(app, &renderable.material, &channel);
+            let inherited = appearance.material.reference();
+            let reference = if owns_material {
+                renderable.material.as_str()
+            } else {
+                &inherited
+            };
+            let custom = materials.for_node(app, reference, &channel);
             let mut palette = None;
             if let Some(material) = custom {
                 node.set_material(material);
@@ -650,6 +701,7 @@ fn sync(
                 Slot {
                     node,
                     version: renderable.version,
+                    inherited: appearance.material,
                     skin,
                     palette,
                 },
@@ -660,13 +712,11 @@ fn sync(
         if let Some(skin) = &slot.skin {
             pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
-        let [r, g, b, a] = renderable.color;
+        let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
-        let visible = world
-            .get::<&GlobalAppearance>(entity)
-            .is_ok_and(|a| a.visible);
+        let visible = appearance.visible;
         slot.node
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)

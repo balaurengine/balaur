@@ -86,8 +86,7 @@ pub struct HttpCall {
 /// ```
 ///
 /// A call's own options override these.
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct HttpConfig {
     pub timeout: f64,
 }
@@ -99,25 +98,19 @@ impl Default for HttpConfig {
 }
 
 impl HttpConfig {
-    /// The `[http]` table of the project's manifest, or the defaults when the
-    /// file or the table is missing. A table that does not parse is reported
-    /// and ignored rather than failing the boot over a networking setting.
+    /// `[http]` as this run resolves it, or the defaults.
+    ///
+    /// Read through the settings registry rather than `project.toml` in the
+    /// project files: a pack carries its manifest beside the assets, not among
+    /// them, so a shipped game read that way took every default.
     #[must_use]
-    pub fn load(files: &balaur_core::project::ProjectFiles) -> Self {
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            #[serde(default)]
-            http: HttpConfig,
-        }
-        let Ok(bytes) = files.read("project.toml") else {
-            return Self::default();
-        };
-        match toml::from_str::<Manifest>(&String::from_utf8_lossy(&bytes)) {
-            Ok(manifest) => manifest.http,
-            Err(err) => {
-                tracing::warn!("project.toml [http]: {err}; using the defaults");
-                Self::default()
-            }
+    pub fn from_settings(eng: &Engine) -> Self {
+        let fallback = Self::default();
+        Self {
+            timeout: balaur_core::settings::get(eng, "http/timeout")
+                .as_ref()
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(fallback.timeout),
         }
     }
 }
@@ -343,7 +336,6 @@ impl balaur_plugin::Plugin for HttpPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        reg.insert_resource(reg.with_project_files(HttpConfig::load));
         reg.insert_resource(HttpState::default());
         reg.insert_resource(HttpSnapshot::default());
         reg.add_system(Stage::First, pump_http_system);
@@ -466,7 +458,7 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
                 None
             };
             if call.timeout.is_none() {
-                call.timeout = Some(eng.resource::<HttpConfig>().borrow().timeout);
+                call.timeout = Some(HttpConfig::from_settings(eng).timeout);
             }
             let id = eng.next_token();
             let state = eng.resource::<HttpState>();
