@@ -25,44 +25,95 @@ use crate::{Renderable2d, Shape2d, SpriteTexture};
 /// kiss3d appends children and its `detach` is a `swap_remove`, so only a
 /// suffix can be re-ordered: what the old and new orders share up front keeps
 /// its places, and the rest is dropped last-first and rebuilt by appending.
-pub(crate) fn draw_order_2d(
-    world: &balaur_core::hecs::World,
-    root: Entity,
-    slots: &mut HashMap<Entity, Slot2d>,
-    order_cache: &mut Vec<Entity>,
-) -> Vec<Entity> {
+pub(crate) fn draw_order_2d(world: &balaur_core::hecs::World, root: Entity) -> Vec<Entity> {
     let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
     for entity in balaur_core::scene::collect_subtree(world, root) {
         if world.get::<&Renderable2d>(entity).is_ok() {
-            let z = world
-                .get::<&GlobalTransform>(entity)
-                .map_or(0.0, |g| g.position.z);
-            let layer = world
-                .get::<&GlobalAppearance>(entity)
-                .map_or(0, |a| a.z_index);
-            desired.push((layer, z, entity));
+            desired.push(layer_of(world, entity));
         }
     }
-    // A hidden node keeps its place: visibility is a flag on the kiss3d node,
-    // so toggling one never reshuffles the order and rebuilds its neighbours.
+    sorted(desired)
+}
+
+/// One 2D node's place in the order: its `z_index` first, then how far along
+/// z it sits, then where the tree put it.
+fn layer_of(world: &balaur_core::hecs::World, entity: Entity) -> (i32, f32, Entity) {
+    let z = world
+        .get::<&GlobalTransform>(entity)
+        .map_or(0.0, |g| g.position.z);
+    let layer = world
+        .get::<&GlobalAppearance>(entity)
+        .map_or(0, |a| a.z_index);
+    (layer, z, entity)
+}
+
+fn sorted(mut desired: Vec<(i32, f32, Entity)>) -> Vec<Entity> {
     desired.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
     });
-    let order: Vec<Entity> = desired.iter().map(|&(_, _, e)| e).collect();
+    desired.into_iter().map(|(_, _, entity)| entity).collect()
+}
+
+/// The drawing nodes under `root`, in the order they draw: `z_index` first,
+/// then z, then where the tree put them. `has_node` says which entities have
+/// something in the scene, whichever pass built it.
+fn ordered_nodes(
+    world: &balaur_core::hecs::World,
+    root: Entity,
+    has_node: impl Fn(Entity) -> bool,
+) -> Vec<Entity> {
+    let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
+    for entity in balaur_core::scene::collect_subtree(world, root) {
+        if has_node(entity) {
+            desired.push(layer_of(world, entity));
+        }
+    }
+    sorted(desired)
+}
+
+/// Sprites, polygons and tilemaps in one draw order.
+///
+/// kiss3d draws 2D nodes in the order they were added, and a tilemap builds
+/// its node in a pass of its own, so without this every map drew over every
+/// sprite whatever the two said in `z_index`. The nodes from the first
+/// divergence on are detached and added again in the order, which costs
+/// nothing on a frame whose order held.
+pub(crate) fn order_layer_2d(
+    world: &balaur_core::hecs::World,
+    root: Entity,
+    scene: &mut SceneNode2d,
+    slots: &mut HashMap<Entity, Slot2d>,
+    maps: &mut HashMap<Entity, crate::tilemap::TilemapSlot>,
+    order_cache: &mut Vec<Entity>,
+) {
+    let order = ordered_nodes(world, root, |entity| {
+        slots.contains_key(&entity) || maps.contains_key(&entity)
+    });
     let kept = order
         .iter()
         .zip(order_cache.iter())
         .take_while(|(now, before)| now == before)
         .count();
-    // Last first, so each detach is a pop and the kept prefix stays put.
-    for entity in order_cache[kept..].iter().rev() {
-        if let Some(mut slot) = slots.remove(entity) {
-            slot.node.detach();
-        }
+    if kept == order.len() && order.len() == order_cache.len() {
+        return;
+    }
+    // A node holds its place while the prefix does; the rest is taken off
+    // last-first and put back in order, which is the only move kiss3d has.
+    let mut node_of = |entity: &Entity| -> Option<SceneNode2d> {
+        slots
+            .get(entity)
+            .map(|slot| slot.node.clone())
+            .or_else(|| maps.get(entity).map(|slot| slot.node.clone()))
+    };
+    let moved: Vec<SceneNode2d> = order[kept..].iter().filter_map(&mut node_of).collect();
+    for mut node in moved.iter().rev().cloned() {
+        node.detach();
+    }
+    for node in moved {
+        scene.add_child(node);
     }
     order_cache.clone_from(&order);
-    order
 }
 
 /// kiss3d draws 2D nodes in insertion order, so draw order is made explicit
@@ -123,12 +174,11 @@ pub(crate) fn sync_2d(
     app: &App,
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
-    order_cache: &mut Vec<Entity>,
     materials: &mut crate::shader_material::MaterialCache,
     reloaded: bool,
 ) {
     let world = app.engine.world();
-    let order = draw_order_2d(&world, app.engine.root(), slots, order_cache);
+    let order = draw_order_2d(&world, app.engine.root());
 
     // A relink rebuilds the nodes holding the old pipeline; a channel view
     // rebuilds every node, whether or not it names a material.
@@ -321,4 +371,33 @@ pub(crate) fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
         std::mem::swap(&mut min.y, &mut max.y);
     }
     node.set_uv_rect(min, max);
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::{App, AppConfig};
+
+    /// A tilemap draws by its `z_index` like everything else in 2D: the pass
+    /// that builds it runs last, which used to put every map over every
+    /// sprite whatever the scene said.
+    #[test]
+    fn a_tilemap_takes_its_place_in_the_draw_order() {
+        let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
+        let root = app.engine.root();
+        let sky = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sky", root);
+        let ship = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Ship", root);
+        for (entity, layer) in [(sky, -100), (ship, -1)] {
+            let world = app.engine.world_mut();
+            let mut appearance = world
+                .get::<&mut balaur_core::GlobalAppearance>(entity)
+                .expect("a spawned node carries an appearance");
+            appearance.z_index = layer;
+        }
+        let order = super::ordered_nodes(&app.engine.world(), root, |_| true);
+        let places = |entity| order.iter().position(|held| *held == entity);
+        assert!(
+            places(sky) < places(ship),
+            "the map at -100 draws under the ship at -1"
+        );
+    }
 }

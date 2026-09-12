@@ -609,6 +609,9 @@ write. It walks widgets in scene order and wraps.
   one in. Hidden, freed or unfocusable releases focus.
 - An accept is a click by another name (same `clicked`, same `on_click`), so a
   mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
+- **2D draws in one order**: every sprite, polygon and tilemap under the root
+  by `z_index`, then z, then tree order. A tilemap's mesh is built by a pass
+  of its own, so it is put back in that order after both passes have run.
 - **A `stack` lays its children over one another**, each placed in its box by
   its own `anchor`: what a Godot MarginContainer does, and what a plain
   Control's anchored children do. Every other container queues its children

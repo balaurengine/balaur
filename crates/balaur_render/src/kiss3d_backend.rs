@@ -161,6 +161,33 @@ impl Frontend {
         moved
     }
 
+    /// The 2D world: the sprites and polygons, the tilemaps, and the one
+    /// draw order over both of them.
+    fn sync_flat(&mut self, app: &App, reloaded: bool) {
+        crate::sync_2d::sync_2d(
+            app,
+            &mut self.scene_2d,
+            &mut self.slots_2d,
+            &mut self.materials,
+            reloaded,
+        );
+        crate::tilemap::sync_tilemaps(
+            app,
+            &mut self.scene_2d,
+            &mut self.tilemap_slots,
+            &mut self.materials,
+            reloaded,
+        );
+        crate::sync_2d::order_layer_2d(
+            &app.engine.world(),
+            app.engine.root(),
+            &mut self.scene_2d,
+            &mut self.slots_2d,
+            &mut self.tilemap_slots,
+            &mut self.order_2d,
+        );
+    }
+
     /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
@@ -216,21 +243,7 @@ impl Frontend {
         );
         self.lights.sync(app, &mut self.scene);
         crate::light3d::sync_environment(app, window, &mut self.environment);
-        crate::sync_2d::sync_2d(
-            app,
-            &mut self.scene_2d,
-            &mut self.slots_2d,
-            &mut self.order_2d,
-            &mut self.materials,
-            reloaded,
-        );
-        crate::tilemap::sync_tilemaps(
-            app,
-            &mut self.scene_2d,
-            &mut self.tilemap_slots,
-            &mut self.materials,
-            reloaded,
-        );
+        self.sync_flat(app, reloaded);
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
         let dt = app.engine.delta();

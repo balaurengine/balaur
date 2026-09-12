@@ -17,8 +17,9 @@ const CHUNK: i32 = 32;
 #[cfg(feature = "kiss3d")]
 pub(crate) struct TilemapSlot {
     /// The map's own node. Every chunk is a child of it, so the map is posed
-    /// once however many chunks it happens to be made of.
-    node: kiss3d::scene::SceneNode2d,
+    /// once however many chunks it happens to be made of, and the draw order
+    /// moves the map by moving this.
+    pub(crate) node: kiss3d::scene::SceneNode2d,
     chunks: std::collections::HashMap<[i32; 2], Chunk>,
     version: u64,
     /// Which frame the map's animated tiles were built at. A picture, not a
