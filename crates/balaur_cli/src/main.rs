@@ -687,7 +687,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         });
     }
     let ran = if display == Display::Offscreen {
-        balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+        // The game's own window size, so a shot is framed as a player sees it:
+        // a portrait phone game rendered 16:9 is a picture of the wrong game.
+        let window = balaur_core::project::WindowSettings::from_settings(&app.engine);
+        balaur::run_offscreen(app, &title, window.width, window.height)
     } else {
         balaur::run(app, &title)
     };
@@ -706,14 +709,10 @@ fn exit_with(code: i32) {
     }
 }
 
-/// The offscreen framebuffer: 16:9, which is what every screen a showcase
-/// image or clip is watched on happens to be, and what a video site expects
-/// uploaded to it.
-///
-/// This no longer matches `WindowSettings::default`, which is 1600x1000. A
-/// screenshot of a *game* is therefore framed a little wider than the window
-/// a player would get by default; the editor, which is what almost every
-/// showcase take is of, has no such default to disagree with.
+/// The editor's offscreen framebuffer: 16:9, which is what every screen a
+/// showcase image or clip is watched on happens to be, and what a video site
+/// expects uploaded to it. A *game* renders offscreen at its own
+/// `window/width` and `window/height` instead.
 const OFFSCREEN_SIZE: (u32, u32) = (1920, 1080);
 
 /// A canonical path the rest of the engine can join to with `/`.
