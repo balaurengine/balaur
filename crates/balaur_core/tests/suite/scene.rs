@@ -339,7 +339,8 @@ fn a_scene_files_a_node_under_its_tags() {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nname = \"Gate\"\ntags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\n",
+        "[[nodes]]\nname = \"Scene\"\n[[nodes]]\nname = \"Gate\"\nparent = \"Scene\"\n\
+         tags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\nparent = \"Scene\"\n",
     )
     .unwrap();
     let mut app =

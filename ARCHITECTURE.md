@@ -98,8 +98,9 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   with the next matching event's payload, and
   `task::wait(node.call_async(method, args))` with that method's return value,
   however many ticks it suspended for. Both wake on the next step, like a timer.
-- `application/init_order = "children_first"` inits a scene's scripts children
-  before parents, Godot's `_ready` order; `balaur import` writes it.
+- A scene inits its scripts children before parents, Godot's `_ready` order: a
+  child can always reach its parent node, while a parent reading a child's
+  script state is the one that would find nothing.
 - `language` in `project.toml` picks the language; absent means Rune, the one
   this build ships.
 
@@ -127,13 +128,18 @@ language. Subsystems declare against `Bindings<Engine>`; a backend implements
   props)` is the same thing at run time.
 - A `node` export arrives as the node its path names, resolved from the
   scripted node once the whole scene exists, or nil: Godot's `@export var x:
-  Node`.
+  Node`. One that also names a `component` arrives as that node's handle for
+  it, the way an `asset` property names its asset type.
+- `script::require` hands back a module's `pub fn`s and its top-level `pub
+  const`s, so a shared constant is read where it is declared.
 
 ### Prefabs
 
-`instance = "scenes/crate.toml"` makes the prefab's roots the node's children,
-the same rule `scene::instantiate` follows. The node keeps its own name,
-transform and components.
+A scene has exactly one root, as a Godot scene and a Unity prefab do: it is
+what a path, a stable id and an instance all address, and a second root is an
+error naming it. `instance = "scenes/crate.toml"` makes the node *be* that
+prefab's root — the root's keys, components and script land on the node, under
+the node's own, and the root's children become the node's.
 
 - `overrides` is keyed by path from the instance node and holds scene keys,
   including `script.props`.
@@ -144,11 +150,8 @@ transform and components.
   replication will address.
 - A path naming nothing is reported and kept; a self-containing prefab is an
   error naming the cycle. Scripts attach when the outermost scene finishes.
-- `instance_root = true` makes the node *be* the prefab's one root, as a Godot
-  instance is: the root's keys, components and script land on the node, under
-  its own, and the root's children are the node's. Overrides then name paths
-  from the node, `.` for itself. What `balaur import` writes for every Godot
-  instance, so a Godot path reads the same here.
+- Overrides name paths from the instance node, `.` for the node itself, so a
+  Godot path reads the same here.
 - In the editor: placed from the palette, opened from its row, drawn one shade
   quieter. Editing a prefab row writes a sparse `overrides` entry, removed again
   when the value returns to the prefab's. Comparison needs
@@ -208,6 +211,12 @@ remove hooks.
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `shape/radius` with the
   first would reset `half_extents`.
+- `meta` is the one component with no schema, so every key on it is the
+  author's: values filed on a node for whoever holds the node rather than for
+  its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script
+  reads `node.meta["fade"]`, and `node.meta = #{ … }` replaces the table.
+- A handle indexes as well as it reads fields: `node.widget["checked"]` names
+  a property at run time, which is the only way to reach a schema-less one.
 - One registration buys the scene key, the node API (`set_component`,
   `get_component`, `has_component`, `remove_component`, `component_names`,
   `scene.component_types`, `scene.component_schema`) and the editor: the
@@ -278,6 +287,10 @@ content is `asset`.
   doc, parse)` returns an opaque `Rc<dyn Any>` the plugin downcasts.
   `AssetState` is the `DetHashMap` cache keyed by resolved reference;
   `AssetTypeRegistry` is the parser table, read-only after plugin build.
+- `application/ignore` in `project.toml` lists what is not the game's, as
+  globs (`art/wip/**`, `**/*.blend1`): the asset index skips it and a pack
+  leaves it out, so nothing there reaches a shipped game. One list rather than
+  a marker file per folder, so it is visible and versioned.
 - Sharing is the default; `assets.duplicate` opts out. Cache keys use a
   hand-written FNV-1a over bytes and TOML structure — `std`'s hashers specify
   nothing about their output, and this key must agree across platforms.
@@ -326,7 +339,9 @@ its `Cargo.toml` and fails if one appears.
   quaternions, the only way past ±180° that takes the short way. A `rotation`
   track takes the quaternion — what an imported `.glb` holds.
 - The sampler is `(clip, time) -> pose`, pure and reachable with no `Engine`, so
-  blend trees can compose samples later.
+  blend trees can compose samples later. Keys sharing one time are a jump, and
+  at that instant the last of them holds — including a track whose every key
+  sits at the end, which is what "hide when the fade lands" generates.
 - **A tween is a generated clip**: one sampler, two authoring front-ends, no
   second interpolation path. Steps are sequential; `parallel = true` joins the
   previous, and the next non-parallel step waits for the group. `to`, `by`,
@@ -594,6 +609,9 @@ write. It walks widgets in scene order and wraps.
   one in. Hidden, freed or unfocusable releases focus.
 - An accept is a click by another name (same `clicked`, same `on_click`), so a
   mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
+- A widget calls the method its `on_<verb>` key names and emits the event of
+  that name without the `on_`: `click`, `change`, `submit`. The key reaches one
+  method, the event reaches whoever subscribed or is awaiting it.
 - egui drives keyboard focus, so a menu needs no input plugin. A pad goes
   through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
   to the actions `ui_next`, `ui_previous`, `ui_accept` — wiring in the

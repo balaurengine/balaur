@@ -2,7 +2,7 @@
 // the buttons say nothing about where they sit — the panel lays them out.
 
 pub fn init(this) {
-    this.spinner = scene::get_node("World/Spinner");
+    this.spinner = scene::get_node("Main/World/Spinner");
 }
 
 pub fn on_faster(this) {

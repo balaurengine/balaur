@@ -23,17 +23,17 @@ pub(crate) const CONSTANTS_FN: &str = "__balaur_constants";
 /// The source with one more function, returning every top-level `pub const`
 /// by name: Rune keeps constants inside the unit, where a caller holding the
 /// module cannot reach them. A source with none comes back as it was.
+///
+/// The names come off a parse rather than the text, so `pub const` inside a
+/// string is not one, and a name a `pub fn` already owns stays the function.
 pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
-    let names: Vec<&str> = source
-        .lines()
-        .filter_map(|line| line.strip_prefix("pub const "))
-        .map(|rest| {
-            let end = rest
-                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .unwrap_or(rest.len());
-            &rest[..end]
-        })
-        .filter(|name| !name.is_empty())
+    let taken: Vec<String> = public_functions(source)
+        .into_iter()
+        .map(|f| f.name)
+        .collect();
+    let names: Vec<&str> = public_constants(source)
+        .into_iter()
+        .filter(|name| !taken.iter().any(|f| f == name))
         .collect();
     if names.is_empty() {
         return source.into();
@@ -44,6 +44,26 @@ pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
         fields.join(", ")
     )
     .into()
+}
+
+/// Every top-level `pub const` in a source, by name. A file Rune cannot parse
+/// has none: the compile below reports that, and better than this could.
+fn public_constants(source: &str) -> Vec<&str> {
+    let Ok(file) = rune::parse::parse_all::<rune::ast::File>(source, rune::SourceId::EMPTY, false)
+    else {
+        return Vec::new();
+    };
+    file.items
+        .iter()
+        .filter_map(|(item, _)| match item {
+            rune::ast::Item::Const(declared)
+                if matches!(declared.visibility, rune::ast::Visibility::Public(_)) =>
+            {
+                source.get(declared.name.span().range())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// A `pub fn` a script declares, read off its source text. A `pub fn`
@@ -308,6 +328,18 @@ pub(crate) fn is_node_export(spec: &balaur_script::Value) -> bool {
     fields
         .iter()
         .any(|(k, v)| k == "type" && matches!(v, balaur_script::Value::Str(t) if t == "node"))
+}
+
+/// The component a `node` export names, whose handle the script is handed
+/// instead of the node: `#{ type: "node", component: "body2d" }`.
+pub(crate) fn export_component(spec: &balaur_script::Value) -> Option<&str> {
+    let balaur_script::Value::Map(fields) = spec else {
+        return None;
+    };
+    fields.iter().find_map(|(k, v)| match v {
+        balaur_script::Value::Str(name) if k == "component" => Some(name.as_str()),
+        _ => None,
+    })
 }
 
 pub(crate) fn export_default(spec: &balaur_script::Value) -> balaur_script::Value {

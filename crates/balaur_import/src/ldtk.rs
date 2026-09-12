@@ -44,7 +44,7 @@ pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {
     let mut layers = 0;
     for level in array(&project, &["levels"]) {
         let name = tidy(text_of(level, "identifier", stem));
-        let (scene, count) = level_toml(level, &sets)?;
+        let (scene, count) = level_toml(level, &name, &sets)?;
         layers += count;
         files.push((format!("scenes/{name}.toml"), scene.into_bytes()));
     }
@@ -97,7 +97,7 @@ fn tileset_toml(set: &Value, texture: &str) -> Vec<u8> {
 ///
 /// LDtk lists its layers top first, so the z-index counts down as the file
 /// reads and what it drew on top draws on top here too.
-fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, usize)> {
+fn level_toml(level: &Value, level_name: &str, sets: &BTreeMap<i64, String>) -> Result<(String, usize)> {
     let layers = array(level, &["layerInstances"]);
     // A tileset kept in a file is named by its path, not re-declared here.
     let mut out = String::new();
@@ -108,7 +108,7 @@ fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, us
         let kind = text_of(layer, "__type", "");
         let name = tidy(text_of(layer, "__identifier", "layer"));
         if kind == "Entities" {
-            out.push_str(&entities_toml(layer, &name));
+            out.push_str(&entities_toml(layer, &name, ROOT_ID));
             continue;
         }
         let Some(set) = layer
@@ -153,7 +153,7 @@ fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, us
         drawn += 1;
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{set}.toml\"\npixels_per_unit = {grid}\ncells = [\n",
+            "[[nodes]]\nid = \"n_{name}\"\nname = \"{}\"\nparent = \"{ROOT_ID}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{set}.toml\"\npixels_per_unit = {grid}\ncells = [\n",
             text_of(layer, "__identifier", "Layer")
         );
         for row in &cells {
@@ -172,8 +172,13 @@ fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, us
     if out.is_empty() {
         return Err(anyhow!("that level has nothing in it"));
     }
-    Ok((out, drawn))
+    // A scene has one root, so the level is it and its layers are children.
+    let root = format!("[[nodes]]\nid = \"{ROOT_ID}\"\nname = \"{level_name}\"\n\n");
+    Ok((root + &out, drawn))
 }
+
+/// The id of the level node every layer hangs from.
+const ROOT_ID: &str = "n_level";
 
 fn spell(row: &[i64]) -> String {
     row.iter()
@@ -184,7 +189,7 @@ fn spell(row: &[i64]) -> String {
 
 /// An entity layer: one node per entity, at its own place, carrying the
 /// fields it was given.
-fn entities_toml(layer: &Value, layer_name: &str) -> String {
+fn entities_toml(layer: &Value, layer_name: &str, parent: &str) -> String {
     let mut out = String::new();
     let grid = number(layer, "__gridSize", 16).max(1) as f64;
     for (index, entity) in array(layer, &["entityInstances"]).iter().enumerate() {
@@ -202,7 +207,7 @@ fn entities_toml(layer: &Value, layer_name: &str) -> String {
             / grid;
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{layer_name}_{index}\"\nname = \"{name}\"\ntransform = {{ position = [{x}, {}, 0.0] }}\n\n",
+            "[[nodes]]\nid = \"n_{layer_name}_{index}\"\nname = \"{name}\"\nparent = \"{parent}\"\ntransform = {{ position = [{x}, {}, 0.0] }}\n\n",
             -y
         );
         let fields = array(entity, &["fieldInstances"]);
@@ -238,6 +243,15 @@ fn spell_value(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// Nodes the scene declares with no parent.
+    fn roots(scene: &str) -> usize {
+        scene
+            .split("[[nodes]]")
+            .skip(1)
+            .filter(|node| !node.split("[nodes.").next().unwrap_or("").contains("parent ="))
+            .count()
+    }
     use super::*;
 
     const PROJECT: &str = r#"{
@@ -283,6 +297,7 @@ mod tests {
         assert_eq!(out.layers, 1);
         let scene = written(&out.files, "scenes/cave.toml");
         assert!(scene.contains("[nodes.tilemap]"), "{scene}");
+        assert_eq!(roots(&scene), 1, "a scene has one root: {scene}");
         assert!(
             scene.contains("[3, -1],") && scene.contains("[-1, 2],"),
             "a tile sits where its pixel place puts it: {scene}"

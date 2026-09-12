@@ -76,6 +76,7 @@
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "material": "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
+    "meta": "Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.",
     "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.",
     "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
     "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
@@ -183,6 +184,9 @@
     "mesh": [
       "3d",
       "render"
+    ],
+    "meta": [
+      "interaction"
     ],
     "modifier2d": [
       "2d",
@@ -2407,6 +2411,7 @@
         "type": "string"
       }
     },
+    "meta": {},
     "modifier2d": {
       "angle_limit": {
         "default": 0.0,
@@ -4251,7 +4256,7 @@
       },
       "group": {
         "default": "",
-        "description": "A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
+        "description": "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
         "group": "value",
         "type": "string"
       },
@@ -4553,6 +4558,12 @@
         "description": "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one",
         "group": "paint",
         "type": "asset"
+      },
+      "toggle": {
+        "default": false,
+        "description": "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode",
+        "group": "value",
+        "type": "bool"
       },
       "tooltip": {
         "default": "",

@@ -369,6 +369,19 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
         }
         _ => {}
     }
+    // As `asset` names its asset type, a node property may name the component
+    // the node it points at has to carry; the script is handed that handle.
+    match (declared == "node", spec.get("component")) {
+        (true, Some(name)) if name.as_str().is_none() => {
+            return Err(format!("`component` is {}, not a name", name.type_str()));
+        }
+        (false, Some(_)) => {
+            return Err(format!(
+                "`component` belongs to `type = \"node\"`, not `type = \"{declared}\"`"
+            ));
+        }
+        _ => {}
+    }
     if let Some(description) = spec.get("description")
         && description.as_str().is_none()
     {

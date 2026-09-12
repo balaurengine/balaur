@@ -554,7 +554,8 @@ impl RuneHost {
             )?;
         }
         // A `node` export arrives as the node its path names, relative to this
-        // one, or nil: what a Godot `@export var x: Node` holds.
+        // one, or nil: what a Godot `@export var x: Node` holds. One naming a
+        // `component` arrives as that node's handle for it.
         for (name, spec) in declared
             .iter()
             .filter(|(_, spec)| inspect::is_node_export(spec))
@@ -572,11 +573,23 @@ impl RuneHost {
             if found.is_none() && !path.is_empty() {
                 tracing::warn!("[{key}] node property '{name}' names '{path}', which is not there");
             }
-            let resolved = match found {
-                Some(node) => rune::to_value(Node {
+            let component = inspect::export_component(spec);
+            if let (Some(node), Some(component)) = (found, component)
+                && balaur_core::components::get(&self.engine, node, component).is_none()
+            {
+                tracing::warn!(
+                    "[{key}] property '{name}' names '{path}', which carries no {component}"
+                );
+            }
+            let resolved = match (found, component) {
+                (Some(node), Some(component)) => rune::to_value(value::component::Component {
+                    node: balaur_core::node_id_of(node).0,
+                    name: component.to_string(),
+                })?,
+                (Some(node), None) => rune::to_value(Node {
                     id: node.to_bits().get(),
                 })?,
-                None => rune::to_value(())?,
+                (None, _) => rune::to_value(())?,
             };
             obj.insert(rune::alloc::String::try_from(name.as_str())?, resolved)?;
         }

@@ -21,8 +21,13 @@ fn write_project(root: &std::path::Path) {
         root.join("scenes/main.toml"),
         r#"
 [[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_ground"
 name = "Ground"
+parent = "n_world"
 body3d = "static"
 collider3d = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
 
@@ -32,6 +37,7 @@ position = [0.0, -1.0, 0.0]
 [[nodes]]
 id = "n_balla"
 name = "BallA"
+parent = "n_world"
 body3d = "dynamic"
 collider3d = { kind = "ball", radius = 0.5 }
 
@@ -41,6 +47,7 @@ position = [0.1, 5.0, 0.0]
 [[nodes]]
 id = "n_ballb"
 name = "BallB"
+parent = "n_world"
 body3d = "dynamic"
 collider3d = { kind = "ball", radius = 0.5 }
 
@@ -115,8 +122,13 @@ fn write_project_2d(root: &std::path::Path) {
         root.join("scenes/main.toml"),
         r#"
 [[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_ground"
 name = "Ground"
+parent = "n_world"
 body2d = "static"
 collider2d = { kind = "rect", half_extents = [10, 1] }
 
@@ -126,6 +138,7 @@ position = [0.0, -1.0, 0.0]
 [[nodes]]
 id = "n_balla"
 name = "BallA"
+parent = "n_world"
 body2d = "dynamic"
 collider2d = { kind = "circle", radius = 0.5, restitution = 0.4 }
 
@@ -135,6 +148,7 @@ position = [0.1, 5.0, 0.0]
 [[nodes]]
 id = "n_boxb"
 name = "BoxB"
+parent = "n_world"
 body2d = "dynamic"
 collider2d = { kind = "rect", half_extents = [0.5, 0.3] }
 
@@ -197,7 +211,7 @@ fn a_divergence_report_names_the_node_and_the_slice() {
     }
     let before = digest::entries(&app.engine);
 
-    let ball = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "BallA")
+    let ball = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "World/BallA")
         .expect("the scene has a BallA");
     app.engine
         .world_mut()

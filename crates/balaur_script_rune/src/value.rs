@@ -1,6 +1,6 @@
 //! Conversions between the neutral `balaur_script::Value` and Rune's.
 
-mod component;
+pub(crate) mod component;
 
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
@@ -15,6 +15,13 @@ pub struct Node {
 }
 
 impl Node {
+    // The shape Rune's protocol registration takes: the receiver by reference
+    // and the operand as a value it can convert.
+    #[allow(
+        clippy::trivially_copy_pass_by_ref,
+        clippy::needless_pass_by_value,
+        reason = "an associated function registered with Rune"
+    )]
     fn same(&self, other: rune::Value) -> bool {
         other.borrow_ref::<Node>().is_ok_and(|n| n.id == self.id)
     }

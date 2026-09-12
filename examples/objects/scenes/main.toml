@@ -92,15 +92,19 @@ name = "peak"
 positions = [[0, 0, 0], [0, 0, 0], [0, 1.2, 0]]
 
 [[nodes]]
+id = "n_main"
+name = "Main"
+
+[[nodes]]
 id = "n_world"
 name = "World"
-parent = ""
+parent = "n_main"
 script = "scripts/tour.rn"
 
 [[nodes]]
 id = "n_camera"
 name = "Camera"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [0.0, 3.0, 7.0]
@@ -428,7 +432,7 @@ material = "materials/painted.toml"
 [[nodes]]
 id = "n_hud"
 name = "Hud"
-parent = ""
+parent = "n_main"
 
 [nodes.widget]
 kind = "label"

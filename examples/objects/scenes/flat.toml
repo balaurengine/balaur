@@ -1,9 +1,13 @@
 # Instanced at run time, not from main.toml: a 2D component there would make
 # the editor treat the whole scene as 2D.
 [[nodes]]
+id = "n_layer2d"
+name = "Layer2D"
+
+[[nodes]]
 id = "n_camera2d"
 name = "Camera2D"
-parent = ""
+parent = "n_layer2d"
 
 [nodes.camera]
 kind = "2d"
@@ -12,7 +16,7 @@ zoom = 60.0
 [[nodes]]
 id = "n_flat"
 name = "Flat"
-parent = ""
+parent = "n_layer2d"
 visible = false
 
 [[nodes]]

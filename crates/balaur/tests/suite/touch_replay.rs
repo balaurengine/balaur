@@ -14,8 +14,13 @@ const SCRIPT: &str = "pub fn fixed_update(this, dt) {
 ";
 
 const SCENE: &str = r#"[[nodes]]
+id = "root"
+name = "Game"
+
+[[nodes]]
 id = "n"
 name = "Runner"
+parent = "root"
 script = "scripts/s.rn"
 
 [nodes.transform]
@@ -24,6 +29,7 @@ position = [0, 0, 0]
 [[nodes]]
 id = "s"
 name = "Stick"
+parent = "root"
 
 [nodes.touch_stick]
 action_x = "move_x"
@@ -58,7 +64,7 @@ fn booted(dir: &std::path::Path) -> App {
 
 fn walked(app: &App) -> f32 {
     let world = app.engine.world();
-    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Runner").unwrap();
+    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Game/Runner").unwrap();
     let t = world.get::<&balaur_core::Transform>(node).unwrap();
     t.position.x
 }

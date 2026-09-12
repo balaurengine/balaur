@@ -3,9 +3,13 @@
 # draws with the built-in material, for comparison.
 
 [[nodes]]
+id = "n_main"
+name = "Main"
+
+[[nodes]]
 id = "n_camera"
 name = "Camera"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [0, 0, 0]
@@ -17,7 +21,7 @@ zoom = 90
 [[nodes]]
 id = "n_logo"
 name = "Logo"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [-2.2, 0, 0]
@@ -30,7 +34,7 @@ pixels_per_unit = 128
 [[nodes]]
 id = "n_plain"
 name = "Plain"
-parent = ""
+parent = "n_main"
 
 [nodes.transform]
 position = [2.2, 0, 0]
@@ -42,7 +46,7 @@ pixels_per_unit = 128
 [[nodes]]
 id = "n_hud"
 name = "Hud"
-parent = ""
+parent = "n_main"
 
 [nodes.widget]
 kind = "label"

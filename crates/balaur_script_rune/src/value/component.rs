@@ -66,6 +66,17 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
             node: node.id,
             name: name.to_string(),
         })?;
+        // `node.meta = #{ ... }` describes the component whole, the scene
+        // file's spelling; the handle's fields and index are the sparse one.
+        let Some(set) = node_op("set_component") else {
+            continue;
+        };
+        let set = hold_node_fn(eng.clone(), set);
+        m.field_function(
+            &Protocol::SET,
+            name,
+            move |node: &Node, value: rune::Value| set_whole(*node, name, set, &value),
+        )?;
     }
 
     for op in GENERIC {
@@ -91,7 +102,91 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
         m.raw_function(name, method_handler(name, targets))
             .build_associated::<Component>()?;
     }
-    property_fields(m, eng)
+    property_fields(m, eng)?;
+    index_access(m, eng)
+}
+
+/// `node.meta["fade"]` and `node.meta["fade"] = 0.3`: a property named at run
+/// time rather than by the schema, which is the only way to reach a
+/// schema-less component's keys. A key the component does not hold is nil.
+fn index_access(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextError> {
+    let (Some(read), Some(write)) = (node_op("get_component"), node_op("patch_component")) else {
+        return Ok(());
+    };
+    let read = hold_node_fn(eng.clone(), read);
+    let write = hold_node_fn(eng.clone(), write);
+    m.associated_function(&Protocol::INDEX_GET, move |this: &Component, key: String| {
+        read_key(this, &key, read)
+    })?;
+    m.associated_function(
+        &Protocol::INDEX_SET,
+        move |this: &Component, key: String, value: rune::Value| {
+            write_key(this, &key, write, &value)
+        },
+    )?;
+    Ok(())
+}
+
+fn read_key(this: &Component, key: &str, handle: usize) -> VmResult<rune::Value> {
+    let _scope = CallbackScope::enter();
+    let got = match call_bound(handle, &receiver(this)) {
+        Some(Ok(v)) => v,
+        Some(Err(err)) => return fail(err),
+        None => return fail("component index was registered on another thread"),
+    };
+    let Neutral::Map(props) = got else {
+        return match rune::to_value(()) {
+            Ok(nil) => VmResult::Ok(nil),
+            Err(err) => fail(err),
+        };
+    };
+    let found = props
+        .into_iter()
+        .find(|(name, _)| name == key)
+        .map_or(Neutral::Nil, |(_, value)| value);
+    match from_neutral(&found) {
+        Ok(v) => VmResult::Ok(v),
+        Err(err) => fail(err),
+    }
+}
+
+fn write_key(this: &Component, key: &str, handle: usize, value: &rune::Value) -> VmResult<()> {
+    let _scope = CallbackScope::enter();
+    let value = match to_neutral(value) {
+        Ok(v) => v,
+        Err(err) => return fail(err),
+    };
+    let [node, name] = receiver(this);
+    let args = [node, name, Neutral::Map(vec![(key.to_string(), value)])];
+    match call_bound(handle, &args) {
+        Some(Ok(_)) => VmResult::Ok(()),
+        Some(Err(err)) => fail(err),
+        None => fail("component index was registered on another thread"),
+    }
+}
+
+/// `node.<component> = table`: the whole component, as a scene key writes it.
+fn set_whole(
+    node: Node,
+    name: &'static str,
+    handle: usize,
+    value: &rune::Value,
+) -> VmResult<()> {
+    let _scope = CallbackScope::enter();
+    let value = match to_neutral(value) {
+        Ok(v) => v,
+        Err(err) => return fail(err),
+    };
+    let args = [
+        Neutral::Node(node.id),
+        Neutral::Str(name.to_string()),
+        value,
+    ];
+    match call_bound(handle, &args) {
+        Some(Ok(_)) => VmResult::Ok(()),
+        Some(Err(err)) => fail(err),
+        None => fail("component assignment was registered on another thread"),
+    }
 }
 
 /// Give the handle a field per schema property, over every component that

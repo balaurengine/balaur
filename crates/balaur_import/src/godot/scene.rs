@@ -215,8 +215,6 @@ impl Walk<'_> {
         table.insert("name".into(), Toml::String(name.to_string()));
         table.insert("parent".into(), Toml::String(self.parent_ref(parent)));
         table.insert("instance".into(), Toml::String(scene_path(&prefab)));
-        // A Godot instance node is the prefab's root, and so is this one.
-        table.insert("instance_root".into(), Toml::Boolean(true));
         self.nodes.push(table);
         let index = self.nodes.len() - 1;
         self.groups(section, index);

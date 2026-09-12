@@ -29,19 +29,29 @@ parent = "n_root"
 /// Hand-edited scenes are missing ids; they are generated, not rejected.
 const NO_ID: &str = r#"
 [[nodes]]
+name = "Scene"
+
+[[nodes]]
 name = "World"
+parent = "Scene"
 
 [[nodes]]
 name = "Player"
+parent = "Scene"
 "#;
 
 /// Two nodes may share a display name; the second id is regenerated.
 const DUP_NAMES: &str = r#"
 [[nodes]]
-name = "Pupil"
+name = "Scene"
 
 [[nodes]]
 name = "Pupil"
+parent = "Scene"
+
+[[nodes]]
+name = "Pupil"
+parent = "Scene"
 "#;
 
 /// Parents must be declared before the children that name them.
@@ -98,12 +108,18 @@ parent = "../Elsewhere"
 
 const DUPLICATE: &str = r#"
 [[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
 id = "same"
 name = "A"
+parent = "n_scene"
 
 [[nodes]]
 id = "same"
 name = "B"
+parent = "n_scene"
 "#;
 
 /// Every node's absolute path, sorted — the shape of the tree that loaded.

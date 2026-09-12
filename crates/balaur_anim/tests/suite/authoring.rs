@@ -124,7 +124,11 @@ fn an_autoplay_that_cannot_load_leaves_the_rest_of_the_scene_standing() {
     let app = app();
     let source = r#"
 [[nodes]]
+name = "Scene"
+
+[[nodes]]
 name = "Box"
+parent = "Scene"
 
 [nodes.animation]
 library = "animations/nothing_here.toml"
@@ -132,14 +136,15 @@ autoplay = "idle"
 
 [[nodes]]
 name = "Ground"
+parent = "Scene"
 "#;
     let root = app.engine.root();
     project::instantiate_scene(&app.engine, source, root, false).unwrap();
     assert!(
-        scene::find_node(&app.engine.world(), root, "Ground").is_some(),
+        scene::find_node(&app.engine.world(), root, "Scene/Ground").is_some(),
         "one unresolvable clip took the whole scene down"
     );
-    let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
+    let entity = scene::find_node(&app.engine.world(), root, "Scene/Box").unwrap();
     assert!(balaur_anim::current(&app.engine, entity).is_none());
 }
 

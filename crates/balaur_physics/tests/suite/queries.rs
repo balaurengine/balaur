@@ -23,8 +23,13 @@ fn run(body: &str) -> Vec<String> {
     std::fs::write(
         dir.path().join("main.toml"),
         r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
 id = "n_near"
 name = "Near"
+parent = "n_world"
 script = "scripts/s.rn"
 
 [nodes.transform]
@@ -37,6 +42,7 @@ radius = 0.5
 [[nodes]]
 id = "n_far"
 name = "Far"
+parent = "n_world"
 
 [nodes.transform]
 position = [0.0, 2.0, 0.0]
@@ -173,7 +179,7 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
 fn two_nodes_can_be_measured_against_each_other() {
     run_clean(
         r#"
-        let far = scene::get_node("Far");
+        let far = scene::get_node("World/Far");
         let gap = physics3d::distance(this.node, far);
         assert!(math::abs(gap - 3.0) < 1e-3, "the gap between the balls is {}", gap);
         assert!(!physics3d::intersects(this.node, far), "they should not touch");

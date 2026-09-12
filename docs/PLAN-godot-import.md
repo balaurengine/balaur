@@ -308,10 +308,9 @@ Godot class the survey found has a row in
 transform and is reported. Positions go from pixels to units at 100 a unit
 with y flipped; a widget stays in design pixels, y down, as widgets measure.
 
-- **Instances.** A Godot instance node *is* the prefab's root, and so is
-  the node here: every instance is written with `instance_root = true`, so
-  the root's components and script land on it and the tree is as deep as
-  Godot's. What the instance line sets is an override on `.`, an edit inside
+- **Instances.** A Godot instance node *is* the prefab's root, and so is the
+  node here: a scene has one root, an instance is it, so the root's components
+  and script land on the node and the tree is as deep as Godot's. What the instance line sets is an override on `.`, an edit inside
   is an override by the Godot path from it, and an export set on either
   retunes the prefab's script. A node added under a node inside an instance
   names its parent by path. So every Godot path, in a binding, a track, an
@@ -425,7 +424,7 @@ Getting the first two, `boot_perf` and `login_offline`, to pass found six
 engine gaps, all closed on 2026-09-11: `balaur run --scene` boots a
 harness's own scene, `engine.quit(code)` reaches the shell, a headless
 `--frames` run stops when a script quits, `ui.click(node)` clicks with no
-window, a `node` export arrives as the node, and `instance_root` above. It
+window, a `node` export arrives as the node, and one root per scene. It
 also found one in the game: its offline login button is hidden and never
 shown, so Godot's runner passed by emitting `pressed` on an invisible
 button. The port's runner does the same, and warns.

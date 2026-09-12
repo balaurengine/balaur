@@ -278,6 +278,7 @@ fn register_core_content(app: &mut App) {
     crate::states::register_states_component(app);
     crate::timer::register_timer_component(app);
     crate::bindings::register_bindings_component(app);
+    crate::node_meta::register_meta_component(app);
     app.engine
         .insert_resource(crate::variables::Variables::default());
     app.engine

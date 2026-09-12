@@ -1,76 +1,77 @@
-//! Values a script files on a node by name, Godot's `set_meta`: state that
+//! `meta`: values filed on a node by name, Godot's `set_meta`. State that
 //! belongs to the node rather than to the script on it, so a helper with no
-//! instance of its own (a static fade, a pool) can find it again. Runtime
-//! only: a snapshot and a scene file carry none of it.
-
-use std::collections::BTreeMap;
+//! instance of its own — a static fade, a pool — can find it again.
+//!
+//! The one component with no schema: every key is the author's, so a scene
+//! writes `[nodes.meta] fade_seconds = 0.3`, a script reads
+//! `node.meta["fade_seconds"]`, and both go through the same component path
+//! every other value on a node takes. Component data is TOML, so a node
+//! handle cannot be filed here; a stable id can.
 
 use anyhow::{Result, anyhow};
-use balaur_script::Value;
+use hecs::Entity;
 
+use crate::app::App;
+use crate::components::ComponentDef;
 use crate::engine::Engine;
-use crate::node_api::node;
 
-/// A node's named values, added with its first `set_meta`.
+pub const COMPONENT: &str = "meta";
+
+/// A node's named values, sorted by name as a TOML table is.
 #[derive(Clone, Debug, Default)]
-pub struct Meta(pub BTreeMap<String, Value>);
+pub struct Meta(pub toml::map::Map<String, toml::Value>);
 
-fn key(args: &[Value]) -> Result<&str> {
-    match args.get(1) {
-        Some(Value::Str(s)) => Ok(s),
-        _ => Err(anyhow!("expected a name as the second argument")),
-    }
+pub(crate) fn register_meta_component(app: &mut App) {
+    app.register_component(
+        COMPONENT,
+        ComponentDef {
+            doc: "Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.",
+            schema: ComponentDef::parse_schema(COMPONENT, ""),
+            tags: &["interaction"],
+            expects: &[],
+            apply: Box::new(|eng: &Engine, entity: Entity, params: &toml::Value| {
+                let table = params.as_table().cloned().unwrap_or_default();
+                let mut world = eng.world_mut();
+                if let Ok(mut meta) = world.get::<&mut Meta>(entity) {
+                    meta.0 = table;
+                    return Ok(());
+                }
+                world
+                    .insert_one(entity, Meta(table))
+                    .map_err(|_| anyhow!("node is dead"))?;
+                Ok(())
+            }),
+            remove: Box::new(|eng: &Engine, entity: Entity| {
+                let _ = eng.world_mut().remove_one::<Meta>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng: &Engine, entity: Entity| {
+                let world = eng.world();
+                let meta = world.get::<&Meta>(entity).ok()?;
+                Some(toml::Value::Table(meta.0.clone()))
+            }),
+        },
+    );
 }
 
-pub(crate) fn get_meta(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let name = key(args)?;
+/// What the node has filed under `name`, nil when it has nothing.
+pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
     let world = eng.world();
-    let found = world.get::<&Meta>(e).ok().and_then(|m| m.0.get(name).cloned());
-    Ok(found.unwrap_or_else(|| args.get(2).cloned().unwrap_or(Value::Nil)))
+    let meta = world.get::<&Meta>(entity).ok()?;
+    meta.0.get(name).cloned()
 }
 
-pub(crate) fn has_meta(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let name = key(args)?;
-    let world = eng.world();
-    Ok(Value::Bool(world.get::<&Meta>(e).is_ok_and(|m| m.0.contains_key(name))))
+/// File one value, leaving the rest of the node's alone.
+pub fn set(eng: &Engine, entity: Entity, name: &str, value: toml::Value) -> Result<()> {
+    let mut table = toml::map::Map::new();
+    table.insert(name.to_string(), value);
+    crate::components::patch(eng, entity, COMPONENT, &toml::Value::Table(table))
 }
 
-pub(crate) fn set_meta(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let name = key(args)?.to_string();
-    let value = args.get(2).cloned().unwrap_or(Value::Nil);
-    // Setting nil is removing, as in Godot.
-    if matches!(value, Value::Nil) {
-        return remove_meta(eng, args);
-    }
-    let mut world = eng.world_mut();
-    if let Ok(mut meta) = world.get::<&mut Meta>(e) {
-        meta.0.insert(name, value);
-        return Ok(Value::Nil);
-    }
-    let meta = Meta(BTreeMap::from([(name, value)]));
-    world.insert_one(e, meta).map_err(|_| anyhow!("node is dead"))?;
-    Ok(Value::Nil)
-}
-
-pub(crate) fn remove_meta(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let name = key(args)?;
-    let world = eng.world();
-    if let Ok(mut meta) = world.get::<&mut Meta>(e) {
+/// Drop one value; a name the node never had is left alone.
+pub fn remove(eng: &Engine, entity: Entity, name: &str) {
+    let world = eng.world_mut();
+    if let Ok(mut meta) = world.get::<&mut Meta>(entity) {
         meta.0.remove(name);
     }
-    Ok(Value::Nil)
-}
-
-pub(crate) fn meta_names(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let world = eng.world();
-    let names = world
-        .get::<&Meta>(e)
-        .map(|m| m.0.keys().cloned().map(|k| Value::Str(k.into())).collect())
-        .unwrap_or_default();
-    Ok(Value::List(names))
 }

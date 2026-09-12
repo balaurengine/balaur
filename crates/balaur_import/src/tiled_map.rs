@@ -155,7 +155,7 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
         let name = tidy(&layer.name);
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{}.toml\"\npixels_per_unit = {}\ncells = [\n",
+            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nparent = \"n_{stem}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{}.toml\"\npixels_per_unit = {}\ncells = [\n",
             layer.name, sets[0], map.tile_width
         );
         for row in 0..map.height {
@@ -175,11 +175,22 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
     if z == 0 {
         bail!("that map has no tile layers, so there is nothing to draw");
     }
-    Ok(out)
+    // A scene has one root, so the map is it and its layers are children.
+    let root = format!("[[nodes]]\nid = \"n_{stem}\"\nname = \"{stem}\"\n\n");
+    Ok(root + &out)
 }
 
 #[cfg(test)]
 mod tests {
+
+    /// Nodes the scene declares with no parent.
+    fn roots(scene: &str) -> usize {
+        scene
+            .split("[[nodes]]")
+            .skip(1)
+            .filter(|node| !node.split("[nodes.").next().unwrap_or("").contains("parent ="))
+            .count()
+    }
     use super::*;
 
     const MAP: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -235,6 +246,7 @@ mod tests {
         let out = imported();
         let scene = written(&out.files, "scenes/level.toml");
         assert!(scene.contains("[nodes.tilemap]"), "{scene}");
+        assert_eq!(roots(&scene), 1, "a scene has one root: {scene}");
         assert!(scene.contains("name = \"ground\""), "{scene}");
         assert!(
             scene.contains("[0, 1],") && scene.contains("[-1, 0],"),

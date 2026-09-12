@@ -98,7 +98,7 @@ fn load(scene: &str) -> (tempfile::TempDir, App) {
 }
 
 #[test]
-fn an_instance_builds_the_prefab_under_the_node_that_names_it() {
+fn an_instance_builds_the_prefab_on_the_node_that_names_it() {
     let (_dir, app) = load(
         r#"
 [[nodes]]
@@ -110,8 +110,8 @@ instance = "scenes/enemy.toml"
 position = [4.0, 0.0, 0.0]
 "#,
     );
-    assert_eq!(label(&app, "Enemy/Body"), Some(String::from("body")));
-    assert_eq!(label(&app, "Enemy/Body/Arm"), Some(String::from("arm")));
+    assert_eq!(label(&app, "Enemy"), Some(String::from("body")));
+    assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("arm")));
 }
 
 /// Instanced as its root, the node *is* the prefab's root, as a Godot
@@ -125,7 +125,6 @@ fn an_instance_as_its_root_is_the_prefabs_root() {
 id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
-instance_root = true
 
 [nodes.overrides."."]
 tint = "#ff0000"
@@ -156,24 +155,33 @@ fn two_instances_of_one_prefab_differ_only_where_overridden() {
     let (_dir, app) = load(
         r#"
 [[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
 id = "n_left"
 name = "Left"
+parent = "n_scene"
 instance = "scenes/enemy.toml"
 
-[nodes.overrides."Body/Arm".marker]
+[nodes.overrides.Arm.marker]
 label = "left arm"
 
 [[nodes]]
 id = "n_right"
 name = "Right"
+parent = "n_scene"
 instance = "scenes/enemy.toml"
 "#,
     );
-    assert_eq!(label(&app, "Left/Body/Arm"), Some(String::from("left arm")));
-    assert_eq!(label(&app, "Right/Body/Arm"), Some(String::from("arm")));
+    assert_eq!(
+        label(&app, "Scene/Left/Arm"),
+        Some(String::from("left arm"))
+    );
+    assert_eq!(label(&app, "Scene/Right/Arm"), Some(String::from("arm")));
     // Untouched by either override, so both still carry the prefab's own.
-    assert_eq!(label(&app, "Left/Body"), Some(String::from("body")));
-    assert_eq!(label(&app, "Right/Body"), Some(String::from("body")));
+    assert_eq!(label(&app, "Scene/Left"), Some(String::from("body")));
+    assert_eq!(label(&app, "Scene/Right"), Some(String::from("body")));
 }
 
 #[test]
@@ -181,23 +189,29 @@ fn ids_inside_an_instance_are_prefixed_by_the_instance() {
     let (_dir, app) = load(
         r#"
 [[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
 id = "n_left"
 name = "Left"
+parent = "n_scene"
 instance = "scenes/enemy.toml"
 
 [[nodes]]
 id = "n_right"
 name = "Right"
+parent = "n_scene"
 instance = "scenes/enemy.toml"
 "#,
     );
-    assert_eq!(stable_id(&app, "Left"), Some(String::from("n_left")));
+    assert_eq!(stable_id(&app, "Scene/Left"), Some(String::from("n_left")));
     assert_eq!(
-        stable_id(&app, "Left/Body/Arm"),
+        stable_id(&app, "Scene/Left/Arm"),
         Some(String::from("n_left/n_arm"))
     );
     assert_eq!(
-        stable_id(&app, "Right/Body/Arm"),
+        stable_id(&app, "Scene/Right/Arm"),
         Some(String::from("n_right/n_arm")),
         "the same node in another instance must not share an id"
     );
@@ -212,12 +226,12 @@ id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
 
-[nodes.overrides."Body/Arm".transform]
+[nodes.overrides.Arm.transform]
 position = [0.0, 2.0, 0.0]
 "#,
     );
     let world = app.engine.world();
-    let arm = find_node(&world, app.engine.root(), "Enemy/Body/Arm").unwrap();
+    let arm = find_node(&world, app.engine.root(), "Enemy/Arm").unwrap();
     let t = world.get::<&balaur_core::scene::Transform>(arm).unwrap();
     assert!((t.position.y - 2.0).abs() < 1e-6, "{:?}", t.position);
     assert!(t.position.x.abs() < 1e-6, "the prefab's x was replaced");
@@ -234,11 +248,11 @@ id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
 
-[nodes.overrides."Body/Leg".marker]
+[nodes.overrides.Leg.marker]
 label = "gone"
 "#,
     );
-    assert_eq!(label(&app, "Enemy/Body"), Some(String::from("body")));
+    assert_eq!(label(&app, "Enemy"), Some(String::from("body")));
 }
 
 #[test]
@@ -301,7 +315,7 @@ instance = "scenes/squad.toml"
     )
     .unwrap();
     assert_eq!(
-        stable_id(&app, "Squad/Leader/Body/Arm"),
+        stable_id(&app, "Squad/Arm"),
         Some(String::from("n_squad/n_leader/n_arm"))
     );
 }
@@ -322,7 +336,7 @@ instance = "scenes/enemy.toml"
     assert_eq!(
         world.get::<&Children>(enemy).unwrap().0.len(),
         1,
-        "the prefab's roots are the instance's children"
+        "the prefab root's children are the instance's children"
     );
 }
 
@@ -363,16 +377,13 @@ id = "n_enemy"
 name = "Enemy"
 instance = "scenes/enemy.toml"
 
-[nodes.overrides."Body/Arm".marker]
+[nodes.overrides.Arm.marker]
 label = "left arm"
 "#,
     );
+    assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("left arm")));
     assert_eq!(
-        label(&app, "Enemy/Body/Arm"),
-        Some(String::from("left arm"))
-    );
-    assert_eq!(
-        size(&app, "Enemy/Body/Arm"),
+        size(&app, "Enemy/Arm"),
         Some(3.0),
         "the prefab's size survived an override of its label"
     );

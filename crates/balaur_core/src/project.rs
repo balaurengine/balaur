@@ -383,18 +383,12 @@ pub(crate) struct SceneNode {
     #[serde(default)]
     tags: Vec<String>,
     pub(crate) script: Option<ScriptRef>,
-    /// A prefab: another scene file, built as this node's children.
+    /// A prefab: another scene file, and this node *is* its root.
     ///
-    /// The node keeps its own name, transform and components — they are the
-    /// instance's, not the prefab's — and the prefab's roots become its
-    /// children, which is what `scene::instantiate` does from a script.
+    /// The prefab root's keys, components and script land on this node, under
+    /// this node's own, and the root's children are this node's children.
+    /// Overrides then name paths from this node, `.` for the node itself.
     instance: Option<String>,
-    /// The node *is* the prefab's one root, as a Godot instance is: the
-    /// root's keys, components and script land on this node, under this
-    /// node's own, and its children are this node's. Overrides then name
-    /// paths from this node, `.` for the node itself.
-    #[serde(default)]
-    instance_root: bool,
     /// Per-node edits inside the instance, keyed by path from this node:
     /// `[nodes.overrides."Body/Arm"]`. Each holds scene keys, applied after
     /// the prefab is built, in key order.
@@ -500,17 +494,16 @@ pub fn instantiate_scene(
         merge_into: None,
     };
     build_scene(eng, source, base, &mut build)?;
-    if setting_string(eng, "application/init_order") == INIT_CHILDREN_FIRST {
-        children_first(eng, base, &mut build.pending);
-    }
+    children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)
 }
 
-/// `application/init_order` that runs a child's `init` before its parent's.
-const INIT_CHILDREN_FIRST: &str = "children_first";
-
 /// Reorder scripts waiting to attach so every child's comes before its
-/// parent's and siblings keep their order: Godot's `_ready` order.
+/// parent's and siblings keep their order.
+///
+/// A child's `init` can only reach a parent that exists, which it does before
+/// any script runs; a parent's `init` reading a child's script state is the
+/// one that would find nothing, so children go first.
 fn children_first(eng: &Engine, base: Entity, pending: &mut [PendingScript]) {
     fn walk(world: &hecs::World, node: Entity, order: &mut DetHashMap<Entity, usize>) {
         if let Ok(children) = world.get::<&scene::Children>(node) {
@@ -539,8 +532,8 @@ struct Build {
     /// so `init` can already look up anything the scene declares.
     pending: Vec<PendingScript>,
     attach_scripts: bool,
-    /// The node the prefab being built becomes the root of, for an
-    /// `instance_root` instance; taken by that prefab's root.
+    /// The node the prefab being built becomes the root of; taken by that
+    /// prefab's root.
     merge_into: Option<Entity>,
 }
 
@@ -611,16 +604,17 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let ids = repair_ids(&doc.nodes);
     // Taken once, by this document's root: a nested prefab asks afresh.
     let mut merge_into = build.merge_into.take();
-    let into_node = merge_into.is_some();
-    // The document's first root, which a parent path may start from by name
-    // even once it has been merged into the node that instanced it.
+    // The document's root, which a parent path may start from by name even
+    // once it has been merged into the node that instanced it.
     let mut scene_root: Option<(&str, Entity)> = None;
     for (index, node) in doc.nodes.iter().enumerate() {
         let parent = resolve_parent(eng, node, root, scene_root, &by_id)?;
         let merged = if node.parent.is_empty() { merge_into.take() } else { None };
-        if into_node && merged.is_none() && node.parent.is_empty() {
+        // One root, as a Godot scene and a Unity prefab have: it is what a
+        // path, a stable id and an instance all address.
+        if node.parent.is_empty() && scene_root.is_some() {
             bail!(
-                "instanced as its root, the prefab has to have one root; '{}' is another",
+                "a scene has one root; '{}' is a second. Put it under the first",
                 node.name
             );
         }
@@ -635,42 +629,28 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             None => scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent),
         };
         by_id.insert(ids[index].as_str(), entity);
-        if node.parent.is_empty() && scene_root.is_none() {
+        if node.parent.is_empty() {
             scene_root = Some((node.name.as_str(), entity));
         }
         if merged.is_none() {
             eng.world_mut()
                 .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         }
-        // A prefab instanced as this node's root lands first, so the node's
-        // own keys win over the root's, as a Godot instance's do.
-        if node.instance_root && node.instance.is_some() {
-            instance(eng, node, &ids[index], entity, build, true)?;
+        // The prefab lands first, so the node's own keys win over its root's.
+        if node.instance.is_some() {
+            instance(eng, node, &ids[index], entity, build)?;
             apply_own_keys(eng, node, entity, handlers, build)?;
             apply_overrides(eng, node, entity, handlers, build);
         } else {
             apply_own_keys(eng, node, entity, handlers, build)?;
-            if node.instance.is_some() {
-                instance(eng, node, &ids[index], entity, build, false)?;
-                apply_overrides(eng, node, entity, handlers, build);
-            }
         }
     }
     Ok(())
 }
 
-/// Build the prefab `node` names under `entity`, or, `as_root`, into it.
-fn instance(
-    eng: &Engine,
-    node: &SceneNode,
-    id: &str,
-    entity: Entity,
-    build: &mut Build,
-    as_root: bool,
-) -> Result<()> {
-    if as_root {
-        build.merge_into = Some(entity);
-    }
+/// Build the prefab `node` names into `entity`, which is its root.
+fn instance(eng: &Engine, node: &SceneNode, id: &str, entity: Entity, build: &mut Build) -> Result<()> {
+    build.merge_into = Some(entity);
     let prefab = node.instance.as_deref().unwrap_or_default();
     let outcome = build_instance(eng, node, id, entity, build)
         .with_context(|| format!("instance '{prefab}' on node '{}'", node.name));

@@ -1401,7 +1401,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 66 properties
+`ui` · 67 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -1426,7 +1426,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
 <tr><td><code>gap</code></td><td>float</td><td><code>8.0</code></td><td>Space between a container&#x27;s children, in design pixels At least 0.0.</td></tr>
-<tr><td><code>group</code></td><td>string</td><td>—</td><td>A name this `check` shares with the checks it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
+<tr><td><code>group</code></td><td>string</td><td>—</td><td>A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
@@ -1466,6 +1466,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Text color; fully transparent takes the theme&#x27;s colour for this widget&#x27;s role or kind, and failing that a near-white</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
+<tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
@@ -1489,6 +1490,19 @@ What this node does when something happens to it, without a script. Each row is 
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>rows</code></td><td>strings</td><td><code>[]</code></td><td>The binding rows, each `{ event, when, action, target, value }` Scene shorthand: <code>rows</code>'s value can be given as the component's whole value.</td></tr>
+</tbody>
+</table>
+
+### `meta`
+
+`interaction` · 0 properties
+
+Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+
 </tbody>
 </table>
 

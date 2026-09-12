@@ -46,8 +46,6 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     writeln!(out, "[application]")?;
     writeln!(out, "name = {}", quote(&name))?;
     writeln!(out, "main_scene = {}", quote(&main_scene))?;
-    // Godot readies a child before its parent, and its scripts count on it.
-    writeln!(out, "init_order = \"children_first\"")?;
     if let Some(splash) = get("application", "boot_splash/image")
         .as_ref()
         .and_then(Value::as_str)
@@ -552,11 +550,6 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
             "a joypad motion keeps the half its value names"
         );
         assert_eq!(actions["move_x"][1].as_str(), Some("mouse:left"));
-        assert_eq!(
-            doc["application"]["init_order"].as_str(),
-            Some("children_first"),
-            "scripts init in Godot's _ready order"
-        );
     }
 
     /// Maximized is not fullscreen, and the sensor deciding is not portrait.

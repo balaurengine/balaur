@@ -315,6 +315,34 @@ fn node_keys(section: &Section, out: &mut Mapped) {
     if section.field("z_as_relative") == Some(&Value::Bool(false)) {
         out.keys.insert("z_relative".into(), Toml::Boolean(false));
     }
+    metadata(section, out);
+}
+
+/// Godot's `metadata/<key>`, which is the `meta` component here. The editor's
+/// own bookkeeping keys (`_edit_`, `_tab_index`) are not the game's.
+fn metadata(section: &Section, out: &mut Mapped) {
+    for (key, value) in &section.fields {
+        let Some(name) = key.strip_prefix("metadata/") else {
+            continue;
+        };
+        if name.starts_with('_') {
+            continue;
+        }
+        if let Some(plain) = scalar(value) {
+            out.set("meta", name, plain);
+        }
+    }
+}
+
+/// A Godot value simple enough to be component data: TOML has no object.
+fn scalar(value: &Value) -> Option<Toml> {
+    match value {
+        Value::Bool(b) => Some(Toml::Boolean(*b)),
+        Value::Int(i) => Some(Toml::Integer(*i)),
+        Value::Float(f) => Some(Toml::Float(*f)),
+        Value::Str(s) => Some(Toml::String(s.clone())),
+        _ => None,
+    }
 }
 
 fn transform(section: &Section, out: &mut Mapped) {

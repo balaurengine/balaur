@@ -38,6 +38,7 @@ pub mod handler;
 pub mod heightfield;
 pub mod hooks;
 pub mod ids;
+pub mod ignore;
 pub mod import;
 pub mod logbuf;
 pub mod math_api;

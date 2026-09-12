@@ -1,6 +1,11 @@
 [[nodes]]
+id = "n_main"
+name = "Main"
+
+[[nodes]]
 id = "n_ground"
 name = "Ground"
+parent = "n_main"
 
 [nodes.tilemap]
 tileset = "tilesets/blocks.toml"
@@ -19,6 +24,7 @@ friction = 0.6
 [[nodes]]
 id = "n_crate"
 name = "Crate"
+parent = "n_main"
 script = "scripts/drop.rn"
 
 [nodes.transform]

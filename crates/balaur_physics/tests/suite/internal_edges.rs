@@ -175,8 +175,13 @@ fn a_polyline_is_two_sided_until_it_is_asked_to_be_oriented() {
 /// through from below: rapier reads the axis in the first collider's frame,
 /// and testing only that collider left half the platforms solid.
 const ONE_WAY_SCENE: &str = r#"[[nodes]]
+id = "n_level"
+name = "Level"
+
+[[nodes]]
 id = "n_platform_a"
 name = "PlatformA"
+parent = "n_level"
 
 [nodes.transform]
 position = [0.0, 0.0, 0.0]
@@ -189,6 +194,7 @@ one_way = true
 [[nodes]]
 id = "n_body_a"
 name = "BodyA"
+parent = "n_level"
 script = "scripts/s.rn"
 
 [nodes.transform]
@@ -204,6 +210,7 @@ radius = 0.3
 [[nodes]]
 id = "n_body_b"
 name = "BodyB"
+parent = "n_level"
 script = "scripts/s.rn"
 
 [nodes.transform]
@@ -219,6 +226,7 @@ radius = 0.3
 [[nodes]]
 id = "n_platform_b"
 name = "PlatformB"
+parent = "n_level"
 
 [nodes.transform]
 position = [10.0, 0.0, 0.0]
@@ -240,7 +248,8 @@ fn a_one_way_platform_lets_a_body_through_whichever_side_of_the_pair_it_is() {
     let world = app.engine.world();
     let root = app.engine.root();
     let height = |name: &str| {
-        let node = find_node(&world, root, name).unwrap_or_else(|| panic!("no node named {name}"));
+        let node = find_node(&world, root, &format!("Level/{name}"))
+            .unwrap_or_else(|| panic!("no node named {name}"));
         world.get::<&Transform>(node).unwrap().position.y
     };
     assert!(

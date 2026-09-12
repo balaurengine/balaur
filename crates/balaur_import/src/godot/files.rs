@@ -467,6 +467,8 @@ offset_bottom = 124.0
 [node name="Title" type="Label" parent="Hud"]
 text = "Ahoy"
 horizontal_alignment = 1
+metadata/tier = 3
+metadata/_edit_lock_ = true
 
 [node name="Go" type="Button" parent="Hud"]
 text = "Sail"
@@ -722,6 +724,12 @@ PanelContainer/styles/panel = SubResource("Plain")
             Some(1.0),
             "EXPAND along a VBox"
         );
+        let title = node(&scene, "Title");
+        assert_eq!(title["meta"]["tier"].as_integer(), Some(3));
+        assert!(
+            title["meta"].get("_edit_lock_").is_none(),
+            "the editor's own keys are not the game's"
+        );
         assert_eq!(
             node(&scene, "Title")["widget"]["text_align"].as_str(),
             Some("center")
@@ -848,7 +856,6 @@ PanelContainer/styles/panel = SubResource("Plain")
         let boxed = node(&scene, "Box");
         assert_eq!(boxed["instance"].as_str(), Some("scenes/crate.toml"));
         let overrides = &boxed["overrides"];
-        assert_eq!(boxed["instance_root"].as_bool(), Some(true));
         assert_eq!(
             overrides["."]["script"]["props"]["weight"].as_float(),
             Some(3.0),

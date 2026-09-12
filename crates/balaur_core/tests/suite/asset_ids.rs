@@ -40,12 +40,17 @@ pitch = 880.0
 
 const SCENE: &str = r#"# The scene keeps its comments.
 [[nodes]]
+name = "Scene"
+
+[[nodes]]
 name = "Player"
+parent = "Scene"
 instrument = { song = "notes/scale.toml#high" } # inline reference
 texture = "art/hero.png"
 
 [[nodes]]
 name = "Other"
+parent = "Scene"
 songs = ["notes/scale.toml", "notes/other.toml"]
 "#;
 
