@@ -607,6 +607,9 @@ write. It walks widgets in scene order and wraps.
 - Whether a widget is a stop is **derived, not declared** — focus exists to
   activate something. `focusable = false` takes a candidate out; it cannot put
   one in. Hidden, freed or unfocusable releases focus.
+- A button fills the box the layout handed it and never hugs its caption
+  inside one: a button in a column is as wide as the column, as it is in a
+  browser and in Godot.
 - An accept is a click by another name (same `clicked`, same `on_click`), so a
   mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
 - **2D draws in one order**: every sprite, polygon and tilemap under the root

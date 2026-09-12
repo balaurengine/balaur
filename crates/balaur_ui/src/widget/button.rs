@@ -206,9 +206,13 @@ pub(crate) fn button(
         base.width.unwrap_or(0.0) * scale,
         base.height.unwrap_or(0.0) * scale,
     );
+    // The box the layout handed it too: a button in a column fills its width
+    // rather than hugging its caption, as it does in Godot and in CSS.
+    let given = crate::widget::arrange::box_of(&widget, at.assigned, scale);
     let min = (face.size + vec2(pad_x, ui.spacing().button_padding.y) * 2.0)
         .max(vec2(widget.width, widget.height) * scale)
-        .max(floor);
+        .max(floor)
+        .max(given);
     let plate = ui.painter().add(egui::Shape::Noop);
     let response = ui.add(
         egui::Button::new("")
