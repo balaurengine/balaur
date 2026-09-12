@@ -254,6 +254,7 @@ mod backend {
     use glamx::Vec2;
     use kiss3d::context::Context;
     use kiss3d::resource::{GpuMesh2d, GpuMesh3d, Texture, TextureManager};
+    use kiss3d::wgpu;
 
     /// One name for the atlas: it is written in place when it grows, so a
     /// second texture never has to be made for it.

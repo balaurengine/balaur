@@ -8,6 +8,7 @@
 
 use kiss3d::context::Context;
 use kiss3d::resource::multisample_state;
+use kiss3d::wgpu;
 
 /// Whether a pipeline takes part in the depth buffer: 3D geometry does, and
 /// 2D is ordered by the painter's algorithm instead.

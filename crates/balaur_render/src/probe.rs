@@ -10,6 +10,7 @@
 //! own: WebGPU guarantees four groups and the material already spends them.
 
 use kiss3d::context::Context;
+use kiss3d::wgpu;
 
 /// Four floats: what one invocation computed.
 const SIZE: u64 = 16;

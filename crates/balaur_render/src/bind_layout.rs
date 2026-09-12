@@ -7,6 +7,7 @@
 
 use kiss3d::context::Context;
 use kiss3d::resource::Texture;
+use kiss3d::wgpu;
 
 use crate::probe::Probe;
 

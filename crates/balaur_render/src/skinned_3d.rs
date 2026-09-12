@@ -26,6 +26,7 @@ use kiss3d::light::LightCollection;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture};
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
+use kiss3d::wgpu;
 
 use crate::bind_layout::uniform_entry;
 use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms};

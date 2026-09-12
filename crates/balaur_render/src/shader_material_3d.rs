@@ -28,6 +28,7 @@ use kiss3d::resource::{
     GpuData, GpuMesh3d, Material3d, MaterialManager3d, PipelineCache, RenderContext, Texture,
 };
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d};
+use kiss3d::wgpu;
 
 use crate::bind_layout::{material_group, uniform_entry};
 use crate::material::{Compiled, PARAMS_GROUP};
