@@ -246,17 +246,12 @@ fn triple(item: &toml::Value, key: &str) -> Vec3 {
 }
 
 /// What a `bone_map` definition table holds, for the generated reference.
-pub(crate) const MAP_ASSET_DOC: &str = r#"A bone map lets one rig play another's clips. `[bones]` pairs a canonical
-bone name with the node path it takes on this rig, relative to the playing
-node; `profile` names a `skeleton_profile` asset whose rests the clip was
-authored against, and defaults to the built-in humanoid. Pass the map to
-`animation.play(node, clip, { retarget = "maps/hero.toml" })`: each track's
-target is renamed through it, rotations are re-read as turns away from the
-profile's rest, and positions are scaled by how much longer this rig's bones
-are.
+pub(crate) const MAP_ASSET_DOC: &str = r#"Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.
 
 ```toml
 type = "bone_map"
+# profile = "animations/humanoid.toml"   # left out, the built-in humanoid profile
+# Used as animation.play(node, clip, { retarget = "maps/hero.toml" })
 
 [bones]
 Hips = "Armature/Hips"
@@ -265,22 +260,18 @@ Head = "Armature/Hips/Spine/Neck/Head"
 ```"#;
 
 /// What a `skeleton_profile` definition table holds, for the reference.
-pub(crate) const PROFILE_ASSET_DOC: &str = r#"A skeleton profile is the canonical skeleton a bone map's names come from,
-and the rest pose a clip written against it was keyed relative to. Each bone
-has a `name` and, optionally, a `rest_rotation` in euler radians and a
-`rest_position` whose length scales a retargeted position track. A document
-with no `bones` is the built-in humanoid.
+pub(crate) const PROFILE_ASSET_DOC: &str = r#"The canonical skeleton a `bone_map` names bones from. Each `[[bones]]` entry has a `name`, a `rest_rotation` and a `rest_position`; no `bones` means the built-in humanoid.
 
 ```toml
 type = "skeleton_profile"
 
 [[bones]]
 name = "Hips"
-rest_position = [0.0, 1.0, 0.0]
+rest_position = [0.0, 1.0, 0.0]   # its length scales a retargeted position track
 
 [[bones]]
 name = "Spine"
-rest_rotation = [0.0, 0.0, 0.0]
+rest_rotation = [0.0, 0.0, 0.0]   # euler radians
 ```"#;
 
 #[cfg(test)]

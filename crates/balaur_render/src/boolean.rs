@@ -71,7 +71,7 @@ fn op_from_params(params: &toml::Value) -> Result<Op> {
 /// shape is built rather than authored.
 pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
     let mut def = schema("boolean3d");
-    def.doc = "Draw this node as its children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable, and moving one recomputes the result.";
+    def.doc = "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.";
     def.tags = &[crate::shape::words::PERSPECTIVE, "render"];
     def.apply = Box::new(|eng, entity, params| {
         let op = op_from_params(params)?;
@@ -105,7 +105,7 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
 /// The `boolean2d` component: the same over filled outlines.
 pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
     let mut def = schema("boolean2d");
-    def.doc = "Draw this node as its 2D children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable.";
+    def.doc = "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.";
     def.tags = &[crate::shape::words::ORTHOGRAPHIC, "render"];
     def.apply = Box::new(|eng, entity, params| {
         let op = op_from_params(params)?;

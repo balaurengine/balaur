@@ -305,10 +305,7 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
     reg.register_component(
         "listener",
         ComponentDef {
-            doc: "The ears a positional sound is heard from: its distance to this node sets \
-                  its volume, and its offset across this node's right sets its pan. The last \
-                  `current` listener applied wins; with no listener in the scene at all, every \
-                  sound plays flat.",
+            doc: "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
             schema: ComponentDef::parse_schema(
                 "listener",
                 &balaur_core::components::ComponentDef::schema(&[

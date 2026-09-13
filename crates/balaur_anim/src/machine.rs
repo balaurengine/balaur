@@ -50,30 +50,23 @@ const SWITCH_IMMEDIATE: &str = "immediate";
 const SWITCH_SYNC: &str = "sync";
 const SWITCH_AT_END: &str = "at_end";
 
-pub(crate) const MACHINE_ASSET_DOC: &str = r#"A state machine switches a player between clips. `start` is the state
-entered first; `[states]` maps each state to the clip it plays from the
-player's library (an empty clip is the state's own name). Each transition
-names `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never
-fires, `enabled` fires only on `animation.travel`, `auto` also fires on its
-own), a `switch` (`immediate` once any fade already running has finished,
-`sync` the same keeping the playhead, `at_end` fading so the fade ends with
-the clip) and an optional `condition` that `animation.set_condition` turns
-on.
+pub(crate) const MACHINE_ASSET_DOC: &str = r#"Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips, each `[[transitions]]` entry names `from`, `to`, `fade`, `advance`, `switch` and `condition`.
 
 ```toml
 type = "state_machine"
 start = "idle"
 
-[states]
+[states]                         # state = clip in the player's library; "" is the state's own name
 idle = "idle"
 walk = "walk_cycle"
 
 [[transitions]]
 from = "idle"
 to = "walk"
-fade = 0.2
-advance = "auto"
-condition = "moving"
+fade = 0.2                       # seconds
+advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
+switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
+condition = "moving"             # turned on by animation.set_condition
 ```"#;
 
 /// When a transition may fire without being travelled through.

@@ -240,18 +240,9 @@ fn schema() -> String {
     ])
 }
 
-const DOC_2D: &str = "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone \
-                      toward a target node, `two_bone_ik` bends a root, middle and tip chain so \
-                      the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, \
-                      `jiggle` lets a chain trail the pose on a spring, and `follow` moves the \
-                      node itself to its target plus `offset`, `lag` seconds behind.";
+const DOC_2D: &str = "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.";
 
-const DOC_3D: &str = "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, \
-                      `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has \
-                      run -- `follow` moves the node rather than a bone, so a camera trails what \
-                      it watches without a script. A \
-                      chain solver turns each bone by the shortest arc onto the solved point, so \
-                      a bone's twist about its own aim is left as the clip wrote it.";
+const DOC_3D: &str = "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.";
 
 /// The `modifier2d` component: writes one [`Modifier2d`] on the node.
 pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {

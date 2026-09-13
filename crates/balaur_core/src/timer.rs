@@ -146,7 +146,7 @@ pub(crate) fn register_timer_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
-            doc: "Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = \"emitted:timeout\"` answers it, and so does a script subscribed to it. Set `running` to start it.",
+            doc: "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
             schema: ComponentDef::parse_schema(COMPONENT, &schema()),
             tags: &["interaction"],
             expects: &[],

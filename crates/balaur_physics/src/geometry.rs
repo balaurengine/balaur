@@ -96,9 +96,7 @@ fn mesh_value(points: &[Vector], indices: &[[u32; 3]]) -> Value {
 
 pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Mesh operations that stand outside the simulation: hulls, convex \
-         decomposition, voxelisation, cutting and boolean intersection. A mesh \
-         is an asset's name or a table of `points` and `indices`.",
+        "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
     );
     m.describe(&[
         ("convex_hull", &[], "(mesh: any)", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),

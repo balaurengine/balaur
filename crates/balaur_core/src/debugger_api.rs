@@ -66,10 +66,7 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
 /// Declare the module's functions and the `STEP_*` constants `resume` takes.
 pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Breakpoints, the pause a stopped script sits in, and the ways out of \
-         it. The same machinery the editor's Debugger dock and the Debug \
-         Adapter Protocol server drive, so an outside editor and the built-in \
-         one see one debugger.",
+        "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.",
     );
     m.describe(&[
         ("set_breakpoints", &[], "(path: string, lines: [int])", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),

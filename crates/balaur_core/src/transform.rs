@@ -116,10 +116,7 @@ pub(crate) fn register_transform_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
-            doc: "Where the node sits in its parent's space, how it is turned and how big it is. \
-                  A node without one is at its parent: `propagate_transforms` hands the parent's \
-                  world transform straight down, which is what a node that only groups or only \
-                  draws UI wants.",
+            doc: "The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.",
             schema: ComponentDef::parse_schema(COMPONENT, &schema()),
             tags: &["2d", "3d"],
             expects: &[],

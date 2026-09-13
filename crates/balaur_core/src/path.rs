@@ -159,20 +159,15 @@ impl<P: Anchor> Path<P> {
 }
 
 /// What a definition table holds, for the generated reference.
-const PATH_ASSET_DOC: &str = r#"A bezier path: `points` is a run of cubic control points -- an anchor, two
-handles, the next anchor, and three more for every segment after that -- and
-`closed` joins the last segment back to the first anchor. Two points on their
-own are read as a straight line.
-
-A `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves
-or sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.
+const PATH_ASSET_DOC: &str = r#"A bezier path: `points` runs anchor, two handles, next anchor, then three more per segment; `closed` joins the last segment back to the first anchor.
 
 ```toml
 [[assets]]
 id = "outline"
-type = "path2d"
+type = "path2d"                  # flat; a path3d takes [x, y, z] points
 closed = true
-points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
+points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone are a straight line
+# A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.
 ```"#;
 
 /// Register both path types, so a scene, a mesh and a stroke all name a

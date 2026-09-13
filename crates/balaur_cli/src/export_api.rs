@@ -72,10 +72,7 @@ impl balaur_plugin::Plugin for ExportPlugin {
 
 fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Exporting the project being edited. `targets` says what this install \
-         can build and what it would have to fetch; `start` runs one off the \
-         frame and reports to `on_export`. Nothing here exports while a \
-         recording plays.",
+        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export`.",
     );
     m.describe(&[
         ("targets", &[], "()", "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."),

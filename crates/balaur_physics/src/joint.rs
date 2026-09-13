@@ -499,7 +499,7 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_3D,
         ComponentDef {
-            doc: "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
+            doc: "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `spherical`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
             schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],

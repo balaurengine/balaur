@@ -371,18 +371,7 @@ fn one_based(field: Option<&str>, len: usize, at: &str, what: &str) -> Result<Op
 pub const MESH_ASSET_TYPE: &str = "mesh";
 
 /// What a definition table holds, for the generated reference.
-const MESH_ASSET_DOC: &str = r#"Geometry for `mesh`-typed properties. A definition names a `source` model
-file to import, or a `kind` of parametric primitive to build, or carries the
-vertices itself as `positions` and `indices`, which is what lets a script
-build one at run time; naming more than one is refused. A `skin` table adds
-bone weights for skeletal animation, `colors` a tint per vertex, and each
-`[[morphs]]` a named shape the mesh can be blended towards -- which a clip
-drives as `mesh/morph.<name>`.
-
-A primitive is built by the same mesher the `shape3d` component draws, so a
-collider over this asset collides exactly what is on screen. A `text` mesh
-is the outlines of a shaped run, filled with the counters left as holes; it
-sits on its baseline and is sized in world units.
+const MESH_ASSET_DOC: &str = r#"Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
 ```toml
 [[assets]]
@@ -401,6 +390,9 @@ size = 1.0
 # ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
+colors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex
+skin = { bones = [{ path = "Rig/Hip", weights = [1, 1, 1] }] }   # one weight per vertex
+morphs = [{ name = "smile", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile
 ```"#;
 
 /// Register `mesh` so scenes, components and scripts all name geometry the

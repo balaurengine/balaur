@@ -44,7 +44,7 @@ its heading.
 
 `2d` · `physics` · 17 properties · 24 methods
 
-Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.
+A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -105,7 +105,7 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 
 `2d` · `animation` · 4 properties
 
-Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.
+Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -121,7 +121,7 @@ Makes the node a 2D bone: the rest position and rotation about z a rig returns t
 
 `2d` · `render` · 1 property
 
-Draw this node as its 2D children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable.
+Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -134,7 +134,7 @@ Draw this node as its 2D children combined -- joined, cut out of one another, or
 
 `2d` · `physics` · 12 properties · 2 methods
 
-Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.
+A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -168,7 +168,7 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 
 `2d` · `physics` · 36 properties · 4 methods
 
-The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.
+The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -228,7 +228,7 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 
 `2d` · `physics` · 18 properties · 5 methods
 
-Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.
+Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `rope`, `spring`, `pin_slot` or `generic`; both ends need a `body2d` on or above the node.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -271,7 +271,7 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 
 `2d` · `render` · 5 properties
 
-A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.
+A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -288,7 +288,7 @@ A 2D light: the node's position places it, its rotation aims a directional one, 
 
 `2d` · `animation` · 16 properties
 
-Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.
+Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -316,7 +316,7 @@ Poses 2D bones after the clip has run, every frame: `look_at` turns one bone tow
 
 `2d` · `render` · 2 properties · 1 method
 
-The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.
+The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -339,7 +339,7 @@ On a node carrying `occluder2d`, as `node.occluder2d.<method>`:
 
 `2d` · `render` · `animation` · 5 properties
 
-A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.
+A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -356,7 +356,7 @@ A filled, textured 2D polygon from a `mesh` asset's points and triangles, deform
 
 `2d` · `render` · 16 properties · 1 method
 
-An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.
+An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -393,7 +393,7 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 `2d` · `render` · 13 properties
 
-A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.
+A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -418,7 +418,7 @@ A textured 2D quad at the node, sized from its image at `pixels_per_unit` textur
 
 `2d` · `render` · 19 properties
 
-A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.
+A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -449,7 +449,7 @@ A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at 
 
 `2d` · `physics` · 17 properties
 
-Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.
+Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -478,7 +478,7 @@ Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as on
 
 `2d` · `render` · 8 properties · 5 methods
 
-A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.
+A grid of tiles from one `tileset` asset, centred on the node. `cells` holds one character per cell; `pixels_per_unit` is tile pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -511,7 +511,7 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 
 `2d` · `ui` · 9 properties
 
-An on-screen button that presses an `action` while a finger is on it, so a game bound to a key on a desktop needs no second code path on a phone. Placed against the screen less its safe area, not in the scene's world.
+An on-screen button that presses an `action` while a finger is on it. `anchor` and `offset` place it inside the screen's safe area.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -532,7 +532,7 @@ An on-screen button that presses an `action` while a finger is on it, so a game 
 
 `2d` · `ui` · 11 properties
 
-An on-screen stick that pushes one action per axis while a thumb drags it, reading -1..1 with y positive away from the player, the way a gamepad's stick does. Placed against the screen less its safe area.
+An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor` and `offset` place it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -555,7 +555,7 @@ An on-screen stick that pushes one action per axis while a thumb drags it, readi
 
 `2d` · `3d` · 4 properties · 4 methods
 
-Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.
+The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -585,7 +585,7 @@ On a node carrying `transform`, as `node.transform.<method>`:
 
 `3d` · `physics` · 18 properties · 27 methods
 
-Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.
+A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -650,7 +650,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 
 `3d` · `animation` · 4 properties
 
-Makes the node a 3D bone: the rest position, euler rotation and scale a rig returns to, plus the length its gizmo is drawn with. A skinned mesh names its rig by node path and deforms by the bones under it, in tree order.
+Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -666,7 +666,7 @@ Makes the node a 3D bone: the rest position, euler rotation and scale a rig retu
 
 `3d` · `render` · 1 property · 1 method
 
-Draw this node as its children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable, and moving one recomputes the result.
+Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -688,7 +688,7 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 
 `3d` · `render` · 8 properties
 
-The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.
+The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -708,7 +708,7 @@ The view the scene is drawn from, following the node's global pose: `look_at` ai
 
 `3d` · `physics` · 12 properties · 2 methods
 
-Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.
+A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -742,7 +742,7 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 
 `3d` · `physics` · 39 properties · 13 methods
 
-The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.
+The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -814,7 +814,7 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 
 `3d` · `render` · 21 properties
 
-The scene's atmosphere: the sky it sits under and is lit by, the ambient light, fog, exposure, tonemap, colour grading and the shadow budget. The last `current` one in tree order wins, so a level can carry two and switch between them. Per-view effects stay on `camera.post`.
+The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -847,7 +847,7 @@ The scene's atmosphere: the sky it sits under and is lit by, the ambient light, 
 
 `3d` · `physics` · 18 properties · 6 methods
 
-Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.
+Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `spherical`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -891,7 +891,7 @@ On a node carrying `joint3d`, as `node.joint3d.<method>`:
 
 `3d` · `render` · 8 properties
 
-A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.
+A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -911,7 +911,7 @@ A 3D light: the node's position places it and its rotation aims it. A scene with
 
 `3d` · `render` · 6 properties
 
-Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.
+3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -929,7 +929,7 @@ Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the 
 
 `3d` · `animation` · 16 properties
 
-The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.
+Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -957,7 +957,7 @@ The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, 
 
 `3d` · `render` · 14 properties · 2 methods
 
-An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.
+An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -993,7 +993,7 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 
 `3d` · `render` · 22 properties
 
-A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.
+A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1027,7 +1027,7 @@ A block of text drawn in the 3D pass on a quad that faces the camera, shaped by 
 
 `3d` · `physics` · 2 properties · 1 method
 
-Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.
+Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1050,7 +1050,7 @@ On a node carrying `vehicle3d`, as `node.vehicle3d.<method>`:
 
 `3d` · `physics` · 11 properties · 4 methods
 
-One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.
+One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1087,7 +1087,7 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 
 `physics` · 2 properties · 1 method
 
-Drives a rig's bones from the bodies `physics2d.ragdoll` or `physics3d.ragdoll` built for it. `blend` is how much of the simulated pose the bones take: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp, and anything between lets a hit push an animation around without ending it.
+Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1112,7 +1112,7 @@ On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
 
 `render` · 8 properties · 1 method
 
-Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.
+Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1141,7 +1141,7 @@ On a node carrying `cloner`, as `node.cloner.<method>`:
 
 `render` · 1 property
 
-The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.
+`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1154,7 +1154,7 @@ The material this node and everything under it draw with, unless a renderable na
 
 `render` · 14 properties
 
-A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.
+A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1182,7 +1182,7 @@ A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity.
 
 `animation` · 4 properties · 10 methods
 
-Plays animation clips on a node: the library to play them from, one to start when the scene loads, and the rate every clip on the node runs at. The `animation` script module drives the playhead from there.
+Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1216,7 +1216,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 
 `animation` · 3 properties · 4 methods
 
-Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.
+Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1245,7 +1245,7 @@ On a node carrying `state_machine`, as `node.state_machine.<method>`:
 
 `audio` · 1 property
 
-The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.
+The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1258,7 +1258,7 @@ The ears a positional sound is heard from: its distance to this node sets its vo
 
 `audio` · 10 properties · 2 methods
 
-A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.
+A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1292,7 +1292,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 `ui` · 68 properties
 
-A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
+A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1374,7 +1374,7 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 
 `interaction` · 1 property
 
-What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.
+Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1387,7 +1387,7 @@ What this node does when something happens to it, without a script. Each row is 
 
 `interaction` · 0 properties
 
-Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.
+Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1400,7 +1400,7 @@ Values filed on the node by name, for whoever holds the node rather than for its
 
 `interaction` · 2 properties · 2 methods
 
-Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = "#ff8800"`. `node.states.go("hover")` patches them over what the node already has, so a state says only what differs.
+Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go("hover")` patches one over the node.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1424,7 +1424,7 @@ On a node carrying `states`, as `node.states.<method>`:
 
 `interaction` · 5 properties
 
-Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = "emitted:timeout"` answers it, and so does a script subscribed to it. Set `running` to start it.
+Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

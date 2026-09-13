@@ -49,50 +49,38 @@ it, and what a definition table holds.
 
 Files: `animations/`. Used by: `animation.library`.
 
-A clip keys node properties over time. `length` is in seconds and may be
-left out to end at the last key; `loop` is `none` (hold the last key),
-`loop` or `pingpong`. Each track names a `target` node path relative to the
-playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
-`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
-`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
-and always stepped; `tint` is the `[r, g, b, a]` every descendant is
-multiplied by, which a renderable's own `color` is not. A component
-property's value may be a string or a bool, held from key to key. A track with no
-`property` is a method track whose keys call the node's script. A file holds
-one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
+A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.
 
 ```toml
 type = "animation_clip"
 
-[clips.patrol]
-length = 4.0
-loop = "pingpong"
+[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol
+length = 4.0             # seconds; left out, the clip ends at its last key
+loop = "pingpong"        # none, loop or pingpong
 
 [[clips.patrol.tracks]]
-property = "position"
-interp = "linear"
+target = ""              # node path relative to the playing node; empty is that node
+property = "position"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>
+interp = "linear"        # step, linear or cubic
 keys = [
   { t = 0.0, value = [-2.5, 0.25, -2.0] },
   { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
+
+[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script
+keys = [{ t = 2.0, call = "on_halfway" }]
 ```
 
 ### `bone_map`
 
 Files: `animations/`. Used by: no component property yet.
 
-A bone map lets one rig play another's clips. `[bones]` pairs a canonical
-bone name with the node path it takes on this rig, relative to the playing
-node; `profile` names a `skeleton_profile` asset whose rests the clip was
-authored against, and defaults to the built-in humanoid. Pass the map to
-`animation.play(node, clip, { retarget = "maps/hero.toml" })`: each track's
-target is renamed through it, rotations are re-read as turns away from the
-profile's rest, and positions are scaled by how much longer this rig's bones
-are.
+Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.
 
 ```toml
 type = "bone_map"
+# profile = "animations/humanoid.toml"   # left out, the built-in humanoid profile
+# Used as animation.play(node, clip, { retarget = "maps/hero.toml" })
 
 [bones]
 Hips = "Armature/Hips"
@@ -104,8 +92,7 @@ Head = "Armature/Hips/Spine/Neck/Head"
 
 Files: `terrain/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
 
-A grid of heights for terrain: `rows` by `columns` samples in `heights`,
-row-major, one value per grid point. The count has to match the grid.
+A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
 
 ```toml
 [[assets]]
@@ -120,11 +107,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 
 Files: `materials/`. Used by: `material.source`, `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
 
-A shader and the values it draws with. `shader` names a `.wesl` file
-(project-relative); `[features]` are the `@if` flags that pick a variant when
-it is linked; `[params]` are the values of the shader's `Params` struct, by
-field name. A number is an `f32`, an array of two, three or four numbers a
-`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.
+A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.
 
 ```toml
 [[assets]]
@@ -132,6 +115,7 @@ id = "water"
 type = "material"
 shader = "shaders/water.wesl"
 features = { lit = true }
+# a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or "#rrggbb"/"#rrggbbaa" a vec4
 params = { speed = 0.4, tint = "#3aa0ff" }
 ```
 
@@ -139,18 +123,7 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`.
 
-Geometry for `mesh`-typed properties. A definition names a `source` model
-file to import, or a `kind` of parametric primitive to build, or carries the
-vertices itself as `positions` and `indices`, which is what lets a script
-build one at run time; naming more than one is refused. A `skin` table adds
-bone weights for skeletal animation, `colors` a tint per vertex, and each
-`[[morphs]]` a named shape the mesh can be blended towards -- which a clip
-drives as `mesh/morph.<name>`.
-
-A primitive is built by the same mesher the `shape3d` component draws, so a
-collider over this asset collides exactly what is on screen. A `text` mesh
-is the outlines of a shaped run, filled with the counters left as holes; it
-sits on its baseline and is sized in world units.
+Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
 ```toml
 [[assets]]
@@ -169,193 +142,187 @@ size = 1.0
 # ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
+colors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex
+skin = { bones = [{ path = "Rig/Hip", weights = [1, 1, 1] }] }   # one weight per vertex
+morphs = [{ name = "smile", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile
 ```
 
 ### `path2d`
 
 Files: `paths/`. Used by: no component property yet.
 
-A bezier path: `points` is a run of cubic control points -- an anchor, two
-handles, the next anchor, and three more for every segment after that -- and
-`closed` joins the last segment back to the first anchor. Two points on their
-own are read as a straight line.
-
-A `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves
-or sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.
+A bezier path: `points` runs anchor, two handles, next anchor, then three more per segment; `closed` joins the last segment back to the first anchor.
 
 ```toml
 [[assets]]
 id = "outline"
-type = "path2d"
+type = "path2d"                  # flat; a path3d takes [x, y, z] points
 closed = true
-points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
+points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone are a straight line
+# A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.
 ```
 
 ### `path3d`
 
 Files: `paths/`. Used by: no component property yet.
 
-A bezier path: `points` is a run of cubic control points -- an anchor, two
-handles, the next anchor, and three more for every segment after that -- and
-`closed` joins the last segment back to the first anchor. Two points on their
-own are read as a straight line.
-
-A `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves
-or sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.
+A bezier path: `points` runs anchor, two handles, next anchor, then three more per segment; `closed` joins the last segment back to the first anchor.
 
 ```toml
 [[assets]]
 id = "outline"
-type = "path2d"
+type = "path2d"                  # flat; a path3d takes [x, y, z] points
 closed = true
-points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
+points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone are a straight line
+# A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.
 ```
 
 ### `skeleton_profile`
 
 Files: `animations/`. Used by: no component property yet.
 
-A skeleton profile is the canonical skeleton a bone map's names come from,
-and the rest pose a clip written against it was keyed relative to. Each bone
-has a `name` and, optionally, a `rest_rotation` in euler radians and a
-`rest_position` whose length scales a retargeted position track. A document
-with no `bones` is the built-in humanoid.
+The canonical skeleton a `bone_map` names bones from. Each `[[bones]]` entry has a `name`, a `rest_rotation` and a `rest_position`; no `bones` means the built-in humanoid.
 
 ```toml
 type = "skeleton_profile"
 
 [[bones]]
 name = "Hips"
-rest_position = [0.0, 1.0, 0.0]
+rest_position = [0.0, 1.0, 0.0]   # its length scales a retargeted position track
 
 [[bones]]
 name = "Spine"
-rest_rotation = [0.0, 0.0, 0.0]
+rest_rotation = [0.0, 0.0, 0.0]   # euler radians
 ```
 
 ### `sprite_sheet`
 
 Files: `sheets/`. Used by: `sprite.sheet`.
 
-An image cut into frames of any size, for `sprite.sheet`: `texture` names
-the image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels
-with the `duration` in seconds a clip shows it for. `sprite.frame` indexes
-the list, past the end drawing the last frame. `[tags.<name>]` is a run of
-frames `from` one index `to` another with a `direction` (`forward`,
-`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for
-ever; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,
-with an optional nine-patch `center` and `pivot`, and `keys` when the slice
-moves between frames. `balaur import file.aseprite` writes one of these
-beside the atlas it packs and a clip per tag.
+An image cut into frames, for `sprite.sheet`. `texture` names the image; `frames` each hold a `rect` and `duration`; `[tags.<name>]` and `[slices.<name>]` add runs and regions.
 
 ```toml
-type = "sprite_sheet"
+type = "sprite_sheet"            # balaur import file.aseprite writes one beside the atlas it packs
 texture = "art/walk.png"
-frames = [
+frames = [                       # rect is [x, y, w, h] texture pixels; sprite.frame indexes this list
   { rect = [0, 0, 32, 32], duration = 0.1 },
   { rect = [32, 0, 32, 32], duration = 0.1 },
 ]
 
-[tags.walk]
+[tags.walk]                      # a run of frames
 from = 0
 to = 1
-direction = "forward"
+direction = "forward"            # forward, reverse, pingpong or pingpong_reverse
+repeat = 0                       # zero for ever
 
-[slices.hitbox]
+[slices.hitbox]                  # a rect on a frame, in the frame's own pixels
 rect = [8, 4, 16, 28]
+# center = [4, 4, 8, 20] and pivot = [8, 14] make it a nine-patch with a pivot;
+# keys = [...] when the slice moves between frames
 ```
 
 ### `state_machine`
 
 Files: `animations/`. Used by: `state_machine.machine`.
 
-A state machine switches a player between clips. `start` is the state
-entered first; `[states]` maps each state to the clip it plays from the
-player's library (an empty clip is the state's own name). Each transition
-names `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never
-fires, `enabled` fires only on `animation.travel`, `auto` also fires on its
-own), a `switch` (`immediate` once any fade already running has finished,
-`sync` the same keeping the playhead, `at_end` fading so the fade ends with
-the clip) and an optional `condition` that `animation.set_condition` turns
-on.
+Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips, each `[[transitions]]` entry names `from`, `to`, `fade`, `advance`, `switch` and `condition`.
 
 ```toml
 type = "state_machine"
 start = "idle"
 
-[states]
+[states]                         # state = clip in the player's library; "" is the state's own name
 idle = "idle"
 walk = "walk_cycle"
 
 [[transitions]]
 from = "idle"
 to = "walk"
-fade = 0.2
-advance = "auto"
-condition = "moving"
+fade = 0.2                       # seconds
+advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
+switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
+condition = "moving"             # turned on by animation.set_condition
 ```
 
 ### `tileset`
 
 Files: `tilesets/`. Used by: `tilemap.tileset`.
 
-An image cut into equal tiles for the `tilemap` component: `texture` names
-the image, `tile_size` is one tile in pixels — a number, or `[w, h]` for a
-sheet whose tiles are not square — and `columns` is how many tiles one row of
-the image holds. `spacing` is the gutter between tiles and `margin` the border
-around the sheet, both zero by default. Tile indices count row by row from the
-top left.
-
-A `[tiles.<id>]` table says what one tile is. `collision` is `"full"` for a
-solid cell, or a list of polygons in tile pixels with y down from the tile's
-top-left corner; `one_way` makes a platform a body passes through from below.
-A tile with no table of its own is the plain quad it always was.
-
-A `[[terrains]]` entry paints by value and lets the sheet pick the tiles.
-`mode` is `"rules"`, `"sides"`, `"corners"`, `"corners_and_sides"` or
-`"quarters"`, and `first_tile` is where the block starts. `"quarters"` draws a
-cell as four quarter quads, each chosen by the two cells beside that corner
-and the one across it, from five tiles -- fill, horizontal edge, vertical
-edge, outer corner, inner corner. That is how a five-tile sheet covers all 47
-neighbourhoods; a sheet that keeps the five somewhere else names them with
-`quarters = [...]`.
+An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.
 
 ```toml
-[[assets]]
-id = "dungeon"
 type = "tileset"
 texture = "art/dungeon.png"
-tile_size = 16
+tile_size = 16                   # or [w, h]
 columns = 8
+spacing = 0                      # gutter between tiles
+margin = 0                       # border around the sheet
 
-[tiles.3]
+[tiles.3]                        # tile ids count row by row from the top left
 collision = "full"
 
 [tiles.7]
-collision = [[[0, 16], [16, 16], [16, 8]]]
+collision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down
+one_way = true                   # a platform a body passes through from below
+
+[[terrains]]                     # paints by value and picks the tiles
+name = "grass"
+value = 1
+mode = "quarters"                # rules, sides, corners, corners_and_sides or quarters
+first_tile = 16
+# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile
 ```
 
 ### `voxels`
 
 Files: `terrain/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
 
-A voxel grid for a collider: `size` is one cell in world units, `cells` the
-filled coordinates. Coordinates are signed, so a grid has no origin corner,
-and `physics3d.set_voxel` may add or remove a cell at run time.
+A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 
 ```toml
 [[assets]]
 id = "pillar"
 type = "voxels"
 size = [1.0, 1.0, 1.0]
-cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
+cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 ```
 
 ### `widget_theme`
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
+How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.
+
+```toml
+type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
+
+[colors]                         # named fills the rest of the file may use
+ink = "#1b1b1b"
+sky = "#3aa0ff"
+
+[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
+fill = "sky"
+stroke = "ink"
+stroke_width = 1.0
+radius = 6.0
+padding = 8.0
+gap = 4.0
+size = 14.0
+color = "ink"                    # text colour
+icon_color = "ink"
+font = "ui"
+strong = true
+
+[button.hover]                   # the look under the pointer; [button.active] while pressed
+fill = "#5cb4ff"
+
+[panel]
+image = "art/panel.png"          # a nine-patch, sliced in its own pixels
+slice = [8, 8, 8, 8]             # left, top, right, bottom
+
+[roles.danger]                   # what a widget with role = "danger" takes
+fill = "#d33a3a"
+```
 
 
 ## The `assets` script module

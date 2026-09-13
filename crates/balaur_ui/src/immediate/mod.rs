@@ -470,10 +470,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     let m: &mut dyn Bindings<Engine> = &mut *m;
 
     m.module_doc(
-        "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: \
-         panels, layout containers and the design system's widget shapes. \
-         HUD elements that live in the scene tree are the `widget` component \
-         instead.",
+        "Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout containers and widgets. HUD elements in the scene tree are the `widget` component.",
     );
 
     for (name, value) in ANCHORS

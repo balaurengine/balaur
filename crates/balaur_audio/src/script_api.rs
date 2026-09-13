@@ -66,11 +66,7 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Sound playback: a file plays under an integer handle, with `volume`, \
-         `pitch` and `loop` options, and the `sound` component gives a node a \
-         sound of its own. Give a `play` a `position` and it is heard from \
-         where the `listener` is. With no output device every call still \
-         works and nothing is heard.",
+        "Sound playback: `play` a file with `volume`, `pitch`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own.",
     );
     m.describe(&[
         ("stop_playback", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),

@@ -362,12 +362,7 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "A long-lived connection carrying text or binary frames. Its events \
-         are a stream, not a result: each one reaches the connecting node's \
-         handler method (`on_websocket_event` unless `on_event` names \
-         another) as a map `{ socket, kind, .. }` with kind `open`, \
-         `message` (with `text`), `binary` (with `bytes`), `closed` or \
-         `error`, and nothing awaits a socket id.",
+        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
     );
     m.describe(&[
         ("connect", &[], "", "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),

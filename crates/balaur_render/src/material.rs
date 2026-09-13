@@ -187,11 +187,7 @@ impl Material {
 }
 
 /// What a definition table holds, for the generated reference.
-pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and the values it draws with. `shader` names a `.wesl` file
-(project-relative); `[features]` are the `@if` flags that pick a variant when
-it is linked; `[params]` are the values of the shader's `Params` struct, by
-field name. A number is an `f32`, an array of two, three or four numbers a
-`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.
+pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.
 
 ```toml
 [[assets]]
@@ -199,6 +195,7 @@ id = "water"
 type = "material"
 shader = "shaders/water.wesl"
 features = { lit = true }
+# a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or "#rrggbb"/"#rrggbbaa" a vec4
 params = { speed = 0.4, tint = "#3aa0ff" }
 ```"##;
 
@@ -336,7 +333,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MATERIAL_COMPONENT,
         ComponentDef {
-            doc: "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
+            doc: "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
             schema: ComponentDef::parse_schema(
                 MATERIAL_COMPONENT,
                 &ComponentDef::schema(&[(

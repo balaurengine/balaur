@@ -18,9 +18,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "widget",
         ComponentDef {
-            doc: "A HUD element the widget layer draws every frame: a label, button or panel \
-                  anchored to a screen corner or the center, offset in design pixels. A button \
-                  records its click in `clicked` and calls the node's `on_click` method.",
+            doc: "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.",
             schema: ComponentDef::parse_schema(
                 "widget",
                 &v::schema(&[

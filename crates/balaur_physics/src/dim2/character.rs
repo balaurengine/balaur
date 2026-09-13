@@ -166,7 +166,7 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::CHARACTER_2D,
         ComponentDef {
-            doc: "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
+            doc: "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
             schema: ComponentDef::parse_schema(c::CHARACTER_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::COLLIDER_2D],

@@ -470,7 +470,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_2D,
         ComponentDef {
-            doc: "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",
+            doc: "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[balaur_core::transform::COMPONENT],

@@ -325,7 +325,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_2D,
         ComponentDef {
-            doc: "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
+            doc: "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `rope`, `spring`, `pin_slot` or `generic`; both ends need a `body2d` on or above the node.",
             schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_2D],

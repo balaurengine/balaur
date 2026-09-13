@@ -97,11 +97,11 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
     for (module, doc) in [
         (
             "script",
-            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+            "Loads other scripts, inspects what they declare and calls into them; a failure stays contained.",
         ),
         (
             "task",
-            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+            "Waiting inside an async handler: `init` and event handlers may await; `update` is synchronous.",
         ),
     ] {
         modules.entry(module.to_string()).or_default().doc = doc.to_string();

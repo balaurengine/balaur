@@ -2,104 +2,104 @@
   "asset_types": {
     "animation_clip": {
       "directory": "animations",
-      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or\n`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its\n`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel\nand always stepped; `tint` is the `[r, g, b, a]` every descendant is\nmultiplied by, which a renderable's own `color` is not. A component\nproperty's value may be a string or a bool, held from key to key. A track with no\n`property` is a method track whose keys call the node's script. A file holds\none clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
+      "doc": "A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol\nlength = 4.0             # seconds; left out, the clip ends at its last key\nloop = \"pingpong\"        # none, loop or pingpong\n\n[[clips.patrol.tracks]]\ntarget = \"\"              # node path relative to the playing node; empty is that node\nproperty = \"position\"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>\ninterp = \"linear\"        # step, linear or cubic\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n\n[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script\nkeys = [{ t = 2.0, call = \"on_halfway\" }]\n```"
     },
     "bone_map": {
       "directory": "animations",
-      "doc": "A bone map lets one rig play another's clips. `[bones]` pairs a canonical\nbone name with the node path it takes on this rig, relative to the playing\nnode; `profile` names a `skeleton_profile` asset whose rests the clip was\nauthored against, and defaults to the built-in humanoid. Pass the map to\n`animation.play(node, clip, { retarget = \"maps/hero.toml\" })`: each track's\ntarget is renamed through it, rotations are re-read as turns away from the\nprofile's rest, and positions are scaled by how much longer this rig's bones\nare.\n\n```toml\ntype = \"bone_map\"\n\n[bones]\nHips = \"Armature/Hips\"\nSpine = \"Armature/Hips/Spine\"\nHead = \"Armature/Hips/Spine/Neck/Head\"\n```"
+      "doc": "Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.\n\n```toml\ntype = \"bone_map\"\n# profile = \"animations/humanoid.toml\"   # left out, the built-in humanoid profile\n# Used as animation.play(node, clip, { retarget = \"maps/hero.toml\" })\n\n[bones]\nHips = \"Armature/Hips\"\nSpine = \"Armature/Hips/Spine\"\nHead = \"Armature/Hips/Spine/Neck/Head\"\n```"
     },
     "heightfield": {
       "directory": "terrain",
-      "doc": "A grid of heights for terrain: `rows` by `columns` samples in `heights`,\nrow-major, one value per grid point. The count has to match the grid.\n\n```toml\n[[assets]]\nid = \"valley\"\ntype = \"heightfield\"\nrows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, -1, 0, 0, 0, 0]\n```"
+      "doc": "A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.\n\n```toml\n[[assets]]\nid = \"valley\"\ntype = \"heightfield\"\nrows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, -1, 0, 0, 0, 0]\n```"
     },
     "material": {
       "directory": "materials",
-      "doc": "A shader and the values it draws with. `shader` names a `.wesl` file\n(project-relative); `[features]` are the `@if` flags that pick a variant when\nit is linked; `[params]` are the values of the shader's `Params` struct, by\nfield name. A number is an `f32`, an array of two, three or four numbers a\n`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.\n\n```toml\n[[assets]]\nid = \"water\"\ntype = \"material\"\nshader = \"shaders/water.wesl\"\nfeatures = { lit = true }\nparams = { speed = 0.4, tint = \"#3aa0ff\" }\n```"
+      "doc": "A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.\n\n```toml\n[[assets]]\nid = \"water\"\ntype = \"material\"\nshader = \"shaders/water.wesl\"\nfeatures = { lit = true }\n# a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or \"#rrggbb\"/\"#rrggbbaa\" a vec4\nparams = { speed = 0.4, tint = \"#3aa0ff\" }\n```"
     },
     "mesh": {
       "directory": "models",
-      "doc": "Geometry for `mesh`-typed properties. A definition names a `source` model\nfile to import, or a `kind` of parametric primitive to build, or carries the\nvertices itself as `positions` and `indices`, which is what lets a script\nbuild one at run time; naming more than one is refused. A `skin` table adds\nbone weights for skeletal animation, `colors` a tint per vertex, and each\n`[[morphs]]` a named shape the mesh can be blended towards -- which a clip\ndrives as `mesh/morph.<name>`.\n\nA primitive is built by the same mesher the `shape3d` component draws, so a\ncollider over this asset collides exactly what is on screen. A `text` mesh\nis the outlines of a shaped run, filled with the counters left as holes; it\nsits on its baseline and is sized in world units.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\n```"
+      "doc": "Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\ncolors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex\nskin = { bones = [{ path = \"Rig/Hip\", weights = [1, 1, 1] }] }   # one weight per vertex\nmorphs = [{ name = \"smile\", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile\n```"
     },
     "path2d": {
       "directory": "paths",
-      "doc": "A bezier path: `points` is a run of cubic control points -- an anchor, two\nhandles, the next anchor, and three more for every segment after that -- and\n`closed` joins the last segment back to the first anchor. Two points on their\nown are read as a straight line.\n\nA `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves\nor sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]\n```"
+      "doc": "A bezier path: `points` runs anchor, two handles, next anchor, then three more per segment; `closed` joins the last segment back to the first anchor.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"                  # flat; a path3d takes [x, y, z] points\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone are a straight line\n# A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.\n```"
     },
     "path3d": {
       "directory": "paths",
-      "doc": "A bezier path: `points` is a run of cubic control points -- an anchor, two\nhandles, the next anchor, and three more for every segment after that -- and\n`closed` joins the last segment back to the first anchor. Two points on their\nown are read as a straight line.\n\nA `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves\nor sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]\n```"
+      "doc": "A bezier path: `points` runs anchor, two handles, next anchor, then three more per segment; `closed` joins the last segment back to the first anchor.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"                  # flat; a path3d takes [x, y, z] points\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone are a straight line\n# A mesh asset fills, extrudes, revolves or sweeps a path; shape2d strokes one.\n```"
     },
     "skeleton_profile": {
       "directory": "animations",
-      "doc": "A skeleton profile is the canonical skeleton a bone map's names come from,\nand the rest pose a clip written against it was keyed relative to. Each bone\nhas a `name` and, optionally, a `rest_rotation` in euler radians and a\n`rest_position` whose length scales a retargeted position track. A document\nwith no `bones` is the built-in humanoid.\n\n```toml\ntype = \"skeleton_profile\"\n\n[[bones]]\nname = \"Hips\"\nrest_position = [0.0, 1.0, 0.0]\n\n[[bones]]\nname = \"Spine\"\nrest_rotation = [0.0, 0.0, 0.0]\n```"
+      "doc": "The canonical skeleton a `bone_map` names bones from. Each `[[bones]]` entry has a `name`, a `rest_rotation` and a `rest_position`; no `bones` means the built-in humanoid.\n\n```toml\ntype = \"skeleton_profile\"\n\n[[bones]]\nname = \"Hips\"\nrest_position = [0.0, 1.0, 0.0]   # its length scales a retargeted position track\n\n[[bones]]\nname = \"Spine\"\nrest_rotation = [0.0, 0.0, 0.0]   # euler radians\n```"
     },
     "sprite_sheet": {
       "directory": "sheets",
-      "doc": "An image cut into frames of any size, for `sprite.sheet`: `texture` names\nthe image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels\nwith the `duration` in seconds a clip shows it for. `sprite.frame` indexes\nthe list, past the end drawing the last frame. `[tags.<name>]` is a run of\nframes `from` one index `to` another with a `direction` (`forward`,\n`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for\never; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,\nwith an optional nine-patch `center` and `pivot`, and `keys` when the slice\nmoves between frames. `balaur import file.aseprite` writes one of these\nbeside the atlas it packs and a clip per tag.\n\n```toml\ntype = \"sprite_sheet\"\ntexture = \"art/walk.png\"\nframes = [\n  { rect = [0, 0, 32, 32], duration = 0.1 },\n  { rect = [32, 0, 32, 32], duration = 0.1 },\n]\n\n[tags.walk]\nfrom = 0\nto = 1\ndirection = \"forward\"\n\n[slices.hitbox]\nrect = [8, 4, 16, 28]\n```"
+      "doc": "An image cut into frames, for `sprite.sheet`. `texture` names the image; `frames` each hold a `rect` and `duration`; `[tags.<name>]` and `[slices.<name>]` add runs and regions.\n\n```toml\ntype = \"sprite_sheet\"            # balaur import file.aseprite writes one beside the atlas it packs\ntexture = \"art/walk.png\"\nframes = [                       # rect is [x, y, w, h] texture pixels; sprite.frame indexes this list\n  { rect = [0, 0, 32, 32], duration = 0.1 },\n  { rect = [32, 0, 32, 32], duration = 0.1 },\n]\n\n[tags.walk]                      # a run of frames\nfrom = 0\nto = 1\ndirection = \"forward\"            # forward, reverse, pingpong or pingpong_reverse\nrepeat = 0                       # zero for ever\n\n[slices.hitbox]                  # a rect on a frame, in the frame's own pixels\nrect = [8, 4, 16, 28]\n# center = [4, 4, 8, 20] and pivot = [8, 14] make it a nine-patch with a pivot;\n# keys = [...] when the slice moves between frames\n```"
     },
     "state_machine": {
       "directory": "animations",
-      "doc": "A state machine switches a player between clips. `start` is the state\nentered first; `[states]` maps each state to the clip it plays from the\nplayer's library (an empty clip is the state's own name). Each transition\nnames `from` and `to`, a `fade` in seconds, an `advance` (`disabled` never\nfires, `enabled` fires only on `animation.travel`, `auto` also fires on its\nown), a `switch` (`immediate` once any fade already running has finished,\n`sync` the same keeping the playhead, `at_end` fading so the fade ends with\nthe clip) and an optional `condition` that `animation.set_condition` turns\non.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]\nidle = \"idle\"\nwalk = \"walk_cycle\"\n\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nfade = 0.2\nadvance = \"auto\"\ncondition = \"moving\"\n```"
+      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips, each `[[transitions]]` entry names `from`, `to`, `fade`, `advance`, `switch` and `condition`.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\nwalk = \"walk_cycle\"\n\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nfade = 0.2                       # seconds\nadvance = \"auto\"                 # disabled, enabled (fires on animation.travel) or auto\nswitch = \"immediate\"             # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\n```"
     },
     "tileset": {
       "directory": "tilesets",
-      "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is one tile in pixels \u2014 a number, or `[w, h]` for a\nsheet whose tiles are not square \u2014 and `columns` is how many tiles one row of\nthe image holds. `spacing` is the gutter between tiles and `margin` the border\naround the sheet, both zero by default. Tile indices count row by row from the\ntop left.\n\nA `[tiles.<id>]` table says what one tile is. `collision` is `\"full\"` for a\nsolid cell, or a list of polygons in tile pixels with y down from the tile's\ntop-left corner; `one_way` makes a platform a body passes through from below.\nA tile with no table of its own is the plain quad it always was.\n\nA `[[terrains]]` entry paints by value and lets the sheet pick the tiles.\n`mode` is `\"rules\"`, `\"sides\"`, `\"corners\"`, `\"corners_and_sides\"` or\n`\"quarters\"`, and `first_tile` is where the block starts. `\"quarters\"` draws a\ncell as four quarter quads, each chosen by the two cells beside that corner\nand the one across it, from five tiles -- fill, horizontal edge, vertical\nedge, outer corner, inner corner. That is how a five-tile sheet covers all 47\nneighbourhoods; a sheet that keeps the five somewhere else names them with\n`quarters = [...]`.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n\n[tiles.3]\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]\n```"
+      "doc": "An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.\n\n```toml\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16                   # or [w, h]\ncolumns = 8\nspacing = 0                      # gutter between tiles\nmargin = 0                       # border around the sheet\n\n[tiles.3]                        # tile ids count row by row from the top left\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down\none_way = true                   # a platform a body passes through from below\n\n[[terrains]]                     # paints by value and picks the tiles\nname = \"grass\"\nvalue = 1\nmode = \"quarters\"                # rules, sides, corners, corners_and_sides or quarters\nfirst_tile = 16\n# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile\n```"
     },
     "voxels": {
       "directory": "terrain",
-      "doc": "A voxel grid for a collider: `size` is one cell in world units, `cells` the\nfilled coordinates. Coordinates are signed, so a grid has no origin corner,\nand `physics3d.set_voxel` may add or remove a cell at run time.\n\n```toml\n[[assets]]\nid = \"pillar\"\ntype = \"voxels\"\nsize = [1.0, 1.0, 1.0]\ncells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]\n```"
+      "doc": "A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.\n\n```toml\n[[assets]]\nid = \"pillar\"\ntype = \"voxels\"\nsize = [1.0, 1.0, 1.0]\ncells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates\n```"
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
     }
   },
   "component_docs": {
-    "animation": "Plays animation clips on a node: the library to play them from, one to start when the scene loads, and the rate every clip on the node runs at. The `animation` script module drives the playhead from there.",
-    "bindings": "What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.",
-    "body2d": "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",
-    "body3d": "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
-    "bone2d": "Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.",
-    "bone3d": "Makes the node a 3D bone: the rest position, euler rotation and scale a rig returns to, plus the length its gizmo is drawn with. A skinned mesh names its rig by node path and deforms by the bones under it, in tree order.",
-    "boolean2d": "Draw this node as its 2D children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable.",
-    "boolean3d": "Draw this node as its children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable, and moving one recomputes the result.",
-    "camera": "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
-    "character2d": "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
-    "character3d": "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
-    "cloner": "Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.",
-    "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
-    "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
-    "environment": "The scene's atmosphere: the sky it sits under and is lit by, the ambient light, fog, exposure, tonemap, colour grading and the shadow budget. The last `current` one in tree order wins, so a level can carry two and switch between them. Per-view effects stay on `camera.post`.",
-    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
-    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
-    "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
-    "light3d": "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
-    "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
-    "material": "The material this node and everything under it draw with, unless a renderable names its own. A shape's, sprite's, mesh's or tile map's own `material` is that node's alone; this is the one that inherits. Goes on any node, one that draws nothing included.",
-    "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
-    "meta": "Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.",
-    "modifier2d": "Poses 2D bones after the clip has run, every frame: `look_at` turns one bone toward a target node, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it, `fabrik` and `ccdik` reach with a chain of any length, `jiggle` lets a chain trail the pose on a spring, and `follow` moves the node itself to its target plus `offset`, `lag` seconds behind.",
-    "modifier3d": "The 3D twin of `modifier2d`, over `bone3d`: `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` and `follow`, posing bones after the clip has run -- `follow` moves the node rather than a bone, so a camera trails what it watches without a script. A chain solver turns each bone by the shortest arc onto the solved point, so a bone's twist about its own aim is left as the clip wrote it.",
-    "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
-    "particles": "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
-    "polygon": "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
-    "ragdoll": "Drives a rig's bones from the bodies `physics2d.ragdoll` or `physics3d.ragdoll` built for it. `blend` is how much of the simulated pose the bones take: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp, and anything between lets a hit push an animation around without ending it.",
-    "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.",
-    "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
-    "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
-    "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
-    "state_machine": "Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.",
-    "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.states.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
-    "text2d": "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
-    "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
-    "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
-    "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
-    "timer": "Counts simulation time down and emits `timeout` from this node when it runs out: `[[nodes.bindings]] event = \"emitted:timeout\"` answers it, and so does a script subscribed to it. Set `running` to start it.",
-    "touch_button": "An on-screen button that presses an `action` while a finger is on it, so a game bound to a key on a desktop needs no second code path on a phone. Placed against the screen less its safe area, not in the scene's world.",
-    "touch_stick": "An on-screen stick that pushes one action per axis while a thumb drags it, reading -1..1 with y positive away from the player, the way a gamepad's stick does. Placed against the screen less its safe area.",
-    "transform": "Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.",
-    "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
-    "wheel3d": "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
-    "widget": "A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method."
+    "animation": "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.",
+    "bindings": "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
+    "body2d": "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
+    "body3d": "A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.",
+    "bone2d": "Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.",
+    "bone3d": "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
+    "boolean2d": "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
+    "boolean3d": "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
+    "camera": "The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.",
+    "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
+    "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
+    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.",
+    "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
+    "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
+    "environment": "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
+    "joint2d": "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `rope`, `spring`, `pin_slot` or `generic`; both ends need a `body2d` on or above the node.",
+    "joint3d": "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `spherical`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
+    "light2d": "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
+    "light3d": "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
+    "listener": "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
+    "material": "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
+    "mesh": "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
+    "meta": "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
+    "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
+    "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
+    "occluder2d": "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
+    "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
+    "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
+    "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.",
+    "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
+    "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+    "sound": "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
+    "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
+    "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
+    "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go(\"hover\")` patches one over the node.",
+    "text2d": "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
+    "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
+    "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
+    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds one character per cell; `pixels_per_unit` is tile pixels per world unit.",
+    "timer": "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
+    "touch_button": "An on-screen button that presses an `action` while a finger is on it. `anchor` and `offset` place it inside the screen's safe area.",
+    "touch_stick": "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor` and `offset` place it.",
+    "transform": "The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.",
+    "vehicle3d": "Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.",
+    "wheel3d": "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
+    "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`."
   },
   "component_tags": {
     "animation": [
@@ -4665,7 +4665,7 @@
         "state_machine"
       ],
       "constants": [],
-      "doc": "Clip playback on a node's `animation` component: starting, holding, seeking, and tweens, short clips generated from a table of steps and addressed by the handle they hand back.",
+      "doc": "Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.",
       "docs": {
         "current": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
         "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
@@ -4735,7 +4735,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Apple platform services that `platform.*` does not cover. `identity` fetches what a server needs to verify a Game Center player (url, signature, salt and timestamp) and answers on a later tick as a map carrying `kind`, both to the node's `on_apple` method and to whoever awaits the id. Achievements, leaderboards, sign-in and cloud saves are `platform.*`, which speaks Game Center here.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a `kind` map, to the node's `on_apple` or the awaited id.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
@@ -4802,7 +4802,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Asset definitions by reference: a project-relative file path, `file#entry` for one entry inside it, `#id` for a block the scene declares, or `id://<id>` for a path `assets/index.toml` names so the reference survives a rename. A script gets the definition table, not the parsed object the owning plugin builds from it.",
+      "doc": "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
       "docs": {
         "assign_id": "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards.",
         "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
@@ -4857,7 +4857,7 @@
         "sound"
       ],
       "constants": [],
-      "doc": "Sound playback: a file plays under an integer handle, with `volume`, `pitch` and `loop` options, and the `sound` component gives a node a sound of its own. Give a `play` a `position` and it is heard from where the `listener` is. With no output device every call still works and nothing is heard.",
+      "doc": "Sound playback: `play` a file with `volume`, `pitch`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own.",
       "docs": {
         "bus_volume": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
@@ -4944,7 +4944,7 @@
           "value": "over"
         }
       ],
-      "doc": "Breakpoints, the pause a stopped script sits in, and the ways out of it. The same machinery the editor's Debugger dock and the Debug Adapter Protocol server drive, so an outside editor and the built-in one see one debugger.",
+      "doc": "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.",
       "docs": {
         "break_on_error": "Whether a script that throws stops rather than being logged.",
         "breakpoints": "The lines one file's breakpoints landed on.",
@@ -4984,7 +4984,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Bytes as text and back, for what a server hands over in base64.",
+      "doc": "Bytes to base64 text and back.",
       "docs": {
         "base64": "Bytes, or a string's UTF-8, as standard base64 with padding.",
         "from_base64": "The bytes a base64 string encodes; an error for text that is not base64."
@@ -5003,7 +5003,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The running app itself: the clock a frame reads, the command line it was started with, the directory it may write to, and the way out.",
+      "doc": "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
         "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode(bool)` is called when it changes. False where nothing says.",
@@ -5076,7 +5076,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Named events between scripts. A node subscribes to a name \u2014 from one emitter, or from anyone \u2014 and hears it as its script's `on_<name>` method; `node.emit` emits from a node and `events.emit` from no one in particular. Delivery is at the top of the next frame's update, in emission then subscription order, so a handler never runs inside the call that emitted. `emitted` and `emitted_from` are the asking twins, for a script that would rather look than declare a method.",
+      "doc": "Named events between scripts. A node subscribes to a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
       "docs": {
         "emit": "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
         "emitted": "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
@@ -5107,7 +5107,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Exporting the project being edited. `targets` says what this install can build and what it would have to fetch; `start` runs one off the frame and reports to `on_export`. Nothing here exports while a recording plays.",
+      "doc": "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export`.",
       "docs": {
         "listen": "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.",
         "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
@@ -5135,7 +5135,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Files on disk, project-relative unless the path is absolute, so a script cannot wander the filesystem by accident. This is the disk itself: a packed build's contents are reached through `assets` and `scene.source`.",
+      "doc": "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
       "docs": {
         "copy": "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model.",
         "exists": "Whether a project-relative path has anything at it, file or directory.",
@@ -5175,7 +5175,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The Gamend backend: a session, its REST API, and a realtime socket carrying topics and server hooks. Every call returns an id to await, and each result also reaches the handler method of the node it was given (`on_gamend_event` unless `on_event` names another) as a map tagged with a `kind`.",
+      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
       "docs": {
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
         "close": "Shut the socket down; false when the connection was already gone.",
@@ -5215,7 +5215,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Polygons on the plane, as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is the same on every platform: the booleans run in fixed point and the rest is plain arithmetic.",
+      "doc": "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
       "docs": {
         "area": "The polygon's area, always positive whatever its winding.",
         "contains": "Whether a point lies inside the polygon; a point on an edge counts as inside.",
@@ -5255,7 +5255,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Mesh operations that stand outside the simulation: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset's name or a table of `points` and `indices`.",
+      "doc": "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
       "docs": {
         "convex_decomposition": "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically.",
         "convex_hull": "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave.",
@@ -5286,7 +5286,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Content hashes, for a download a game verifies before it trusts it.",
+      "doc": "SHA-256 content hashes of files and strings.",
       "docs": {
         "sha256": "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given.",
         "sha256_text": "The SHA-256 of a string as lowercase hex."
@@ -5305,7 +5305,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[http] timeout`. `save_to` streams a 2xx body to that path under the user directory instead, the reply carrying `path`, and each chunk reaches the node's `on_progress` as `{ request, received, total }`.",
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` with `status`, `headers` and `body` or `error`; `save_to` downloads report to `on_progress`.",
       "docs": {
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
@@ -5321,7 +5321,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Bringing a file into the project being edited: a `.glb` or `.gltf` model, an `.aseprite` sprite, a `.tmx` or `.ldtk` level. The same importers `balaur import` runs.",
+      "doc": "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
       "docs": {
         "file": "Import one file into the edited project. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed.",
         "handles": "Whether an importer claims this file, by extension."
@@ -6101,7 +6101,7 @@
           "value": "West"
         }
       ],
-      "doc": "One frame of input: the keyboard, mouse, touch screen and gamepads as they stand now, plus the edges: what went down or came up this frame. Nothing feeds it in a headless run, where every query answers neutrally rather than failing.",
+      "doc": "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
       "docs": {
         "action_just_pressed": "Whether the action went down this frame.",
         "action_just_released": "Whether the action came up this frame.",
@@ -6252,7 +6252,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "JSON text to and from script values, for talking to anything outside the engine. Unlike TOML it has null, so nil survives a round trip.",
+      "doc": "JSON text to and from script values. Its `null` keeps nil through a round trip.",
       "docs": {
         "encode": "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error.",
         "parse": "The value a JSON document describes; an error on text that does not parse."
@@ -6271,7 +6271,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The three levels a script writes at, and the buffer behind them. Scripted lines go through the engine's own `tracing` stream, so they land beside engine ones.",
+      "doc": "The `info`, `warn` and `error` levels a script writes at, and the buffer behind them. Lines go through the engine's own `tracing` stream.",
       "docs": {
         "clear": "Empty the buffer, so a console reading it starts again from nothing.",
         "error": "Write a line at error level, tagged as coming from a script.",
@@ -6312,7 +6312,7 @@
           "value": "6.283185307179586"
         }
       ],
-      "doc": "Deterministic float maths, backed by pure-Rust `libm`: the same inputs give the same bits on every platform. A script uses these rather than the language's own float methods, which reach for the platform's libm and drift between machines.",
+      "doc": "Deterministic float maths backed by pure-Rust `libm`: the same inputs give the same bits on every platform.",
       "docs": {
         "abs": "The magnitude, with the sign dropped.",
         "acos": "The angle in radians whose cosine is the argument, from 0 to PI; NaN outside -1..1.",
@@ -6419,7 +6419,7 @@
         "transform"
       ],
       "constants": [],
-      "doc": "What every node has: its name and path, its place in the world, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.get_node(\"Arm\")`). `position`, `rotation_euler` and `scale` read the `transform` component, which `this.node.transform.position` reads and writes directly.",
+      "doc": "What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `this.node.get_node(\"Arm\")`.",
       "docs": {
         "add_child": "Create a named child node under this one and return it.",
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
@@ -6585,7 +6585,7 @@
         "ragdoll"
       ],
       "constants": [],
-      "doc": "What spans both physics worlds at once: pausing, sleeping and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
+      "doc": "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
       "docs": {
         "clear": "Remove every body and collider from both worlds, as a play-in-editor session does on stop.",
         "counters": "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it.",
@@ -6944,7 +6944,7 @@
           "value": "reduced"
         }
       ],
-      "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
+      "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
         "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
         "add_force_at_point": "Push at a world point, which also turns the body.",
@@ -7517,7 +7517,7 @@
           "value": "reduced"
         }
       ],
-      "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
+      "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
         "aabb": "The world-space box the collider currently occupies, as its two opposite corners.",
         "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
@@ -7740,7 +7740,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards and cloud saves. A call returns an id and answers on a later tick, as a map carrying `kind`: `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported`: both to the node's `on_platform` method and to whoever awaits the id. With no store loaded every call answers `unsupported`, so a script written against this runs anywhere. What only one platform has lives in that platform's own module.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported`.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cloud_read": "Read a value the store syncs between the player's devices.",
@@ -7948,7 +7948,7 @@
           "value": "reinhard"
         }
       ],
-      "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
+      "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the window, backdrop and debug lines.",
       "docs": {
         "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
@@ -8152,7 +8152,7 @@
           "value": "stopped"
         }
       ],
-      "doc": "Record what a running game is fed and play it back. A recording holds each tick's input, network arrivals and events, not the world they produced, so a session is small and replays by re-running the game against the same input. The editor's Session dock drives these, and so does `balaur run --record`.",
+      "doc": "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
       "docs": {
         "diverged": "The first tick whose replay did not reproduce the recorded digest, or nil.",
         "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
@@ -8216,7 +8216,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw a recorded session made.",
+      "doc": "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
       "docs": {
         "int": "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included.",
         "random": "A float from the deterministic engine stream, uniform in `[0, 1)`.",
@@ -8244,7 +8244,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Rollback netcode from a script's side. The session decides each tick's inputs before the tick runs: the real one where it has arrived, a repeat of the player's last one where it has not, and `input` reads whichever it settled on. A tick may run more than once: when a late input contradicts a prediction, the engine restores the tick before it and simulates forward again, so anything a script does with an effect outside the simulation has to ask `is_resimulating` first.",
+      "doc": "Rollback netcode from a script's side. `input` reads this tick's input, real or predicted; `is_resimulating` is true when a tick runs again after a late input.",
       "docs": {
         "input": "What that player is doing on the tick being simulated, real or predicted; nil outside a session or for a player it does not know.",
         "is_resimulating": "Whether this tick is a re-run of one already simulated, so a script can skip anything it must not do twice."
@@ -8263,7 +8263,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Save games: a table in, a table out, stored per user rather than in the project. Nothing here is engine state: a save is whatever the game puts in it, so what the engine decides is only where it lives, that a half-written file cannot replace a good one, and what version it was written at. `[save] version` in `project.toml` sets that version and `[save] migrate` names the script whose `migrate_save(version, data)` brings an older file forward, one version per call.",
+      "doc": "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.",
       "docs": {
         "read": "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for.",
         "remove": "Delete a slot. Not an error when it was not there.",
@@ -8291,7 +8291,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The node tree: its root, lookup by path, instancing. Also the component and preset vocabulary an editor builds its palette from.",
+      "doc": "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
       "docs": {
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
         "bindable_events": "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them.",
@@ -8370,7 +8370,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+      "doc": "Loads other scripts, inspects what they declare and calls into them; a failure stays contained.",
       "docs": {
         "api": "Every module scripts can reach, as the JSON string `balaur api` prints; a tool reads the live engine rather than a file that may be stale.",
         "attempt": "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed.",
@@ -8434,7 +8434,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored: `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's. One key may hold an answer per platform: `[override.android.window] orientation` is what `window/orientation` reads on a phone.",
+      "doc": "Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.",
       "docs": {
         "all": "Every defined setting as `{ path, scope, spec }`, in definition order.",
         "base": "What the file says, ignoring every override: what a settings screen edits.",
@@ -8480,7 +8480,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Bones under a rig node: the rest pose a rig returns to, and the tree order a skin numbers its joints in. A bone is any node carrying `bone2d` or `bone3d`; there is no skeleton component.",
+      "doc": "Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.",
       "docs": {
         "apply_rest": "Move every bone under the node back to its rest transform.",
         "bones": "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one.",
@@ -8502,7 +8502,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the locale a run starts in and the one a missing key falls back to. A key neither has comes back as itself: visible in the game, which is how a missing string gets noticed rather than showing as a blank label.",
+      "doc": "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.",
       "docs": {
         "locale": "The locale in force.",
         "locales": "Every locale the project ships a `strings/<locale>.toml` for, in name order.",
@@ -8533,7 +8533,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+      "doc": "Waiting inside an async handler: `init` and event handlers may await; `update` is synchronous.",
       "docs": {
         "frames": "Park an async handler for a number of fixed steps; counted on the tick, so a replay waits exactly as long.",
         "seconds": "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it.",
@@ -8555,7 +8555,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "TOML text to and from script tables: the format scene files, asset definitions and component properties are all written in.",
+      "doc": "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
       "docs": {
         "encode": "A table written back out as TOML text; a node or callback in it is not data and is an error.",
         "parse": "The table a TOML document describes; an error on text that does not parse.",
@@ -8806,7 +8806,7 @@
           "value": "window"
         }
       ],
-      "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",
+      "doc": "Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout containers and widgets. HUD elements in the scene tree are the `widget` component.",
       "docs": {
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
         "add_space": "Insert blank space along the current layout, in design pixels.",
@@ -8996,7 +8996,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The page a browser build runs in. Facts about it are read once per tick and recorded, so a replay answers as the browser did; a message from the parent frame reaches `on_web_message` on every node that called `listen`. Off the web every query answers nil.",
+      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_message` on every node that called `listen`.",
       "docs": {
         "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
         "listen": "Have the node's `on_web_message(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
@@ -9030,7 +9030,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "A long-lived connection carrying text or binary frames. Its events are a stream, not a result: each one reaches the connecting node's handler method (`on_websocket_event` unless `on_event` names another) as a map `{ socket, kind, .. }` with kind `open`, `message` (with `text`), `binary` (with `bytes`), `closed` or `error`, and nothing awaits a socket id.",
+      "doc": "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
       "docs": {
         "close": "Ask the connection to close, which still delivers a `closed` event; false when it was already gone.",
         "connect": "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`.",

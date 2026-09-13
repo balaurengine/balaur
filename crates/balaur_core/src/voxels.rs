@@ -26,16 +26,14 @@ pub struct VoxelsData {
     pub cells: Vec<[i32; 3]>,
 }
 
-const VOXELS_ASSET_DOC: &str = r#"A voxel grid for a collider: `size` is one cell in world units, `cells` the
-filled coordinates. Coordinates are signed, so a grid has no origin corner,
-and `physics3d.set_voxel` may add or remove a cell at run time.
+const VOXELS_ASSET_DOC: &str = r#"A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 
 ```toml
 [[assets]]
 id = "pillar"
 type = "voxels"
 size = [1.0, 1.0, 1.0]
-cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
+cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 ```"#;
 
 pub(crate) fn register_voxels_asset(app: &mut App) {

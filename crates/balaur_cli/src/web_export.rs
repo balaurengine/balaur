@@ -86,10 +86,7 @@ impl balaur_plugin::Plugin for WebExportPlugin {
 
 fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Exporting the project being edited, in a browser. `targets` is what \
-         a tab can finish by itself: a pack, and a web bundle. Everything \
-         else needs a linker, which no browser has. Nothing here exports \
-         while a recording plays.",
+        "Exports the project being edited, from a browser. `targets` is what a tab can build alone: a pack and a web bundle.",
     );
     m.describe(&[
         ("targets", &[], "()", "Every target this tab can build, each `{ name, bundle, installed, fetchable, note }`."),

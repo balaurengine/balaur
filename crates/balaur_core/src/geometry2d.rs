@@ -372,10 +372,7 @@ fn boolean(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Value {
 
 pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Polygons on the plane, as lists of `[x, y]` points in outline order: \
-         triangulation, booleans, hulls and containment. Every answer is the \
-         same on every platform: the booleans run in fixed point and the rest \
-         is plain arithmetic.",
+        "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );
     m.describe(&[
         ("triangulate", &[], "(polygon: list) -> list", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),

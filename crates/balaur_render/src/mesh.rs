@@ -79,7 +79,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
-            doc: "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
+            doc: "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 &balaur_core::components::ComponentDef::schema(&[

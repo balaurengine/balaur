@@ -262,13 +262,7 @@ fn sweep(eng: &Engine) {
 /// where every other core module is declared.
 pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Named events between scripts. A node subscribes to a name — from one \
-         emitter, or from anyone — and hears it as its script's `on_<name>` \
-         method; `node.emit` emits from a node and `events.emit` from no one \
-         in particular. Delivery is at the top of the next frame's update, in \
-         emission then subscription order, so a handler never runs inside the \
-         call that emitted. `emitted` and `emitted_from` are the asking twins, \
-         for a script that would rather look than declare a method.",
+        "Named events between scripts. A node subscribes to a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
     );
     m.describe(&[
         (

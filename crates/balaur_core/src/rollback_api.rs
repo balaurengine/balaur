@@ -10,14 +10,7 @@ use crate::engine::Engine;
 
 pub fn install_rollback_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Rollback netcode from a script's side. The session decides each \
-         tick's inputs before the tick runs: the real one where it has \
-         arrived, a repeat of the player's last one where it has not, and \
-         `input` reads whichever it settled on. A tick may run more than \
-         once: when a late input contradicts a prediction, the engine \
-         restores the tick before it and simulates forward again, so \
-         anything a script does with an effect outside the simulation has to \
-         ask `is_resimulating` first.",
+        "Rollback netcode from a script's side. `input` reads this tick's input, real or predicted; `is_resimulating` is true when a tick runs again after a late input.",
     );
     m.describe(&[
         (

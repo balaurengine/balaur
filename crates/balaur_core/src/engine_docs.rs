@@ -6,8 +6,7 @@ use crate::engine::Engine;
 
 pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "The running app itself: the clock a frame reads, the command line it \
-         was started with, the directory it may write to, and the way out.",
+        "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
     );
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
@@ -34,7 +33,7 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
 }
 
 pub(crate) fn document_hash(m: &mut dyn balaur_script::Bindings<Engine>) {
-    m.module_doc("Content hashes, for a download a game verifies before it trusts it.");
+    m.module_doc("SHA-256 content hashes of files and strings.");
     m.describe(&[
         ("sha256", &[], "(path: string)", "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given."),
         ("sha256_text", &[], "(text: string)", "The SHA-256 of a string as lowercase hex."),
@@ -42,7 +41,7 @@ pub(crate) fn document_hash(m: &mut dyn balaur_script::Bindings<Engine>) {
 }
 
 pub(crate) fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
-    m.module_doc("Bytes as text and back, for what a server hands over in base64.");
+    m.module_doc("Bytes to base64 text and back.");
     m.describe(&[
         (
             "base64",
@@ -61,9 +60,7 @@ pub(crate) fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "The node tree: its root, lookup by path, instancing. \
-         Also the component and preset vocabulary an editor builds its \
-         palette from.",
+        "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
     );
     m.describe(&[
         ("root", &[], "()", "The tree's root node."),
@@ -93,9 +90,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Bones under a rig node: the rest pose a rig returns to, and the tree \
-         order a skin numbers its joints in. A bone is any node carrying \
-         `bone2d` or `bone3d`; there is no skeleton component.",
+        "Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.",
     );
     m.describe(&[
         ("apply_rest", &[], "(node: node)", "Move every bone under the node back to its rest transform."),
@@ -106,11 +101,7 @@ pub(crate) fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Asset definitions by reference: a project-relative file path, \
-         `file#entry` for one entry inside it, `#id` for a block the scene \
-         declares, or `id://<id>` for a path `assets/index.toml` names so the \
-         reference survives a rename. A script gets the definition table, not \
-         the parsed object the owning plugin builds from it.",
+        "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
     );
     m.describe(&[
         ("load", &[], "(reference: string)", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
@@ -129,11 +120,7 @@ pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Localization: one `strings/<locale>.toml` per language, keys to \
-         strings. `[locale]` in `project.toml` sets the locale a run starts \
-         in and the one a missing key falls back to. A key neither has comes \
-         back as itself: visible in the game, which is how a missing string \
-         gets noticed rather than showing as a blank label.",
+        "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.",
     );
     m.describe(&[
         ("tr", &[], "(key: string, args: table?)", "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."),
@@ -147,14 +134,7 @@ pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Save games: a table in, a table out, stored per user rather than in \
-         the project. Nothing here is engine state: a save is whatever the \
-         game puts in it, so what the engine decides is only where it lives, \
-         that a half-written file cannot replace a good one, and what version \
-         it was written at. `[save] version` in `project.toml` sets that \
-         version and `[save] migrate` names the script whose \
-         `migrate_save(version, data)` brings an older file forward, one \
-         version per call.",
+        "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.",
     );
     m.describe(&[
         ("write", &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."),
@@ -167,9 +147,7 @@ pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "The three levels a script writes at, and the buffer behind them. \
-         Scripted lines go through the engine's own `tracing` stream, so they \
-         land beside engine ones.",
+        "The `info`, `warn` and `error` levels a script writes at, and the buffer behind them. Lines go through the engine's own `tracing` stream.",
     );
     m.describe(&[
         ("info", &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
@@ -182,9 +160,7 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "The engine's one deterministic PCG32 stream: the same seed draws the \
-         same numbers on every platform, and a replay reproduces every draw a \
-         recorded session made.",
+        "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
     );
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
@@ -197,10 +173,7 @@ pub(crate) fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Files on disk, project-relative unless the path is absolute, so a \
-         script cannot wander the filesystem by accident. This is the disk \
-         itself: a packed build's contents are reached through `assets` and \
-         `scene.source`.",
+        "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
     );
     m.describe(&[
         ("read", &[], "(path: string)", "A whole file as text, project-relative unless absolute; nil when it cannot be read."),
@@ -217,8 +190,7 @@ pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "TOML text to and from script tables: the format scene files, asset \
-         definitions and component properties are all written in.",
+        "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
     );
     m.describe(&[
         ("parse", &[], "(text: string)", "The table a TOML document describes; an error on text that does not parse."),
@@ -228,10 +200,7 @@ pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
 }
 
 pub(crate) fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
-    m.module_doc(
-        "JSON text to and from script values, for talking to anything outside \
-         the engine. Unlike TOML it has null, so nil survives a round trip.",
-    );
+    m.module_doc("JSON text to and from script values. Its `null` keeps nil through a round trip.");
     m.describe(&[
         ("parse", &[], "(text: string)", "The value a JSON document describes; an error on text that does not parse."),
         ("encode", &[], "(value: any)", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),

@@ -425,14 +425,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "HTTP calls, off the frame: the reply arrives on a later tick as a map \
-         with `status`, `headers` and `body`, or with `error`, both to the \
-         node's `on_response` method and to whoever awaits the returned id. \
-         Options are `method`, `headers`, `body` and a `timeout` in seconds, \
-         which falls back to the project's `[http] timeout`. `save_to` streams \
-         a 2xx body to that path under the user directory instead, the reply \
-         carrying `path`, and each chunk reaches the node's `on_progress` as \
-         `{ request, received, total }`.",
+        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` with `status`, `headers` and `body` or `error`; `save_to` downloads report to `on_progress`.",
     );
     m.describe(&[
         ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),

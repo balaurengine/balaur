@@ -80,7 +80,7 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "sprite",
         ComponentDef {
-            doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
+            doc: "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
             schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],

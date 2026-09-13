@@ -795,7 +795,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::COLLIDER_3D,
         ComponentDef {
-            doc: "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
+            doc: "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
             schema: ComponentDef::parse_schema(c::COLLIDER_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[],
