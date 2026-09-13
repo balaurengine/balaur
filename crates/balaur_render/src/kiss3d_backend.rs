@@ -352,6 +352,9 @@ pub async fn run_windowed_async(
     };
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
+    // A lazy UI builds no widgets on an idle frame, so the last pass's shapes
+    // have to be drawn again. kiss3d stopped doing that by default.
+    window.set_ui_retained(true);
     if window_settings.mode != balaur_core::project::WindowMode::Windowed {
         // Seed the state a script's own toggle drives, so `apply_window_config`
         // puts the window up on the first frame through one path.
@@ -430,6 +433,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         // Surface-less rendering runs on a CI box with no display at all.
         let mut window =
             Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
+        window.set_ui_retained(true);
         let mut f = Frontend::new();
         // Nothing can close a target that was never shown, and there is no
         // vsync to block on, so the loop runs until the app asks to stop --
