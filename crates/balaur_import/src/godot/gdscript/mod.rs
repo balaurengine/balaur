@@ -15,7 +15,7 @@ mod shim;
 
 use std::collections::BTreeSet;
 
-pub(crate) use emit::{Context, RESERVED, safe};
+pub(crate) use emit::{BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, safe};
 
 /// Where the shim lands in a converted project, and the local a body binds it
 /// to.
@@ -39,6 +39,7 @@ pub(crate) fn body(
     params: &[String],
     allow_await: bool,
     in_static: bool,
+    enclosing: &str,
 ) -> Body {
     let source = dedented(lines);
     let borrowed: Vec<&str> = source.lines().collect();
@@ -56,6 +57,7 @@ pub(crate) fn body(
     let mut emitter = emit::Emitter::new(context);
     emitter.allow_await = allow_await;
     emitter.in_static = in_static;
+    emitter.enclosing = enclosing.to_string();
     for param in params {
         emitter.declare(param);
     }
@@ -146,7 +148,7 @@ mod tests {
             .lines()
             .map(std::string::ToString::to_string)
             .collect();
-        body(&lines, context, 1, &[], true, false).rune
+        body(&lines, context, 1, &[], true, false, "").rune
     }
 
     fn ship() -> Context {
@@ -262,7 +264,7 @@ mod tests {
         ];
         for case in cases {
             let lines: Vec<String> = case.lines().map(std::string::ToString::to_string).collect();
-            let out = body(&lines, &Context::default(), 0, &[], true, false);
+            let out = body(&lines, &Context::default(), 0, &[], true, false, "");
             println!("--- {case:?}\n{}", out.rune);
         }
     }
@@ -273,7 +275,7 @@ mod tests {
             .iter()
             .map(std::string::ToString::to_string)
             .collect();
-        let out = body(&lines, &Context::default(), 0, &[], true, false);
+        let out = body(&lines, &Context::default(), 0, &[], true, false, "");
         assert!(out.rune.contains("let a = 1;"), "{}", out.rune);
         assert!(out.notes.is_empty(), "{:?}", out.notes);
     }

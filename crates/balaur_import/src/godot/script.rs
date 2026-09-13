@@ -11,7 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use crate::godot::exports::{Classes, split_top};
-use crate::godot::gdscript::{self, Context, RESERVED, safe};
+use crate::godot::gdscript::{
+    self, BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, safe,
+};
 
 /// A skeleton, and what the port will have to deal with.
 pub(crate) struct Converted {
@@ -37,6 +39,9 @@ struct Function {
     name: String,
     params: Vec<String>,
     is_static: bool,
+    /// A base's copy of a function this class overrides, emitted under a
+    /// suffixed name because `super` calls it.
+    overridden: bool,
     /// The signature, then every line of the body.
     lines: Vec<String>,
 }
@@ -54,9 +59,19 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     // Rune has no inheritance, so a base's functions are emitted here too,
     // under the derived ones: `write_functions` keeps the first of a name.
     let inherited = chain(source, classes);
+    let calls_super = source.lines().any(|line| {
+        let code = line.split('#').next().unwrap_or_default();
+        code.contains("super(") || code.contains("super.")
+    });
     for base in inherited.iter().skip(1) {
-        for function in split_functions(base) {
+        for mut function in split_functions(base) {
             if !functions.iter().any(|own| own.name == function.name) {
+                functions.push(function);
+                continue;
+            }
+            // Overridden. Kept, renamed, only where a `super` reaches it.
+            if calls_super {
+                function.overridden = true;
                 functions.push(function);
             }
         }
@@ -231,6 +246,14 @@ fn context(
             .collect(),
         ..Context::default()
     };
+    for (hook, flag) in [
+        ("_process", PROCESS_FLAG),
+        ("_physics_process", PHYSICS_PROCESS_FLAG),
+    ] {
+        if functions.iter().any(|f| f.name == hook) {
+            context.members.insert(flag.to_string());
+        }
+    }
     for text in chain(source, classes) {
         let level = declarations(&text);
         context.members.extend(level.members);
@@ -250,7 +273,9 @@ fn context(
             None if RESERVED.contains(&function.name.as_str()) => format!("{}_", function.name),
             None => function.name.clone(),
         };
-        if name != function.name {
+        if function.overridden {
+            context.bases.insert(format!("{name}{BASE_SUFFIX}"));
+        } else if name != function.name {
             context.renames.insert(function.name.clone(), name);
         }
     }
@@ -274,7 +299,15 @@ fn context(
 
 /// One GDScript expression as Rune, for a value the file header declares.
 fn translated_value(value: &str, context: &Context) -> String {
-    let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
+    let body = gdscript::body(
+        &[format!("var _x = {value}")],
+        context,
+        0,
+        &[],
+        true,
+        true,
+        "",
+    );
     body.rune
         .trim()
         .strip_prefix("let _x = ")
@@ -286,10 +319,16 @@ fn translated_value(value: &str, context: &Context) -> String {
 /// one, to a fixed point.
 fn close_asyncs(context: &mut Context, functions: &[Function], notes: &mut Vec<String>) {
     let names: BTreeSet<String> = functions.iter().map(|f| f.name.clone()).collect();
-    let calls: BTreeMap<String, BTreeSet<String>> = functions
-        .iter()
-        .map(|f| (f.name.clone(), gdscript::called(f.body(), &names)))
-        .collect();
+    // A base's overridden copy shares its name with the one that overrode it,
+    // so the two are merged rather than one replacing the other: over-marking
+    // a function async costs nothing, losing a call site emits a stray await.
+    let mut calls: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for function in functions {
+        calls
+            .entry(function.name.clone())
+            .or_default()
+            .extend(gdscript::called(function.body(), &names));
+    }
     for function in functions {
         if gdscript::awaits(function.body()) {
             context.asyncs.insert(function.name.clone());
@@ -547,7 +586,15 @@ fn write_constants(
         if !emitted.insert(name.clone()) {
             continue;
         }
-        let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
+        let body = gdscript::body(
+            &[format!("var _x = {value}")],
+            context,
+            0,
+            &[],
+            true,
+            true,
+            "",
+        );
         let Some(text) = body
             .rune
             .trim()
@@ -642,7 +689,15 @@ fn write_members(
             ));
             continue;
         }
-        let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
+        let body = gdscript::body(
+            &[format!("var _x = {value}")],
+            context,
+            0,
+            &[],
+            true,
+            true,
+            "",
+        );
         let Some(text) = body
             .rune
             .trim()
@@ -652,6 +707,11 @@ fn write_members(
             continue;
         };
         assignments.push(format!("    this.{} = {text};", safe(&name)));
+    }
+    for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
+        if context.members.contains(flag) {
+            assignments.push(format!("    this.{flag} = true;"));
+        }
     }
     if assignments.is_empty() {
         return false;
@@ -691,6 +751,7 @@ fn write_functions(
     }
     for function in functions {
         let hook = HOOKS.iter().find(|(godot, _, _)| *godot == function.name);
+        let suffix = if function.overridden { BASE_SUFFIX } else { "" };
         let (name, params) = if let Some((_, here, params)) = hook {
             // The hook's own parameter name, so the body still reads it:
             // `_process(delta)` is `update(this, delta)`, not `dt`.
@@ -703,7 +764,7 @@ fn write_functions(
                     *slot = safe(own);
                 }
             }
-            ((*here).to_string(), bound.join(", "))
+            (format!("{here}{suffix}"), bound.join(", "))
         } else {
             let mut name = function.name.clone();
             if RESERVED.contains(&name.as_str()) {
@@ -716,7 +777,7 @@ fn write_functions(
             if !function.is_static {
                 params.insert(0, "this".to_string());
             }
-            (name, params.join(", "))
+            (format!("{name}{suffix}"), params.join(", "))
         };
         if seen.contains(&name) {
             notes.push(format!(
@@ -730,6 +791,7 @@ fn write_functions(
         }
         seen.push(name.clone());
         let synchronous = SYNCHRONOUS.contains(&name.as_str());
+        let inside = name.trim_end_matches(BASE_SUFFIX).to_string();
         let mut body = gdscript::body(
             function.body(),
             context,
@@ -737,6 +799,7 @@ fn write_functions(
             &function.params,
             !synchronous,
             function.is_static,
+            &inside,
         );
         notes.extend(
             body.notes
@@ -758,6 +821,16 @@ fn write_functions(
         }
         if defaults && name == "init" {
             out.push_str("    defaults(this);\n");
+        }
+        // Godot's `set_process` switched the hook off; here it sets a flag,
+        // and the hook reads it.
+        for (hook, flag) in [
+            ("update", PROCESS_FLAG),
+            ("fixed_update", PHYSICS_PROCESS_FLAG),
+        ] {
+            if name == hook && context.members.contains(flag) {
+                let _ = writeln!(out, "    if !this.{flag} {{\n        return;\n    }}");
+            }
         }
         out.push_str(&body.rune);
         out.push_str("}\n");
@@ -852,6 +925,7 @@ fn parse_signature(signature: &str, is_static: bool) -> Function {
         name,
         params,
         is_static,
+        overridden: false,
         lines: Vec::new(),
     }
 }
@@ -874,6 +948,8 @@ fn push_comment(out: &mut String, line: &str, indent: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::convert;
     use crate::godot::exports::Classes;
 
@@ -960,6 +1036,55 @@ func match(a):\n\
             "a static body too: {}",
             out.rune
         );
+    }
+
+    #[test]
+    fn set_process_becomes_a_flag_the_frame_hook_reads() {
+        let source = "extends Node\n\
+func _process(delta):\n\
+\tif delta > 1.0:\n\
+\t\tset_process(false)\n";
+        let out = convert(source, "scripts/a.gd", &Classes::default());
+        assert!(
+            out.rune.contains("this.process_enabled = false;"),
+            "{}",
+            out.rune
+        );
+        assert!(
+            out.rune
+                .contains("    if !this.process_enabled {\n        return;\n    }"),
+            "{}",
+            out.rune
+        );
+        assert!(
+            out.rune.contains("this.process_enabled = true;"),
+            "on by default: {}",
+            out.rune
+        );
+    }
+
+    #[test]
+    fn super_reaches_the_base_copy_of_an_overridden_function() {
+        let base = "extends Node\nclass_name Fish\n\nfunc swim(speed):\n\treturn speed\n";
+        let dir = std::env::temp_dir().join(format!("gdsuper{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("scripts")).unwrap();
+        std::fs::write(dir.join("scripts/fish.gd"), base).unwrap();
+        let classes = Classes {
+            bases: BTreeMap::default(),
+            files: [("Fish".to_string(), "scripts/fish.gd".to_string())]
+                .into_iter()
+                .collect(),
+            root: dir.clone(),
+        };
+        let source = "extends Fish\n\nfunc swim(speed):\n\treturn super(speed) * 2\n";
+        let out = convert(source, "scripts/shark.gd", &classes);
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(
+            out.rune.contains("pub fn swim__base(this, speed)"),
+            "{}",
+            out.rune
+        );
+        assert!(out.rune.contains("swim__base(this, speed)"), "{}", out.rune);
     }
 
     #[test]

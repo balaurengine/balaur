@@ -85,17 +85,19 @@ that way on purpose, and each waits on something outside this plan:
   delivery belongs in `docs/PLAN-input.md`, which does not plan it today;
   until then these stay comments and the port moves each body into `update`
   by hand.
-- **`set_process` and `set_physics_process`** (about 30 sites). Godot's
-  per-node switch for running a script's frame hook. The engine has no
-  node-level "stop simulating this subtree" either;
-  `docs/PLAN-component-enabled.md` §0 names that gap and its "stopping a
-  subtree" section is where the counterpart would go. Reported, stubbed.
-- **`super`** (8 occurrences). §4's flattening copies a base's functions into
-  the derived module, so a call to the overridden one has no name to reach.
-  The fix is a rule — emit the base's copy under a suffixed name and point
-  `super` at it — and it is small; it has simply not been worth the eight
-  sites yet.
+- **`_input`'s siblings, `set_process_input` and
+  `set_process_unhandled_input`** (16 sites). They switch a handler this
+  plan does not translate, so there is nothing for them to switch.
 - **The Gamend SDK**, which is §9's question 3 and §10's finding.
+
+Two of the four this section used to list are translated since 2026-09-13.
+`set_process` and `set_physics_process` are a flag: a script with a frame
+hook carries `process_enabled`, the hook opens by reading it, and the
+setter writes it — so another node's `set_process` reaches it through the
+accessor every member has. `super` is the base's own copy, emitted under a
+`__base` suffix wherever a class overrides a function and calls `super`, and
+the call is rewritten to it. Between them the game's per-frame runtime
+errors fell from about 20 000 a run to 5 200.
 
 `call_deferred` *is* translated, as a plain call: the engine runs a script
 call in the frame it is made, and nothing in this game depended on the

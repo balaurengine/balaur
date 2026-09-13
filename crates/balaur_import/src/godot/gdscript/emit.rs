@@ -27,6 +27,10 @@ pub(crate) struct Context {
     /// Constants whose value needs the shim or a node, so they are functions
     /// here and are read by calling them.
     pub lazy: BTreeSet<String>,
+    /// Rune names a base's overridden copy was emitted under, so `super`
+    /// reaches it. Godot's inheritance is flattened, so the copy is a
+    /// function of this module named `<name>__base`.
+    pub bases: BTreeSet<String>,
     /// Signals, so `sig.emit(x)` and `sig.connect(f)` are known to be signals.
     pub signals: BTreeSet<String>,
     /// Functions the async pass found, so a call to one gets `.await`.
@@ -42,6 +46,13 @@ pub(crate) struct Context {
     pub static_vars: BTreeMap<String, String>,
     pub static_prefix: String,
 }
+
+/// The members that stand in for Godot's per-node process switch.
+pub(crate) const PROCESS_FLAG: &str = "process_enabled";
+pub(crate) const PHYSICS_PROCESS_FLAG: &str = "physics_process_enabled";
+
+/// What a base's overridden function is named here, so `super` can reach it.
+pub(crate) const BASE_SUFFIX: &str = "__base";
 
 /// Rune's reserved words: a GDScript name that is one gains a trailing `_`.
 pub(crate) const RESERVED: &[&str] = &[
@@ -83,6 +94,9 @@ pub(crate) struct Emitter<'a> {
     pub allow_await: bool,
     /// Set inside a `static func`, which has no `this` to read a member from.
     pub in_static: bool,
+    /// The function being emitted, as Rune names it, so a bare `super(..)`
+    /// knows which base copy it means.
+    pub enclosing: String,
     /// Lines the statement in progress needs before and after it: a call on a
     /// static reads it into a local first and writes the local back, because
     /// the store hands out a value rather than a place.
@@ -104,6 +118,7 @@ impl<'a> Emitter<'a> {
             uses_shim: false,
             allow_await: true,
             in_static: false,
+            enclosing: String::new(),
             awaited_here: false,
             before: Vec::new(),
             after: Vec::new(),
@@ -711,6 +726,11 @@ impl<'a> Emitter<'a> {
             Expr::Field(object, name) if matches!(**object, Expr::SelfRef) => Some(name.clone()),
             _ => None,
         };
+        // Godot's `set_process` is a per-node switch the engine does not have;
+        // it becomes a flag the frame hook reads, declared by `script.rs`.
+        if let Some(text) = self.process_verb(callee, args) {
+            return text;
+        }
         if let Some(name) = own {
             if self.context.methods.contains(&name) {
                 let bound = self.method_name(&name);
@@ -736,6 +756,9 @@ impl<'a> Emitter<'a> {
             }
         }
         let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+        if let Some(text) = self.super_call(callee, &parts) {
+            return text;
+        }
         if let Expr::Field(object, method) = callee
             && let Expr::Name(class) = &**object
             && !self.is_local(class)
@@ -802,6 +825,56 @@ impl<'a> Emitter<'a> {
             return format!("({head})({})", parts.join(", "));
         }
         format!("{head}({})", parts.join(", "))
+    }
+
+    /// `set_process(false)` and its kin, called on this script itself.
+    fn process_verb(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
+        let name = match callee {
+            Expr::Name(name) if !self.is_local(name) => name,
+            Expr::Field(object, name) if matches!(**object, Expr::SelfRef) => name,
+            _ => return None,
+        };
+        let flag = match name.as_str() {
+            "set_process" | "is_processing" => PROCESS_FLAG,
+            "set_physics_process" | "is_physics_processing" => PHYSICS_PROCESS_FLAG,
+            _ => return None,
+        };
+        if !self.context.members.contains(flag) {
+            return None;
+        }
+        if name.starts_with("is_") {
+            return Some(format!("this.{flag}"));
+        }
+        let value = args
+            .first()
+            .map_or("true".to_string(), |a| self.expression(a));
+        Some(format!("this.{flag} = {value}"))
+    }
+
+    /// `super(..)` and `super.name(..)`: the base's copy, which §4's
+    /// flattening emitted under a suffixed name when this class overrode it.
+    fn super_call(&mut self, callee: &Expr, parts: &[String]) -> Option<String> {
+        let base = match callee {
+            Expr::Name(name) if name == "super" => self.enclosing.clone(),
+            Expr::Field(object, name) if matches!(**object, Expr::Name(ref n) if n == "super") => {
+                self.context
+                    .renames
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| safe(name))
+            }
+            _ => return None,
+        };
+        let suffixed = format!("{base}{BASE_SUFFIX}");
+        let target = if self.context.bases.contains(&suffixed) {
+            suffixed
+        } else {
+            self.note(format!("`super` reaches `{base}`, which no base declares"));
+            base
+        };
+        let mut all = vec!["this".to_string()];
+        all.extend(parts.iter().cloned());
+        Some(format!("{target}({})", all.join(", ")))
     }
 
     /// The signal a `sig.emit(..)` was written on, where the receiver names
