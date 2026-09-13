@@ -802,6 +802,7 @@ fn edit_project(
     app.load_project()?;
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
+    #[cfg(not(target_arch = "wasm32"))]
     declare_game_input(&app, &game);
     if let Some(frames) = frames {
         let mut count = 0u64;
