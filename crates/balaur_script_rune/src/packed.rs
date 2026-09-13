@@ -32,7 +32,9 @@ const MAGIC: &[u8; 4] = b"BLRU";
 ///
 /// 2: stack offsets travel as `u32`, so a unit compiled on a 64-bit machine
 /// reads back on a 32-bit one.
-const FORMAT: u32 = 2;
+/// 3: bincode's standard configuration in place of bincode 1's, so integers
+/// travel as varints.
+const FORMAT: u32 = 3;
 
 /// Serialise a compiled unit and its public signatures for the pack.
 ///
@@ -45,7 +47,7 @@ const FORMAT: u32 = 2;
 pub(crate) fn encode(unit: &Unit, functions: &[PublicSignature]) -> Result<Vec<u8>> {
     let mut out = Vec::from(*MAGIC);
     out.extend_from_slice(&FORMAT.to_le_bytes());
-    bincode::serde::encode_into_std_write((unit.logic(), functions), &mut out, LEGACY)?;
+    bincode::serde::encode_into_std_write((unit.logic(), functions), &mut out, CONFIG)?;
     Ok(out)
 }
 
@@ -66,12 +68,9 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
     Ok((Unit::from_parts(logic, None)?, functions))
 }
 
-/// [`encode`]'s own encoding: bincode 1's defaults, which is what the packs
-/// already on disk were written with.
-const LEGACY: bincode::config::Configuration<
-    bincode::config::LittleEndian,
-    bincode::config::Fixint,
-> = bincode::config::legacy();
+/// [`encode`]'s own encoding: bincode 2's standard one, little-endian with
+/// varint integers, so a stack offset costs the bytes it needs.
+const CONFIG: bincode::config::Configuration = bincode::config::standard();
 
 /// What a length prefix inside a compiled script may ask for.
 ///
@@ -85,7 +84,7 @@ const DECODE_LIMIT: usize = 1 << 28;
 fn decode_bounded(
     rest: &[u8],
 ) -> Result<(Logic, Vec<PublicSignature>), bincode::error::DecodeError> {
-    let config = LEGACY.with_limit::<DECODE_LIMIT>();
+    let config = CONFIG.with_limit::<DECODE_LIMIT>();
     bincode::serde::decode_from_slice(rest, config).map(|(value, _)| value)
 }
 
