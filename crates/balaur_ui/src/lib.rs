@@ -49,8 +49,10 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 pub use immediate::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
-/// writes, and the global UI scale (all widget metrics multiply by it, so
-/// scripts keep authoring in design pixels).
+/// writes, and the UI scale, which is egui's own zoom factor. A design pixel
+/// is a point, so nothing multiplies by the scale: the backend hands it to
+/// [`egui::Context::set_zoom_factor`] and egui lays the whole pass out in it,
+/// its own widgets included.
 ///
 /// [`run_pass`] applies a pending theme and clears `changed`; nothing else
 /// owns these values.
@@ -224,12 +226,11 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             config.changed = false;
         }
     }
-    let scale = config.borrow().scale;
     let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
-    bridge::enter_pass(ctx, scale, roles);
+    bridge::enter_pass(ctx, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
     // `Foreground` — so what is on top does not depend on which ran first.
-    widget::layer::draw(eng, ctx, scale);
+    widget::layer::draw(eng, ctx);
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }

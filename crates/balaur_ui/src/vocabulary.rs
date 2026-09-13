@@ -134,6 +134,7 @@ pub(crate) mod keys {
     pub(crate) const COLLAPSIBLE: &str = "collapsible";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const COLUMNS: &str = "columns";
+    pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const CURRENT_LINE: &str = "current_line";
     pub(crate) const D: &str = "d";

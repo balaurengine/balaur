@@ -47,6 +47,9 @@ pub struct Widget {
     /// Empty means nothing is connected. A name rather than a function value:
     /// scene files cannot hold closures, and a name works on any backend.
     pub on_click: SmolStr,
+    /// Name of a `menu` node whose rows open at the pointer on a secondary
+    /// click or a long touch. Empty means none.
+    pub context: SmolStr,
     pub clicked: bool,
     /// Space inside a container's edge, in design pixels.
     /// Space inside a container's edge: left, top, right and bottom, in

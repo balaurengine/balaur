@@ -10,7 +10,7 @@ use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{Align, Color32, CursorIcon, FontId, Layout, Margin, Sense, Stroke, pos2, vec2};
 
 use crate::bridge::{scoped, with_ui};
-use crate::immediate::{Opts, left_pill, pill_radius, sc, text};
+use crate::immediate::{Opts, left_pill, pill_radius, text};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
 
@@ -203,7 +203,7 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     );
     m.function("add_space", |_eng: &Engine, px: f32| {
         with_ui(|ui| {
-            let _: () = ui.add_space(sc(px));
+            let _: () = ui.add_space(px);
             Ok(())
         })
     });
@@ -225,7 +225,7 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     });
     m.function("spacing", |_eng: &Engine, (x, y): (f32, f32)| {
         with_ui(|ui| {
-            ui.spacing_mut().item_spacing = vec2(sc(x), sc(y));
+            ui.spacing_mut().item_spacing = vec2(x, y);
             Ok(())
         })
     });
@@ -311,7 +311,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 } else if opts.boolean(k::ROUND, false) {
                     pill_radius(h)
                 } else {
-                    pill_radius(sc(5.0) * 2.0)
+                    pill_radius(5.0 * 2.0)
                 };
                 let mut button = egui::Button::new(rt)
                     .fill(fill)
@@ -388,7 +388,7 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
     let galley = ui.painter().layout_no_wrap(s.to_owned(), font, color);
     let y = rect.center().y - galley.size().y / 2.0;
     ui.painter()
-        .galley(pos2(rect.min.x + sc(10.0), y), galley, color);
+        .galley(pos2(rect.min.x + 10.0, y), galley, color);
     // The shortcut, or whatever else names the row's other half.
     if let Some(trailing) = opts.string(k::TRAILING) {
         let tint = opts.opt_color(k::TRAILING_COLOR).unwrap_or(color);
@@ -396,7 +396,7 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
         let galley = ui.painter().layout_no_wrap(trailing, font, tint);
         let ty = rect.center().y - galley.size().y / 2.0;
         ui.painter().galley(
-            pos2(rect.max.x - sc(10.0) - galley.size().x, ty),
+            pos2(rect.max.x - 10.0 - galley.size().x, ty),
             galley,
             tint,
         );
@@ -475,7 +475,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     );
     m.function("dot", |_eng: &Engine, (color, d): (String, f32)| {
         with_ui(|ui| {
-            let d = sc(d);
+            let d = d;
             let (rect, _) = ui.allocate_exact_size(vec2(d, d), Sense::hover());
             if let Some(color) = parse_hex(&color) {
                 ui.painter().circle_filled(rect.center(), d / 2.0, color);

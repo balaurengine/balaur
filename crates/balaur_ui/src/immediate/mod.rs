@@ -14,7 +14,7 @@ use balaur_script::{Bindings, CallbackId, Value};
 use egui::{Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::UiState;
-use crate::bridge::{scale, with_ui};
+use crate::bridge::with_ui;
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
 
@@ -241,8 +241,8 @@ impl Opts {
     /// tell "put it here" apart from "wherever you left it".
     pub(crate) fn opt_px(&self, key: &str) -> Option<f32> {
         match self.get(key) {
-            Some(Value::Num(n)) => Some(*n as f32 * scale()),
-            Some(Value::Int(i)) => Some(*i as f32 * scale()),
+            Some(Value::Num(n)) => Some(*n as f32),
+            Some(Value::Int(i)) => Some(*i as f32),
             _ => None,
         }
     }
@@ -271,9 +271,10 @@ impl Opts {
     pub(crate) fn opt_color(&self, key: &str) -> Option<Color32> {
         parse_hex(self.str(key)?)
     }
-    /// A dimension in design pixels, multiplied by the global UI scale.
+    /// A dimension in design pixels, which egui's zoom turns into screen
+    /// pixels for the whole pass.
     pub(crate) fn px(&self, key: &str, default: f32) -> f32 {
-        self.f32(key, default) * scale()
+        self.f32(key, default)
     }
     /// A colour as four unit floats, defaulting to opaque white: the shape a
     /// schema's `color` property already stores.
@@ -331,11 +332,6 @@ impl Opts {
             _ => Vec::new(),
         }
     }
-}
-
-/// Scale a literal design dimension.
-pub(crate) fn sc(v: f32) -> f32 {
-    v * scale()
 }
 
 /// The corner a filled shape gets when it asks for none.
@@ -553,10 +549,10 @@ pub(crate) fn text_field(
         // A `height` asks for the pill shell every other inspector control
         // wears; its padding comes out of the width the caller asked for.
         let h = opts.px(k::HEIGHT, 0.0);
-        let pad = if h > 0.0 { sc(11.0) } else { 0.0 };
+        let pad = if h > 0.0 { 11.0 } else { 0.0 };
         let w = opts.px(k::WIDTH, 0.0);
         if w > 0.0 {
-            edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
+            edit = edit.desired_width((w - pad * 2.0).max(8.0));
         }
         let response = if h > 0.0 {
             // Centred by the margin, not by a centring layout: a layout that
@@ -567,7 +563,7 @@ pub(crate) fn text_field(
             let corner = if radius > 0.0 {
                 pill_radius(radius * 2.0)
             } else {
-                pill_radius(sc(5.0) * 2.0)
+                pill_radius(5.0 * 2.0)
             };
             egui::Frame::new()
                 .fill(opts.color(k::FILL, Color32::TRANSPARENT))
@@ -627,7 +623,7 @@ pub(crate) fn left_pill(
         if w > 0.0 {
             w
         } else {
-            ui.available_width().max(sc(40.0))
+            ui.available_width().max(40.0)
         }
     };
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
@@ -649,7 +645,7 @@ pub(crate) fn left_pill(
     } else if opts.boolean(k::ROUND, false) {
         pill_radius(h)
     } else {
-        pill_radius(sc(5.0) * 2.0)
+        pill_radius(5.0 * 2.0)
     };
     if fill != Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, corner, fill);
@@ -670,7 +666,7 @@ pub(crate) fn left_pill(
     let fam = opts.str(k::FONT).unwrap_or(w::UI);
     let size = opts.px(k::SIZE, 12.0);
     let color = opts.color(k::COLOR, Color32::WHITE);
-    let mut x = rect.min.x + sc(10.0);
+    let mut x = rect.min.x + 10.0;
     if let Some(icon) = opts.string(k::ICON) {
         let icon_color = opts.opt_color(k::ICON_COLOR).unwrap_or(color);
         let galley = ui.painter().layout_no_wrap(
@@ -680,7 +676,7 @@ pub(crate) fn left_pill(
         );
         let y = rect.center().y - galley.size().y / 2.0;
         ui.painter().galley(pos2(x, y), galley, icon_color);
-        x += sc(7.0) + opts.px(k::ICON_SIZE, 12.0);
+        x += 7.0 + opts.px(k::ICON_SIZE, 12.0);
     }
     let mut font = FontId::new(size, theme::family(fam));
     if opts.boolean(k::STRONG, false) {
@@ -701,7 +697,7 @@ pub(crate) fn left_pill(
         );
         let ty = rect.center().y - galley.size().y / 2.0;
         ui.painter().galley(
-            pos2(rect.max.x - sc(11.0) - galley.size().x, ty),
+            pos2(rect.max.x - 11.0 - galley.size().x, ty),
             galley,
             t_color,
         );

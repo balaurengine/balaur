@@ -31,8 +31,11 @@ thread_local! {
 struct Held {
     tree: TaffyTree<usize>,
     /// One record per widget entity, kept across frames. One map and not
-    /// three: every widget asked all three of them every frame.
-    nodes: FxHashMap<u64, Kept>,
+    /// three: every widget asked all three of them every frame. The flag is
+    /// set on the node a hidden widget gets as the root of its own solve,
+    /// which a `context` menu is: laid out there, `Display::None` in its
+    /// parent's tree, and the two must not share a style.
+    nodes: FxHashMap<(u64, bool), Kept>,
 }
 
 /// What the tree remembers about one widget between frames.
@@ -137,7 +140,7 @@ fn floor_or_none(px: f32, scale: f32) -> LengthPercentageAuto {
 /// Every property the widget layer had before is one field here: `grow` is
 /// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align` is
 /// `align_items`, `justify` is `justify_content`, `columns` is how many a
-/// `flow` puts on a line, and `visible = false` is `Display::None`.
+/// `flow` puts on a line, and a hidden widget is `Display::None`.
 /// Everything [`style_of`] and the `fills` override read, hashed into one
 /// number. Must name every input either of them touches: a field left out is
 /// a change that never reaches taffy.
@@ -148,10 +151,11 @@ fn style_key(
     scale: f32,
     drawn: bool,
     fills: Option<egui::Vec2>,
+    shown: bool,
 ) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
     let mut hasher = rustc_hash::FxHasher::default();
-    widget.visible.hash(&mut hasher);
+    shown.hash(&mut hasher);
     widget.kind.hash(&mut hasher);
     widget.grow.to_bits().hash(&mut hasher);
     widget.width.to_bits().hash(&mut hasher);
@@ -181,8 +185,9 @@ fn styled(
     scale: f32,
     drawn: bool,
     fills: Option<egui::Vec2>,
+    shown: bool,
 ) -> Style {
-    let mut want = style_of(widget, pad, gap, scale, drawn);
+    let mut want = style_of(widget, pad, gap, scale, drawn, shown);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -202,8 +207,9 @@ fn style_of(
     gap: f32,
     scale: f32,
     drawn: bool,
+    shown: bool,
 ) -> Style {
-    if !widget.visible {
+    if !shown {
         return Style {
             display: Display::None,
             ..Style::default()
@@ -400,7 +406,10 @@ pub(crate) fn solve_subtree(
     let rects = solve(eng, arena, root, ui, scale, theme, space, fresh, &[]);
     // Solving a node as a root leaves taffy holding a location of zero for
     // it, which a later solve that changes nothing would hand the draw.
-    let key = arena[root].entity.to_bits().get();
+    let key = (
+        arena[root].entity.to_bits().get(),
+        !arena[root].widget.visible,
+    );
     TREE.with(|held| {
         let Held { tree, nodes } = &mut *held.borrow_mut();
         if let Some(kept) = nodes.get(&key) {
@@ -450,28 +459,36 @@ fn sync(
     let pad = crate::widget::arrange::padding_of(widget, &look.style, scale);
     let gap = crate::widget::arrange::gap_of(widget, &look.style, scale);
     let drawn = crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
-    let key = placed.entity.to_bits().get();
-    let stamp = style_key(widget, pad, gap, scale, drawn, fills);
+    // A solve's root is laid out whatever its `visible` says, on a node of
+    // its own: a hidden menu still opens its rows from a `context`.
+    let shown = widget.visible || is_root;
+    let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
+    let stamp = style_key(widget, pad, gap, scale, drawn, fills, shown);
     // A kind that places its own children is measured as a leaf, and so is an
     // empty container. Neither recurses, so the measure can happen here.
     let owns = is_root || owns_children(&widget.kind);
     let leaf = !owns || placed.children.is_empty();
+    // A node made on this call has no children yet, whatever the caller
+    // knows about the rest of the tree: the walk below is what gives it them.
+    let mut made = false;
     let node = {
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
         let kept = nodes.entry(key).or_insert_with(|| {
+            made = true;
             kept_of(
                 tree,
-                styled(widget, pad, gap, scale, drawn, fills),
+                styled(widget, pad, gap, scale, drawn, fills, shown),
                 index,
                 stamp,
             )
         });
         // A record can outlive the node it names, when the tree dropped it.
         if tree.style(kept.id).is_err() {
+            made = true;
             *kept = kept_of(
                 tree,
-                styled(widget, pad, gap, scale, drawn, fills),
+                styled(widget, pad, gap, scale, drawn, fills, shown),
                 index,
                 stamp,
             );
@@ -480,7 +497,7 @@ fn sync(
         // that is not moving should re-solve nothing. The stamp is what
         // says so without building a style to compare against.
         if kept.style != stamp {
-            let _ = tree.set_style(kept.id, styled(widget, pad, gap, scale, drawn, fills));
+            let _ = tree.set_style(kept.id, styled(widget, pad, gap, scale, drawn, fills, shown));
             kept.style = stamp;
         }
         // Only on a change, because setting a context marks the node dirty and
@@ -500,7 +517,7 @@ fn sync(
         }
         kept.id
     };
-    if !deep {
+    if !deep && !made {
         // The children taffy holds are the ones this arena put there, and the
         // leaf sizes with them: nothing below this node can have moved.
         return node;
@@ -568,16 +585,16 @@ pub(crate) fn sweep(eng: &Engine) {
     TREE.with(|held| {
         let mut held = held.borrow_mut();
         let world = eng.world();
-        let gone: Vec<u64> = held
+        let gone: Vec<(u64, bool)> = held
             .nodes
             .keys()
             .copied()
-            .filter(|bits| {
+            .filter(|(bits, _)| {
                 balaur_core::hecs::Entity::from_bits(*bits).is_none_or(|e| !world.contains(e))
             })
             .collect();
-        for bits in gone {
-            if let Some(kept) = held.nodes.remove(&bits) {
+        for key in gone {
+            if let Some(kept) = held.nodes.remove(&key) {
                 let _ = held.tree.remove(kept.id);
             }
         }

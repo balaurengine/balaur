@@ -6,7 +6,7 @@ use egui::{Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::UiState;
 use crate::bridge::with_ui;
-use crate::immediate::{DEFAULT_RADIUS, Opts, pill_radius, sc};
+use crate::immediate::{DEFAULT_RADIUS, Opts, pill_radius};
 use crate::vocabulary::keys as k;
 
 /// A project image as an egui texture, cached by path.
@@ -183,7 +183,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
                 rect,
                 corner,
                 Color32::TRANSPARENT,
-                Stroke::new(if selected { sc(2.0) } else { sc(1.0) }, color),
+                Stroke::new(if selected { 2.0 } else { 1.0 }, color),
                 StrokeKind::Inside,
             );
         }

@@ -193,6 +193,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
         state: (false, false),
+        context_opened: false,
     };
     for root in &roots {
         let root = *root;
@@ -398,7 +399,7 @@ thread_local! {
 
 /// The theme a root starts from, before it names one of its own: the
 /// project's `ui/theme`, or the built-in look.
-fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
+pub(crate) fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
     let bare = BARE.with(Rc::clone);
     let project = balaur_core::project::UiSettings::from_settings(eng).theme;
     theme_of(eng, &project, &bare)
@@ -435,6 +436,10 @@ pub(crate) struct Painting<'a> {
     /// held there. Set by the draw and never by the measure: a size that
     /// followed the pointer would move whatever sits beside it.
     pub(crate) state: (bool, bool),
+    /// Whether a widget already opened its `context` menu for this pass's
+    /// press. Children draw before the parent asks, so the innermost one
+    /// under the pointer takes it.
+    pub(crate) context_opened: bool,
 }
 
 impl Painting<'_> {
@@ -562,7 +567,9 @@ pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
 fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let disabled = at.arena[index].widget.disabled;
     let outer = std::mem::replace(&mut at.state, pointer_state(ui, disabled));
+    crate::widget::kinds::context_sensor(ui, at, index);
     draw_kind(ui, at, index);
+    crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
 }
 

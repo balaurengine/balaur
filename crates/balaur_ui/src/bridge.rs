@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Everything a `ui.*` call needs to find, in one thread-local rather than
-/// five: a widget reads the stack, the scale and its role, and each separate
+/// four: a widget reads the stack and its role, and each separate
 /// `thread_local!` was its own guarded lookup on a path a pass runs thousands
 /// of times.
 #[derive(Default)]
@@ -22,12 +22,11 @@ struct Pass {
     /// Kept alive for the duration of the pass; `stack[0]` points into it.
     root: Option<Box<egui::Ui>>,
     stack: Vec<*mut egui::Ui>,
-    scale: f32,
     roles: HashMap<String, Rc<Vec<(String, Value)>>>,
 }
 
 thread_local! {
-    static PASS: RefCell<Pass> = RefCell::new(Pass { scale: 1.0, ..Pass::default() });
+    static PASS: RefCell<Pass> = RefCell::new(Pass::default());
 }
 
 /// A role's option map, as `Opts` reads it under the caller's. Shared: a
@@ -36,16 +35,7 @@ pub(crate) fn role(name: &str) -> Option<Rc<Vec<(String, Value)>>> {
     PASS.with(|p| p.borrow().roles.get(name).cloned())
 }
 
-/// The pass's UI scale: every widget dimension is multiplied by this.
-pub(crate) fn scale() -> f32 {
-    PASS.with(|p| p.borrow().scale)
-}
-
-pub(crate) fn enter_pass(
-    ctx: &egui::Context,
-    ui_scale: f32,
-    roles: HashMap<String, Rc<Vec<(String, Value)>>>,
-) {
+pub(crate) fn enter_pass(ctx: &egui::Context, roles: HashMap<String, Rc<Vec<(String, Value)>>>) {
     // The root Ui spanning the viewport; panels carve regions out of it
     // (this mirrors what `Context::run_ui` builds internally).
     let mut root = Box::new(egui::Ui::new(
@@ -58,7 +48,6 @@ pub(crate) fn enter_pass(
     let ptr: *mut egui::Ui = &raw mut *root;
     PASS.with(|p| {
         let mut pass = p.borrow_mut();
-        pass.scale = ui_scale;
         pass.roles = roles;
         pass.ctx = Some(ctx.clone());
         pass.root = Some(root);

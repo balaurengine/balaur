@@ -41,6 +41,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once", group = "type" }"#),
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
+                    (k::CONTEXT, r#"{ type = "string", default = "", description = "Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own", group = "events" }"#),
                     (k::GROW, r#"{ type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for", group = "placement" }"#),
                     (k::MIN_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::MIN_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels", group = "placement" }"#),
@@ -149,6 +150,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(
         k::ON_CLICK.into(),
         toml::Value::String(widget.on_click.to_string()),
+    );
+    map.insert(
+        k::CONTEXT.into(),
+        toml::Value::String(widget.context.to_string()),
     );
     map.insert(k::PADDING.into(), four(widget.padding));
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
@@ -463,6 +468,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         row_height: f(k::ROW_HEIGHT),
         font: s(k::FONT),
         on_click: s(k::ON_CLICK),
+        context: s(k::CONTEXT),
         clicked: false,
         padding: sides(params, k::PADDING),
         gap: f(k::GAP),

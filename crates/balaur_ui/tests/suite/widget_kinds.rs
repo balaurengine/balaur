@@ -1021,3 +1021,110 @@ fn a_button_fills_the_box_the_layout_gave_it() {
         "both take the column's width: {short:?} {long:?}"
     );
 }
+
+/// The rows of a hidden menu, with their width, if any were drawn.
+fn rows_drawn(out: &egui::FullOutput, width: f32) -> Option<egui::Rect> {
+    out.shapes.iter().find_map(|s| match &s.shape {
+        egui::epaint::Shape::Rect(r) if (r.rect.width() - width).abs() < 1.0 => Some(r.rect),
+        _ => None,
+    })
+}
+
+/// A button naming a hidden menu as its `context`, and that menu's row.
+fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
+    let target = toml::toml! {
+        kind = kind text = "Target" x = 10.0 y = 10.0 width = 120.0 height = 40.0 context = "cm"
+    };
+    let target = add_widget(app, &target.into());
+    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = add_child_widget(app, app.engine.root(), "cm", &menu.into());
+    let row = toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 };
+    add_child_widget(app, menu, "R0", &row.into());
+    target
+}
+
+/// A secondary click on a widget opens the menu its `context` names, at the
+/// pointer, without the menu's own button ever drawing; and the widget's own
+/// click is not reported, since only the primary button clicks.
+#[test]
+fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
+    let (_dir, mut app) = app();
+    let target = context_scene(&app, "button");
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = root_rect(&ctx, target).center();
+    let before = pass(&app, &ctx, vec![]);
+    assert!(rows_drawn(&before, 173.0).is_none(), "the menu opened unasked");
+    assert!(
+        !texts(&before).iter().any(|(text, _)| text == "Hidden"),
+        "a hidden menu drew its button"
+    );
+    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
+    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
+    // Shown the pass after the click, as a menu's rows are.
+    let after = pass(&app, &ctx, vec![]);
+    let rows = rows_drawn(&after, 173.0).expect("the secondary click opened no menu");
+    assert!(
+        rows.min.distance(at) < 24.0,
+        "the menu opened at {:?}, not at the pointer {at:?}",
+        rows.min
+    );
+    consume_input(&mut app);
+    assert!(!clicked(&app, target), "a secondary click counted as a click");
+}
+
+/// A finger held on a widget past egui's click length is the same press as a
+/// secondary click, on a label as much as on a button: the sensor under the
+/// kind is what egui holds the touch on.
+#[test]
+fn a_long_touch_opens_the_named_menu() {
+    let (_dir, app) = app();
+    let target = context_scene(&app, "label");
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = root_rect(&ctx, target).center();
+    pass_at(&app, &ctx, touch(at, true), Some(1.0));
+    pass_at(&app, &ctx, vec![], Some(1.1));
+    // Past `max_click_duration`, still down and unmoved: the long touch.
+    pass_at(&app, &ctx, vec![], Some(2.5));
+    let held = pass_at(&app, &ctx, vec![], Some(2.55));
+    assert!(
+        rows_drawn(&held, 173.0).is_some(),
+        "a long touch opened no menu"
+    );
+    pass_at(&app, &ctx, touch(at, false), Some(2.6));
+    let released = pass_at(&app, &ctx, vec![], Some(2.65));
+    assert!(
+        rows_drawn(&released, 173.0).is_some(),
+        "lifting the finger closed the menu it opened"
+    );
+}
+
+/// A press on a child that names a menu is the child's; the parent naming
+/// another opens nothing for the same press.
+#[test]
+fn the_innermost_context_takes_the_press() {
+    let (_dir, app) = app();
+    let panel = toml::toml! {
+        kind = "column" x = 10.0 y = 10.0 width = 200.0 height = 100.0 context = "outer"
+        padding = [0.0, 0.0, 0.0, 0.0]
+    };
+    let panel = add_widget(&app, &panel.into());
+    let child = toml::toml! { kind = "label" text = "Inner" width = 100.0 height = 30.0 context = "inner" };
+    let child = add_child_widget(&app, panel, "child", &child.into());
+    let root = app.engine.root();
+    for (name, width) in [("outer", 150.0), ("inner", 173.0)] {
+        let menu = toml::toml! { kind = "menu" text = name visible = false x = 300.0 y = 300.0 };
+        let menu = add_child_widget(&app, root, name, &menu.into());
+        let row = toml::toml! { kind = "button" text = "Row" width = width height = 22.0 };
+        add_child_widget(&app, menu, "R0", &row.into());
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = balaur_ui::widget_rect(child).expect("the child drew").center();
+    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
+    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
+    let after = pass(&app, &ctx, vec![]);
+    assert!(rows_drawn(&after, 173.0).is_some(), "the child's menu did not open");
+    assert!(rows_drawn(&after, 150.0).is_none(), "the parent's menu opened for the child's press");
+}

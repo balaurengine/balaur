@@ -12,6 +12,7 @@ use crate::widget::arrange::{Axis, box_of, lay_out, padding_of, record_measure, 
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::vocabulary::words as w;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -197,7 +198,7 @@ pub(crate) fn menu(
 /// The popup's rect is only known here, so the subtree is solved against it
 /// the way `fold` solves what it opens, then drawn by the same walker every
 /// container uses. A row's click is its own, so nothing new comes back.
-fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let room = ui.available_rect_before_wrap();
     let space = crate::widget::taffy::Room::hugging(room);
     let solved = crate::widget::taffy::solve_subtree(
@@ -699,4 +700,79 @@ pub(crate) fn nine_patch_plate(
         let shapes = nine_patch(texture.id(), texture.size_vec2(), rect, slice, scale);
         ui.painter().set(plate, egui::Shape::Vec(shapes));
     }
+}
+
+/// The click sensor a widget with a `context` menu puts under its kind.
+///
+/// Registered before the kind draws, so the kind's own controls stay on top
+/// of it and keep their clicks; what it is for is a long touch, which egui
+/// only holds on a widget that senses a click, and a label senses none.
+pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    if placed.widget.context.is_empty() {
+        return;
+    }
+    let rect = at.rects.get(&index).copied().unwrap_or_else(|| ui.max_rect());
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
+    }
+    ui.interact(
+        rect,
+        egui::Id::new(("balaur-context-under", placed.entity)),
+        egui::Sense::CLICK,
+    );
+}
+
+/// The `context` menu of the widget just drawn: the rows of the `menu` node
+/// it names, opened at the pointer by a secondary click or a long touch.
+///
+/// Read from the input rather than a response: the kind's own controls take
+/// the click first, and a list's row or a check's box hands no response
+/// back. The innermost widget under the pointer that names a menu takes the
+/// press; a widget's own `on_click` never fires for it, egui counting only
+/// the primary button as a click. The menu's own button is not drawn here,
+/// so a menu that is only ever a context menu can be `visible = false`.
+pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let context = &placed.widget.context;
+    if context.is_empty() {
+        return;
+    }
+    let menu = at
+        .arena
+        .iter()
+        .position(|one| one.name == *context && one.widget.kind == w::MENU);
+    let Some(menu) = menu else {
+        if balaur_core::logbuf::first_time("widget context", context) {
+            tracing::warn!("widget context '{context}': no `menu` node by that name");
+        }
+        return;
+    };
+    let ctx = ui.ctx().clone();
+    let pressed = ui.is_enabled()
+        && !at.context_opened
+        && ui.rect_contains_pointer(ui.min_rect())
+        && (ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary))
+            || ctx.interaction_snapshot(|s| s.long_touched.is_some()));
+    if pressed {
+        at.context_opened = true;
+    }
+    let id = egui::Id::new(("balaur-context", placed.entity));
+    if !pressed && !egui::Popup::is_id_open(&ctx, id) {
+        return;
+    }
+    // The rows draw in the menu's own theme, from its own place in the tree,
+    // so they look the same as when its button opens them.
+    let outer = at.theme.clone();
+    let root = crate::widget::layer::theme_root(at.eng);
+    at.theme = crate::widget::arena::theme_at(at.eng, at.arena, menu, &root);
+    egui::Popup::new(id, ctx, egui::PopupAnchor::PointerFixed, ui.layer_id())
+        .kind(egui::PopupKind::Menu)
+        .layout(egui::Layout::top_down_justified(egui::Align::Min))
+        .style(egui::containers::menu::menu_style)
+        .gap(0.0)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .open_memory(pressed.then_some(egui::SetOpenCommand::Bool(true)))
+        .show(|ui| popup_rows(ui, at, menu));
+    at.theme = outer;
 }

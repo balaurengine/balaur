@@ -7,7 +7,7 @@ use egui::{Align2, Color32, CornerRadius, FontId, Sense, pos2, vec2};
 
 use crate::UiState;
 use crate::bridge::with_ui;
-use crate::immediate::{Opts, sc};
+use crate::immediate::Opts;
 use crate::theme;
 use crate::vocabulary::{keys as k, words as w};
 
@@ -220,7 +220,7 @@ pub(crate) fn highlight(
             job.append("\n", 0.0, fmt(colors.punct, egui::Stroke::NONE));
         }
         let underline = marks.color(i + 1).map_or(egui::Stroke::NONE, |color| {
-            egui::Stroke::new(sc(1.0), color)
+            egui::Stroke::new(1.0, color)
         });
         if line.trim_start().starts_with(syntax.line_comment) {
             job.append(line, 0.0, fmt(colors.comment, underline));
@@ -336,13 +336,13 @@ impl Gutter {
             ui.painter()
                 .rect_filled(row, CornerRadius::ZERO, self.current_fill);
         }
-        let font = FontId::new((self.size - sc(1.5)).max(8.0), theme::family(w::MONO));
+        let font = FontId::new((self.size - 1.5).max(8.0), theme::family(w::MONO));
         for i in 0..n_lines {
             let center_y = rect.min.y + row_h * (i as f32 + 0.5);
             if self.breakpoints.contains(&(i + 1)) {
                 ui.painter().circle_filled(
-                    pos2(rect.min.x + sc(7.0), center_y),
-                    sc(4.0),
+                    pos2(rect.min.x + 7.0, center_y),
+                    4.0,
                     self.breakpoint_color,
                 );
             }
@@ -351,15 +351,15 @@ impl Gutter {
             if let Some(color) = self.marks.color(i + 1) {
                 ui.painter().rect_filled(
                     egui::Rect::from_min_size(
-                        pos2(rect.max.x - sc(2.0), center_y - row_h * 0.5),
-                        vec2(sc(2.0), row_h),
+                        pos2(rect.max.x - 2.0, center_y - row_h * 0.5),
+                        vec2(2.0, row_h),
                     ),
                     CornerRadius::ZERO,
                     color,
                 );
             }
             ui.painter().text(
-                pos2(rect.max.x - sc(6.0), center_y),
+                pos2(rect.max.x - 6.0, center_y),
                 Align2::RIGHT_CENTER,
                 (i + 1).to_string(),
                 font.clone(),
@@ -435,7 +435,7 @@ pub(crate) fn code_editor(
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let n_lines = buffer.split('\n').count().max(1);
             clicked = gutter.paint(ui, n_lines, row_h);
-            ui.add_space(sc(12.0));
+            ui.add_space(12.0);
             // Tokenising a whole file into a `LayoutJob` and hashing every
             // section of it, once a frame, was the dearest thing the editor
             // did; the galley only changes when the text or the look does.

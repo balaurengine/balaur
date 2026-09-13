@@ -138,8 +138,3 @@ rune = { git = "https://github.com/balaurengine/rune.git", branch = "determinist
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }
-
-# TEMPORARY, while the zoom work in the fork is unpushed. Remove once
-# balaur-hooks carries it and the branch dep resolves to it again.
-[patch."https://github.com/Ughuuu/kiss3d.git"]
-kiss3d = { path = "../kiss3d" }
