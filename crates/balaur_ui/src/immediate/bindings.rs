@@ -664,6 +664,38 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
     }
 }
 
+/// `ui.*` bindings: the screen classes.
+pub(crate) fn install_classes(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "width_class",
+            &[],
+            "",
+            "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
+        ),
+        (
+            "height_class",
+            &[],
+            "",
+            "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
+        ),
+    ]);
+    m.function("width_class", |eng: &Engine, ()| {
+        let facts = balaur_core::facts::device(eng);
+        Ok(balaur_core::facts::width_class(
+            facts.design_size()[0],
+            crate::class_lines(eng),
+        ))
+    });
+    m.function("height_class", |eng: &Engine, ()| {
+        let facts = balaur_core::facts::device(eng);
+        Ok(balaur_core::facts::height_class(
+            facts.design_size()[1],
+            crate::class_lines(eng),
+        ))
+    });
+}
+
 /// `ui.*` bindings: scale.
 pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
     m.describe(&[

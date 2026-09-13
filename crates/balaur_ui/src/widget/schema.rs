@@ -25,6 +25,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The HUD element the widget layer draws" }}"#, w::LABEL, v::options(w::WIDGET_KINDS))),
                     (k::TEXT, r#"{ type = "string", default = "label", description = "Label or button caption" }"#),
                     (k::VISIBLE, r#"{ type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }"#),
+                    (k::SAFE_AREA, r#"{ type = "bool", default = false, description = "Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not", group = "placement" }"#),
                     (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`" }}"#, w::TOP_LEFT, v::options(w::ANCHORS))),
                     (k::X, r#"{ type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels", group = "placement" }"#),
                     (k::Y, r#"{ type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels", group = "placement" }"#),
@@ -109,6 +110,36 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     );
 }
 
+/// Refuse a key a class table invents.
+///
+/// The base table carries an unknown key in silence, because a component's
+/// params are the game's own space. A class table is not: nothing else reads
+/// it, so a typo there is a rule that would never once apply.
+fn check_class_tables(eng: &balaur_core::Engine, params: &toml::Value) -> Result<()> {
+    let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    let declared = registry
+        .def("widget")
+        .and_then(|def| def.schema.as_table())
+        .ok_or_else(|| anyhow::anyhow!("widget: the component has no schema"))?;
+    for (word, table) in class_tables(params) {
+        let Some(table) = table.as_table() else {
+            anyhow::bail!("widget: `{word}` is a screen class and takes a table of properties");
+        };
+        for key in table.keys() {
+            if key == k::KIND {
+                anyhow::bail!(
+                    "widget: `{word}.{key}` -- a widget cannot change kind with the screen"
+                );
+            }
+            if !declared.contains_key(key) {
+                anyhow::bail!("widget: `{word}.{key}` is not a widget property");
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Put the widget a table describes on the node, in place of whatever it
 /// had. The arena is told, since its copy is now a frame behind.
 fn apply_widget(
@@ -116,6 +147,7 @@ fn apply_widget(
     entity: balaur_core::hecs::Entity,
     params: &toml::Value,
 ) -> Result<()> {
+    check_class_tables(eng, params)?;
     crate::widget::arena::widget_changed(entity);
     eng.world_mut()
         .insert_one(entity, widget_from(params))
@@ -141,9 +173,25 @@ fn read_widget(
     Some(widget_to_toml(&widget))
 }
 
-/// A `Widget` back as the property table the inspector and a script read.
-fn widget_to_toml(widget: &Widget) -> toml::Value {
+/// The class tables a widget was authored with, as the map every property is
+/// then written into.
+fn class_tables_of(widget: &Widget) -> toml::map::Map<String, toml::Value> {
     let mut map = toml::map::Map::new();
+    if let Some(authored) = widget.authored.as_ref() {
+        for (word, table) in class_tables(authored) {
+            map.insert(word.to_string(), table.clone());
+        }
+    }
+    map
+}
+
+/// A `Widget` back as the property table the inspector and a script read.
+///
+/// The class tables come back with it: they are not properties of the widget,
+/// so nothing above would put them back, and a scene saved without them would
+/// have lost what it was authored with.
+fn widget_to_toml(widget: &Widget) -> toml::Value {
+    let mut map = class_tables_of(widget);
     map.insert(k::KIND.into(), toml::Value::String(widget.kind.to_string()));
     map.insert(k::TEXT.into(), toml::Value::String(widget.text.to_string()));
     map.insert(k::VISIBLE.into(), toml::Value::Boolean(widget.visible));
@@ -375,6 +423,7 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         k::AVOID_KEYBOARD.into(),
         toml::Value::Boolean(widget.avoid_keyboard),
     );
+    map.insert(k::SAFE_AREA.into(), toml::Value::Boolean(widget.safe_area));
     map.insert(k::SLICE.into(), four(widget.slice));
     map.insert(
         k::DEADZONE.into(),
@@ -590,9 +639,57 @@ fn widget_from(params: &toml::Value) -> Widget {
         avoid_keyboard: false,
         slice: [0.0; 4],
         deadzone: 0.0,
+        safe_area: false,
+        authored: None,
     };
     read_controls(&mut widget, params);
+    if class_tables(params).next().is_some() {
+        widget.authored = Some(std::sync::Arc::new(params.clone()));
+    }
     widget
+}
+
+/// Every class table this widget carries, in the order an override applies:
+/// the input class, then the height, then the width, later winning. A phone
+/// held upright answers `touch`, `tall` and `narrow`, in that order.
+pub(crate) const CLASS_KEYS: [&str; 7] = [
+    balaur_core::tags::TOUCH,
+    balaur_core::tags::POINTER,
+    balaur_core::facts::SHORT,
+    balaur_core::facts::TALL,
+    balaur_core::facts::NARROW,
+    balaur_core::facts::MEDIUM,
+    balaur_core::facts::WIDE,
+];
+
+/// The `[nodes.widget.<class>]` tables a widget states, in `CLASS_KEYS` order.
+fn class_tables(params: &toml::Value) -> impl Iterator<Item = (&str, &toml::Value)> {
+    CLASS_KEYS.into_iter().filter_map(move |word| {
+        let table = params.get(word)?;
+        table.as_table().map(|_| (word, table))
+    })
+}
+
+/// The widget a scene authored, read again for the classes in force.
+///
+/// `None` where it carries no class table, which is almost every widget: the
+/// caller keeps the one it has rather than building a second.
+pub(crate) fn for_classes(widget: &Widget, active: &[&str]) -> Option<Widget> {
+    let authored = widget.authored.as_ref()?;
+    let base = authored.as_table()?;
+    let mut merged = base.clone();
+    let mut changed = false;
+    // Broad to narrow, so the narrowest class named wins the key.
+    for (word, table) in class_tables(authored) {
+        if !active.contains(&word) {
+            continue;
+        }
+        for (key, value) in table.as_table()? {
+            merged.insert(key.clone(), value.clone());
+            changed = true;
+        }
+    }
+    changed.then(|| widget_from(&toml::Value::Table(merged)))
 }
 
 /// The keys the control kinds read: a check's tick, a slider's range, a
@@ -623,6 +720,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.open = b(k::OPEN);
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
     widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
+    widget.safe_area = b(k::SAFE_AREA);
     widget.slice = crate::widget::theme::four_of(params.get(k::SLICE));
     widget.deadzone = f(k::DEADZONE);
 }

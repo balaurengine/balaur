@@ -78,6 +78,47 @@ selectable = true
 text = "Seed 0x5eed-1f3a. Drag across this line to select it, then copy."
 
 [[nodes]]
+id = "typing_head"
+name = "TypingHead"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "TYPING"
+role = "group"
+
+[[nodes]]
+id = "typing"
+name = "Typing"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 30
+gap = 10
+align = "center"
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "typing"
+[nodes.widget]
+kind = "field"
+text = "Vesper"
+placeholder = "Character name"
+width = 200
+height = 26
+
+[[nodes]]
+id = "note"
+name = "Note"
+parent = "typing"
+[nodes.widget]
+kind = "field"
+text = ""
+placeholder = "and a line they say"
+width = 260
+height = 26
+
+[[nodes]]
 id = "numbers_head"
 name = "NumbersHead"
 parent = "sheet"

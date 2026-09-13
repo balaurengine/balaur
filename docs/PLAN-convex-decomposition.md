@@ -1,8 +1,9 @@
-> **Status:** not started. Written 2026-09-13 for 0.2, after Erin Catto's
-> [Stuck Inside](https://box2d.org/posts/2020/04/stuck-inside/): a concave
-> body cut into convex pieces leaves seams a thin body wedges into, and
-> growing each piece through its seams removes them. The post does the growing
-> by hand; this plan does it automatically and leaves the hand a dial.
+> **Status:** built 2026-09-13, bar the showcase clip the site's card wants.
+> Written for 0.2 after
+> Erin Catto's [Stuck Inside](https://box2d.org/posts/2020/04/stuck-inside/):
+> a concave body cut into convex pieces leaves seams a thin body wedges into,
+> and growing each piece through its seams removes them. The post does the
+> growing by hand; this does it automatically and leaves the hand a dial.
 
 # Plan: concave 2D colliders that overlap
 
@@ -20,11 +21,13 @@
   `max_pieces` (`geometry.rs:114`). VHACD is approximate and voxel-based: the
   tool for a model, not for a drawn outline, and its hulls share no edges, so
   there is nothing to grow across.
-- parry2d 0.30 ships the exact half: `transformation::hertel_mehlhorn`
-  merges a counter-clockwise triangulation into convex polygons, at most four
-  times the optimum and usually the optimum, O(n²) in triangles;
-  `convex_polygons_intersection_points`; `MassProperties::from_convex_polygon`;
-  `SharedShape::convex_polyline`, `round_convex_polyline` and `compound`.
+- parry2d 0.30 ships the exact half, and over the same `glamx::Vec2` the
+  engine already passes around, so nothing converts:
+  `transformation::hertel_mehlhorn_idx` merges a counter-clockwise
+  triangulation into convex index loops, at most four times the optimum and
+  usually the optimum, O(n²) in triangles; `transformation::convex_hull`;
+  `MassProperties::from_convex_polygon`; `SharedShape::convex_polyline`,
+  `round_convex_polyline` and `compound`.
   rapier2d also has `ColliderBuilder::convex_decomposition_with_params` and
   `round_convex_decomposition`, VHACD in 2D over a polyline.
 - `balaur_core::triangulate` already cuts every 2D `mesh` asset into
@@ -45,8 +48,8 @@
 
 ### The cut
 
-Exact, not approximate. The mesh asset's triangles go into `hertel_mehlhorn`
-and come out as convex polygons that share vertex indices. No resolution to
+Exact, not approximate. The mesh asset's triangles go into parry's
+Hertel-Mehlhorn and come out as convex polygons that share vertex indices. No resolution to
 pick, and identical on every platform: index arithmetic and orientation tests
 over the asset's own points. Holes and interior points come with the
 triangulation. One collider, one handle: a `compound` of `convex_polyline`
@@ -67,9 +70,12 @@ each internal edge e = (a, b) with neighbour Q:
    round to a takes its place. Convex by construction: the strip's sides are
    collinear with P's own edges, so the corners at a and b flatten to 180°
    and the rest is Q's convex boundary. Collinear points drop.
-4. When the strip leaves Q through an internal edge f and the crossing lies
-   inside f, continue into f's neighbour with the same strip; otherwise stop.
-   That is the leg that goes through a shelf into the top.
+4. Keep going into further pieces while the union stays convex, which is
+   exactly when its area is the sum of the parts: a strip crossing a seam
+   whole leaves both ends of that chord on the strip's own sides, so the
+   union's boundary runs straight through them. That is the leg that reaches
+   through a shelf into the top; a strip leaving through a corner stops
+   there, because the hull would then cover ground no piece holds.
 
 Every piece grows across every internal edge it has, clipping against the
 *original* pieces, never grown ones, so the result is the same whatever the
@@ -82,12 +88,13 @@ iteration order and the digest agrees across platforms. What falls out:
   contact anywhere the original had none.
 
 `overlap`, a float from 0 to 1, default 0.9, is the post's "limit the overlap
-of parallel surfaces" as one dial. The far clip lines, Q's outline edges the
-strip reaches, move toward e by `(1 - overlap)` of the growth depth before
-clipping, so the leg stops short of the table's top face and that face has
-one owner and one contact manifold. 1 grows flush to the face; 0 is the plain
-decomposition, for a script that wants to hand-tune the pieces itself. A clip
-line never moves past e's nearer endpoint, so e stays whole and step 3's
+of parallel surfaces" as one dial. Measure the region's depth, the furthest
+any of its points lies beyond e, and clip it back to `overlap` of that: one
+more half-plane, parallel to e. The leg then stops short of the table's top
+face, so that face has one owner and one contact manifold. 1 grows flush to
+whatever stopped it; 0 leaves the region with no depth at all, which is the
+plain decomposition, for a script that wants to hand-tune the pieces itself.
+Both endpoints of e sit at depth 0, so e survives any trim and step 3's
 convexity argument holds.
 
 ### Mass
@@ -108,45 +115,53 @@ table weighs what the table's area says.
   path. `get` reports the kind and the keys, not the geometry, the rule the
   asset-backed kinds follow.
 - `geometry2d.convex_decomposition(polygon, opts)`, a polygon as
-  `triangulate` takes one or a mesh asset name, returning the pieces as
-  polygons, with `overlap` and `method` in `opts`. A script or the editor can
+  `triangulate` takes one, returning the pieces as polygons, with `overlap`
+  in `opts`. The module is core's; the physics plugin registers this one verb
+  into it, so a script finds it beside `convex_hull` and the booleans rather
+  than in a second module of its own. A script or the editor can
   see the pieces, tune the dial, or take one piece, edit it and hand the lot
   back as `convex_hull` colliders: the human touch the post prefers, with the
   automatic result as its starting point.
 - The importer: `build_mode` 0 becomes `convex_decomposition`, which is what
-  Godot does with it. `ConcavePolygonShape2D` `segments` become a `polyline`,
-  joined where the pairs chain and one collider per run otherwise.
+  Godot does with it. `ConcavePolygonShape2D` `segments` become a `polyline`
+  where the pairs chain; where they do not, a mesh asset has no way to say so,
+  so it stays a hull and the report carries a note.
 - The editor needs nothing new: the inspector reads `SHAPES_2D`, the debug
   view draws compounds.
 
 ## Steps
 
-1. **The cut.** A `decompose` module in `balaur_physics::dim2`: pieces from
-   points and triangles over `hertel_mehlhorn`, with the internal-edge
-   adjacency kept by vertex pair. Tests in
-   `crates/balaur_physics/tests/suite/convex_decomposition.rs`: a U is three
-   pieces, an L is two, a ring keeps its hole, the pieces' areas sum to the
-   polygon's, every piece is convex.
-2. **The overlap.** `grow(pieces, adjacency, overlap)`. Tests: every grown
-   piece is convex and inside the original (`geometry2d`'s `difference` is
-   empty); the table's legs reach `overlap` of the way through the top and
-   the top keeps four corners; the wedge's halves both grow; the strip
-   continues through a shelf; `overlap = 0` returns step 1's pieces
-   unchanged; the pieces are the same in two runs.
-3. **The collider.** The kind, its keys, the mass, the VHACD path, `border`;
-   `SHAPES_2D` and the schema; `python3 scripts/gen_docs.py`. The post's
-   scenario as a test: a thin dynamic beam placed across the seam between a
-   table's top and leg is still there after sixty frames at `overlap = 0` and
-   is out of the table at `0.9`, read through `physics2d` positions and
-   contacts. A determinism test that the digest matches across two runs.
-4. **The script call.** `geometry2d.convex_decomposition`, its describe line,
-   docs regenerated, a script test of the L.
-5. **The importer.** `collision_polygon` and the `ConcavePolygonShape2D` arm,
-   with a fixture scene in `godot/files.rs` and a test that the mapped
-   collider is `convex_decomposition` with the polygon's points.
-6. **Something to look at.** A table and a beam in `examples/angrynerds`,
-   which already has dynamic 2D bodies, and the showcase clip the built row
-   needs on the site (`scripts/showcase.sh`).
+All built on 2026-09-13 except the clip in step 6.
+
+1. **The cut** — built. `crates/balaur_physics/src/dim2/decompose.rs` over
+   parry's `hertel_mehlhorn_idx`, with the seams kept by vertex pair. Unit
+   tests in that module: an L is two pieces, a table is three, a ring keeps
+   its hole, the pieces' areas sum to the polygon's, every piece is convex,
+   two runs agree.
+2. **The overlap** — built, as `grown(points, pieces, overlap)` beside it.
+   Tests: nothing grows outside the polygon (`geometry2d`'s `difference` is
+   empty); `overlap = 0` leaves the plain pieces; a leg reaches `overlap` of
+   the way through the slab above it and through a shelf into the piece past
+   that; the slab does not grow down into a leg.
+
+   The table's own triangulation splits it diagonally, and Hertel-Mehlhorn
+   merges each leg with the top corner over it, so that decomposition has no
+   channel to begin with. The tests that need Catto's figure build its three
+   pieces by hand.
+3. **The collider** — built: the kind, `overlap`, `method`, the VHACD path,
+   `border`, the explicit mass, `SHAPES_2D`, `SHAPE_KINDS_2D` and the schema.
+   `crates/balaur_physics/tests/suite/convex_decomposition.rs` carries the
+   post's scenario: a beam laid across a seam inside the table is still there
+   after three seconds at `overlap = 0`, and clear of the table at `0.9`.
+4. **The script call** — built. `geometry2d.convex_decomposition`, registered
+   into core's module by the physics plugin, with a script test of the L.
+5. **The importer** — built. `collision_polygon` and the
+   `ConcavePolygonShape2D` arm, with a table, a rail and a bank in the
+   fixture scene and a test over all three.
+6. **Something to look at** — the example is built: `examples/angrynerds`
+   has one concave `Table` body where two columns and a plank stood, and the
+   tower still stands after five seconds. The showcase clip the site's card
+   needs is open (`scripts/showcase.sh`).
 
 ## What not to do
 

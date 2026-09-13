@@ -1,8 +1,9 @@
-> **Status:** written 2026-09-13, nothing built. Written after an investigation
-> of the editor and a game's UI on a tablet and a phone, and of native platform
-> UI, which §0 declines. Revised the same day: a phone editor ships, and the
-> class thresholds are `[ui]` settings rather than constants. §3 is the
-> surface, §4 the steps; each step names the test it ends with.
+> **Status:** steps 1 to 4 built 2026-09-13, with their tests; steps 5 to 7
+> are not started. Written the same day after an investigation of the editor
+> and a game's UI on a tablet and a phone, and of native platform UI, which §0
+> declines. A phone editor ships, and the class lines are `[ui]` settings
+> rather than constants. §3 is the surface, §4 the steps, and §7 records what
+> each built step did and what it found.
 
 # Plan: a layout that fits the screen and the finger it gets
 
@@ -352,3 +353,60 @@ orientation.
 4. **Android's text size.** This is the third plan wanting the GameActivity
    glue, after the keyboard's insets in PLAN-touch and the intent in
    PLAN-mobile-export.
+
+## 7. What the built steps did
+
+**Step 1, one zoom.** The kiss3d fork holds the UI zoom the host sets, reports
+the display's scale as `native_pixels_per_point`, and converts events, the
+screen rect and the tessellation by points per pixel. It no longer calls
+`set_pixels_per_point`, which in egui 0.36 is a zoom setter in disguise and was
+pinning the zoom at 1. Balaur hands `[ui] scale` to it once a frame, and about
+240 hand multiplications came out of `crates/balaur_ui`. A design pixel is a
+point everywhere.
+
+Three bugs came with it, all of the same shape: a number in physical pixels
+used where points were wanted.
+
+- `DeviceFacts::ui_scale` was the scale a script set, not physical pixels per
+  design pixel, so it ignored the display's own. Every touch control was
+  placed at half its proper offset on a Retina screen.
+- `crates/balaur_render/src/touch_draw.rs` painted those physical placements
+  as egui points, doubling them again.
+- `above_keyboard` inset a layout by a physical keyboard height.
+
+**Step 2, the classes.** `touch` and `pointer` joined `Tags`, derived from the
+recorded `platform.touchscreen` and restored with it, so a session recorded on
+a phone resolves the phone's overrides replaying on a desktop. The five screen
+words, `ClassLines` and the two classifying functions sit beside `DeviceFacts`;
+`ui.width_class()` and `ui.height_class()` answer them, and `ui::NARROW` and
+its siblings are script constants.
+
+**Step 3, the override shape.** A widget takes a table per class word, any
+declared key but `kind`, resolved in the arena against the frame's classes and
+folded into the arena stamp, so a rotation rebuilds the forest the way a locale
+switch already did. A key a class table invents is refused at load, naming it.
+A `widget_theme` takes the same words beside its `[kind.hover]` tables, folded
+in `WidgetTheme::resolved` under a cache key that carries the classes. `[ui]`
+gained `scale`, `system_text_size` and the three lines. `DeviceFacts` gained
+`text_scale`, read from iOS Dynamic Type through the fork and 1 elsewhere.
+
+Two things the plan did not foresee:
+
+- The arena folds a widget's visibility with its node's own every pass, and it
+  read the widget back out of the world to do it, which is the widget as
+  authored rather than as the class resolved it. `Placed` now carries the
+  resolved answer.
+- A component read is what saves a scene, and it is built from the resolved
+  struct, so the class tables had to be put back into it or a save would drop
+  what the scene was authored with.
+
+**Step 4, the floor and the finger.** Under `touch` every kind a finger has to
+hit takes a floor of 44 design pixels, and egui's own controls take it through
+`interact_size`, remembered rather than invented so a cursor's screen is left
+exactly as it was. `[input] long_press_seconds` reaches egui's
+`max_click_duration` through the settings registry, so the widget layer's long
+press and the tick's are one number. `safe_area` on a root insets it by what a
+notch covers.
+
+What is left of step 4: the tooltip helper over the six `on_hover_*` sites, and
+a drag payload that starts from a long press.

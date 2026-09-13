@@ -715,13 +715,27 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         "WorldBoundaryShape2D" => {
             out.set("collider2d", "kind", Toml::String("halfspace".into()));
         }
-        "ConvexPolygonShape2D" | "ConcavePolygonShape2D" => {
-            let key = if shape.field("points").is_some() {
-                "points"
-            } else {
-                "segments"
-            };
-            let points = shape.field(key).map(points_of).unwrap_or_default();
+        "ConvexPolygonShape2D" => {
+            let points = shape.field("points").map(points_of).unwrap_or_default();
+            polygon_collider(&points, "convex_hull", out);
+        }
+        // Godot collides this one as segments, which is what a polyline is.
+        "ConcavePolygonShape2D" => {
+            if let Some(chain) = shape
+                .field("segments")
+                .map(points_of)
+                .as_deref()
+                .and_then(chained)
+            {
+                polygon_collider(&chain, "polyline", out);
+                return;
+            }
+            let points = shape.field("points").map(points_of).unwrap_or_default();
+            if points.is_empty() {
+                out.note(
+                    "a concave polygon whose segments do not join into one chain; left as a hull",
+                );
+            }
             polygon_collider(&points, "convex_hull", out);
         }
         other => out.note(format!(
@@ -732,12 +746,32 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
 
 fn collision_polygon(section: &Section, out: &mut Mapped) {
     let points = section.field("polygon").map(points_of).unwrap_or_default();
-    // Godot's build mode 0 is solids, 1 is segments along the outline.
+    // Godot's build mode 0 is solids, which it decomposes as we do, and 1 is
+    // segments along the outline.
     let kind = match section.field("build_mode").and_then(Value::as_i64) {
         Some(1) => "polyline",
-        _ => "convex_hull",
+        _ => "convex_decomposition",
     };
     polygon_collider(&points, kind, out);
+}
+
+/// Godot's `segments` are point pairs, two entries each. They are one chain
+/// when every segment starts where the last ended, which a polyline can hold.
+fn chained(points: &[[f64; 2]]) -> Option<Vec<[f64; 2]>> {
+    let (pairs, rest) = points.as_chunks::<2>();
+    if !rest.is_empty() {
+        return None;
+    }
+    let [first, second] = *pairs.first()?;
+    let mut out = vec![first, second];
+    for pair in &pairs[1..] {
+        let last = *out.last()?;
+        if (pair[0][0] - last[0]).abs() > 1.0e-6 || (pair[0][1] - last[1]).abs() > 1.0e-6 {
+            return None;
+        }
+        out.push(pair[1]);
+    }
+    Some(out)
 }
 
 /// A collider over an inline mesh of `points`, which is how both a convex

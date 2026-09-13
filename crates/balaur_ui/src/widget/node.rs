@@ -197,6 +197,12 @@ pub struct Widget {
     pub justify: SmolStr,
     /// The air either side of a caption; below zero takes the theme's.
     pub padding_x: f32,
+    /// Keep a root clear of what a notch or a home bar covers.
+    pub safe_area: bool,
+    /// The widget as it was authored, kept only when it carries a class
+    /// table, so a rotation can resolve it again. `None` is the common case
+    /// and costs nothing.
+    pub(crate) authored: Option<std::sync::Arc<toml::Value>>,
 }
 
 /// Whether this kind lays its widget children out rather than ignoring them.

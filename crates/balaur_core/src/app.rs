@@ -250,6 +250,11 @@ fn register_facts(app: &mut App) {
         |eng| serde_json::to_value(crate::facts::platform(eng)).unwrap_or_default(),
         |eng, value| {
             if let Ok(facts) = crate::facts::PlatformFacts::deserialize(value) {
+                // The input class is a tag, so a session recorded on a phone
+                // resolves the phone's overrides when it replays on a desktop.
+                eng.resource::<crate::tags::Tags>()
+                    .borrow_mut()
+                    .set_input_class(facts.touchscreen);
                 eng.resource::<crate::facts::Facts>().borrow_mut().0 = Some(facts);
             }
         },

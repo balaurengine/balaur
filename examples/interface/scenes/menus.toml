@@ -255,9 +255,31 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "toast"
+text = ""
 anchor = "top_right"
 x = 18
 y = 18
+# Hugging: the two lines decide the card's width, not the screen.
+align = "start"
 padding = 12
+gap = 2
 duration = 0
+
+[[nodes]]
+id = "toast_line"
+name = "ToastLine"
+parent = "toast"
+[nodes.widget]
+kind = "label"
 text = "Scene saved"
+width = 200
+
+[[nodes]]
+id = "toast_note"
+name = "ToastNote"
+parent = "toast"
+[nodes.widget]
+kind = "label"
+text = "toast · leaves on its own"
+role = "caption"
+width = 200

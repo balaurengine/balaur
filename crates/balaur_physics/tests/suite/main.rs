@@ -12,6 +12,7 @@ mod api;
 mod bodies;
 mod colliders;
 mod constants;
+mod convex_decomposition;
 mod determinism;
 mod freeing;
 mod internal_edges;

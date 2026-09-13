@@ -147,14 +147,36 @@ fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
 fn above_keyboard(eng: &Engine, area: egui::Rect) -> egui::Rect {
-    let covered = balaur_core::facts::device(eng).keyboard_height;
+    let facts = balaur_core::facts::device(eng);
+    // The fact is physical pixels, because that is what a keyboard covers,
+    // and a layout is design pixels.
+    let covered = facts.keyboard_height / facts.ui_scale.max(f32::EPSILON);
     let bottom = (area.max.y - covered).max(area.min.y);
     egui::Rect::from_min_max(area.min, egui::pos2(area.max.x, bottom))
+}
+
+/// The surface less what a notch, a status bar or a home bar covers.
+///
+/// The insets are a fact about the display, so they are the same whichever
+/// surface a root draws on: a root filling the screen loses them all, and one
+/// in a viewport that the notch does not reach loses nothing.
+fn inside_safe_area(eng: &Engine, area: egui::Rect) -> egui::Rect {
+    let facts = balaur_core::facts::device(eng);
+    let per_point = facts.ui_scale.max(f32::EPSILON);
+    let [left, top, right, bottom] = facts.safe_area.map(|edge| edge / per_point);
+    let screen = facts.design_size();
+    let safe = egui::Rect::from_min_max(
+        egui::pos2(left, top),
+        egui::pos2(screen[0] - right, screen[1] - bottom),
+    );
+    area.intersect(safe)
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
+    // Before the arena or a theme is read: both answer differently by class.
+    crate::widget::theme::set_pass_classes(&crate::widget::arena::active_classes(eng));
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
@@ -285,6 +307,11 @@ fn draw_root(
     if modal && !widget.open {
         return;
     }
+    let area = if widget.safe_area {
+        inside_safe_area(eng, area)
+    } else {
+        area
+    };
     let area = if widget.avoid_keyboard {
         above_keyboard(eng, area)
     } else {
@@ -846,7 +873,16 @@ fn panel(
     let held = std::mem::replace(&mut at.bounds, min);
     lay_out(&mut inner, at, index, Axis::Column);
     at.bounds = held;
-    let background = pad.around(inner.min_rect());
+    // Measured from the children where there are only children: a root that
+    // hugs at a right or bottom corner sits in an `Area` whose own corner is
+    // far from it, and the `Ui` would stretch the plate back to that corner.
+    let content = at.arena[index]
+        .children
+        .iter()
+        .filter_map(|child| at.rects.get(child).copied())
+        .reduce(egui::Rect::union)
+        .filter(|_| caption.is_empty() && box_size == egui::Vec2::ZERO);
+    let background = pad.around(content.unwrap_or_else(|| inner.min_rect()));
     if let Some(path) = style.image.as_ref() {
         crate::widget::kinds::nine_patch_plate(
             ui,

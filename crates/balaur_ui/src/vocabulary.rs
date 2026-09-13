@@ -257,6 +257,7 @@ pub(crate) mod keys {
     pub(crate) const TRANSPARENT: &str = "transparent";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
+    pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const VISIBLE: &str = "visible";
     pub(crate) const W: &str = "w";
     pub(crate) const WARNING_COLOR: &str = "warning_color";

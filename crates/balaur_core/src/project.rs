@@ -181,6 +181,13 @@ fn setting_u32(eng: &Engine, path: &str, fallback: u32) -> u32 {
         .map_or(fallback, |n| n as u32)
 }
 
+fn setting_f32(eng: &Engine, path: &str, fallback: f32) -> f32 {
+    crate::settings::get(eng, path)
+        .as_ref()
+        .and_then(toml::Value::as_float)
+        .map_or(fallback, |n| n as f32)
+}
+
 fn setting_bool(eng: &Engine, path: &str, fallback: bool) -> bool {
     crate::settings::get(eng, path)
         .as_ref()
@@ -211,6 +218,12 @@ pub struct UiSettings {
     /// The `widget_theme` every root widget starts from; empty is the
     /// built-in look.
     pub theme: String,
+    /// How large the game's own UI is drawn, as egui's zoom factor.
+    pub scale: f32,
+    /// Whether the reader's own preferred text size multiplies that scale.
+    pub system_text_size: bool,
+    /// Where this project puts the lines between the screen classes.
+    pub classes: crate::facts::ClassLines,
 }
 
 impl Default for UiSettings {
@@ -218,6 +231,9 @@ impl Default for UiSettings {
         Self {
             system_fonts: true,
             theme: String::new(),
+            scale: 1.0,
+            system_text_size: true,
+            classes: crate::facts::ClassLines::default(),
         }
     }
 }
@@ -230,6 +246,25 @@ impl UiSettings {
         Self {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
             theme: setting_string(eng, "ui/theme"),
+            scale: setting_f32(eng, "ui/scale", fallback.scale),
+            system_text_size: setting_bool(
+                eng,
+                "ui/system_text_size",
+                fallback.system_text_size,
+            ),
+            classes: crate::facts::ClassLines {
+                narrow_below: setting_f32(
+                    eng,
+                    "ui/narrow_below",
+                    fallback.classes.narrow_below,
+                ),
+                wide_from: setting_f32(eng, "ui/wide_from", fallback.classes.wide_from),
+                short_below: setting_f32(
+                    eng,
+                    "ui/short_below",
+                    fallback.classes.short_below,
+                ),
+            },
         }
     }
 }

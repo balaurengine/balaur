@@ -28,6 +28,13 @@ pub const IOS: &str = "ios";
 /// desktop nor a phone, and a game that cares asks for `web`.
 pub const WEB: &str = "web";
 
+/// A screen a finger can reach: every phone, and a page whose browser reports
+/// touch points. The other half of a layout's two questions, the first being
+/// how much room there is, which is no tag because it changes on a rotation.
+pub const TOUCH: &str = "touch";
+/// A screen driven by a cursor, which is every machine `TOUCH` is not.
+pub const POINTER: &str = "pointer";
+
 pub const X86_64: &str = "x86_64";
 pub const ARM64: &str = "arm64";
 pub const WASM32: &str = "wasm32";
@@ -41,8 +48,9 @@ pub const RELEASE: &str = "release";
 ///
 /// The set is closed: a tag nothing answers to is an override that never
 /// applies, and the editor offers this list rather than a text field.
-pub const ALL: [&str; 12] = [
-    DESKTOP, MOBILE, WINDOWS, MACOS, LINUX, ANDROID, IOS, WEB, X86_64, ARM64, WASM32, DEBUG,
+pub const ALL: [&str; 14] = [
+    DESKTOP, MOBILE, TOUCH, POINTER, WINDOWS, MACOS, LINUX, ANDROID, IOS, WEB, X86_64, ARM64,
+    WASM32, DEBUG,
 ];
 
 /// Where a project names tags of its own: `[export] tags = ["demo"]`, and
@@ -117,6 +125,7 @@ impl Tags {
         if let Some(group) = group() {
             tags.push(group.to_string());
         }
+        tags.push(input_class(crate::facts::touchscreen()).to_string());
         tags.push(os().to_string());
         tags.push(arch().to_string());
         tags.push(
@@ -128,6 +137,21 @@ impl Tags {
             .to_string(),
         );
         Self(tags)
+    }
+
+    /// Answer to the input class these facts report rather than the one this
+    /// build guessed. A replay restores the recorded facts, and a page cannot
+    /// know whether it is on a tablet until the browser answers, so the tag is
+    /// settled again once either is known.
+    pub fn set_input_class(&mut self, touchscreen: bool) {
+        let want = input_class(touchscreen);
+        self.0.retain(|tag| tag != TOUCH && tag != POINTER);
+        // Where `current` puts it: narrower than the kind of machine, broader
+        // than the operating system.
+        let at = usize::from(self.0.first().is_some_and(|first| {
+            first == DESKTOP || first == MOBILE
+        }));
+        self.0.insert(at, want.to_string());
     }
 
     /// Add a name a target declared, which outranks every derived tag.
@@ -167,9 +191,13 @@ impl Tags {
         let mut tags = Vec::new();
         if os == ANDROID || os == IOS {
             tags.push(MOBILE.to_string());
+            tags.push(TOUCH.to_string());
         } else if os != WEB {
             tags.push(DESKTOP.to_string());
+            tags.push(POINTER.to_string());
         }
+        // A page claims neither: the same build serves a tablet and a desktop
+        // tab, and only the browser knows which is running it.
         tags.push(os.to_string());
         match arch {
             "x64" => tags.push(X86_64.to_string()),
@@ -180,6 +208,13 @@ impl Tags {
         tags.push(RELEASE.to_string());
         Self(tags)
     }
+}
+
+/// Which way the screen is driven, as the word an override is written
+/// against.
+#[must_use]
+pub const fn input_class(touchscreen: bool) -> &'static str {
+    if touchscreen { TOUCH } else { POINTER }
 }
 
 /// The kind of machine, or `None` for the web, where the operating system tag

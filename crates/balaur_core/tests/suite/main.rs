@@ -6,6 +6,7 @@
 
 mod asset_ids;
 mod assets;
+mod classes;
 mod cloner;
 mod components;
 mod csg;

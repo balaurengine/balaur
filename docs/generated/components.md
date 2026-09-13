@@ -166,7 +166,7 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 
 ### `collider2d`
 
-`2d` · `physics` · 36 properties · 4 methods
+`2d` · `physics` · 41 properties · 4 methods
 
 The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
@@ -179,6 +179,7 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>border</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them At least 0.0.</td></tr>
 <tr><td><code>c</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Third corner, when kind is triangle</td></tr>
 <tr><td><code>clean</code></td><td>bool</td><td><code>false</code></td><td>Merge duplicate vertices and drop degenerate triangles when building a trimesh</td></tr>
+<tr><td><code>concavity</code></td><td>float</td><td><code>0.01</code></td><td>How deep a dent a vhacd piece may keep before it is cut again At least 0.0.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_skin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
@@ -190,18 +191,22 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
 <tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>A row of heights, when kind is heightfield: a side-scroller&#x27;s ground</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Collision shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>halfspace</code>, <code>trimesh</code>, <code>convex_hull</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Collision shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>halfspace</code>, <code>trimesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>.</td></tr>
 <tr><td><code>layers</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this collider is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws</td></tr>
+<tr><td><code>max_pieces</code></td><td>float</td><td><code>1024.0</code></td><td>The most pieces a vhacd cut may leave At least 1.0.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a trimesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws</td></tr>
+<tr><td><code>method</code></td><td>enum</td><td><code>exact</code></td><td>How a convex_decomposition is cut: exact, over the mesh&#x27;s own triangles, or vhacd, which voxelises the outline One of <code>exact</code>, <code>vhacd</code>.</td></tr>
 <tr><td><code>normal</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the infinite line faces, when kind is halfspace</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
 <tr><td><code>offset_rotation</code></td><td>float</td><td><code>0.0</code></td><td>How the shape is turned relative to the node, in radians</td></tr>
 <tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies pass through from below and land on from above</td></tr>
 <tr><td><code>one_way_axis</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>The direction a one-way platform lets bodies through from</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid</td></tr>
+<tr><td><code>overlap</code></td><td>float</td><td><code>0.9</code></td><td>How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it Range 0.0–1.0.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle or capsule At least 0.01.</td></tr>
+<tr><td><code>resolution</code></td><td>float</td><td><code>64.0</code></td><td>How fine the voxel grid is, when method is vhacd At least 1.0.</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>scale</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Width and height scale of a heightfield</td></tr>
@@ -1290,7 +1295,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 76 properties
+`ui` · 77 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1350,6 +1355,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
+<tr><td><code>safe_area</code></td><td>bool</td><td><code>false</code></td><td>Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>

@@ -350,16 +350,15 @@ pub(crate) fn drag_value(
         };
     }
     let mut stepped = None;
+    let look = at.look(index);
     let response = ui.scope(|ui| {
         ui.style_mut().override_font_id = Some(font.clone());
-        ui.visuals_mut().override_text_color = Some(color);
+        crate::widget::theme::dress(ui, &look.style, color);
         if !widget.arrows {
             return ui.add(drag);
         }
-        // The box split by hand rather than by a layout: the number on the
-        // left, the two steps against its trailing edge. egui's own layouts
-        // size a `DragValue` from the room they have, which in a row is the
-        // whole box, and the steps then land in the next widget's.
+        // The box split by hand: egui's layouts size a `DragValue` from the
+        // room they have, so in a row the steps land in the next widget's.
         let full = ui.available_rect_before_wrap();
         let high = full.height().min(want.y.max(18.0));
         let wide = ARROWS - 4.0;

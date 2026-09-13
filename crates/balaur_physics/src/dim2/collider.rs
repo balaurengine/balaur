@@ -11,13 +11,13 @@ use balaur_plugin::Registry;
 use crate::rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
     ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups,
-    InteractionTestMode, RigidBodyHandle,
+    InteractionTestMode, MassProperties, RigidBodyHandle, SharedShape,
 };
 use crate::scalar::{self, Pose2, Real, Rotation2};
 
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::dim2::{PhysicsState2d, node_pose_2d};
+use crate::dim2::{PhysicsState2d, decompose, node_pose_2d};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 crate::shared::collider::functions!(state = PhysicsState2d);
@@ -75,6 +75,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
     let border = scalar::real(v::f(params, k::BORDER, 0.0)).max(0.0);
     let rounded = border > 0.0;
+    let mut mass = None;
     let builder = match kind {
         w::CIRCLE => ColliderBuilder2::ball(radius),
         w::RECT if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
@@ -102,30 +103,28 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             ))
         }
         w::TRIMESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
+        w::CONVEX_DECOMPOSITION => {
+            let (shape, weight) = decomposition_collider(eng, params)?;
+            mass = weight;
+            shape
+        }
         w::VOXELS => voxel_collider(eng, params)?,
         w::HEIGHTFIELD => heightfield_collider(eng, params)?,
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
-    Ok(with_material(builder, params))
+    let builder = with_material(builder, params);
+    Ok(match mass {
+        // `mass` pins the total itself, and wins where it is written.
+        Some(mass) if v::f(params, k::MASS, 0.0) <= 0.0 => builder.mass_properties(mass),
+        _ => builder,
+    })
 }
 
 /// A 2D shape from a `mesh` asset, reading the x and y of its points: the
 /// same asset a `polygon` draws, so the outline a player sees and the one they
 /// collide with are one authored thing.
 fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<ColliderBuilder2> {
-    let reference = params
-        .get(k::MESH)
-        .and_then(toml::Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("a {kind} collider2d needs a `mesh` asset"))?;
-    let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
-    let points: Vec<Vector> = mesh
-        .positions
-        .iter()
-        .map(|p| scalar::v2(p[0], p[1]))
-        .collect();
+    let (points, indices) = mesh_of(eng, params, kind)?;
     match kind {
         // The flags 3D passes, for the same reason: without them a body
         // catches on the seam between two triangles of flat ground.
@@ -142,7 +141,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
             if v::boolean(params, k::ORIENTED, false) {
                 flags |= crate::rapier2d::prelude::TriMeshFlags::ORIENTED;
             }
-            ColliderBuilder2::trimesh_with_flags(points, mesh.indices.clone(), flags)
+            ColliderBuilder2::trimesh_with_flags(points, indices, flags)
                 .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
         }
         w::CONVEX_HULL => ColliderBuilder2::convex_hull(&points)
@@ -162,6 +161,107 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
             Ok(ColliderBuilder2::polyline(points, None))
         }
     }
+}
+
+/// The `mesh` asset's points as 2D, with the triangles over them.
+fn mesh_of(eng: &Engine, params: &toml::Value, kind: &str) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
+    let reference = params
+        .get(k::MESH)
+        .and_then(toml::Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("a {kind} collider2d needs a `mesh` asset"))?;
+    let definition =
+        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
+    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+    let points = mesh
+        .positions
+        .iter()
+        .map(|p| scalar::v2(p[0], p[1]))
+        .collect();
+    Ok((points, mesh.indices.clone()))
+}
+
+/// A concave polygon as convex pieces that overlap across their seams: the
+/// only shape a concave *dynamic* 2D body can have and not wedge a thin one.
+///
+/// The mass is the ungrown pieces', since the grown ones share the ground
+/// they overlap on and would weigh it twice.
+fn decomposition_collider(
+    eng: &Engine,
+    params: &toml::Value,
+) -> Result<(ColliderBuilder2, Option<MassProperties>)> {
+    let (points, indices) = mesh_of(eng, params, w::CONVEX_DECOMPOSITION)?;
+    let border = scalar::real(v::f(params, k::BORDER, 0.0)).max(0.0);
+    if v::text(params, k::METHOD, w::EXACT) == w::VHACD {
+        return Ok((vhacd_collider(params, &points, &indices, border), None));
+    }
+    let pieces = decompose::pieces(&points, &indices);
+    let overlap = v::f(params, k::OVERLAP, 0.9);
+    let density = scalar::real(v::f(params, k::DENSITY, 1.0).max(0.001));
+    let mut weights = pieces.iter().map(|piece| {
+        let ring: Vec<Vector> = piece.iter().map(|&at| points[at as usize]).collect();
+        MassProperties::from_convex_polygon(density, &ring)
+    });
+    let mass = weights
+        .next()
+        .map(|first| weights.fold(first, |sum, next| sum + next));
+    let shapes: Vec<_> = decompose::grown(&points, &pieces, overlap)
+        .into_iter()
+        .filter_map(|piece| Some((Pose2::IDENTITY, convex_piece(piece, border)?)))
+        .collect();
+    if shapes.is_empty() {
+        return Err(anyhow!(
+            "that mesh has no area, so it cannot be cut into convex pieces"
+        ));
+    }
+    Ok((ColliderBuilder2::compound(shapes), mass))
+}
+
+/// One piece as a shape, rounded when the collider asked for a border.
+fn convex_piece(piece: Vec<Vector>, border: Real) -> Option<SharedShape> {
+    if border > 0.0 {
+        SharedShape::round_convex_polyline(piece, border)
+    } else {
+        SharedShape::convex_polyline(piece)
+    }
+}
+
+/// The approximate cut, for an outline dense enough that the exact one's
+/// quadratic merge shows. rapier voxelises the outline, so it takes segments.
+fn vhacd_collider(
+    params: &toml::Value,
+    points: &[Vector],
+    indices: &[[u32; 3]],
+    border: Real,
+) -> ColliderBuilder2 {
+    let mut tuning = crate::rapier2d::parry::transformation::vhacd::VHACDParameters::default();
+    tuning.resolution = v::f(params, k::RESOLUTION, tuning.resolution as f32).max(1.0) as u32;
+    tuning.concavity = scalar::real(v::f(params, k::CONCAVITY, scalar::f32_of(tuning.concavity)));
+    tuning.max_convex_hulls =
+        v::f(params, k::MAX_PIECES, tuning.max_convex_hulls as f32).max(1.0) as u32;
+    let outline = boundary(indices);
+    if border > 0.0 {
+        return ColliderBuilder2::round_convex_decomposition_with_params(
+            points, &outline, &tuning, border,
+        );
+    }
+    ColliderBuilder2::convex_decomposition_with_params(points, &outline, &tuning)
+}
+
+/// The outline of a triangulated mesh: every edge only one triangle uses,
+/// which is what a 2D decomposition over a polyline needs.
+fn boundary(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
+    let mut edges: std::collections::BTreeMap<(u32, u32), [u32; 2]> =
+        std::collections::BTreeMap::new();
+    for &[a, b, c] in indices {
+        for edge in [[a, b], [b, c], [c, a]] {
+            let key = (edge[0].min(edge[1]), edge[0].max(edge[1]));
+            if edges.remove(&key).is_none() {
+                edges.insert(key, edge);
+            }
+        }
+    }
+    edges.into_values().collect()
 }
 
 /// A 2D heightfield is one row of heights: a side-scroller's ground.
@@ -395,13 +495,18 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
             (k::B, r#"{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),
             (k::C, r#"{ type = "vec2", default = [0.0, 1.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
             (k::NORMAL, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is halfspace", group = "shape" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a trimesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
             (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
             (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield", group = "shape" }"#),
             (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
             (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Take neighbouring triangles into account for a trimesh's contacts, so a body does not catch on the seam between two of them", group = "contacts" }"#),
             (k::CLEAN, r#"{ type = "bool", default = false, description = "Merge duplicate vertices and drop degenerate triangles when building a trimesh", group = "shape" }"#),
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "shape" }"#),
+            (k::OVERLAP, r#"{ type = "float", default = 0.9, min = 0.0, max = 1.0, description = "How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it", group = "shape" }"#),
+            (k::METHOD, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a convex_decomposition is cut: exact, over the mesh's own triangles, or vhacd, which voxelises the outline", group = "shape" }}"#, w::EXACT, v::options(w::DECOMPOSITION_METHODS))),
+            (k::RESOLUTION, r#"{ type = "float", default = 64.0, min = 1.0, description = "How fine the voxel grid is, when method is vhacd", group = "shape" }"#),
+            (k::CONCAVITY, r#"{ type = "float", default = 0.01, min = 0.0, description = "How deep a dent a vhacd piece may keep before it is cut again", group = "shape" }"#),
+            (k::MAX_PIECES, r#"{ type = "float", default = 1024.0, min = 1.0, description = "The most pieces a vhacd cut may leave", group = "shape" }"#),
             (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
             (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians", group = "shape" }"#),
             (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from", group = "contacts" }"#),

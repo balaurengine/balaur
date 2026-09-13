@@ -986,6 +986,13 @@
         "group": "shape",
         "type": "bool"
       },
+      "concavity": {
+        "default": 0.01,
+        "description": "How deep a dent a vhacd piece may keep before it is cut again",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
       "contact_force_threshold": {
         "default": 0.0,
         "description": "How hard a contact must be before on_contact_force is called",
@@ -1082,6 +1089,7 @@
           "halfspace",
           "trimesh",
           "convex_hull",
+          "convex_decomposition",
           "polyline",
           "heightfield",
           "voxels"
@@ -1177,12 +1185,29 @@
         "min": 0.0,
         "type": "float"
       },
+      "max_pieces": {
+        "default": 1024.0,
+        "description": "The most pieces a vhacd cut may leave",
+        "group": "shape",
+        "min": 1.0,
+        "type": "float"
+      },
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws",
+        "description": "Points and triangles for a trimesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws",
         "group": "shape",
         "type": "asset"
+      },
+      "method": {
+        "default": "exact",
+        "description": "How a convex_decomposition is cut: exact, over the mesh's own triangles, or vhacd, which voxelises the outline",
+        "group": "shape",
+        "options": [
+          "exact",
+          "vhacd"
+        ],
+        "type": "enum"
       },
       "normal": {
         "default": [
@@ -1229,10 +1254,25 @@
         "group": "shape",
         "type": "bool"
       },
+      "overlap": {
+        "default": 0.9,
+        "description": "How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it",
+        "group": "shape",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
       "radius": {
         "default": 0.5,
         "description": "Circle radius, when kind is circle or capsule",
         "min": 0.01,
+        "type": "float"
+      },
+      "resolution": {
+        "default": 64.0,
+        "description": "How fine the voxel grid is, when method is vhacd",
+        "group": "shape",
+        "min": 1.0,
         "type": "float"
       },
       "restitution": {
@@ -4516,6 +4556,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "safe_area": {
+        "default": false,
+        "description": "Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not",
+        "group": "placement",
+        "type": "bool"
+      },
       "secret": {
         "default": false,
         "description": "Draw a `field`'s text as dots, for a password",
@@ -5275,6 +5321,7 @@
       "docs": {
         "area": "The polygon's area, always positive whatever its winding.",
         "contains": "Whether a point lies inside the polygon; a point on an edge counts as inside.",
+        "convex_decomposition": "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
         "convex_hull": "The smallest convex polygon around the points, counter-clockwise.",
         "difference": "Everything inside the first polygon and outside the second, shaped as `union` shapes it.",
         "intersection": "Everything inside both polygons, shaped as `union` shapes it.",
@@ -5286,6 +5333,7 @@
       "functions": [
         "area",
         "contains",
+        "convex_decomposition",
         "convex_hull",
         "difference",
         "intersection",
@@ -5298,6 +5346,7 @@
       "signatures": {
         "area": "Value -> f64",
         "contains": "(Value, Value) -> bool",
+        "convex_decomposition": "(Value, Option<Value>) -> Value",
         "convex_hull": "Value -> Value",
         "difference": "(Value, Value) -> Value",
         "intersection": "(Value, Value) -> Value",
@@ -6954,6 +7003,10 @@
         {
           "name": "SHAPE_CIRCLE",
           "value": "circle"
+        },
+        {
+          "name": "SHAPE_CONVEX_DECOMPOSITION",
+          "value": "convex_decomposition"
         },
         {
           "name": "SHAPE_CONVEX_HULL",
@@ -8730,6 +8783,10 @@
           "value": "normal"
         },
         {
+          "name": "MEDIUM",
+          "value": "medium"
+        },
+        {
           "name": "MOD_ALT",
           "value": "alt"
         },
@@ -8744,6 +8801,30 @@
         {
           "name": "MOD_SHIFT",
           "value": "shift"
+        },
+        {
+          "name": "NARROW",
+          "value": "narrow"
+        },
+        {
+          "name": "POINTER",
+          "value": "pointer"
+        },
+        {
+          "name": "SHORT",
+          "value": "short"
+        },
+        {
+          "name": "TALL",
+          "value": "tall"
+        },
+        {
+          "name": "TOUCH",
+          "value": "touch"
+        },
+        {
+          "name": "WIDE",
+          "value": "wide"
         },
         {
           "name": "WIDGET_BUTTON",
@@ -8889,6 +8970,7 @@
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
         "focused": "The widget node focus is on, or nil.",
         "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does, and `hover_fill` is the colour it takes while the pointer is over it.",
+        "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time.",
         "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
@@ -8926,6 +9008,7 @@
         "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
         "wants_pointer": "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
+        "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
         "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
       },
       "functions": [
@@ -8950,6 +9033,7 @@
         "focus_previous",
         "focused",
         "frame",
+        "height_class",
         "horizontal",
         "image",
         "image_button",
@@ -8987,6 +9071,7 @@
         "wants_keyboard",
         "wants_pointer",
         "widget_rect",
+        "width_class",
         "window"
       ],
       "name": "ui",
@@ -9012,6 +9097,7 @@
         "focus_previous": "() -> ()",
         "focused": "() -> Value",
         "frame": "(Option<Value>, CallbackId) -> ()",
+        "height_class": "() -> &str",
         "horizontal": "(Option<Value>, CallbackId) -> ()",
         "image": "(String, Option<Value>) -> ()",
         "image_button": "(String, Option<Value>) -> bool",
@@ -9049,6 +9135,7 @@
         "wants_keyboard": "() -> bool",
         "wants_pointer": "() -> bool",
         "widget_rect": "NodeId -> Value",
+        "width_class": "() -> &str",
         "window": "(String, Option<Value>, CallbackId) -> bool"
       }
     },

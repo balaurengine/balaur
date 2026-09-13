@@ -407,7 +407,7 @@ theme/custom="res://themes/game.tres"
     /// Every mapping this converter makes, in one scene small enough to read:
     /// a scripted root with an export, a sprite, an area with a shape, an
     /// instance edited inside, a VBox of widgets, a player and two signals.
-    const MAIN: &str = r#"[gd_scene load_steps=8 format=3 uid="uid://cmain"]
+    const MAIN: &str = r#"[gd_scene load_steps=9 format=3 uid="uid://cmain"]
 
 [ext_resource type="Texture2D" path="res://art/hull.png" id="1_hull"]
 [ext_resource type="PackedScene" path="res://scenes/crate.tscn" id="2_crate"]
@@ -416,6 +416,9 @@ theme/custom="res://themes/game.tres"
 
 [sub_resource type="RectangleShape2D" id="Rect_1"]
 size = Vector2(40, 20)
+
+[sub_resource type="ConcavePolygonShape2D" id="Bank_1"]
+segments = PackedVector2Array(0, 0, 100, 0, 100, 0, 100, 60)
 
 [sub_resource type="Animation" id="Animation_fade"]
 resource_name = "fade"
@@ -460,6 +463,16 @@ flip_h = true
 
 [node name="Shape" type="CollisionShape2D" parent="Dock"]
 shape = SubResource("Rect_1")
+
+[node name="Table" type="CollisionPolygon2D" parent="Dock"]
+polygon = PackedVector2Array(0, 0, 30, 0, 30, 100, 170, 100, 170, 0, 200, 0, 200, 120, 0, 120)
+
+[node name="Rail" type="CollisionPolygon2D" parent="Dock"]
+build_mode = 1
+polygon = PackedVector2Array(0, 0, 100, 0, 100, 50)
+
+[node name="Bank" type="CollisionShape2D" parent="Dock"]
+shape = SubResource("Bank_1")
 
 [node name="Box" parent="." instance=ExtResource("2_crate")]
 position = Vector2(-50, 0)
@@ -795,6 +808,46 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert!(
             !out.path().join("store/shot.png").exists(),
             "a folder Godot ignores is not the game's"
+        );
+    }
+
+    /// Godot decomposes a solids-mode collision polygon, so a table keeps its
+    /// legs here too rather than flattening into its own hull.
+    #[test]
+    fn collision_polygons_keep_their_concave_shape() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/main.toml");
+
+        let table = node(&scene, "Table");
+        assert_eq!(
+            table["collider2d"]["kind"].as_str(),
+            Some("convex_decomposition"),
+            "a solids-mode polygon is cut into pieces, not hulled"
+        );
+        let mesh = table["collider2d"]["mesh"].as_str().unwrap();
+        let asset = scene["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["id"].as_str() == Some(mesh.trim_start_matches('#')))
+            .expect("the table has no mesh asset");
+        assert_eq!(
+            asset["positions"].as_array().unwrap().len(),
+            8,
+            "every corner of the table carries"
+        );
+
+        assert_eq!(
+            node(&scene, "Rail")["collider2d"]["kind"].as_str(),
+            Some("polyline"),
+            "build mode 1 is segments along the outline"
+        );
+        assert_eq!(
+            node(&scene, "Bank")["collider2d"]["kind"].as_str(),
+            Some("polyline"),
+            "a concave shape's segments chain into a polyline"
         );
     }
 

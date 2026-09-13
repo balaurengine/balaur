@@ -662,7 +662,7 @@ srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "
             "settings.editor.appearance",
             r#"
 theme = { type = "enum", default = "dark", options = ["dark", "light"], order = 1, help = "Which chrome the editor wears." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 2, help = "How large the editor's own text and controls are drawn." }
+ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 2, applies = "restart", help = "How large the editor's own text and controls are drawn." }
 compact = { type = "bool", default = false, order = 3, help = "Drop labels the icon already says, for a narrow window." }
 "#,
         ),
@@ -709,6 +709,11 @@ msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "rest
             r#"
 system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
 theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
+scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
+system_text_size = { type = "bool", default = true, applies = "restart", help = "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room." }
+narrow_below = { type = "float", default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
+wide_from = { type = "float", default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
+short_below = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
 "#,
         ),
     );

@@ -80,3 +80,251 @@ fn a_stated_size_is_the_same_points_at_every_scale_and_more_pixels() {
         "a point should cost twice the pixels: {one_point} then {two_points}"
     );
 }
+
+/// A widget's class table, and what it takes to make one apply.
+mod classes {
+    use balaur_core::facts::DeviceFacts;
+
+    use crate::support::{add_widget, app, pass, settle};
+
+    /// Put a screen of this many design pixels under the layer. The backend
+    /// publishes these every frame; a test says them itself.
+    fn screen(app: &balaur_core::App, width: f32, height: f32) {
+        balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+            facts.screen_size = [width, height];
+            facts.ui_scale = 1.0;
+        });
+    }
+
+    /// The commonest thing a narrow screen asks for: a row that is not worth
+    /// drawing when there is no room for it.
+    #[test]
+    fn a_narrow_screen_takes_the_narrow_table() {
+        let shown = |width: f32| {
+            let (_dir, app) = app();
+            add_widget(
+                &app,
+                &toml::toml! {
+                    kind = "panel" x = 0.0 y = 0.0 width = 200.0 height = 30.0
+                    [narrow]
+                    visible = false
+                }
+                .into(),
+            );
+            screen(&app, width, 900.0);
+            let ctx = egui::Context::default();
+            // A new Area is sized invisibly on its first frame, so the shapes
+            // of a widget that does draw arrive on a later one.
+            settle(&app, &ctx);
+            !pass(&app, &ctx, vec![]).shapes.is_empty()
+        };
+        assert!(shown(1200.0), "a wide screen hid a widget it should draw");
+        assert!(!shown(390.0), "the narrow table did not hide the widget");
+    }
+
+    /// The tables are read broad to narrow, so the narrowest word named wins
+    /// the key it shares.
+    #[test]
+    fn the_narrowest_class_named_wins_the_key() {
+        let width_at = |screen_width: f32| {
+            let (_dir, app) = app();
+            let widget = add_widget(
+                &app,
+                &toml::toml! {
+                    kind = "panel" x = 0.0 y = 0.0 width = 300.0 height = 30.0
+                    [pointer]
+                    width = 250.0
+                    [narrow]
+                    width = 100.0
+                }
+                .into(),
+            );
+            screen(&app, screen_width, 900.0);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            balaur_ui::widget_rect(widget).expect("the widget drew").width()
+        };
+        // A desktop is `pointer` and `wide`: only the input class is named.
+        assert!((width_at(1200.0) - 250.0).abs() < 1.0, "the pointer table did not apply");
+        // Narrow is read after the input class, so it takes the key back.
+        assert!((width_at(390.0) - 100.0).abs() < 1.0, "narrow did not outrank pointer");
+    }
+
+    /// A class table is the one place a typo cannot be the game's own space,
+    /// because nothing but the layer ever reads it.
+    #[test]
+    fn a_key_a_class_table_invents_is_refused() {
+        let (_dir, app) = app();
+        let root = app.engine.root();
+        let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
+        let params: toml::Value = toml::toml! {
+            kind = "panel"
+            [narrow]
+            widht = 100.0
+        }
+        .into();
+        let refused = balaur::components::add(&app.engine, entity, "widget", Some(&params));
+        let why = format!("{:#}", refused.expect_err("an invented key must be refused"));
+        assert!(why.contains("narrow.widht"), "the error did not name the key: {why}");
+    }
+
+    /// A widget cannot become another kind halfway down a resize: its state
+    /// and its children belong to the kind it is.
+    #[test]
+    fn a_class_table_cannot_change_the_kind() {
+        let (_dir, app) = app();
+        let root = app.engine.root();
+        let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
+        let params: toml::Value = toml::toml! {
+            kind = "row"
+            [narrow]
+            kind = "column"
+        }
+        .into();
+        let why = format!(
+            "{:#}",
+            balaur::components::add(&app.engine, entity, "widget", Some(&params))
+                .expect_err("a kind that changes with the screen must be refused")
+        );
+        assert!(why.contains("kind"), "the error did not name the kind: {why}");
+    }
+
+    /// What a finger has to be able to hit. Apple asks for 44 points and
+    /// Material for 48; a control that states less is raised to it, and one
+    /// that states more keeps what it states.
+    #[test]
+    fn a_control_a_finger_reaches_is_never_smaller_than_the_target() {
+        let size_of = |touch: bool, kind: &str| {
+            let (_dir, app) = app();
+            let widget = add_widget(
+                &app,
+                &toml::toml! { kind = kind text = "x" x = 0.0 y = 0.0 }.into(),
+            );
+            balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+                facts.screen_size = [1200.0, 900.0];
+                facts.ui_scale = 1.0;
+            });
+            let mut platform = balaur_core::facts::platform(&app.engine);
+            platform.touchscreen = touch;
+            app.engine
+                .resource::<balaur_core::facts::Facts>()
+                .borrow_mut()
+                .0 = Some(platform);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            balaur_ui::widget_rect(widget).expect("it drew").size()
+        };
+        let cursor = size_of(false, "button");
+        let finger = size_of(true, "button");
+        assert!(
+            cursor.y < 44.0,
+            "control: a cursor's button was already {cursor:?}"
+        );
+        assert!(
+            finger.x >= 43.0 && finger.y >= 43.0,
+            "a finger's button is {finger:?}, under the touch target"
+        );
+        // A label is read, not hit, so it keeps its own size.
+        let label = size_of(true, "label");
+        assert!(label.y < 44.0, "a label was grown to a touch target: {label:?}");
+    }
+
+    /// A theme states what a finger needs beside what a cursor needs, and the
+    /// screen picks. This is the seam the touch floor is built on.
+    #[test]
+    fn a_theme_states_a_class_beside_the_look_it_qualifies() {
+        let height_with = |touch: bool| {
+            let (dir, app) = app();
+            std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+            std::fs::write(
+                dir.path().join("themes/t.toml"),
+                "type = \"widget_theme\"\n[button]\nheight = 24.0\n[button.touch]\nheight = 44.0\n",
+            )
+            .unwrap();
+            let widget = add_widget(
+                &app,
+                &toml::toml! {
+                    kind = "button" text = "ok" x = 0.0 y = 0.0 theme = "themes/t.toml"
+                }
+                .into(),
+            );
+            balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+                facts.screen_size = [1200.0, 900.0];
+                facts.ui_scale = 1.0;
+            });
+            // The input class is a tag on the platform facts, which a test
+            // states the way a phone would report it.
+            let mut platform = balaur_core::facts::platform(&app.engine);
+            platform.touchscreen = touch;
+            app.engine
+                .resource::<balaur_core::facts::Facts>()
+                .borrow_mut()
+                .0 = Some(platform);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            balaur_ui::widget_rect(widget)
+                .expect("the button drew")
+                .height()
+        };
+        let cursor = height_with(false);
+        let finger = height_with(true);
+        assert!((cursor - 24.0).abs() < 1.0, "the theme's height was {cursor}");
+        assert!(
+            (finger - 44.0).abs() < 1.0,
+            "the touch table did not apply: {finger}"
+        );
+    }
+
+    /// A notch covers the top of the screen whatever the layout wants, so a
+    /// root that asks is moved clear of it.
+    #[test]
+    fn a_root_that_asks_is_kept_clear_of_the_notch() {
+        let top_of = |ask: bool| {
+            let (_dir, app) = app();
+            let widget = add_widget(
+                &app,
+                &toml::toml! {
+                    kind = "panel" anchor = "top_left" x = 0.0 y = 0.0
+                    width = 100.0 height = 40.0 safe_area = ask
+                }
+                .into(),
+            );
+            balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+                facts.screen_size = [390.0, 844.0];
+                facts.ui_scale = 1.0;
+                facts.safe_area = [0.0, 47.0, 0.0, 34.0];
+            });
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            balaur_ui::widget_rect(widget).expect("it drew").min.y
+        };
+        assert!(top_of(false) < 10.0, "the control drew under the notch as asked");
+        assert!(
+            top_of(true) >= 47.0,
+            "the root was not moved clear of the notch: {}",
+            top_of(true)
+        );
+    }
+
+    /// Saving a scene must not quietly drop what it was authored with.
+    #[test]
+    fn a_class_table_survives_being_read_back() {
+        let (_dir, app) = app();
+        let widget = add_widget(
+            &app,
+            &toml::toml! {
+                kind = "panel" width = 300.0
+                [narrow]
+                width = 100.0
+            }
+            .into(),
+        );
+        let read = balaur::components::get(&app.engine, widget, "widget")
+            .expect("the component reads back");
+        let narrow = read
+            .get("narrow")
+            .and_then(toml::Value::as_table)
+            .expect("the narrow table came back");
+        assert_eq!(narrow.get("width").and_then(toml::Value::as_float), Some(100.0));
+    }
+}

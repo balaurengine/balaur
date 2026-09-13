@@ -105,7 +105,7 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
-| **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
+| **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 done | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls and tweens. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: a deformable mesh with stiffness, damping and pressure, drawn down the skinning path, on the fixed step. | 0.7 | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
 | **Cloth and rope** — a sheet that hangs and a rope of linked segments over the same solver, pinned to a node and cut by a script. | 0.7 | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |

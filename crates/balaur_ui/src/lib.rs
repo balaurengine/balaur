@@ -46,7 +46,84 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
 }
 
-pub use immediate::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
+pub use immediate::{
+    ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS,
+};
+
+/// Where this project puts the lines between the screen classes, and whether
+/// the reader's own text size counts. Read once, after the project has
+/// loaded, because the plugin is built before there is a project to read.
+pub(crate) struct UiProject {
+    read: bool,
+    pub(crate) classes: balaur_core::facts::ClassLines,
+    pub(crate) system_text_size: bool,
+}
+
+impl Default for UiProject {
+    fn default() -> Self {
+        let fallback = balaur_core::project::UiSettings::default();
+        Self {
+            read: false,
+            classes: fallback.classes,
+            system_text_size: fallback.system_text_size,
+        }
+    }
+}
+
+/// One long press, not two. egui holds a still touch past its own click
+/// length and calls it a secondary click, which is what opens a context menu;
+/// the tick derives `input.long_press()` from `[input] long_press_seconds`.
+/// Reading that one setting into egui is what keeps the two agreeing.
+fn apply_long_press(eng: &balaur_core::Engine, ctx: &egui::Context) {
+    let Some(seconds) = balaur_core::settings::get(eng, "input/long_press_seconds")
+        .as_ref()
+        .and_then(toml::Value::as_float)
+    else {
+        return;
+    };
+    ctx.options_mut(|options| {
+        if (options.input_options.max_click_duration - seconds).abs() > f64::EPSILON {
+            options.input_options.max_click_duration = seconds;
+        }
+    });
+}
+
+/// Whether this project lets the reader's own preferred text size grow its
+/// UI. `[ui] system_text_size`, read once with the rest of the table.
+#[must_use]
+pub fn takes_system_text_size(eng: &balaur_core::Engine) -> bool {
+    eng.try_resource::<UiProject>()
+        .is_none_or(|held| held.borrow().system_text_size)
+}
+
+/// Where this project puts the lines between the screen classes.
+pub(crate) fn class_lines(eng: &balaur_core::Engine) -> balaur_core::facts::ClassLines {
+    eng.try_resource::<UiProject>()
+        .map_or_else(Default::default, |held| held.borrow().classes)
+}
+
+/// Take `[ui]` on the first tick that has a project to take it from: the
+/// scale seeds the zoom, and the rest is held for whoever asks.
+fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
+    let held = eng.resource::<UiProject>();
+    if held.borrow().read
+        || eng
+            .try_resource::<balaur_core::project::ProjectManifest>()
+            .is_none()
+    {
+        return;
+    }
+    let settings = balaur_core::project::UiSettings::from_settings(eng);
+    {
+        let mut held = held.borrow_mut();
+        held.read = true;
+        held.classes = settings.classes;
+        held.system_text_size = settings.system_text_size;
+    }
+    // Seeded, not owned: `ui.set_scale` changes it afterwards, the way
+    // `render.set_window_mode` changes what `[window] mode` opened with.
+    eng.resource::<UiConfig>().borrow_mut().scale = settings.scale.clamp(0.25, 3.0);
+}
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
 /// writes, and the UI scale, which is egui's own zoom factor. A design pixel
@@ -171,6 +248,8 @@ impl balaur_plugin::Plugin for UiPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(UiConfig::default());
+        reg.insert_resource(UiProject::default());
+        reg.add_system(balaur_core::Stage::First, read_project_settings_system);
         reg.insert_resource(UiState::default());
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
@@ -242,6 +321,11 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         }
     }
     let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
+    // Before the classes are read by anything: the theme answers by them, and
+    // so does the floor egui's own controls take.
+    widget::theme::set_pass_classes(&widget::arena::active_classes(eng));
+    theme::apply_touch_floor(ctx);
+    apply_long_press(eng, ctx);
     bridge::enter_pass(ctx, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
     // `Foreground` — so what is on top does not depend on which ran first.

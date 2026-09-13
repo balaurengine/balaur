@@ -19,7 +19,7 @@ cannot drift from what scripts actually see.
 | [`export`](#export) | 5 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
-| [`geometry2d`](#geometry2d) | 9 | 0 | the engine |
+| [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
@@ -30,7 +30,7 @@ cannot drift from what scripts actually see.
 | [`math`](#math) | 24 | 3 | the engine |
 | [`node`](#node) | 49 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 48 | 48 | the engine |
+| [`physics2d`](#physics2d) | 48 | 49 | the engine |
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
 | [`render`](#render) | 58 | 30 | the engine |
@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 59 | 58 | the engine |
+| [`ui`](#ui) | 61 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -104,7 +104,7 @@ cannot drift from what scripts actually see.
 
 ## `geometry2d`
 
-**Functions:** `area`, `contains`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `segments_intersect`, `triangulate`, `union`
+**Functions:** `area`, `contains`, `convex_decomposition`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `segments_intersect`, `triangulate`, `union`
 
 ## `geometry3d`
 
@@ -189,7 +189,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `box_hits`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `total_mass`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
 
-**Constants** (48):
+**Constants** (49):
 
 | Name | Value |
 | --- | --- |
@@ -218,7 +218,7 @@ cannot drift from what scripts actually see.
 | `JOINT_GENERIC` | `generic` |
 | `JOINT_PIN_SLOT` | `pin_slot` |
 
-…and 24 more.
+…and 25 more.
 
 ## `physics3d`
 
@@ -349,9 +349,9 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
 
-**Constants** (58):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
@@ -380,7 +380,7 @@ cannot drift from what scripts actually see.
 | `FONT_STYLE_ITALIC` | `italic` |
 | `FONT_STYLE_NORMAL` | `normal` |
 
-…and 34 more.
+…and 41 more.
 
 ## `web`
 

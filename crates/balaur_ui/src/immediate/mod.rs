@@ -451,6 +451,20 @@ pub const FONT_STYLES: &[(&str, &str)] = &[
 /// Font families the theme registers.
 pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", w::MONO), ("FONT_HEADING", w::HEADING)];
 
+/// The screen classes, as `ui.width_class` and `ui.height_class` answer them
+/// and as a widget's own class table names them. The words are the engine's
+/// and a project cannot add to them: a theme, a scene and an addon share
+/// them, so one that meant something else somewhere would not be a word.
+pub const CLASSES: &[(&str, &str)] = &[
+    ("NARROW", balaur_core::facts::NARROW),
+    ("MEDIUM", balaur_core::facts::MEDIUM),
+    ("WIDE", balaur_core::facts::WIDE),
+    ("SHORT", balaur_core::facts::SHORT),
+    ("TALL", balaur_core::facts::TALL),
+    ("TOUCH", balaur_core::tags::TOUCH),
+    ("POINTER", balaur_core::tags::POINTER),
+];
+
 /// A chord as a scene or a script writes it: modifiers and a key joined by
 /// `+`, in any case, as in `cmd+shift+s` or `f5`.
 ///
@@ -519,6 +533,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
         .chain(PILL_ALIGNS)
         .chain(FONT_STYLES)
         .chain(FONTS)
+        .chain(CLASSES)
         .chain(MODIFIERS)
     {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
@@ -535,6 +550,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::immediate::bindings::install_window(m);
     crate::immediate::bindings::install_widget_layer(m);
     crate::immediate::bindings::install_scale(m);
+    crate::immediate::bindings::install_classes(m);
     crate::pacing::install(m);
     crate::immediate::bindings::install_code_editor(m);
     crate::immediate::bindings::install_dropdown_select(m);

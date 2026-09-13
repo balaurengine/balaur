@@ -22,6 +22,7 @@ use serde::Deserialize as _;
 pub mod body;
 pub mod character;
 pub mod collider;
+pub mod decompose;
 pub mod events;
 pub mod joint;
 pub mod query;

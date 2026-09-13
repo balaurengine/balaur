@@ -226,6 +226,13 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             geometry::install_mesh_edit_api(&mut *m);
         }
 
+        {
+            // Alongside core's own polygon verbs: a script looking for this
+            // looks where `convex_hull` and the booleans are.
+            let mut m = reg.script_module("geometry2d")?;
+            dim2::decompose::install_decompose_api(&mut *m);
+        }
+
         dim2::build(reg)?;
         Ok(())
     }
@@ -664,6 +671,7 @@ pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
     ("SHAPE_HALFSPACE", w::HALFSPACE),
     ("SHAPE_TRIMESH", w::TRIMESH),
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
+    ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
     ("SHAPE_POLYLINE", w::POLYLINE),
     ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
     ("SHAPE_VOXELS", w::VOXELS),

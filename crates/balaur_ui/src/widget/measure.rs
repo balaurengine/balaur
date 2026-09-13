@@ -82,7 +82,10 @@ impl<'a> Measure<'a> {
         } else {
             egui::Vec2::ZERO
         };
-        let floor = vec2(widget.min_width, widget.min_height);
+        // What a finger has to be able to hit, under whatever the widget
+        // asked for itself.
+        let reach = crate::widget::theme::kind_floor(&widget.kind);
+        let floor = vec2(widget.min_width.max(reach), widget.min_height.max(reach));
         let stated = vec2(widget.width, widget.height);
         let size = vec2(
             if stated.x > 0.0 { stated.x } else { size.x }.max(floor.x),

@@ -303,7 +303,14 @@ fn apply_ui_zoom(app: &App, window: &mut Window) {
         .engine
         .try_resource::<balaur_ui::UiConfig>()
         .map_or(1.0, |config| config.borrow().scale);
-    window.set_ui_zoom(want);
+    // The reader's own text size multiplies it, so a game that never touches
+    // the scale still grows for someone who asked their phone for large type.
+    let asked = if balaur_ui::takes_system_text_size(&app.engine) {
+        window.text_scale().max(f32::EPSILON)
+    } else {
+        1.0
+    };
+    window.set_ui_zoom(want * asked);
 }
 
 /// File what the window reported for the frame it last drew: the true frame

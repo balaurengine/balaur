@@ -43,6 +43,8 @@ pub(crate) mod words {
     pub(crate) const TRIMESH: &str = "trimesh";
     pub(crate) const CONVEX_HULL: &str = "convex_hull";
     pub(crate) const CONVEX_DECOMPOSITION: &str = "convex_decomposition";
+    pub(crate) const EXACT: &str = "exact";
+    pub(crate) const VHACD: &str = "vhacd";
     pub(crate) const POLYLINE: &str = "polyline";
     pub(crate) const HEIGHTFIELD: &str = "heightfield";
     pub(crate) const VOXELS: &str = "voxels";
@@ -78,6 +80,7 @@ pub(crate) mod words {
         HALFSPACE,
         TRIMESH,
         CONVEX_HULL,
+        CONVEX_DECOMPOSITION,
         POLYLINE,
         HEIGHTFIELD,
         VOXELS,
@@ -92,6 +95,10 @@ pub(crate) mod words {
     pub(crate) const OBB: &str = "obb";
     /// The shapes a mesh can be fitted to, when a collider's kind is `fit`.
     pub(crate) const FIT_MODES: &[&str] = &[CONVEX_HULL, AABB, OBB, CONVEX_DECOMPOSITION];
+
+    /// How a concave 2D polygon is cut into convex pieces: exactly, over a
+    /// triangulation, or approximately, over a voxel grid.
+    pub(crate) const DECOMPOSITION_METHODS: &[&str] = &[EXACT, VHACD];
 
     pub(crate) const FIXED: &str = "fixed";
     pub(crate) const REVOLUTE: &str = "revolute";
@@ -247,6 +254,7 @@ pub(crate) mod keys {
     pub(crate) const MAX_PIECES: &str = "max_pieces";
     pub(crate) const MAX_TRAVEL: &str = "max_travel";
     pub(crate) const MESH: &str = "mesh";
+    pub(crate) const METHOD: &str = "method";
     pub(crate) const MIN: &str = "min";
     pub(crate) const MIN_CCD_DT: &str = "min_ccd_dt";
     pub(crate) const MIN_SLIDE_ANGLE: &str = "min_slide_angle";
@@ -264,6 +272,7 @@ pub(crate) mod keys {
     pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
     pub(crate) const ONLY: &str = "only";
     pub(crate) const ORIENTED: &str = "oriented";
+    pub(crate) const OVERLAP: &str = "overlap";
     pub(crate) const OTHER_ANCHOR: &str = "other_anchor";
     pub(crate) const POINT: &str = "point";
     pub(crate) const POINTS: &str = "points";

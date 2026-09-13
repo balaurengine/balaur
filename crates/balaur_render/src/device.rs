@@ -28,11 +28,10 @@ impl Probe {
         let dark_mode = dark_mode();
         let safe_area = safe_area(window);
         let keyboard = keyboard_height(window);
+        let text_scale = window.text_scale().max(f32::EPSILON);
         let screen_size = [window.width() as f32, window.height() as f32];
-        // Published so a touch control, placed in the tick, can reach it.
-        // egui's zoom times the display's own scale, which is what a design
-        // pixel costs on this screen; the scale a script sets is only half of
-        // it, and a Retina display is the other half.
+        // Physical pixels per design pixel: the zoom times the display's own
+        // scale, since the scale a script sets is only half of it.
         let ui_scale = window.egui_pixels_per_point().max(f32::EPSILON);
         let game_area = game_area(app, ui_scale);
         balaur_core::facts::update_device(&app.engine, |facts| {
@@ -40,6 +39,7 @@ impl Probe {
             facts.safe_area = safe_area;
             facts.screen_size = screen_size;
             facts.ui_scale = ui_scale;
+            facts.text_scale = text_scale;
             facts.keyboard_height = keyboard;
             facts.game_area = game_area;
             if let Some(rate) = refresh_rate {

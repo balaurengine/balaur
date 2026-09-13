@@ -49,7 +49,7 @@ impl PlatformFacts {
 /// A phone always has one; a page asks the browser, since a desktop tab and a
 /// tablet run the same build.
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn touchscreen() -> bool {
+pub(crate) fn touchscreen() -> bool {
     let navigator = js_sys::Reflect::get(&js_sys::global(), &"navigator".into());
     navigator
         .and_then(|n| js_sys::Reflect::get(&n, &"maxTouchPoints".into()))
@@ -59,7 +59,7 @@ fn touchscreen() -> bool {
 }
 
 #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
-const fn touchscreen() -> bool {
+pub(crate) const fn touchscreen() -> bool {
     cfg!(any(target_os = "ios", target_os = "android"))
 }
 
@@ -170,6 +170,11 @@ pub struct DeviceFacts {
     /// placed against the screen replays through it.
     #[serde(default = "one")]
     pub ui_scale: f32,
+    /// How much larger than standard the reader asked their text to be: iOS
+    /// Dynamic Type, and 1 where the platform has not been asked. Multiplied
+    /// into the UI scale unless `[ui] system_text_size` is off.
+    #[serde(default = "one")]
+    pub text_scale: f32,
     /// How much of the screen the on-screen keyboard covers, in physical
     /// pixels from the bottom: what a form moves up by. Zero with no keyboard
     /// up, and always zero on a desktop.
@@ -187,6 +192,71 @@ pub struct DeviceFacts {
     pub game_area: Option<[f32; 4]>,
 }
 
+/// A screen with less width than a phone held upright.
+pub const NARROW: &str = "narrow";
+/// Between the two lines: a phone on its side, a small tablet, a split pane.
+pub const MEDIUM: &str = "medium";
+/// Room enough for a desktop layout.
+pub const WIDE: &str = "wide";
+/// Less height than a phone on its side leaves.
+pub const SHORT: &str = "short";
+/// Height enough for a layout to stack.
+pub const TALL: &str = "tall";
+
+/// Every width word, broad to narrow, as the override order reads them.
+pub const WIDTH_CLASSES: [&str; 3] = [WIDE, MEDIUM, NARROW];
+/// Every height word.
+pub const HEIGHT_CLASSES: [&str; 2] = [TALL, SHORT];
+
+/// Where one screen class ends and the next begins, in design pixels.
+///
+/// Android's window size classes, which are the best studied and are already
+/// stated per axis in design pixels. A project moves them in `[ui]`; the words
+/// are the engine's and cannot move, since a theme and a scene share them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClassLines {
+    pub narrow_below: f32,
+    pub wide_from: f32,
+    pub short_below: f32,
+}
+
+impl Default for ClassLines {
+    fn default() -> Self {
+        Self {
+            narrow_below: 600.0,
+            wide_from: 840.0,
+            short_below: 480.0,
+        }
+    }
+}
+
+/// Which width word a surface of this many design pixels answers to.
+///
+/// A surface of zero reads `wide`, which is what a headless run has: no window
+/// is nothing to fit, not the tightest possible fit.
+#[must_use]
+pub fn width_class(design_width: f32, lines: ClassLines) -> &'static str {
+    if design_width <= 0.0 {
+        WIDE
+    } else if design_width < lines.narrow_below {
+        NARROW
+    } else if design_width < lines.wide_from {
+        MEDIUM
+    } else {
+        WIDE
+    }
+}
+
+/// Which height word a surface of this many design pixels answers to.
+#[must_use]
+pub fn height_class(design_height: f32, lines: ClassLines) -> &'static str {
+    if design_height > 0.0 && design_height < lines.short_below {
+        SHORT
+    } else {
+        TALL
+    }
+}
+
 /// A missing scale is 1, not 0: a recording made before the field existed had
 /// no zoom, and a zero would collapse every layout that reads it.
 const fn one() -> f32 {
@@ -202,8 +272,35 @@ impl Default for DeviceFacts {
             refresh_rate: 60.0,
             screen_size: [0.0; 2],
             ui_scale: 1.0,
+            text_scale: 1.0,
             keyboard_height: 0.0,
             game_area: None,
+        }
+    }
+}
+
+impl DeviceFacts {
+    /// The whole screen in design pixels, which is what a class is decided
+    /// in. Zero where nothing draws.
+    #[must_use]
+    pub fn design_size(&self) -> [f32; 2] {
+        let per_point = self.ui_scale.max(f32::EPSILON);
+        [
+            self.screen_size[0] / per_point,
+            self.screen_size[1] / per_point,
+        ]
+    }
+
+    /// The surface a game's own layout gets, in design pixels: the area the
+    /// host confined it to where there is one, else the whole screen. A game
+    /// played in a viewport is narrow when the viewport is, whatever the
+    /// window around it is doing.
+    #[must_use]
+    pub fn design_game_size(&self) -> [f32; 2] {
+        let per_point = self.ui_scale.max(f32::EPSILON);
+        match self.game_area {
+            Some([_, _, w, h]) if w > 0.0 && h > 0.0 => [w / per_point, h / per_point],
+            _ => self.design_size(),
         }
     }
 }

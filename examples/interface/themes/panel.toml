@@ -80,3 +80,22 @@ color = "dim"
 size = 12
 radius = 12
 padding_x = 12
+
+# The number is egui's widget; the theme reaches it the way it reaches a
+# field, so a spin box beside a button is dressed like the button.
+[drag_value]
+fill = "sunken"
+color = "text"
+stroke = "line"
+radius = 6
+
+[drag_value.hover]
+fill = "line"
+
+# A toast is read over the screen, so it sits on a raised plate with the
+# accent down its outline rather than on the sheet's own fill.
+[toast]
+fill = "line"
+color = "text"
+stroke = "accent"
+radius = 10
