@@ -1,14 +1,16 @@
-> **Status:** steps 1 to 3 built on 2026-09-12; step 4 is the port's own
-> loop and is open. `balaur import` now translates GDScript bodies, and over
+> **Status:** steps 1 to 4 built on 2026-09-12 and 2026-09-13; step 4 is the
+> port's own loop and continues. `balaur import` now translates GDScript bodies, and over
 > `../polyglot-pirates-game` all 769 scripts convert, `balaur check` reports
 > **no problems**, and the converted project boots and runs headless. 99.9%
 > of the game's own 46 149 code lines translate: 65 lines are left as marked
-> comments, against 46 149 carried before only as comments. The port's five
-> automation scenarios still pass with its 17 hand-ported files in place.
-> Step 3's harder gate — retiring those hand ports — is **not** met: §9's
-> question 4 names the one blocker found. Written on 2026-09-12 from the
-> question "is a GDScript translator too hard, or should the port stay by
-> hand". This plan reverses the "not planned" in
+> comments, against 46 149 carried before only as comments.
+> Step 3's gate is partly met: on 2026-09-13 five of the port's seventeen
+> hand-written files were retired and all five scenarios still pass, with
+> `boot_perf` passing on translated code alone. §10 says what the other
+> twelve still need, which is an adapter onto the engine's existing
+> `gamend::` calls rather than a translated SDK. Written on
+> 2026-09-12 from the question "is a GDScript translator too hard, or should
+> the port stay by hand". This plan reverses the "not planned" in
 > `docs/PLAN-godot-import.md` §8.
 
 # Plan: GDScript bodies as Rune
@@ -72,20 +74,32 @@ pays for itself the first time the Godot game moves.
 
 ## 1. What it cannot do, and what happens there
 
-Three things are not translated, and the report names each occurrence:
+Everything is attempted. A construct the reader does not know keeps its line
+as a comment marked `PORT(gdscript):` with a report note, so a partly
+translated function still carries its translated half. Four things are left
+that way on purpose, and each waits on something outside this plan:
 
 - **`_input` handlers** (47 files). The engine polls input from `update`
-  rather than delivering events; the shape of the handler is wrong, not its
-  body. Left as a comment, reported as today.
-- **`call_deferred`, `set_process`, `set_physics_process`.** Frame-ordering
-  verbs with no counterpart; each is reported at its line.
+  rather than delivering events, so the handler's *shape* is wrong, not its
+  body: there is nothing to translate it into. Giving the engine event
+  delivery belongs in `docs/PLAN-input.md`, which does not plan it today;
+  until then these stay comments and the port moves each body into `update`
+  by hand.
+- **`set_process` and `set_physics_process`** (about 30 sites). Godot's
+  per-node switch for running a script's frame hook. The engine has no
+  node-level "stop simulating this subtree" either;
+  `docs/PLAN-component-enabled.md` §0 names that gap and its "stopping a
+  subtree" section is where the counterpart would go. Reported, stubbed.
 - **`super`** (8 occurrences). §4's flattening copies a base's functions into
   the derived module, so a call to the overridden one has no name to reach.
-  Reported; hand-ported.
+  The fix is a rule — emit the base's copy under a suffixed name and point
+  `super` at it — and it is small; it has simply not been worth the eight
+  sites yet.
+- **The Gamend SDK**, which is §9's question 3 and §10's finding.
 
-Everything else is attempted. A construct the parser does not know keeps its
-line as a comment with a `TODO(gdscript)` marker and a report note, so a
-partly translated function still carries its translated half.
+`call_deferred` *is* translated, as a plain call: the engine runs a script
+call in the frame it is made, and nothing in this game depended on the
+deferral itself.
 
 ## 2. Where it lives
 
@@ -245,11 +259,45 @@ Rune traps it had to design around are named in `emit.rs`'s own header.
    the call site only when the field is in the same module.
 3. **The gamend SDK.** 52k lines of generated Godot client under
    `addons/gamend`. Not translated by this plan: it maps onto `gamend::`,
-   which is `docs/PLAN-gamend.md` step E1.
-4. **`ConfigFile`, and what else is a decision rather than a rewrite.** The
-   one thing blocking step 3's gate is Godot's `ConfigFile`, which the port
-   maps by hand onto a `save::` slot, with a `custom_config` argument
-   choosing the slot so a test run never touches the player's own settings.
-   Which slot, and whether writes debounce, is a design decision this
-   translator should not invent. The question is whether more of the API map
-   is like that, or whether `ConfigFile` is the only one.
+   which is `docs/PLAN-gamend.md` step E1. §10 measured what the port needs
+   from it, which is less than E1: an adapter over the nine calls the engine
+   already has.
+4. **`ConfigFile` — answered.** It is translated, onto a `save::` slot named
+   after the file Godot was given, so `custom_config=user://automation.cfg`
+   keeps a test run's settings apart from the player's exactly as the path
+   did. It was the only rewrite of its kind found.
+
+## 10. Where the port stands, 2026-09-13
+
+Five of the seventeen hand-written files are retired, and the five ported
+scenarios pass without them: `settings_server`, `panel_fade`,
+`mobile_margins`, `theme_manager` and `sound_controller`. `boot_perf` passes
+with **no** hand-written game code at all.
+
+The twelve that remain are not translator gaps in the same sense. They sit on
+the online path, or on the intro and session that path drives, and each one
+reaches `addons/gamend` — 52k lines of generated Godot client this plan does
+not translate.
+
+What they need is **not** `docs/PLAN-gamend.md` step E1. Measured against the
+game: its server traffic is 47 hook calls, auth, a realtime socket and about
+fifteen typed operations, and the engine's nine `gamend::` calls already
+carry every one of those shapes — `call_hook`, `login`, `connect`/`join`/
+`push`, and `rest` for the rest. The game's scripts touch 137 members of the
+SDK. So what stands between the port and its online scenarios is an adapter
+of that surface onto the nine calls, written once in the port repository, not
+a translation of the SDK and not a wait on the engine. E1 would make that
+adapter thin and typed; it does not gate it.
+
+Getting there closed four bugs worth naming, two of them in the engine:
+
+- **A component index moved its key.** `node.meta[key] = value` took `key` by
+  value, so a second use of the same local read a moved slot. Now borrowed —
+  `crates/balaur_script_rune/src/value/component.rs`.
+- **Node meta holds no nested table.** A list or a table stored as a static
+  goes through JSON text behind a mark, which the shim hides.
+- **A statement may not open with a bracket.** A block followed by `(` is a
+  call in Rune, so a generated statement starting with `(gd.…)` was calling
+  the block above it. Every such statement is now bound with `let _ =`.
+- **A required module's function is a field.** `m.f(x)` is not a call;
+  `(m.f)(x)` is.

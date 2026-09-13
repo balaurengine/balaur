@@ -105,8 +105,7 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "Callable" => format!("(gd.callable)({all})"),
         "preload" | "load" => format!("(gd.load)({all})"),
         "instance_from_id" => format!("(gd.instance_from_id)({one})"),
-        "get_tree" => TREE.into(),
-        "get_viewport" => TREE.into(),
+        "get_tree" | "get_viewport" => TREE.into(),
         "get_viewport_rect" => "(gd.viewport_rect)()".into(),
         "inverse_lerp" => format!("(gd.inverse_lerp)({all})"),
         "linear_to_db" => format!("(gd.linear_to_db)({one})"),
@@ -393,11 +392,8 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "get_meta" => format!("(gd.get)({receiver}.meta, {all})"),
         "set_meta" => format!("{receiver}.meta[{}] = {}", args.first()?, args.get(1)?),
         "has_meta" => format!("(gd.has)({receiver}.meta, {one})"),
-        // `ConfigFile`'s verbs. The shim checks the receiver and hands any
-        // other value back to its own method, since these names are not the
-        // config's alone.
-        // `load` and `save` are not the config's alone, which is why the shim
-        // dispatches rather than this table.
+        // `ConfigFile`'s verbs. These names are not the config's alone, so
+        // the shim checks the receiver and hands any other value to its own.
         "load" => with_receiver("config_load"),
         "save" => with_receiver("config_save"),
         "get_value" => with_receiver("config_get"),

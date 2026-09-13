@@ -342,6 +342,40 @@ impl<'a> Emitter<'a> {
         }
     }
 
+    /// `node.x += 1` on a Godot property: read through the getter, change the
+    /// value, write it back through the setter.
+    fn compound_write(
+        &mut self,
+        object: &str,
+        field: &str,
+        op: &str,
+        value: &Expr,
+        pad: &str,
+    ) -> Option<String> {
+        let text = self.expression(value);
+        let operator = op.trim_end_matches('=');
+        let plain = object.starts_with("(script::require(") || object == "this";
+        let getter = match map::property(object, field) {
+            Some(getter) => getter,
+            None if plain => return None,
+            None => {
+                self.uses_shim = true;
+                format!("(gd.field)({object}, {})", quoted(field))
+            }
+        };
+        let changed = format!("{getter} {operator} {text}");
+        if let Some(write) = map::setter(object, field, &changed) {
+            self.uses_shim |= write.contains(map::SHIM_MARK);
+            return Some(format!("{pad}{};\n", discardable(&write)));
+        }
+        if plain {
+            return None;
+        }
+        self.uses_shim = true;
+        let write = format!("(gd.set_field)({object}, {}, {changed})", quoted(field));
+        Some(format!("{pad}{};\n", discardable(&write)))
+    }
+
     /// The static variable an index or field chain is rooted at, if any.
     fn static_root(&self, value: &Expr) -> Option<String> {
         match value {
@@ -391,7 +425,12 @@ impl<'a> Emitter<'a> {
         if let Some(root) = self.static_root(target)
             && !matches!(target, Expr::Name(_))
         {
-            let fallback = self.context.static_vars.get(&root).cloned().unwrap_or_default();
+            let fallback = self
+                .context
+                .static_vars
+                .get(&root)
+                .cloned()
+                .unwrap_or_default();
             let key = quoted(&format!("{}:{root}", self.context.static_prefix));
             let name = self.temp();
             self.declare(&name);
@@ -457,29 +496,7 @@ impl<'a> Emitter<'a> {
             _ => return None,
         };
         if op != "=" {
-            // A compound write reads through the getter first.
-            let text = self.expression(value);
-            let operator = op.trim_end_matches('=');
-            let plain = object.starts_with("(script::require(") || object == "this";
-            let getter = match map::property(&object, &field) {
-                Some(getter) => getter,
-                None if plain => return None,
-                None => {
-                    self.uses_shim = true;
-                    format!("(gd.field)({object}, {})", quoted(&field))
-                }
-            };
-            let changed = format!("{getter} {operator} {text}");
-            if let Some(write) = map::setter(&object, &field, &changed) {
-                self.uses_shim |= write.contains(map::SHIM_MARK);
-                return Some(format!("{pad}{};\n", discardable(&write)));
-            }
-            if plain {
-                return None;
-            }
-            self.uses_shim = true;
-            let write = format!("(gd.set_field)({object}, {}, {changed})", quoted(&field));
-            return Some(format!("{pad}{};\n", discardable(&write)));
+            return self.compound_write(&object, &field, op, value, pad);
         }
         let text = self.expression(value);
         if let Some(write) = map::setter(&object, &field, &text) {
