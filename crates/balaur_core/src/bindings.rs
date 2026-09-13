@@ -332,7 +332,7 @@ pub(crate) fn register_bindings_component(app: &mut App) {
     app.register_component(
         "bindings",
         ComponentDef {
-            doc: "What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.",
+            doc: "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
             // Written `[[nodes.bindings.rows]]` in a scene: a table with one
             // property, like every other component.
             schema: ComponentDef::parse_schema(

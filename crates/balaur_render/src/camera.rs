@@ -314,7 +314,7 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera",
         ComponentDef {
-            doc: "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
+            doc: "The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera",
                 &balaur_core::components::ComponentDef::schema(&[

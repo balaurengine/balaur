@@ -289,7 +289,7 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape3d",
         ComponentDef {
-            doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
+            doc: "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
             schema: ComponentDef::parse_schema(
                 "shape3d",
                 &balaur_core::components::ComponentDef::schema(&[
@@ -398,7 +398,7 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape2d",
         ComponentDef {
-            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.",
+            doc: "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 &balaur_core::components::ComponentDef::schema(&[

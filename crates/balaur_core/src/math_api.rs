@@ -141,10 +141,7 @@ pub const MATH_OPS: &[EngineOp] = &[
 /// Declare the module's functions and its constants.
 pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Deterministic float maths, backed by pure-Rust `libm`: the same \
-         inputs give the same bits on every platform. A script uses these \
-         rather than the language's own float methods, which reach for the \
-         platform's libm and drift between machines.",
+        "Deterministic float maths backed by pure-Rust `libm`: the same inputs give the same bits on every platform.",
     );
     m.describe(&[
         ("sin", &[], "(angle: float)", "The sine of an angle in radians."),

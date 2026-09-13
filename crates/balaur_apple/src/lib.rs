@@ -528,12 +528,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Apple platform services that `platform.*` does not cover. \
-         `identity` fetches what a server needs to verify a Game Center \
-         player (url, signature, salt and timestamp) and answers on a later \
-         tick as a map carrying `kind`, both to the node's `on_apple` method \
-         and to whoever awaits the id. Achievements, leaderboards, sign-in \
-         and cloud saves are `platform.*`, which speaks Game Center here.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a `kind` map, to the node's `on_apple` or the awaited id.",
     );
     m.describe(&[
         (

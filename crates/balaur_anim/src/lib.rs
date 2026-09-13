@@ -109,33 +109,26 @@ impl Default for AnimationPlugin {
 }
 
 /// What a definition table holds, for the generated reference.
-const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `length` is in seconds and may be
-left out to end at the last key; `loop` is `none` (hold the last key),
-`loop` or `pingpong`. Each track names a `target` node path relative to the
-playing node (empty means that node), a `property` (`position`,
-`rotation_euler`, `rotation`, `scale`, `visible`, `tint` or
-`<component>/<property>`), an `interp` (`step`, `linear`, `cubic`) and its
-`keys`, each `{ t, value }` with an optional `ease`. `visible` is one channel
-and always stepped; `tint` is the `[r, g, b, a]` every descendant is
-multiplied by, which a renderable's own `color` is not. A component
-property's value may be a string or a bool, held from key to key. A track with no
-`property` is a method track whose keys call the node's script. A file holds
-one clip, or several under `[clips.<name>]`, addressed as `file.toml#name`.
+const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.
 
 ```toml
 type = "animation_clip"
 
-[clips.patrol]
-length = 4.0
-loop = "pingpong"
+[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol
+length = 4.0             # seconds; left out, the clip ends at its last key
+loop = "pingpong"        # none, loop or pingpong
 
 [[clips.patrol.tracks]]
-property = "position"
-interp = "linear"
+target = ""              # node path relative to the playing node; empty is that node
+property = "position"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>
+interp = "linear"        # step, linear or cubic
 keys = [
   { t = 0.0, value = [-2.5, 0.25, -2.0] },
   { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
+
+[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script
+keys = [{ t = 2.0, call = "on_halfway" }]
 ```"#;
 
 impl balaur_plugin::Plugin for AnimationPlugin {
@@ -190,9 +183,7 @@ fn register_animation_component(reg: &mut Registry<'_>) {
     reg.register_component(
         COMPONENT,
         ComponentDef {
-            doc: "Plays animation clips on a node: the library to play them from, one to start \
-                  when the scene loads, and the rate every clip on the node runs at. The \
-                  `animation` script module drives the playhead from there.",
+            doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.",
             schema: ComponentDef::parse_schema(
                 "animation",
                 &balaur_core::components::ComponentDef::schema(&[
@@ -223,9 +214,7 @@ fn register_machine_component(reg: &mut Registry<'_>) {
     reg.register_component(
         machine::COMPONENT,
         ComponentDef {
-            doc: "Runs a state machine over a player's clips: it enters its start state, \
-                  follows `auto` transitions as their conditions come on, and fades between \
-                  clips as each transition says. `animation.travel` heads for a state.",
+            doc: "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
             schema: ComponentDef::parse_schema(
                 machine::COMPONENT,
                 &balaur_core::components::ComponentDef::schema(&[

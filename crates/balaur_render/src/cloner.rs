@@ -95,7 +95,7 @@ pub(crate) fn register_cloner_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "cloner",
         ComponentDef {
-            doc: "Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.",
+            doc: "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.",
             schema: ComponentDef::parse_schema(
                 "cloner",
                 &ComponentDef::schema(&[

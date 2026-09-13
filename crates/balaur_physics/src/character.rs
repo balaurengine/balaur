@@ -243,7 +243,7 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::CHARACTER_3D,
         ComponentDef {
-            doc: "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
+            doc: "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
             schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::COLLIDER_3D],

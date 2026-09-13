@@ -28,16 +28,7 @@ const fn scope_name(scope: Scope) -> &'static str {
 
 pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Every setting the engine, its plugins and this game declare, \
-         addressed by path: `physics/solver_iterations`, `netcode/faults`, \
-         `editor/appearance/theme`. The first segment is the category, the \
-         last is the key, and the path is also where the value is stored: \
-         `physics/solver_iterations` is `[physics] solver_iterations` in \
-         project.toml. A project setting ships with the game; an editor one \
-         stays on the machine that set it. Define your own with `define` and \
-         it appears in the settings screen beside the engine's. One key may \
-         hold an answer per platform: `[override.android.window] orientation` \
-         is what `window/orientation` reads on a phone.",
+        "Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.",
     );
     m.describe(&[
         ("all", &[], "()", "Every defined setting as `{ path, scope, spec }`, in definition order."),

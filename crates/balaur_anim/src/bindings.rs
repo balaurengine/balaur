@@ -19,9 +19,7 @@ use crate::tween::{self, TweenId};
 /// Declare `animation` into a binding group.
 pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Clip playback on a node's `animation` component: starting, holding, \
-         seeking, and tweens, short clips generated from a table of steps and \
-         addressed by the handle they hand back.",
+        "Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.",
     );
     install_transport_api(m);
     install_playhead_api(m);

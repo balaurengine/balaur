@@ -170,10 +170,7 @@ fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
 
 fn install_web_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The page a browser build runs in. Facts about it are read once per \
-         tick and recorded, so a replay answers as the browser did; a \
-         message from the parent frame reaches `on_web_message` on every \
-         node that called `listen`. Off the web every query answers nil.",
+        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_message` on every node that called `listen`.",
     );
     m.describe(&[
         ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_message(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),

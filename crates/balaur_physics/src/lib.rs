@@ -188,9 +188,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         }
         let mut m = reg.script_module("physics3d")?;
         m.module_doc(
-            "The 3D rigid-body world: bodies and colliders on nodes, their \
-             velocities, and overlap queries. `physics` holds what spans both \
-             worlds.",
+            "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
         );
         install_constants(&mut *m, CONSTANTS_3D);
         body::install_body_api(&mut *m);
@@ -545,8 +543,7 @@ fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
 /// Pause, sleeping and gravity.
 fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "What spans both physics worlds at once: pausing, sleeping and \
-         clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
+        "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
     );
     m.describe(&[
         ("set_paused", &[], "", "Stop or resume stepping both worlds; nodes keep their poses."),

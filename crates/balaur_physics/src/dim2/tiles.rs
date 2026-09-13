@@ -34,7 +34,7 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::TILE_COLLISION,
         ComponentDef {
-            doc: "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
+            doc: "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
             schema: ComponentDef::parse_schema(c::TILE_COLLISION, &schema),
             tags: &[
                 balaur_core::components::tag::DIM_2D,

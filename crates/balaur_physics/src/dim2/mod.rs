@@ -414,9 +414,7 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
 /// overlap queries.
 fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The 2D rigid-body world: bodies and colliders on nodes, their \
-         velocities, and overlap queries. `physics` holds what spans both \
-         worlds.",
+        "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
     m.describe(&[
         ("set_gravity", &[], "", "Set the 2D world's gravity, in units per second squared."),

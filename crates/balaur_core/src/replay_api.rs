@@ -108,11 +108,7 @@ pub const REPLAY_OPS: &[EngineOp] = &[
 /// with.
 pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Record what a running game is fed and play it back. A recording \
-         holds each tick's input, network arrivals and events, not the world \
-         they produced, so a session is small and replays by re-running the \
-         game against the same input. The editor's Session dock drives these, \
-         and so does `balaur run --record`.",
+        "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
     );
     m.describe(&[
         ("record", &[], "(path: string, options: any?)", "Start recording into a file; call it before the code whose session it records runs."),

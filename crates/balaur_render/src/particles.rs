@@ -64,7 +64,7 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "particles",
         ComponentDef {
-            doc: "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
+            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 "particles",
                 &balaur_core::components::ComponentDef::schema(&[

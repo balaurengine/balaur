@@ -1014,9 +1014,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(CameraInputConfig { enabled: true });
         let mut m = reg.script_module("render")?;
         m.module_doc(
-            "What a frame is made of: the shape, sprite, mesh or emitter a \
-             node draws, the 2D and 3D cameras, the OS window, and the \
-             backdrop and debug lines drawn around the scene.",
+            "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the window, backdrop and debug lines.",
         );
         for (name, value) in shape::CONSTANTS {
             m.constant(name, balaur_script::Value::Str((*value).to_string()));

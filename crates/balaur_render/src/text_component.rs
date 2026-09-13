@@ -238,7 +238,7 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "text2d",
         ComponentDef {
-            doc: "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
+            doc: "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "text2d",
                 &balaur_core::components::ComponentDef::schema(&lines),
@@ -273,7 +273,7 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "text3d",
         ComponentDef {
-            doc: "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
+            doc: "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
             schema: ComponentDef::parse_schema(
                 "text3d",
                 &balaur_core::components::ComponentDef::schema(&lines),

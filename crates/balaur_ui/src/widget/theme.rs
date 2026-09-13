@@ -381,14 +381,38 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
 }
 
 /// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str = "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, \
-     `radius`, `padding`, `gap`, `size`, `color`, `icon_color`, `font` and `strong` under a table named for the kind \
-     (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch \
-     `slice = [left, top, right, bottom]` in its own pixels. `[colors]` names the fills the rest \
-     of the file spells, `[roles.<name>]` is the same table a widget takes with `role`, and a \
-     `[<kind>.hover]` or `[<kind>.active]` sub-table says how it looks under the pointer. A kind \
-     the file leaves out keeps the built-in look. A widget takes the theme of the nearest \
-     ancestor that names one, so a screen is themed by its root.";
+pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.
+
+```toml
+type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
+
+[colors]                         # named fills the rest of the file may use
+ink = "#1b1b1b"
+sky = "#3aa0ff"
+
+[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
+fill = "sky"
+stroke = "ink"
+stroke_width = 1.0
+radius = 6.0
+padding = 8.0
+gap = 4.0
+size = 14.0
+color = "ink"                    # text colour
+icon_color = "ink"
+font = "ui"
+strong = true
+
+[button.hover]                   # the look under the pointer; [button.active] while pressed
+fill = "#5cb4ff"
+
+[panel]
+image = "art/panel.png"          # a nine-patch, sliced in its own pixels
+slice = [8, 8, 8, 8]             # left, top, right, bottom
+
+[roles.danger]                   # what a widget with role = "danger" takes
+fill = "#d33a3a"
+```"##;
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";
 

@@ -25,7 +25,7 @@ pub(crate) fn register_meta_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
-            doc: "Values filed on the node by name, for whoever holds the node rather than for its own script: Godot's `set_meta`. The one component with no fixed properties, so every key is the author's.",
+            doc: "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
             schema: ComponentDef::parse_schema(COMPONENT, ""),
             tags: &["interaction"],
             expects: &[],

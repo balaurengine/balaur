@@ -124,7 +124,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light3d",
         ComponentDef {
-            doc: "A 3D light: the node's position places it and its rotation aims it. A scene with no `light3d` keeps the engine's own key light, so nothing draws dark until a scene starts placing its own; the first one added retires it. Turn one off with the node's `visible`, not by deleting it.",
+            doc: "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
             schema: ComponentDef::parse_schema("light3d", &light_schema()),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
@@ -400,7 +400,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "environment",
         ComponentDef {
-            doc: "The scene's atmosphere: the sky it sits under and is lit by, the ambient light, fog, exposure, tonemap, colour grading and the shadow budget. The last `current` one in tree order wins, so a level can carry two and switch between them. Per-view effects stay on `camera.post`.",
+            doc: "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
             schema: ComponentDef::parse_schema("environment", &environment_schema()),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],

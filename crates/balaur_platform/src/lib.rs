@@ -590,14 +590,7 @@ fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> R
 /// with a store, without one, and inside a replay.
 fn install_platform_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, \
-         leaderboards and cloud saves. A call returns an id and answers on a \
-         later tick, as a map carrying `kind`: `signed_in`, `done`, \
-         `scores`, `read`, `failed` or `unsupported`: both to the node's \
-         `on_platform` method and to whoever awaits the id. With no store \
-         loaded every call answers `unsupported`, so a script written against \
-         this runs anywhere. What only one platform has lives in that \
-         platform's own module.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported`.",
     );
     m.describe(&[
         (

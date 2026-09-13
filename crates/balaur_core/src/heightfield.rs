@@ -40,8 +40,7 @@ impl HeightfieldData {
 }
 
 /// What a definition table holds, for the generated reference.
-const HEIGHTFIELD_ASSET_DOC: &str = r#"A grid of heights for terrain: `rows` by `columns` samples in `heights`,
-row-major, one value per grid point. The count has to match the grid.
+const HEIGHTFIELD_ASSET_DOC: &str = r#"A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
 
 ```toml
 [[assets]]

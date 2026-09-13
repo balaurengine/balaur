@@ -232,7 +232,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light2d",
         ComponentDef {
-            doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it (sprites, polygons, tiles, a 3D scene behind them) is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
+            doc: "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -303,7 +303,7 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "occluder2d",
         ComponentDef {
-            doc: "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
+            doc: "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
             schema: ComponentDef::parse_schema("occluder2d", &occluder_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],

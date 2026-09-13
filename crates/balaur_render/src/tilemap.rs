@@ -16,40 +16,29 @@ pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
 
 /// What a definition table holds, for the generated reference.
-const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for the `tilemap` component: `texture` names
-the image, `tile_size` is one tile in pixels — a number, or `[w, h]` for a
-sheet whose tiles are not square — and `columns` is how many tiles one row of
-the image holds. `spacing` is the gutter between tiles and `margin` the border
-around the sheet, both zero by default. Tile indices count row by row from the
-top left.
-
-A `[tiles.<id>]` table says what one tile is. `collision` is `"full"` for a
-solid cell, or a list of polygons in tile pixels with y down from the tile's
-top-left corner; `one_way` makes a platform a body passes through from below.
-A tile with no table of its own is the plain quad it always was.
-
-A `[[terrains]]` entry paints by value and lets the sheet pick the tiles.
-`mode` is `"rules"`, `"sides"`, `"corners"`, `"corners_and_sides"` or
-`"quarters"`, and `first_tile` is where the block starts. `"quarters"` draws a
-cell as four quarter quads, each chosen by the two cells beside that corner
-and the one across it, from five tiles -- fill, horizontal edge, vertical
-edge, outer corner, inner corner. That is how a five-tile sheet covers all 47
-neighbourhoods; a sheet that keeps the five somewhere else names them with
-`quarters = [...]`.
+const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.
 
 ```toml
-[[assets]]
-id = "dungeon"
 type = "tileset"
 texture = "art/dungeon.png"
-tile_size = 16
+tile_size = 16                   # or [w, h]
 columns = 8
+spacing = 0                      # gutter between tiles
+margin = 0                       # border around the sheet
 
-[tiles.3]
+[tiles.3]                        # tile ids count row by row from the top left
 collision = "full"
 
 [tiles.7]
-collision = [[[0, 16], [16, 16], [16, 8]]]
+collision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down
+one_way = true                   # a platform a body passes through from below
+
+[[terrains]]                     # paints by value and picks the tiles
+name = "grass"
+value = 1
+mode = "quarters"                # rules, sides, corners, corners_and_sides or quarters
+first_tile = 16
+# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile
 ```"#;
 
 /// The `tileset` asset type: files live in `tilesets/`.
@@ -587,7 +576,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "tilemap",
         ComponentDef {
-            doc: "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
+            doc: "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds one character per cell; `pixels_per_unit` is tile pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "tilemap",
                 &balaur_core::components::ComponentDef::schema(&[

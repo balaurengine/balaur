@@ -52,9 +52,7 @@ impl balaur_plugin::Plugin for ImportPlugin {
 
 fn install_import_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Bringing a file into the project being edited: a `.glb` or `.gltf` \
-         model, an `.aseprite` sprite, a `.tmx` or `.ldtk` level. The same \
-         importers `balaur import` runs.",
+        "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
     );
     m.describe(&[
         (

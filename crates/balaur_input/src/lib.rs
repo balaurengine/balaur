@@ -664,10 +664,7 @@ pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] =
 /// `input.*`. Declared against the neutral seam.
 fn install_input_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "One frame of input: the keyboard, mouse, touch screen and gamepads \
-         as they stand now, plus the edges: what went down or came up this \
-         frame. Nothing feeds it in a headless run, where every query answers \
-         neutrally rather than failing.",
+        "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
     );
     m.describe(&[
         ("is_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down."),

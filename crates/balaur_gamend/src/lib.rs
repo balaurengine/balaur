@@ -609,11 +609,7 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The Gamend backend: a session, its REST API, and a realtime socket \
-         carrying topics and server hooks. Every call returns an id to await, \
-         and each result also reaches the handler method of the node it was \
-         given (`on_gamend_event` unless `on_event` names another) as a map \
-         tagged with a `kind`.",
+        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
     );
     m.describe(&[
         ("configure", &[], "", "Point the plugin at a server's base url; every other call errors until this one runs."),
