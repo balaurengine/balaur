@@ -1,0 +1,190 @@
+// The session, the socket and the server's hooks, over the engine's nine
+// `gamend::` calls. A module holds no state, so the socket id is the
+// caller's and the row cache lives on the node's `meta`.
+
+const CORE = "addons/gamend/core.rn";
+const EVENTS = "addons/gamend/events.rn";
+
+/// Where the hook calls go. Godot's SDK called this `plugin`.
+const PLUGIN_KEY = "gamend:plugin";
+/// The rows `register_kv` asked for, as JSON on the node.
+const ROWS_KEY = "gamend:rows";
+const KEYS_KEY = "gamend:keys";
+
+/// Point the plugin at a server, and name the server plugin `rpc_call`
+/// reaches. Every other call errors until this one runs.
+pub fn configure(url, plugin) {
+    gamend::configure(url);
+    let root = scene::root();
+    if !(root is Tuple) {
+        root.meta[PLUGIN_KEY] = plugin;
+    }
+    return ();
+}
+
+/// The server plugin this game's hooks live in.
+pub fn plugin() {
+    let root = scene::root();
+    if root is Tuple {
+        return "";
+    }
+    let name = root.meta[PLUGIN_KEY];
+    if name is String {
+        return name;
+    }
+    return "";
+}
+
+/// Open a session from a device id. The reply reaches `node`'s handler as
+/// `kind = "login"`, and the returned id can be awaited instead.
+pub fn login_device(node, device_id) {
+    return gamend::login(node, #{ "device_id": device_id });
+}
+
+/// Open a session from an email and a password.
+pub fn login_email(node, email, password) {
+    return gamend::login(node, #{ "email": email, "password": password });
+}
+
+/// Open the realtime socket. The worker joins this session's own `user:<id>`
+/// topic before reporting `open`, so hooks work as soon as it does.
+pub fn connect(node) {
+    return gamend::connect(node);
+}
+
+pub fn close(socket) {
+    return gamend::close(socket);
+}
+
+/// Call a server hook and await the reply. The result is
+/// `#{ ok, data, error }` — the caller decides what to say about a failure,
+/// which is what the Godot client did.
+pub async fn rpc_call(socket, name, args) {
+    let core = script::require(CORE);
+    let reply = task::wait(gamend::call_hook(socket, plugin(), name, args)).await;
+    return unpack_hook(core, name, reply);
+}
+
+/// Fire a hook and do not wait. The push leaves in the frame it is made,
+/// which is the only transport that escapes a process about to stop
+/// ticking; the caller reconciles from a later payload.
+pub fn rpc_send(socket, name, args) {
+    return gamend::push(socket, "user", "hook", #{
+        "plugin": plugin(),
+        "fn": name,
+        "args": args,
+    });
+}
+
+/// A hook reply as `#{ ok, data, error }`.
+pub fn unpack_hook(core, name, reply) {
+    if reply is Tuple {
+        return #{ "ok": false, "data": (), "error": `gamend: ${name} sent no reply` };
+    }
+    let response = if reply is Object { reply["response"] } else { () };
+    if response is Object && response.contains_key("error") {
+        let message = format!("{}", response["error"]);
+        log::warn(`gamend: hook ${name}: ${message}`);
+        return #{ "ok": false, "data": (), "error": message };
+    }
+    let data = if response is Object { response["data"] } else { () };
+    return #{ "ok": true, "data": data, "error": "" };
+}
+
+/// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
+/// when it changes, which `absorb` files into the cache.
+pub fn register_kv(socket, key) {
+    return gamend::push(socket, "user", "kv:subscribe", #{ "key": key });
+}
+
+pub fn unregister_kv(socket, key) {
+    return gamend::push(socket, "user", "kv:unsubscribe", #{ "key": key });
+}
+
+/// File a decoded `kv_updated` or `kv_deleted` into the node's cache. Give
+/// it what `events.decode` returned and it takes the rows it knows.
+pub fn absorb(node, event) {
+    let events = script::require(EVENTS);
+    if !(event is Object) {
+        return false;
+    }
+    let kind = event["kind"];
+    if kind != (events.KV_UPDATED) && kind != (events.KV_DELETED) {
+        return false;
+    }
+    let key = format!("{}", event["key"]);
+    let rows = read_rows(node);
+    if kind == (events.KV_DELETED) {
+        rows.remove(key);
+    } else {
+        rows[key] = event["value"];
+    }
+    write_rows(node, rows);
+    return true;
+}
+
+/// The row this client last saw for a key, or nil.
+pub fn row(node, key) {
+    let rows = read_rows(node);
+    if rows.contains_key(key) {
+        return rows[key];
+    }
+    return ();
+}
+
+pub fn has_row(node, key) {
+    return !(row(node, key) is Tuple);
+}
+
+/// The cached row, or the server's, fetched once and kept.
+pub async fn fetch_cached(node, key) {
+    if has_row(node, key) {
+        return row(node, key);
+    }
+    let core = script::require(CORE);
+    let api = script::require("addons/gamend/api.rn");
+    let reply = task::wait((api.kv_get_kv)(node, key)).await;
+    if !(core.ok)(reply) {
+        log::warn((core.error_of)(reply));
+        return ();
+    }
+    let value = (core.body)(reply);
+    let rows = read_rows(node);
+    rows[key] = value;
+    write_rows(node, rows);
+    return value;
+}
+
+/// Forget one row, or all of them: what a sign-out does.
+pub fn clear_row(node, key) {
+    let rows = read_rows(node);
+    rows.remove(key);
+    write_rows(node, rows);
+    return ();
+}
+
+pub fn clear_rows(node) {
+    write_rows(node, #{});
+    return ();
+}
+
+fn read_rows(node) {
+    if node is Tuple {
+        return #{};
+    }
+    let stored = node.meta[ROWS_KEY];
+    if stored is String {
+        let parsed = json::parse(stored);
+        if parsed is Object {
+            return parsed;
+        }
+    }
+    return #{};
+}
+
+fn write_rows(node, rows) {
+    if !(node is Tuple) {
+        node.meta[ROWS_KEY] = json::encode(rows);
+    }
+    return ();
+}

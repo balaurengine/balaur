@@ -9,7 +9,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-use balaur_testkit::{e2e_enabled, run_until};
+use balaur_testkit::{e2e_enabled, run_until, run_until_with};
 use serde_json::{Value, json};
 
 /// A one-port Gamend stand-in: device login and a generic GET over HTTP,
@@ -72,7 +72,13 @@ fn serve_http(mut stream: TcpStream) {
                         "username": "tester", "display_name": ""}})
         .to_string()
     } else {
-        json!({"data": {"pong": true}}).to_string()
+        // The request line and body come back too, so a test can assert what
+        // a call put on the wire without a second server.
+        let line = head.lines().next().unwrap_or_default();
+        let (method, rest) = line.split_once(' ').unwrap_or(("", ""));
+        let path = rest.split_whitespace().next().unwrap_or_default();
+        let sent = String::from_utf8_lossy(&request[head_end..]).into_owned();
+        json!({"data": {"pong": true, "method": method, "path": path, "sent": sent}}).to_string()
     };
     let _ = stream.write_all(
         format!(
@@ -175,6 +181,70 @@ pub async fn on_gamend_event(this, e) {{
 "#
     );
     run_until(&source, &["gamend-hook ok hi"]);
+}
+
+/// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
+fn gamend_addon() -> Vec<(String, String)> {
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library/addons/gamend");
+    std::fs::read_dir(&root)
+        .unwrap_or_else(|e| panic!("no SDK addon at {}: {e}", root.display()))
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let name = path.file_name()?.to_str()?.to_string();
+            if path.extension().is_none_or(|e| e != "rn") {
+                return None;
+            }
+            let text = std::fs::read_to_string(&path).ok()?;
+            Some((format!("addons/gamend/{name}"), text))
+        })
+        .collect()
+}
+
+#[test]
+fn the_sdk_addon_puts_an_operation_on_the_wire() {
+    if !e2e_enabled() {
+        return;
+    }
+    let url = serve_gamend();
+    let files = gamend_addon();
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    // The stand-in echoes the request line and body, so this asserts the
+    // wire itself. One line at the end, because the harness reads a
+    // fifty-entry ring the HTTP client's traces would fill.
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    let api = script::require("addons/gamend/api.rn");
+    let events = script::require("addons/gamend/events.rn");
+    gamend::configure("{url}");
+    task::wait(gamend::login((), #{{ "device_id": "dev-sdk" }})).await;
+
+    let one = task::wait((api.lobbies_get_lobby)((), "lob-7")).await["body"]["data"];
+    let listed = task::wait((api.quests_my_quests)((), #{{ "page": 2 }})).await["body"]["data"];
+    let made = task::wait((api.lobbies_quick_join)((), #{{ "title": "duel" }})).await["body"]["data"];
+    let named = (events.decode)("lobby:7", "user_joined", #{{ "user_id": 3 }});
+
+    log::info(`sdk ${{one["method"]}} ${{one["path"]}}`
+        + ` | ${{listed["path"]}}`
+        + ` | ${{made["method"]}} ${{made["sent"]}}`
+        + ` | ${{named["kind"]}}`);
+}}
+"#
+    );
+    run_until_with(
+        &borrowed,
+        &source,
+        &[concat!(
+            "sdk GET /api/v1/lobbies/lob-7",
+            " | /api/v1/me/quests?page=2",
+            r#" | POST {"title":"duel"}"#,
+            " | lobby_member_joined",
+        )],
+    );
 }
 
 #[test]

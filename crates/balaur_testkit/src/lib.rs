@@ -37,11 +37,17 @@ static LOG: Mutex<()> = Mutex::new(());
 ///
 /// If the script logs an error, or if the deadline passes before every marker
 /// has been seen.
+pub fn run_until(source: &str, markers: &[&str]) {
+    run_until_with(&[], source, markers);
+}
+
+/// The same, with more files in the project: `(relative path, contents)`.
+/// An addon a script requires is what this is for.
 #[allow(
     clippy::disallowed_methods,
     reason = "a test's timeout, not simulation"
 )]
-pub fn run_until(source: &str, markers: &[&str]) {
+pub fn run_until_with(files: &[(&str, &str)], source: &str, markers: &[&str]) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -60,6 +66,13 @@ pub fn run_until(source: &str, markers: &[&str]) {
     .expect("could not write the project's main scene");
     std::fs::write(dir.path().join("scripts/s.rn"), source)
         .expect("could not write the script under test");
+    for (path, contents) in files {
+        let target = dir.path().join(path);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).expect("could not make a directory the test asked for");
+        }
+        std::fs::write(target, contents).expect("could not write a file the test asked for");
+    }
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();

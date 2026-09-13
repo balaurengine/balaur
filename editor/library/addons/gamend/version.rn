@@ -1,0 +1,2 @@
+// Stamped by CI. A local generation leaves it as it is.
+pub const GAMEND_VERSION = "dev";

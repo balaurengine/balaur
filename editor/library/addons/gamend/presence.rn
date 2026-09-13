@@ -1,0 +1,48 @@
+// Who else is here: the users this client has seen, kept so a name or an
+// avatar is drawn without asking the server again.
+
+const ROSTER_KEY = "gamend:users";
+
+/// Remember a user payload, as a `user_updated` or a member event carries it.
+pub fn cache(node, user) {
+    if node is Tuple || !(user is Object) {
+        return ();
+    }
+    let id = format!("{}", user["id"]);
+    let roster = all(node);
+    roster[id] = user;
+    node.meta[ROSTER_KEY] = json::encode(roster);
+    return ();
+}
+
+/// The user this client last saw under that id, or nil.
+pub fn user(node, id) {
+    let roster = all(node);
+    let key = format!("{}", id);
+    if roster.contains_key(key) {
+        return roster[key];
+    }
+    return ();
+}
+
+/// Everyone cached, by id.
+pub fn all(node) {
+    if node is Tuple {
+        return #{};
+    }
+    let stored = node.meta[ROSTER_KEY];
+    if stored is String {
+        let parsed = json::parse(stored);
+        if parsed is Object {
+            return parsed;
+        }
+    }
+    return #{};
+}
+
+pub fn forget(node) {
+    if !(node is Tuple) {
+        node.meta[ROSTER_KEY] = json::encode(#{});
+    }
+    return ();
+}

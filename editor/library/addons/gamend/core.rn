@@ -1,0 +1,104 @@
+// What every generated call needs: a query string, a required-field check,
+// and the way this SDK reports a call it refused to make.
+
+/// Whether a table carries a key with a value. A key set to nil is absent:
+/// the server would refuse it, and refusing here names the field instead.
+pub fn given(table, key) {
+    if !(table is Object) {
+        return false;
+    }
+    if !table.contains_key(key) {
+        return false;
+    }
+    return !(table[key] is Tuple);
+}
+
+/// A call this SDK would not send. It logs which field was missing and
+/// answers nil, which is what a caller sees instead of a request id.
+pub fn missing(call, field) {
+    log::error(`gamend: ${call} needs \`${field}\``);
+    return ();
+}
+
+/// `?a=1&b=2` for the keys an operation declares, in the order it declares
+/// them, skipping the ones the caller left out. Empty when none are given,
+/// so the path stays exactly as the document wrote it.
+pub fn query(options, allowed) {
+    if !(options is Object) {
+        return "";
+    }
+    let out = "";
+    for key in allowed {
+        if !given(options, key) {
+            continue;
+        }
+        let lead = if out == "" { "?" } else { "&" };
+        out += `${lead}${key}=${escape(text_of(options[key]))}`;
+    }
+    return out;
+}
+
+/// A query value as text. A bool is `true`/`false`, as the server reads it.
+pub fn text_of(value) {
+    if value is String {
+        return value;
+    }
+    return format!("{}", value);
+}
+
+/// Percent-encoding for what a query value may hold. The server's keys are
+/// ids, page numbers and search terms, so this covers the reserved set
+/// rather than every byte above 127.
+pub fn escape(text) {
+    let out = "";
+    for c in text.chars() {
+        let s = format!("{}", c);
+        if s == " " {
+            out += "%20";
+        } else if s == "&" {
+            out += "%26";
+        } else if s == "=" {
+            out += "%3D";
+        } else if s == "?" {
+            out += "%3F";
+        } else if s == "#" {
+            out += "%23";
+        } else if s == "+" {
+            out += "%2B";
+        } else if s == "/" {
+            out += "%2F";
+        } else {
+            out += s;
+        }
+    }
+    return out;
+}
+
+/// Whether a `rest` completion carried a 2xx status.
+pub fn ok(reply) {
+    if !(reply is Object) {
+        return false;
+    }
+    let status = reply["status"];
+    return status is i64 && status >= 200 && status < 300;
+}
+
+/// The decoded body of a reply, or nil.
+pub fn body(reply) {
+    if reply is Object {
+        return reply["body"];
+    }
+    return ();
+}
+
+/// What the server said went wrong, for a reply that is not 2xx.
+pub fn error_of(reply) {
+    let payload = body(reply);
+    if payload is Object && payload.contains_key("error") {
+        return format!("{}", payload["error"]);
+    }
+    if reply is Object {
+        return format!("gamend: HTTP {}", reply["status"]);
+    }
+    return "gamend: no reply";
+}

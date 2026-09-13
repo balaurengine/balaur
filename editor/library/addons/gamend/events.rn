@@ -1,0 +1,271 @@
+// Written by clients/generate_balaur.py from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! The realtime events, one constant each, and the decoder that names
+//! a raw socket message.
+//!
+//! OpenAPI does not describe the socket, so this comes from
+//! `clients/events.json`, which the Godot client's dispatch seeded. An
+//! event the table does not name still arrives, as `message`.
+
+
+pub const FRIEND_ADDED = "friend_added";
+
+pub const FRIEND_BLOCKED = "friend_blocked";
+
+pub const FRIEND_CHAT_MESSAGE = "friend_chat_message";
+
+pub const FRIEND_CHAT_MESSAGE_DELETED = "friend_chat_message_deleted";
+
+pub const FRIEND_CHAT_MESSAGE_UPDATED = "friend_chat_message_updated";
+
+pub const FRIEND_REJECTED = "friend_rejected";
+
+pub const FRIEND_REMOVED = "friend_removed";
+
+pub const FRIEND_REQUEST_CANCELLED = "friend_request_cancelled";
+
+pub const FRIEND_UNBLOCKED = "friend_unblocked";
+
+pub const FRIEND_UPDATED = "friend_updated";
+
+pub const GROUP_CHAT_MESSAGE = "group_chat_message";
+
+pub const GROUP_CHAT_MESSAGE_DELETED = "group_chat_message_deleted";
+
+pub const GROUP_CHAT_MESSAGE_UPDATED = "group_chat_message_updated";
+
+pub const GROUP_CREATED = "group_created";
+
+pub const GROUP_DELETED = "group_deleted";
+
+pub const GROUP_INVITE_ACCEPTED = "group_invite_accepted";
+
+pub const GROUP_INVITE_CANCELLED = "group_invite_cancelled";
+
+pub const GROUP_JOIN_REQUEST_APPROVED = "group_join_request_approved";
+
+pub const GROUP_JOIN_REQUEST_REJECTED = "group_join_request_rejected";
+
+pub const GROUP_LIST_UPDATED = "group_list_updated";
+
+pub const GROUP_MEMBER_DEMOTED = "group_member_demoted";
+
+pub const GROUP_MEMBER_JOINED = "group_member_joined";
+
+pub const GROUP_MEMBER_KICKED = "group_member_kicked";
+
+pub const GROUP_MEMBER_LEFT = "group_member_left";
+
+pub const GROUP_MEMBER_OFFLINE = "group_member_offline";
+
+pub const GROUP_MEMBER_ONLINE = "group_member_online";
+
+pub const GROUP_MEMBER_PROMOTED = "group_member_promoted";
+
+pub const GROUP_MEMBER_UPDATED = "group_member_updated";
+
+pub const GROUP_UPDATED = "group_updated";
+
+pub const INVENTORY_UPDATED = "inventory_updated";
+
+pub const KV_DELETED = "kv_deleted";
+
+pub const KV_UPDATED = "kv_updated";
+
+pub const LOBBY_CHAT_MESSAGE = "lobby_chat_message";
+
+pub const LOBBY_CHAT_MESSAGE_DELETED = "lobby_chat_message_deleted";
+
+pub const LOBBY_CHAT_MESSAGE_UPDATED = "lobby_chat_message_updated";
+
+pub const LOBBY_CREATED = "lobby_created";
+
+pub const LOBBY_DELETED = "lobby_deleted";
+
+pub const LOBBY_HOST_CHANGED = "lobby_host_changed";
+
+pub const LOBBY_LIST_UPDATED = "lobby_list_updated";
+
+pub const LOBBY_MEMBER_JOINED = "lobby_member_joined";
+
+pub const LOBBY_MEMBER_KICKED = "lobby_member_kicked";
+
+pub const LOBBY_MEMBER_LEFT = "lobby_member_left";
+
+pub const LOBBY_MEMBER_OFFLINE = "lobby_member_offline";
+
+pub const LOBBY_MEMBER_ONLINE = "lobby_member_online";
+
+pub const LOBBY_MEMBER_UPDATED = "lobby_member_updated";
+
+pub const LOBBY_MEMBERSHIP_CHANGED = "lobby_membership_changed";
+
+pub const LOBBY_STATE_CHANGED = "lobby_state_changed";
+
+pub const LOBBY_UPDATED = "lobby_updated";
+
+pub const NOTIFICATION_EMITTED = "notification_emitted";
+
+pub const PARTY_CHAT_MESSAGE = "party_chat_message";
+
+pub const PARTY_CHAT_MESSAGE_DELETED = "party_chat_message_deleted";
+
+pub const PARTY_CHAT_MESSAGE_UPDATED = "party_chat_message_updated";
+
+pub const PARTY_DISBANDED = "party_disbanded";
+
+pub const PARTY_INVITE_ACCEPTED = "party_invite_accepted";
+
+pub const PARTY_INVITE_CANCELLED = "party_invite_cancelled";
+
+pub const PARTY_INVITE_DECLINED = "party_invite_declined";
+
+pub const PARTY_MEMBER_JOINED = "party_member_joined";
+
+pub const PARTY_MEMBER_LEFT = "party_member_left";
+
+pub const PARTY_MEMBER_OFFLINE = "party_member_offline";
+
+pub const PARTY_MEMBER_ONLINE = "party_member_online";
+
+pub const PARTY_MEMBER_UPDATED = "party_member_updated";
+
+pub const PARTY_UPDATED = "party_updated";
+
+pub const QUEST_CLAIMED = "quest_claimed";
+
+pub const QUEST_COMPLETED = "quest_completed";
+
+pub const QUEST_PROGRESS = "quest_progress";
+
+pub const READY_CHECK_FAILED = "ready_check_failed";
+
+pub const READY_CHECK_PASSED = "ready_check_passed";
+
+pub const READY_CHECK_STARTED = "ready_check_started";
+
+pub const READY_CHECK_UPDATED = "ready_check_updated";
+
+pub const USER_UPDATED = "user_updated";
+
+pub const WALLET_UPDATED = "wallet_updated";
+
+/// Every row of the table: the channel a topic belongs to, the event the
+/// server sends, and what this client calls it.
+pub fn table() {
+    [
+    ["user", "updated", "user_updated"],
+    ["user", "notification_created", "notification_emitted"],
+    ["user", "wallet_updated", "wallet_updated"],
+    ["user", "inventory_updated", "inventory_updated"],
+    ["user", "kv_updated", "kv_updated"],
+    ["user", "kv_deleted", "kv_deleted"],
+    ["user", "friend_updated", "friend_updated"],
+    ["user", "outgoing_request", "friend_added"],
+    ["user", "incoming_request", "friend_added"],
+    ["user", "request_accepted", "friend_added"],
+    ["user", "friend_accepted", "friend_added"],
+    ["user", "friend_added", "friend_added"],
+    ["user", "request_cancelled", "friend_request_cancelled"],
+    ["user", "friend_removed", "friend_removed"],
+    ["user", "chat_message_created", "friend_chat_message"],
+    ["user", "chat_message_updated", "friend_chat_message_updated"],
+    ["user", "chat_message_deleted", "friend_chat_message_deleted"],
+    ["user", "group_invite_accepted", "group_invite_accepted"],
+    ["user", "group_invite_cancelled", "group_invite_cancelled"],
+    ["user", "group_join_request_approved", "group_join_request_approved"],
+    ["user", "group_join_request_rejected", "group_join_request_rejected"],
+    ["user", "party_invite_accepted", "party_invite_accepted"],
+    ["user", "party_invite_declined", "party_invite_declined"],
+    ["user", "party_invite_cancelled", "party_invite_cancelled"],
+    ["user", "friend_blocked", "friend_blocked"],
+    ["user", "friend_unblocked", "friend_unblocked"],
+    ["user", "friend_rejected", "friend_rejected"],
+    ["user", "quest_progress", "quest_progress"],
+    ["user", "quest_completed", "quest_completed"],
+    ["user", "quest_claimed", "quest_claimed"],
+    ["lobby", "updated", "lobby_updated"],
+    ["lobby", "state_changed", "lobby_state_changed"],
+    ["lobby", "user_joined", "lobby_member_joined"],
+    ["lobby", "user_left", "lobby_member_left"],
+    ["lobby", "user_kicked", "lobby_member_kicked"],
+    ["lobby", "user_online", "lobby_member_online"],
+    ["lobby", "user_offline", "lobby_member_offline"],
+    ["lobby", "user_updated", "lobby_member_updated"],
+    ["lobby", "host_changed", "lobby_host_changed"],
+    ["lobby", "chat_message_created", "lobby_chat_message"],
+    ["lobby", "chat_message_updated", "lobby_chat_message_updated"],
+    ["lobby", "chat_message_deleted", "lobby_chat_message_deleted"],
+    ["lobby", "ready_check_started", "ready_check_started"],
+    ["lobby", "ready_check_updated", "ready_check_updated"],
+    ["lobby", "ready_check_passed", "ready_check_passed"],
+    ["lobby", "ready_check_failed", "ready_check_failed"],
+    ["lobbies", "lobby_created", "lobby_created"],
+    ["lobbies", "lobby_updated", "lobby_list_updated"],
+    ["lobbies", "lobby_deleted", "lobby_deleted"],
+    ["lobbies", "lobby_membership_changed", "lobby_membership_changed"],
+    ["party", "updated", "party_updated"],
+    ["party", "member_joined", "party_member_joined"],
+    ["party", "member_left", "party_member_left"],
+    ["party", "member_online", "party_member_online"],
+    ["party", "member_offline", "party_member_offline"],
+    ["party", "member_updated", "party_member_updated"],
+    ["party", "disbanded", "party_disbanded"],
+    ["party", "chat_message_created", "party_chat_message"],
+    ["party", "chat_message_updated", "party_chat_message_updated"],
+    ["party", "chat_message_deleted", "party_chat_message_deleted"],
+    ["party", "ready_check_started", "ready_check_started"],
+    ["party", "ready_check_updated", "ready_check_updated"],
+    ["party", "ready_check_passed", "ready_check_passed"],
+    ["party", "ready_check_failed", "ready_check_failed"],
+    ["group", "updated", "group_updated"],
+    ["group", "member_joined", "group_member_joined"],
+    ["group", "member_left", "group_member_left"],
+    ["group", "member_kicked", "group_member_kicked"],
+    ["group", "member_promoted", "group_member_promoted"],
+    ["group", "member_demoted", "group_member_demoted"],
+    ["group", "member_online", "group_member_online"],
+    ["group", "member_offline", "group_member_offline"],
+    ["group", "member_updated", "group_member_updated"],
+    ["group", "join_request_approved", "group_join_request_approved"],
+    ["group", "join_request_rejected", "group_join_request_rejected"],
+    ["group", "chat_message_created", "group_chat_message"],
+    ["group", "chat_message_updated", "group_chat_message_updated"],
+    ["group", "chat_message_deleted", "group_chat_message_deleted"],
+    ["groups", "group_created", "group_created"],
+    ["groups", "group_updated", "group_list_updated"],
+    ["groups", "group_deleted", "group_deleted"],
+    ]
+}
+
+/// The channel a topic names: `lobby:12` is `lobby`, `lobbies` is itself.
+pub fn channel_of(topic) {
+    let parts = topic.split(":").collect::<Vec>();
+    parts[0]
+}
+
+/// A socket message as this client names it. The payload is carried
+/// through under `kind`; an event no row names comes back as `message`.
+pub fn decode(topic, event, payload) {
+    let channel = channel_of(topic);
+    let named = "message";
+    for row in table() {
+        if row[0] == channel && row[1] == event {
+            named = row[2];
+            break;
+        }
+    }
+    let out = #{};
+    if payload is Object {
+        for key in payload.keys() {
+            out[key] = payload[key];
+        }
+    }
+    out["kind"] = named;
+    out["topic"] = topic;
+    out["event"] = event;
+    out
+}

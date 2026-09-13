@@ -1,0 +1,107 @@
+// Signing in, and staying signed in. `gamend::login` knows a device id and
+// an email; every provider is an OAuth session the player finishes in a
+// browser and this polls until it resolves, then keeps in a `save::` slot.
+
+const CORE = "addons/gamend/core.rn";
+const API = "addons/gamend/api.rn";
+
+/// The save slot the session is kept in.
+pub const SLOT = "gamend";
+
+/// How long to wait for the player to finish at the provider, in seconds,
+/// and how often to ask whether they have.
+pub const SIGN_IN_TIMEOUT = 300.0;
+pub const POLL_SECONDS = 1.0;
+
+/// The providers this server offers, as `list_auth_providers` reports them.
+pub async fn providers(node) {
+    let core = script::require(CORE);
+    let api = script::require(API);
+    let reply = task::wait((api.authenticate_list_auth_providers)(node)).await;
+    if !(core.ok)(reply) {
+        log::warn((core.error_of)(reply));
+        return [];
+    }
+    let body = (core.body)(reply);
+    if body is Vec {
+        return body;
+    }
+    if body is Object && body.contains_key("data") {
+        return body["data"];
+    }
+    return [];
+}
+
+/// Sign in with a provider: open its page, then wait for the server to say
+/// the session resolved. Answers the session payload, or nil when the
+/// player gave up or the wait ran out.
+pub async fn sign_in(node, provider) {
+    let core = script::require(CORE);
+    let api = script::require(API);
+    let started = task::wait((api.authenticate_oauth_request)(node, #{
+        "provider": provider,
+    })).await;
+    if !(core.ok)(started) {
+        log::warn((core.error_of)(started));
+        return ();
+    }
+    let body = (core.body)(started);
+    if !(body is Object) {
+        return ();
+    }
+    let url = format!("{}", body["url"]);
+    let session = format!("{}", body["session_id"]);
+    engine::open_url(url);
+    let waited = 0.0;
+    while waited < SIGN_IN_TIMEOUT {
+        task::wait(POLL_SECONDS).await;
+        waited += POLL_SECONDS;
+        let reply = task::wait((api.authenticate_oauth_session_status)(node, session)).await;
+        if !(core.ok)(reply) {
+            continue;
+        }
+        let status = (core.body)(reply);
+        if !(status is Object) {
+            continue;
+        }
+        let state = format!("{}", status["status"]);
+        if state == "completed" {
+            keep(status);
+            return status;
+        }
+        if state == "failed" || state == "cancelled" {
+            log::warn(`gamend: ${provider} sign-in ${state}`);
+            return ();
+        }
+    }
+    log::warn(`gamend: ${provider} sign-in timed out`);
+    return ();
+}
+
+/// Keep a session for the next run. Not `save`: a function of that name
+/// would shadow the engine's `save::` module inside this one.
+pub fn keep(session) {
+    save::write(SLOT, session);
+    return ();
+}
+
+/// The session the last run kept, or nil.
+pub fn saved() {
+    let stored = save::read(SLOT);
+    if stored is Object {
+        return stored;
+    }
+    return ();
+}
+
+/// Sign out here: the saved session is dropped. The server's own logout is
+/// `authenticate_logout`, which a caller makes first when it is online.
+pub fn forget() {
+    save::remove(SLOT);
+    return ();
+}
+
+/// Whether this run has a session to restore.
+pub fn restorable() {
+    return !(saved() is Tuple);
+}

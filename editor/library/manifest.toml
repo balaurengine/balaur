@@ -142,3 +142,10 @@ name = "Platformer"
 file = "rigs/platformer.toml"
 needs = ["scripts/platformer_rig.rn"]
 note = "Left, right and jump in 2D, with a camera that trails the player."
+
+[[entries]]
+id = "gamend"
+kind = "addon"
+name = "Gamend"
+file = "addons/gamend"
+note = "The Gamend backend: every operation, the realtime events, sign-in and the hook calls."
