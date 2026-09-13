@@ -258,4 +258,6 @@ over.
    for the editor's benefit.
 6. **iOS.** Safari on a phone gives OPFS and WebGL2 and takes away most of
    the memory. A tablet is a plausible target for this editor and a phone is
-   not; worth saying which, before a layout tries to serve both.
+   not; worth saying which, before a layout tries to serve both. Settled
+   in [PLAN-responsive.md](PLAN-responsive.md): both are, by class, and
+   a phone is a narrow shell rather than a scaled one.
