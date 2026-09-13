@@ -1,8 +1,12 @@
-> **Status:** not started. Rewritten on 2026-09-13, the day it was first
-> written, after the decision that the generator lives in the Gamend
-> repository beside its Godot and JavaScript generators and emits a Rune
-> addon that is copied into balaur, rather than a Rust module generated
-> here. This is `docs/PLAN-gamend.md` step E1. Measured against Gamend's
+> **Status:** steps 1, 2 and 3 built on 2026-09-13, and step 4 begun.
+> `clients/generate_balaur.py` in the Gamend repository writes
+> `addons/gamend`: 243 operations, 71 realtime events, over the hand-written
+> client, auth and presence layer. Balaur carries the copy in
+> `editor/library/addons/gamend`, offers it from the Library dock, and a
+> test asserts the method, path and body a generated call puts on the wire.
+> The port takes it with `port/sync_gamend.sh` and its scenarios still pass.
+> What step 4 has left is the call shapes, which §3 now states. This is
+> `docs/PLAN-gamend.md` step E1. Measured against Gamend's
 > OpenAPI document (243 operations, 37 tags, at most two path parameters),
 > its realtime protobuf (31 messages), the hand-written Godot façade that
 > declares 84 realtime signals, and what `../polyglot-pirates-game` calls:
@@ -155,9 +159,15 @@ translates the Godot SDK again, and `port/sync_gamend.sh` copies the Rune
 addon in from the library. The translator then treats the SDK's classes as
 modules: a member declared `GamendApi`, `GamendClient` or `GamendAuth`
 resolves to `script::require("addons/gamend/<file>.rn")`, and a call on it
-to `(m.f)(this.node, ..)`. That one rule, plus the façade keeping the
-Godot names, is what makes `gamend_controller` translate rather than need
-a hand port — which is the adapter this plan was asked for.
+to `(m.f)(..)`.
+
+Keeping the Godot names carries the call *sites*, not the call *shapes*:
+the façade takes a request model or positional query parameters where this
+SDK takes a table, so a game meets the SDK through one module of its own
+that offers the old signatures over the new ones. For Polyglot Pirates
+that is about thirty functions against 181 call sites, which is the
+adapter this plan was asked for — much smaller than the SDK it replaces,
+and not nothing.
 
 **Determinism is unchanged.** Every SDK call is one of the nine, delivered
 once per tick and recorded. The SDK adds no thread, no timer and no state
@@ -182,27 +192,40 @@ Steps 1, 2 and 5 are Gamend-side and run in `../gamend`; 3 and 4 are here
 and in the port. Both repositories see the same addon, so the split is by
 where the file lives, not by who does it.
 
-- **1. The generator (Gamend).** `clients/generate_balaur.py`,
+- **1. The generator (Gamend) — built.** `clients/generate_balaur.py`,
   `clients/generate_balaur.sh`, `clients/events.json` seeded from the Godot
   façade, `clients/balaur_template/` with `README.md` and `version.rn`, the
   output in `balaur_addons/addons/gamend/`. Ends with: `api.rn` carries 243
   functions with their summaries as doc comments, `events.rn` carries 84
   constants and a decoder, and a scratch project holding only the addon
   passes `balaur check` under the nightly `balaur` Gamend's CI downloads.
-- **2. The written layer (Gamend).** `client.rn`, `auth.rn`, `presence.rn`
-  in `clients/balaur_template/`. Ends with: the same scratch project logs
-  in with a device id against `mix dev.start`, calls a hook through
-  `rpc_call`, subscribes a KV key and sees `kv_updated` decoded.
-- **3. The library copy (balaur).** `editor/library/addons/gamend/`, the
+- **2. The written layer (Gamend) — built.** `client.rn`, `auth.rn` and
+  `presence.rn` in `clients/balaur_template/`, joined by `core.rn`: the
+  query string, the required-field check and the reply helpers every
+  generated call needs. What is left is the live flow against
+  `mix dev.start`: a device login, a hook through `rpc_call`, a KV key
+  subscribed and its `kv_updated` decoded.
+- **3. The library copy (balaur) — built.** `editor/library/addons/gamend/`, the
   `addon` kind in `manifest.toml` and the dock, `balaur new --addon`,
   `scripts/sync_gamend.sh`. Ends with: a new project from any template plus
   the addon passes `balaur check`, and a test in `crates/balaur_gamend/tests`
   boots it against the in-process stand-in and calls
   `users_get_current_user`, `rpc_call` and one decoded event through the
   addon rather than through `rest`.
-- **4. The port.** `/addons/gamend/` in `ported.txt`, `port/sync_gamend.sh`,
-  and the translator rule that a member of an SDK class is a module. Ends
-  with: `gamend_controller` is removed from `ported.txt` and
+- **4. The port.** `/addons/gamend/` in `ported.txt` and
+  `port/sync_gamend.sh` are done: the SDK is copied in rather than
+  translated, and the scenarios still pass. What is left is the call
+  shapes. The names match — that was the point of §1's naming — but the
+  arguments do not: Godot's façade takes a request model
+  (`lobbies_quick_join(request)`) or positional query parameters
+  (`quests_my_quests("achievement", "", page, page_size)`), and this SDK
+  takes a table. The game has 181 such call sites over 24 files, using
+  about 30 distinct operations. Rewriting 181 sites is the wrong shape of
+  work; one module in the port that offers the Godot signatures over the
+  Rune SDK, about 30 small functions, is the right one. With it and a
+  translator rule that a member typed `GamendApi`, `GamendClient` or
+  `GamendAuth` is a `script::require`, the 181 sites translate unchanged.
+  Ends with: `gamend_controller` is removed from `ported.txt` and
   `login_offline` and `main_menu_ready` still pass; then
   `online_game_start` passes against a local `mix dev.start`.
 - **5. The release path (Gamend).** CI runs the generator, stamps
