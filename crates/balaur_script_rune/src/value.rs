@@ -80,7 +80,19 @@ pub(crate) fn install(
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
 
+    // An operation that drives a component is reached through that
+    // component's handle, as every other one is: `node.transform.translate`,
+    // not `node.translate`. The node keeps what belongs to no component --
+    // its name, its place in the tree, its script.
+    let component_driven: std::collections::HashSet<String> = crate::bindings::api_docs()
+        .into_iter()
+        .filter(|d| d.module == "node" && !d.acts_on.is_empty())
+        .map(|d| d.name)
+        .collect();
     for declared in balaur_core::node_api::NODE_OPS {
+        if component_driven.contains(declared.name) {
+            continue;
+        }
         let call = declared.call;
         let engine = engine.clone();
         let handle = crate::bindings::hold_node_fn(engine, call);

@@ -32,7 +32,7 @@ Built, and not built for this:
 | A patch verb on components, and prefab overrides addressing `<component>/<property>` | `node.patch_component`, prefabs |
 | Input actions with rebinding, gamepads, touch, scroll | `input` |
 | Persisted settings and save slots | `settings`, `save` |
-| HTTP, websockets, Gamend, `engine.open_url`, `scene.instantiate`, `scene.spawn`, `node.free`, `camera.current`, `sound`, `particles.emitting` | the respective modules |
+| HTTP, websockets, Gamend, `engine.open_url`, `scene.instantiate`, `node.add_child`, `node.free`, `camera.current`, `sound`, `particles.emitting` | the respective modules |
 | Character controllers in 2D and 3D | `character2d`, `character3d` |
 | `exports()` spec tables: typed, ranged, ordered | `docs/PLAN-scripting-nodes-ui-editor.md` §1.2 |
 | An Events view and a hooks sheet that list the hooks a file declares | `editor/scripts/center.rn`, `highlight.rn` |
@@ -110,10 +110,10 @@ page sets through `docs/PLAN-embed.md` and what a binding's condition reads.
 `when` is a comparison over the variables rather than a Rune expression: a
 condition is data in a scene file, so the editor reads it, shows it and diffs
 it, and anything a comparison cannot say is a script.
-`[[nodes.bindings]]` on any node:
+`[[nodes.bindings.rows]]` on any node:
 
 ```toml
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
 action = "state"
@@ -174,7 +174,7 @@ Spline's event and action lists, and where each lands.
 | Open link | `engine.open_url` (have) |
 | Reset scene | `scene.switch` to the same file, step 3 |
 | Switch camera | `camera.current` (have) |
-| Create, destroy object | `scene.spawn`, `scene.instantiate`, `node.free` (have) |
+| Create, destroy object | `node.add_child`, `scene.instantiate`, `node.free` (have) |
 | Scene transition | `scene.switch` with a fade, step 3 |
 | Particles control | `particles.emitting` (have) |
 | Set variable, variable control | step 3 |
@@ -191,7 +191,7 @@ Spline's event and action lists, and where each lands.
 2. **States.** *Built.* The `states` component, `node.go`, `node.state`,
    `on_state_changed`. A state is a table of component properties, patched.
 3. **Variables and bindings.** *Built.* `[variables]`, `scene.variable` and
-   `set_variable`, `on_variable_changed`, `[[nodes.bindings]]` with twelve
+   `set_variable`, `on_variable_changed`, `[[nodes.bindings.rows]]` with twelve
    actions and a runner registry per plugin, and `scene.switch`.
    `examples/hello` opens a door on the third click with no script in it.
 4. **The Events view authors rows.** *Built.* `editor/scripts/events.rn`.

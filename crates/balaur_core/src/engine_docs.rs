@@ -61,7 +61,7 @@ pub(crate) fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
 
 pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "The node tree: its root, lookup by path, spawning and instancing. \
+        "The node tree: its root, lookup by path, instancing. \
          Also the component and preset vocabulary an editor builds its \
          palette from.",
     );
@@ -71,14 +71,13 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("node_by_id", &[], "(id: string, under: node?)", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
         ("with_component", &[], "(component: string)", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
         ("tagged", &[], "(tag: string)", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
-        ("spawn", &[], "(name: string, parent: node?)", "Create one empty named node under the given parent, or under the root when none is given."),
         ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document (TOML text, not a path) under a parent; `{ scripts: false }` leaves scripts unattached."),
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
         ("component_expects", &[], "(name: string)", "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered."),
         ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
-        ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component."),
+        ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "()", "The names of every registered preset."),
         ("preset_info", &[], "(name: string)", "A preset's description, tags and the components it adds; nil for a name nothing registered."),
         ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
@@ -87,7 +86,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "()", "Every declared variable as `{ name, type, value, persist }`, in name order."),
         ("switch", &[], "(path: string, options: map?)", "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file."),
-        ("bindable_events", &[], "()", "Every event a `[[nodes.bindings]]` row may answer, in the order an editor offers them."),
+        ("bindable_events", &[], "()", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them."),
         ("binding_actions", &[], "()", "Every action a binding row may do, in the order an editor offers them."),
     ]);
 }
@@ -99,9 +98,9 @@ pub(crate) fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
          `bone2d` or `bone3d`; there is no skeleton component.",
     );
     m.describe(&[
-        ("apply_rest", &["bone2d", "bone3d"], "(node: node)", "Move every bone under the node back to its rest transform."),
-        ("overwrite_rest", &["bone2d", "bone3d"], "(node: node)", "Record every bone's current transform under the node as its new rest pose."),
-        ("bones", &["bone2d", "bone3d"], "(node: node)", "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
+        ("apply_rest", &[], "(node: node)", "Move every bone under the node back to its rest transform."),
+        ("overwrite_rest", &[], "(node: node)", "Record every bone's current transform under the node as its new rest pose."),
+        ("bones", &[], "(node: node)", "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
     ]);
 }
 

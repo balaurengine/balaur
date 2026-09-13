@@ -47,7 +47,7 @@ outer = 50
 id = "n_stand"
 name = "Stand"
 parent = "n_world"
-script = "scripts/turntable.rn"
+script = { source = "scripts/turntable.rn" }
 
 [nodes.transform]
 position = [0, 0, 0]

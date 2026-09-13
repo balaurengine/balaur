@@ -1,4 +1,4 @@
-//! `[[nodes.bindings]]`: an event, a condition, an action and a target.
+//! `[[nodes.bindings.rows]]`: an event, a condition, an action and a target.
 //!
 //! Every action here is a call a script could make, and "convert to script"
 //! in the editor writes exactly that call. This is not a second runtime: it is
@@ -283,7 +283,7 @@ fn value_of(row: &toml::Value) -> Value {
     }
 }
 
-/// Read one `[[nodes.bindings]]` row.
+/// Read one `[[nodes.bindings.rows]]` row.
 ///
 /// # Errors
 /// If the row names no event, or an action nothing knows.
@@ -333,29 +333,22 @@ pub(crate) fn register_bindings_component(app: &mut App) {
         "bindings",
         ComponentDef {
             doc: "What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.",
-            // One shorthand property, so `[[nodes.bindings]]` -- which is an
-            // array where every other component is a table -- reaches `apply`
-            // as the rows the author wrote rather than as an empty table.
+            // Written `[[nodes.bindings.rows]]` in a scene: a table with one
+            // property, like every other component.
             schema: ComponentDef::parse_schema(
                 "bindings",
-                r#"rows = { type = "strings", default = [], shorthand = true, description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
+                r#"rows = { type = "strings", default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
             ),
             tags: &["interaction"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let written = params.get("rows").unwrap_or(params);
-                let rows = match written {
-                    toml::Value::Array(rows) => rows
+                let rows = match params.get("rows") {
+                    Some(toml::Value::Array(rows)) => rows
                         .iter()
                         .map(parse_binding)
                         .collect::<Result<Vec<_>>>()?,
-                    // One row on its own, which is what a script setting the
-                    // component with a single table means.
-                    toml::Value::Table(row) if row.contains_key("event") => {
-                        vec![parse_binding(written)?]
-                    }
-                    toml::Value::Table(_) => Vec::new(),
-                    _ => bail!("`bindings` is a list of rows"),
+                    None => Vec::new(),
+                    Some(_) => bail!("`bindings.rows` is a list of rows"),
                 };
                 let mut world = eng.world_mut();
                 if let Ok(mut held) = world.get::<&mut Bindings>(entity) {
@@ -373,9 +366,7 @@ pub(crate) fn register_bindings_component(app: &mut App) {
             get: Box::new(|eng, entity| {
                 let world = eng.world();
                 let held = world.get::<&Bindings>(entity).ok()?;
-                // Under `rows`, the one property the schema declares: every
-                // component reads back as a table, and the shorthand is what
-                // takes a hand-written `[[nodes.bindings]]` array.
+                // Under `rows`, the one property the schema declares.
                 let mut map = toml::map::Map::new();
                 map.insert(
                     "rows".into(),

@@ -4,17 +4,14 @@
 //! Split out of `lib.rs`, which keeps the plugin, its components and its
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use balaur_core::Engine;
-use balaur_core::entity_of;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::shape::words;
 use crate::{
     AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
-    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, Flat, GridConfig,
-    Renderable, Renderable2d, ScreenshotRequest, Shape2d, SpriteSheet2d, SpriteTexture,
-    ViewportSnapshot, ViewportSnapshot2d, WindowConfig, set_color, set_shape2d, set_sprite,
+    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, GridConfig,
+    ScreenshotRequest, ViewportSnapshot, ViewportSnapshot2d, WindowConfig,
 };
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
@@ -287,6 +284,68 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
     clippy::too_many_lines,
     reason = "one registration per call, and they belong beside the lines"
 )]
+/// The rgb an immediate 3D shape draws in; white when the call named none.
+fn line_rgb(color: Option<&Value>) -> anyhow::Result<[f32; 3]> {
+    let Some(value) = color else {
+        return Ok([1.0, 1.0, 1.0]);
+    };
+    let [r, g, b, _] = crate::draw_2d::color_of(value)?;
+    Ok([r, g, b])
+}
+
+/// Segments into the frame's debug lines, one pixel wide and not on top, so
+/// an immediate shape sits in the scene as a mesh would.
+fn push_segments(eng: &Engine, segments: &[([f32; 3], [f32; 3])], rgb: [f32; 3]) {
+    let lines = eng.resource::<DebugLineBuffer>();
+    let mut lines = lines.borrow_mut();
+    for (from, to) in segments {
+        lines.lines.push((*from, *to, rgb, 1.0, false, false));
+    }
+}
+
+/// The twelve edges of an axis-aligned box.
+fn box_edges(center: [f32; 3], half: [f32; 3]) -> Vec<([f32; 3], [f32; 3])> {
+    let corner = |i: usize| {
+        let sign = |bit: usize| if i & (1 << bit) == 0 { -1.0 } else { 1.0 };
+        [
+            center[0] + sign(0) * half[0],
+            center[1] + sign(1) * half[1],
+            center[2] + sign(2) * half[2],
+        ]
+    };
+    let mut out = Vec::with_capacity(12);
+    for i in 0..8u32 {
+        for bit in 0..3 {
+            let j = i ^ (1 << bit);
+            if j > i {
+                out.push((corner(i as usize), corner(j as usize)));
+            }
+        }
+    }
+    out
+}
+
+/// A ring of segments about one axis: 0 is the yz plane, 1 the xz, 2 the xy.
+fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f32; 3])>) {
+    const STEPS: usize = 24;
+    let point = |step: usize| {
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "a step index of at most 24 is exact in f32"
+        )]
+        let angle = std::f32::consts::TAU * step as f32 / STEPS as f32;
+        let (s, c) = angle.sin_cos();
+        match axis {
+            0 => [center[0], center[1] + c * radius, center[2] + s * radius],
+            1 => [center[0] + c * radius, center[1], center[2] + s * radius],
+            _ => [center[0] + c * radius, center[1] + s * radius, center[2]],
+        }
+    };
+    for step in 0..STEPS {
+        out.push((point(step), point(step + 1)));
+    }
+}
+
 pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
@@ -295,6 +354,9 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("draw_line", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
         ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels."),
         ("draw_lines", &[], "(flat)", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
+        ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: color)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
+        ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: color)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
+        ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
         ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes `size`, `weight`, `italic`, `color`, `align`, `markup`, `max_width` and `pixels_per_unit`."),
         ("draw_text", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
@@ -369,8 +431,13 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("draw_lines", push_lines);
-    // A block of text for one frame, in either pass. `pixels_per_unit` is
-    // the only key the shaper does not read, so it is taken out separately.
+    install_wireframe_api(m);
+    install_text_api(m);
+}
+
+/// The immediate text calls, split from [`install_backdrop_api`] under
+/// `MAX_FN_LINES`: a line in either pass, and what one measures.
+fn install_text_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "draw_text_2d",
         |eng: &Engine, (x, y, text, opts): (f32, f32, String, Option<Value>)| {
@@ -408,68 +475,63 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// The 3D immediate primitives, split from [`install_backdrop_api`] under
+/// `MAX_FN_LINES`: a box, a sphere and a capsule as wireframes, the shapes
+/// the 2D side fills.
+fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "draw_box",
+        |eng: &Engine,
+         (x, y, z, hx, hy, hz, color): (f32, f32, f32, f32, f32, f32, Option<Value>)| {
+            let rgb = line_rgb(color.as_ref())?;
+            push_segments(
+                eng,
+                &box_edges([x, y, z], [hx.abs(), hy.abs(), hz.abs()]),
+                rgb,
+            );
+            Ok(())
+        },
+    );
+    m.function(
+        "draw_sphere",
+        |eng: &Engine, (x, y, z, radius, color): (f32, f32, f32, f32, Option<Value>)| {
+            let rgb = line_rgb(color.as_ref())?;
+            let mut out = Vec::new();
+            for axis in 0..3 {
+                ring([x, y, z], radius.abs(), axis, &mut out);
+            }
+            push_segments(eng, &out, rgb);
+            Ok(())
+        },
+    );
+    m.function(
+        "draw_capsule",
+        |eng: &Engine,
+         (x, y, z, radius, height, color): (f32, f32, f32, f32, f32, Option<Value>)| {
+            let rgb = line_rgb(color.as_ref())?;
+            let (r, half) = (radius.abs(), height.abs() / 2.0);
+            let mut out = Vec::new();
+            ring([x, y + half, z], r, 1, &mut out);
+            ring([x, y - half, z], r, 1, &mut out);
+            for (dx, dz) in [(r, 0.0), (-r, 0.0), (0.0, r), (0.0, -r)] {
+                out.push(([x + dx, y - half, z + dz], [x + dx, y + half, z + dz]));
+            }
+            push_segments(eng, &out, rgb);
+            Ok(())
+        },
+    );
+    // A block of text for one frame, in either pass. `pixels_per_unit` is
+    // the only key the shaper does not read, so it is taken out separately.
+}
+
 /// Shape and colour on a node, 3D and 2D.
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
 pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_sprite", &["sprite"], "", "Draw the node as a quad textured with a project image, sized from it at 100 texture pixels per world unit."),
-        ("set_sprite_sheet", &["sprite"], "", "Draw the node as one cell of a columns-by-rows sheet, sizing the quad to a single frame, not the whole image."),
-    ]);
+    m.describe(&[]);
     // Sized from the image unless `set_sprite_size` says otherwise, so the
     // common case is one call and art keeps its authored proportions.
-    m.function(
-        "set_sprite",
-        |eng: &Engine, (node, path): (NodeId, String)| {
-            set_sprite(
-                eng,
-                entity_of(node)?,
-                SpriteTexture {
-                    offset: [0.0, 0.0],
-                    centered: true,
-                    shift: [0.0, 0.0],
-                    path,
-                    sheet: None,
-                    frame: 0,
-                    flip_x: false,
-                    flip_y: false,
-                    region: None,
-                    sheet_asset: String::new(),
-                    sheet_texture: false,
-                },
-                None,
-                DEFAULT_PIXELS_PER_UNIT,
-            )
-        },
-    );
     // One texture holding a `columns` x `rows` grid; the quad is sized to a
     // single frame, not to the whole sheet.
-    m.function(
-        "set_sprite_sheet",
-        |eng: &Engine, (node, path, columns, rows): (NodeId, String, u32, u32)| {
-            set_sprite(
-                eng,
-                entity_of(node)?,
-                SpriteTexture {
-                    offset: [0.0, 0.0],
-                    centered: true,
-                    shift: [0.0, 0.0],
-                    path,
-                    sheet: Some(SpriteSheet2d {
-                        columns: columns.max(1),
-                        rows: rows.max(1),
-                    }),
-                    frame: 0,
-                    flip_x: false,
-                    flip_y: false,
-                    region: None,
-                    sheet_asset: String::new(),
-                    sheet_texture: false,
-                },
-                None,
-                DEFAULT_PIXELS_PER_UNIT,
-            )
-        },
-    );
 }
 
 /// What `trace_texture` was asked for, with the defaults a Trace button uses.
@@ -581,123 +643,11 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
 }
 
 pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_sprite_frame", &["sprite"], "", "Show a sheet cell, numbered left to right then top to bottom; only the UVs move, so it is cheap per frame."),
-        ("set_sprite_size", &["sprite"], "", "Override the size the sprite took from its image, giving half-extents in world units instead."),
-        ("sprite", &["sprite"], "", "The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite."),
-        ("set_circle", &["shape2d"], "", "Draw the node as a circle of the given radius in world units, replacing any other 2D shape."),
-        ("set_color", &["sprite", "shape2d", "shape3d", "polygon", "particles"], "", "Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque."),
-        ("shape3d", &["shape3d"], "", "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape."),
-        ("shape2d", &["shape2d"], "", "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape."),
-    ]);
+    m.describe(&[]);
     // Frames are numbered left to right, top to bottom. Changing one only
     // moves UVs, so this is cheap enough to call every frame.
-    m.function(
-        "set_sprite_frame",
-        |eng: &Engine, (node, frame): (NodeId, u32)| {
-            let world = eng.world_mut();
-            let mut r = world
-                .get::<&mut Renderable2d>(entity_of(node)?)
-                .map_err(|_| anyhow!("node has no sprite"))?;
-            let Some(sprite) = r.sprite.as_mut() else {
-                return Err(anyhow!("node has no sprite"));
-            };
-            sprite.frame = frame;
-            Ok(())
-        },
-    );
     // Override the size read off the image, in half-extents like set_rect.
-    m.function(
-        "set_sprite_size",
-        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            let world = eng.world_mut();
-            let mut r = world
-                .get::<&mut Renderable2d>(entity_of(node)?)
-                .map_err(|_| anyhow!("node has no sprite"))?;
-            if r.sprite.is_none() {
-                return Err(anyhow!("node has no sprite"));
-            }
-            r.shape = Shape2d::Sprite {
-                hx: hx.max(f32::EPSILON),
-                hy: hy.max(f32::EPSILON),
-            };
-            r.sized = true;
-            r.version += 1;
-            Ok(())
-        },
-    );
     // Returns ("", 0, 0, 0) when the node has no sprite.
-    m.function("sprite", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = match world.get::<&Renderable2d>(entity_of(node)?) {
-            Ok(r) => r.sprite.as_ref().map_or_else(
-                || (String::new(), 0, 0, 0),
-                |s| {
-                    let (c, rows) = s.sheet.map_or((0, 0), |sh| (sh.columns, sh.rows));
-                    (s.path.clone(), c, rows, s.frame)
-                },
-            ),
-            Err(_) => (String::new(), 0, 0, 0),
-        };
-        Ok(result)
-    });
-    m.function(
-        "set_circle",
-        |eng: &Engine, (node, radius): (NodeId, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::circle(radius)))
-        },
-    );
-    m.function(
-        "set_color",
-        |eng: &Engine, (node, r, g, b, a): (NodeId, f32, f32, f32, Option<f32>)| {
-            set_color(eng, entity_of(node)?, [r, g, b, a.unwrap_or(1.0)])
-        },
-    );
-    install_shape_readers(m);
-}
-
-/// What a node's shape is, for a tool that has to show it: the 3D kind with
-/// its dimensions, the 2D kind with its half extents.
-fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
-    // Returns ("", 0, 0, 0) when the node has no shape.
-    m.function("shape3d", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = match world.get::<&Renderable>(entity_of(node)?) {
-            // The dimensions come back in the order they occupy space, so x
-            // and z always mean the same thing whatever the kind.
-            Ok(r) => match r.shape.solid() {
-                Some(solid) => {
-                    let [x, y, z] = solid.dimensions();
-                    (solid.kind().to_string(), x, y, z)
-                }
-                None => (
-                    balaur_core::mesh::MESH_ASSET_TYPE.to_string(),
-                    0.0,
-                    0.0,
-                    0.0,
-                ),
-            },
-            Err(_) => (String::new(), 0.0, 0.0, 0.0),
-        };
-        Ok(result)
-    });
-    // Returns ("", 0, 0) when the node has no 2D shape.
-    m.function("shape2d", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = match world.get::<&Renderable2d>(entity_of(node)?) {
-            Ok(r) => match r.shape {
-                Shape2d::Flat(flat) => {
-                    let [x, y] = flat.dimensions();
-                    (flat.kind().to_string(), x, y)
-                }
-                Shape2d::Polyline { width, .. } => (words::POLYLINE.to_string(), width, width),
-                Shape2d::Polygon => ("polygon".to_string(), 0.0, 0.0),
-                Shape2d::Sprite { hx, hy } => ("sprite".to_string(), hx, hy),
-            },
-            Err(_) => (String::new(), 0.0, 0.0),
-        };
-        Ok(result)
-    });
 }
 
 /// Eleven numbers a segment: both ends, an rgb, a width and an on-top flag.

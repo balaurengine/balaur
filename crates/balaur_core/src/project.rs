@@ -399,39 +399,31 @@ pub(crate) struct SceneNode {
     pub(crate) extra: HashMap<String, toml::Value>,
 }
 
-/// A node's `script`: a path, or a path with the properties this node sets.
+/// A node's `script`: `{ source, props }`, the path and the properties this
+/// node sets.
 ///
 /// `props` holds only what differs from the script's exported defaults, so a
 /// changed default reaches every node that did not override it.
 #[derive(Deserialize)]
-#[serde(untagged)]
-pub(crate) enum ScriptRef {
-    Source(String),
-    Tuned {
-        /// Absent in an override, which retunes the script the prefab already
-        /// gave the node rather than replacing it. A node's own `script` must
-        /// name one, and is told so if it does not.
-        #[serde(default)]
-        source: String,
-        #[serde(default)]
-        props: toml::Table,
-    },
+pub(crate) struct ScriptRef {
+    /// Absent in an override, which retunes the script the prefab already
+    /// gave the node rather than replacing it. A node's own `script` must
+    /// name one, and is told so if it does not.
+    #[serde(default)]
+    source: String,
+    #[serde(default)]
+    props: toml::Table,
 }
 
 impl ScriptRef {
     pub(crate) fn source(&self) -> &str {
-        match self {
-            Self::Source(path) | Self::Tuned { source: path, .. } => path,
-        }
+        &self.source
     }
 
     /// The node's overrides, as the host takes them. Order is the table's,
     /// which `toml` keeps sorted, so two runs write the same instance.
     fn props(&self) -> Result<Vec<(String, Value)>> {
-        let Self::Tuned { props, .. } = self else {
-            return Ok(Vec::new());
-        };
-        props
+        self.props
             .iter()
             .map(|(k, v)| Ok((k.clone(), crate::node_api::from_toml(v)?)))
             .collect()

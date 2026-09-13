@@ -7,8 +7,9 @@ use balaur::{App, AppConfig, FIXED_DT, standard_app};
 
 /// Both callbacks walk the node along an axis by the dt they were handed:
 /// x accumulates fixed time, z accumulates measured time.
-const SCRIPT: &str = "pub fn fixed_update(this, dt) { this.node.translate(dt, 0.0, 0.0); }
-pub fn update(this, dt) { this.node.translate(0.0, 0.0, dt); }
+const SCRIPT: &str =
+    "pub fn fixed_update(this, dt) { this.node.transform.translate(dt, 0.0, 0.0); }
+pub fn update(this, dt) { this.node.transform.translate(0.0, 0.0, dt); }
 ";
 
 fn project(dir: &std::path::Path) {
@@ -20,7 +21,7 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Walker\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Walker\"\nscript = { source = \"scripts/s.rn\" }\n",
     )
     .unwrap();
     std::fs::write(dir.join("scripts/s.rn"), SCRIPT).unwrap();

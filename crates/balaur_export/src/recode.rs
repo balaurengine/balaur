@@ -483,35 +483,40 @@ mod tests {
 
     /// The samples symphonia reads back, which is the decoder the runtime uses.
     fn decode_flac(bytes: &[u8]) -> Vec<i32> {
-        use symphonia::core::audio::{AudioBufferRef, Signal};
-        use symphonia::core::codecs::DecoderOptions;
-        use symphonia::core::formats::FormatOptions;
+        use symphonia::core::audio::{Audio, GenericAudioBufferRef};
+        use symphonia::core::codecs::CodecParameters;
+        use symphonia::core::codecs::audio::AudioDecoderOptions;
+        use symphonia::core::formats::probe::Hint;
+        use symphonia::core::formats::{FormatOptions, TrackType};
         use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
         use symphonia::core::meta::MetadataOptions;
-        use symphonia::core::probe::Hint;
 
         let source = std::io::Cursor::new(bytes.to_vec());
         let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
         hint.with_extension("flac");
-        let probed = symphonia::default::get_probe()
-            .format(
+        let mut format = symphonia::default::get_probe()
+            .probe(
                 &hint,
                 stream,
-                &FormatOptions::default(),
-                &MetadataOptions::default(),
+                FormatOptions::default(),
+                MetadataOptions::default(),
             )
             .unwrap();
-        let mut format = probed.format;
-        let track = format.default_track().unwrap();
+        let track = format.default_track(TrackType::Audio).unwrap();
+        let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else {
+            panic!("the default track carries no audio codec parameters");
+        };
         let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
+            .make_audio_decoder(&params, &AudioDecoderOptions::default())
             .unwrap();
 
         let mut samples = Vec::new();
-        while let Ok(packet) = format.next_packet() {
+        while let Ok(Some(packet)) = format.next_packet() {
             match decoder.decode(&packet).unwrap() {
-                AudioBufferRef::S32(buf) => samples.extend_from_slice(buf.chan(0)),
+                GenericAudioBufferRef::S32(buf) => {
+                    samples.extend_from_slice(buf.plane(0).unwrap());
+                }
                 other => panic!("unexpected sample format {:?}", other.spec()),
             }
         }
@@ -539,32 +544,35 @@ mod tests {
     /// How many frames symphonia reads back out of an Ogg Vorbis stream,
     /// which is the decoder the runtime uses.
     fn decode_ogg_frames(bytes: &[u8]) -> u64 {
-        use symphonia::core::codecs::DecoderOptions;
-        use symphonia::core::formats::FormatOptions;
+        use symphonia::core::codecs::CodecParameters;
+        use symphonia::core::codecs::audio::AudioDecoderOptions;
+        use symphonia::core::formats::probe::Hint;
+        use symphonia::core::formats::{FormatOptions, TrackType};
         use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
         use symphonia::core::meta::MetadataOptions;
-        use symphonia::core::probe::Hint;
 
         let source = std::io::Cursor::new(bytes.to_vec());
         let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
         hint.with_extension("ogg");
-        let probed = symphonia::default::get_probe()
-            .format(
+        let mut format = symphonia::default::get_probe()
+            .probe(
                 &hint,
                 stream,
-                &FormatOptions::default(),
-                &MetadataOptions::default(),
+                FormatOptions::default(),
+                MetadataOptions::default(),
             )
             .unwrap();
-        let mut format = probed.format;
-        let track = format.default_track().unwrap();
+        let track = format.default_track(TrackType::Audio).unwrap();
+        let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else {
+            panic!("the default track carries no audio codec parameters");
+        };
         let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
+            .make_audio_decoder(&params, &AudioDecoderOptions::default())
             .unwrap();
 
         let mut frames = 0;
-        while let Ok(packet) = format.next_packet() {
+        while let Ok(Some(packet)) = format.next_packet() {
             frames += decoder.decode(&packet).unwrap().frames() as u64;
         }
         frames

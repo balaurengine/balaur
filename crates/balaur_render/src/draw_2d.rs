@@ -35,6 +35,12 @@ pub enum Draw2d {
         width: f32,
         color: [f32; 4],
     },
+    /// A filled convex outline. A concave shape is triangulated by the
+    /// caller through `geometry2d` and filled a triangle at a time.
+    Polygon {
+        points: Vec<[f32; 2]>,
+        color: [f32; 4],
+    },
     /// A project image over a rect, tinted.
     Texture {
         path: String,
@@ -106,6 +112,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
         ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color)", "Fill a circle in world units for this frame, over everything the scene drew."),
         ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color)", "Fill a rectangle centred at a point, in world units, for this frame."),
         ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color)", "Stroke an arc between two angles in degrees, counter-clockwise from the x axis, for this frame; width is in pixels."),
+        ("draw_polygon_2d", &[], "(points: list, color: color)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first."),
         ("draw_polyline_2d", &[], "(points: list, width: float, color: color)", "Stroke a chain of world-space points for this frame; width is in pixels."),
         ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it."),
     ]);
@@ -163,20 +170,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    m.function(
-        "draw_polyline_2d",
-        |eng: &Engine, (points, width, color): (Value, Option<f32>, Option<Value>)| {
-            push(
-                eng,
-                Draw2d::Polyline {
-                    points: points_of(&points)?,
-                    width: width.unwrap_or(1.0),
-                    color: color_of(&color.unwrap_or(Value::Nil))?,
-                },
-            );
-            Ok(())
-        },
-    );
+    install_outline_api(m);
     m.function(
         "draw_texture_2d",
         |eng: &Engine, (path, x, y, w, h, color): (String, f32, f32, f32, f32, Option<Value>)| {
@@ -186,6 +180,39 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
                     path,
                     center: [x, y],
                     size: [w.max(0.0), h.max(0.0)],
+                    color: color_of(&color.unwrap_or(Value::Nil))?,
+                },
+            );
+            Ok(())
+        },
+    );
+}
+
+/// The outline half of the 2D immediate API, split from
+/// [`install_draw_2d_api`] under `MAX_FN_LINES`: a filled polygon and a
+/// stroked chain of points.
+fn install_outline_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "draw_polygon_2d",
+        |eng: &Engine, (points, color): (Value, Option<Value>)| {
+            push(
+                eng,
+                Draw2d::Polygon {
+                    points: points_of(&points)?,
+                    color: color_of(&color.unwrap_or(Value::Nil))?,
+                },
+            );
+            Ok(())
+        },
+    );
+    m.function(
+        "draw_polyline_2d",
+        |eng: &Engine, (points, width, color): (Value, Option<f32>, Option<Value>)| {
+            push(
+                eng,
+                Draw2d::Polyline {
+                    points: points_of(&points)?,
+                    width: width.unwrap_or(1.0),
                     color: color_of(&color.unwrap_or(Value::Nil))?,
                 },
             );
@@ -261,6 +288,20 @@ pub(crate) fn flush(
                 width,
                 color: [r, g, b, a],
             } => stroke(window, &points, width, Color::new(r, g, b, a)),
+            Draw2d::Polygon {
+                points,
+                color: [r, g, b, a],
+            } => {
+                if points.len() >= 3 {
+                    let outline = points
+                        .iter()
+                        .map(|p| glamx::Vec2::new(p[0], p[1]))
+                        .collect();
+                    let mut node = scene.add_convex_polygon(outline, glamx::Vec2::ONE);
+                    node.set_color(Color::new(r, g, b, a));
+                    transients.push(node);
+                }
+            }
         }
     }
 }

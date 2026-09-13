@@ -182,7 +182,7 @@ fn as_nodes(count: usize) -> (tempfile::TempDir, App) {
 /// The same `count` cells as one `draw` node, painted by a script: what the
 /// top bar and the status strip do.
 fn as_one_draw(count: usize) -> (tempfile::TempDir, App) {
-    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = \"scripts/s.rn\"\n\
+    let scene = "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nscript = { source = \"scripts/s.rn\" }\n\
          [nodes.widget]\nkind = \"row\"\nanchor = \"fill\"\ngap = 2\n\
          \n[[nodes]]\nid = \"hatch\"\nname = \"Hatch\"\nparent = \"screen\"\n\
          [nodes.widget]\nkind = \"draw\"\ndraw = \"cells\"\n";

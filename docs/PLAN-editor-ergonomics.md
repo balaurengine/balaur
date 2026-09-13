@@ -108,7 +108,7 @@ over `shaders/` and the library, `features` as toggles, and — once
 `layers.wesl` exists — a layer stack with add, remove and reorder as folds.
 
 **The Events view authors bindings.** `docs/PLAN-interactivity.md`'s
-`[[nodes.bindings]]` rows, one per line: an event dropdown from the hook
+`[[nodes.bindings.rows]]` rows, one per line: an event dropdown from the hook
 list, a target picked by clicking a node, an action dropdown, a value editor
 from the target's schema, a `when` field. "Convert to script" writes the file
 and opens it in the code pane.

@@ -40,13 +40,13 @@ id = "n_ball"
 name = "Ball"
 parent = "n_scene"
 
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "pointer_click"
 action = "add_variable"
 target = "score"
 value = 1
 
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
 action = "state"
@@ -258,7 +258,7 @@ parent = "n_scene"
 wait_time = 0.25
 autostart = true
 
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "emitted:timeout"
 action = "add_variable"
 target = "score"
@@ -281,7 +281,7 @@ length = 0.5
 property = "position"
 keys = [ { t = 0.0, value = [0, 0, 0] }, { t = 0.5, value = [0, 1, 0] } ]
 
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "emitted:animation_finished"
 action = "add_variable"
 target = "score"

@@ -147,12 +147,9 @@ fn parse_flags(value: Option<&toml::Value>) -> Result<Vec<Vec<u8>>> {
         .collect()
 }
 
-/// `cells` as a grid: the one-character-per-cell text, or a list of rows of
-/// tile ids where anything below zero is empty — the form that lifts the
-/// 36-tile cap.
+/// `cells` as a grid: rows of tile ids, where anything below zero is empty.
 fn parse_cells_value(cells: &toml::Value) -> Result<Vec<Vec<Option<u32>>>> {
     match cells {
-        toml::Value::String(text) => parse_cells(text),
         toml::Value::Array(rows) => rows
             .iter()
             .enumerate()
@@ -171,9 +168,13 @@ fn parse_cells_value(cells: &toml::Value) -> Result<Vec<Vec<Option<u32>>>> {
                     .collect()
             })
             .collect(),
-        other => Err(anyhow!(
-            "cells should be a string of tile characters or a list of rows, got {other}"
+        // The schema default: a map with no cells yet.
+        toml::Value::String(path) if path.is_empty() => Ok(Vec::new()),
+        toml::Value::String(path) => Err(anyhow!(
+            "cells is a list of rows of tile ids, or the name of a `.cells` file \
+             holding those rows; got the string {path:?}"
         )),
+        other => Err(anyhow!("cells should be a list of rows, got {other}")),
     }
 }
 
@@ -190,28 +191,6 @@ fn cells_value(grid: &[Vec<Option<u32>>]) -> toml::Value {
             })
             .collect(),
     )
-}
-
-/// `cells` text as a grid: one row per line, `.` empty, `0`-`9` then
-/// `a`-`z` indexing the tileset left-to-right, top-to-bottom.
-fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
-    cells
-        .lines()
-        .enumerate()
-        .map(|(row, line)| {
-            line.chars()
-                .enumerate()
-                .map(|(column, c)| match c {
-                    '.' => Ok(None),
-                    '0'..='9' => Ok(Some(u32::from(c) - u32::from('0'))),
-                    'a'..='z' => Ok(Some(10 + u32::from(c) - u32::from('a'))),
-                    other => Err(anyhow!(
-                        "cells row {row}, column {column}: '{other}' is not '.', 0-9 or a-z"
-                    )),
-                })
-                .collect()
-        })
-        .collect()
 }
 
 /// Resolve every painted cell through the tileset's rules.
@@ -613,7 +592,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 "tilemap",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
-                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles; or the name of a .cells file holding those rows, for a level too big to read in a scene" }"#),
+                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene" }"#),
                     (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }"#),
                     (k::ORIGIN, r#"{ type = "vec2", default = [0.0, 0.0], description = "The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node" }"#),
                     (k::FLAGS, r#"{ type = "string", default = "", description = "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal" }"#),

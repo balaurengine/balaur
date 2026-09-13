@@ -9,7 +9,7 @@ use balaur::input::{InputSnapshot, TouchPhase};
 use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
-    this.node.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
+    this.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
 }
 ";
 
@@ -21,7 +21,7 @@ name = "Game"
 id = "n"
 name = "Runner"
 parent = "root"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [0, 0, 0]
@@ -151,7 +151,7 @@ const VERBS: &str = "pub fn update(this, dt) {
     input::feed_action(\"reached\", 1.0);
 }
 pub fn fixed_update(this, dt) {
-    if input::action_pressed(\"jump\") { this.node.translate(dt, 0.0, 0.0); }
+    if input::action_pressed(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 
@@ -183,15 +183,16 @@ fn a_script_can_feed_a_finger_and_an_action() {
 /// A host running a project other than its own hands over that project's
 /// `[input]` table, and the settings in it take hold.
 #[test]
-fn a_script_can_declare_the_input_config() {
+fn a_host_can_declare_another_projects_input_config() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path());
-    let script = "pub fn init(this) {
-    input::declare_config(#{ emulate_mouse_from_touch: false });
-}
-";
-    std::fs::write(dir.path().join("scripts").join("s.rn"), script).unwrap();
     let mut app = booted(dir.path());
+    let hosted = toml::Value::Table(toml::Table::from_iter([(
+        "emulate_mouse_from_touch".to_string(),
+        toml::Value::Boolean(false),
+    )]));
+    balaur::input::actions::declare_manifest(&app.engine, &hosted)
+        .expect("a hosted project's input declares");
     app.tick(FIXED_DT);
     {
         let input = app.engine.resource::<InputSnapshot>();

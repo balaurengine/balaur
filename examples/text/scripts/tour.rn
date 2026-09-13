@@ -23,7 +23,7 @@ pub fn update(this, dt) {
     this.score += 1;
     let node = scene::get_node("Tour/Nameplate");
     if node is balaur::Node {
-        render::set_text(node, format!("a name\nfollows you · {}", this.score / 60));
+        node.text2d.text = format!("a name\nfollows you · {}", this.score / 60);
     }
 
     // The immediate calls need no node: a label for one frame, over the floor.

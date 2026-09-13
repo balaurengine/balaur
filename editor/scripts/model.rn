@@ -97,15 +97,10 @@ pub fn forget(S, rel) {
     }
 }
 
-// A node's `script` key is either the path or `{ source, props }`, so every
-// reader of it goes through here rather than assuming the string form.
+// A node's `script` key is `{ source, props }`; every reader goes through here.
 pub fn script_rel(node) {
     match node.get("script") {
-        Some(script) => if script is String {
-            Some(script)
-        } else {
-            util::obj(script).get("source")
-        },
+        Some(script) => util::obj(script).get("source"),
         None => None,
     }
 }
@@ -114,11 +109,7 @@ pub fn script_rel(node) {
 // property back at its default is absent, so a changed default reaches it.
 pub fn script_props(node) {
     match node.get("script") {
-        Some(script) => if script is String {
-            #{}
-        } else {
-            util::obj(util::obj(script).get("props").unwrap_or(#{}))
-        },
+        Some(script) => util::obj(util::obj(script).get("props").unwrap_or(#{})),
         None => #{},
     }
 }
@@ -154,7 +145,7 @@ pub fn set_script_prop(S, prop, value) {
     } else {
         props[prop] = stored;
     }
-    node.script = if props.is_empty() { rel } else { #{ source: rel, props: props } };
+    node.script = if props.is_empty() { #{ source: rel } } else { #{ source: rel, props: props } };
     record_override(S, node, "script");
 }
 
@@ -519,8 +510,8 @@ fn expand_one(S, out, owner, target, rel, id_prefix, at_prefix, depth) {
         row.owner = owner.id;
         row.at = at;
         // What the prefab says, so an edit that lands back on it stops being
-        // an override. Canonicalised first: `body3d = "dynamic"` and the whole
-        // table are the same component spelled two ways.
+        // an override. Canonicalised first: a partial table and the whole one
+        // are the same component spelled two ways.
         row.base = canonical(util::copy(row));
         // What the instance says about this node wins, property by property,
         // exactly as the engine patches it — over the canonical form, since
@@ -766,19 +757,6 @@ pub fn load(S) {
     // Same for the strings: the catalogue lives under the game's root, not
     // the editor's, and without this every `text_key` draws as its key.
     strings::set_root(root);
-    // The engine read the *editor's* actions from its own project.toml, so
-    // without this every action a played game asks for reads zero.
-    let input_some = manifest.get("input");
-    if let Some(table) = input_some {
-        if table is Object {
-            let actions = table.get("actions").unwrap_or(());
-            if actions is Object {
-                input::declare_actions(actions);
-            }
-            // The rest of `[input]`: the emulation switches and gesture thresholds.
-            input::declare_config(table);
-        }
-    }
     S.scene_path = root + "/" + application.main_scene;
     let doc = util::obj(toml::parse(must_read(S.scene_path)));
     // The whole document, not only its nodes: a scene's `[[assets]]` blocks
@@ -905,7 +883,7 @@ pub fn build_mirror(S) {
         S.mirror.queue_free();
     }
     physics::clear();
-    S.mirror = scene::spawn("Edited");
+    S.mirror = scene::root().add_child("Edited");
     debugger::set_scope(S.mirror);
     // The whole document, not the file: a mirror read from disk cannot hold an
     // unsaved edit, and one built without the scene's `[[assets]]` block
@@ -943,7 +921,7 @@ pub fn build_mirror(S) {
             let animation_some = node.get("animation");
             if let Some(animation) = animation_some {
                 if animation is Object {
-                    animation::pause(found);
+                    found.animation.pause();
                 }
             }
         }
@@ -1041,11 +1019,11 @@ const TRANSFORM_KEYS = ["position", "rotation_euler", "scale"];
 
 fn apply_transform(t, key, v) {
     if key == "position" {
-        t.set_position(v[0], v[1], v[2]);
+        t.transform.position = [v[0], v[1], v[2]];
     } else if key == "rotation_euler" {
-        t.set_rotation_euler(v[0], v[1], v[2]);
+        t.transform.rotation_euler = [v[0], v[1], v[2]];
     } else {
-        t.set_scale(v[0], v[1], v[2]);
+        t.transform.scale = [v[0], v[1], v[2]];
     }
 }
 
@@ -1310,9 +1288,9 @@ pub fn adopt(S, found, parent_i) {
                     Some(parent_i) => S.doc[parent_i].get("id").unwrap_or(""),
                     None => "",
                 },
-                position: util::xyz(found.position()),
-                rotation_euler: util::xyz(found.rotation_euler()),
-                scale: util::xyz(found.scale()),
+                position: util::xyz(found.transform.position),
+                rotation_euler: util::xyz(found.transform.rotation_euler),
+                scale: util::xyz(found.transform.scale),
             };
             for component in found.component_names() {
                 entry[component] = found.get_component(component);

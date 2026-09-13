@@ -25,8 +25,8 @@ fn plugin_components_roundtrip_through_the_registry() {
                 assert!(has(names, expected), "{} not registered", expected);
             }
 
-            let n = scene::spawn("Thing");
-            n.set_position(0.0, 3.0, 0.0);
+            let n = scene::root().add_child("Thing");
+            n.transform.position = [0.0, 3.0, 0.0];
 
             // set_component adds with defaults when the node lacks the
             // component, and merges when it has it; there is no add_component.
@@ -269,7 +269,7 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         &app,
         r##"
         pub fn init(this) {
-            let n = scene::spawn("Curve");
+            let n = scene::root().add_child("Curve");
             n.set_component("shape2d", #{
                 kind: "polyline",
                 width: 0.05,
@@ -320,18 +320,11 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
             "tube_radius",
         ],
     ),
-    // A sprite cut from a sheet reports the cut; one drawing a whole image
+    // A sprite cut from a sheet reports the sheet; one drawing a whole image
     // has no cut to report.
     (
         "sprite",
-        &[
-            "columns",
-            "half_extents",
-            "region_origin",
-            "region_size",
-            "rows",
-            "sheet",
-        ],
+        &["half_extents", "region_origin", "region_size", "sheet"],
     ),
     // A map reports what was painted only once something has been.
     ("tilemap", &["flags", "seed", "terrain"]),

@@ -60,7 +60,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
-        ("stop", &[crate::COMPONENT], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
+        ("stop", &[], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
         ("resume", &[crate::COMPONENT], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
         ("define", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
@@ -191,7 +191,6 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
         ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out."),
-        ("tween_to", &[], "", "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."),
         ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
         ("tween_value", &[], "(from: number, to: number, seconds: float, ease: string) -> int", "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes."),
         ("tween_value_of", &[], "(handle: int) -> number", "Where a value tween has got to, in the shape it was started with; nil once it is over."),
@@ -204,20 +203,6 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     });
     // The 90% case without a table: one property, one destination, one
     // duration, and the curve to get there on.
-    m.function(
-        "tween_to",
-        |eng: &Engine,
-         (node, property, to, duration, ease): (NodeId, String, Value, f32, Option<String>)| {
-            tween::start_to(
-                eng,
-                entity_of(node)?,
-                &property,
-                &node_api::to_toml(&to)?,
-                duration,
-                ease.as_deref(),
-            )
-        },
-    );
     m.function(
         "tween_value",
         |eng: &Engine, (from, to, duration, ease): (Value, Value, f32, Option<String>)| {

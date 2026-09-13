@@ -3,7 +3,7 @@
 //! A handle pairs a node with a component name. Its methods are the functions
 //! of the modules that declared they drive that component, with the node
 //! argument bound, so `node.body2d.apply_impulse(x, y)` is
-//! `physics2d::apply_impulse(node, x, y)`. Dispatch is by component name at
+//! `node.body2d.apply_impulse(x, y)`. Dispatch is by component name at
 //! call time: the same `apply_impulse` on a `body3d` handle reaches
 //! `physics3d`. `get`, `set`, `has` and `remove` come from the node's own
 //! component operations with the name filled in.
@@ -204,13 +204,22 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
     let handles::Properties {
         owners,
         mut vectors,
+        defaults,
     } = handles::properties(eng);
     for (prop, components) in owners {
         let name = intern(&prop);
         let readers = components.clone();
         let as_vector = vectors.remove(&prop).unwrap_or_default();
+        let fallback: std::collections::HashMap<String, Neutral> = readers
+            .iter()
+            .filter_map(|c| {
+                defaults
+                    .get(&(c.clone(), prop.clone()))
+                    .map(|v| (c.clone(), v.clone()))
+            })
+            .collect();
         m.field_function(&Protocol::GET, name, move |this: &Component| {
-            read_property(this, name, &readers, &as_vector, read)
+            read_property(this, name, &readers, &as_vector, &fallback, read)
         })?;
         m.field_function(
             &Protocol::SET,
@@ -240,6 +249,7 @@ fn read_property(
     prop: &'static str,
     owners: &HashSet<String>,
     vectors: &HashSet<String>,
+    fallback: &std::collections::HashMap<String, Neutral>,
     handle: usize,
 ) -> VmResult<rune::Value> {
     if !owners.contains(&this.name) {
@@ -251,11 +261,18 @@ fn read_property(
         Some(Err(err)) => return fail(err),
         None => return fail("component property was registered on another thread"),
     };
-    let Neutral::Map(props) = got else {
-        return fail(format!("the node has no `{}`", this.name));
-    };
-    let Some((_, value)) = props.into_iter().find(|(key, _)| key == prop) else {
-        return fail(format!("`{}` does not report `{prop}`", this.name));
+    // A node that does not carry the component reads as the component's
+    // declared defaults: a scene leaving one out means exactly that, and a
+    // node with no `transform` does sit at its parent.
+    let value = match got {
+        Neutral::Map(props) => match props.into_iter().find(|(key, _)| key == prop) {
+            Some((_, value)) => value,
+            None => return fail(format!("`{}` does not report `{prop}`", this.name)),
+        },
+        _ => match fallback.get(&this.name) {
+            Some(value) => value.clone(),
+            None => return fail(format!("the node has no `{}`", this.name)),
+        },
     };
     let value = if vectors.contains(&this.name) {
         as_vec3(value)

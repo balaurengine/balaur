@@ -4,7 +4,7 @@
 [[nodes]]
 id = "rig_first_person"
 name = "First person rig"
-script = "scripts/first_person.rn"
+script = { source = "scripts/first_person.rn" }
 
 [nodes.transform]
 position = [0, 1, 0]

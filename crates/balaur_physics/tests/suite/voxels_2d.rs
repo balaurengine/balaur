@@ -18,7 +18,7 @@ cells = [[0, 0, 0], [0, 1, 0], [1, 0, 0]]
 [[nodes]]
 id = "n_wall"
 name = "Wall"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.collider2d]
 kind = "voxels"
@@ -28,13 +28,13 @@ voxels = "#wall"
 /// The script's last write is the control: a cell nothing else fills, which
 /// the assertion below reads back off the shape.
 const SCRIPT: &str = r#"pub fn init(this) {
-    assert!(physics2d::voxel(this.node, 0, 1), "the cell above the corner should be filled");
-    assert!(!physics2d::voxel(this.node, 4, 4), "a cell nobody wrote should be empty");
-    physics2d::set_voxel(this.node, 0, 1, false);
-    assert!(!physics2d::voxel(this.node, 0, 1), "digging left the cell filled");
-    let (x, y) = physics2d::voxel_at(this.node, 0.5, 0.5);
+    assert!(this.node.collider2d.voxel(0, 1), "the cell above the corner should be filled");
+    assert!(!this.node.collider2d.voxel(4, 4), "a cell nobody wrote should be empty");
+    this.node.collider2d.set_voxel(0, 1, false);
+    assert!(!this.node.collider2d.voxel(0, 1), "digging left the cell filled");
+    let (x, y) = this.node.collider2d.voxel_at(0.5, 0.5);
     assert!(x == 0 && y == 0, "a world point landed in the wrong cell");
-    physics2d::set_voxel(this.node, 7, 7, true);
+    this.node.collider2d.set_voxel(7, 7, true);
 }
 "#;
 

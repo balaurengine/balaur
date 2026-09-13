@@ -1,5 +1,5 @@
 // The Events view, which authors rather than lists: one row per
-// `[[nodes.bindings]]` entry, and the Rune each row is equivalent to.
+// `[[nodes.bindings.rows]]` entry, and the Rune each row is equivalent to.
 
 use crate::history;
 use crate::icons;
@@ -14,7 +14,7 @@ pub fn state() {
 }
 
 /// The rows on the selected node. A hand-written file spells them
-/// `[[nodes.bindings]]`, and one the editor has saved spells them under
+/// `[[nodes.bindings.rows]]`, and one the editor has saved spells them under
 /// `rows`; both are the same list.
 pub fn rows(S) {
     let node = match S.doc.get(S.sel) {
@@ -252,13 +252,13 @@ fn as_call(row) {
     let value = as_text(row.get("value"));
     let node = if target == "" { "this" } else { format!("this.get_node(\"{}\")", target) };
     match action {
-        "state" => format!("{}.go(\"{}\");", node, value),
+        "state" => format!("{}.states.go(\"{}\");", node, value),
         "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),
         "add_variable" => format!(
             "scene::set_variable(\"{}\", scene::variable(\"{}\") + {});",
             target, target, literal(value)),
-        "play" => format!("animation::play({}, \"{}\");", node, value),
-        "sound" => format!("audio::play_on({});", node),
+        "play" => format!("{}.animation.play(\"{}\");", node, value),
+        "sound" => format!("{}.sound.play();", node),
         "spawn" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
         "free" => format!("{}.queue_free();", node),
         "switch" => format!("scene::switch(\"{}\", #{{}});", value),
@@ -299,7 +299,7 @@ pub fn convert_to_script(S) {
     fs::write(S.game_root + "/" + rel, as_script(S));
     model::forget(S, None);
     history::record(S, "convert bindings to a script", None);
-    node.script = rel;
+    node.script = #{ source: rel };
     model::record_override(S, node, "script");
     history::commit(S);
     S.shader_rel = "";

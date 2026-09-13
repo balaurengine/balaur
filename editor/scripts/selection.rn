@@ -164,10 +164,10 @@ pub fn snapshot(S) {
         let node = S.doc[i];
         out.push(#{
             index: i,
-            pos: util::xyz(found.position()),
-            scale: util::xyz(found.scale()),
+            pos: util::xyz(found.transform.position),
+            scale: util::xyz(found.transform.scale),
             rot: model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]),
-            world: util::xyz(found.global_position()),
+            world: util::xyz(found.transform.global_position()),
         });
     }
     out
@@ -231,7 +231,7 @@ pub fn nudge(S, delta, snap_to) {
             Some(found) => found,
             None => continue,
         };
-        let pos = util::vadd(util::xyz(found.position()), delta);
+        let pos = util::vadd(util::xyz(found.transform.position), delta);
         if snap_to {
             for axis in 0..3 {
                 pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
@@ -251,7 +251,7 @@ pub fn spin(S, axis, angle) {
             Some(found) => found,
             None => continue,
         };
-        let r = util::xyz(found.rotation_euler());
+        let r = util::xyz(found.transform.rotation_euler);
         r[axis] = r[axis] + angle;
         model::set_transform(S, i, #{ rotation_euler: r });
     }
@@ -267,7 +267,7 @@ pub fn grow(S, factor, planar) {
             Some(found) => found,
             None => continue,
         };
-        let s = found.scale();
+        let s = found.transform.scale;
         let z = if planar { s.z } else { s.z * factor };
         model::set_transform(S, i, #{ scale: [s.x * factor, s.y * factor, z] });
     }

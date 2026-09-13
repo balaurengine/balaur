@@ -169,7 +169,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
 
             // Applying one puts the components on the node, and nothing records
             // that a preset was used.
-            let n = scene::spawn("Thing");
+            let n = scene::root().add_child("Thing");
             scene::apply_preset(n, "rigid_body2d");
             let present = n.component_names();
             assert!(has(present, "body2d"), "body2d not applied");

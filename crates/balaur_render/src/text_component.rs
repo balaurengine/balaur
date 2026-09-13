@@ -5,11 +5,11 @@
 //! Separate from `world_text`'s immediate calls, which keep nothing.
 
 use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::Bindings;
 
 use crate::shape::keys as k;
 use crate::shape::words;
@@ -300,35 +300,7 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
 /// `render.set_text` and `render.text`: the string a node draws, for a score
 /// that changes every frame without rewriting the whole component.
 pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_text", &["text2d", "text3d"], "(node: node, text: string)", "Replace the text a node draws. The block re-shapes on the next frame; a `text_key` on the node still wins over it."),
-        ("text", &["text2d", "text3d"], "(node: node)", "The text a node draws, as it was last set — not the localized string a `text_key` resolves to."),
-    ]);
-    m.function(
-        "set_text",
-        |eng: &Engine, (node, text): (NodeId, String)| {
-            let entity = entity_of(node)?;
-            let current = {
-                let world = eng.world();
-                world
-                    .get::<&TextRenderable>(entity)
-                    .ok()
-                    .map(|t| (*t).clone())
-            };
-            let mut next = current.ok_or_else(|| anyhow!("node has no text2d or text3d"))?;
-            next.text = text;
-            set_text(eng, entity, next)?;
-            Ok(())
-        },
-    );
-    m.function("text", |eng: &Engine, node: NodeId| {
-        let entity = entity_of(node)?;
-        let world = eng.world();
-        let text = world
-            .get::<&TextRenderable>(entity)
-            .map_err(|_| anyhow!("node has no text2d or text3d"))?;
-        Ok(text.text.clone())
-    });
+    m.describe(&[]);
 }
 
 /// One node's mesh and what it was built from.

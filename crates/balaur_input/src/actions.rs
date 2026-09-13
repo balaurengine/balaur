@@ -505,7 +505,6 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
         ("bindings", &[], "", "What the action is bound to now, whether from the project or from the player's own rebinding."),
         ("bind", &[], "", "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
         ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
-        ("declare_actions", &[], "(actions: any)", "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor."),
         ("feed_action", &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
     ]);
 
@@ -556,42 +555,42 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
     });
     // `input.bind("jump", "gamepad:North")`, or a list for several. Replaces
     // what the action had and saves to the user data directory.
-    m.function("declare_actions", |eng: &Engine, table: Value| {
-        let Value::Map(entries) = table else {
-            anyhow::bail!("declare_actions takes a table of name to bindings");
-        };
-        let mut declared = BTreeMap::new();
-        for (name, value) in entries {
-            let texts = match value {
-                Value::Str(one) => vec![one],
-                Value::List(many) => many
-                    .into_iter()
-                    .filter_map(|v| match v {
-                        Value::Str(s) => Some(s),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => continue,
-            };
-            let mut parsed = Vec::with_capacity(texts.len());
-            for text in &texts {
-                match Binding::parse(text) {
-                    Ok(binding) => parsed.push(binding),
-                    Err(why) => tracing::warn!("action '{name}': {why}"),
-                }
-            }
-            declared.insert(name, parsed);
-        }
-        eng.resource::<InputActions>()
-            .borrow_mut()
-            .declare(declared);
-        Ok(())
-    });
     install_rebinding(m);
 }
 
 /// The half a player drives rather than the project: `bind` and the reset
 /// that undoes every one of them.
+/// Declare a hosted project's `[input]` table: its actions, and the
+/// emulation and gesture settings beside them.
+///
+/// For a host running a project other than its own. The editor's engine read
+/// the *editor's* `project.toml`, so without this every action a played game
+/// asks for reads zero.
+pub fn declare_manifest(eng: &Engine, input: &toml::Value) -> anyhow::Result<()> {
+    if let Some(actions) = input.get("actions").and_then(toml::Value::as_table) {
+        let mut declared = BTreeMap::new();
+        for (name, value) in actions {
+            let texts: Vec<&str> = match value {
+                toml::Value::String(one) => vec![one.as_str()],
+                toml::Value::Array(many) => many.iter().filter_map(toml::Value::as_str).collect(),
+                _ => continue,
+            };
+            let mut parsed = Vec::with_capacity(texts.len());
+            for text in texts {
+                match Binding::parse(text) {
+                    Ok(binding) => parsed.push(binding),
+                    Err(why) => tracing::warn!("action '{name}': {why}"),
+                }
+            }
+            declared.insert(name.clone(), parsed);
+        }
+        eng.resource::<InputActions>()
+            .borrow_mut()
+            .declare(declared);
+    }
+    crate::settings::declare(eng, input.clone())
+}
+
 fn install_rebinding(m: &mut dyn Bindings<Engine>) {
     use balaur_script::{BindingsExt as _, Value};
 

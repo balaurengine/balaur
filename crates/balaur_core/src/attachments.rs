@@ -88,9 +88,8 @@ fn attachment(node: &toml::Value) -> Option<(String, Option<Vec<String>>)> {
         }
         return Some((source.to_string(), Some(parsed.extra.into_keys().collect())));
     }
-    // `script` is a path, or a table whose `source` is one.
+    // `script` is a table whose `source` is the path.
     let script = match node.get("script") {
-        Some(toml::Value::String(path)) => path.clone(),
         Some(toml::Value::Table(table)) => table.get("source")?.as_str()?.to_string(),
         _ => return None,
     };

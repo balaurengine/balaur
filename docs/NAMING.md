@@ -105,14 +105,14 @@ Recorded so each stops being cited as precedent for the next.
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `render` as one large module | Fixable by moving functions between `install_*` fns at zero user cost; a `render2d` split costs ~23 breaking call sites for a boundary `ui` manages without. Revisit past ~30 functions |
 | `"ball"` / `"cuboid"` | parry's words, but nothing in the tree translates them and no bug traces to them. 2D's `circle`/`rect` are already design words |
-| `render.set_ball` / `set_cuboid`, `physics.add_ball_collider` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
+| `render.set_ball` / `set_cuboid` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
 | The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.rn` instead |
 | The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | A deliberate affordance for Godot refugees; renaming five of nine would mix vocabularies in one inspector header |
 | `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
-| `scene.spawn` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
+| `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
 
 ## Glossary
 

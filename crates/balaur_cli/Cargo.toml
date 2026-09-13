@@ -54,6 +54,8 @@ tracing.workspace = true
 # Template download and self-update; the web build has neither, so wasm
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# Reads the edited game's `project.toml` to hand its `[input]` to the engine.
+toml.workspace = true
 # The importer behind `balaur import`; the browser has no command line.
 balaur_import.workspace = true
 ureq.workspace = true

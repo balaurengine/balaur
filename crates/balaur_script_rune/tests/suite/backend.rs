@@ -383,8 +383,8 @@ fn a_reload_keeps_instance_state() {
 fn the_node_api_is_available_as_methods() {
     let dir = project(&[(
         "move.rn",
-        "pub fn init(this) { this.node.set_position(1.0, 2.0, 3.0); }\n\
-         pub fn update(this, dt) { this.node.translate(1.0, 0.0, 0.0); }\n",
+        "pub fn init(this) { this.node.transform.position = [1.0, 2.0, 3.0]; }\n\
+         pub fn update(this, dt) { this.node.transform.translate(1.0, 0.0, 0.0); }\n",
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Mover");
@@ -444,7 +444,7 @@ fn the_engine_modules_reach_rune() {
     let dir = project(&[(
         "world.rn",
         "pub fn init(this) {\n\
-         \x20 this.made = scene::spawn(\"Made\", this.node);\n\
+         \x20 this.made = this.node.add_child(\"Made\");\n\
          \x20 this.found = scene::get_node(\"Root/Made\").name();\n\
          \x20 this.argc = engine::args().len();\n\
          }\n",

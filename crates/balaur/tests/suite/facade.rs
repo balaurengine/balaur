@@ -14,7 +14,7 @@ fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) 
     std::fs::write(
         dir.join("main.toml"),
         format!(
-            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/{}\"\n",
+            "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = {{ source = \"scripts/{}\" }}\n",
             script.0
         ),
     )

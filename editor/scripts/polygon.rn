@@ -123,9 +123,9 @@ fn frame(S) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.global_position();
-    let angle = found.global_rotation_euler().z;
-    let s = found.global_scale();
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let s = found.transform.global_scale();
     Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
 }
 
@@ -1020,11 +1020,11 @@ pub fn idle(S) {
     };
     if backdrop_live(S) {
         if let Some(found) = model::live(S, S.sel) {
-            let p = found.global_position();
-            let r = found.global_rotation_euler();
-            S.polygon.backdrop.set_position(p.x, p.y, p.z);
-            S.polygon.backdrop.set_rotation_euler(r.x, r.y, r.z);
-            S.polygon.backdrop.set_scale(f.sx, f.sy, 1.0);
+            let p = found.transform.global_position();
+            let r = found.transform.global_rotation_euler();
+            S.polygon.backdrop.transform.position = [p.x, p.y, p.z];
+            S.polygon.backdrop.transform.rotation_euler = [r.x, r.y, r.z];
+            S.polygon.backdrop.transform.scale = [f.sx, f.sy, 1.0];
         }
     }
 }

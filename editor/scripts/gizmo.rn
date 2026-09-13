@@ -168,8 +168,8 @@ pub fn extents_at(S, i) {
             }
         }
     }
-    let s = found.global_scale();
-    Some((util::xyz(found.global_position()), [hx * s.x, hy * s.y, hz * s.z]))
+    let s = found.transform.global_scale();
+    Some((util::xyz(found.transform.global_position()), [hx * s.x, hy * s.y, hz * s.z]))
 }
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
@@ -217,7 +217,7 @@ fn geometry_at(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.global_position();
+    let p = found.transform.global_position();
     let hx = 0.6;
     let hy = 0.6;
     let hz = 0.6;
@@ -243,7 +243,7 @@ fn geometry_at(S, i) {
     }
     // The renderer sizes and orients by the GLOBAL transform (parents may
     // carry scale/rotation), so the gizmo must too.
-    let s = found.global_scale();
+    let s = found.transform.global_scale();
     hx = hx * s.x + 0.06;
     hy = hy * s.y + 0.06;
     hz = hz * s.z + 0.06;
@@ -253,7 +253,7 @@ fn geometry_at(S, i) {
     let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
     let dist = math::sqrt((p.x - ex) * (p.x - ex) + (p.y - ey) * (p.y - ey) + (p.z - ez) * (p.z - ez));
     let marker = 0.6 * dist * 0.0144;
-    let r = found.global_rotation_euler();
+    let r = found.transform.global_rotation_euler();
     Some(#{
         center: util::xyz(p),
         basis: util::basis_from_euler(util::xyz(r)),
@@ -623,8 +623,8 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     history::record(S, format!("{} handle", part.kind), None);
     let (node, found) = model::selected(S);
     let found = found.unwrap();
-    let p = found.position();
-    let s = found.scale();
+    let p = found.transform.position;
+    let s = found.transform.scale;
     let rot = model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]);
     let (cx, cy) = project(cam, geo.center).unwrap_or((0.0, 0.0));
     let axis = part.get("axis").unwrap_or(0);

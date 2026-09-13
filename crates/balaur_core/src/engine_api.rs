@@ -131,11 +131,6 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
-        name: "spawn",
-        call: spawn,
-    },
-    EngineOp {
-        module: "scene",
         name: "instantiate",
         call: instantiate,
     },
@@ -748,29 +743,6 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::List(out))
 }
 
-fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let parent = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
-    let name = text(args, 0)?.to_string();
-    let id = crate::ids::mint(eng);
-    let entity = {
-        let mut world = eng.world_mut();
-        if id.is_empty() {
-            scene::spawn_node(&mut world, &name, parent)
-        } else {
-            scene::spawn_node_with_id(&mut world, &name, parent, id)
-        }
-    };
-    // A game that spawns is a game whose world changed, which is what a
-    // session timeline is for. Scene loading does not come through here.
-    crate::replay::event(
-        eng,
-        "scene.spawn",
-        format!("spawned {name}"),
-        Some(serde_json::json!({ "name": name })),
-    );
-    Ok(Value::Node(crate::node_id_of(entity).0))
-}
-
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
     let attach = match args.get(2) {
@@ -1021,8 +993,8 @@ fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 /// The whole property table a scene key's value stands for.
 ///
-/// A scene file may write a component as a shorthand (`body3d = "dynamic"`),
-/// as a partial table, or in full, and all three mean the same component. A
+/// A scene file may write a component as a partial table or in full, and
+/// both mean the same component. A
 /// tool comparing what two files said therefore cannot compare the text: it
 /// has to compare what the engine would make of it, which is this.
 fn component_properties(eng: &Engine, args: &[Value]) -> Result<Value> {

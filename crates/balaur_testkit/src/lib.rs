@@ -55,7 +55,7 @@ pub fn run_until(source: &str, markers: &[&str]) {
     .expect("could not write the project manifest");
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = { source = \"scripts/s.rn\" }\n",
     )
     .expect("could not write the project's main scene");
     std::fs::write(dir.path().join("scripts/s.rn"), source)

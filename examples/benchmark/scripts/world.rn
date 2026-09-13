@@ -6,7 +6,7 @@ pub const ROW = 100;
 
 /// A fresh world under `parent`, in `dimensions`, drawing shapes or not.
 pub fn new(parent, dimensions, draw) {
-    let container = scene::spawn("World", parent);
+    let container = parent.add_child("World");
     #{
         container: container,
         dimensions: dimensions,
@@ -25,7 +25,7 @@ pub fn new(parent, dimensions, draw) {
 fn row_for(w, i) {
     let index = i / ROW;
     while w.rows.len() <= index {
-        w.rows.push(scene::spawn(format!("r{}", w.rows.len()), w.container));
+        w.rows.push(w.container.add_child(format!("r{}", w.rows.len())));
     }
     w.rows[index]
 }
@@ -35,7 +35,7 @@ fn row_for(w, i) {
 /// mirrors: the solver is what is being measured, not the sleep heuristic.
 pub fn body(w, at, shape) {
     let i = w.bodies.len();
-    let node = scene::spawn(format!("b{}", i % ROW), row_for(w, i));
+    let node = row_for(w, i).add_child(format!("b{}", i % ROW));
     place(w, node, at);
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
     node.set_component(kind, #{ kind: "dynamic", can_sleep: false });
@@ -55,7 +55,7 @@ pub fn fixed(w, at, shape) {
 /// An immovable body that is never drawn: the walls of a pit, which would
 /// hide what is inside it from the camera.
 pub fn wall(w, at, shape) {
-    let node = scene::spawn(format!("s{}", w.statics), w.container);
+    let node = w.container.add_child(format!("s{}", w.statics));
     w.statics = w.statics + 1;
     place(w, node, at);
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
@@ -70,7 +70,7 @@ pub fn wall(w, at, shape) {
 /// node and a lattice body needs three; a node with no body of its own
 /// stands for the nearest body above it.
 pub fn pin(w, a, b, at_a, at_b) {
-    let node = scene::spawn(format!("j{}", w.joints), a);
+    let node = a.add_child(format!("j{}", w.joints));
     w.joints = w.joints + 1;
     let mid = midpoint(at_a, at_b);
     let anchor = sub(mid, at_a);

@@ -19,7 +19,6 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
         ("set_ball", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
         ("set_cuboid", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
         ("set_rect", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
-        ("color", &["shape3d", "shape2d", "sprite", "polygon"], "", "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all."),
     ]);
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
         set_shape(eng, entity_of(node)?, Shape::Solid(Solid::ball(radius)))
@@ -40,17 +39,6 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
             set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::rect(hx, hy)))
         },
     );
-    m.function("color", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = match world.get::<&Renderable>(entity_of(node)?) {
-            Ok(r) => (r.color[0], r.color[1], r.color[2], r.color[3]),
-            _ => match world.get::<&Renderable2d>(entity_of(node)?) {
-                Ok(r) => (r.color[0], r.color[1], r.color[2], r.color[3]),
-                _ => (1.0, 1.0, 1.0, 1.0),
-            },
-        };
-        Ok(result)
-    });
 }
 
 // Components below are schema-driven, and each key doubles as a scene key.
@@ -198,7 +186,6 @@ pub(crate) mod keys {
     pub(crate) const COLOR: &str = "color";
     pub(crate) const COLOR_END: &str = "color_end";
     pub(crate) const CENTERED: &str = "centered";
-    pub(crate) const COLUMNS: &str = "columns";
     pub(crate) const CURRENT: &str = "current";
     pub(crate) const DEPTH_TEST: &str = "depth_test";
     pub(crate) const DOUBLE_SIDED: &str = "double_sided";
@@ -237,7 +224,6 @@ pub(crate) mod keys {
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
-    pub(crate) const ROWS: &str = "rows";
     pub(crate) const SHADOWS: &str = "shadows";
     pub(crate) const SHADOW_RESOLUTION: &str = "shadow_resolution";
     pub(crate) const SHADOW_SOFTNESS: &str = "shadow_softness";

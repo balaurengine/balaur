@@ -5,7 +5,7 @@ use balaur::input::InputSnapshot;
 use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
-    if input::is_down(input::KEY_SPACE) { this.node.translate(dt, 0.0, 0.0); }
+    if input::is_down(input::KEY_SPACE) { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 
@@ -18,7 +18,7 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = \"scripts/s.rn\"\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = { source = \"scripts/s.rn\" }\n\n[nodes.transform]\nposition = [0, 0, 0]\n",
     )
     .unwrap();
     std::fs::write(dir.join("scripts").join("s.rn"), SCRIPT).unwrap();

@@ -27,12 +27,12 @@ pub fn fixed_update(this, dt) {
     let (sin, cos) = (math::sin(yaw), math::cos(yaw));
     let x = (sideways * cos - forward * sin) * this.speed * dt;
     let z = (-sideways * sin - forward * cos) * this.speed * dt;
-    if physics3d::is_grounded(this.node) {
+    if this.node.character3d.is_grounded() {
         this.vy = if input::is_down(input::KEY_SPACE) { this.jump } else { 0.0 };
     } else {
         this.vy -= this.gravity * dt;
     }
-    physics3d::move_character(this.node, x, this.vy * dt, z);
+    this.node.character3d.move_character(x, this.vy * dt, z);
 }
 
 /// One axis from two keys, so a pair reads as -1, 0 or 1.

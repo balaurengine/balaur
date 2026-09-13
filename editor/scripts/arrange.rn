@@ -10,7 +10,7 @@ use crate::util;
 /// World position of a document row, from the mirror when it resolves.
 fn world_of(S, i) {
     match model::live(S, i) {
-        Some(found) => util::xyz(found.global_position()),
+        Some(found) => util::xyz(found.transform.global_position()),
         None => model::doc_transform(S.doc[i], "position", [0.0, 0.0, 0.0]),
     }
 }

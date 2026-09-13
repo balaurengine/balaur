@@ -61,14 +61,14 @@ pub fn geometry(S, i) {
     if !is_bone(node) {
         return None;
     }
-    let o = found.global_position();
+    let o = found.transform.global_position();
     let child_ref = match first_child_bone(S, i) {
         Some(child) => model::live(S, child),
         None => None,
     };
     let tip = match child_ref {
         Some(child) => {
-            let t = child.global_position();
+            let t = child.transform.global_position();
             util::xyz(t)
         }
         None => {
@@ -77,8 +77,8 @@ pub fn geometry(S, i) {
             if length <= 0.0 {
                 length = TIP_LENGTH;
             }
-            let angle = found.global_rotation_euler().z + util::f(bone.get("angle").unwrap_or(0.0));
-            let sx = found.global_scale().x;
+            let angle = found.transform.global_rotation_euler().z + util::f(bone.get("angle").unwrap_or(0.0));
+            let sx = found.transform.global_scale().x;
             // A 3D tip bone points along its own y, the way an imported joint
             // chain grows; a 2D one along `angle`.
             if node.contains_key("bone3d") {
@@ -294,7 +294,7 @@ fn modifier_reach(S, i) {
     }
     Some(#{
         chain: chain,
-        target: if target is balaur::Node { Some(util::xyz(target.global_position())) } else { None },
+        target: if target is balaur::Node { Some(util::xyz(target.transform.global_position())) } else { None },
         kind: kind,
     })
 }
@@ -417,9 +417,9 @@ pub fn drag_handle(S, i, mx, my) {
     // The click is in world space; a target under a moved parent has to take
     // it in that parent's frame, the way `add_bone` places a bone.
     let (lx, ly) = if parent is balaur::Node {
-        let p = parent.global_position();
-        let angle = parent.global_rotation_euler().z;
-        let sc = parent.global_scale();
+        let p = parent.transform.global_position();
+        let angle = parent.transform.global_rotation_euler().z;
+        let sc = parent.transform.global_scale();
         let (dx, dy) = (mx - p.x, my - p.y);
         let c = math::cos(angle);
         let sn = math::sin(angle);
@@ -572,9 +572,9 @@ pub fn add_bone(S, parent_i, wx, wy) {
     let ly = 1.0;
     if S.mode2d {
         // The click, in the parent's own frame.
-        let p = pref.global_position();
-        let angle = pref.global_rotation_euler().z;
-        let s = pref.global_scale();
+        let p = pref.transform.global_position();
+        let angle = pref.transform.global_rotation_euler().z;
+        let s = pref.transform.global_scale();
         let dx = wx - p.x;
         let dy = wy - p.y;
         let c = math::cos(angle);
@@ -584,7 +584,7 @@ pub fn add_bone(S, parent_i, wx, wy) {
     }
     let name = fresh_name(S);
     let child = pref.add_child(name);
-    child.set_position(lx, ly, 0.0);
+    child.transform.position = [lx, ly, 0.0];
     // A 3D rig has no click to place a bone by, so it grows one unit up.
     let component = if S.mode2d { "bone2d" } else { "bone3d" };
     if S.mode2d {
@@ -660,9 +660,9 @@ fn sync_bones(S, root_i, transforms) {
             if let Some(found) = model::live(S, i) {
                 if found.path() == bone_path {
                     if transforms {
-                        let p = found.position();
-                        let r = found.rotation_euler();
-                        let s = found.scale();
+                        let p = found.transform.position;
+                        let r = found.transform.rotation_euler;
+                        let s = found.transform.scale;
                         model::set_transform(S, i, #{
                             position: util::xyz(p),
                             rotation_euler: util::xyz(r),

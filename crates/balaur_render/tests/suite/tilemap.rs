@@ -19,9 +19,10 @@ fn node(app: &App) -> balaur_core::hecs::Entity {
 /// table, `cells` a two-row map.
 fn tilemap_table() -> toml::Value {
     toml::from_str(
-        r#"cells = """
-.0
-1a"""
+        r#"cells = [
+  [-1,  0],
+  [ 1, 10],
+]
 pixels_per_unit = 50.0
 
 [tileset]
@@ -56,12 +57,20 @@ fn a_tilemap_parses_cells_and_round_trips() {
 
     let saved = components::get(&app.engine, entity, "tilemap").expect("the tilemap reads back");
     let table = saved.as_table().expect("get returns a property table");
-    assert_eq!(
-        table["cells"]
-            .as_str()
-            .expect("cells reads back as a string"),
-        ".0\n1a"
-    );
+    let rows = table["cells"]
+        .as_array()
+        .expect("cells reads back as rows of tile ids");
+    let ids: Vec<Vec<i64>> = rows
+        .iter()
+        .map(|row| {
+            row.as_array()
+                .expect("a cells row is a list")
+                .iter()
+                .map(|id| id.as_integer().expect("a cell is a whole number"))
+                .collect()
+        })
+        .collect();
+    assert_eq!(ids, vec![vec![-1, 0], vec![1, 10]]);
     assert!(
         (table["pixels_per_unit"]
             .as_float()
@@ -98,14 +107,15 @@ fn a_tilemap_parses_cells_and_round_trips() {
         assert_eq!(a.grid, b.grid);
     }
 
-    // A character outside [.0-9a-z] is refused, by name.
+    // Cells are rows of ids: a string that is not a `.cells` file is refused,
+    // and the error says what the property takes.
     let bad: toml::Value = toml::from_str("cells = \".X\"").expect("valid TOML");
     let entity = node(&app);
     let err = components::add(&app.engine, entity, "tilemap", Some(&bad))
-        .expect_err("an illegal cell character must be rejected");
+        .expect_err("a string that names no `.cells` file must be rejected");
     assert!(
-        format!("{err:#}").contains("'X'"),
-        "the error should name the character: {err:#}"
+        format!("{err:#}").contains(".cells"),
+        "the error should name the file form: {err:#}"
     );
 }
 
@@ -134,10 +144,13 @@ fn reapplying_the_same_tilemap_does_not_bump_the_version() {
     );
 
     let mut changed = tilemap_table();
-    changed
-        .as_table_mut()
-        .expect("params are a table")
-        .insert("cells".into(), toml::Value::String("22".into()));
+    changed.as_table_mut().expect("params are a table").insert(
+        "cells".into(),
+        toml::Value::Array(vec![toml::Value::Array(vec![
+            toml::Value::Integer(2),
+            toml::Value::Integer(2),
+        ])]),
+    );
     components::add(&app.engine, entity, "tilemap", Some(&changed))
         .expect("a changed tilemap applies");
     assert!(
@@ -157,7 +170,7 @@ fn a_tileset_that_declares_no_grid_is_refused() {
     let entity = node(&app);
     // Well-formed component, ill-formed asset: `columns` is missing.
     let params: toml::Value = toml::from_str(
-        r#"cells = "0"
+        r#"cells = [[0]]
 
 [tileset]
 texture = "tests/fixtures/sprite_200x100.png"

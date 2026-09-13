@@ -28,7 +28,7 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-body3d = "static"
+body3d = { kind = "static" }
 collider3d = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
 
 [nodes.transform]
@@ -38,7 +38,7 @@ position = [0.0, -1.0, 0.0]
 id = "n_balla"
 name = "BallA"
 parent = "n_world"
-body3d = "dynamic"
+body3d = { kind = "dynamic" }
 collider3d = { kind = "ball", radius = 0.5 }
 
 [nodes.transform]
@@ -48,7 +48,7 @@ position = [0.1, 5.0, 0.0]
 id = "n_ballb"
 name = "BallB"
 parent = "n_world"
-body3d = "dynamic"
+body3d = { kind = "dynamic" }
 collider3d = { kind = "ball", radius = 0.5 }
 
 [nodes.transform]
@@ -129,7 +129,7 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-body2d = "static"
+body2d = { kind = "static" }
 collider2d = { kind = "rect", half_extents = [10, 1] }
 
 [nodes.transform]
@@ -139,7 +139,7 @@ position = [0.0, -1.0, 0.0]
 id = "n_balla"
 name = "BallA"
 parent = "n_world"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 collider2d = { kind = "circle", radius = 0.5, restitution = 0.4 }
 
 [nodes.transform]
@@ -149,7 +149,7 @@ position = [0.1, 5.0, 0.0]
 id = "n_boxb"
 name = "BoxB"
 parent = "n_world"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 collider2d = { kind = "rect", half_extents = [0.5, 0.3] }
 
 [nodes.transform]

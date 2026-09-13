@@ -97,6 +97,10 @@ pub(crate) fn drives() -> BTreeMap<String, BTreeMap<String, String>> {
 /// components`, which is the direction dispatch reads it in.
 pub(crate) struct Properties {
     pub(crate) owners: BTreeMap<String, HashSet<String>>,
+    /// Each property's declared default, by component: what a read answers
+    /// on a node that does not carry the component. A scene leaving a
+    /// component out means its defaults, so reading one is not an error.
+    pub(crate) defaults: BTreeMap<(String, String), balaur_script::Value>,
     /// The same, narrowed to where the schema says `vec3`.
     pub(crate) vectors: BTreeMap<String, HashSet<String>>,
 }
@@ -104,6 +108,7 @@ pub(crate) struct Properties {
 pub(crate) fn properties(eng: &Engine) -> Properties {
     let mut owners: BTreeMap<String, HashSet<String>> = BTreeMap::new();
     let mut vectors: BTreeMap<String, HashSet<String>> = BTreeMap::new();
+    let mut defaults: BTreeMap<(String, String), balaur_script::Value> = BTreeMap::new();
     for (component, schema) in balaur_core::components::schemas(eng) {
         let Some(table) = schema.as_table() else {
             continue;
@@ -117,6 +122,11 @@ pub(crate) fn properties(eng: &Engine) -> Properties {
                 .entry(prop.clone())
                 .or_default()
                 .insert(component.clone());
+            if let Some(value) = spec.get("default")
+                && let Ok(neutral) = balaur_core::node_api::from_toml(value)
+            {
+                defaults.insert((component.clone(), prop.clone()), neutral);
+            }
             if spec.get("type").and_then(|v| v.as_str()) == Some("vec3") {
                 vectors
                     .entry(prop.clone())
@@ -125,7 +135,11 @@ pub(crate) fn properties(eng: &Engine) -> Properties {
             }
         }
     }
-    Properties { owners, vectors }
+    Properties {
+        owners,
+        defaults,
+        vectors,
+    }
 }
 
 /// Every handle call in `source` that the run time would refuse.

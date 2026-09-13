@@ -43,13 +43,13 @@ tracks = [
 /// afterwards.
 const HERO: &str = r#"
 pub fn init(this) {
-    animation::play(this.node, "hop", #{ "speed": 1.0 });
+    this.node.animation.play("hop", #{ "speed": 1.0 });
 }
 pub fn on_animation_finished(this, name) {
     // The clip that ended is the argument, so the handler branches on it
     // rather than asking. Anything but `hop` would leave the node idle.
     if name == "hop" {
-        animation::play(this.node, "wave");
+        this.node.animation.play("wave");
     }
 }
 "#;
@@ -175,14 +175,14 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
 fn a_script_reads_the_playhead_back_through_the_module() {
     let script = r#"
 pub fn init(this) {
-    animation::play(this.node, "hop");
-    animation::seek(this.node, 0.25);
+    this.node.animation.play("hop");
+    this.node.animation.seek(0.25);
 }
 pub fn update(this, dt) {
-    this.clip = animation::current(this.node);
-    this.playing = animation::is_playing(this.node);
-    this.elapsed = animation::time(this.node);
-    let ended = animation::just_finished(this.node);
+    this.clip = this.node.animation.current();
+    this.playing = this.node.animation.is_playing();
+    this.elapsed = this.node.animation.time();
+    let ended = this.node.animation.just_finished();
     if !(ended is Tuple) {
         this.ended = ended;
     }
@@ -221,7 +221,7 @@ pub fn update(this, dt) {
 fn a_script_defines_a_clip_of_its_own_and_plays_it() {
     let script = r#"
 pub fn init(this) {
-    animation::define(this.node, "hurt", #{
+    this.node.animation.define("hurt", #{
         "length": 1.0,
         "tracks": [ #{
             "property": "position",
@@ -231,7 +231,7 @@ pub fn init(this) {
             ],
         } ],
     });
-    animation::play(this.node, "hurt");
+    this.node.animation.play("hurt");
 }
 "#;
     let dir = project(("define.rn", script));
@@ -257,8 +257,8 @@ pub fn init(this) {
 fn a_script_queues_a_clip_behind_the_one_playing() {
     let script = r#"
 pub fn init(this) {
-    animation::play(this.node, "hop");
-    animation::queue(this.node, "wave");
+    this.node.animation.play("hop");
+    this.node.animation.queue("wave");
 }
 "#;
     let dir = project(("queue.rn", script));
@@ -283,15 +283,15 @@ fn a_script_pauses_and_resumes_a_clip() {
 pub fn init(this) {
     this.held = false;
     this.woken = false;
-    animation::play(this.node, "wave");
+    this.node.animation.play("wave");
 }
 pub fn update(this, dt) {
-    if animation::time(this.node) > 0.1 && !this.held {
+    if this.node.animation.time() > 0.1 && !this.held {
         this.held = true;
-        animation::pause(this.node);
+        this.node.animation.pause();
     } else if this.held && !this.woken {
         this.woken = true;
-        animation::resume(this.node);
+        this.node.animation.resume();
     }
 }
 "#;
@@ -315,10 +315,10 @@ pub fn update(this, dt) {
 fn a_script_stops_a_clip_and_nothing_is_current_afterwards() {
     let script = r#"
 pub fn init(this) {
-    animation::play(this.node, "wave");
+    this.node.animation.play("wave");
 }
 pub fn update(this, dt) {
-    if animation::time(this.node) > 0.1 {
+    if this.node.animation.time() > 0.1 {
         animation::stop(this.node);
     }
 }
@@ -354,7 +354,7 @@ pub fn update(this, dt) {
     this.running = animation::is_tween_running(this.handle);
 }
 pub fn on_landed(this) {
-    animation::tween_to(this.node, "position", [0.0, 9.0, 0.0], 0.2, "linear");
+    animation::tween(this.node, #{ "steps": [#{ "property": "position", "to": [0.0, 9.0, 0.0], "duration": 0.2, "ease": "linear" }] });
 }
 pub fn halt(this) {
     animation::stop(this.handle);
@@ -422,7 +422,7 @@ fn a_script_reads_a_tween_handle_back_and_stops_by_it() {
 fn a_script_reaches_for_the_shorter_spelling() {
     let script = r#"
 pub fn init(this) {
-    animation::tween_to(this.node, "position", [0.0, 4.0, 0.0], 0.5, "in_quad");
+    animation::tween(this.node, #{ "steps": [#{ "property": "position", "to": [0.0, 4.0, 0.0], "duration": 0.5, "ease": "in_quad" }] });
 }
 "#;
     let dir = project(("hop.rn", script));
@@ -447,7 +447,7 @@ pub fn init(this) {
 /// tweens knows which one ran out; a value tween is read each frame.
 const FINISHED: &str = r#"
 pub fn init(this) {
-    this.handle = animation::tween_to(this.node, "position", [0.0, 6.0, 0.0], 0.25, "linear");
+    this.handle = animation::tween(this.node, #{ "steps": [#{ "property": "position", "to": [0.0, 6.0, 0.0], "duration": 0.25, "ease": "linear" }] });
     this.finished = 0;
     this.meter = animation::tween_value(0.0, 10.0, 0.5, "linear");
     this.read = 0.0;

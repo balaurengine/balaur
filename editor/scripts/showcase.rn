@@ -181,7 +181,7 @@ fn selection_spot(S) {
     let found = model::live(S, S.sel);
     match found {
         Some(node) => {
-            let p = node.global_position();
+            let p = node.transform.global_position();
             design_of_world(S, p.x, p.y)
         }
         None => S.showcase.ptr,

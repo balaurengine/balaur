@@ -9,10 +9,10 @@ pub fn update(this, dt) {
     // P holds the clip where it is; P again carries on from there. `stop`
     // would end it instead, leaving nothing to resume.
     if input::just_pressed(input::KEY_P) {
-        if animation::is_playing(this.node) {
-            animation::pause(this.node);
+        if this.node.animation.is_playing() {
+            this.node.animation.pause();
         } else {
-            animation::resume(this.node);
+            this.node.animation.resume();
         }
     }
 }
@@ -29,5 +29,5 @@ pub fn on_reached_end(this) {
             #{ "property": "shape3d/color", "to": [0.55, 0.35, 0.8, 1.0], "duration": 0.75, "ease": "out_quad" },
         ],
     });
-    println!("platform turned {} time(s)", this.turns);
+    log::info(format!("platform turned {} time(s)", this.turns));
 }

@@ -51,6 +51,10 @@ pub struct SpriteSheet {
     pub frames: Vec<SheetFrame>,
     pub tags: Vec<SheetTag>,
     pub slices: Vec<SheetSlice>,
+    /// A uniform `columns` x `rows` cut, for a sheet that says its shape
+    /// rather than listing every frame. The cells are even divisions of the
+    /// image, so no frame list and no image size are needed to read one.
+    pub grid: Option<[u32; 2]>,
 }
 
 impl SpriteSheet {
@@ -60,6 +64,21 @@ impl SpriteSheet {
     pub fn frame(&self, index: u32) -> SheetFrame {
         let last = self.frames.len().saturating_sub(1);
         self.frames[(index as usize).min(last)]
+    }
+
+    /// How many cells the sheet holds, counting a grid's as well as a list's.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self.grid {
+            Some([columns, rows]) => (columns * rows) as usize,
+            None => self.frames.len(),
+        }
+    }
+
+    /// Whether the sheet holds no cell at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Parse a definition table.
@@ -72,14 +91,28 @@ impl SpriteSheet {
         if texture.is_empty() {
             bail!("a sprite_sheet's `texture` names no image");
         }
-        let frames = parse_frames(value)?;
-        let tags = parse_tags(value, frames.len())?;
+        let grid = parse_grid(value)?;
+        // A grid says the shape; a `frames` list says every rect. One or the
+        // other, so a sheet has one answer for where a frame sits.
+        let frames = if grid.is_some() {
+            if value.get("frames").is_some() {
+                bail!("a sprite_sheet takes `columns` and `rows`, or `frames`, not both");
+            }
+            Vec::new()
+        } else {
+            parse_frames(value)?
+        };
+        let tags = parse_tags(
+            value,
+            frames.len().max(grid.map_or(0, |g| (g[0] * g[1]) as usize)),
+        )?;
         let slices = parse_slices(value)?;
         Ok(Self {
             texture,
             frames,
             tags,
             slices,
+            grid,
         })
     }
 }
@@ -98,6 +131,22 @@ fn numbers<const N: usize>(value: &toml::Value, what: &str) -> Result<[i64; N]> 
             .round() as i64;
     }
     Ok(out)
+}
+
+/// `columns` and `rows`: a uniform cut of the image, the shape a flipbook
+/// exported as an even grid has. Both or neither; one alone is a typo.
+fn parse_grid(value: &toml::Value) -> Result<Option<[u32; 2]>> {
+    let count = |key: &str| {
+        value
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .map(|n| n.round().max(0.0) as u32)
+    };
+    match (count("columns"), count("rows")) {
+        (Some(columns), Some(rows)) if columns > 0 && rows > 0 => Ok(Some([columns, rows])),
+        (None, None) => Ok(None),
+        _ => bail!("a sprite_sheet grid needs both `columns` and `rows`, above zero"),
+    }
 }
 
 fn parse_frames(value: &toml::Value) -> Result<Vec<SheetFrame>> {
