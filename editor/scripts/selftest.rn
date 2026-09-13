@@ -1853,6 +1853,35 @@ pub fn librarydemo(S) {
     check(unknown == 0, "every entry is of a kind the dock has a chip for");
     check(absent == 0, "and every file it names is in the library");
 
+    // An addon lands whole at its own path, and placing it again changes
+    // nothing: a game requires it by that path, so a numbered copy would
+    // answer nobody.
+    let addon = None;
+    for entry in listed {
+        let e = util::obj(entry);
+        if e.get("kind").unwrap_or("") == "addon" && addon.is_none() {
+            addon = Some(e);
+        }
+    }
+    if let Some(e) = addon {
+        let dir = e.file;
+        // Anything a previous run left, so this run measures its own copy.
+        if fs::exists(root + dir) {
+            fs::remove(root + dir);
+        }
+        let top = dir.split('/').collect::<Vec>()[0];
+        let had_top = fs::exists(root + top);
+        library::place(S, e);
+        let count = util::vec(fs::list(root + dir)).len();
+        check(count > 0, format!("placing {} copies its files in", e.name));
+        library::place(S, e);
+        check(util::vec(fs::list(root + dir)).len() == count, "placing it again adds nothing");
+        check(!fs::exists(root + dir + "_2"), "and numbers no copy");
+        let gone = if had_top { dir } else { top };
+        fs::remove(root + gone);
+        check(!fs::exists(root + dir), "and the project is left as it was");
+    }
+
     // A sky is copied under skies/ and then only named, since the drop that
     // would have copied it already happened.
     let skies_before = named_under(S, "skies");

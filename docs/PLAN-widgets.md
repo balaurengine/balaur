@@ -1,6 +1,8 @@
 > **Status:** batches one to three mostly built; this revision (2026-09-13)
-> records what landed and narrows the two open roadmap rows to what is left.
-> First written 2026-09-07 from nineteen kinds; the tree holds twenty-nine now.
+> records what landed, narrows the two open roadmap rows to what is left, and
+> settles three crate questions: `graph` on `egui-snarl`, drag and drop on
+> egui's own payload seam, long press on egui's own `long_touched`. First
+> written 2026-09-07 from nineteen kinds; the tree holds twenty-nine now.
 
 # Plan: the widget kinds a scene cannot hold yet
 
@@ -189,8 +191,9 @@ MIT or Apache, and depends on `slab` alone. It owns the graph as a
 `Snarl<T>` and draws through a `SnarlViewer` the caller implements, with
 wires, pins, pan and zoom done. A `graph` kind would implement the viewer
 over its child nodes and keep the graph in the scene's TOML rather than its
-`serde`, so the editor's undo and the replay see it. Viable; measure once
-more when the first graph editor is planned.
+`serde`, so the editor's undo and the replay see it. **Decided: `graph` is
+built on `egui-snarl`.** Its wire routing, pin hit-testing and pan-and-zoom
+are the part worth not writing; the kind owns the node model and the theme.
 
 ### Pickers and drag
 
@@ -207,12 +210,14 @@ the third.
 
 Measured 2026-09-13:
 
-- **Drag and drop is egui's own.** `Response::dnd_set_drag_payload`,
+- **Drag and drop is egui's own, decided.** `Response::dnd_set_drag_payload`,
   `dnd_hover_payload` and `dnd_release_payload` over `egui::DragAndDrop`
   carry a typed payload from any widget to any other, which is what `drag`
-  and `drop` need. `egui_dnd` 0.17 (pins egui 0.36, pulls `egui_animation`)
-  is a sortable-list widget, not a payload seam: a candidate for reordering
-  inside `list` and nothing else.
+  and `drop` need: `drag` names the value a widget hands over (a string,
+  read off the node), `drop` the script method called with it, resolved as
+  `on_click` is. `egui_dnd` 0.17 (pins egui 0.36, pulls `egui_animation`)
+  is a sortable-list widget, not a payload seam: it draws the reorder inside
+  `list` and `tree`, and nothing else, so the two never overlap.
 - **`file` is not `egui-file-dialog`.** 0.15 pins egui 0.36 but browses the
   machine through `std::fs`, `directories` and `sysinfo`: it cannot see a
   project on the web's `MemoryFs` or inside a pack, and shows OS drives a

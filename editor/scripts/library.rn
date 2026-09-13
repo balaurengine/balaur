@@ -17,7 +17,8 @@ pub fn state() {
 pub fn kinds() {
     [
         ["material", "Materials"], ["sky", "Skies"], ["model", "Models"],
-        ["scene", "Lighting"], ["rig", "Rigs"], ["template", "Templates"],
+        ["scene", "Lighting"], ["rig", "Rigs"], ["addon", "Addons"],
+        ["template", "Templates"],
     ]
 }
 
@@ -79,6 +80,36 @@ fn install(S, rel) {
     Some(target)
 }
 
+/// Copy a library directory into the project at the same path. One already
+/// there is kept as it is, and said so: the game's copy may carry edits.
+fn install_tree(S, rel) {
+    let from = ROOT + "/" + rel;
+    if !fs::exists(from) {
+        log::warn("the library has no " + rel);
+        return;
+    }
+    let to = S.game_root + "/" + rel;
+    if fs::exists(to) {
+        log::info(rel + " is already in the project");
+        return;
+    }
+    copy_tree(from, to);
+    model::forget(S, None);
+    log::info("added " + rel);
+}
+
+/// Every file under `from`, into `to`, directories included.
+fn copy_tree(from, to) {
+    fs::mkdir(to);
+    for f in util::vec(fs::list(from)) {
+        if f.is_dir {
+            copy_tree(from + "/" + f.name, to + "/" + f.name);
+        } else {
+            fs::copy(from + "/" + f.name, to + "/" + f.name);
+        }
+    }
+}
+
 /// `rel`, or `rel` with a number before its extension when the project
 /// already has that file.
 fn free_name(S, rel) {
@@ -100,6 +131,12 @@ fn free_name(S, rel) {
 
 /// Put an entry into the project: its own file, then whatever it needs.
 pub fn place(S, entry) {
+    // An addon is a directory a game requires by path, so it lands at that
+    // path or not at all: a numbered copy would answer no `require`.
+    if entry.kind == "addon" {
+        install_tree(S, entry.file);
+        return;
+    }
     for needed in util::vec(entry.get("needs").unwrap_or([])) {
         install(S, needed);
     }
@@ -156,6 +193,9 @@ fn kind_icon(kind) {
     }
     if kind == "rig" {
         return icons::panel("bonemap");
+    }
+    if kind == "addon" {
+        return icons::persona("script");
     }
     return icons::panel("scene");
 }
