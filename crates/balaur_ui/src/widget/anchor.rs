@@ -43,10 +43,9 @@ pub(crate) fn in_box(anchor: &str) -> (In, In) {
 pub(crate) fn root_frame(
     widget: &Widget,
     area: egui::Rect,
-    scale: f32,
 ) -> (egui::Pos2, Align2, egui::Vec2, egui::Order) {
     if widget.anchor == w::FILL {
-        let inset = widget.inset.map(|v| v * scale);
+        let inset = widget.inset.map(|v| v);
         let rect = egui::Rect::from_min_max(
             area.min + vec2(inset[0], inset[1]),
             area.max - vec2(inset[2], inset[3]),
@@ -58,7 +57,7 @@ pub(crate) fn root_frame(
             egui::Order::Middle,
         );
     }
-    if let Some((pos, align, size)) = wide(widget, area, scale) {
+    if let Some((pos, align, size)) = wide(widget, area) {
         return (pos, align, size, egui::Order::Middle);
     }
     if widget.kind == w::DIALOG {
@@ -69,13 +68,13 @@ pub(crate) fn root_frame(
             egui::Order::Foreground,
         );
     }
-    let (pos, align) = root_placement(widget, area, scale);
+    let (pos, align) = root_placement(widget, area);
     (pos, align, egui::Vec2::ZERO, egui::Order::Middle)
 }
 
 /// Where a root's own `anchor`, `x` and `y` put it inside its surface. Only a
 /// root is placed this way; every other widget is placed by its container.
-fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2, Align2) {
+fn root_placement(widget: &Widget, area: egui::Rect) -> (egui::Pos2, Align2) {
     let align = match widget.anchor.as_str() {
         w::TOP_RIGHT => Align2::RIGHT_TOP,
         w::BOTTOM_LEFT => Align2::LEFT_BOTTOM,
@@ -94,7 +93,7 @@ fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2,
         egui::Align::Center => mid + offset,
         egui::Align::Max => max - offset,
     };
-    let (centre, ox, oy) = (area.center(), widget.x * scale, widget.y * scale);
+    let (centre, ox, oy) = (area.center(), widget.x, widget.y);
     let pos = pos2(
         inward(align.x(), area.min.x, centre.x, area.max.x, ox),
         inward(align.y(), area.min.y, centre.y, area.max.y, oy),
@@ -107,12 +106,12 @@ fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2,
 /// `fill_left` the height down the left, `fill_across` and `fill_down` the
 /// middle. The spanning axis is the surface less `inset`; the other is the
 /// widget's stated size, or what it measures when it states none.
-fn wide(widget: &Widget, area: egui::Rect, scale: f32) -> Option<(egui::Pos2, Align2, egui::Vec2)> {
-    let [left, top, right, bottom] = widget.inset.map(|v| v * scale);
-    let (ox, oy) = (widget.x * scale, widget.y * scale);
+fn wide(widget: &Widget, area: egui::Rect) -> Option<(egui::Pos2, Align2, egui::Vec2)> {
+    let [left, top, right, bottom] = widget.inset.map(|v| v);
+    let (ox, oy) = (widget.x, widget.y);
     let across = (area.width() - left - right).max(0.0);
     let down = (area.height() - top - bottom).max(0.0);
-    let (tall, broad) = (widget.height * scale, widget.width * scale);
+    let (tall, broad) = (widget.height, widget.width);
     let centre = area.center();
     Some(match widget.anchor.as_str() {
         w::FILL_TOP => (

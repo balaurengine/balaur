@@ -98,6 +98,12 @@ pub(crate) mod words {
     /// How a container spreads its children along its own direction.
     pub(crate) const JUSTIFYS: &[&str] = &[START, CENTER, END, BETWEEN, AROUND, EVENLY];
 
+    pub(crate) const ABOVE: &str = "above";
+    pub(crate) const BELOW: &str = "below";
+    pub(crate) const POINTER: &str = "pointer";
+    /// Where a menu opens against the button that drops it.
+    pub(crate) const PLACEMENTS: &[&str] = &[BELOW, ABOVE, POINTER, CENTER];
+
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
     /// Slant.
@@ -202,6 +208,7 @@ pub(crate) mod keys {
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";
     pub(crate) const PLACEHOLDER: &str = "placeholder";
+    pub(crate) const PLACEMENT: &str = "placement";
     pub(crate) const PREFIX: &str = "prefix";
     pub(crate) const PREFIX_COLOR: &str = "prefix_color";
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
@@ -215,6 +222,7 @@ pub(crate) mod keys {
     pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const SECRET: &str = "secret";
+    pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const SIZE: &str = "size";

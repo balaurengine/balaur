@@ -1290,7 +1290,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 68 properties
+`ui` · 71 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1305,6 +1305,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
 <tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list At least 0.</td></tr>
+<tr><td><code>context</code></td><td>string</td><td>—</td><td>Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own</td></tr>
 <tr><td><code>deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
 <tr><td><code>disabled</code></td><td>bool</td><td><code>false</code></td><td>Grey the widget out and swallow its clicks</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
@@ -1342,10 +1343,12 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside a container&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme&#x27;s own, and a stated zero is no space at all</td></tr>
 <tr><td><code>padding_x</code></td><td>float</td><td><code>-1.0</code></td><td>The air either side of a caption, in design pixels; below zero takes the theme&#x27;s own</td></tr>
 <tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`&#x27;s column names split on U+001F</td></tr>
+<tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen One of <code>below</code>, <code>above</code>, <code>pointer</code>, <code>center</code>.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
+<tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
 <tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption&#x27;s height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>

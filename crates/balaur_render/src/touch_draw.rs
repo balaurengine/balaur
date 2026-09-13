@@ -26,6 +26,9 @@ fn color(channels: [f32; 4]) -> Color32 {
 /// Paint every control in the scene. Called by the windowed backend after the
 /// widget pass, on the layer below it.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
+    // A placement is physical pixels, because that is what a finger arrives
+    // in, and egui paints in points. One divide is the whole difference.
+    let per_point = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
     let world = eng.world();
     let mut buttons = world.query::<(Entity, &TouchButton)>();
     let mut sticks = world.query::<(Entity, &TouchStick)>();
@@ -40,15 +43,12 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         } else {
             button.color
         });
-        let at = pos2(center.0, center.1);
+        let at = pos2(center.0 / per_point, center.1 / per_point);
         if button.shape == balaur_input::touch_controls::Shape::Circle {
-            painter.circle_filled(at, half.0.max(half.1), fill);
+            painter.circle_filled(at, half.0.max(half.1) / per_point, fill);
         } else {
-            painter.rect_filled(
-                egui::Rect::from_center_size(at, egui::vec2(half.0 * 2.0, half.1 * 2.0)),
-                8.0,
-                fill,
-            );
+            let size = egui::vec2(half.0 * 2.0, half.1 * 2.0) / per_point;
+            painter.rect_filled(egui::Rect::from_center_size(at, size), 8.0, fill);
         }
     }
     for (_, stick) in &mut sticks {
@@ -56,8 +56,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
             continue;
         };
         let painter = painter.get_or_insert_with(|| layer(ctx));
-        painter.circle_filled(pos2(base.0.0, base.0.1), base.1, color(stick.color));
-        painter.circle_filled(pos2(knob.0.0, knob.0.1), knob.1, color(stick.knob_color));
+        let centre = |c: (f32, f32)| pos2(c.0 / per_point, c.1 / per_point);
+        painter.circle_filled(centre(base.0), base.1 / per_point, color(stick.color));
+        painter.circle_filled(centre(knob.0), knob.1 / per_point, color(stick.knob_color));
     }
 }
 

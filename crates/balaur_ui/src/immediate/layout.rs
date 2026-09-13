@@ -177,7 +177,7 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
         "list",
         |eng: &Engine, (id, opts, count, cb): (String, Option<Value>, i64, CallbackId)| {
             let opts = Opts::with_roles(opts);
-            let row_h = sc(opts.px(k::ROW_HEIGHT, 20.0)).max(1.0);
+            let row_h = opts.px(k::ROW_HEIGHT, 20.0).max(1.0);
             let rows = usize::try_from(count).unwrap_or(0);
             with_ui(|ui| {
                 let mut result = Ok(());
@@ -475,7 +475,6 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     );
     m.function("dot", |_eng: &Engine, (color, d): (String, f32)| {
         with_ui(|ui| {
-            let d = d;
             let (rect, _) = ui.allocate_exact_size(vec2(d, d), Sense::hover());
             if let Some(color) = parse_hex(&color) {
                 ui.painter().circle_filled(rect.center(), d / 2.0, color);

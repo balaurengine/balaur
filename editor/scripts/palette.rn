@@ -244,7 +244,7 @@ pub fn draw(S) {
         });
     });
     S.palette_submit = false;
-    if scrim_clicked || ui::shortcut("none", "Escape") {
+    if scrim_clicked || ui::shortcut("escape") {
         shell::close_palette(S);
     }
 }

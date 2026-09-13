@@ -6,30 +6,6 @@ use crate::support::*;
 use balaur_core::hecs::Entity;
 use egui::pos2;
 
-fn property(app: &balaur_core::App, entity: Entity, key: &str) -> toml::Value {
-    balaur::components::get(&app.engine, entity, "widget")
-        .expect("the widget component is still on the node")
-        .get(key)
-        .cloned()
-        .unwrap_or_else(|| panic!("the widget has no `{key}`"))
-}
-
-/// Every text shape's caption and top-left corner, for finding a child.
-fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Pos2)> {
-    out.shapes
-        .iter()
-        .filter_map(|shape| match &shape.shape {
-            egui::epaint::Shape::Text(text) => Some((text.galley.text().to_string(), text.pos)),
-            _ => None,
-        })
-        .collect()
-}
-
-fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
-    ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
-        .expect("the root drew")
-}
-
 #[test]
 fn a_check_flips_on_click_and_reads_back() {
     let (_dir, mut app) = app();
@@ -256,33 +232,6 @@ fn a_tree_caret_folds_the_branch_under_it() {
     assert!(
         !folded.iter().any(|t| t == "Child") && folded.iter().any(|t| t == "After"),
         "the branch folds and its sibling stays: {folded:?}"
-    );
-}
-
-#[test]
-fn a_menu_reports_the_item_that_was_picked() {
-    let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "menu" text = "File" options = ["Open", "Save"] x = 0.0 y = 0.0 };
-    let entity = add_widget(&app, &params.into());
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let head = pos2(20.0, 10.0);
-    pass(&app, &ctx, press(head, true));
-    pass(&app, &ctx, press(head, false));
-    let open = pass(&app, &ctx, vec![]);
-    let (_, at) = texts(&open)
-        .into_iter()
-        .find(|(t, _)| t == "Save")
-        .expect("the list is open and holds its items");
-    let item = pos2(at.x + 4.0, at.y + 4.0);
-    pass(&app, &ctx, press(item, true));
-    pass(&app, &ctx, press(item, false));
-    consume_input(&mut app);
-    assert_eq!(
-        property(&app, entity, "text"),
-        toml::Value::String("Save".into()),
-        "the pick lands on the widget"
     );
 }
 
@@ -592,99 +541,6 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     );
 }
 
-/// A menu's rows can be nodes: an icon, a shortcut and a tick are widgets
-/// like any other, which a flat list of strings cannot carry.
-#[test]
-fn a_menu_opens_its_child_rows() {
-    let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 };
-    let host = add_widget(&app, &params.into());
-    let mut rows = Vec::new();
-    for name in ["R0", "R1"] {
-        let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
-        rows.push(add_child_widget(&app, host, name, &row.into()));
-    }
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    // Counted by the boxes they take: a node caption shapes through the text
-    // renderer, not an egui galley, so it is not a Text shape to find.
-    let boxes = |out: &egui::FullOutput| {
-        out.shapes
-            .iter()
-            .filter(|s| match &s.shape {
-                egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
-                _ => false,
-            })
-            .map(|s| match &s.shape {
-                egui::epaint::Shape::Rect(r) => r.rect,
-                _ => unreachable!(),
-            })
-            .fold(Vec::<egui::Rect>::new(), |mut seen, rect| {
-                // A button paints its frame and its fill over the same box.
-                if !seen.contains(&rect) {
-                    seen.push(rect);
-                }
-                seen
-            })
-    };
-    assert!(
-        boxes(&pass(&app, &ctx, vec![])).is_empty(),
-        "a shut menu drew its rows"
-    );
-    let at = root_rect(&ctx, host).center();
-    pass(&app, &ctx, press(at, true));
-    pass(&app, &ctx, press(at, false));
-    let open = boxes(&pass(&app, &ctx, vec![]));
-    assert_eq!(open.len(), 2, "the open menu drew {open:?}");
-    assert!(open[1].min.y >= open[0].max.y, "the rows overlap: {open:?}");
-    let second = open[1].center();
-    pass(&app, &ctx, press(second, true));
-    pass(&app, &ctx, press(second, false));
-    consume_input(&mut app);
-    assert!(
-        clicked(&app, rows[1]),
-        "a click on a row did not reach its node"
-    );
-    assert!(!clicked(&app, rows[0]), "the click reached the wrong row");
-}
-
-/// An action row closes its menu; a toggle row says `keep_open` and stays,
-/// which is what a grid of panel ticks needs.
-#[test]
-fn a_row_closes_its_menu_unless_it_keeps_it_open() {
-    for (keep, open_after) in [(false, false), (true, true)] {
-        let (_dir, mut app) = app();
-        let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 };
-        let host = add_widget(&app, &params.into());
-        let row = toml::toml! {
-            kind = "button" text = "row" width = 173.0 height = 22.0 keep_open = keep
-        };
-        add_child_widget(&app, host, "R0", &row.into());
-        let ctx = egui::Context::default();
-        settle(&app, &ctx);
-        let at = root_rect(&ctx, host).center();
-        pass(&app, &ctx, press(at, true));
-        pass(&app, &ctx, press(at, false));
-        // Shown the pass after the click, and hit-tested against that pass.
-        pass(&app, &ctx, vec![]);
-        let row_at = pos2(100.0, 51.0);
-        pass(&app, &ctx, press(row_at, true));
-        pass(&app, &ctx, press(row_at, false));
-        consume_input(&mut app);
-        let drawn = pass(&app, &ctx, vec![])
-            .shapes
-            .iter()
-            .any(|s| match &s.shape {
-                egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
-                _ => false,
-            });
-        assert_eq!(
-            drawn, open_after,
-            "keep_open = {keep}: menu open after the click = {drawn}"
-        );
-    }
-}
-
 /// The roles the face tests read.
 fn face_theme(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("themes")).unwrap();
@@ -799,75 +655,6 @@ fn a_picture_sits_on_its_role_s_plate() {
         _ => false,
     });
     assert!(plate, "no white disc under the picture");
-}
-
-/// `showing` holds a menu's rows up with no click, which is the only way an
-/// offscreen run or a tutorial can show one.
-#[test]
-fn a_showing_menu_is_open_without_a_click() {
-    let (_dir, app) = app();
-    let params = toml::toml! { kind = "menu" text = "Menu" showing = true x = 10.0 y = 10.0 };
-    let host = add_widget(&app, &params.into());
-    let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
-    add_child_widget(&app, host, "R0", &row.into());
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let drawn = pass(&app, &ctx, vec![])
-        .shapes
-        .iter()
-        .any(|s| match &s.shape {
-            egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
-            _ => false,
-        });
-    assert!(drawn, "a showing menu drew no rows");
-}
-
-/// A menu whose rows are nodes is measured as the button it draws: its picture
-/// and caret included, or whatever sits after it in a row draws over it.
-#[test]
-fn a_menu_button_holds_its_room_in_a_row() {
-    let (dir, app) = app();
-    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
-    std::fs::write(
-        dir.path().join("themes/row.toml"),
-        "type = \"widget_theme\"\n\n[roles.m]\nfill = \"#ff0000\"\n\n[roles.n]\nfill = \"#00ff00\"\n",
-    )
-    .unwrap();
-    let strip = add_widget(
-        &app,
-        &toml::toml! { kind = "row" gap = 0.0 theme = "themes/row.toml" x = 0.0 y = 0.0 }.into(),
-    );
-    let menu = add_child_widget(
-        &app,
-        strip,
-        "M",
-        &toml::toml! { kind = "menu" role = "m" text = "Balaur" trailing = "▾" }.into(),
-    );
-    let row = toml::toml! { kind = "button" text = "row" };
-    add_child_widget(&app, menu, "R0", &row.into());
-    add_child_widget(
-        &app,
-        strip,
-        "N",
-        &toml::toml! { kind = "button" role = "n" text = "next" }.into(),
-    );
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let out = pass(&app, &ctx, vec![]);
-    let boxed = |fill: egui::Color32| {
-        out.shapes
-            .iter()
-            .find_map(|s| match &s.shape {
-                egui::epaint::Shape::Rect(r) if r.fill == fill => Some(r.rect),
-                _ => None,
-            })
-            .expect("the button drew")
-    };
-    let (mine, next) = (boxed(egui::Color32::RED), boxed(egui::Color32::GREEN));
-    assert!(
-        mine.max.x <= next.min.x + 0.5,
-        "the next button draws over the menu: {mine:?} {next:?}"
-    );
 }
 
 /// A `stack` lays its children over one another, each placed in the box by
@@ -1022,109 +809,35 @@ fn a_button_fills_the_box_the_layout_gave_it() {
     );
 }
 
-/// The rows of a hidden menu, with their width, if any were drawn.
-fn rows_drawn(out: &egui::FullOutput, width: f32) -> Option<egui::Rect> {
-    out.shapes.iter().find_map(|s| match &s.shape {
-        egui::epaint::Shape::Rect(r) if (r.rect.width() - width).abs() < 1.0 => Some(r.rect),
-        _ => None,
-    })
-}
-
-/// A button naming a hidden menu as its `context`, and that menu's row.
-fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
-    let target = toml::toml! {
-        kind = kind text = "Target" x = 10.0 y = 10.0 width = 120.0 height = 40.0 context = "cm"
-    };
-    let target = add_widget(app, &target.into());
-    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
-    let menu = add_child_widget(app, app.engine.root(), "cm", &menu.into());
-    let row = toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 };
-    add_child_widget(app, menu, "R0", &row.into());
-    target
-}
-
-/// A secondary click on a widget opens the menu its `context` names, at the
-/// pointer, without the menu's own button ever drawing; and the widget's own
-/// click is not reported, since only the primary button clicks.
+/// A dialog is shut by Escape or by a click on the dim behind it, and says
+/// so through `open` and `on_change`, the way a window's cross does.
 #[test]
-fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
-    let (_dir, mut app) = app();
-    let target = context_scene(&app, "button");
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let at = root_rect(&ctx, target).center();
-    let before = pass(&app, &ctx, vec![]);
-    assert!(rows_drawn(&before, 173.0).is_none(), "the menu opened unasked");
-    assert!(
-        !texts(&before).iter().any(|(text, _)| text == "Hidden"),
-        "a hidden menu drew its button"
-    );
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
-    // Shown the pass after the click, as a menu's rows are.
-    let after = pass(&app, &ctx, vec![]);
-    let rows = rows_drawn(&after, 173.0).expect("the secondary click opened no menu");
-    assert!(
-        rows.min.distance(at) < 24.0,
-        "the menu opened at {:?}, not at the pointer {at:?}",
-        rows.min
-    );
-    consume_input(&mut app);
-    assert!(!clicked(&app, target), "a secondary click counted as a click");
-}
-
-/// A finger held on a widget past egui's click length is the same press as a
-/// secondary click, on a label as much as on a button: the sensor under the
-/// kind is what egui holds the touch on.
-#[test]
-fn a_long_touch_opens_the_named_menu() {
-    let (_dir, app) = app();
-    let target = context_scene(&app, "label");
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let at = root_rect(&ctx, target).center();
-    pass_at(&app, &ctx, touch(at, true), Some(1.0));
-    pass_at(&app, &ctx, vec![], Some(1.1));
-    // Past `max_click_duration`, still down and unmoved: the long touch.
-    pass_at(&app, &ctx, vec![], Some(2.5));
-    let held = pass_at(&app, &ctx, vec![], Some(2.55));
-    assert!(
-        rows_drawn(&held, 173.0).is_some(),
-        "a long touch opened no menu"
-    );
-    pass_at(&app, &ctx, touch(at, false), Some(2.6));
-    let released = pass_at(&app, &ctx, vec![], Some(2.65));
-    assert!(
-        rows_drawn(&released, 173.0).is_some(),
-        "lifting the finger closed the menu it opened"
-    );
-}
-
-/// A press on a child that names a menu is the child's; the parent naming
-/// another opens nothing for the same press.
-#[test]
-fn the_innermost_context_takes_the_press() {
-    let (_dir, app) = app();
-    let panel = toml::toml! {
-        kind = "column" x = 10.0 y = 10.0 width = 200.0 height = 100.0 context = "outer"
-        padding = [0.0, 0.0, 0.0, 0.0]
-    };
-    let panel = add_widget(&app, &panel.into());
-    let child = toml::toml! { kind = "label" text = "Inner" width = 100.0 height = 30.0 context = "inner" };
-    let child = add_child_widget(&app, panel, "child", &child.into());
-    let root = app.engine.root();
-    for (name, width) in [("outer", 150.0), ("inner", 173.0)] {
-        let menu = toml::toml! { kind = "menu" text = name visible = false x = 300.0 y = 300.0 };
-        let menu = add_child_widget(&app, root, name, &menu.into());
-        let row = toml::toml! { kind = "button" text = "Row" width = width height = 22.0 };
-        add_child_widget(&app, menu, "R0", &row.into());
+fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
+    for by_escape in [true, false] {
+        let (_dir, mut app) = app();
+        let dialog = add_widget(
+            &app,
+            &toml::toml! { kind = "dialog" text = "Sure?" width = 200.0 height = 100.0 }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let outside = pos2(10.0, 10.0);
+        if by_escape {
+            pass(&app, &ctx, key(egui::Key::Escape));
+        } else {
+            pass(&app, &ctx, press(outside, true));
+            pass(&app, &ctx, press(outside, false));
+        }
+        consume_input(&mut app);
+        assert_eq!(
+            property(&app, dialog, "open"),
+            toml::Value::Boolean(false),
+            "by_escape = {by_escape}: the dialog is still open"
+        );
+        let after = pass(&app, &ctx, vec![]);
+        assert!(
+            !texts(&after).iter().any(|(text, _)| text == "Sure?"),
+            "by_escape = {by_escape}: a shut dialog is still drawn"
+        );
     }
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let at = balaur_ui::widget_rect(child).expect("the child drew").center();
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
-    let after = pass(&app, &ctx, vec![]);
-    assert!(rows_drawn(&after, 173.0).is_some(), "the child's menu did not open");
-    assert!(rows_drawn(&after, 150.0).is_none(), "the parent's menu opened for the child's press");
 }

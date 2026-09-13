@@ -15,5 +15,7 @@ mod widget_anchor;
 mod widget_focus;
 mod widget_kinds;
 mod widget_layer;
+mod widget_menus;
+mod widget_scale;
 mod widget_tree;
 mod widget_window;

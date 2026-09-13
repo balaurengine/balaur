@@ -84,19 +84,19 @@ pub(crate) fn settle_rects() {
     });
 }
 
-/// The space inside a container's edge, per side and in device pixels.
+/// The space inside a container's edge, per side and in design pixels.
 ///
 /// One rule, wherever a container is measured or drawn: the widget's own
 /// `padding` where it states one — one number for every side, or four for
 /// left, top, right and bottom — else the theme's entry for its kind, else
 /// the built-in: 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
-pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> Pad {
+pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style) -> Pad {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     if widget.padding.iter().any(|side| *side >= 0.0) {
-        return Pad::of(widget.padding.map(|side| side.max(0.0) * scale));
+        return Pad::of(widget.padding.map(|side| side.max(0.0)));
     }
-    Pad::all(style.padding.unwrap_or(built_in) * scale)
+    Pad::all(style.padding.unwrap_or(built_in))
 }
 
 /// The space inside a container's edge, per side.
@@ -154,17 +154,16 @@ impl Pad {
     }
 }
 
-/// The gap between a container's children, in device pixels: the widget's
+/// The gap between a container's children, in design pixels: the widget's
 /// own where it states one, else the theme's entry for its kind, which is
 /// where a converted Godot theme's separations land.
-pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style, scale: f32) -> f32 {
-    let stated = if widget.gap >= 0.0 {
+pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> f32 {
+    if widget.gap >= 0.0 {
         widget.gap
     } else {
         // 8 is the space a container has always left between its children.
         style.gap.unwrap_or(8.0)
-    };
-    stated * scale
+    }
 }
 
 /// The frame a container paints from its theme entry. `fill` is what a kind
@@ -174,13 +173,12 @@ pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style, scale
 /// pixels, and a caller shrinks its own rect by the float padding instead.
 fn themed_frame(
     style: &crate::widget::theme::Style,
-    scale: f32,
     fill: Option<Color32>,
 ) -> egui::Frame {
     egui::Frame::new()
         .fill(style.fill.or(fill).unwrap_or(Color32::TRANSPARENT))
         .corner_radius(egui::CornerRadius::same(
-            (style.radius.unwrap_or(0.0) * scale) as u8,
+            (style.radius.unwrap_or(0.0)) as u8,
         ))
         .stroke(
             style
@@ -195,7 +193,7 @@ fn themed_frame(
 pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let box_size = box_of(&widget, at.assigned, at.scale);
+    let box_size = box_of(&widget, at.assigned);
     let room = ui.max_rect();
     let size = vec2(
         if box_size.x > 0.0 {
@@ -210,8 +208,8 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         },
     );
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style, at.scale);
-    let frame = themed_frame(&style, at.scale, None);
+    let pad = padding_of(&widget, &style);
+    let frame = themed_frame(&style, None);
     let inner = (size - pad.taken()).max(egui::Vec2::ZERO);
     frame.show(ui, |frame_ui| {
         // The padding comes off the box in floats; the frame itself carries
@@ -220,7 +218,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(held)));
         let ui = &mut inner_ui;
         hold_to(ui, inner);
-        let dead = widget.deadzone * at.scale;
+        let dead = widget.deadzone;
         let mut area = egui::ScrollArea::both()
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
@@ -252,7 +250,6 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 at.arena,
                 index,
                 ui,
-                at.scale,
                 &at.theme,
                 &room,
                 at.deep(index),
@@ -278,7 +275,6 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if children.is_empty() {
         return;
     }
-    let scale = at.scale;
     let widget = placed.widget.clone();
     let entity = placed.entity;
     // Each page as (index, the name `active` holds, the strip's label). Two
@@ -318,8 +314,8 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let style = at.style_of(&widget);
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
-    let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget, scale);
-    let gap = gap_of(&widget, &at.style_of(&widget), scale);
+    let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget);
+    let gap = gap_of(&widget, &at.style_of(&widget));
 
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     let chosen = strip
@@ -334,7 +330,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                         .color(color),
                 )
                 .corner_radius(egui::CornerRadius::same(
-                    (style.radius.unwrap_or(5.0) * scale) as u8,
+                    (style.radius.unwrap_or(5.0)) as u8,
                 ));
                 button = match (on, style.fill) {
                     (true, Some(fill)) => button.fill(fill),
@@ -366,7 +362,6 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         at.arena,
         showing,
         ui,
-        at.scale,
         &at.theme,
         &room,
         at.deep(index),
@@ -387,9 +382,9 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// Godot's container contract — a child fills the rect it was assigned unless
 /// it names a size of its own. 0 on an axis means "hug", which is what a root
 /// and every scene written before `grow` gets.
-pub(crate) fn box_of(widget: &Widget, assigned: egui::Vec2, scale: f32) -> egui::Vec2 {
-    let stated = vec2(widget.width, widget.height) * scale;
-    let floor = vec2(widget.min_width, widget.min_height) * scale;
+pub(crate) fn box_of(widget: &Widget, assigned: egui::Vec2) -> egui::Vec2 {
+    let stated = vec2(widget.width, widget.height);
+    let floor = vec2(widget.min_width, widget.min_height);
     vec2(
         if stated.x > 0.0 { stated.x } else { assigned.x }.max(floor.x),
         if stated.y > 0.0 { stated.y } else { assigned.y }.max(floor.y),
@@ -426,9 +421,9 @@ impl Axis {
     }
 }
 
-/// A box's own stated size, in device pixels: what a seam drag writes back.
-pub(crate) fn stated_of(widget: &Widget, scale: f32) -> egui::Vec2 {
-    vec2(widget.width, widget.height) * scale
+/// A box's own stated size, in design pixels: what a seam drag writes back.
+pub(crate) fn stated_of(widget: &Widget) -> egui::Vec2 {
+    vec2(widget.width, widget.height)
 }
 
 /// A bare container: its own frame where the theme gives it one, then the
@@ -441,7 +436,7 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let widget = at.arena[index].widget.clone();
     let style = at.style_of(&widget);
     if style.fill.is_some() || style.stroke.is_some() {
-        let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0) * at.scale) as u8);
+        let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
         ui.painter().rect(
             ui.max_rect(),
             radius,
@@ -464,7 +459,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     if placed.children.is_empty() {
         return;
     }
-    let grab = placed.widget.handle * at.scale;
+    let grab = placed.widget.handle;
     let cross = match placed.widget.align.as_str() {
         w::CENTER => egui::Align::Center,
         w::END => egui::Align::Max,
@@ -540,9 +535,9 @@ fn drag_seam(
     let after = children[slot + 1];
     // The one that states a size takes the drag; between two growers there is
     // nothing to write, so the seam is not a handle at all.
-    let (target, sign) = if axis.along(stated_of(&at.arena[before].widget, at.scale)) > 0.0 {
+    let (target, sign) = if axis.along(stated_of(&at.arena[before].widget)) > 0.0 {
         (before, 1.0)
-    } else if axis.along(stated_of(&at.arena[after].widget, at.scale)) > 0.0 {
+    } else if axis.along(stated_of(&at.arena[after].widget)) > 0.0 {
         (after, -1.0)
     } else {
         return;
@@ -570,7 +565,7 @@ fn drag_seam(
     let widget = &at.arena[target].widget;
     let floor = axis.along(vec2(widget.min_width, widget.min_height));
     let was = axis.along(vec2(widget.width, widget.height));
-    let now = (was + moved / at.scale).max(floor.max(1.0));
+    let now = (was + moved).max(floor.max(1.0));
     let entity = at.arena[target].entity;
     at.edits.push((
         entity,

@@ -740,6 +740,7 @@ fn write_functions(
     static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
+    let mut forwarders: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
@@ -834,6 +835,28 @@ fn write_functions(
         }
         out.push_str(&body.rune);
         out.push_str("}\n");
+        for (signal, handler) in body.forwarders {
+            forwarders.entry(signal).or_insert(handler);
+        }
+    }
+    write_forwarders(out, functions, &forwarders);
+}
+
+/// What `connect` asked for: the engine delivers an event as the subscriber's
+/// `on_<name>`, and Godot named a handler of its own.
+fn write_forwarders(
+    out: &mut String,
+    functions: &[Function],
+    forwarders: &std::collections::BTreeMap<String, String>,
+) {
+    for (signal, handler) in forwarders {
+        if functions.iter().any(|f| f.name == format!("on_{signal}")) {
+            continue;
+        }
+        let _ = write!(
+            out,
+            "\n/// `{signal}`, as the engine delivers it.\npub fn on_{signal}(this, payload) {{\n    {handler}(this, payload);\n}}\n"
+        );
     }
 }
 

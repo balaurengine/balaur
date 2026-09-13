@@ -86,7 +86,7 @@ pub fn draw(S, k) {
             commit(S);
         }
     });
-    if ui::shortcut("none", "Escape") {
+    if ui::shortcut("escape") {
         close(S);
     }
 }

@@ -51,7 +51,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
                     (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line", group = "type" }"#),
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
+                    (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
                     (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
+                    (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
                     (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
                     (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::SOURCE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights" }"#),
@@ -202,7 +204,15 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::TRAILING.into(),
         toml::Value::String(widget.trailing.to_string()),
     );
+    map.insert(
+        k::SHORTCUT.into(),
+        toml::Value::String(widget.shortcut.to_string()),
+    );
     map.insert(k::SHOWING.into(), toml::Value::Boolean(widget.showing));
+    map.insert(
+        k::PLACEMENT.into(),
+        toml::Value::String(widget.placement.to_string()),
+    );
     text_to_toml(widget, &mut map);
     look_to_toml(widget, &mut map);
     controls_to_toml(widget, &mut map);
@@ -487,7 +497,9 @@ fn widget_from(params: &toml::Value) -> Widget {
         wrap: r.flag(k::WRAP),
         keep_open: r.flag(k::KEEP_OPEN),
         trailing: s(k::TRAILING),
+        shortcut: s(k::SHORTCUT),
         showing: r.flag(k::SHOWING),
+        placement: s(k::PLACEMENT),
         text_align: s(k::TEXT_ALIGN),
         source: s(k::SOURCE),
         fit: s(k::FIT),

@@ -77,6 +77,16 @@ pub fn press_with(pos: egui::Pos2, button: PointerButton, pressed: bool) -> Vec<
     ]
 }
 
+/// Draw at a UI scale, the way the windowed backend does it: egui's zoom is
+/// the only scale there is, so a design pixel stays a point whatever it is.
+pub fn set_scale(app: &App, ctx: &egui::Context, scale: f32) {
+    app.engine
+        .resource::<balaur_ui::UiConfig>()
+        .borrow_mut()
+        .scale = scale;
+    ctx.set_zoom_factor(scale);
+}
+
 /// A finger down or up: the touch event a screen sends, with the pointer
 /// press egui derives from it, as a winit backend delivers both.
 pub fn touch(pos: egui::Pos2, down: bool) -> Vec<egui::Event> {
@@ -181,4 +191,28 @@ pub fn menu(app: &App) -> (Entity, Vec<Entity>) {
         })
         .collect();
     (column, buttons)
+}
+
+pub fn property(app: &App, entity: Entity, key: &str) -> toml::Value {
+    balaur::components::get(&app.engine, entity, "widget")
+        .expect("the widget component is still on the node")
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| panic!("the widget has no `{key}`"))
+}
+
+/// Every text shape's caption and top-left corner, for finding a child.
+pub fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Pos2)> {
+    out.shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) => Some((text.galley.text().to_string(), text.pos)),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
+    ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+        .expect("the root drew")
 }

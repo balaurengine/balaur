@@ -219,6 +219,7 @@ impl Frontend {
         let idle_motion = !seen.beyond_motion
             && balaur_ui::pointer_is_dragging_elsewhere(window.egui_context(), camera_enabled);
         let input_seen = seen.any && !idle_motion;
+        apply_ui_zoom(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
         // What the window last spent, filed before this frame's own spans so
@@ -291,6 +292,18 @@ impl Frontend {
         take_screenshot_if_due(app, window, self.frame);
         !app.engine.quit_requested()
     }
+}
+
+/// Hand the scale a script asked for to egui, as its zoom factor, before
+/// anything reads what a design pixel became. egui lays the whole pass out in
+/// it, its own widgets included, which is why nothing multiplies a size by
+/// hand any more.
+fn apply_ui_zoom(app: &App, window: &mut Window) {
+    let want = app
+        .engine
+        .try_resource::<balaur_ui::UiConfig>()
+        .map_or(1.0, |config| config.borrow().scale);
+    window.set_ui_zoom(want);
 }
 
 /// File what the window reported for the frame it last drew: the true frame

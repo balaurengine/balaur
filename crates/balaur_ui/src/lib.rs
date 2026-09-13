@@ -39,7 +39,7 @@ pub use widget::input::{
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
-/// Where the layer last drew a widget, in device pixels, or `None` for one
+/// Where the layer last drew a widget, in design pixels, or `None` for one
 /// it did not draw last frame. What `ui.widget_rect` answers a script.
 #[must_use]
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {

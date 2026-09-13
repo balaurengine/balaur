@@ -789,6 +789,28 @@ pub fn field(owner, name) {
     ()
 }
 
+/// Calling another script's method. A node is asked whether it has one; an
+/// object holding a function answers with that. Anything else is nothing,
+/// which is what Godot's own missing method would have been on a freed node.
+pub fn invoke(owner, name, args) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        if owner.has_method(name) {
+            return owner.call(name, args);
+        }
+        return ();
+    }
+    if owner is Object {
+        let held = get(owner, name, ());
+        if !is_nil(held) {
+            return held(args);
+        }
+    }
+    ()
+}
+
 /// Writing a property on another script, through the setter every converted
 /// script carries.
 pub fn set_field(owner, name, value) {

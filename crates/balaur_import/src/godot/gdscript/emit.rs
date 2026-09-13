@@ -89,6 +89,8 @@ pub(crate) struct Emitter<'a> {
     pub awaits: bool,
     /// Set when the body reached a shim call, so the caller binds `gd`.
     pub uses_shim: bool,
+    /// Signal name to handler for each cross-script `connect`.
+    pub forwarders: BTreeMap<String, String>,
     /// False inside a hook the engine calls synchronously, where a wait
     /// cannot be emitted at all.
     pub allow_await: bool,
@@ -116,6 +118,7 @@ impl<'a> Emitter<'a> {
             temps: 0,
             awaits: false,
             uses_shim: false,
+            forwarders: BTreeMap::new(),
             allow_await: true,
             in_static: false,
             enclosing: String::new(),
@@ -746,6 +749,12 @@ impl<'a> Emitter<'a> {
                 return self.awaited(&name, text);
             }
         }
+        // A built-in signal on a widget: the handler's name is what the
+        // widget carries, and the engine calls it on the first ancestor whose
+        // script has it, exactly as the connection meant.
+        if let Some(text) = self.widget_connection(callee, args) {
+            return text;
+        }
         // A signal's own verbs: `sig.emit(..)`, `sig.connect(..)`.
         if let Expr::Field(object, verb) = callee
             && let Some(signal) = self.signal_of(object)
@@ -799,7 +808,11 @@ impl<'a> Emitter<'a> {
             if receiver.starts_with("script::require(") {
                 return format!("({receiver}.{})({})", safe(method), parts.join(", "));
             }
-            return format!("{receiver}.{}({})", safe(method), parts.join(", "));
+            // No engine call of that name, so this is one script calling
+            // another's method. Godot read it off the node; here the node is
+            // asked at run time, which is what the shim's `invoke` does.
+            self.uses_shim = true;
+            return map::invoke(&receiver, &safe(method), &parts);
         }
         if let Expr::Name(name) = callee
             && !self.is_local(name)
@@ -879,6 +892,67 @@ impl<'a> Emitter<'a> {
 
     /// The signal a `sig.emit(..)` was written on, where the receiver names
     /// one this class declares.
+    /// `x.signal.connect(self._handler)`: a widget key for a widget's own
+    /// signal, an event subscription for any other. Only a plain method name
+    /// is taken as the handler; a lambda or `.bind(..)` is reported instead.
+    fn widget_connection(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
+        let Expr::Field(inner, verb) = callee else {
+            return None;
+        };
+        if verb != "connect" && verb != "disconnect" {
+            return None;
+        }
+        // `button.pressed.connect(..)`, and the bare `pressed.connect(..)`
+        // a button's own script writes, whose widget is this node's.
+        let (object, signal) = match &**inner {
+            Expr::Field(object, signal) => ((**object).clone(), signal.clone()),
+            // A bare name is this node's own widget signal. One the script
+            // declares belongs to the path below, which emits and subscribes.
+            Expr::Name(signal)
+                if !self.is_local(signal)
+                    && !self.context.members.contains(signal)
+                    && !self.context.signals.contains(signal) =>
+            {
+                (Expr::SelfRef, signal.clone())
+            }
+            _ => return None,
+        };
+        if self.signal_of(&object).is_some() {
+            return None;
+        }
+        // The handler Godot named. A lambda or a `.bind(..)` is neither, and
+        // falls through to be reported rather than half-translated.
+        // A method of this class, which is what Godot's handler always is. A
+        // local holding a lambda is not one, and is reported instead.
+        let is_handler = |name: &String| self.context.methods.contains(name);
+        let named = match args.first() {
+            Some(Expr::Name(name)) if is_handler(name) => Some(name.clone()),
+            Some(Expr::Field(owner, name))
+                if matches!(**owner, Expr::SelfRef) && is_handler(name) =>
+            {
+                Some(name.clone())
+            }
+            None => None,
+            _ => return None,
+        };
+        let handler = if verb == "disconnect" { None } else { named.clone() };
+        let handler = handler.map(|name| self.method_name(&name));
+        let receiver = self.expression(&object);
+        // A widget's own signal is a key on the widget: the engine calls it on
+        // the first ancestor whose script has the method, as the connect meant.
+        if let Some(key) = map::widget_signal(&signal) {
+            return Some(map::widget_connect(&receiver, key, handler.as_deref()));
+        }
+        // Any other signal is an event on the emitting node. The engine calls
+        // `on_<name>`, so the module gains one that forwards to the handler.
+        if verb == "disconnect" {
+            return Some(map::signal_unsubscribe(&receiver, &signal));
+        }
+        let handler = handler?;
+        self.forwarders.insert(signal.clone(), handler);
+        Some(map::signal_subscribe(&receiver, &signal))
+    }
+
     fn signal_of(&self, object: &Expr) -> Option<String> {
         let name = match object {
             Expr::Name(name) if !self.is_local(name) => name,

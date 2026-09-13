@@ -49,17 +49,22 @@ fn face_of(
             (texture.id(), vec2(font.size * aspect, font.size))
         });
     let plate = if picture.is_some() && style.plate.is_some() {
-        2.0 * at.scale
+        2.0
     } else {
         0.0
     };
-    let trailing = (!widget.trailing.is_empty()).then(|| {
-        ui.painter().layout_no_wrap(
-            widget.trailing.to_string(),
-            font.clone(),
-            Color32::PLACEHOLDER,
-        )
-    });
+    // A shortcut draws itself the way the platform writes it, so a row that
+    // says `cmd+s` needs no second spelling of it beside the caption.
+    let shown = if widget.trailing.is_empty() {
+        crate::immediate::chord_shown(ui.ctx(), &widget.shortcut)
+    } else {
+        Some(widget.trailing.to_string())
+    };
+    let trailing = shown
+        .map(|text| {
+            ui.painter()
+                .layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER)
+        });
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(font.size, family(w::ICON));
         ui.painter()
@@ -169,7 +174,7 @@ fn paint_face(
 
 /// The corner a button is drawn with: what the theme says, else as round as
 /// its text is tall, which is the pill the layer has always drawn.
-fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::CornerRadius {
+fn corner(style: &Style, widget: &Widget, height: f32) -> egui::CornerRadius {
     if style.round == Some(true) {
         return egui::CornerRadius::same((height / 2.0).min(120.0) as u8);
     }
@@ -180,7 +185,7 @@ fn corner(style: &Style, widget: &Widget, scale: f32, height: f32) -> egui::Corn
             16.0
         }
     });
-    egui::CornerRadius::same((stated * scale).min(120.0) as u8)
+    egui::CornerRadius::same((stated).min(120.0) as u8)
 }
 
 /// A pill that reports its click.
@@ -203,20 +208,18 @@ pub(crate) fn button(
     // Resting: a button is not always as wide as the box it was given, so it
     // reads the state off its own response rather than off that box.
     let base = at.resting(index).style.clone();
-    let (scale, focused) = (at.scale, at.focused);
+    let focused = at.focused;
     let face = face_of(ui, at, index, caption, font, &base);
-    let pad_x = base
-        .padding_x
-        .map_or(ui.spacing().button_padding.x, |p| p * scale);
+    let pad_x = base.padding_x.unwrap_or(ui.spacing().button_padding.x);
     let floor = vec2(
-        base.width.unwrap_or(0.0) * scale,
-        base.height.unwrap_or(0.0) * scale,
+        base.width.unwrap_or(0.0),
+        base.height.unwrap_or(0.0),
     );
     // The box the layout handed it too: a button in a column fills its width
     // rather than hugging its caption, as it does in Godot and in CSS.
-    let given = crate::widget::arrange::box_of(&widget, at.assigned, scale);
+    let given = crate::widget::arrange::box_of(&widget, at.assigned);
     let min = (face.size + vec2(pad_x, ui.spacing().button_padding.y) * 2.0)
-        .max(vec2(widget.width, widget.height) * scale)
+        .max(vec2(widget.width, widget.height))
         .max(floor)
         .max(given);
     let plate = ui.painter().add(egui::Shape::Noop);
@@ -229,7 +232,7 @@ pub(crate) fn button(
     // A checked button is a toggle held down, and wears its pressed look.
     let down = response.is_pointer_button_down_on() || widget.checked;
     let style = base.in_state(response.hovered(), down);
-    let radius = corner(&style, &widget, scale, response.rect.height());
+    let radius = corner(&style, &widget, response.rect.height());
     match style.image.as_ref() {
         Some(path) => crate::widget::kinds::nine_patch_plate(
             ui,
@@ -238,7 +241,6 @@ pub(crate) fn button(
             path,
             style.slice,
             response.rect,
-            scale,
         ),
         None => ui.painter().set(
             plate,

@@ -29,7 +29,6 @@ pub(crate) struct Measure<'a> {
     /// padding is what egui will put around a button's own text.
     painter: egui::Painter,
     padding: egui::Vec2,
-    scale: f32,
     seen: FxHashMap<usize, egui::Vec2>,
     /// What `leaf` answered, which is not what `of` answers: no stated size
     /// and no floor applied. Asked twice a leaf a pass — once to see whether
@@ -38,13 +37,12 @@ pub(crate) struct Measure<'a> {
 }
 
 impl<'a> Measure<'a> {
-    pub(crate) fn new(eng: &'a Engine, arena: &'a [Placed], ui: &egui::Ui, scale: f32) -> Self {
+    pub(crate) fn new(eng: &'a Engine, arena: &'a [Placed], ui: &egui::Ui) -> Self {
         Self {
             eng,
             arena,
             painter: ui.painter().clone(),
             padding: ui.spacing().button_padding * 2.0,
-            scale,
             seen: FxHashMap::default(),
             leaves: FxHashMap::default(),
         }
@@ -66,7 +64,7 @@ impl<'a> Measure<'a> {
         size
     }
 
-    /// The smallest box `index` can be drawn in, in device pixels.
+    /// The smallest box `index` can be drawn in, in design pixels.
     ///
     /// Zero on an axis nothing can answer for: a `draw` node is a script's to
     /// fill, and a `scroll` exists to be smaller than what is in it.
@@ -84,8 +82,8 @@ impl<'a> Measure<'a> {
         } else {
             egui::Vec2::ZERO
         };
-        let floor = vec2(widget.min_width, widget.min_height) * self.scale;
-        let stated = vec2(widget.width, widget.height) * self.scale;
+        let floor = vec2(widget.min_width, widget.min_height);
+        let stated = vec2(widget.width, widget.height);
         let size = vec2(
             if stated.x > 0.0 { stated.x } else { size.x }.max(floor.x),
             if stated.y > 0.0 { stated.y } else { size.y }.max(floor.y),
@@ -104,13 +102,13 @@ impl<'a> Measure<'a> {
             w::DRAW => crate::widget::arrange::measured_of(self.arena[index].entity),
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
-            w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height) * self.scale,
+            w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height),
             // A picture knows its own size, so a row can divide by it.
             w::IMAGE => {
                 crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
                     .map_or(egui::Vec2::ZERO, |texture| {
                         crate::widget::layer::image_size(
-                            vec2(widget.width, widget.height) * self.scale,
+                            vec2(widget.width, widget.height),
                             texture.size_vec2(),
                         )
                     })
@@ -126,13 +124,13 @@ impl<'a> Measure<'a> {
             w::TAB => {
                 let strip = self.strip(index, theme);
                 let pages = self.widest_child(index, theme);
-                let gap = widget.gap * self.scale;
+                let gap = widget.gap;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
             w::CHECK => {
                 let text = self.text(index, widget, theme);
-                let line = widget.font_size * self.scale;
+                let line = widget.font_size;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
             }
             // The widest option, and room for the arrow.
@@ -141,16 +139,16 @@ impl<'a> Measure<'a> {
                 for option in &widget.options {
                     widest = widest.max(self.galley(index, option, widget, theme));
                 }
-                widest + self.padding + vec2(20.0 * self.scale, 0.0)
+                widest + self.padding + vec2(20.0, 0.0)
             }
             w::SLIDER | w::PROGRESS => vec2(
-                160.0 * self.scale,
-                widget.font_size * self.scale + self.padding.y,
+                160.0,
+                widget.font_size + self.padding.y,
             ),
-            w::SEPARATOR => egui::Vec2::splat(6.0 * self.scale),
+            w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
-                let head = self.text(index, widget, theme) + vec2(20.0 * self.scale, 0.0);
+                let head = self.text(index, widget, theme) + vec2(20.0, 0.0);
                 if !widget.open {
                     return head;
                 }
@@ -185,11 +183,11 @@ impl<'a> Measure<'a> {
             self.text(index, widget, theme)
         } else if widget.kind == w::WINDOW {
             // The title and its cross, on one bar.
-            self.text(index, widget, theme) + egui::vec2(widget.font_size * self.scale * 1.5, 0.0)
+            self.text(index, widget, theme) + egui::vec2(widget.font_size * 1.5, 0.0)
         } else {
             egui::Vec2::ZERO
         };
-        let gap = widget.gap * self.scale;
+        let gap = widget.gap;
         let mut along = 0.0f32;
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
@@ -217,7 +215,6 @@ impl<'a> Measure<'a> {
         let pad = padding_of(
             widget,
             &crate::widget::theme::styled(theme, widget),
-            self.scale,
         );
         inner + pad.taken()
     }
@@ -236,7 +233,6 @@ impl<'a> Measure<'a> {
         let pad = padding_of(
             &widget,
             &crate::widget::theme::styled(theme, &widget),
-            self.scale,
         );
         want + pad.taken()
     }
@@ -246,7 +242,7 @@ impl<'a> Measure<'a> {
         let widget = placed.widget.clone();
         let children = placed.children.clone();
         let columns = crate::widget::kinds::grid_columns(&widget);
-        let gap = widget.gap * self.scale;
+        let gap = widget.gap;
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
         for child in &children {
@@ -269,7 +265,6 @@ impl<'a> Measure<'a> {
         let pad = padding_of(
             &widget,
             &crate::widget::theme::styled(theme, &widget),
-            self.scale,
         );
         inner + pad.taken()
     }
@@ -279,14 +274,13 @@ impl<'a> Measure<'a> {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let children = placed.children.clone();
-        let gap = widget.gap * self.scale;
+        let gap = widget.gap;
         let pad = padding_of(
             &widget,
             &crate::widget::theme::styled(theme, &widget),
-            self.scale,
         );
         let limit = if widget.width > 0.0 {
-            widget.width * self.scale - pad.taken().x
+            widget.width - pad.taken().x
         } else {
             f32::INFINITY
         };
@@ -316,7 +310,7 @@ impl<'a> Measure<'a> {
     fn strip(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
-        let gap = (widget.gap * self.scale).max(4.0);
+        let gap = (widget.gap).max(4.0);
         let padding = self.padding;
         let mut width = 0.0f32;
         let mut height: f32 = 0.0;
@@ -348,7 +342,7 @@ impl<'a> Measure<'a> {
     /// floor its role carries. The same arithmetic the draw does, or a strip
     /// of buttons is handed less room than it paints into.
     fn button(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let look = crate::widget::arena::look_of(self.arena, index, theme, self.scale);
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         let text = self.text(index, widget, theme);
         let mark = if widget.icon.is_empty() {
@@ -378,8 +372,8 @@ impl<'a> Measure<'a> {
         let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
         let pad = style
             .padding_x
-            .map_or(self.padding.x, |p| p * self.scale * 2.0);
-        let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0)) * self.scale;
+            .map_or(self.padding.x, |p| p * 2.0);
+        let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0));
         vec2(
             pic.x + mark.x + text.x + between + tail_gap + tail.x + pad,
             pic.y.max(mark.y).max(text.y).max(tail.y) + self.padding.y,
@@ -409,7 +403,7 @@ impl<'a> Measure<'a> {
             1.0
         };
         let plate = if style.plate.is_some() {
-            4.0 * self.scale
+            4.0
         } else {
             0.0
         };
@@ -436,7 +430,7 @@ impl<'a> Measure<'a> {
         widget: &Widget,
         theme: &Rc<WidgetTheme>,
     ) -> egui::Vec2 {
-        let look = crate::widget::arena::look_of(self.arena, index, theme, self.scale);
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         if let Some(state) = balaur_text::state(self.eng) {
             let request = crate::widget::text::text_request(widget, text, None, &font, style);

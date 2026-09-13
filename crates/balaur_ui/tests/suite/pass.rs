@@ -312,9 +312,9 @@ fn shortcuts_report_no_press_without_input() {
     draw_clean(
         r#"
         ui::central_panel(#{}, || {
-            assert!(!ui::shortcut("cmd", "S"));
-            assert!(!ui::shortcut("ctrl", "Z"));
-            assert!(!ui::shortcut("", "A"));
+            assert!(!ui::shortcut("cmd+s"));
+            assert!(!ui::shortcut("ctrl+z"));
+            assert!(!ui::shortcut("a"));
         });
         "#,
     );
@@ -329,7 +329,7 @@ fn a_cmd_chord_answers_to_control_and_to_command() {
         r#"
         this.focus = this.get("focus").unwrap_or(0);
         ui::central_panel(#{}, || {
-            if ui::shortcut("cmd+shift", "Backslash") { this.focus = this.focus + 1; }
+            if ui::shortcut("cmd+shift+backslash") { this.focus = this.focus + 1; }
         });
         "#,
     );

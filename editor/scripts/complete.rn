@@ -123,20 +123,20 @@ pub fn key(S) {
     if !S.complete.open {
         return false;
     }
-    if ui::shortcut("none", "Escape") {
+    if ui::shortcut("escape") {
         reset(S);
         return true;
     }
     let count = S.complete.items.len();
-    if ui::shortcut("none", "ArrowDown") {
+    if ui::shortcut("arrowdown") {
         S.complete.pick = (S.complete.pick + 1) % count;
         return true;
     }
-    if ui::shortcut("none", "ArrowUp") {
+    if ui::shortcut("arrowup") {
         S.complete.pick = (S.complete.pick + count - 1) % count;
         return true;
     }
-    if ui::shortcut("none", "Tab") || ui::shortcut("none", "Enter") {
+    if ui::shortcut("tab") || ui::shortcut("enter") {
         accept(S);
         return true;
     }

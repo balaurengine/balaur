@@ -71,13 +71,13 @@ pub(crate) fn theme_at(
 }
 
 /// The look of one widget, resolved once and kept for the rest of the frame.
-pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme, scale: f32) -> Rc<Look> {
+pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme) -> Rc<Look> {
     let placed = &arena[index];
     if let Some(held) = placed.look.borrow().as_ref() {
         return Rc::clone(held);
     }
     let style = styled(theme, &placed.widget);
-    let (ink, font) = face(theme, &style, &placed.widget, scale);
+    let (ink, font) = face(theme, &style, &placed.widget);
     let made = Rc::new(Look { style, font, ink });
     *placed.look.borrow_mut() = Some(Rc::clone(&made));
     made

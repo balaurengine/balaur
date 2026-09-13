@@ -24,10 +24,9 @@ pub(crate) fn window(
     if !widget.open {
         return;
     }
-    let scale = at.scale;
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style, scale);
-    let box_size = box_of(&widget, at.assigned, scale);
+    let pad = padding_of(&widget, &style);
+    let box_size = box_of(&widget, at.assigned);
     let plate = ui.painter().add(egui::Shape::Noop);
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(ui.max_rect())));
@@ -47,7 +46,7 @@ pub(crate) fn window(
         })
         .inner;
     if title.dragged() {
-        let moved = title.drag_delta() / scale;
+        let moved = title.drag_delta();
         at.edits.push((entity, Edit::Moved([moved.x, moved.y])));
     }
     if close.clicked() {
@@ -61,7 +60,7 @@ pub(crate) fn window(
         plate,
         egui::epaint::RectShape::new(
             background,
-            egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
+            egui::CornerRadius::same(style.radius.unwrap_or(8.0) as u8),
             style.fill.unwrap_or(Color32::from_black_alpha(160)),
             style
                 .stroke

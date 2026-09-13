@@ -860,7 +860,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("available_height", &[], "", "The height left in the current container, in design pixels."),
         ("central_rect", &[], "", "The x, y, width and height of the surface being drawn into, in design pixels."),
         ("screen_size", &[], "", "The window's width and height, in design pixels."),
-        ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants. `cmd` is the platform's command key: Command on a Mac, Control everywhere else."),
+        ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it: modifiers and a key joined by `+`, as in `\"cmd+shift+s\"` or `\"f5\"`. `cmd` is the platform's command key, Command on a Mac and Control everywhere else."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard."),
         ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
         ("color", &[], "", "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
@@ -890,31 +890,14 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
             Ok((rect.width(), rect.height()))
         })
     });
-    m.function(
-        "shortcut",
-        |_eng: &Engine, (mods, key): (String, String)| {
-            with_ctx(|ctx| {
-                let Some(key) = egui::Key::from_name(&key) else {
-                    return Ok(false);
-                };
-                // "shift+cmd" is one chord, not an unknown name: an unrecognised
-                // string used to silently become the unmodified key.
-                let mut modifiers = egui::Modifiers::NONE;
-                for part in mods.split('+') {
-                    modifiers |= match part.trim() {
-                        // egui's own rule: the platform's command key, which
-                        // is Command on a Mac and Control everywhere else.
-                        w::CMD => egui::Modifiers::COMMAND,
-                        w::CTRL => egui::Modifiers::CTRL,
-                        w::ALT => egui::Modifiers::ALT,
-                        w::SHIFT => egui::Modifiers::SHIFT,
-                        _ => egui::Modifiers::NONE,
-                    };
-                }
-                Ok(ctx.input_mut(|i| i.consume_key(modifiers, key)))
-            })
-        },
-    );
+    m.function("shortcut", |_eng: &Engine, chord: String| {
+        with_ctx(|ctx| {
+            let Some((modifiers, key)) = crate::immediate::chord(&chord) else {
+                return Ok(false);
+            };
+            Ok(ctx.input_mut(|i| i.consume_key(modifiers, key)))
+        })
+    });
     install_clipboard_and_color(m);
 }
 

@@ -370,123 +370,123 @@ pub fn draw_ui(this) {
     // The popup owns the arrows, Tab, Enter and Escape while it is open, so
     // the shell's own keys do not fire under it.
     let completing = complete::key(S);
-    if ui::shortcut("cmd", "K") {
+    if ui::shortcut("cmd+k") {
         if S.palette {
             shell::close_palette(S);
         } else {
             shell::open_palette(S, "");
         }
     }
-    if ui::shortcut("cmd", "S") {
+    if ui::shortcut("cmd+s") {
         shell::save_active(S);
     }
-    if ui::shortcut("alt+shift", "F") {
+    if ui::shortcut("alt+shift+f") {
         shell::format_active(S);
     }
-    if ui::shortcut("cmd", "B") {
+    if ui::shortcut("cmd+b") {
         shell::goto_definition(S);
     }
-    if ui::shortcut("cmd+shift", "R") {
+    if ui::shortcut("cmd+shift+r") {
         refactor::open(S, "rename");
     }
-    if ui::shortcut("cmd+shift", "F") {
+    if ui::shortcut("cmd+shift+f") {
         refactor::open(S, "replace");
     }
     // Before the split's chord: a key arrives as its physical code, so `⌘\`
     // matches the shifted one too unless this consumes it first.
-    if ui::shortcut("cmd+shift", "Backslash") {
+    if ui::shortcut("cmd+shift+backslash") {
         shell::toggle_focus(S);
     }
-    if ui::shortcut("cmd", "Backslash") {
+    if ui::shortcut("cmd+backslash") {
         shell::toggle_split(S);
     }
-    if ui::shortcut("cmd", "Equals") {
+    if ui::shortcut("cmd+equals") {
         shell::set_ui_scale(S, S.ui_scale + 0.125);
     }
-    if ui::shortcut("cmd", "Minus") {
+    if ui::shortcut("cmd+minus") {
         shell::set_ui_scale(S, S.ui_scale - 0.125);
     }
-    if ui::shortcut("cmd", "Comma") {
+    if ui::shortcut("cmd+comma") {
         settings::open(S);
     }
-    if ui::shortcut("cmd", "E") {
+    if ui::shortcut("cmd+e") {
         exporter::open(S);
     }
     // Debugger keys work with the code editor focused: they are not text.
     if S.debug.paused is Object {
-        if ui::shortcut("none", "F5") {
+        if ui::shortcut("f5") {
             shell::resume(S, debugger::CONTINUE);
-        } else if ui::shortcut("none", "F10") {
+        } else if ui::shortcut("f10") {
             shell::resume(S, debugger::STEP_OVER);
-        } else if ui::shortcut("none", "F11") {
+        } else if ui::shortcut("f11") {
             shell::resume(S, debugger::STEP_INTO);
-        } else if ui::shortcut("shift", "F11") {
+        } else if ui::shortcut("shift+f11") {
             shell::resume(S, debugger::STEP_OUT);
         }
     }
     if !ui::wants_keyboard() {
-        if !(S.debug.paused is Object) && ui::shortcut("none", "F5") {
+        if !(S.debug.paused is Object) && ui::shortcut("f5") {
             shell::toggle_play(S);
         }
-        if S.playing && !(S.debug.paused is Object) && ui::shortcut("none", "F6") {
+        if S.playing && !(S.debug.paused is Object) && ui::shortcut("f6") {
             debugger::request_break();
         }
         let personas = ["scene", "script", "anim", "phys", "ui"];
         for (i, id) in personas.iter().enumerate() {
-            if ui::shortcut("alt", format!("{}", i + 1)) {
+            if ui::shortcut(format!("alt+{}", i + 1)) {
                 shell::set_persona(S, id);
             }
         }
-        if ui::shortcut("shift", "A") {
+        if ui::shortcut("shift+a") {
             model::add_child(S, None);
         }
-        if ui::shortcut("alt", "S") {
+        if ui::shortcut("alt+s") {
             shell::attach_script(S);
         }
-        if ui::shortcut("shift", "R") {
+        if ui::shortcut("shift+r") {
             shell::reload_scripts(S);
         }
         // ⌘V is read from the paste event above; the clipboard cannot be read
         // on demand, so only the copy half is a chord.
-        if ui::shortcut("cmd", "C") {
+        if ui::shortcut("cmd+c") {
             ui::set_clipboard(model::copy_selected(S));
         }
         // Gated with the rest, so typing in the code editor keeps egui's own
         // per-widget undo; redo first, to claim the shifted chord.
-        if ui::shortcut("shift+cmd", "Z") || ui::shortcut("cmd", "Y") {
+        if ui::shortcut("shift+cmd+z") || ui::shortcut("cmd+y") {
             shell::redo(S);
-        } else if ui::shortcut("cmd", "Z") {
+        } else if ui::shortcut("cmd+z") {
             shell::undo(S);
         }
-        if ui::shortcut("alt", "L") {
+        if ui::shortcut("alt+l") {
             theme::set_dark(S, !S.theme.dark);
         }
-        if ui::shortcut("cmd", "A") {
+        if ui::shortcut("cmd+a") {
             selection::select_all(S);
         }
         // Shifted first, so the plain chord does not eat the shifted one.
-        if ui::shortcut("shift+cmd", "G") {
+        if ui::shortcut("shift+cmd+g") {
             arrange::ungroup(S);
-        } else if ui::shortcut("cmd", "G") {
+        } else if ui::shortcut("cmd+g") {
             arrange::group(S);
         }
-        if ui::shortcut("shift+cmd", "L") {
+        if ui::shortcut("shift+cmd+l") {
             arrange::unlock_all(S);
-        } else if ui::shortcut("cmd", "L") {
+        } else if ui::shortcut("cmd+l") {
             arrange::toggle_locked(S);
         }
-        if ui::shortcut("shift", "H") {
+        if ui::shortcut("shift+h") {
             arrange::show_all(S);
-        } else if ui::shortcut("none", "H") {
+        } else if ui::shortcut("h") {
             arrange::toggle_hidden(S);
         }
-        if ui::shortcut("none", "Slash") {
+        if ui::shortcut("slash") {
             arrange::toggle_isolate(S);
         }
-        if S.persona == "anim" && ui::shortcut("none", "K") {
+        if S.persona == "anim" && ui::shortcut("k") {
             anim::add_key(S, S.anim.time);
         }
-        if !completing && ui::shortcut("none", "Escape") {
+        if !completing && ui::shortcut("escape") {
             polygon::cancel(S);
             pen::cancel(S);
             tiles::cancel(S);

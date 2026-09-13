@@ -92,8 +92,13 @@ pub struct Widget {
     pub keep_open: bool,
     /// Text against a button's far edge: a shortcut, or a menu's caret.
     pub trailing: SmolStr,
+    /// A chord that clicks this widget from anywhere, as `cmd+shift+s`.
+    pub shortcut: SmolStr,
     /// A menu held open by the scene rather than by a click.
     pub showing: bool,
+    /// Where a menu opens: under its button, above it, at the pointer, or
+    /// centred on the screen.
+    pub placement: SmolStr,
 
     /// Where text sits in the width the widget was given.
     pub text_align: SmolStr,

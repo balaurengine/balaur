@@ -383,14 +383,14 @@ pub(crate) struct Caret {
 /// one.
 /// A `code` widget's values as the options `code_editor` reads, so the node
 /// and the script call reach the same editor.
-pub(crate) fn code_opts(widget: &crate::widget::node::Widget, scale: f32) -> Opts {
+pub(crate) fn code_opts(widget: &crate::widget::node::Widget) -> Opts {
     let size = if widget.font_size > 0.0 {
         widget.font_size
     } else {
         12.5
     };
     Opts::plain(Some(Value::Map(vec![
-        (k::SIZE.into(), Value::Num(f64::from(size * scale))),
+        (k::SIZE.into(), Value::Num(f64::from(size))),
         (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
     ])))
 }

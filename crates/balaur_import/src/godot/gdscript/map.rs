@@ -436,6 +436,48 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 
 /// `sig.emit(..)` and `sig.connect(..)`, where `sig` is a signal this class
 /// declares. The engine names a signal with a string.
+/// The widget key a built-in Godot signal is spelled by here. A clicked
+/// widget calls `on_click` on the first ancestor whose script has the method,
+/// which is what `button.pressed.connect(self._on_pressed)` meant.
+pub(crate) fn widget_signal(signal: &str) -> Option<&'static str> {
+    Some(match signal {
+        "pressed" | "button_up" => "on_click",
+        "toggled" | "value_changed" | "text_changed" | "item_selected" | "color_changed" => {
+            "on_change"
+        }
+        "text_submitted" => "on_submit",
+        _ => return None,
+    })
+}
+
+/// Connecting one: the handler's name goes on the widget, and disconnecting
+/// takes it off again.
+pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -> String {
+    let name = quoted(handler.unwrap_or(""));
+    format!("{receiver}.patch_component(\"widget\", #{{ \"{key}\": {name} }})")
+}
+
+/// Hearing another node's signal. The engine calls the subscriber's
+/// `on_<name>`, which §Signals emits as a forwarder to Godot's handler.
+/// One script calling another's method. Godot reached it off the node; here
+/// the node is asked for it, and an object answers its own field.
+pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> String {
+    let list = if args.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", args.join(", "))
+    };
+    format!("(gd.invoke)({receiver}, {}{list})", quoted(method))
+}
+
+pub(crate) fn signal_subscribe(receiver: &str, signal: &str) -> String {
+    format!("events::subscribe(this.node, {}, {receiver})", quoted(signal))
+}
+
+pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
+    format!("events::unsubscribe(this.node, {}, {receiver})", quoted(signal))
+}
+
 pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<String> {
     let name = quoted(signal);
     Some(match verb {

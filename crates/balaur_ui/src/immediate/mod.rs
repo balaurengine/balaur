@@ -450,6 +450,48 @@ pub const FONT_STYLES: &[(&str, &str)] = &[
 /// Font families the theme registers.
 pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", w::MONO), ("FONT_HEADING", w::HEADING)];
 
+/// A chord as a scene or a script writes it: modifiers and a key joined by
+/// `+`, in any case, as in `cmd+shift+s` or `f5`.
+///
+/// One spelling for the `shortcut` property and the `ui::shortcut` binding,
+/// and one place that knows `cmd` is Command on a Mac and Control elsewhere.
+/// A word that names neither a modifier nor a key answers `None`, so a typo
+/// is a shortcut that never fires rather than a key nobody asked for.
+pub(crate) fn chord(text: &str) -> Option<(egui::Modifiers, egui::Key)> {
+    let mut modifiers = egui::Modifiers::NONE;
+    let mut key = None;
+    for part in text.split('+') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        modifiers |= match part.to_ascii_lowercase().as_str() {
+            w::CMD => egui::Modifiers::COMMAND,
+            w::CTRL => egui::Modifiers::CTRL,
+            w::ALT => egui::Modifiers::ALT,
+            w::SHIFT => egui::Modifiers::SHIFT,
+            // egui names its keys `Escape`, `F5`, `Backslash`; a scene writes
+            // them the way it writes everything else, in lower case.
+            lower => {
+                let mut named = lower.to_string();
+                named[..1].make_ascii_uppercase();
+                key = egui::Key::from_name(part).or_else(|| egui::Key::from_name(&named));
+                key?;
+                continue;
+            }
+        };
+    }
+    Some((modifiers, key?))
+}
+
+/// A chord in the spelling the platform shows: `⌘⇧S` on a Mac, `Ctrl+Shift+S`
+/// elsewhere. What a menu row draws against its far edge when it says a
+/// shortcut and no `trailing` of its own.
+pub(crate) fn chord_shown(ctx: &egui::Context, text: &str) -> Option<String> {
+    let (modifiers, key) = chord(text)?;
+    Some(ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key)))
+}
+
 /// Keyboard modifiers accepted by shortcut bindings.
 pub const MODIFIERS: &[(&str, &str)] = &[
     ("MOD_CMD", w::CMD),

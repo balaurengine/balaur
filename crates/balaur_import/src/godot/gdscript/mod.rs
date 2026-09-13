@@ -28,6 +28,10 @@ pub(crate) struct Body {
     pub notes: Vec<String>,
     /// True when the body calls the shim, so the caller binds `gd` first.
     pub uses_shim: bool,
+    /// Signal name to handler, for every cross-script `connect` the body
+    /// made: the engine calls `on_<name>`, so the module needs one that
+    /// forwards to the handler Godot named.
+    pub forwarders: std::collections::BTreeMap<String, String>,
 }
 
 /// Translate the lines of one function body, already stripped of its
@@ -50,6 +54,7 @@ pub(crate) fn body(
                 rune: commented(&borrowed, depth),
                 notes: vec![format!("{reason}; the body is kept as a comment")],
                 uses_shim: false,
+                forwarders: std::collections::BTreeMap::new(),
             };
         }
     };
@@ -66,6 +71,7 @@ pub(crate) fn body(
         rune,
         notes: emitter.notes,
         uses_shim: emitter.uses_shim,
+        forwarders: emitter.forwarders,
     }
 }
 

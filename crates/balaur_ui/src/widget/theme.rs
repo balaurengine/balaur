@@ -472,7 +472,6 @@ pub(crate) fn face(
     theme: &WidgetTheme,
     style: &Style,
     widget: &Widget,
-    scale: f32,
 ) -> (Color32, egui::FontId) {
     // The theme's own text colour last, not a constant: a widget with no role
     // drew in near-white, which is invisible on a light theme.
@@ -491,7 +490,7 @@ pub(crate) fn face(
     };
     (
         ink,
-        egui::FontId::new(size * scale, family(family_of(style, widget))),
+        egui::FontId::new(size, family(family_of(style, widget))),
     )
 }
 

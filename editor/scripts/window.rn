@@ -55,7 +55,7 @@ pub fn sheet(S, id, title, actions, body) {
         });
     });
     // Both ways out mean the same thing, so neither is the special one.
-    if scrim_clicked || ui::shortcut("", "Escape") {
+    if scrim_clicked || ui::shortcut("escape") {
         hide(S);
     }
 }

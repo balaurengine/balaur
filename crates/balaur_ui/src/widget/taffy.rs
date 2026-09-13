@@ -66,8 +66,8 @@ fn kept_of(tree: &mut TaffyTree<usize>, style: Style, index: usize, stamp: u64) 
 impl Default for Held {
     fn default() -> Self {
         let mut tree = TaffyTree::new();
-        // Rounding to whole device pixels loses the fraction a design pixel
-        // carries at a scale like 1.25, which cut a 42 px rail to 41.6.
+        // Taffy rounds to whole units, and a design pixel is not a device
+        // pixel under a zoom or on a Retina display: that cut a 42 px rail to 41.6.
         tree.disable_rounding();
         Self {
             tree,
@@ -117,8 +117,8 @@ fn justify_of(word: &str) -> JustifyContent {
 
 /// A length in design pixels as taffy takes it, or `auto` for zero — which is
 /// what "hug your content" has always meant here.
-fn size_or_auto(px: f32, scale: f32) -> Dimension {
-    if px > 0.0 { length(px * scale) } else { auto() }
+fn size_or_auto(px: f32) -> Dimension {
+    if px > 0.0 { length(px) } else { auto() }
 }
 
 /// A floor in design pixels, or none.
@@ -127,9 +127,9 @@ fn size_or_auto(px: f32, scale: f32) -> Dimension {
 /// own content, so a panel holding a long log would refuse to be narrower
 /// than the log and push its neighbours off the row. Nothing here has ever
 /// had that floor, and `min_width` is how a scene asks for one.
-fn floor_or_none(px: f32, scale: f32) -> LengthPercentageAuto {
+fn floor_or_none(px: f32) -> LengthPercentageAuto {
     if px > 0.0 {
-        length(px * scale)
+        length(px)
     } else {
         length(0.0)
     }
@@ -148,7 +148,6 @@ fn style_key(
     widget: &Widget,
     pad: crate::widget::arrange::Pad,
     gap: f32,
-    scale: f32,
     drawn: bool,
     fills: Option<egui::Vec2>,
     shown: bool,
@@ -169,7 +168,6 @@ fn style_key(
         side.to_bits().hash(&mut hasher);
     }
     gap.to_bits().hash(&mut hasher);
-    scale.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
     fills
         .map(|f| (f.x.to_bits(), f.y.to_bits()))
@@ -182,12 +180,11 @@ fn styled(
     widget: &Widget,
     pad: crate::widget::arrange::Pad,
     gap: f32,
-    scale: f32,
     drawn: bool,
     fills: Option<egui::Vec2>,
     shown: bool,
 ) -> Style {
-    let mut want = style_of(widget, pad, gap, scale, drawn, shown);
+    let mut want = style_of(widget, pad, gap, drawn, shown);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -205,7 +202,6 @@ fn style_of(
     widget: &Widget,
     pad: crate::widget::arrange::Pad,
     gap: f32,
-    scale: f32,
     drawn: bool,
     shown: bool,
 ) -> Style {
@@ -237,12 +233,12 @@ fn style_of(
         flex_shrink: if grow > 0.0 { 1.0 } else { 0.0 },
         flex_basis: if grow > 0.0 { length(0.0) } else { auto() },
         size: Size {
-            width: size_or_auto(widget.width, scale),
-            height: size_or_auto(widget.height, scale),
+            width: size_or_auto(widget.width),
+            height: size_or_auto(widget.height),
         },
         min_size: Size {
-            width: floor_or_none(widget.min_width, scale),
-            height: floor_or_none(widget.min_height, scale),
+            width: floor_or_none(widget.min_width),
+            height: floor_or_none(widget.min_height),
         },
         gap: Size {
             width: length(gap),
@@ -325,13 +321,12 @@ pub(crate) fn solve(
     arena: &[Placed],
     root: usize,
     ui: &egui::Ui,
-    scale: f32,
     theme: &Rc<WidgetTheme>,
     space: &Room,
     fresh: bool,
     touched: &[usize],
 ) -> Rects {
-    let mut measure = Measure::new(eng, arena, ui, scale);
+    let mut measure = Measure::new(eng, arena, ui);
     TREE.with(|held| {
         let mut held = held.borrow_mut();
         // Only the root when the arena is the one taffy was last given: the
@@ -341,7 +336,6 @@ pub(crate) fn solve(
             arena,
             root,
             theme,
-            scale,
             &mut measure,
             space.fill,
             true,
@@ -356,7 +350,6 @@ pub(crate) fn solve(
                 arena,
                 index,
                 &at,
-                scale,
                 &mut measure,
                 None,
                 false,
@@ -396,14 +389,13 @@ pub(crate) fn solve_subtree(
     arena: &[Placed],
     root: usize,
     ui: &egui::Ui,
-    scale: f32,
     theme: &Rc<WidgetTheme>,
     space: &Room,
     fresh: bool,
 ) -> Rects {
     // No touched slots: the pass's first solve pushed them, and the tree they
     // went into is the same one this subtree is solved in.
-    let rects = solve(eng, arena, root, ui, scale, theme, space, fresh, &[]);
+    let rects = solve(eng, arena, root, ui, theme, space, fresh, &[]);
     // Solving a node as a root leaves taffy holding a location of zero for
     // it, which a later solve that changes nothing would hand the draw.
     let key = (
@@ -446,7 +438,6 @@ fn sync(
     arena: &[Placed],
     index: usize,
     theme: &Rc<WidgetTheme>,
-    scale: f32,
     measure: &mut Measure<'_>,
     fills: Option<egui::Vec2>,
     is_root: bool,
@@ -455,40 +446,35 @@ fn sync(
     let placed = &arena[index];
     let widget = &placed.widget;
     let theme = crate::widget::theme::theme_of(measure.eng, &widget.theme, theme);
-    let look = crate::widget::arena::look_of(arena, index, &theme, scale);
-    let pad = crate::widget::arrange::padding_of(widget, &look.style, scale);
-    let gap = crate::widget::arrange::gap_of(widget, &look.style, scale);
+    let look = crate::widget::arena::look_of(arena, index, &theme);
+    let pad = crate::widget::arrange::padding_of(widget, &look.style);
+    let gap = crate::widget::arrange::gap_of(widget, &look.style);
     let drawn = crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
     // A solve's root is laid out whatever its `visible` says, on a node of
     // its own: a hidden menu still opens its rows from a `context`.
     let shown = widget.visible || is_root;
     let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
-    let stamp = style_key(widget, pad, gap, scale, drawn, fills, shown);
+    let stamp = style_key(widget, pad, gap, drawn, fills, shown);
     // A kind that places its own children is measured as a leaf, and so is an
     // empty container. Neither recurses, so the measure can happen here.
     let owns = is_root || owns_children(&widget.kind);
     let leaf = !owns || placed.children.is_empty();
-    // A node made on this call has no children yet, whatever the caller
-    // knows about the rest of the tree: the walk below is what gives it them.
-    let mut made = false;
     let node = {
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
         let kept = nodes.entry(key).or_insert_with(|| {
-            made = true;
             kept_of(
                 tree,
-                styled(widget, pad, gap, scale, drawn, fills, shown),
+                styled(widget, pad, gap, drawn, fills, shown),
                 index,
                 stamp,
             )
         });
         // A record can outlive the node it names, when the tree dropped it.
         if tree.style(kept.id).is_err() {
-            made = true;
             *kept = kept_of(
                 tree,
-                styled(widget, pad, gap, scale, drawn, fills, shown),
+                styled(widget, pad, gap, drawn, fills, shown),
                 index,
                 stamp,
             );
@@ -497,7 +483,7 @@ fn sync(
         // that is not moving should re-solve nothing. The stamp is what
         // says so without building a style to compare against.
         if kept.style != stamp {
-            let _ = tree.set_style(kept.id, styled(widget, pad, gap, scale, drawn, fills, shown));
+            let _ = tree.set_style(kept.id, styled(widget, pad, gap, drawn, fills, shown));
             kept.style = stamp;
         }
         // Only on a change, because setting a context marks the node dirty and
@@ -517,7 +503,10 @@ fn sync(
         }
         kept.id
     };
-    if !deep && !made {
+    // A kind that places its own children is a leaf in the tree its parent
+    // was solved in, so the subtree solved from it here starts with none.
+    let bare = is_root && held.tree.child_count(node) != placed.children.len();
+    if !deep && !bare {
         // The children taffy holds are the ones this arena put there, and the
         // leaf sizes with them: nothing below this node can have moved.
         return node;
@@ -530,7 +519,7 @@ fn sync(
             .iter()
             .map(|child| {
                 sync(
-                    held, arena, *child, &theme, scale, measure, None, false, true,
+                    held, arena, *child, &theme, measure, None, false, true,
                 )
             })
             .collect()

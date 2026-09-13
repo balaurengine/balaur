@@ -53,7 +53,7 @@ pub(crate) fn dropdown(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     let mut chosen = widget.text.clone();
     let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity)).selected_text(
         egui::RichText::new(chosen.as_str())
@@ -84,11 +84,11 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let (low, high) = (widget.min, widget.max.max(widget.min));
     let mut value = widget.value.clamp(low, high);
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     let width = if want.x > 0.0 {
         want.x
     } else {
-        ui.available_width().min(160.0 * at.scale)
+        ui.available_width().min(160.0)
     };
     ui.spacing_mut().slider_width = width;
     let mut slider = egui::Slider::new(&mut value, low..=high).show_value(false);
@@ -109,9 +109,9 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned, at.scale);
+    let want = box_of(&widget, at.assigned);
     let id = format!("balaur-code-{}", entity.to_bits());
-    let opts = crate::immediate::code::code_opts(&widget, at.scale);
+    let opts = crate::immediate::code::code_opts(&widget);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -158,26 +158,32 @@ pub(crate) fn menu(
 ) {
     let placed = &at.arena[index];
     let entity = placed.entity;
+    let showing = placed.widget.showing;
+    let placement = placed.widget.placement.clone();
+    // A menu drawn inside an open menu is a submenu: egui opens it to the
+    // side on hover, keeps one of them open at a time, and shuts it with the
+    // menu it hangs off.
+    let inner = egui::containers::menu::is_in_menu(ui);
     // A menu whose rows are nodes: its button is dressed by the theme like any
     // other, and the rows carry the icons, shortcuts and ticks a flat list of
     // strings cannot.
     if !placed.children.is_empty() {
-        let showing = placed.widget.showing;
         let response = crate::widget::button::button(ui, at, index, caption, font, color);
-        // The rows decide for themselves: egui's default closes on any click
-        // inside, which would shut the menu under a toggle that keeps it open.
-        let mut popup = egui::Popup::menu(&response)
-            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
-        if showing {
-            popup = popup.open_memory(egui::SetOpenCommand::Bool(true));
+        if inner {
+            egui::containers::menu::SubMenu::new()
+                .show(ui, &response, |ui| popup_rows(ui, at, index));
+        } else {
+            dropped(&response, &placement, ui, showing).show(|ui| popup_rows(ui, at, index));
         }
-        popup.show(|ui| popup_rows(ui, at, index));
         return;
     }
     let options = placed.widget.options.clone();
     let mut picked = None;
     let label = egui::RichText::new(caption).font(font.clone()).color(color);
-    ui.menu_button(label, |ui| {
+    // What `Ui::menu_button` does, with the placement this node asked for:
+    // the same button and the same menu popup, which is all that call is.
+    let response = ui.button(label);
+    let rows = |ui: &mut egui::Ui| {
         for option in &options {
             let item = egui::RichText::new(option.as_str())
                 .font(font.clone())
@@ -187,10 +193,55 @@ pub(crate) fn menu(
                 ui.close();
             }
         }
-    });
+    };
+    if inner {
+        egui::containers::menu::SubMenu::new().show(ui, &response, rows);
+    } else {
+        dropped(&response, &placement, ui, showing).show(rows);
+    }
     if let Some(choice) = picked {
         at.edits.push((entity, Edit::Choice(choice)));
     }
+}
+
+/// A menu's popup, placed where the node says and held open where the scene
+/// says. `below` is egui's own: under the button, flipped above it where
+/// there is no room.
+fn dropped<'a>(
+    response: &egui::Response,
+    placement: &str,
+    ui: &egui::Ui,
+    showing: bool,
+) -> egui::Popup<'a> {
+    // The rows decide for themselves: egui's default closes on any click
+    // inside, which would shut the menu under a toggle that keeps it open.
+    let mut popup = egui::Popup::menu(response)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    popup = match placement {
+        w::ABOVE => popup.align(egui::RectAlign::TOP_START),
+        // Where the pointer was when the menu opened, not where it is now:
+        // egui only remembers that for a popup told to open, so the click
+        // says so itself rather than leaving it to the toggle.
+        w::POINTER => {
+            let id = egui::Popup::default_response_id(response);
+            let open = egui::Popup::is_id_open(ui.ctx(), id);
+            let set = response
+                .clicked()
+                .then_some(egui::SetOpenCommand::Bool(!open));
+            popup.at_pointer_fixed().open_memory(set)
+        }
+        // Over the middle of the screen, and staying there: a menu the game
+        // put in the centre is not one egui may nudge to fit.
+        w::CENTER => popup
+            .at_position(ui.ctx().viewport_rect().center())
+            .align(egui::RectAlign::over_corner(egui::Align2::CENTER_CENTER))
+            .align_alternatives(&[]),
+        _ => popup,
+    };
+    if showing {
+        popup = popup.open_memory(egui::SetOpenCommand::Bool(true));
+    }
+    popup
 }
 
 /// A menu's rows, drawn inside the popup egui opened for it.
@@ -206,7 +257,6 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
         at.arena,
         index,
         ui,
-        at.scale,
         &at.theme,
         &space,
         at.deep(index),
@@ -218,11 +268,13 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
     at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
     let arena = at.arena;
+    // A row that opened a submenu chose nothing, so the menu it sits in
+    // stays up; every other row closes it unless it says `keep_open`.
     let closes = at.clicked[before..].iter().any(|entity| {
         arena
             .iter()
             .find(|placed| placed.entity == *entity)
-            .is_some_and(|placed| !placed.widget.keep_open)
+            .is_some_and(|placed| !placed.widget.keep_open && placed.widget.kind != w::MENU)
     });
     if closes {
         ui.close();
@@ -237,7 +289,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let entity = placed.entity;
     let [r, g, b, a] = widget.color;
     let mut rgba = egui::Rgba::from_rgba_unmultiplied(r, g, b, a);
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
@@ -282,7 +334,7 @@ pub(crate) fn drag_value(
     if widget.step > 0.0 {
         drag = drag.speed(widget.step);
     }
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
@@ -308,11 +360,11 @@ pub(crate) fn progress(
     let widget = &at.arena[index].widget;
     let span = (widget.max - widget.min).abs().max(f32::EPSILON);
     let fraction = ((widget.value - widget.min) / span).clamp(0.0, 1.0);
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     let mut bar = egui::ProgressBar::new(fraction).desired_width(if want.x > 0.0 {
         want.x
     } else {
-        ui.available_width().min(160.0 * at.scale)
+        ui.available_width().min(160.0)
     });
     if want.y > 0.0 {
         bar = bar.desired_height(want.y);
@@ -334,7 +386,7 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
     if let Some(color) = style.stroke {
         ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
-    ui.add(egui::Separator::default().spacing(6.0 * at.scale));
+    ui.add(egui::Separator::default().spacing(6.0));
 }
 
 /// A header that shows or hides the children under it. The header is a
@@ -352,8 +404,7 @@ pub(crate) fn fold(
     let (entity, open) = (placed.entity, placed.widget.open);
     let widget = placed.widget.clone();
     let style = at.style_of(&widget);
-    let scale = at.scale;
-    let pad = padding_of(&widget, &style, scale);
+    let pad = padding_of(&widget, &style);
     let mark = if open { "▾" } else { "▸" };
     let text = egui::RichText::new(format!("{mark} {caption}"))
         .font(font.clone())
@@ -383,7 +434,6 @@ pub(crate) fn fold(
         at.arena,
         index,
         ui,
-        at.scale,
         &at.theme,
         &space,
         at.deep(index),
@@ -413,15 +463,14 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         return;
     }
     let widget = placed.widget.clone();
-    let scale = at.scale;
     let columns = grid_columns(&widget);
-    let gap = widget.gap * scale;
+    let gap = widget.gap;
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style, scale);
-    let box_size = box_of(&widget, at.assigned, scale);
+    let pad = padding_of(&widget, &style);
+    let box_size = box_of(&widget, at.assigned);
     let mut cell = egui::Vec2::ZERO;
     {
-        let mut measure = Measure::new(at.eng, at.arena, ui, scale);
+        let mut measure = Measure::new(at.eng, at.arena, ui);
         for child in &children {
             cell = cell.max(measure.of(*child, &at.theme));
         }
@@ -453,10 +502,9 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         return;
     }
     let widget = placed.widget.clone();
-    let scale = at.scale;
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style, scale);
-    let box_size = box_of(&widget, at.assigned, scale);
+    let pad = padding_of(&widget, &style);
+    let box_size = box_of(&widget, at.assigned);
     // The box this widget was handed, not what is left after the cursor: a
     // root reserves its box up front, and a stack fills what it was given.
     let room = ui.max_rect();
@@ -479,7 +527,7 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if style.fill.is_some() || style.stroke.is_some() {
         ui.painter().rect(
             outer,
-            egui::CornerRadius::same((style.radius.unwrap_or(0.0) * scale) as u8),
+            egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
             style
                 .stroke
@@ -490,10 +538,10 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let area = pad.inside(outer);
     for child in &children {
         let want = {
-            let mut measure = Measure::new(at.eng, at.arena, ui, scale);
+            let mut measure = Measure::new(at.eng, at.arena, ui);
             measure.of(*child, &at.theme)
         };
-        let rect = anchored_in(area, &at.arena[*child].widget, want, scale);
+        let rect = anchored_in(area, &at.arena[*child].widget, want);
         // This kind placed the child, so taffy has not solved what is under
         // it: its subtree is solved against the box it was just given.
         let space = crate::widget::taffy::Room::fixed(rect);
@@ -502,7 +550,6 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             at.arena,
             *child,
             ui,
-            scale,
             &at.theme,
             &space,
             at.deep(*child),
@@ -517,15 +564,15 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// Where one child of a stack sits: its `anchor` decides whether each axis
 /// stretches or holds the child's own size at an edge or the middle, and `x`
 /// and `y` push it in from the edges the anchor names.
-fn anchored_in(area: Rect, widget: &Widget, want: egui::Vec2, scale: f32) -> Rect {
+fn anchored_in(area: Rect, widget: &Widget, want: egui::Vec2) -> Rect {
     let (across, down) = crate::widget::anchor::in_box(&widget.anchor);
-    let stated = box_of(widget, egui::Vec2::ZERO, scale);
+    let stated = box_of(widget, egui::Vec2::ZERO);
     let size = vec2(
         if stated.x > 0.0 { stated.x } else { want.x },
         if stated.y > 0.0 { stated.y } else { want.y },
     );
-    let (left, width) = along(area.min.x, area.width(), size.x, across, widget.x * scale);
-    let (top, height) = along(area.min.y, area.height(), size.y, down, widget.y * scale);
+    let (left, width) = along(area.min.x, area.width(), size.x, across, widget.x);
+    let (top, height) = along(area.min.y, area.height(), size.y, down, widget.y);
     Rect::from_min_size(egui::pos2(left, top), vec2(width, height))
 }
 
@@ -559,11 +606,10 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         return;
     }
     let widget = placed.widget.clone();
-    let scale = at.scale;
-    let gap = widget.gap * scale;
+    let gap = widget.gap;
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style, scale);
-    let box_size = box_of(&widget, at.assigned, scale);
+    let pad = padding_of(&widget, &style);
+    let box_size = box_of(&widget, at.assigned);
     let room = ui.available_rect_before_wrap();
     let width = if box_size.x > 0.0 {
         box_size.x
@@ -571,7 +617,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         room.width()
     } - pad.taken().x;
     let sizes: Vec<egui::Vec2> = {
-        let mut measure = Measure::new(at.eng, at.arena, ui, scale);
+        let mut measure = Measure::new(at.eng, at.arena, ui);
         children
             .iter()
             .map(|child| measure.of(*child, &at.theme))
@@ -617,21 +663,6 @@ fn place_child(
     record_rect(entity, rect);
 }
 
-/// The dimmed, deaf screen under a dialog: one full-surface area that takes
-/// every click so nothing behind the dialog hears them.
-pub(crate) fn dialog_backdrop(ctx: &egui::Context, entity: Entity, area: Rect) {
-    egui::Area::new(egui::Id::new(("balaur-dialog-backdrop", entity)))
-        .order(egui::Order::Foreground)
-        .fixed_pos(area.min)
-        .interactable(true)
-        .fade_in(false)
-        .show(ctx, |ui| {
-            let (rect, _) = ui.allocate_exact_size(area.size(), Sense::click());
-            ui.painter()
-                .rect_filled(rect, 0.0, Color32::from_black_alpha(140));
-        });
-}
-
 /// A picture over a rect with its borders kept at their own size: nine
 /// quads, the corners as they are, the edges stretched one way and the
 /// middle both. `slice` is in the picture's pixels; the borders are drawn
@@ -641,19 +672,18 @@ pub(crate) fn nine_patch(
     native: egui::Vec2,
     rect: Rect,
     slice: [f32; 4],
-    scale: f32,
 ) -> Vec<egui::Shape> {
     let [left, top, right, bottom] = slice;
     let xs = [
         rect.min.x,
-        rect.min.x + left * scale,
-        rect.max.x - right * scale,
+        rect.min.x + left,
+        rect.max.x - right,
         rect.max.x,
     ];
     let ys = [
         rect.min.y,
-        rect.min.y + top * scale,
-        rect.max.y - bottom * scale,
+        rect.min.y + top,
+        rect.max.y - bottom,
         rect.max.y,
     ];
     let us = [
@@ -693,11 +723,10 @@ pub(crate) fn nine_patch_plate(
     path: &str,
     slice: [f32; 4],
     rect: Rect,
-    scale: f32,
 ) {
     let ctx = ui.ctx().clone();
     if let Ok(texture) = crate::images::texture_of(eng, &ctx, path) {
-        let shapes = nine_patch(texture.id(), texture.size_vec2(), rect, slice, scale);
+        let shapes = nine_patch(texture.id(), texture.size_vec2(), rect, slice);
         ui.painter().set(plate, egui::Shape::Vec(shapes));
     }
 }

@@ -23,11 +23,11 @@ fn rows(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = box_of(widget, at.assigned, at.scale);
+    let want = box_of(widget, at.assigned);
     // `row_height` is the pitch, and a `list` has always spelled it `height`.
     let stated = match (widget.row_height > 0.0, widget.height > 0.0 && !indent) {
-        (true, _) => widget.row_height * at.scale,
-        (false, true) => widget.height * at.scale,
+        (true, _) => widget.row_height,
+        (false, true) => widget.height,
         (false, false) => ui.text_style_height(&egui::TextStyle::Body).max(1.0),
     };
     // A row is drawn at the pitch it is placed at, so the pitch has to hold
@@ -463,7 +463,7 @@ fn cards(
 ) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned, at.scale);
+    let want = box_of(&widget, at.assigned);
     let columns = widget.columns.max(1) as usize;
     let items: Vec<String> = widget
         .options
@@ -471,7 +471,7 @@ fn cards(
         .map(smol_str::SmolStr::to_string)
         .collect();
     let chosen = widget.text.to_string();
-    let gap = 6.0 * at.scale;
+    let gap = 6.0;
     let room = if want.x > 0.0 {
         want.x
     } else {
@@ -482,7 +482,7 @@ fn cards(
     // height; without one a card is a little shorter than it is wide, the
     // icon taking the square and the label sitting under it.
     let tall = if widget.row_height > 0.0 {
-        widget.row_height * at.scale
+        widget.row_height
     } else {
         side * 0.86
     };
@@ -544,7 +544,7 @@ pub(crate) fn table(
 ) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned, at.scale);
+    let want = box_of(&widget, at.assigned);
     let heads: Vec<&str> = widget
         .placeholder
         .split('\u{1f}')
@@ -558,7 +558,7 @@ pub(crate) fn table(
         .collect();
     let chosen = widget.text.to_string();
     let row_h = if widget.row_height > 0.0 {
-        widget.row_height * at.scale
+        widget.row_height
     } else {
         ui.text_style_height(&egui::TextStyle::Body).max(1.0)
     };
