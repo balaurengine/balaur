@@ -23,7 +23,7 @@ fn run(body: &str) -> Vec<String> {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Body\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Body\"\nscript = { source = \"scripts/s.rn\" }\n",
     )
     .unwrap();
     std::fs::write(
@@ -53,9 +53,9 @@ fn run_clean(body: &str) {
 fn colliders_can_be_added_in_every_shape_the_api_offers() {
     run_clean(
         r"
-        physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
-        physics3d::add_ball_collider(this.node, 0.5);
-        physics3d::add_cuboid_collider(this.node, 0.5, 0.5, 0.5);
+        this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_CUBOID, half_extents: [0.5, 0.5, 0.5] });
         ",
     );
 }
@@ -64,10 +64,10 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
 fn linear_velocity_is_set_and_read_back() {
     run_clean(
         r#"
-        physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
-        physics3d::add_ball_collider(this.node, 0.5);
-        physics3d::set_linear_velocity(this.node, 1.0, 2.0, 3.0);
-        let (x, y, z) = physics3d::linear_velocity(this.node);
+        this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.body3d.set_linear_velocity(1.0, 2.0, 3.0);
+        let (x, y, z) = this.node.body3d.linear_velocity();
         assert!(math::abs(x - 1.0) < 1e-4, "x was not kept: {}", x);
         assert!(math::abs(y - 2.0) < 1e-4, "y was not kept");
         assert!(math::abs(z - 3.0) < 1e-4, "z was not kept");
@@ -79,10 +79,10 @@ fn linear_velocity_is_set_and_read_back() {
 fn an_impulse_starts_a_body_moving() {
     run_clean(
         r#"
-        physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
-        physics3d::add_ball_collider(this.node, 0.5);
-        physics3d::apply_impulse(this.node, 10.0, 0.0, 0.0);
-        let (x, _, _) = physics3d::linear_velocity(this.node);
+        this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.body3d.apply_impulse(10.0, 0.0, 0.0);
+        let (x, _, _) = this.node.body3d.linear_velocity();
         assert!(x > 0.0, "the impulse did nothing: {}", x);
         "#,
     );
@@ -119,16 +119,16 @@ fn gravity_and_clear_are_callable() {
 fn the_2d_world_has_the_same_shape_of_api() {
     run_clean(
         r"
-        physics2d::add_body(this.node, physics2d::BODY_DYNAMIC);
-        physics2d::add_collider(this.node, #{ kind: physics2d::SHAPE_CIRCLE, radius: 0.5 });
-        physics2d::set_linear_velocity(this.node, 1.0, 2.0);
-        let (x, y) = physics2d::linear_velocity(this.node);
+        this.node.body2d.set(#{ kind: physics2d::BODY_DYNAMIC });
+        this.node.collider2d.set(#{ kind: physics2d::SHAPE_CIRCLE, radius: 0.5 });
+        this.node.body2d.set_linear_velocity(1.0, 2.0);
+        let (x, y) = this.node.body2d.linear_velocity();
         assert!(math::abs(x - 1.0) < 1e-4 && math::abs(y - 2.0) < 1e-4);
 
-        physics2d::set_angular_velocity(this.node, 1.5);
-        assert!(math::abs(physics2d::angular_velocity(this.node) - 1.5) < 1e-4);
+        this.node.body2d.set_angular_velocity(1.5);
+        assert!(math::abs(this.node.body2d.angular_velocity() - 1.5) < 1e-4);
 
-        physics2d::apply_impulse(this.node, 1.0, 0.0);
+        this.node.body2d.apply_impulse(1.0, 0.0);
         physics2d::set_gravity(0.0, -9.81);
         ",
     );
@@ -138,14 +138,14 @@ fn the_2d_world_has_the_same_shape_of_api() {
 fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
     run_clean(
         r#"
-        physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
-        physics3d::add_ball_collider(this.node, 0.5);
-        let hits = physics3d::overlaps(this.node);
+        this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        let hits = this.node.collider3d.overlaps();
         assert!(hits is Vec && hits.len() == 0, "3D overlaps should be empty");
 
-        physics2d::add_body(this.node, physics2d::BODY_DYNAMIC);
-        physics2d::add_collider(this.node, #{ kind: physics2d::SHAPE_CIRCLE, radius: 0.5, sensor: true });
-        let hits2 = physics2d::overlaps(this.node);
+        this.node.body2d.set(#{ kind: physics2d::BODY_DYNAMIC });
+        this.node.collider2d.set(#{ kind: physics2d::SHAPE_CIRCLE, radius: 0.5, sensor: true });
+        let hits2 = this.node.collider2d.overlaps();
         assert!(hits2 is Vec && hits2.len() == 0, "2D overlaps should be empty");
         "#,
     );
@@ -153,8 +153,11 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
 
 #[test]
 fn a_wrong_argument_is_reported_not_fatal() {
-    let errors = run(r"physics3d::add_body(this.node, 42);");
-    assert!(!errors.is_empty(), "a number was accepted as a body kind");
+    let errors = run(
+        "this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });\n\
+         this.node.body3d.apply_impulse(\"sideways\", 0.0, 0.0);",
+    );
+    assert!(!errors.is_empty(), "a string was accepted as an impulse");
     assert!(
         errors[0].contains("string") || errors[0].contains("expected"),
         "unhelpful: {errors:#?}"
@@ -165,7 +168,7 @@ fn a_wrong_argument_is_reported_not_fatal() {
 fn a_component_handle_binds_the_node_for_the_module_driving_it() {
     run_clean(
         r#"
-        physics2d::add_body(this.node, physics2d::BODY_DYNAMIC);
+        this.node.body2d.set(#{ kind: physics2d::BODY_DYNAMIC });
         this.node.body2d.apply_impulse(1.0, 0.0);
         this.node.body2d.set_linear_velocity(2.0, 0.0);
         if !this.node.body2d.has() {
@@ -242,8 +245,8 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
         this.node.set_component("body3d", #{ kind: "dynamic" });
         this.node.set_component("collider3d", #{ kind: "cuboid" });
         this.node.set_component("vehicle3d", #{ forward_axis: 0.0 });
-        physics3d::set_linear_velocity(this.node, 5.0, 0.0, 0.0);
-        let along_x = physics3d::vehicle_speed(this.node);
+        this.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
+        let along_x = this.node.vehicle3d.vehicle_speed();
         assert!(along_x > 4.9, "a car built on x reads {} along its own forward", along_x);
         "#,
     );

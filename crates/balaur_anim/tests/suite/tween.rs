@@ -595,7 +595,7 @@ duration = 1.0
 }
 
 #[test]
-fn tween_to_is_the_same_tween_spelled_shorter() {
+fn a_one_step_tween_can_be_started_from_rust() {
     let mut app = app();
     let entity = spawn(&app, "Box");
     let to = toml::Value::Array(vec![0.0.into(), 3.0.into(), 0.0.into()]);

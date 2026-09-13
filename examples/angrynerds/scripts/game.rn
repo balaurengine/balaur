@@ -170,7 +170,7 @@ pub fn update(this, dt) {
                 let iy = (ANCHOR_Y - p.y) * POWER;
                 if math::sqrt(ix * ix + iy * iy) > 1.0 {
                     this.bird.set_component("body2d", #{ kind: physics2d::BODY_DYNAMIC });
-                    physics2d::apply_impulse(this.bird, ix, iy);
+                    this.bird.body2d.apply_impulse(ix, iy);
                     this.launched = true;
                     this.birds_left -= 1;
                     set_widget_text(this, "Birds", format!("Birds {}", this.birds_left));
@@ -197,7 +197,7 @@ pub fn update(this, dt) {
             continue;
         }
         let p = pig.transform.position;
-        let impulse = physics2d::max_contact_impulse(pig);
+        let impulse = pig.body2d.max_contact_impulse();
         if impulse > KILL_IMPULSE || p.y < -3.0 {
             for entry in this.level {
                 if entry.owner == name {
@@ -220,7 +220,7 @@ pub fn update(this, dt) {
 
     // Retire a spent bird: fell off the world, or came to rest.
     if this.launched {
-        let (vx, vy) = physics2d::linear_velocity(this.bird);
+        let (vx, vy) = this.bird.body2d.linear_velocity();
         let speed = math::sqrt(vx * vx + vy * vy);
         let p = this.bird.transform.position;
         let gone = p.y < -3.0 || math::abs(p.x) > 20.0;

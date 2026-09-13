@@ -18,14 +18,6 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
                 r#"{ type = "string", default = "", description = "Image file, project-relative; required" }"#,
             ),
             (
-                k::COLUMNS,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid columns for flipbook sprites; 0 means a single image" }"#,
-            ),
-            (
-                k::ROWS,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid rows for flipbook sprites; 0 means a single image" }"#,
-            ),
-            (
                 k::FRAME,
                 r#"{ type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
             ),
@@ -99,8 +91,6 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .to_string();
-                let columns = num(k::COLUMNS) as u32;
-                let rows = num(k::ROWS) as u32;
                 let frame = num(k::FRAME) as u32;
                 let sheet_asset = params
                     .get(k::SHEET)
@@ -108,11 +98,12 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                     .unwrap_or_default()
                     .trim()
                     .to_string();
-                let atlas = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
-                let sheet_texture = atlas.is_some() && texture_was_empty(params);
-                // A sheet needs both counts; one alone is a typo, not a grid.
-                let sheet = (atlas.is_none() && columns > 0 && rows > 0)
-                    .then_some(SpriteSheet2d { columns, rows });
+                let (atlas, grid) = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
+                let sheet_texture =
+                    !sheet_asset.is_empty() && texture_was_empty(params);
+                // A sheet that states a `columns` x `rows` cut is drawn as
+                // that grid; one that lists frames gives a rect per frame.
+                let sheet = grid.map(|[columns, rows]| SpriteSheet2d { columns, rows });
                 let he = |i: usize| {
                     params
                         .get(k::HALF_EXTENTS)
@@ -198,20 +189,27 @@ fn texture_was_empty(params: &toml::Value) -> bool {
 
 /// The rectangle a `sprite_sheet` gives `frame`, filling in the sheet's
 /// texture when the component names none. `None` without a sheet.
+/// What a sheet says about the frame a sprite draws: the rect it sits on, or
+/// the `columns` x `rows` cut the whole sheet is.
+type SheetCut = (Option<[u32; 4]>, Option<[u32; 2]>);
+
 fn atlas_frame(
     eng: &balaur_core::Engine,
     sheet_asset: &str,
     frame: u32,
     texture: &mut String,
-) -> anyhow::Result<Option<[u32; 4]>> {
+) -> anyhow::Result<SheetCut> {
     if sheet_asset.is_empty() {
-        return Ok(None);
+        return Ok((None, None));
     }
     let sheet = balaur_core::assets::load_typed::<crate::sheet::SpriteSheet>(eng, sheet_asset)?;
     if texture.is_empty() {
         texture.clone_from(&sheet.texture);
     }
-    Ok(Some(sheet.frame(frame).rect))
+    if let Some(grid) = sheet.grid {
+        return Ok((None, Some(grid)));
+    }
+    Ok((Some(sheet.frame(frame).rect), None))
 }
 
 /// The `sprite` component's properties, read back off the node.
@@ -237,13 +235,6 @@ fn read_sprite(
             k::SHEET.into(),
             toml::Value::String(sprite.sheet_asset.clone()),
         );
-    }
-    if let Some(sheet) = sprite.sheet {
-        map.insert(
-            k::COLUMNS.into(),
-            toml::Value::Float(f64::from(sheet.columns)),
-        );
-        map.insert(k::ROWS.into(), toml::Value::Float(f64::from(sheet.rows)));
     }
     map.insert(k::FRAME.into(), toml::Value::Float(f64::from(sprite.frame)));
     map.insert(k::FLIP_X.into(), toml::Value::Boolean(sprite.flip_x));

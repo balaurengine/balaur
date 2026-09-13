@@ -24,7 +24,7 @@ name = "World"
 parent = "n_main"
 
 [[nodes]]
-body3d = "static"
+body3d = { kind = "static" }
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
@@ -45,7 +45,7 @@ color = [0.3, 0.55, 0.3, 1]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
-script = "scripts/ball.rn"
+script = { source = "scripts/ball.rn" }
 
 [nodes.transform]
 position = [0, 6, 0]
@@ -56,13 +56,13 @@ radius = 0.5
 color = [0.9, 0.9, 0.9, 1]
 
 # Two rows, in order: the click counts, and the count opens the door.
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "pointer_click"
 action = "add_variable"
 target = "score"
 value = 1
 
-[[nodes.bindings]]
+[[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
 action = "state"
@@ -89,11 +89,11 @@ kind = "cuboid"
 color = [0.2, 0.4, 0.9, 1]
 
 [[nodes]]
-body3d = "kinematic"
+body3d = { kind = "kinematic" }
 id = "n_platform"
 name = "Platform"
 parent = "n_world"
-script = "scripts/platform.rn"
+script = { source = "scripts/platform.rn" }
 
 [nodes.transform]
 position = [-2.5, 0.25, -2]
@@ -137,7 +137,7 @@ color = [0.9, 0.3, 0.25, 1]
 # A shape the renderer could not have built for itself, with a collider
 # fitted to the very triangles it draws rather than to a box around them.
 [[nodes]]
-body3d = "static"
+body3d = { kind = "static" }
 id = "n_ring"
 name = "Ring"
 parent = "n_world"
@@ -232,7 +232,7 @@ y = 16
 id = "n_menu"
 name = "Menu"
 parent = "n_main"
-script = "scripts/menu.rn"
+script = { source = "scripts/menu.rn" }
 
 [nodes.widget]
 kind = "panel"

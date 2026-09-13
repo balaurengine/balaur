@@ -266,7 +266,7 @@ name = "World"
 id = "n_watcher"
 name = "Watcher"
 parent = "n_world"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [[nodes]]
 id = "n_target"
@@ -324,10 +324,10 @@ pub fn fixed_update(this, dt) {
     }
     if this.ticks == 8 {
         let gone = this.target;
-        let (aabb_ok, _) = script::attempt(|| physics3d::aabb(gone));
-        let (mass_ok, _) = script::attempt(|| physics3d::collider_mass(gone));
-        let (volume_ok, _) = script::attempt(|| physics3d::collider_volume(gone));
-        let (swept_ok, _) = script::attempt(|| physics3d::swept_aabb(gone));
+        let (aabb_ok, _) = script::attempt(|| gone.collider3d.aabb());
+        let (mass_ok, _) = script::attempt(|| gone.collider3d.collider_mass());
+        let (volume_ok, _) = script::attempt(|| gone.collider3d.collider_volume());
+        let (swept_ok, _) = script::attempt(|| gone.collider3d.swept_aabb());
         assert!(!aabb_ok, "aabb answered for a freed node");
         assert!(!mass_ok, "collider_mass answered for a freed node");
         assert!(!volume_ok, "collider_volume answered for a freed node");

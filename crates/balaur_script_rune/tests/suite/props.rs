@@ -88,7 +88,7 @@ fn the_string_form_of_the_script_key_still_attaches() {
     let (_dir, app) = build(
         "[[nodes]]\n\
          name = \"Enemy\"\n\
-         script = \"scripts/enemy.rn\"\n",
+         script = { source = \"scripts/enemy.rn\" }\n",
         ENEMY,
     );
     let enemy = node_named(&app, "Enemy");
@@ -618,12 +618,12 @@ fn a_child_inits_before_its_parent() {
          [[nodes]]\n\
          id = \"p\"\n\
          name = \"P\"\n\
-         script = \"scripts/enemy.rn\"\n\
+         script = { source = \"scripts/enemy.rn\" }\n\
          \n\
          [[nodes]]\n\
          name = \"C\"\n\
          parent = \"p\"\n\
-         script = \"scripts/enemy.rn\"\n";
+         script = { source = \"scripts/enemy.rn\" }\n";
     let dir = project(&[("scripts/enemy.rn", script)]);
     let app = app_in(dir.path());
     let root = app.engine.root();

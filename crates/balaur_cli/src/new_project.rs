@@ -84,13 +84,13 @@ pub(crate) fn create(path: &Path, template: Option<&str>) -> Result<()> {
         path.join("scenes/main.toml"),
         r#"[[nodes]]
 name = "Hello"
-script = "scripts/hello.rn"
+script = { source = "scripts/hello.rn" }
 "#,
     )?;
     std::fs::write(
         path.join("scripts/hello.rn"),
         r#"pub fn init(this) {
-    println!("hello from {}", this.node.name());
+    log::info(format!("hello from {}", this.node.name()));
     this.elapsed = 0.0;
 }
 

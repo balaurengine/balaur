@@ -18,7 +18,7 @@ indices = [[0, 1, 2]]
 [[nodes]]
 id = "n_wedge"
 name = "Wedge"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.mesh]
 source = "#wedge"
@@ -37,7 +37,7 @@ const SCRIPT: &str = r#"pub fn init(this) {
     if missed {
         log::error("the ray through the gap picked the node's box, not its triangles");
     }
-    this.node.set_position(0.0, 3.0, 0.0);
+    this.node.transform.position = [0.0, 3.0, 0.0];
 }
 "#;
 

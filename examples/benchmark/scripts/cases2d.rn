@@ -164,7 +164,7 @@ fn smash() {
             let shot = world::body(w, [ox - 900.0, (SMASH_ROWS as f64) * BOX * 0.5],
                 #{ kind: "circle", radius: 40.0 });
             shot.patch_component("body2d", #{ mass: 800.0, gravity_scale: 0.0, ccd: true });
-            physics2d::set_linear_velocity(shot, 4000.0, 0.0);
+            shot.body2d.set_linear_velocity(4000.0, 0.0);
         }),
         ("extra", |w| { spread(w) }),
     ])
@@ -225,7 +225,7 @@ fn query_storm() {
             } else {
                 let node = world::body(w, scatter(), #{ kind: "circle", radius: rng::range(10.0, 24.0) });
                 node.patch_component("body2d", #{ gravity_scale: 0.0 });
-                physics2d::set_linear_velocity(node, rng::range(-60.0, 60.0), rng::range(-60.0, 60.0));
+                node.body2d.set_linear_velocity(rng::range(-60.0, 60.0), rng::range(-60.0, 60.0));
             }
         }),
         ("step", |w, tick| { storm(w, tick); }),

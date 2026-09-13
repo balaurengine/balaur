@@ -574,11 +574,16 @@ impl Walk<'_> {
                 Toml::Array(vec![Toml::String("collision".into())]),
             );
         }
-        let rows = table
+        let bindings = table
             .entry("bindings")
-            .or_insert_with(|| Toml::Array(Vec::new()));
-        if let Toml::Array(rows) = rows {
-            rows.push(Toml::Table(row));
+            .or_insert_with(|| Toml::Table(toml::Table::new()));
+        if let Toml::Table(bindings) = bindings {
+            let rows = bindings
+                .entry("rows")
+                .or_insert_with(|| Toml::Array(Vec::new()));
+            if let Toml::Array(rows) = rows {
+                rows.push(Toml::Table(row));
+            }
         }
     }
 

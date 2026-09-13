@@ -147,7 +147,7 @@ pub fn undo(S) {
     let (_, found) = model::selected(S);
     let found_some = found;
     if let Some(found) = found_some {
-        let p = found.position();
+        let p = found.transform.position;
         history::record(S, "move node", Some("selftest:move"));
         history::commit(S);
         model::set_transform(S, S.sel, #{ position: [p.x + 5.0, p.y, p.z] });
@@ -198,11 +198,11 @@ pub fn rigging(S) {
     // Rest round trip: record the pose, move, reset, and it is back.
     shell::choose(S, first);
     let found = model::live(S, first).unwrap();
-    let p = found.position();
+    let p = found.transform.position;
     rig::overwrite_rest(S);
-    found.set_position(p.x + 1.0, p.y, p.z);
+    found.transform.position = [p.x + 1.0, p.y, p.z];
     rig::apply_rest(S);
-    let bx = model::live(S, first).unwrap().position().x;
+    let bx = model::live(S, first).unwrap().transform.position.x;
     check(util::abs(bx - p.x) < 1e-5, format!("reset to rest pose puts {} back ({} vs {})", bone_name, bx, p.x));
     let doc_pos = model::doc_transform(S.doc[first], "position", [0.0, 0.0, 0.0]);
     check(util::abs(doc_pos[0] - p.x) < 1e-5, "the document follows the reset");
@@ -539,7 +539,7 @@ pub fn tiles_tool(S) {
     // is open, so the map draws rather than logging a missing texture.
     node.tilemap = #{
         tileset: #{ texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
-        cells: "..\n..",
+        cells: [[-1, -1], [-1, -1]],
         pixels_per_unit: 16.0,
     };
     model::apply_component(S, "tilemap");
@@ -735,7 +735,7 @@ pub fn picking(S) {
     let target = None;
     for i in 0..S.doc.len() {
         if let Some(found) = model::live(S, i) {
-            let (kind, _, _, _) = render::shape3d(found);
+            let kind = if found.shape3d.has() { found.shape3d.kind } else { "" };
             if kind != "" && kind != "mesh" {
                 target = Some(i);
                 break;

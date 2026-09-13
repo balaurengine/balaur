@@ -26,19 +26,68 @@ fn spawn(app: &App, name: &str) -> Value {
     Value::Node(balaur_core::node_id_of(e).0)
 }
 
+/// The transform is a component like any other, so a test writes one property
+/// through `patch_component` and reads it back through `get_component`.
+fn set_transform(eng: &Engine, node: &Value, prop: &str, v: [f32; 3]) {
+    call(
+        eng,
+        "patch_component",
+        &[
+            node.clone(),
+            Value::Str("transform".into()),
+            Value::Map(vec![(prop.to_string(), Value::Vec3(v))]),
+        ],
+    )
+    .unwrap();
+}
+
+fn transform_of(eng: &Engine, node: &Value, prop: &str) -> [f32; 3] {
+    let got = call(
+        eng,
+        "get_component",
+        &[node.clone(), Value::Str("transform".into())],
+    )
+    .unwrap();
+    let Value::Map(props) = got else {
+        panic!("a node's transform reads back as a table, got {got:?}");
+    };
+    let (_, value) = props
+        .into_iter()
+        .find(|(key, _)| key == prop)
+        .unwrap_or_else(|| panic!("the transform reports no `{prop}`"));
+    match value {
+        Value::Vec3(v) => v,
+        Value::List(items) => {
+            let n = |i: usize| match items.get(i) {
+                Some(Value::Num(f)) => *f as f32,
+                other => panic!("`{prop}[{i}]` is {other:?}, not a number"),
+            };
+            [n(0), n(1), n(2)]
+        }
+        other => panic!("`{prop}` is {other:?}, not three numbers"),
+    }
+}
+
+/// Three numbers within a tolerance: the crate forbids strict float equality,
+/// and every expectation here is exact anyway.
+#[track_caller]
+fn assert_near(actual: [f32; 3], expected: [f32; 3]) {
+    for (a, e) in actual.iter().zip(expected.iter()) {
+        assert!(
+            (a - e).abs() < 1e-5,
+            "expected {expected:?}, got {actual:?}"
+        );
+    }
+}
+
 #[test]
 fn a_transform_survives_a_write_and_read() {
     let app = app();
     let node = spawn(&app, "N");
-    call(
-        &app.engine,
-        "set_position",
-        &[node.clone(), Value::Vec3([1.0, 2.0, 3.0])],
-    )
-    .unwrap();
-    assert_eq!(
-        call(&app.engine, "position", &[node]).unwrap(),
-        Value::Vec3([1.0, 2.0, 3.0])
+    set_transform(&app.engine, &node, "position", [1.0, 2.0, 3.0]);
+    assert_near(
+        transform_of(&app.engine, &node, "position"),
+        [1.0, 2.0, 3.0],
     );
 }
 
@@ -47,21 +96,21 @@ fn a_vector_argument_and_three_numbers_agree() {
     let app = app();
     let a = spawn(&app, "A");
     let b = spawn(&app, "B");
+    // One property patched, and the whole component set, mean the same thing.
+    set_transform(&app.engine, &a, "position", [4.0, 5.0, 6.0]);
     call(
         &app.engine,
-        "set_position",
-        &[a.clone(), Value::Vec3([4.0, 5.0, 6.0])],
+        "set_component",
+        &[
+            b.clone(),
+            Value::Str("transform".into()),
+            Value::Map(vec![("position".to_string(), Value::Vec3([4.0, 5.0, 6.0]))]),
+        ],
     )
     .unwrap();
-    call(
-        &app.engine,
-        "set_position",
-        &[b.clone(), Value::Num(4.0), Value::Num(5.0), Value::Num(6.0)],
-    )
-    .unwrap();
-    assert_eq!(
-        call(&app.engine, "position", &[a]).unwrap(),
-        call(&app.engine, "position", &[b]).unwrap()
+    assert_near(
+        transform_of(&app.engine, &a, "position"),
+        transform_of(&app.engine, &b, "position"),
     );
 }
 
@@ -77,9 +126,9 @@ fn translate_accumulates() {
         )
         .unwrap();
     }
-    assert_eq!(
-        call(&app.engine, "position", &[node]).unwrap(),
-        Value::Vec3([3.0, 0.0, 0.0])
+    assert_near(
+        transform_of(&app.engine, &node, "position"),
+        [3.0, 0.0, 0.0],
     );
 }
 
@@ -147,9 +196,14 @@ fn a_freed_node_stops_being_valid() {
 #[test]
 fn a_missing_node_argument_is_an_error_not_a_panic() {
     let app = app();
-    let err = call(&app.engine, "position", &[Value::Str("not a node".into())]).unwrap_err();
+    let err = call(
+        &app.engine,
+        "global_position",
+        &[Value::Str("not a node".into())],
+    )
+    .unwrap_err();
     assert!(err.to_string().contains("node"), "unhelpful: {err}");
-    assert!(call(&app.engine, "position", &[]).is_err());
+    assert!(call(&app.engine, "global_position", &[]).is_err());
 }
 
 #[test]
@@ -185,56 +239,27 @@ fn declarations_are_uniquely_named() {
 fn degrees_and_radians_are_two_readings_of_one_rotation() {
     let app = app();
     let node = spawn(&app, "N");
-    call(
+    // Rotation is radians everywhere: a quarter turn is pi/2, and nothing in
+    // the API reads it back in degrees.
+    set_transform(
         &app.engine,
-        "set_rotation_degrees",
-        &[node.clone(), Value::Vec3([0.0, 90.0, 0.0])],
-    )
-    .unwrap();
-
-    let Value::Vec3([dx, dy, dz]) =
-        call(&app.engine, "rotation_degrees", std::slice::from_ref(&node)).unwrap()
-    else {
-        panic!("rotation_degrees is a vec3");
-    };
-    assert!(dx.abs() < 1e-3 && (dy - 90.0).abs() < 1e-3 && dz.abs() < 1e-3);
-
-    let Value::Vec3([rx, ry, rz]) =
-        call(&app.engine, "rotation_euler", std::slice::from_ref(&node)).unwrap()
-    else {
-        panic!("rotation_euler is a vec3");
-    };
+        &node,
+        "rotation_euler",
+        [0.0, std::f32::consts::FRAC_PI_2, 0.0],
+    );
+    let [rx, ry, rz] = transform_of(&app.engine, &node, "rotation_euler");
     assert!(
         rx.abs() < 1e-5 && (ry - std::f32::consts::FRAC_PI_2).abs() < 1e-5 && rz.abs() < 1e-5,
-        "90 degrees is pi/2 radians, got {rx} {ry} {rz}"
+        "a quarter turn is pi/2 radians, got {rx} {ry} {rz}"
     );
-
-    call(
-        &app.engine,
-        "set_rotation_euler",
-        &[node.clone(), Value::Vec3([std::f32::consts::PI, 0.0, 0.0])],
-    )
-    .unwrap();
-    let Value::Vec3([dx, _, _]) = call(&app.engine, "rotation_degrees", &[node]).unwrap() else {
-        panic!("rotation_degrees is a vec3");
-    };
-    assert!((dx.abs() - 180.0).abs() < 1e-3, "pi radians is 180 degrees");
 }
 
 #[test]
 fn scale_reads_back_what_was_set() {
     let app = app();
     let node = spawn(&app, "N");
-    call(
-        &app.engine,
-        "set_scale",
-        &[node.clone(), Value::Vec3([2.0, 3.0, 4.0])],
-    )
-    .unwrap();
-    assert_eq!(
-        call(&app.engine, "scale", &[node]).unwrap(),
-        Value::Vec3([2.0, 3.0, 4.0])
-    );
+    set_transform(&app.engine, &node, "scale", [2.0, 3.0, 4.0]);
+    assert_near(transform_of(&app.engine, &node, "scale"), [2.0, 3.0, 4.0]);
 }
 
 #[test]
@@ -248,24 +273,9 @@ fn world_transforms_report_the_composed_result() {
     )
     .unwrap();
 
-    call(
-        &app.engine,
-        "set_position",
-        &[parent.clone(), Value::Vec3([1.0, 0.0, 0.0])],
-    )
-    .unwrap();
-    call(
-        &app.engine,
-        "set_position",
-        &[child.clone(), Value::Vec3([2.0, 0.0, 0.0])],
-    )
-    .unwrap();
-    call(
-        &app.engine,
-        "set_scale",
-        &[parent, Value::Vec3([2.0, 2.0, 2.0])],
-    )
-    .unwrap();
+    set_transform(&app.engine, &parent, "position", [1.0, 0.0, 0.0]);
+    set_transform(&app.engine, &child, "position", [2.0, 0.0, 0.0]);
+    set_transform(&app.engine, &parent, "scale", [2.0, 2.0, 2.0]);
     app.tick(0.0);
 
     let Value::Vec3([x, ..]) =

@@ -14,7 +14,7 @@ use crate::LOG;
 const RIG: &str = r#"[[nodes]]
 id = "n_rig"
 name = "Rig"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [[nodes]]
 id = "n_hip"
@@ -173,7 +173,7 @@ fn ragdoll_blend_turns_it_on_partway_through() {
 pub fn update(this, dt) {
     this.ticks += 1;
     if this.ticks == 30 {
-        physics::ragdoll_blend(this.node, 1.0);
+        this.node.ragdoll.ragdoll_blend(1.0);
     }
 }",
         90,
@@ -193,7 +193,7 @@ fn a_node_with_no_bones_says_so_rather_than_building_nothing() {
         r#"[[nodes]]
 id = "n"
 name = "Plain"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 "#,
         r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
         2,

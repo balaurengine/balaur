@@ -34,7 +34,7 @@ pub fn update(this, dt) {
 }
 
 pub fn fixed_update(this, dt) {
-    if physics3d::is_grounded(this.node) {
+    if this.node.character3d.is_grounded() {
         this.vy = 0.0;
     } else {
         this.vy -= this.gravity * dt;
@@ -45,11 +45,11 @@ pub fn fixed_update(this, dt) {
     let far = math::sqrt(toward_x * toward_x + toward_z * toward_z);
     if !this.walking || far < this.arrive {
         this.walking = false;
-        physics3d::move_character(this.node, 0.0, this.vy * dt, 0.0);
+        this.node.character3d.move_character(0.0, this.vy * dt, 0.0);
         return;
     }
     // Normalised by the distance left, so the last step does not overshoot
     // into a walk that never settles.
     let step = this.speed * dt / far;
-    physics3d::move_character(this.node, toward_x * step, this.vy * dt, toward_z * step);
+    this.node.character3d.move_character(toward_x * step, this.vy * dt, toward_z * step);
 }

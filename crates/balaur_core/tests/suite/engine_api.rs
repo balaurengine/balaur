@@ -36,19 +36,18 @@ fn script_args_reach_scripts_as_a_list() {
 }
 
 #[test]
-fn the_scene_root_is_a_node_and_can_be_spawned_under() {
+fn the_scene_root_is_a_node_and_can_be_added_under() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
     let Value::Node(root) = call(&app.engine, "scene", "root", &[]).unwrap() else {
         panic!("root should be a node");
     };
-    let made = call(
-        &app.engine,
-        "scene",
-        "spawn",
-        &[Value::Str("Made".into()), Value::Node(root)],
-    )
-    .unwrap();
+    let add_child = balaur_core::node_api::NODE_OPS
+        .iter()
+        .find(|d| d.name == "add_child")
+        .expect("`add_child` is a node op")
+        .call;
+    let made = add_child(&app.engine, &[Value::Node(root), Value::Str("Made".into())]).unwrap();
     assert!(matches!(made, Value::Node(_)));
     assert_eq!(
         call(

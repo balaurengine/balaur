@@ -157,8 +157,8 @@ the node's own, and the root's children become the node's.
 - In the editor: placed from the palette, opened from its row, drawn one shade
   quieter. Editing a prefab row writes a sparse `overrides` entry, removed again
   when the value returns to the prefab's. Comparison needs
-  `scene.component_properties`, since `body3d = "dynamic"` and the full table
-  are one component spelled two ways. Structural edits inside an instance are
+  `scene.component_properties`, since a partial table and the full one are
+  one component spelled two ways. Structural edits inside an instance are
   refused — the file has nowhere to put them.
 
 ### Hot reload

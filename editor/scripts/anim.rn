@@ -279,7 +279,7 @@ pub fn arm(S) {
         None => return,
     };
     let name = clip_name(node);
-    let (ok, why) = script::attempt(|| animation::define(found, name, def));
+    let (ok, why) = script::attempt(|| found.animation.define(name, def));
     if !ok {
         log::warn(format!("clip '{}' on {}: {:?}", name, node.name, why));
         return;
@@ -290,13 +290,13 @@ pub fn arm(S) {
     if S.playing {
         return;
     }
-    let (ok, why) = script::attempt(|| animation::play(found, name));
+    let (ok, why) = script::attempt(|| found.animation.play(name));
     if !ok {
         log::warn(format!("clip '{}' on {}: {:?}", name, node.name, why));
         return;
     }
-    animation::pause(found);
-    animation::seek(found, S.anim.time);
+    found.animation.pause();
+    found.animation.seek(S.anim.time);
 }
 
 // The clip changed: the scene needs saving, an external clip needs writing,
@@ -391,10 +391,10 @@ pub fn add_key(S, t) {
     };
     history::record(S, "insert keyframe", None);
     let target = target_path(S, player_i);
-    let r = found.rotation_euler();
+    let r = found.transform.rotation_euler;
     put_key(track_for(def, "rotation_euler", target), t, util::xyz(r));
     if !node.contains_key("bone2d") && !node.contains_key("bone3d") {
-        let p = found.position();
+        let p = found.transform.position;
         put_key(track_for(def, "position", target), t, util::xyz(p));
     }
     if t > length(def) {
@@ -465,7 +465,7 @@ pub fn seek(S, t) {
     let found_some = found;
     if let Some(found) = found_some {
         if component(node).is_some() {
-            script::attempt(|| animation::seek(found, t));
+            script::attempt(|| found.animation.seek(t));
         }
     }
 }
@@ -565,7 +565,7 @@ pub fn rebind(S) {
                 log::warn(format!("animation on {}: {:?}", node.name, why));
             }
             if !S.playing {
-                animation::pause(found);
+                found.animation.pause();
             }
         }
     }
@@ -577,7 +577,7 @@ pub fn resume_all(S) {
     for (i, node) in S.doc.iter().enumerate() {
         if let Some(found) = model::live(S, i) {
             if component(node).is_some() {
-                animation::resume(found);
+                found.animation.resume();
             }
         }
     }
@@ -597,7 +597,7 @@ pub fn update(S) {
         let found_some = found;
         if let Some(found) = found_some {
             if component(node).is_some() {
-                S.anim.time = animation::time(found);
+                S.anim.time = found.animation.time();
             }
         }
         return;

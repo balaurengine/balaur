@@ -186,7 +186,7 @@ pub fn paint_terrain(S, x, y, value) {
         Some(comp) => comp,
         None => return false,
     };
-    let (ok, _) = script::attempt(|| render::set_terrain(found, x, y, value));
+    let (ok, _) = script::attempt(|| found.tilemap.set_terrain(x, y, value));
     if !ok {
         return false;
     }

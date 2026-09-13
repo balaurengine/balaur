@@ -304,7 +304,7 @@ pub fn init(this) {
 
 pub fn fixed_update(this, dt) {
     this.n = this.n + 1;
-    this.node.set_position(this.n as f64 * 0.25, 0.0, 0.0);
+    this.node.transform.position = [this.n as f64 * 0.25, 0.0, 0.0];
 }
 ";
 

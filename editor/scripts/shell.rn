@@ -404,7 +404,7 @@ pub fn set_script_path(S, path) {
     if current is Object {
         current.source = rel;
     } else {
-        node.script = rel;
+        node.script = #{ source: rel };
     }
     model::forget(S, None);
     S.script_open = true;
@@ -927,10 +927,10 @@ fn state_animdemo(S) {
             let (_, found) = model::selected(S);
             let found_some = found;
             if let Some(found) = found_some {
-                found.set_position(2.5, 2.5, 0.0);
-                found.set_rotation_euler(0.0, math::rad(180.0), 0.0);
+                found.transform.position = [2.5, 2.5, 0.0];
+                found.transform.rotation_euler = [0.0, math::rad(180.0), 0.0];
                 anim::add_key(S, 1.0);
-                found.set_position(2.5, 0.5, 0.0);
+                found.transform.position = [2.5, 0.5, 0.0];
                 anim::add_key(S, 2.0);
                 anim::seek(S, 0.6);
             }

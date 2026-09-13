@@ -126,7 +126,7 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
 }
 
 /// What a widget emits from its own node when its value changes, and when a
-/// field is submitted, with the new value: a `[[nodes.bindings]]` row answers
+/// field is submitted, with the new value: a `[[nodes.bindings.rows]]` row answers
 /// `emitted:change` on any node's script, as a Godot signal connected in a
 /// scene does.
 pub const CHANGE_EVENT: &str = "change";

@@ -27,8 +27,8 @@ pub mod joint;
 pub mod query;
 pub mod tiles;
 
-use body::{add_body, with_body};
-use collider::{add_collider, collider_builder, max_contact_impulse};
+use body::with_body;
+use collider::max_contact_impulse;
 pub use query::overlaps;
 use query::overlaps_value;
 
@@ -419,8 +419,6 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
          worlds.",
     );
     m.describe(&[
-        ("add_body", &[c::BODY_2D], "", "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
-        ("add_collider", &[c::COLLIDER_2D], "", "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
         ("set_gravity", &[], "", "Set the 2D world's gravity, in units per second squared."),
         ("apply_impulse", &[c::BODY_2D], "", "Add an instant change in momentum, as if the body were struck."),
         ("set_linear_velocity", &[c::BODY_2D], "", "Set how fast the body travels, in units per second."),
@@ -433,20 +431,9 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     crate::ragdoll::install_ragdoll_api(m, false);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
-    m.function(
-        "add_body",
-        |eng: &Engine, (node, kind): (NodeId, String)| add_body(eng, entity_of(node)?, &kind),
-    );
     // Takes the `collider2d` component's own table (`kind`, `radius`,
     // `half_extents`, `restitution`, `friction`, `density`), so one
     // vocabulary covers scripts and scene files.
-    m.function(
-        "add_collider",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            add_collider(eng, entity_of(node)?, collider_builder(eng, &params)?)
-        },
-    );
     // No reader by design (N8): `PhysicsState2d`'s rapier world already
     // holds the gravity vector; add `physics2d.gravity` when a caller needs
     // to read it back.

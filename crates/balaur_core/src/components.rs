@@ -21,7 +21,7 @@
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
 //!   min/max/step/decimals  (float and int, optional)
-//!   shorthand/readonly     (bool, optional)
+//!   readonly               (bool, optional)
 //!   description = "..."    (optional, one line, for the reference and the
 //!                           inspector row's tooltip)
 //!   unit = "degrees"       (optional; what an editor draws the property in,
@@ -68,7 +68,7 @@
 
 use std::rc::Rc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use hecs::Entity;
 
 use crate::engine::Engine;
@@ -672,11 +672,11 @@ fn expand_colors(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Va
     }
 }
 
-pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> toml::Value {
+pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> Result<toml::Value> {
     let mut out = defaults_of(schema);
-    overlay(schema, &mut out, params);
+    overlay(schema, &mut out, params)?;
     expand_colors(schema, &mut out);
-    toml::Value::Table(out)
+    Ok(toml::Value::Table(out))
 }
 
 /// Every property the schema declares, at its declared default.
@@ -698,27 +698,36 @@ fn overlay(
     schema: &toml::Value,
     out: &mut toml::map::Map<String, toml::Value>,
     params: Option<&toml::Value>,
-) {
+) -> Result<()> {
     match params {
         Some(toml::Value::Table(params)) => {
             for (k, v) in params {
                 out.insert(k.clone(), v.clone());
             }
         }
-        // Scalar/array shorthand (`body = "static"`, `color = [1, 0, 0]`)
-        // lands on the prop marked `shorthand = true` in the schema.
+        // A component is written as a table and nothing else, so a bare
+        // value is an error rather than a default the file did not ask for.
         Some(other) => {
-            if let Some(table) = schema.as_table() {
-                for (prop, spec) in table {
-                    if spec.get("shorthand").and_then(toml::Value::as_bool) == Some(true) {
-                        out.insert(prop.clone(), other.clone());
-                        break;
-                    }
+            let shown = if other.is_array() {
+                "[...]".to_string()
+            } else {
+                other.to_string()
+            };
+            let hint = match schema.as_table() {
+                Some(t) if other.is_str() && t.contains_key("kind") => {
+                    format!("{{ kind = {shown} }}")
                 }
-            }
+                Some(t) if t.len() == 1 => match t.keys().next() {
+                    Some(only) => format!("{{ {only} = {shown} }}"),
+                    None => "{ property = value }".to_string(),
+                },
+                _ => "{ property = value }".to_string(),
+            };
+            bail!("expected a table of properties, got {shown}; write `{hint}`");
         }
         None => {}
     }
+    Ok(())
 }
 
 /// The full property table an `apply` hook receives: schema defaults, the
@@ -732,7 +741,7 @@ pub fn properties(
     schema: &toml::Value,
     params: Option<&toml::Value>,
 ) -> Result<toml::Value> {
-    resolved(eng, schema, merge_defaults(schema, params))
+    resolved(eng, schema, merge_defaults(schema, params)?)
 }
 
 /// Every asset-typed property of an already-merged table turned into a
@@ -842,8 +851,8 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     let schema = schema_of(eng, name)?;
     let current = get(eng, entity, name);
     let mut out = defaults_of(&schema);
-    overlay(&schema, &mut out, current.as_ref());
-    overlay(&schema, &mut out, Some(params));
+    overlay(&schema, &mut out, current.as_ref())?;
+    overlay(&schema, &mut out, Some(params))?;
     expand_colors(&schema, &mut out);
     let full = resolved(eng, &schema, toml::Value::Table(out))?;
     apply_full(eng, entity, name, &full)

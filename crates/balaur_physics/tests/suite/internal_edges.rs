@@ -195,7 +195,7 @@ one_way = true
 id = "n_body_a"
 name = "BodyA"
 parent = "n_level"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [0.0, -2.0, 0.0]
@@ -211,7 +211,7 @@ radius = 0.3
 id = "n_body_b"
 name = "BodyB"
 parent = "n_level"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [10.0, -2.0, 0.0]

@@ -166,7 +166,7 @@ label and turns gutter clicks into value previews.
 
 ### 4c. Events — `events::view` (`16`, `33`)
 
-One row per `[[nodes.bindings]]` entry on the selected node: an event
+One row per `[[nodes.bindings.rows]]` entry on the selected node: an event
 dropdown, a `when` field, an action, a target picked from the scene's nodes or
 its variables, a value, and a delete. *Add row* and *Convert to script* sit in
 the header; the scene's variables and the node's own script hooks are listed

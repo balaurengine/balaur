@@ -12,10 +12,10 @@ pub fn fixed_update(this, dt) {
     let sideways = input::action_value("move");
     // The controller reports whether the last move ended on the ground, which
     // is what decides between falling and being able to jump.
-    if physics2d::is_grounded(this.node) {
+    if this.node.character2d.is_grounded() {
         this.vy = if input::action_just_pressed("jump") { this.jump } else { 0.0 };
     } else {
         this.vy -= 24.0 * dt;
     }
-    physics2d::move_character(this.node, sideways * this.speed * dt, this.vy * dt);
+    this.node.character2d.move_character(sideways * this.speed * dt, this.vy * dt);
 }

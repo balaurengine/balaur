@@ -540,8 +540,9 @@ fn dialog(class: &str, section: &Section, out: &mut Mapped) {
         close.insert("action".into(), Toml::String("visible".into()));
         close.insert("target".into(), Toml::String("../..".into()));
         close.insert("value".into(), Toml::Boolean(false));
-        part.keys
-            .insert("bindings".into(), Toml::Array(vec![Toml::Table(close)]));
+        let mut bindings = toml::Table::new();
+        bindings.insert("rows".into(), Toml::Array(vec![Toml::Table(close)]));
+        part.keys.insert("bindings".into(), Toml::Table(bindings));
         part
     };
     let mut row = label("row", String::new());

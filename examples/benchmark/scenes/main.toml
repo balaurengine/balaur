@@ -16,4 +16,4 @@ positions = [[13, 0], [4.017, 12.363], [-10.517, 7.641], [-10.517, -7.641], [4.0
 id = "n_bench"
 name = "Bench"
 parent = ""
-script = "scripts/bench.rn"
+script = { source = "scripts/bench.rn" }

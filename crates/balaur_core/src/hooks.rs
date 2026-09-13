@@ -22,7 +22,7 @@ pub const ON_STATE_CHANGED: &str = "on_state_changed";
 /// The event a click on a node, or on a widget, answers to.
 pub const POINTER_CLICK: &str = "pointer_click";
 
-/// The events a `[[nodes.bindings]]` row may name, which are these hooks with
+/// The events a `[[nodes.bindings.rows]]` row may name, which are these hooks with
 /// the `on_` prefix dropped. In the order the Events view offers them.
 pub const BINDABLE: &[&str] = &[
     "pointer_enter",

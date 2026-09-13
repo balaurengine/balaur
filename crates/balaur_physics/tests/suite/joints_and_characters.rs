@@ -52,7 +52,7 @@ name = "World"
 id = "n_trigger"
 name = "Trigger"
 parent = "n_world"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.collider3d]
 kind = "cuboid"
@@ -64,7 +64,7 @@ events = ["collision"]
 id = "n_faller"
 name = "Faller"
 parent = "n_world"
-body3d = "dynamic"
+body3d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [0.0, 6.0, 0.0]
@@ -100,7 +100,7 @@ name = "World"
 id = "n_anchor"
 name = "Anchor"
 parent = "n_world"
-body3d = "static"
+body3d = { kind = "static" }
 
 [nodes.collider3d]
 kind = "ball"
@@ -110,8 +110,8 @@ radius = 0.2
 id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
-body3d = "dynamic"
-script = "scripts/s.rn"
+body3d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -131,7 +131,7 @@ anchor = [-1.0, 0.0, 0.0]
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks == 110 {
-        let position = this.node.position();
+        let position = this.node.transform.position;
         let far = math::sqrt(position.x * position.x + position.y * position.y);
         assert!(far < 1.2, "the joint let go: the body is {} from the anchor", far);
         assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
@@ -154,7 +154,7 @@ name = "World"
 id = "n_anchor"
 name = "Anchor"
 parent = "n_world"
-body3d = "static"
+body3d = { kind = "static" }
 
 [nodes.collider3d]
 kind = "ball"
@@ -164,8 +164,8 @@ radius = 0.2
 id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
-body3d = "dynamic"
-script = "scripts/s.rn"
+body3d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -190,7 +190,7 @@ anchor = [-1.0, 0.0, 0.0]
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks == 110 {
-        let position = this.node.position();
+        let position = this.node.transform.position;
         let far = math::sqrt(position.x * position.x + position.y * position.y);
         assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
         assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
@@ -211,7 +211,7 @@ name = "World"
 id = "n_anchor"
 name = "Anchor"
 parent = "n_world"
-body2d = "static"
+body2d = { kind = "static" }
 
 [nodes.collider2d]
 kind = "circle"
@@ -221,8 +221,8 @@ radius = 0.2
 id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
-body2d = "dynamic"
-script = "scripts/s.rn"
+body2d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -246,7 +246,7 @@ anchor = [-1.0, 0.0]
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks == 110 {
-        let position = this.node.position();
+        let position = this.node.transform.position;
         let far = math::sqrt(position.x * position.x + position.y * position.y);
         assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
         assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
@@ -269,8 +269,8 @@ name = "World"
 id = "n_hanging"
 name = "Hanging"
 parent = "n_world"
-body3d = "dynamic"
-script = "scripts/s.rn"
+body3d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [1.0, 0.0, 0.0]
@@ -288,7 +288,7 @@ anchor = [-1.0, 0.0, 0.0]
 id = "n_anchor"
 name = "Anchor"
 parent = "n_world"
-body3d = "static"
+body3d = { kind = "static" }
 
 [nodes.collider3d]
 kind = "ball"
@@ -299,7 +299,7 @@ radius = 0.2
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks == 110 {
-        let position = this.node.position();
+        let position = this.node.transform.position;
         let far = math::sqrt(position.x * position.x + position.y * position.y);
         assert!(far < 1.2, "the forward reference never connected: {} away", far);
     }
@@ -333,7 +333,7 @@ half_extents = [0.5, 4.0, 8.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.collider3d]
 kind = "capsule"
@@ -347,9 +347,9 @@ snap_to_ground = 0.0
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
-    let moved = physics3d::move_character(this.node, 0.1, 0.0, 0.05);
+    let moved = this.node.character3d.move_character(0.1, 0.0, 0.05);
     if this.ticks == 110 {
-        let position = this.node.position();
+        let position = this.node.transform.position;
         assert!(position.x < 1.2, "the character walked into the wall: x is {}", position.x);
         assert!(position.z > 0.5, "the character did not slide along it: z is {}", position.z);
     }
@@ -471,7 +471,7 @@ half_extents = [8.0, 0.5, 8.0]
 id = "n_player"
 name = "Player"
 parent = "n_world"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [0.0, 1.0, 0.0]
@@ -488,21 +488,21 @@ height = 1.0
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks < 40 {
-        physics3d::move_character(this.node, 0.0, -0.2, 0.0);
+        this.node.character3d.move_character(0.0, -0.2, 0.0);
         return;
     }
     if this.ticks == 40 {
-        this.parked = this.node.position().y;
-        this.grounded = physics3d::is_grounded(this.node);
+        this.parked = this.node.transform.position.y;
+        this.grounded = this.node.character3d.is_grounded();
     }
     let i = 0;
     while i < 8 {
-        physics3d::is_grounded(this.node);
+        this.node.character3d.is_grounded();
         i += 1;
     }
     if this.ticks == 100 {
         assert!(this.grounded, "the character never landed, so the test proves nothing");
-        let drift = this.node.position().y - this.parked;
+        let drift = this.node.transform.position.y - this.parked;
         assert!(drift < 0.0001 && drift > -0.0001, "asking moved it by {}", drift);
     }
 }
@@ -519,7 +519,7 @@ fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 rotation_euler = [0.0, 0.0, 1.5707963]
@@ -536,7 +536,7 @@ autostep = 0.0
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
-    physics2d::move_character(this.node, 0.0, 0.0);
+    this.node.character2d.move_character(0.0, 0.0);
     if this.ticks == 30 {
         let flat = physics2d::raycast(#{ from: [0.5, 3.0], dir: [0.0, -1.0], max: 100.0 });
         assert!(flat is Tuple, "the character lay back down: a ray beside it still hits");
@@ -574,8 +574,8 @@ half_extents = [8.0, 0.5, 8.0]
 id = "n_faller"
 name = "Faller"
 parent = "n_world"
-body3d = "dynamic"
-script = "scripts/s.rn"
+body3d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [0.0, -8.0, 0.0]
@@ -589,7 +589,7 @@ radius = 0.5
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     if this.ticks == 110 {
-        for contact in physics3d::contacts(this.node) {
+        for contact in this.node.collider3d.contacts() {
             this.seen = this.seen + 1;
             let y = contact.point.y;
             assert!(y < -8.0, "the contact point is in local space: y is {}", y);

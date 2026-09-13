@@ -1,5 +1,5 @@
 pub fn init(this) {
-    println!("hello from {}", this.node.name());
+    log::info(format!("hello from {}", this.node.name()));
     this.elapsed = 0.0;
 }
 

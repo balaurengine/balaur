@@ -64,10 +64,6 @@ pub(crate) fn add_collider_at(
     Ok(())
 }
 
-pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder2) -> Result<()> {
-    add_collider_at(eng, entity, builder, Pose2::IDENTITY)
-}
-
 /// The collider described by `params`, in the `collider2d` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {

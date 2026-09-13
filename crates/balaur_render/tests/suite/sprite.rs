@@ -10,6 +10,13 @@ use balaur_render::{DEFAULT_PIXELS_PER_UNIT, RenderPlugin, Renderable2d, Shape2d
 /// 4x2 sheet divides both evenly.
 const FIXTURE: &str = "tests/fixtures/sprite_200x100.png";
 
+/// A sheet asset stating a uniform cut, declared inline on the node. The
+/// grid belongs to the sheet: the component only names one.
+const GRID: &str = concat!(
+    "[sheet]\ntexture = \"tests/fixtures/sprite_200x100.png\"\n",
+    "columns = 4\nrows = 2\n"
+);
+
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
@@ -69,7 +76,7 @@ fn a_sprite_is_sized_from_its_image() {
 fn a_sheet_is_sized_to_one_frame() {
     let app = app();
     let entity = node(&app);
-    apply(&app, entity, "columns = 4\nrows = 2\n");
+    apply(&app, entity, GRID);
     let (hx, hy) = half_extents(&app, entity);
     assert_close(hx, (200.0 / 4.0) / DEFAULT_PIXELS_PER_UNIT / 2.0);
     assert_close(hy, (100.0 / 2.0) / DEFAULT_PIXELS_PER_UNIT / 2.0);
@@ -101,14 +108,14 @@ fn pixels_per_unit_scales_the_result() {
 fn changing_only_the_frame_does_not_force_a_rebuild() {
     let app = app();
     let entity = node(&app);
-    apply(&app, entity, "columns = 4\nrows = 2\n");
+    apply(&app, entity, GRID);
     let before = app
         .engine
         .world()
         .get::<&Renderable2d>(entity)
         .unwrap()
         .version;
-    apply(&app, entity, "columns = 4\nrows = 2\nframe = 5\n");
+    apply(&app, entity, &format!("frame = 5\n{GRID}"));
     let world = app.engine.world();
     let r = world.get::<&Renderable2d>(entity).unwrap();
     assert_eq!(r.version, before, "a frame change must not rebuild");
@@ -144,12 +151,14 @@ fn changing_the_texture_forces_a_rebuild() {
 fn the_component_round_trips() {
     let app = app();
     let entity = node(&app);
-    apply(&app, entity, "columns = 4\nrows = 2\nframe = 3\n");
+    apply(&app, entity, &format!("frame = 3\n{GRID}"));
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
     let table = saved.as_table().unwrap();
     assert_eq!(table["texture"].as_str().unwrap(), FIXTURE);
-    assert_close(table["columns"].as_float().unwrap() as f32, 4.0);
-    assert_close(table["rows"].as_float().unwrap() as f32, 2.0);
+    assert!(
+        table.contains_key("sheet"),
+        "the sheet the grid came from is kept: {table:?}"
+    );
     assert_close(table["frame"].as_float().unwrap() as f32, 3.0);
 
     let reloaded = node(&app);

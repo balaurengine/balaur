@@ -723,7 +723,7 @@ PanelContainer/styles/panel = SubResource("Plain")
             "an area's shape senses"
         );
         assert_eq!(shape["collider2d"]["events"][0].as_str(), Some("collision"));
-        let row = &shape["bindings"][0];
+        let row = &shape["bindings"]["rows"][0];
         assert_eq!(row["event"].as_str(), Some("collision_start"));
         assert_eq!(row["action"].as_str(), Some("call"));
         assert_eq!(
@@ -843,10 +843,13 @@ PanelContainer/styles/panel = SubResource("Plain")
         let clock = node(&scene, "Clock");
         assert_eq!(clock["timer"]["wait_time"].as_float(), Some(0.5));
         assert_eq!(
-            clock["bindings"][0]["event"].as_str(),
+            clock["bindings"]["rows"][0]["event"].as_str(),
             Some("emitted:timeout")
         );
-        assert_eq!(clock["bindings"][0]["value"].as_str(), Some("on_tick"));
+        assert_eq!(
+            clock["bindings"]["rows"][0]["value"].as_str(),
+            Some("on_tick")
+        );
 
         let bar = node(&scene, "Bar");
         assert_eq!(bar["widget"]["anchor"].as_str(), Some("fill_top"));

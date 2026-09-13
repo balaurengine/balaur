@@ -1,5 +1,5 @@
 //! The scene's own state, as script calls: its `[variables]`, the words a
-//! `[[nodes.bindings]]` row may use, and the switch to another scene.
+//! `[[nodes.bindings.rows]]` row may use, and the switch to another scene.
 //!
 //! Here rather than in `engine_api`, which is the table that names them: this
 //! is what those rows call, and it is one subject.
@@ -14,7 +14,7 @@ use balaur_script::Value;
 use crate::engine::Engine;
 use crate::engine_api::text;
 
-/// The events a `[[nodes.bindings]]` row may answer, for the Events view.
+/// The events a `[[nodes.bindings.rows]]` row may answer, for the Events view.
 pub(crate) fn bindable_events(_eng: &Engine, _args: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::hooks::BINDABLE

@@ -20,7 +20,7 @@ fn project(script: &str) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Crate\"\nscript = \"main.rn\"\n\n\
+        "[[nodes]]\nid = \"n\"\nname = \"Crate\"\nscript = { source = \"main.rn\" }\n\n\
          [nodes.transform]\nposition = [0, 1, 0]\n\n\
          [nodes.body2d]\nkind = \"dynamic\"\n",
     )
@@ -85,7 +85,7 @@ fn a_component_the_script_adds_itself_is_left_alone() {
     assert_eq!(
         check(
             "    this.node.set_component(\"sprite\", #{ image: \"a.png\" });\n\
-             \x20   this.node.sprite.set_sprite_frame(0);"
+             \x20   this.node.sprite.frame = 0;"
         ),
         Vec::<String>::new()
     );
@@ -187,7 +187,7 @@ fn a_nested_project_is_not_part_of_this_one() {
     .unwrap();
     std::fs::write(
         nested.join("scenes").join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = \"scripts/starter.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/starter.rn\" }\n",
     )
     .unwrap();
     assert_eq!(balaur::scene_scripts(dir.path()), ["main.rn"]);
@@ -200,10 +200,10 @@ fn a_nested_project_is_not_part_of_this_one() {
 /// it could not read that the node carries nothing.
 #[test]
 fn a_node_that_will_not_parse_leaves_its_components_unknown() {
-    let dir = project("pub fn init(this) {\n    this.node.sprite.set_sprite_frame(0);\n}\n");
+    let dir = project("pub fn init(this) {\n    this.node.sprite.frame = 0;\n}\n");
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Crate\"\nscript = \"main.rn\"\ntags = \"one\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Crate\"\nscript = { source = \"main.rn\" }\ntags = \"one\"\n",
     )
     .unwrap();
     let attached = balaur_core::attachments::scene_attachments(dir.path());

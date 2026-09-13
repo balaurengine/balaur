@@ -243,31 +243,12 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
 
 pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("add_joint", &[c::JOINT_2D], "", "Tie this node's body to another with a 2D joint, from a `joint2d` table."),
         ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_2D], "", "Drive the joint towards a speed: how a wheel is powered."),
         ("set_motor_position", &[c::JOINT_2D], "", "Drive the joint towards an angle or a distance, with a spring's stiffness and damping."),
         ("set_joint_limits", &[c::JOINT_2D], "", "Set how far the joint may travel."),
         ("joint_impulse", &[c::JOINT_2D], "", "How hard the joint is pulling right now."),
     ]);
-    m.function(
-        "add_joint",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            let entity = entity_of(node)?;
-            let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
-            let schema = {
-                let registry = registry.borrow();
-                registry
-                    .def(c::JOINT_2D)
-                    .ok_or_else(|| anyhow!("joint2d is not registered"))?
-                    .schema
-                    .clone()
-            };
-            let full = balaur_core::components::properties(eng, &schema, Some(&params))?;
-            apply_joint(eng, entity, &full)
-        },
-    );
     m.function("remove_joint", |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
         Ok(())
@@ -330,7 +311,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     let shared = crate::joint::shared_joint_schema();
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#)),
             (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
             (k::ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
             (k::OTHER_ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),

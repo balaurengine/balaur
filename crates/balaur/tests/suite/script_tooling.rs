@@ -41,7 +41,7 @@ fn host() -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"main.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"main.rn\" }\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.rn"), SCRIPT).unwrap();

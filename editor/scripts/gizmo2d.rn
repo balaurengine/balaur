@@ -278,8 +278,8 @@ fn start_drag(S, geo, part, mx, my) {
     history::record(S, format!("{} handle", part.kind), None);
     let (node, found) = model::selected(S);
     let found = found.unwrap();
-    let p = found.position();
-    let s = found.scale();
+    let p = found.transform.position;
+    let s = found.transform.scale;
     let rot = model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]);
     let drag = #{
         part: part,

@@ -25,14 +25,14 @@ collision = "full"
 [[nodes]]
 id = "n_map"
 name = "Map"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = """
-11
-1.
-"""
+cells = [
+  [ 1,  1],
+  [ 1, -1],
+]
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
@@ -127,7 +127,7 @@ fn the_solid_cells_of_a_map_become_one_voxel_collider() {
 fn digging_a_cell_rebuilds_what_the_map_collides_with() {
     let (app, errors) = run(
         r"pub fn init(this) {
-    render::set_cell(this.node, 0, 0, -1);
+    this.node.tilemap.set_cell(0, 0, -1);
 }
 ",
         2,

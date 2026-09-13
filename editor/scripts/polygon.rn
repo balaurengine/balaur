@@ -1022,9 +1022,9 @@ pub fn idle(S) {
         if let Some(found) = model::live(S, S.sel) {
             let p = found.global_position();
             let r = found.global_rotation_euler();
-            S.polygon.backdrop.set_position(p.x, p.y, p.z);
-            S.polygon.backdrop.set_rotation_euler(r.x, r.y, r.z);
-            S.polygon.backdrop.set_scale(f.sx, f.sy, 1.0);
+            S.polygon.backdrop.transform.position = [p.x, p.y, p.z];
+            S.polygon.backdrop.transform.rotation_euler = [r.x, r.y, r.z];
+            S.polygon.backdrop.transform.scale = [f.sx, f.sy, 1.0];
         }
     }
 }

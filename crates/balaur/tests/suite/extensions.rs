@@ -51,7 +51,7 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.rn\" }\n",
     )
     .unwrap();
     std::fs::write(

@@ -9,7 +9,7 @@ name = "Main"
 id = "n_game"
 name = "Game"
 parent = "n_main"
-script = "scripts/game.rn"
+script = { source = "scripts/game.rn" }
 
 [[nodes]]
 id = "n_score"
@@ -57,7 +57,7 @@ text_color = "#4b4b4b"
 id = "n_ground"
 name = "Ground"
 parent = "n_main"
-body2d = "static"
+body2d = { kind = "static" }
 
 [nodes.transform]
 position = [0, -0.5, 0]
@@ -89,7 +89,7 @@ color = [0.42, 0.28, 0.16, 1.0]
 id = "n_bird"
 name = "Bird"
 parent = "n_main"
-body2d = "kinematic"
+body2d = { kind = "kinematic" }
 
 [nodes.transform]
 position = [-8, 2.2, 0]
@@ -110,7 +110,7 @@ density = 2.5
 id = "n_columnl"
 name = "ColumnL"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [6, 1.0, 0]
@@ -129,7 +129,7 @@ friction = 0.7
 id = "n_columnr"
 name = "ColumnR"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [8, 1.0, 0]
@@ -148,7 +148,7 @@ friction = 0.7
 id = "n_plank"
 name = "Plank"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7, 2.16, 0]
@@ -167,7 +167,7 @@ friction = 0.7
 id = "n_columnl2"
 name = "ColumnL2"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [6.4, 3.1, 0]
@@ -186,7 +186,7 @@ friction = 0.7
 id = "n_columnr2"
 name = "ColumnR2"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7.6, 3.1, 0]
@@ -205,7 +205,7 @@ friction = 0.7
 id = "n_plank2"
 name = "Plank2"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7, 4.04, 0]
@@ -224,7 +224,7 @@ friction = 0.7
 id = "n_pig1"
 name = "Pig1"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7, 0.45, 0]
@@ -336,7 +336,7 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pig2"
 name = "Pig2"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7, 2.72, 0]
@@ -448,7 +448,7 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_pig3"
 name = "Pig3"
 parent = "n_main"
-body2d = "dynamic"
+body2d = { kind = "dynamic" }
 
 [nodes.transform]
 position = [7, 4.55, 0]
@@ -560,7 +560,7 @@ color = [0.1, 0.1, 0.12, 1.0]
 id = "n_restart"
 name = "Restart"
 parent = "n_main"
-script = "scripts/restart_button.rn"
+script = { source = "scripts/restart_button.rn" }
 
 [nodes.widget]
 kind = "button"

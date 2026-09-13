@@ -5,7 +5,7 @@
 [[nodes]]
 id = "n_editor"
 name = "Editor"
-script = "scripts/editor.rn"
+script = { source = "scripts/editor.rn" }
 
 [[nodes]]
 id = "shell"

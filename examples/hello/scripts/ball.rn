@@ -2,8 +2,8 @@
 // watches its own fall from update.
 
 pub fn init(this) {
-    physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
-    physics3d::add_ball_collider(this.node, 0.5);
+    this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
+    this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
     this.reported = false;
 }
 
@@ -11,6 +11,6 @@ pub fn update(this, dt) {
     let y = this.node.transform.position.y;
     if y < 0.2 && !this.reported {
         this.reported = true;
-        println!("ball touched down at t = {:.2}", engine::time());
+        log::info(format!("ball touched down at t = {:.2}", engine::time()));
     }
 }

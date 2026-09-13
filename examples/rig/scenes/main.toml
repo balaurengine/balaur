@@ -41,7 +41,7 @@ friction = 0.9
 id = "n_hero"
 name = "Hero"
 parent = "n_main"
-script = "scripts/fall.rn"
+script = { source = "scripts/fall.rn" }
 
 [nodes.transform]
 position = [0, -1.25, 0]

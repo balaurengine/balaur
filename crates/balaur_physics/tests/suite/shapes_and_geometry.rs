@@ -35,7 +35,7 @@ indices = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
 [[nodes]]
 id = "n_terrain"
 name = "Terrain"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.collider3d]
 kind = "voxels"
@@ -67,11 +67,11 @@ fn run_clean(script: &str) {
 fn a_voxel_grid_can_be_dug_into() {
     run_clean(
         r#"pub fn init(this) {
-    assert!(physics3d::voxel(this.node, 0, 1, 0), "the middle cell should be filled");
-    physics3d::set_voxel(this.node, 0, 1, 0, false);
-    assert!(!physics3d::voxel(this.node, 0, 1, 0), "digging left the cell filled");
-    physics3d::set_voxel(this.node, 5, 5, 5, true);
-    assert!(physics3d::voxel(this.node, 5, 5, 5), "a new cell was not added");
+    assert!(this.node.collider3d.voxel(0, 1, 0), "the middle cell should be filled");
+    this.node.collider3d.set_voxel(0, 1, 0, false);
+    assert!(!this.node.collider3d.voxel(0, 1, 0), "digging left the cell filled");
+    this.node.collider3d.set_voxel(5, 5, 5, true);
+    assert!(this.node.collider3d.voxel(5, 5, 5), "a new cell was not added");
 }
 "#,
     );
@@ -83,7 +83,7 @@ fn a_voxel_grid_can_be_dug_into() {
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_clean(
         r#"pub fn init(this) {
-    let mesh = physics3d::collider_mesh(this.node);
+    let mesh = this.node.collider3d.collider_mesh();
     assert!(mesh.points.len() > 0, "the grid tessellated to nothing");
     assert!(mesh.indices.len() % 3 == 0, "the triangles are not triples");
 }
@@ -96,12 +96,12 @@ fn the_mesh_backed_shapes_build() {
     run_clean(
         r##"pub fn init(this) {
     for kind in ["convex_hull", "convex_decomposition", "trimesh"] {
-        physics3d::set_collider(this.node, #{ kind: kind, mesh: "#wedge" });
+        this.node.collider3d.set_collider(#{ kind: kind, mesh: "#wedge" });
     }
     for fit in ["aabb", "obb", "convex_hull"] {
-        physics3d::set_collider(this.node, #{ kind: "fit", fit: fit, mesh: "#wedge" });
+        this.node.collider3d.set_collider(#{ kind: "fit", fit: fit, mesh: "#wedge" });
     }
-    physics3d::set_collider(this.node, #{ kind: "voxelized_mesh", mesh: "#wedge", voxel_size: 0.25 });
+    this.node.collider3d.set_collider(#{ kind: "voxelized_mesh", mesh: "#wedge", voxel_size: 0.25 });
 }
 "##,
     );

@@ -164,12 +164,12 @@ label = { type = "string", default = "#notacolour" }"##,
 
     let given = toml::toml! { rgba = "#ff0000" };
     assert_eq!(
-        channels(&components::merge_defaults(&schema, Some(&given.into()))),
+        channels(&components::merge_defaults(&schema, Some(&given.into())).unwrap()),
         vec![1.0, 0.0, 0.0, 1.0]
     );
 
     let with_alpha = toml::toml! { rgba = "#00ff0080" };
-    let merged = components::merge_defaults(&schema, Some(&with_alpha.into()));
+    let merged = components::merge_defaults(&schema, Some(&with_alpha.into())).unwrap();
     let rgba = channels(&merged);
     assert_eq!(rgba[0..3], [0.0, 1.0, 0.0]);
     assert!((rgba[3] - 128.0 / 255.0).abs() < 1e-9, "alpha: {rgba:?}");
@@ -178,10 +178,10 @@ label = { type = "string", default = "#notacolour" }"##,
     // touched even when it looks like a colour.
     let floats = toml::toml! { rgba = [0.25, 0.5, 0.75, 0.5] };
     assert_eq!(
-        channels(&components::merge_defaults(&schema, Some(&floats.into()))),
+        channels(&components::merge_defaults(&schema, Some(&floats.into())).unwrap()),
         vec![0.25, 0.5, 0.75, 0.5]
     );
-    let defaults = components::merge_defaults(&schema, None);
+    let defaults = components::merge_defaults(&schema, None).unwrap();
     assert_eq!(
         defaults.get("label").and_then(toml::Value::as_str),
         Some("#notacolour")
@@ -195,7 +195,7 @@ fn an_unparseable_colour_is_left_alone() {
         r#"rgba = { type = "color", default = [1.0, 1.0, 1.0, 1.0] }"#,
     );
     let given = toml::toml! { rgba = "not a colour" };
-    let merged = components::merge_defaults(&schema, Some(&given.into()));
+    let merged = components::merge_defaults(&schema, Some(&given.into())).unwrap();
     assert_eq!(
         merged.get("rgba").and_then(toml::Value::as_str),
         Some("not a colour")
@@ -210,11 +210,11 @@ fn merge_defaults_prefers_what_was_given() {
 b = { type = "string", default = "d" }"#,
     );
     let given = toml::toml! { a = 9.0 };
-    let merged = components::merge_defaults(&schema, Some(&given.into()));
+    let merged = components::merge_defaults(&schema, Some(&given.into())).unwrap();
     assert!((merged.get("a").and_then(toml::Value::as_float).unwrap() - 9.0).abs() < 1e-9);
     assert_eq!(merged.get("b").and_then(toml::Value::as_str), Some("d"));
 
-    let all_defaults = components::merge_defaults(&schema, None);
+    let all_defaults = components::merge_defaults(&schema, None).unwrap();
     assert!(
         (all_defaults
             .get("a")
@@ -352,4 +352,24 @@ fn a_component_attached_behind_the_registry_is_still_removed_in_debug() {
         .unwrap();
     components::remove_present(&app.engine, e);
     assert!(components::get(&app.engine, e, "marker").is_none());
+}
+
+#[test]
+fn a_bare_array_names_the_one_property_it_could_have_meant() {
+    let schema =
+        ComponentDef::parse_schema("bindings", r#"rows = { type = "strings", default = [] }"#);
+    let given = toml::Value::Array(vec![]);
+    let err = components::merge_defaults(&schema, Some(&given)).unwrap_err();
+    assert!(err.to_string().contains("{ rows = [...] }"), "{err}");
+}
+
+#[test]
+fn a_bare_value_on_a_component_is_an_error() {
+    let schema = ComponentDef::parse_schema(
+        "body",
+        r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static"] }"#,
+    );
+    let given = toml::Value::String("static".into());
+    let err = components::merge_defaults(&schema, Some(&given)).unwrap_err();
+    assert!(err.to_string().contains(r#"{ kind = "static" }"#), "{err}");
 }

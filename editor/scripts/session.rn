@@ -255,7 +255,7 @@ fn build_lanes() {
     lanes.push(#{ id: "keys", name: "Keys", marks: named_marks("input", "just_pressed") });
     lanes.push(#{ id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
     lanes.push(#{ id: "net", name: "Net", marks: event_marks(["net.request"]) });
-    lanes.push(#{ id: "scene", name: "Scene", marks: event_marks(["scene.spawn", "scene.free"]) });
+    lanes.push(#{ id: "scene", name: "Scene", marks: event_marks(["node.add_child", "scene.free"]) });
     // Warnings and worse as dots; the rest of the log is in the detail list
     // for whichever tick the playhead is on.
     lanes.push(#{ id: "log", name: "Log", marks: log_marks(["warn", "error"]) });

@@ -11,7 +11,7 @@
 
 use anyhow::{Result, anyhow, bail};
 use balaur_script::{Bindings, Value};
-use glamx::{EulerRot, Quat, Vec3};
+use glamx::{EulerRot, Vec3};
 use hecs::Entity;
 
 use crate::engine::{Command, Engine};
@@ -44,40 +44,8 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: path,
     },
     NodeOp {
-        name: "position",
-        call: position,
-    },
-    NodeOp {
-        name: "set_position",
-        call: set_position,
-    },
-    NodeOp {
         name: "translate",
         call: translate,
-    },
-    NodeOp {
-        name: "rotation_euler",
-        call: rotation_euler,
-    },
-    NodeOp {
-        name: "set_rotation_euler",
-        call: set_rotation_euler,
-    },
-    NodeOp {
-        name: "rotation_degrees",
-        call: rotation_degrees,
-    },
-    NodeOp {
-        name: "set_rotation_degrees",
-        call: set_rotation_degrees,
-    },
-    NodeOp {
-        name: "scale",
-        call: scale,
-    },
-    NodeOp {
-        name: "set_scale",
-        call: set_scale,
     },
     NodeOp {
         name: "global_position",
@@ -272,15 +240,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("name", &[], "()", "The node's own name, empty when it carries none."),
         ("set_name", &[], "(name: string)", "Rename the node, doing nothing when it carries no name."),
         ("path", &[], "()", "The node's slash-separated path, built by climbing parents from the node up to the root."),
-        ("position", &[], "()", "The node's position in its parent's space."),
-        ("set_position", &[], "(x: float, y: float, z: float)", "Move the node to a local position, given as three numbers or one vector."),
         ("translate", &[], "(x: float, y: float, z: float)", "Move the node by an offset in its parent's space, given as three numbers or one vector."),
-        ("rotation_euler", &[], "()", "The node's local rotation as euler angles in radians, x then y then z."),
-        ("set_rotation_euler", &[], "(x: float, y: float, z: float)", "Set the node's local rotation from euler angles in radians."),
-        ("rotation_degrees", &[], "()", "The same local rotation as `rotation_euler`, in degrees."),
-        ("set_rotation_degrees", &[], "(x: float, y: float, z: float)", "Set the node's local rotation from euler angles in degrees."),
-        ("scale", &[], "()", "The node's scale relative to its parent."),
-        ("set_scale", &[], "(x: float, y: float, z: float)", "Set the node's scale relative to its parent, as three numbers or one vector."),
         ("global_position", &[], "()", "The node's position in world space, as of the last transform sync."),
         ("global_rotation_euler", &[], "()", "The node's world rotation as euler angles in radians, as of the last transform sync."),
         ("global_scale", &[], "()", "The node's scale in world space, as of the last transform sync."),
@@ -540,20 +500,6 @@ fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// Read the node's local transform, answering identity when it has none.
 ///
-/// A node without the `transform` component sits where its parent does, which
-/// is what `propagate_transforms` already does with one, so a reader gets that
-/// answer rather than an error about a component nothing said it needed.
-fn read_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&Transform) -> R) -> Result<R> {
-    let world = eng.world();
-    if !world.contains(e) {
-        return Err(anyhow!("node is dead"));
-    }
-    match world.get::<&Transform>(e) {
-        Ok(transform) => Ok(f(&transform)),
-        Err(_) => Ok(f(&Transform::identity())),
-    }
-}
-
 /// Write the node's local transform, giving it one when it has none.
 ///
 /// Moving a node is what says it has a transform, so a script never has to add
@@ -606,34 +552,9 @@ fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Str(scene::node_path(&eng.world(), e)))
 }
 
-fn position(eng: &Engine, args: &[Value]) -> Result<Value> {
-    read_transform(eng, node(args)?, |t| vec3(t.position))
-}
-
-fn set_position(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let v = xyz(args, 1)?;
-    with_transform(eng, node(args)?, |t| t.position = v)?;
-    Ok(Value::Nil)
-}
-
 fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let v = xyz(args, 1)?;
     with_transform(eng, node(args)?, |t| t.position += v)?;
-    Ok(Value::Nil)
-}
-
-fn rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
-    read_transform(eng, node(args)?, |t| {
-        let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
-        Value::Vec3([roll, pitch, yaw])
-    })
-}
-
-fn set_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let v = xyz(args, 1)?;
-    with_transform(eng, node(args)?, |t| {
-        t.rotation = Quat::from_euler(EulerRot::ZYX, v.z, v.y, v.x);
-    })?;
     Ok(Value::Nil)
 }
 
@@ -642,36 +563,6 @@ fn set_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// Radians are the engine's unit and stay the default; degrees are what a
 /// person authors, so the pair exists rather than every caller carrying its
 /// own `math.deg` conversion the way the editor's inspector used to.
-fn rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
-    read_transform(eng, node(args)?, |t| {
-        let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
-        Value::Vec3([roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees()])
-    })
-}
-
-fn set_rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let v = xyz(args, 1)?;
-    with_transform(eng, node(args)?, |t| {
-        t.rotation = Quat::from_euler(
-            EulerRot::ZYX,
-            v.z.to_radians(),
-            v.y.to_radians(),
-            v.x.to_radians(),
-        );
-    })?;
-    Ok(Value::Nil)
-}
-
-fn scale(eng: &Engine, args: &[Value]) -> Result<Value> {
-    read_transform(eng, node(args)?, |t| vec3(t.scale))
-}
-
-fn set_scale(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let v = xyz(args, 1)?;
-    with_transform(eng, node(args)?, |t| t.scale = v)?;
-    Ok(Value::Nil)
-}
-
 fn global<R>(eng: &Engine, args: &[Value], f: impl FnOnce(&GlobalTransform) -> R) -> Result<R> {
     let e = node(args)?;
     let world = eng.world();
@@ -707,11 +598,21 @@ fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let id = crate::ids::mint(eng);
     let mut world = eng.world_mut();
+    let name = text(args, 1)?.to_string();
     let child = if id.is_empty() {
-        scene::spawn_node(&mut world, text(args, 1)?, e)
+        scene::spawn_node(&mut world, &name, e)
     } else {
-        scene::spawn_node_with_id(&mut world, text(args, 1)?, e, id)
+        scene::spawn_node_with_id(&mut world, &name, e, id)
     };
+    drop(world);
+    // A game that adds a node is a game whose world changed, which is what a
+    // session timeline is for. Scene loading does not come through here.
+    crate::replay::event(
+        eng,
+        "node.add_child",
+        format!("added {name}"),
+        Some(serde_json::json!({ "name": name })),
+    );
     Ok(Value::Node(crate::node_id_of(child).0))
 }
 

@@ -32,7 +32,7 @@ fn case(name, stages, parts) {
 fn adding() {
     case("add_children", ["update"], [
         ("run", |w| {
-            let parent = scene::spawn("Adds", w.container);
+            let parent = w.container.add_child("Adds");
             for i in 0..ITERATIONS {
                 parent.add_child("n");
             }
@@ -49,7 +49,7 @@ fn adding() {
 fn deleting(name, order) {
     case(name, ["update", "last"], [
         ("prepare", |w| {
-            let parent = scene::spawn("Deletes", w.container);
+            let parent = w.container.add_child("Deletes");
             let children = [];
             for i in 0..ITERATIONS {
                 children.push(parent.add_child(format!("n{}", i)));
@@ -100,7 +100,7 @@ fn ordered(children, order) {
 fn getting() {
     case("get_node", ["update"], [
         ("prepare", |w| {
-            let root = scene::spawn("Lookups", w.container);
+            let root = w.container.add_child("Lookups");
             w.made.push(root);
             let nodes = [root];
             let paths = [""];

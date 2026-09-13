@@ -173,7 +173,7 @@ fn smash() {
             let shot = world::body(w, [ox - 30.0, (SMASH_ROWS as f64) * BOX * 0.5, 0.0],
                 #{ kind: "ball", radius: 1.6 });
             shot.patch_component("body3d", #{ mass: 800.0, gravity_scale: 0.0, ccd: true });
-            physics3d::set_linear_velocity(shot, 120.0, 0.0, 0.0);
+            shot.body3d.set_linear_velocity(120.0, 0.0, 0.0);
         }),
         ("extra", |w| { spread(w) }),
     ])
@@ -249,8 +249,7 @@ fn query_storm() {
             } else {
                 let node = world::body(w, scatter(), #{ kind: "ball", radius: rng::range(0.3, 0.8) });
                 node.patch_component("body3d", #{ gravity_scale: 0.0 });
-                physics3d::set_linear_velocity(node,
-                    rng::range(-2.0, 2.0), rng::range(-2.0, 2.0), rng::range(-2.0, 2.0));
+                node.body3d.set_linear_velocity(rng::range(-2.0, 2.0), rng::range(-2.0, 2.0), rng::range(-2.0, 2.0));
             }
         }),
         ("step", |w, tick| { storm(w, tick); }),

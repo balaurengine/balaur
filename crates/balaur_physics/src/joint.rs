@@ -302,7 +302,6 @@ pub(crate) fn impulse_magnitude_2d(impulses: &crate::rapier2d::math::SpatialVect
 
 pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("add_joint", &[c::JOINT_3D], "", "Tie this node's body to another with a joint, from a `joint3d` table: `kind`, `body`, `anchor`, `axis`, `limits`, and the rest of the component's own vocabulary."),
         ("remove_joint", &[c::JOINT_3D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_3D], "", "Drive the joint towards a speed: how a wheel is powered or a door swings itself shut."),
         ("set_motor_position", &[c::JOINT_3D], "", "Drive the joint towards an angle or a distance, with a spring's stiffness and damping."),
@@ -310,16 +309,6 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
         ("joint_impulse", &[c::JOINT_3D], "", "How hard the joint is pulling right now: what a breakable one is measured against."),
         ("solve_ik", &[c::JOINT_3D], "", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits."),
     ]);
-    m.function(
-        "add_joint",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            let entity = entity_of(node)?;
-            let schema = joint_schema_value(eng)?;
-            let full = balaur_core::components::properties(eng, &schema, Some(&params))?;
-            apply_joint(eng, entity, &full)
-        },
-    );
     m.function("remove_joint", |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
         Ok(())
@@ -429,17 +418,6 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector) -> Result<()> {
     Ok(())
 }
 
-/// The registered schema, for `add_joint`'s table to be merged over.
-fn joint_schema_value(eng: &Engine) -> Result<std::rc::Rc<toml::Value>> {
-    let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
-    let registry = registry.borrow();
-    Ok(registry
-        .def(c::JOINT_3D)
-        .ok_or_else(|| anyhow!("joint3d is not registered"))?
-        .schema
-        .clone())
-}
-
 /// The schema both dimensions share; each adds its own axis-shaped half.
 pub(crate) fn shared_joint_schema() -> String {
     let motors = v::options(w::MOTOR_MODES);
@@ -507,7 +485,7 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     let shared = shared_joint_schema();
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#)),
             (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
             (k::ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
             (k::OTHER_ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),

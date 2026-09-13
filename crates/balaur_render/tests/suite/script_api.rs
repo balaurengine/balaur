@@ -30,7 +30,7 @@ fn run_logged(body: &str) -> (App, Vec<String>, Vec<String>) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = \"scripts/s.rn\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
     )
     .unwrap();
     std::fs::write(
@@ -63,14 +63,14 @@ fn run_clean(body: &str) {
 fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
-        render::set_ball(this.node, 0.5);
-        render::set_cuboid(this.node, 1.0, 2.0, 3.0);
-        let (kind, _, _, _) = render::shape3d(this.node);
+        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
+        this.node.shape3d.set(#{ kind: "cuboid", half_extents: [1.0, 2.0, 3.0] });
+        let kind = this.node.shape3d.kind;
         assert!(kind == "cuboid", "the last shape set should win, got {}", kind);
 
-        render::set_circle(this.node, 0.25);
-        render::set_rect(this.node, 1.0, 2.0);
-        let (kind_2d, _, _) = render::shape2d(this.node);
+        this.node.shape2d.set(#{ kind: "circle", radius: 0.25 });
+        this.node.shape2d.set(#{ kind: "rect", half_extents: [1.0, 2.0] });
+        let kind_2d = this.node.shape2d.kind;
         assert!(kind_2d == "rect", "the last 2D shape set should win, got {}", kind_2d);
         "#,
     );
@@ -80,9 +80,9 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 fn a_colour_set_from_a_script_reads_back() {
     run_clean(
         r#"
-        render::set_ball(this.node, 0.5);
-        render::set_color(this.node, 0.25, 0.5, 0.75, 1.0);
-        let (r, g, b, _) = render::color(this.node);
+        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
+        this.node.shape3d.color = [0.25, 0.5, 0.75, 1.0];
+        let [r, g, b, _] = this.node.shape3d.color;
         assert!(math::abs(r - 0.25) < 1e-4, "red was not kept: {}", r);
         assert!(math::abs(g - 0.5) < 1e-4);
         assert!(math::abs(b - 0.75) < 1e-4);
@@ -93,12 +93,12 @@ fn a_colour_set_from_a_script_reads_back() {
 #[test]
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
-        r"
-        render::set_ball(this.node, 0.5);
-        render::set_color(this.node, 1.0, 0.0, 0.0);
-        let (r, _, _, _) = render::color(this.node);
+        r#"
+        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
+        this.node.shape3d.color = [1.0, 0.0, 0.0, 1.0];
+        let [r, _, _, _] = this.node.shape3d.color;
         assert!(math::abs(r - 1.0) < 1e-4);
-        ",
+        "#,
     );
 }
 
@@ -167,16 +167,12 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
 
 /// A node with no renderable answers with an empty kind rather than unit.
 ///
-/// Worth pinning because it is inconsistent with `node.script_path()`, which
-/// returns unit when there is nothing: a script has to test `kind != ""` here
-/// and `path is Tuple` there. Recorded as the contract until one of them moves.
 #[test]
-fn a_node_with_no_shape_answers_with_an_empty_kind() {
+fn a_node_with_no_shape_says_so() {
     run_clean(
         r#"
         let bare = this.node.add_child("Bare");
-        let (kind, _, _, _) = render::shape3d(bare);
-        assert!(kind == "", "expected an empty kind, got {}", kind);
+        assert!(!bare.shape3d.has(), "a bare node should carry no shape3d");
         "#,
     );
 }
@@ -184,7 +180,11 @@ fn a_node_with_no_shape_answers_with_an_empty_kind() {
 #[test]
 fn immediate_shapes_are_accepted_from_a_script() {
     run_clean(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
+        r#"render::draw_box(0.0, 0.0, 0.0, 0.5, 0.5, 0.5, [1.0, 1.0, 1.0]);
+render::draw_sphere(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
+render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, [0.0, 0.0, 1.0]);
+render::draw_polygon_2d([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], [1.0, 1.0, 0.0, 1.0]);
+render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
 render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
 render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, 90.0, 2.0);
 render::draw_polyline_2d([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]], 1.0, [0.0, 1.0, 0.0, 1.0]);
@@ -195,9 +195,9 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 #[test]
 fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
     let (app, errors, lines) = run_logged(
-        r#"this.node.set_component("tilemap", #{ cells: ".." });
-render::set_cell(this.node, 3, 1, 7);
-log::info(`cell ${render::cell(this.node, 3, 1)} ${render::cell(this.node, 0, 0)} ${render::cell(this.node, 9, 9)}`);"#,
+        r#"this.node.set_component("tilemap", #{ cells: [[-1, -1]] });
+this.node.tilemap.set_cell(3, 1, 7);
+log::info(`cell ${this.node.tilemap.cell(3, 1)} ${this.node.tilemap.cell(0, 0)} ${this.node.tilemap.cell(9, 9)}`);"#,
     );
     assert!(errors.is_empty(), "{errors:#?}");
     assert!(

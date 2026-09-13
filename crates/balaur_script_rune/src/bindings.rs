@@ -144,6 +144,14 @@ pub struct RuneModule {
     name: String,
     engine: Engine,
     pending: Rc<RefCell<Vec<rune::Module>>>,
+    /// Functions waiting to be installed, by name and `BOUND` handle.
+    ///
+    /// Installed at drop rather than as they arrive, because what belongs in
+    /// the module is not known until every `describe` has been read: a
+    /// function that names components in `acts_on` is reached as a method on
+    /// the node's component handle, and putting it in the module too would be
+    /// a second way to write the same call.
+    queued: Vec<(String, usize)>,
 }
 
 impl RuneModule {
@@ -157,15 +165,35 @@ impl RuneModule {
             name: name.to_string(),
             engine,
             pending,
+            queued: Vec::new(),
         })
     }
 }
 
 impl Drop for RuneModule {
     fn drop(&mut self) {
-        if let Some(m) = self.module.take() {
-            self.pending.borrow_mut().push(m);
+        let Some(mut m) = self.module.take() else {
+            return;
+        };
+        let component_driven = DOCS.with_borrow(|docs| {
+            docs.iter()
+                .filter(|d| d.module == self.name && !d.acts_on.is_empty())
+                .map(|d| d.name.clone())
+                .collect::<std::collections::HashSet<_>>()
+        });
+        for (name, handle) in std::mem::take(&mut self.queued) {
+            if component_driven.contains(&name) {
+                continue;
+            }
+            let registered = m.raw_function(
+                name.as_str(),
+                bound_handler(handle, "binding was registered on another thread"),
+            );
+            if let Err(err) = registered.build() {
+                tracing::error!("binding {}::{name}: {err}", self.name);
+            }
         }
+        self.pending.borrow_mut().push(m);
     }
 }
 
@@ -179,15 +207,8 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         NAMED.with_borrow_mut(|n| {
             n.insert((self.name.clone(), name.to_string()), handle);
         });
-        let Some(module) = self.module.as_mut() else {
-            return;
-        };
-        let registered = module.raw_function(
-            name,
-            bound_handler(handle, "binding was registered on another thread"),
-        );
-        if let Err(err) = registered.build() {
-            tracing::error!("binding {}::{name}: {err}", self.name);
+        if self.module.is_some() {
+            self.queued.push((name.to_string(), handle));
         }
     }
 

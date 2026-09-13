@@ -458,11 +458,6 @@ pub(crate) fn add_collider_at(
     Ok(())
 }
 
-/// Sitting on the node itself, which is what a script-built collider means.
-pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Result<()> {
-    add_collider_at(eng, entity, builder, Pose::IDENTITY)
-}
-
 /// A hollow shape has no interior, so rapier cannot derive an inertia tensor
 /// for it. The body still simulates, badly; saying so beats leaving someone to
 /// wonder why it tumbles.

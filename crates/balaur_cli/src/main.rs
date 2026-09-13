@@ -332,6 +332,26 @@ fn main() -> Result<()> {
     dispatch(Cli::parse_from(argv()).command)
 }
 
+/// The edited game's `[input]`, handed to the input plugin.
+///
+/// A manifest that cannot be read, or that declares no input, leaves the
+/// editor's own bindings in place; the editor still opens.
+#[cfg(not(target_arch = "wasm32"))]
+fn declare_game_input(app: &balaur::App, game: &Path) {
+    let Ok(text) = std::fs::read_to_string(game.join("project.toml")) else {
+        return;
+    };
+    let Ok(manifest) = text.parse::<toml::Value>() else {
+        return;
+    };
+    let Some(input) = manifest.get("input") else {
+        return;
+    };
+    if let Err(why) = balaur::input::actions::declare_manifest(&app.engine, input) {
+        tracing::warn!("the game's [input] was not read: {why}");
+    }
+}
+
 /// The pack appended to this executable, booted as the game it is.
 #[cfg(not(target_arch = "wasm32"))]
 fn boot_own_pack(pack: &[u8]) -> Result<()> {
@@ -780,6 +800,9 @@ fn edit_project(
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
     app.load_project()?;
+    // The engine read the *editor's* `[input]`, so hand it the game's: without
+    // this every action a played game asks for reads zero.
+    declare_game_input(&app, &game);
     if let Some(frames) = frames {
         let mut count = 0u64;
         app.add_system(balaur::Stage::Last, move |eng, _| {

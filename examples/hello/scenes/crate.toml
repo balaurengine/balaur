@@ -5,7 +5,7 @@
 [[nodes]]
 id = "n_crate"
 name = "Crate"
-body3d = "dynamic"
+body3d = { kind = "dynamic" }
 
 [nodes.collider3d]
 half_extents = [0.35, 0.35, 0.35]

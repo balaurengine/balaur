@@ -576,7 +576,8 @@ impl App {
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {
-            let full = crate::components::properties(eng, &schema, Some(value))?;
+            let full = crate::components::properties(eng, &schema, Some(value))
+                .with_context(|| format!("component `{component}`"))?;
             crate::components::apply_full(eng, entity, &component, &full)
         });
         self

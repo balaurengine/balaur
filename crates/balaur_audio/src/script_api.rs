@@ -9,9 +9,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use crate::bus::{self, Buses};
 use crate::event;
 use crate::spatial::Emitter;
-use crate::{
-    AudioState, Cue, DEFAULT_MAX_DISTANCE, DEFAULT_MIN_DISTANCE, play_on, read_sound, stop_on,
-};
+use crate::{AudioState, Cue, play_on, read_sound, stop_on};
 
 /// One key out of a script options table, or `None` if the table, the key or
 /// its type is missing. A typo in an options table should not stop the frame.
@@ -59,18 +57,6 @@ fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
     Ok(Vec3::new(axis(Some(x), "x")?, axis(y, "y")?, axis(z, "z")?))
 }
 
-/// The emitter an options table asks for, or `None` when it names no
-/// `position`: which is what makes a sound flat rather than placed.
-fn emitter_from(opts: Option<&Value>) -> Option<Emitter> {
-    let position = point(opt(opts, "position"))?;
-    Some(Emitter::new(
-        position,
-        number(opt(opts, "min_distance")).unwrap_or(DEFAULT_MIN_DISTANCE),
-        number(opt(opts, "max_distance")).unwrap_or(DEFAULT_MAX_DISTANCE),
-        number(opt(opts, "doppler")).unwrap_or(0.0),
-    ))
-}
-
 /// A script-supplied handle. Negative numbers wrap to values `play` never
 /// hands out, so they answer false and no-op rather than erroring.
 const fn handle_of(raw: i64) -> u64 {
@@ -87,43 +73,19 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
          works and nothing is heard.",
     );
     m.describe(&[
-        ("play", &[], "", "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take. The options table takes `volume`, `pitch`, `loop`, `bus`, and a `position` with `min_distance`, `max_distance` and `doppler`."),
-        ("stop", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
+        ("stop_playback", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
         ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
         ("ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
         ("is_playing", &[], "", "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
-        ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
-        ("stop_on", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
+        ("play", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
+        ("stop", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
     ]);
     // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
     // back the handle the other functions take. Flags live in the options
     // table rather than in the name, so fade/bus can join them (N9).
-    m.function(
-        "play",
-        |eng: &Engine, (path, opts): (String, Option<Value>)| {
-            let opts = opts.as_ref();
-            let cue = Cue {
-                volume: number(opt(opts, "volume")).unwrap_or(1.0),
-                pitch: number(opt(opts, "pitch")).unwrap_or(1.0),
-                looped: matches!(opt(opts, "loop"), Some(Value::Bool(true))),
-                bus: match opt(opts, "bus") {
-                    Some(Value::Str(name)) => name.clone(),
-                    _ => String::new(),
-                },
-                gain: 1.0,
-                emitter: emitter_from(opts),
-            };
-            let bytes = read_sound(eng, &path)?;
-            bus::ensure_loaded(eng);
-            let gain = eng.resource::<bus::Buses>().borrow().gain(&cue.bus);
-            let state = eng.resource::<AudioState>();
-            let handle = state.borrow_mut().play_cue(bytes, Cue { gain, ..cue });
-            Ok(handle)
-        },
-    );
-    m.function("stop", |eng: &Engine, handle: i64| {
+    m.function("stop_playback", |eng: &Engine, handle: i64| {
         eng.resource::<AudioState>()
             .borrow_mut()
             .stop(handle_of(handle));
@@ -164,12 +126,12 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<AudioState>().borrow_mut().stop_all();
         Ok(())
     });
-    m.function("play_on", |eng: &Engine, node: NodeId| {
+    m.function("play", |eng: &Engine, node: NodeId| {
         play_on(eng, entity_of(node)?)
     });
     install_mixing_api(m);
     install_positional_api(m);
-    m.function("stop_on", |eng: &Engine, node: NodeId| {
+    m.function("stop", |eng: &Engine, node: NodeId| {
         stop_on(eng, entity_of(node)?);
         Ok(())
     });

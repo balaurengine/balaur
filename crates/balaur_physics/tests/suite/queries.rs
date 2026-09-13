@@ -30,7 +30,7 @@ name = "World"
 id = "n_near"
 name = "Near"
 parent = "n_world"
-script = "scripts/s.rn"
+script = { source = "scripts/s.rn" }
 
 [nodes.transform]
 position = [0.0, 6.0, 0.0]
