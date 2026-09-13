@@ -1,8 +1,15 @@
-> **Status:** not started. Written on 2026-09-12 from the question "is a
-> GDScript translator too hard, or should the port stay by hand", measured
-> against `../polyglot-pirates-game`: 46 149 code lines of GDScript over 315
-> files, of which `balaur import` today carries only the signatures. This
-> plan reverses the "not planned" in `docs/PLAN-godot-import.md` §8.
+> **Status:** steps 1 to 3 built on 2026-09-12; step 4 is the port's own
+> loop and is open. `balaur import` now translates GDScript bodies, and over
+> `../polyglot-pirates-game` all 769 scripts convert, `balaur check` reports
+> **no problems**, and the converted project boots and runs headless. 99.9%
+> of the game's own 46 149 code lines translate: 65 lines are left as marked
+> comments, against 46 149 carried before only as comments. The port's five
+> automation scenarios still pass with its 17 hand-ported files in place.
+> Step 3's harder gate — retiring those hand ports — is **not** met: §9's
+> question 4 names the one blocker found. Written on 2026-09-12 from the
+> question "is a GDScript translator too hard, or should the port stay by
+> hand". This plan reverses the "not planned" in
+> `docs/PLAN-godot-import.md` §8.
 
 # Plan: GDScript bodies as Rune
 
@@ -181,20 +188,20 @@ the report, so §9's worklist writes itself.
 
 ## 7. Steps
 
-**Step 1 — the syntax.** `lex.rs`, `ast.rs`, `parse.rs`, `emit.rs`, and
+**Step 1 — the syntax — built.** `lex.rs`, `ast.rs`, `parse.rs`, `emit.rs`, and
 `script.rs` calling them. No API map yet: calls emit as written. Done when
 all 769 files emit bodies, `balaur check` reports the unmapped bare calls and
 nothing else, and the fixture in `cargo test -p balaur_import godot` boots a
 script whose body runs.
 
-**Step 2 — the shim.** `shim.rs` and the collection, string and format
-rewrites. Done when the report's unmapped-call count drops past the
-collection calls and `port/check.sh` passes.
+**Step 2 — the shim — built.** `shim.rs` writes `gd.rn` into the project and
+every body that needs it binds it with `script::require`, which is how the
+port's hand-written files already reach a module.
 
-**Step 3 — the map.** `map.rs`, the classes flattening of §4, and the async
-closure of §5. Done when the five ported scenarios pass with the hand-ported
-files **removed** from `port/ported.txt` — the translator reproducing what a
-person wrote by hand is the acceptance test this plan is built on.
+**Step 3 — the map — built, its gate part-met.** `map.rs`, the class
+flattening of §4 and the async closure of §5 are in. The project compiles
+whole and the five scenarios pass with the hand ports in place. They do
+**not** pass with the hand ports removed: §9's question 4 is why.
 
 **Step 4 — the loop.** Re-import, then walk the automation scenarios in the
 Godot order: `offline_smoke`, `world_map_open`, the three practice games,
@@ -211,6 +218,22 @@ first.
 - The port repository's `port/check.sh` and its scenario runs stay the
   acceptance gate; they live in the game's repository and are not CI here.
 
+## 8b. What it measured
+
+Over `../polyglot-pirates-game`, after each change to the translator:
+
+| | Untranslated lines, game scripts | `balaur check` errors |
+| --- | --: | --: |
+| Bodies emitted, no map | 9 339 | — |
+| `:=` parsed, implicit-self calls | 1 301 | — |
+| Dedent fixed, inline lambdas | 65 | 2 031 |
+| Shim reachable | 65 | 634 |
+| Base flattening, whole declarations | 65 | 78 |
+| Async closures, nil tests, stubs | 65 | **0** |
+
+The engine gaps the work found and closed are in the sections above; the
+Rune traps it had to design around are named in `emit.rs`'s own header.
+
 ## 9. Open questions
 
 1. **Typed arithmetic.** Ints and floats never mix in Rune, and GDScript
@@ -223,3 +246,10 @@ first.
 3. **The gamend SDK.** 52k lines of generated Godot client under
    `addons/gamend`. Not translated by this plan: it maps onto `gamend::`,
    which is `docs/PLAN-gamend.md` step E1.
+4. **`ConfigFile`, and what else is a decision rather than a rewrite.** The
+   one thing blocking step 3's gate is Godot's `ConfigFile`, which the port
+   maps by hand onto a `save::` slot, with a `custom_config` argument
+   choosing the slot so a test run never touches the player's own settings.
+   Which slot, and whether writes debounce, is a design decision this
+   translator should not invent. The question is whether more of the API map
+   is like that, or whether `ConfigFile` is the only one.

@@ -373,7 +373,7 @@ tracks and 11931 keys.
 An autoplay naming a clip the libraries do not have is reported rather than
 copied: Godot ignores it silently, and this game has one.
 
-## 8. Phase 5: scripts — built as skeletons
+## 8. Phase 5: scripts — built
 
 Each `.gd` becomes a `.rn` beside it. The hooks are Rune — `_ready` is
 `init`, `_process` is `update`, `_physics_process` is `fixed_update` and
@@ -386,9 +386,12 @@ Dictionary, a Callable or a list of numbers has no entry and is reported.
 Each body stays inside its function as a comment.
 
 The game's 769 scripts convert, and `balaur check` over the result reports
-no problems. A GDScript-to-Rune translator is still **not planned**, for the
-reason this section gave before: the bodies are a port, and the skeleton is
-where it starts.
+no problems.
+
+The bodies are translated too, since 2026-09-12: `docs/PLAN-gdscript.md`
+reverses this section's "not planned" after measuring what the bodies
+actually hold. A body's statements come out as Rune, and a line the reader
+could not carry stays as a marked comment.
 
 ## 9. Phase 6: the report — built
 
@@ -445,11 +448,11 @@ the second run that day, largest first:
 
 | Gap | In this game | State |
 | --- | --: | --- |
-| Script bodies: `async` outside handlers, `_input`, typed exports a scene prop cannot hold | 769 files | the port's; skeletons carry every signature |
+| Script bodies | 769 files | translated: `docs/PLAN-gdscript.md`. 65 lines of the game's own 46 149 are left as marked comments |
 | A shader on a Control: a `ColorRect` or `TextureRect` drawn with a material | 34 | planned: the widget layer draws through egui and runs no material |
-| Theme items a `widget_theme` has no key for: icons, fonts, separations, shadow colours | 349 items | icons and separations planned with the theme row; fonts by name |
+| Theme items a `widget_theme` has no key for: icons, fonts, separations, shadow colours | 349 items | fonts, gaps and icon ink built; the rest planned with the theme row |
 | A gradient or curve over a particle's life | 6 | its ends carry |
-| Unequal margins on a MarginContainer | 5 | planned with per-side padding |
+| Unequal margins on a MarginContainer | 5 | built |
 | `z_index`, `scale` on a Control, `update_position` as tracks | 16 tracks | planned |
 | Built-in signals nothing here emits: `gui_input`, `visibility_changed`, `tab_changed` | 7 | their rows wait on a script's `emit` |
 | `MultiMeshInstance2D`, `VSplitContainer`, `AnimatedSprite2D` | 5 | the `cloner`, a split kind, a `sprite_sheet` |

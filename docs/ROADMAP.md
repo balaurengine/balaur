@@ -86,6 +86,8 @@ being built, marked `done`, never back in the shipped one.
 | **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export. | 0.2 | [PLAN-textures.md](PLAN-textures.md) |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
 | **Godot import** — `balaur import` over `project.godot`, `.tscn`, `.tres` and `.gdshader`, writing scenes, assets and a report naming what did not convert. | 0.2 done | [PLAN-godot-import.md](PLAN-godot-import.md) |
+| **One way to say each thing** — one spelling per scene key and one call per script action: handles over module functions, fields over setters, tables over shorthands. | 0.2 | [PLAN-one-way.md](PLAN-one-way.md) |
+| **GDScript bodies** — each `.gd` function's body translated to Rune, with a Variant shim, and a marked comment where a line did not carry. | 0.2 done | [PLAN-gdscript.md](PLAN-gdscript.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |

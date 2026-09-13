@@ -392,9 +392,9 @@ pub fn draw_ui(this) {
     if ui::shortcut("cmd+shift", "F") {
         refactor::open(S, "replace");
     }
-    // Before the split's chord: shift makes the key `|` on a US layout and
-    // leaves it `\` on others, and `⌘\` matches whatever else is held.
-    if ui::shortcut("cmd+shift", "Pipe") || ui::shortcut("cmd+shift", "Backslash") {
+    // Before the split's chord: a key arrives as its physical code, so `⌘\`
+    // matches the shifted one too unless this consumes it first.
+    if ui::shortcut("cmd+shift", "Backslash") {
         shell::toggle_focus(S);
     }
     if ui::shortcut("cmd", "Backslash") {

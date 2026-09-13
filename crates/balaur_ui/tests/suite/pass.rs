@@ -320,6 +320,67 @@ fn shortcuts_report_no_press_without_input() {
     );
 }
 
+/// One chord for both keys: the window layer sets egui's `command` for
+/// Control and for Command, and a key arrives as its physical code, so ⇧⌘\
+/// is `Backslash` whatever the layout prints on it.
+#[test]
+fn a_cmd_chord_answers_to_control_and_to_command() {
+    let (app, ctx, errors) = draw_with(
+        r#"
+        this.focus = this.get("focus").unwrap_or(0);
+        ui::central_panel(#{}, || {
+            if ui::shortcut("cmd+shift", "Backslash") { this.focus = this.focus + 1; }
+        });
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert_eq!(field(&app, "focus"), Some(0.0));
+    let held = [
+        egui::Modifiers {
+            shift: true,
+            ctrl: true,
+            command: true,
+            ..Default::default()
+        },
+        egui::Modifiers {
+            shift: true,
+            mac_cmd: true,
+            command: true,
+            ..Default::default()
+        },
+    ];
+    for modifiers in held {
+        feed(&app, &ctx, vec![chord(egui::Key::Backslash, modifiers)]);
+    }
+    assert_eq!(
+        field(&app, "focus"),
+        Some(2.0),
+        "a held modifier was missed"
+    );
+    // The bare key is somebody else's: a chord that asks for one must see one.
+    feed(
+        &app,
+        &ctx,
+        vec![chord(egui::Key::Backslash, egui::Modifiers::NONE)],
+    );
+    assert_eq!(
+        field(&app, "focus"),
+        Some(2.0),
+        "the bare key fired the chord"
+    );
+}
+
+/// One key press, with the modifiers it arrived under.
+fn chord(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }
+}
+
 /// The names the profiler files a frame's passes under, in order.
 fn pass_names(app: &App) -> Vec<String> {
     app.engine

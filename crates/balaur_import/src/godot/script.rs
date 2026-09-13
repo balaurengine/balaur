@@ -49,7 +49,136 @@ impl Function {
 
 pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted {
     let mut notes = Vec::new();
-    let mut header: Vec<String> = Vec::new();
+    let mut functions = split_functions(source);
+
+    // Rune has no inheritance, so a base's functions are emitted here too,
+    // under the derived ones: `write_functions` keeps the first of a name.
+    let inherited = chain(source, classes);
+    for base in inherited.iter().skip(1) {
+        for function in split_functions(base) {
+            if !functions.iter().any(|own| own.name == function.name) {
+                functions.push(function);
+            }
+        }
+    }
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "// Converted from {path} by `balaur import`. Its hooks, exports and\n\
+         // bodies are Rune; a line the importer could not read is marked."
+    );
+    let context = context(source, path, classes, &functions, &mut notes);
+    let documentation: Vec<String> = source
+        .lines()
+        .take_while(|line| !line.starts_with("func ") && !line.starts_with("static func "))
+        .filter(|line| line.trim_start().starts_with("##"))
+        .map(std::string::ToString::to_string)
+        .collect();
+    if !documentation.is_empty() {
+        out.push('\n');
+        for line in &documentation {
+            push_comment(&mut out, line, "");
+        }
+    }
+    let exports = crate::godot::exports::exports(source, classes);
+    let entries: Vec<String> = exports
+        .iter()
+        .filter_map(|e| Some(format!("\"{}\": {}", e.name, e.entry()?)))
+        .collect();
+    for export in exports.iter().filter(|e| e.kind.is_none()) {
+        notes.push(format!(
+            "export `{}` is a {}, which an `exports()` entry cannot hold; set it in `init`",
+            export.name, export.hint
+        ));
+    }
+    if !entries.is_empty() {
+        let _ = write!(
+            out,
+            "\npub fn exports() {{\n    #{{ {} }}\n}}\n",
+            entries.join(", ")
+        );
+    }
+    let mut emitted: BTreeSet<String> = BTreeSet::new();
+    for level in &inherited {
+        write_enums(&mut out, level, &mut emitted);
+        write_constants(&mut out, level, &context, &mut emitted);
+    }
+    let defaults = write_members(&mut out, source, &context, &mut notes);
+    let static_init = functions.iter().any(|f| f.name == "_static_init");
+    write_functions(
+        &mut out,
+        &functions,
+        &context,
+        &mut notes,
+        defaults,
+        static_init,
+    );
+    write_accessors(&mut out, &context, &functions);
+    if source.contains("_input(") || source.contains("_unhandled_input(") {
+        notes
+            .push("an `_input` handler: read the `input` module from `update` instead".to_string());
+    }
+    Converted { rune: out, notes }
+}
+
+/// A file's top-level declarations, one per entry, each joined across the
+/// lines its brackets run over: `const POPUPS := [` carries its whole list.
+fn top_level(source: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut open = 0i32;
+    let mut pending: Option<String> = None;
+    for line in source.lines() {
+        let code = line.split('#').next().unwrap_or_default();
+        if let Some(text) = pending.as_mut() {
+            text.push(' ');
+            text.push_str(code.trim());
+            open += depth_of(code);
+            if open <= 0 {
+                out.push(pending.take().unwrap_or_default());
+                open = 0;
+            }
+            continue;
+        }
+        if line.starts_with([' ', '\t']) || line.trim().is_empty() {
+            continue;
+        }
+        open = depth_of(code);
+        if open > 0 {
+            pending = Some(code.trim().to_string());
+            continue;
+        }
+        out.push(code.trim().to_string());
+    }
+    if let Some(text) = pending {
+        out.push(text);
+    }
+    out
+}
+
+/// How far a line opens or closes brackets, ignoring those inside strings.
+#[allow(clippy::match_same_arms)]
+fn depth_of(line: &str) -> i32 {
+    let mut depth = 0;
+    let mut quote = None;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(open), c) if c == open => quote = None,
+            (Some(_), '\\') => {
+                chars.next();
+            }
+            (Some(_), _) => {}
+            (None, '"' | '\'') => quote = Some(c),
+            (None, '(' | '[' | '{') => depth += 1,
+            (None, ')' | ']' | '}') => depth -= 1,
+            _ => {}
+        }
+    }
+    depth
+}
+
+/// A file's `func` declarations, each with the lines under it.
+fn split_functions(source: &str) -> Vec<Function> {
     let mut functions: Vec<Function> = Vec::new();
     let lines: Vec<&str> = source.lines().collect();
     let mut i = 0;
@@ -78,68 +207,23 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
                 function.lines.push(next.to_string());
             }
             functions.push(function);
-        } else {
-            header.push(line.to_string());
         }
         i += 1;
     }
-
-    let mut out = String::new();
-    let _ = writeln!(
-        out,
-        "// Converted from {path} by `balaur import`. Its hooks, exports and\n\
-         // bodies are Rune; a line the importer could not read is marked."
-    );
-    let context = context(source, classes, &functions, &mut notes);
-    let documentation: Vec<String> = header
-        .iter()
-        .filter(|line| line.trim_start().starts_with("##"))
-        .cloned()
-        .collect();
-    if !documentation.is_empty() {
-        out.push('\n');
-        for line in &documentation {
-            push_comment(&mut out, line, "");
-        }
-    }
-    let exports = crate::godot::exports::exports(source, classes);
-    let entries: Vec<String> = exports
-        .iter()
-        .filter_map(|e| Some(format!("\"{}\": {}", e.name, e.entry()?)))
-        .collect();
-    for export in exports.iter().filter(|e| e.kind.is_none()) {
-        notes.push(format!(
-            "export `{}` is a {}, which an `exports()` entry cannot hold; set it in `init`",
-            export.name, export.hint
-        ));
-    }
-    if !entries.is_empty() {
-        let _ = write!(
-            out,
-            "\npub fn exports() {{\n    #{{ {} }}\n}}\n",
-            entries.join(", ")
-        );
-    }
-    write_enums(&mut out, source);
-    write_constants(&mut out, source, &context, &mut notes);
-    write_members(&mut out, source, &context, &mut notes);
-    write_functions(&mut out, &functions, &context, &mut notes);
-    if source.contains("_input(") || source.contains("_unhandled_input(") {
-        notes
-            .push("an `_input` handler: read the `input` module from `update` instead".to_string());
-    }
-    Converted { rune: out, notes }
+    functions
 }
 
 /// Everything a bare name in a body needs to resolve against, this file's and
 /// its bases'.
 fn context(
     source: &str,
+    path: &str,
     classes: &Classes,
     functions: &[Function],
     notes: &mut Vec<String>,
 ) -> Context {
     let mut context = Context {
+        static_prefix: path.to_string(),
         classes: classes
             .files
             .iter()
@@ -151,6 +235,10 @@ fn context(
         let level = declarations(&text);
         context.members.extend(level.members);
         context.consts.extend(level.consts);
+        context.lazy.extend(level.lazy);
+        for (name, default) in level.static_vars {
+            context.static_vars.entry(name).or_insert(default);
+        }
         context.signals.extend(level.signals);
         context.methods.extend(level.methods);
         context.statics.extend(level.statics);
@@ -166,8 +254,32 @@ fn context(
             context.renames.insert(function.name.clone(), name);
         }
     }
+    // A static's default is Rune too, and is inlined wherever it is read.
+    let defaults: BTreeMap<String, String> = context
+        .static_vars
+        .iter()
+        .map(|(name, value)| {
+            let text = if value.is_empty() {
+                "()".to_string()
+            } else {
+                translated_value(value, &context)
+            };
+            (name.clone(), text)
+        })
+        .collect();
+    context.static_vars = defaults;
     close_asyncs(&mut context, functions, notes);
     context
+}
+
+/// One GDScript expression as Rune, for a value the file header declares.
+fn translated_value(value: &str, context: &Context) -> String {
+    let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
+    body.rune
+        .trim()
+        .strip_prefix("let _x = ")
+        .and_then(|t| t.strip_suffix(';'))
+        .map_or_else(|| "()".to_string(), std::string::ToString::to_string)
 }
 
 /// Which functions are async: the ones that await, then everything that calls
@@ -248,7 +360,10 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
 #[derive(Default)]
 struct Declarations {
     members: BTreeSet<String>,
+    /// `static var` names, each with the GDScript text of its default.
+    static_vars: BTreeMap<String, String>,
     consts: BTreeSet<String>,
+    lazy: BTreeSet<String>,
     signals: BTreeSet<String>,
     methods: BTreeSet<String>,
     statics: BTreeSet<String>,
@@ -257,26 +372,33 @@ struct Declarations {
 /// What one file declares at its top level.
 fn declarations(source: &str) -> Declarations {
     let mut out = Declarations::default();
-    for line in source.lines() {
-        if line.starts_with([' ', '\t']) {
-            continue;
-        }
-        let trimmed = line.trim_start_matches('@');
-        let body = match trimmed.find(' ') {
-            // An annotated declaration: `@export var speed := 2.0`.
-            Some(_) if trimmed.starts_with("export") || trimmed.starts_with("onready") => {
-                match trimmed.split_once(' ') {
-                    Some((_, rest)) => rest,
-                    None => continue,
-                }
+    for line in top_level(source) {
+        let line = line.as_str();
+        // An annotation may carry arguments — `@export_range(0, 10) var crew`
+        // — so the declaration starts at its own keyword.
+        let body = if line.starts_with('@') {
+            match declaration_start(line) {
+                Some(rest) => rest,
+                None => continue,
             }
-            _ => line,
+        } else {
+            line
         };
-        let body = body.trim_start();
-        if let Some(rest) = body.strip_prefix("var ") {
+        if let Some(rest) = body.strip_prefix("static var ") {
+            out.static_vars.insert(
+                name_of(rest),
+                assigned(rest).unwrap_or_default().to_string(),
+            );
+        } else if let Some(rest) = body.strip_prefix("var ") {
             out.members.insert(name_of(rest));
         } else if let Some(rest) = body.strip_prefix("const ") {
-            out.consts.insert(name_of(rest));
+            let name = name_of(rest);
+            let value = assigned(rest).unwrap_or_default();
+            if self_contained(value) {
+                out.consts.insert(name);
+            } else {
+                out.lazy.insert(name);
+            }
         } else if let Some(rest) = body.strip_prefix("signal ") {
             out.signals.insert(name_of(rest));
         } else if let Some(rest) = body.strip_prefix("static func ") {
@@ -298,6 +420,29 @@ fn declarations(source: &str) -> Declarations {
     out
 }
 
+/// What a declaration is given, past its name, its type and its `:=` or `=`.
+fn assigned(rest: &str) -> Option<&str> {
+    let at = rest.find('=')?;
+    // `:=` infers the type; the colon belongs to the operator, not the value.
+    Some(rest[at + 1..].trim())
+}
+
+/// Where a declaration begins on a line that opens with annotations.
+fn declaration_start(line: &str) -> Option<&str> {
+    const WORDS: &[&str] = &[
+        "var ",
+        "const ",
+        "func ",
+        "static func ",
+        "signal ",
+        "enum ",
+    ];
+    WORDS
+        .iter()
+        .filter_map(|word| line.find(word).map(|at| &line[at..]))
+        .min_by_key(|rest| rest.len())
+}
+
 /// The identifier a declaration opens with.
 fn name_of(rest: &str) -> String {
     rest.trim_start()
@@ -309,7 +454,7 @@ fn name_of(rest: &str) -> String {
 /// A GDScript `enum` as a module constant: named, an object whose fields are
 /// its members, so `StageState.IDLE` reads unchanged; unnamed, one constant
 /// per member.
-fn write_enums(out: &mut String, source: &str) {
+fn write_enums(out: &mut String, source: &str, emitted: &mut BTreeSet<String>) {
     let text = source.replace('\t', " ");
     let mut rest = text.as_str();
     while let Some(at) = rest.find("enum ") {
@@ -321,10 +466,12 @@ fn write_enums(out: &mut String, source: &str) {
         }
         let Some(open) = rest.find('{') else { continue };
         let name = rest[..open].trim().to_string();
-        let Some(close) = rest.find('}') else { continue };
+        let Some(close) = rest.find('}') else {
+            continue;
+        };
         let members = enum_members(&rest[open + 1..close]);
         rest = &rest[close + 1..];
-        if members.is_empty() {
+        if members.is_empty() || !emitted.insert(name.clone()) {
             continue;
         }
         let entries: Vec<String> = members
@@ -334,7 +481,9 @@ fn write_enums(out: &mut String, source: &str) {
         out.push('\n');
         if name.is_empty() {
             for (member, value) in &members {
-                let _ = writeln!(out, "pub const {member} = {value};");
+                if emitted.insert(member.clone()) {
+                    let _ = writeln!(out, "pub const {member} = {value};");
+                }
             }
             continue;
         }
@@ -353,10 +502,9 @@ fn enum_members(body: &str) -> Vec<(String, i64)> {
             continue;
         }
         let (name, value) = match entry.split_once('=') {
-            Some((name, value)) => match value.trim().parse::<i64>() {
-                Ok(value) => (name.trim(), value),
-                Err(_) => continue,
-            },
+            // A value the scan cannot read keeps its position, so the enum is
+            // still emitted and only that member is wrong.
+            Some((name, value)) => (name.trim(), enum_value(value.trim()).unwrap_or(next)),
             None => (entry, next),
         };
         if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
@@ -368,67 +516,112 @@ fn enum_members(body: &str) -> Vec<(String, i64)> {
     out
 }
 
+/// An enum member's value: an integer, or the `1 << n` its flags are written
+/// as.
+fn enum_value(text: &str) -> Option<i64> {
+    if let Ok(value) = text.parse::<i64>() {
+        return Some(value);
+    }
+    let (left, right) = text.split_once("<<")?;
+    let left = left.trim().parse::<i64>().ok()?;
+    let right = right.trim().parse::<u32>().ok()?;
+    left.checked_shl(right)
+}
+
 /// A class constant is a module constant here, so a body reads it bare.
-fn write_constants(out: &mut String, source: &str, context: &Context, notes: &mut Vec<String>) {
+fn write_constants(
+    out: &mut String,
+    source: &str,
+    context: &Context,
+    emitted: &mut BTreeSet<String>,
+) {
     let mut wrote = false;
-    for line in source.lines() {
-        if line.starts_with([' ', '\t']) {
-            continue;
-        }
-        let Some(rest) = line.trim_start().strip_prefix("const ") else {
+    for line in top_level(source) {
+        let Some(rest) = line.strip_prefix("const ") else {
             continue;
         };
         let name = name_of(rest);
-        let Some((_, value)) = rest.split_once('=') else {
+        let Some(value) = assigned(rest) else {
             continue;
         };
-        let value = value.trim();
-        // A constant whose value is itself an expression over other names is
-        // left to the port: a module constant here is a literal.
-        let Some(literal) = literal(value, context) else {
-            notes.push(format!(
-                "`const {name}` is not a literal; declare it in `init` instead"
-            ));
+        if !emitted.insert(name.clone()) {
+            continue;
+        }
+        let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
+        let Some(text) = body
+            .rune
+            .trim()
+            .strip_prefix("let _x = ")
+            .and_then(|t| t.strip_suffix(';'))
+        else {
             continue;
         };
         if !wrote {
             out.push('\n');
             wrote = true;
         }
-        let _ = writeln!(out, "pub const {name} = {literal};");
+        // A value that stands alone at load is a constant; one that needs the
+        // shim or a name is a function, read by calling it. The declaration
+        // scan judged the same text, so the two agree.
+        if self_contained(value) {
+            let _ = writeln!(out, "pub const {name} = {text};");
+            continue;
+        }
+        let binding = if body.uses_shim {
+            shim_binding(1)
+        } else {
+            String::new()
+        };
+        let _ = writeln!(out, "pub fn {name}() {{\n{binding}    {text}\n}}");
     }
 }
 
-/// A GDScript literal as a Rune one, or `None` where it is an expression.
-fn literal(value: &str, context: &Context) -> Option<String> {
-    let mut body = gdscript::body(&[format!("var _x = {value}")], context, 0);
-    if !body.notes.is_empty() {
-        return None;
+/// Whether an expression stands on its own at load: no shim, which is bound
+/// per body, and no name, which needs a node the engine does not have yet.
+fn self_contained(text: &str) -> bool {
+    let mut chars = text.chars().peekable();
+    let mut quoted = false;
+    while let Some(c) = chars.next() {
+        if quoted {
+            if c == '\\' {
+                chars.next();
+            } else if c == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => quoted = true,
+            c if c.is_alphabetic() || c == '_' => {
+                let mut word = String::from(c);
+                while chars
+                    .peek()
+                    .is_some_and(|c| c.is_alphanumeric() || *c == '_')
+                {
+                    word.push(chars.next().unwrap_or_default());
+                }
+                // `true`, `false` and a numeric suffix are values; anything
+                // else is a name this cannot resolve at load.
+                if !matches!(word.as_str(), "true" | "false" | "f64" | "i64") {
+                    return false;
+                }
+            }
+            _ => {}
+        }
     }
-    let text = body.rune.trim().strip_prefix("let _x = ")?.to_string();
-    body.rune.clear();
-    let text = text.strip_suffix(';')?.to_string();
-    // Only self-contained values become constants: a name in here would be
-    // resolved at load, before the engine has a node.
-    if text.contains("(gd.") {
-        return None;
-    }
-    let plain = text.chars().all(|c| {
-        c.is_alphanumeric()
-            || " \t\"'.,:_-+#{}[]()".contains(c)
-            || c == '\\'
-    });
-    plain.then_some(text)
+    true
 }
 
 /// The members a Godot class declared with a value, set on `this` at `init`.
-fn write_members(out: &mut String, source: &str, context: &Context, notes: &mut Vec<String>) {
+fn write_members(
+    out: &mut String,
+    source: &str,
+    context: &Context,
+    notes: &mut Vec<String>,
+) -> bool {
     let mut assignments: Vec<String> = Vec::new();
-    for line in source.lines() {
-        if line.starts_with([' ', '\t']) {
-            continue;
-        }
-        let trimmed = line.trim_start();
+    for line in top_level(source) {
+        let trimmed = line.as_str();
         // An exported member is set from the scene, and an `@onready` one is
         // a node lookup the port has to place.
         if trimmed.starts_with("@export") {
@@ -440,7 +633,7 @@ fn write_members(out: &mut String, source: &str, context: &Context, notes: &mut 
             continue;
         };
         let name = name_of(rest);
-        let Some((_, value)) = rest.split_once('=') else {
+        let Some(value) = assigned(rest) else {
             continue;
         };
         if onready {
@@ -449,8 +642,7 @@ fn write_members(out: &mut String, source: &str, context: &Context, notes: &mut 
             ));
             continue;
         }
-        let value = value.trim_start_matches('=').trim();
-        let body = gdscript::body(&[format!("var _x = {value}")], context, 0);
+        let body = gdscript::body(&[format!("var _x = {value}")], context, 0, &[], true, true);
         let Some(text) = body
             .rune
             .trim()
@@ -462,18 +654,19 @@ fn write_members(out: &mut String, source: &str, context: &Context, notes: &mut 
         assignments.push(format!("    this.{} = {text};", safe(&name)));
     }
     if assignments.is_empty() {
-        return;
+        return false;
     }
-    let binding = assignments
-        .iter()
-        .any(|line| line.contains("(gd."))
-        .then(|| shim_binding(1))
-        .unwrap_or_default();
+    let binding = if assignments.iter().any(|line| line.contains("(gd.")) {
+        shim_binding(1)
+    } else {
+        String::new()
+    };
     let _ = write!(
         out,
         "\n/// The defaults the class declared with its members.\nfn defaults(this) {{\n{binding}{}\n}}\n",
         assignments.join("\n")
     );
+    true
 }
 
 /// Each function as a Rune one: a hook renamed, a keyword name suffixed, a
@@ -483,12 +676,34 @@ fn write_functions(
     functions: &[Function],
     context: &Context,
     notes: &mut Vec<String>,
+    defaults: bool,
+    static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
+    if static_init {
+        out.push_str(&static_init_guard(&context.static_prefix));
+    }
+    if defaults && !functions.iter().any(|f| f.name == "_ready") {
+        // Nothing else will call it, and a member read before its default is
+        // set is an error at run time.
+        out.push_str("\npub fn init(this) {\n    defaults(this);\n}\n");
+        seen.push("init".to_string());
+    }
     for function in functions {
         let hook = HOOKS.iter().find(|(godot, _, _)| *godot == function.name);
         let (name, params) = if let Some((_, here, params)) = hook {
-            ((*here).to_string(), (*params).to_string())
+            // The hook's own parameter name, so the body still reads it:
+            // `_process(delta)` is `update(this, delta)`, not `dt`.
+            let mut bound: Vec<String> = params
+                .split(", ")
+                .map(std::string::ToString::to_string)
+                .collect();
+            for (at, own) in function.params.iter().enumerate() {
+                if let Some(slot) = bound.get_mut(at + 1) {
+                    *slot = safe(own);
+                }
+            }
+            ((*here).to_string(), bound.join(", "))
         } else {
             let mut name = function.name.clone();
             if RESERVED.contains(&name.as_str()) {
@@ -514,22 +729,60 @@ fn write_functions(
             continue;
         }
         seen.push(name.clone());
-        let mut body = gdscript::body(function.body(), context, 1);
-        notes.extend(body.notes.drain(..).map(|note| {
-            format!("`{}`: {note}", function.name)
-        }));
+        let synchronous = SYNCHRONOUS.contains(&name.as_str());
+        let mut body = gdscript::body(
+            function.body(),
+            context,
+            1,
+            &function.params,
+            !synchronous,
+            function.is_static,
+        );
+        notes.extend(
+            body.notes
+                .drain(..)
+                .map(|note| format!("`{}`: {note}", function.name)),
+        );
         if body.uses_shim {
             body.rune.insert_str(0, &shim_binding(1));
         }
-        // A hook the engine calls synchronously cannot be async; the note is
-        // already written, and the body keeps its `.await` for the port.
-        let synchronous = SYNCHRONOUS.contains(&name.as_str());
         let asynchronous = context.asyncs.contains(&function.name) && !synchronous;
-        let word = if asynchronous { "pub async fn" } else { "pub fn" };
+        let word = if asynchronous {
+            "pub async fn"
+        } else {
+            "pub fn"
+        };
         let _ = write!(out, "\n{word} {name}({params}) {{\n");
+        if static_init && function.name != "_static_init" {
+            let _ = writeln!(out, "    {STATIC_INIT}();");
+        }
+        if defaults && name == "init" {
+            out.push_str("    defaults(this);\n");
+        }
         out.push_str(&body.rune);
         out.push_str("}\n");
     }
+}
+
+/// The name of the guard that stands in for Godot's class-load hook.
+const STATIC_INIT: &str = "static_init_once";
+
+/// The guard itself: it runs `_static_init` the first time anything in the
+/// module is called, which is when Godot would already have run it.
+fn static_init_guard(path: &str) -> String {
+    format!(
+        "\n/// Godot ran `_static_init` at class load. Rune has no such hook, so every\n\
+         /// entry point here runs it once.\n\
+         fn {STATIC_INIT}() {{\n\
+         {}    let key = \"{path}:static_init_done\";\n\
+         \x20   if (gd.static_get)(key, false) {{\n\
+         \x20       return;\n\
+         \x20   }}\n\
+         \x20   let _ = (gd.static_set)(key, true);\n\
+         \x20   _static_init();\n\
+         }}\n",
+        shim_binding(1)
+    )
 }
 
 /// The line that binds the Variant shim, for a body that calls it.
@@ -539,6 +792,33 @@ fn shim_binding(depth: usize) -> String {
         "    ".repeat(depth),
         gdscript::SHIM_PATH
     )
+}
+
+/// An accessor and a setter per member, so another script can read and write
+/// it. Godot reached one script's member straight off the node; here a node's
+/// script is reached by calling it, which is the convention the port already
+/// follows by hand.
+fn write_accessors(out: &mut String, context: &Context, functions: &[Function]) {
+    let taken: BTreeSet<&str> = functions.iter().map(|f| f.name.as_str()).collect();
+    let mut wrote = false;
+    for member in &context.members {
+        let setter = format!("set_{member}");
+        if taken.contains(member.as_str()) || taken.contains(setter.as_str()) {
+            continue;
+        }
+        if !wrote {
+            out.push_str(
+                "\n// One accessor per member: another script reads a property by calling it.\n",
+            );
+            wrote = true;
+        }
+        let bound = safe(member);
+        let _ = write!(out, "\npub fn {bound}(this) {{\n    this.{bound}\n}}\n");
+        let _ = write!(
+            out,
+            "\npub fn {setter}(this, value) {{\n    this.{bound} = value;\n}}\n"
+        );
+    }
 }
 
 /// `func name(a: int, b := 2) -> T:` as its name and parameter names.
@@ -628,7 +908,11 @@ func match(a):\n\
     fn hooks_are_renamed_and_every_other_function_keeps_its_name() {
         let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
         assert!(out.rune.contains("pub fn init(this) {"), "{}", out.rune);
-        assert!(out.rune.contains("pub fn update(this, dt) {"));
+        assert!(
+            out.rune.contains("pub fn update(this, delta) {"),
+            "the hook keeps the name its body reads: {}",
+            out.rune
+        );
         assert!(
             out.rune
                 .contains("pub fn _on_go_pressed(this, force, loud) {"),
@@ -679,10 +963,30 @@ func match(a):\n\
     }
 
     #[test]
+    fn a_static_var_lives_on_the_scene_root() {
+        let source = "extends Node\n\
+static var _cache := {}\n\
+\n\
+func seen():\n\
+\treturn _cache.size()\n\
+\n\
+func note(key):\n\
+\t_cache[key] = true\n";
+        let out = convert(source, "scripts/a.gd", &Classes::default());
+        assert!(
+            out.rune
+                .contains(r#"(gd.static_get)("scripts/a.gd:_cache", #{})"#),
+            "{}",
+            out.rune
+        );
+    }
+
+    #[test]
     fn a_body_that_calls_the_shim_binds_it_first() {
         let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
         assert!(
-            out.rune.contains(r#"    let gd = script::require("gd.rn");"#),
+            out.rune
+                .contains(r#"    let gd = script::require("gd.rn");"#),
             "{}",
             out.rune
         );
@@ -709,8 +1013,16 @@ func outer():\n\
 func inner():\n\
 \tawait ready\n";
         let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(out.rune.contains("pub async fn inner(this)"), "{}", out.rune);
-        assert!(out.rune.contains("pub async fn outer(this)"), "{}", out.rune);
+        assert!(
+            out.rune.contains("pub async fn inner(this)"),
+            "{}",
+            out.rune
+        );
+        assert!(
+            out.rune.contains("pub async fn outer(this)"),
+            "{}",
+            out.rune
+        );
         assert!(out.rune.contains("inner(this).await;"), "{}", out.rune);
     }
 }

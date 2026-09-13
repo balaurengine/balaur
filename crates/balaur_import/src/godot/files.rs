@@ -85,12 +85,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     }
     if scripts > 0 {
         // Every converted body calls into the shim, so it ships with them.
-        write(
-            project,
-            "gd.rn",
-            crate::godot::gdscript::SHIM,
-            &mut out,
-        )?;
+        write(project, "gd.rn", crate::godot::gdscript::SHIM, &mut out)?;
     }
     let lines = report.write(project, &mut out)?;
     out.note = format!(

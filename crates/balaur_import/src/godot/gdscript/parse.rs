@@ -102,12 +102,11 @@ impl<'a> Parser<'a> {
         let line = self.line();
         let start = self.at;
         let stmt = self.try_statement();
-        match stmt {
-            Some(stmt) => stmt,
-            None => {
-                self.skip_statement(start);
-                Stmt::Raw(self.source_line(line))
-            }
+        if let Some(stmt) = stmt {
+            stmt
+        } else {
+            self.skip_statement(start);
+            Stmt::Raw(self.source_line(line))
         }
     }
 
@@ -173,11 +172,7 @@ impl<'a> Parser<'a> {
             self.next();
             let value = self.expression(0)?;
             self.end_of_statement()?;
-            return Some(Stmt::Assign {
-                target,
-                op,
-                value,
-            });
+            return Some(Stmt::Assign { target, op, value });
         }
         self.end_of_statement()?;
         Some(Stmt::Expr(target))
@@ -213,22 +208,19 @@ impl<'a> Parser<'a> {
         let mut other = None;
         self.next();
         let cond = self.expression(0)?;
-        self.expect(&Tok::Op(":"))?;
+        self.consume(&Tok::Op(":"))?;
         arms.push((cond, self.body()));
-        loop {
-            let Tok::Name(word) = self.peek().clone() else {
-                break;
-            };
+        while let Tok::Name(word) = self.peek().clone() {
             match word.as_str() {
                 "elif" => {
                     self.next();
                     let cond = self.expression(0)?;
-                    self.expect(&Tok::Op(":"))?;
+                    self.consume(&Tok::Op(":"))?;
                     arms.push((cond, self.body()));
                 }
                 "else" => {
                     self.next();
-                    self.expect(&Tok::Op(":"))?;
+                    self.consume(&Tok::Op(":"))?;
                     other = Some(self.body());
                     break;
                 }
@@ -241,7 +233,7 @@ impl<'a> Parser<'a> {
     fn while_loop(&mut self) -> Option<Stmt> {
         self.next();
         let cond = self.expression(0)?;
-        self.expect(&Tok::Op(":"))?;
+        self.consume(&Tok::Op(":"))?;
         Some(Stmt::While {
             cond,
             body: self.body(),
@@ -259,7 +251,7 @@ impl<'a> Parser<'a> {
             _ => return None,
         };
         let iter = self.expression(0)?;
-        self.expect(&Tok::Op(":"))?;
+        self.consume(&Tok::Op(":"))?;
         Some(Stmt::For {
             name,
             iter,
@@ -270,7 +262,7 @@ impl<'a> Parser<'a> {
     fn match_block(&mut self) -> Option<Stmt> {
         self.next();
         let subject = self.expression(0)?;
-        self.expect(&Tok::Op(":"))?;
+        self.consume(&Tok::Op(":"))?;
         self.eat(&Tok::Newline);
         if !self.eat(&Tok::Indent) {
             return None;
@@ -287,7 +279,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.expect(&Tok::Op(":"))?;
+            self.consume(&Tok::Op(":"))?;
             arms.push(MatchArm {
                 patterns,
                 body: self.body(),
@@ -416,7 +408,7 @@ impl<'a> Parser<'a> {
                 Tok::Op("[") => {
                     self.next();
                     let index = self.expression(0)?;
-                    self.expect(&Tok::Op("]"))?;
+                    self.consume(&Tok::Op("]"))?;
                     value = Expr::Index(Box::new(value), Box::new(index));
                 }
                 _ => break,
@@ -439,7 +431,7 @@ impl<'a> Parser<'a> {
                 }
                 continue;
             }
-            self.expect(&Tok::Op(")"))?;
+            self.consume(&Tok::Op(")"))?;
             return Some(out);
         }
     }
@@ -470,7 +462,7 @@ impl<'a> Parser<'a> {
             Tok::Op("(") => {
                 self.next();
                 let inner = self.expression(0)?;
-                self.expect(&Tok::Op(")"))?;
+                self.consume(&Tok::Op(")"))?;
                 Some(inner)
             }
             Tok::Op("[") => {
@@ -487,7 +479,7 @@ impl<'a> Parser<'a> {
                         }
                         continue;
                     }
-                    self.expect(&Tok::Op("]"))?;
+                    self.consume(&Tok::Op("]"))?;
                     break;
                 }
                 Some(Expr::Array(items))
@@ -500,7 +492,7 @@ impl<'a> Parser<'a> {
                 }
                 loop {
                     let key = self.expression(0)?;
-                    self.expect(&Tok::Op(":"))?;
+                    self.consume(&Tok::Op(":"))?;
                     let value = self.expression(0)?;
                     pairs.push((key, value));
                     if self.eat(&Tok::Op(",")) {
@@ -509,7 +501,7 @@ impl<'a> Parser<'a> {
                         }
                         continue;
                     }
-                    self.expect(&Tok::Op("}"))?;
+                    self.consume(&Tok::Op("}"))?;
                     break;
                 }
                 Some(Expr::Dict(pairs))
@@ -545,7 +537,7 @@ impl<'a> Parser<'a> {
     /// one-liner sits on the same line.
     fn lambda(&mut self) -> Option<Expr> {
         self.next();
-        self.expect(&Tok::Op("("))?;
+        self.consume(&Tok::Op("("))?;
         let mut params = Vec::new();
         if !self.eat(&Tok::Op(")")) {
             loop {
@@ -560,14 +552,14 @@ impl<'a> Parser<'a> {
                 if self.eat(&Tok::Op(",")) {
                     continue;
                 }
-                self.expect(&Tok::Op(")"))?;
+                self.consume(&Tok::Op(")"))?;
                 break;
             }
         }
         if self.eat(&Tok::Op("->")) {
             self.type_name()?;
         }
-        self.expect(&Tok::Op(":"))?;
+        self.consume(&Tok::Op(":"))?;
         let body = if self.check(&Tok::Newline) {
             self.next();
             self.block()
@@ -614,10 +606,7 @@ impl<'a> Parser<'a> {
             return Some(());
         }
         // A one-line lambda's body ends where its call's argument does.
-        let closes = matches!(
-            self.peek(),
-            Tok::Op(",") | Tok::Op(")") | Tok::Op("]") | Tok::Op("}")
-        );
+        let closes = matches!(self.peek(), Tok::Op("," | ")" | "]" | "}"));
         (self.inline > 0 && closes).then_some(())
     }
 
@@ -659,7 +648,7 @@ impl<'a> Parser<'a> {
     }
 
     fn peek(&self) -> &Tok {
-        self.tokens.get(self.at).map(|t| &t.kind).unwrap_or(&Tok::Eof)
+        self.tokens.get(self.at).map_or(&Tok::Eof, |t| &t.kind)
     }
 
     fn next(&mut self) -> Tok {
@@ -682,7 +671,7 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn expect(&mut self, kind: &Tok) -> Option<()> {
+    fn consume(&mut self, kind: &Tok) -> Option<()> {
         self.eat(kind).then_some(())
     }
 
@@ -716,7 +705,11 @@ mod tests {
     #[test]
     fn precedence_binds_multiplication_tighter_than_addition() {
         let out = parse("var x = 1 + 2 * 3\n");
-        let Some(Stmt::Var { value: Some(Expr::Binary("+", _, right)), .. }) = out.first() else {
+        let Some(Stmt::Var {
+            value: Some(Expr::Binary("+", _, right)),
+            ..
+        }) = out.first()
+        else {
             panic!("{out:?}");
         };
         assert!(matches!(**right, Expr::Binary("*", _, _)), "{right:?}");
@@ -725,7 +718,11 @@ mod tests {
     #[test]
     fn a_ternary_reads_as_condition_then_branches() {
         let out = parse("var x = 1 if ok else 2\n");
-        let Some(Stmt::Var { value: Some(Expr::Ternary { .. }), .. }) = out.first() else {
+        let Some(Stmt::Var {
+            value: Some(Expr::Ternary { .. }),
+            ..
+        }) = out.first()
+        else {
             panic!("{out:?}");
         };
     }
@@ -743,7 +740,11 @@ mod tests {
     #[test]
     fn a_lambda_carries_its_parameters_and_body() {
         let out = parse("var f = func(a, b): return a + b\n");
-        let Some(Stmt::Var { value: Some(Expr::Lambda { params, body }), .. }) = out.first() else {
+        let Some(Stmt::Var {
+            value: Some(Expr::Lambda { params, body }),
+            ..
+        }) = out.first()
+        else {
             panic!("{out:?}");
         };
         assert_eq!(params, &["a", "b"]);
@@ -763,7 +764,11 @@ mod tests {
     #[test]
     fn await_and_casts_parse_as_their_own_shapes() {
         let out = parse("var a = await thing.go() as Ship\n");
-        let Some(Stmt::Var { value: Some(Expr::Cast(inner, name)), .. }) = out.first() else {
+        let Some(Stmt::Var {
+            value: Some(Expr::Cast(inner, name)),
+            ..
+        }) = out.first()
+        else {
             panic!("{out:?}");
         };
         assert_eq!(name, "Ship");

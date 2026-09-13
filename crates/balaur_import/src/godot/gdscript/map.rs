@@ -19,14 +19,37 @@ pub(crate) const SHIM_MARK: &str = "(gd.";
 /// global this does not have still reports.
 pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
     const NODE: &[&str] = &[
-        "hide", "show", "set_visible", "is_visible", "is_visible_in_tree", "queue_free",
-        "add_child", "remove_child", "get_parent", "get_children", "get_node",
-        "get_node_or_null", "get_instance_id", "is_in_group", "add_to_group",
-        "remove_from_group", "has_method", "get_meta", "set_meta", "has_meta",
-        "get_index", "move_child", "find_child", "is_node_ready", "is_inside_tree",
-        "move_to_front", "get_process_delta_time", "get_physics_process_delta_time",
+        "hide",
+        "show",
+        "set_visible",
+        "is_visible",
+        "is_visible_in_tree",
+        "queue_free",
+        "add_child",
+        "remove_child",
+        "get_parent",
+        "get_children",
+        "get_node",
+        "get_node_or_null",
+        "get_instance_id",
+        "is_in_group",
+        "add_to_group",
+        "remove_from_group",
+        "has_method",
+        "get_meta",
+        "set_meta",
+        "has_meta",
+        "get_index",
+        "move_child",
+        "find_child",
+        "is_node_ready",
+        "is_inside_tree",
+        "move_to_front",
+        "get_process_delta_time",
+        "get_physics_process_delta_time",
     ];
-    NODE.contains(&name).then(|| method("this.node", name, args))?
+    NODE.contains(&name)
+        .then(|| method("this.node", name, args))?
 }
 
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
@@ -76,14 +99,15 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "randf_range" | "randi_range" => format!("rng::range({all})"),
         "randomize" => "()".into(),
         "tr" => format!("strings::tr({all})"),
-        "Vector2" => format!("(gd.vec2)({all})"),
-        "Vector2i" => format!("(gd.vec2)({all})"),
+        "Vector2" | "Vector2i" => format!("(gd.vec2)({all})"),
         "Vector3" => format!("(gd.vec3)({all})"),
         "Color" => format!("(gd.color)({all})"),
         "Callable" => format!("(gd.callable)({all})"),
         "preload" | "load" => format!("(gd.load)({all})"),
         "instance_from_id" => format!("(gd.instance_from_id)({one})"),
         "get_tree" => TREE.into(),
+        "get_viewport" => TREE.into(),
+        "get_viewport_rect" => "(gd.viewport_rect)()".into(),
         "inverse_lerp" => format!("(gd.inverse_lerp)({all})"),
         "linear_to_db" => format!("(gd.linear_to_db)({one})"),
         "db_to_linear" => format!("(gd.db_to_linear)({one})"),
@@ -97,6 +121,9 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     })
 }
 
+// Several rows share a value without sharing a meaning: `CONNECT_ONE_SHOT` is
+// not a mouse button, and merging them would hide what each row is for.
+#[allow(clippy::match_same_arms)]
 /// A static call on one of Godot's built-in singletons: `Time.get_ticks_msec()`,
 /// `OS.has_feature(..)`. Returns `None` for a class this does not carry, which
 /// the report then names.
@@ -108,36 +135,39 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Time", "get_ticks_msec") => "(engine::time() * 1000.0)".into(),
         ("Time", "get_ticks_usec") => "(engine::time() * 1000000.0)".into(),
         ("Time", _) => format!("engine::unix_time() /* Time.{name} */"),
-        ("Engine", "get_frames_per_second") => "engine::tick()".into(),
-        ("Engine", "is_editor_hint") => "false".into(),
-        ("Engine", "get_process_frames" | "get_physics_frames") => "engine::tick()".into(),
+        ("Engine", "get_frames_per_second" | "get_process_frames" | "get_physics_frames") => {
+            "engine::tick()".into()
+        }
+        ("Engine", "is_editor_hint") => "(gd.has_feature)(\"editor\")".into(),
+        ("Engine", "is_debug_build") => "false".into(),
         ("Engine", "has_singleton") => "engine::has_plugin({one})".replace("{one}", &one),
         ("OS", "get_unique_id") => "engine::device_id()".into(),
-        ("OS", "has_feature") => format!("(engine::platform() == {one})"),
-        ("OS", "get_name") => "engine::platform()".into(),
+        ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
+        ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
         ("OS", "get_user_data_dir") => "engine::user_data_dir()".into(),
         ("OS", "shell_open") => format!("engine::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
-        ("OS", "is_debug_build") => "false".into(),
+        ("ConfigFile", "new") => "(gd.config)()".into(),
+        ("OS", "get_cmdline_args" | "get_cmdline_user_args") => "engine::args()".into(),
         ("JSON", "stringify") => format!("json::encode({one})"),
-        ("JSON", "parse_string") => format!("json::decode({one})"),
-        ("FileAccess", "file_exists") => format!("fs::exists({one})"),
-        ("DirAccess", "dir_exists") => format!("fs::exists({one})"),
+        ("JSON", "parse_string") => format!("json::parse({one})"),
+        ("FileAccess", "file_exists") | ("DirAccess", "dir_exists") => {
+            format!("fs::exists({one})")
+        }
         ("DirAccess", "make_dir_recursive_absolute" | "make_dir_absolute") => {
             format!("fs::mkdir({one})")
         }
         ("TranslationServer", "translate") => format!("strings::tr({one})"),
         ("TranslationServer", "get_locale") => "strings::locale()".into(),
+        ("Vector2", "ZERO") => "(gd.vec2)(0.0, 0.0)".into(),
+        ("Vector2", "ONE") => "(gd.vec2)(1.0, 1.0)".into(),
         ("TranslationServer", "set_locale") => format!("strings::set_locale({one})"),
         ("TranslationServer", "get_loaded_locales") => "strings::locales()".into(),
-        ("DisplayServer", "get_name") => "engine::platform()".into(),
         ("ProjectSettings", "get_setting") => format!("settings::get({all})"),
         ("ProjectSettings", "set_setting") => format!("settings::set({all})"),
         ("Input", "is_action_pressed") => format!("input::is_action_pressed({one})"),
         ("Input", "is_action_just_pressed") => format!("input::is_action_just_pressed({one})"),
-        ("Input", "is_key_pressed") => format!("input::is_key_pressed({one})"),
-        ("Vector2", "ZERO") => "(gd.vec2)(0.0, 0.0)".into(),
-        ("Vector2", "ONE") => "(gd.vec2)(1.0, 1.0)".into(),
+        ("Input", "is_key_pressed") => format!("input::is_down({one})"),
         _ => return None,
     })
 }
@@ -223,8 +253,43 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
         "rotation_degrees" => format!("{receiver}.rotation_degrees()"),
+        "rotation" => format!("math::rad({receiver}.rotation_degrees())"),
+        "current_scene" | "root" => "scene::root()".into(),
+        "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "selected"
+        | "placeholder_text" | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
+            let key = if field == "button_pressed" {
+                "pressed"
+            } else {
+                field
+            };
+            format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
+        }
         _ => return None,
     })
+}
+
+/// A Godot global constant with a value here. Its enums are plain integers.
+#[allow(clippy::match_same_arms)]
+pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "MOUSE_BUTTON_LEFT" => "1",
+        "MOUSE_BUTTON_RIGHT" => "2",
+        "MOUSE_BUTTON_MIDDLE" => "3",
+        "MOUSE_BUTTON_WHEEL_UP" => "4",
+        "MOUSE_BUTTON_WHEEL_DOWN" => "5",
+        "CONNECT_ONE_SHOT" => "4",
+        "CONNECT_DEFERRED" => "1",
+        "HORIZONTAL" => "0",
+        "VERTICAL" => "1",
+        _ => return None,
+    })
+}
+
+/// What the importer could not translate, as something that compiles and says
+/// so at run time. A file that does not compile stops the whole project, and
+/// the port needs one that boots.
+pub(crate) fn todo(what: &str) -> String {
+    format!("(gd.todo)({})", quoted(what))
 }
 
 /// Writing a Godot property: `node.visible = false` is a call here. The
@@ -232,11 +297,25 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
 /// through the shim and is evaluated once.
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
     const WIDGET: &[&str] = &[
-        "text", "disabled", "pressed", "button_pressed", "editable", "placeholder_text",
-        "selected", "value", "max_value", "min_value", "tooltip_text",
+        "text",
+        "disabled",
+        "pressed",
+        "button_pressed",
+        "editable",
+        "placeholder_text",
+        "selected",
+        "value",
+        "max_value",
+        "min_value",
+        "tooltip_text",
+        "icon",
     ];
     if WIDGET.contains(&field) {
-        let key = if field == "button_pressed" { "pressed" } else { field };
+        let key = if field == "button_pressed" {
+            "pressed"
+        } else {
+            field
+        };
         return Some(format!(
             "{receiver}.patch_component(\"widget\", #{{ \"{key}\": {value} }})"
         ));
@@ -250,12 +329,14 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "z_index" => format!("{receiver}.set_z_index({value})"),
         "name" => format!("{receiver}.set_name({value})"),
         "rotation_degrees" => format!("{receiver}.set_rotation_degrees({value})"),
+        "rotation" => format!("{receiver}.set_rotation_degrees(math::deg({value}))"),
         _ => return None,
     })
 }
 
 /// A method on a value. The receiver's text is passed so a rewrite can put it
 /// where the engine call wants it.
+#[allow(clippy::match_same_arms)]
 pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
@@ -299,7 +380,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "add_child" => format!("{receiver}.add_child({one})"),
         "get_parent" => format!("{receiver}.parent()"),
         "get_children" => format!("{receiver}.children()"),
-        "get_node" | "get_node_or_null" => format!("{receiver}.get_node({one})"),
+        "get_node" | "get_node_or_null" | "find_child" => format!("{receiver}.get_node({one})"),
         "hide" => format!("{receiver}.set_visible(false)"),
         "show" => format!("{receiver}.set_visible(true)"),
         "set_visible" => format!("{receiver}.set_visible({one})"),
@@ -312,26 +393,47 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "get_meta" => format!("(gd.get)({receiver}.meta, {all})"),
         "set_meta" => format!("{receiver}.meta[{}] = {}", args.first()?, args.get(1)?),
         "has_meta" => format!("(gd.has)({receiver}.meta, {one})"),
+        // `ConfigFile`'s verbs. The shim checks the receiver and hands any
+        // other value back to its own method, since these names are not the
+        // config's alone.
+        // `load` and `save` are not the config's alone, which is why the shim
+        // dispatches rather than this table.
+        "load" => with_receiver("config_load"),
+        "save" => with_receiver("config_save"),
+        "get_value" => with_receiver("config_get"),
+        "set_value" => with_receiver("config_set"),
+        "has_section" => with_receiver("config_has_section"),
+        "has_section_key" => with_receiver("config_has_key"),
+        "erase_section" => with_receiver("config_erase_section"),
+        "get_sections" => with_receiver("config_sections"),
+        "get_section_keys" => with_receiver("config_keys"),
         // `call` on a node is the engine's own verb already.
-        "call" => format!("{receiver}.call({all})"),
-        "call_deferred" => format!("{receiver}.call({all})"),
+        "call" | "call_deferred" => format!("{receiver}.call({all})"),
         // The scene tree's own verbs, which Godot reached through
         // `get_tree()`. The receiver is the tree and carries nothing here.
         "get_nodes_in_group" => format!("scene::tagged({one})"),
         "create_timer" => format!("task::wait({one})"),
         "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
         "reload_current_scene" => "scene::switch(scene::source())".into(),
-        "quit" if receiver == TREE => format!("engine::quit({})", args.first().cloned().unwrap_or("0".into())),
+        "quit" if receiver == TREE => format!(
+            "engine::quit({})",
+            args.first().cloned().unwrap_or("0".into())
+        ),
         "get_root" => "scene::root()".into(),
         "get_first_node_in_group" => format!("(gd.front)(scene::tagged({one}))"),
         // Frame ordering and drawing, which the engine states differently.
         "is_node_ready" | "is_inside_tree" => format!("{receiver}.is_valid()"),
+        // The viewport, which Godot reached through the node and the engine
+        // reports as the screen.
+        "get_visible_rect" | "get_viewport_rect" => "(gd.viewport_rect)()".into(),
+        "get_size" | "get_screen_size" => "(gd.screen_size)()".into(),
         "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
         "get_index" => format!("{receiver}.sibling_index()"),
-        "find_child" => format!("{receiver}.get_node({one})"),
         "remove_child" => format!("{one}.set_parent(())"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
-        "set_pressed_no_signal" | "set_pressed" => format!("{receiver}.set_component(\"widget\", #{{ \"pressed\": {one} }})"),
+        "set_pressed_no_signal" | "set_pressed" => {
+            format!("{receiver}.set_component(\"widget\", #{{ \"pressed\": {one} }})")
+        }
         _ => return None,
     })
 }

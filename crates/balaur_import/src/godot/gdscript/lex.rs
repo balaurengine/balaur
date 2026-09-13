@@ -47,9 +47,7 @@ fn ends_a_value(kind: &Tok) -> bool {
             | Tok::Str(_)
             | Tok::NodePath(_)
             | Tok::Unique(_)
-            | Tok::Op(")")
-            | Tok::Op("]")
-            | Tok::Op("}")
+            | Tok::Op(")" | "]" | "}")
     )
 }
 
@@ -86,7 +84,11 @@ impl Lexer {
                 self.indentation(width)?;
             }
             self.line_tokens(line)?;
-            if self.depth == 0 && !matches!(self.out.last().map(|t| &t.kind), None | Some(Tok::Newline) | Some(Tok::Indent))
+            if self.depth == 0
+                && !matches!(
+                    self.out.last().map(|t| &t.kind),
+                    None | Some(Tok::Newline | Tok::Indent)
+                )
             {
                 self.push(Tok::Newline);
             }
@@ -144,7 +146,8 @@ impl Lexer {
                 i = taken;
                 continue;
             }
-            if c.is_ascii_digit() || (c == '.' && bytes.get(i + 1).is_some_and(|d| d.is_ascii_digit()))
+            if c.is_ascii_digit()
+                || (c == '.' && bytes.get(i + 1).is_some_and(char::is_ascii_digit))
             {
                 i = self.number(&bytes, i);
                 continue;
@@ -222,7 +225,7 @@ impl Lexer {
             let c = bytes[end];
             if c.is_ascii_digit() || c == '_' {
                 end += 1;
-            } else if c == '.' && !float && bytes.get(end + 1).is_some_and(|d| d.is_ascii_digit()) {
+            } else if c == '.' && !float && bytes.get(end + 1).is_some_and(char::is_ascii_digit) {
                 float = true;
                 end += 1;
             } else if (c == 'e' || c == 'E')
@@ -237,7 +240,11 @@ impl Lexer {
             }
         }
         let text: String = bytes[start..end].iter().filter(|c| **c != '_').collect();
-        self.push(if float { Tok::Float(text) } else { Tok::Int(text) });
+        self.push(if float {
+            Tok::Float(text)
+        } else {
+            Tok::Int(text)
+        });
         end
     }
 
@@ -323,7 +330,9 @@ impl Lexer {
                         let point = u32::from_str_radix(&hex, 16)
                             .ok()
                             .and_then(char::from_u32)
-                            .ok_or_else(|| format!("line {}: `\\{escape}{hex}` is no character", self.line))?;
+                            .ok_or_else(|| {
+                                format!("line {}: `\\{escape}{hex}` is no character", self.line)
+                            })?;
                         i += width + 1;
                         text.push(point);
                         continue;
@@ -360,8 +369,15 @@ mod tests {
     #[test]
     fn a_newline_inside_brackets_is_whitespace() {
         let out = kinds("var a = [\n\t1,\n\t2,\n]\n");
-        assert_eq!(out.iter().filter(|t| **t == Tok::Newline).count(), 1, "{out:?}");
-        assert!(!out.contains(&Tok::Indent), "no block inside a list: {out:?}");
+        assert_eq!(
+            out.iter().filter(|t| **t == Tok::Newline).count(),
+            1,
+            "{out:?}"
+        );
+        assert!(
+            !out.contains(&Tok::Indent),
+            "no block inside a list: {out:?}"
+        );
     }
 
     #[test]
@@ -373,9 +389,13 @@ mod tests {
 
     #[test]
     fn a_string_carries_decoded_text() {
-        assert!(kinds(r#"var a = "a\tb\u0041"
-"#)
-        .contains(&Tok::Str("a\tbA".into())));
+        assert!(
+            kinds(
+                r#"var a = "a\tb\u0041"
+"#
+            )
+            .contains(&Tok::Str("a\tbA".into()))
+        );
         assert!(kinds("var a = 'single'\n").contains(&Tok::Str("single".into())));
     }
 

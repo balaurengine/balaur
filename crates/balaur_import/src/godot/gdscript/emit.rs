@@ -24,6 +24,9 @@ pub(crate) struct Context {
     pub statics: BTreeSet<String>,
     /// Class constants, emitted as module constants and read bare.
     pub consts: BTreeSet<String>,
+    /// Constants whose value needs the shim or a node, so they are functions
+    /// here and are read by calling them.
+    pub lazy: BTreeSet<String>,
     /// Signals, so `sig.emit(x)` and `sig.connect(f)` are known to be signals.
     pub signals: BTreeSet<String>,
     /// Functions the async pass found, so a call to one gets `.await`.
@@ -33,6 +36,11 @@ pub(crate) struct Context {
     /// `class_name` to the `.rn` beside it, for a static call on a project
     /// class.
     pub classes: BTreeMap<String, String>,
+    /// `static var` names to the Rune text of their default. A Rune module
+    /// holds no state, so these live on the scene root under a key this
+    /// prefix makes unique per script.
+    pub static_vars: BTreeMap<String, String>,
+    pub static_prefix: String,
 }
 
 /// Rune's reserved words: a GDScript name that is one gains a trailing `_`.
@@ -44,6 +52,10 @@ pub(crate) const RESERVED: &[&str] = &[
     "struct", "super", "true", "typeof", "unsafe", "use", "virtual", "while", "yield",
 ];
 
+/// What marks a line in converted output that the port must finish. It is
+/// the port's marker, in the port's repository, not debt in this one.
+pub(crate) const MARKER: &str = "PORT(gdscript):";
+
 pub(crate) fn safe(name: &str) -> String {
     if RESERVED.contains(&name) {
         return format!("{name}_");
@@ -51,6 +63,9 @@ pub(crate) fn safe(name: &str) -> String {
     name.to_string()
 }
 
+// Four flags, each a different question about where the emitter is: they are
+// read independently and never together.
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct Emitter<'a> {
     pub context: &'a Context,
     pub notes: Vec<String>,
@@ -63,6 +78,19 @@ pub(crate) struct Emitter<'a> {
     pub awaits: bool,
     /// Set when the body reached a shim call, so the caller binds `gd`.
     pub uses_shim: bool,
+    /// False inside a hook the engine calls synchronously, where a wait
+    /// cannot be emitted at all.
+    pub allow_await: bool,
+    /// Set inside a `static func`, which has no `this` to read a member from.
+    pub in_static: bool,
+    /// Lines the statement in progress needs before and after it: a call on a
+    /// static reads it into a local first and writes the local back, because
+    /// the store hands out a value rather than a place.
+    before: Vec<String>,
+    after: Vec<String>,
+    /// Set while emitting the operand of an explicit `await`, so a call that
+    /// is already awaited is not awaited twice.
+    awaited_here: bool,
 }
 
 impl<'a> Emitter<'a> {
@@ -74,6 +102,11 @@ impl<'a> Emitter<'a> {
             temps: 0,
             awaits: false,
             uses_shim: false,
+            allow_await: true,
+            in_static: false,
+            awaited_here: false,
+            before: Vec::new(),
+            after: Vec::new(),
         }
     }
 
@@ -119,6 +152,24 @@ impl<'a> Emitter<'a> {
 
     fn statement(&mut self, stmt: &Stmt, depth: usize) -> String {
         let pad = "    ".repeat(depth);
+        let outer_before = std::mem::take(&mut self.before);
+        let outer_after = std::mem::take(&mut self.after);
+        let body = self.statement_body(stmt, depth);
+        let before = std::mem::replace(&mut self.before, outer_before);
+        let after = std::mem::replace(&mut self.after, outer_after);
+        let mut out = String::new();
+        for line in before {
+            let _ = writeln!(out, "{pad}{line}");
+        }
+        out.push_str(&body);
+        for line in after {
+            let _ = writeln!(out, "{pad}{line}");
+        }
+        out
+    }
+
+    fn statement_body(&mut self, stmt: &Stmt, depth: usize) -> String {
+        let pad = "    ".repeat(depth);
         let mut out = String::new();
         match stmt {
             Stmt::Pass => {}
@@ -137,7 +188,7 @@ impl<'a> Emitter<'a> {
             }
             Stmt::Raw(text) => {
                 self.note(format!("`{text}`: this line is not translated"));
-                let _ = writeln!(out, "{pad}// TODO(gdscript): {text}");
+                let _ = writeln!(out, "{pad}// {MARKER} {text}");
             }
             Stmt::Var { name, value, hint } => {
                 let text = match value {
@@ -154,7 +205,7 @@ impl<'a> Emitter<'a> {
             }
             Stmt::Expr(value) => {
                 let text = self.expression(value);
-                let _ = writeln!(out, "{pad}{text};");
+                let _ = writeln!(out, "{pad}{};", discardable(&text));
             }
             Stmt::If { arms, other } => {
                 for (index, (cond, body)) in arms.iter().enumerate() {
@@ -248,10 +299,15 @@ impl<'a> Emitter<'a> {
         if short_circuit && !place_is_plain {
             let text = self.expression(value);
             let name = self.temp();
-            let place = self.expression(target);
             let _ = writeln!(out, "{pad}let {name} = {text};");
-            let _ = writeln!(out, "{pad}{place} {op} {name};");
             self.declare(&name);
+            let bound = Expr::Name(name.clone());
+            if let Some(write) = self.property_write(target, op, &bound, pad) {
+                out.push_str(&write);
+                return out;
+            }
+            let place = self.expression(target);
+            let _ = writeln!(out, "{pad}{place} {op} {name};");
             return out;
         }
         if let Some(text) = self.property_write(target, op, value, pad) {
@@ -259,8 +315,42 @@ impl<'a> Emitter<'a> {
         }
         let place = self.expression(target);
         let text = self.expression(value);
+        // A target that resolved to nothing, or to another module's own item,
+        // is not a place: the whole line becomes a stub.
+        if place.starts_with("(gd.todo)") || place.starts_with("(script::require(") {
+            let _ = writeln!(out, "{pad}{};", discardable(&place));
+            return out;
+        }
         let _ = writeln!(out, "{pad}{place} {op} {text};");
         out
+    }
+
+    /// A chain as somewhere to write, rather than as a value to read: a field
+    /// on a local table is a field, not a call into the shim.
+    fn place(&mut self, value: &Expr) -> String {
+        match value {
+            Expr::Field(object, field) => {
+                let base = self.place(object);
+                format!("{base}.{}", safe(field))
+            }
+            Expr::Index(object, index) => {
+                let base = self.place(object);
+                let index = self.expression(index);
+                format!("{base}[{index}]")
+            }
+            other => self.expression(other),
+        }
+    }
+
+    /// The static variable an index or field chain is rooted at, if any.
+    fn static_root(&self, value: &Expr) -> Option<String> {
+        match value {
+            Expr::Name(name) => (!self.is_local(name)
+                && self.context.static_vars.contains_key(name))
+            .then(|| name.clone()),
+            Expr::Index(object, _) | Expr::Field(object, _) => self.static_root(object),
+            _ => None,
+        }
     }
 
     /// The receiver and property name where an expression is itself a Godot
@@ -296,18 +386,56 @@ impl<'a> Emitter<'a> {
         value: &Expr,
         pad: &str,
     ) -> Option<String> {
+        // A write *into* a static — `_cache[key] = v` — reads it out, changes
+        // the copy and writes it back, because the store hands out a value.
+        if let Some(root) = self.static_root(target)
+            && !matches!(target, Expr::Name(_))
+        {
+            let fallback = self.context.static_vars.get(&root).cloned().unwrap_or_default();
+            let key = quoted(&format!("{}:{root}", self.context.static_prefix));
+            let name = self.temp();
+            self.declare(&name);
+            let place = self.place(&replace_root(target, &name));
+            let text = self.expression(value);
+            self.uses_shim = true;
+            let mut out = String::new();
+            let _ = writeln!(out, "{pad}let {name} = (gd.static_get)({key}, {fallback});");
+            let _ = writeln!(out, "{pad}{place} {op} {text};");
+            let _ = writeln!(out, "{pad}let _ = (gd.static_set)({key}, {name});");
+            return Some(out);
+        }
+        if let Expr::Name(name) = target
+            && !self.is_local(name)
+            && self.context.static_vars.contains_key(name)
+        {
+            let key = quoted(&format!("{}:{name}", self.context.static_prefix));
+            let text = if op == "=" {
+                self.expression(value)
+            } else {
+                let read = self.expression(target);
+                let other = self.expression(value);
+                format!("{read} {} {other}", op.trim_end_matches('='))
+            };
+            self.uses_shim = true;
+            return Some(format!("{pad}let _ = (gd.static_set)({key}, {text});\n"));
+        }
         let (object, field) = match target {
             Expr::Name(name)
                 if !self.is_local(name)
                     && !self.context.members.contains(name)
                     && !self.context.consts.contains(name) =>
             {
+                if self.in_static {
+                    self.uses_shim = true;
+                    let stub = map::todo(name);
+                    self.note(format!("`{name}`: a static function writes no member here"));
+                    return Some(format!("{pad}{};\n", discardable(&stub)));
+                }
                 ("this.node".to_string(), name.clone())
             }
             Expr::Field(object, field) => {
                 if matches!(**object, Expr::SelfRef)
-                    && (self.context.members.contains(field)
-                        || self.context.consts.contains(field))
+                    && (self.context.members.contains(field) || self.context.consts.contains(field))
                 {
                     return None;
                 }
@@ -330,17 +458,42 @@ impl<'a> Emitter<'a> {
         };
         if op != "=" {
             // A compound write reads through the getter first.
-            let getter = map::property(&object, &field)?;
             let text = self.expression(value);
             let operator = op.trim_end_matches('=');
-            let write = map::setter(&object, &field, &format!("{getter} {operator} {text}"))?;
-            self.uses_shim |= write.contains(map::SHIM_MARK);
-            return Some(format!("{pad}{write};\n"));
+            let plain = object.starts_with("(script::require(") || object == "this";
+            let getter = match map::property(&object, &field) {
+                Some(getter) => getter,
+                None if plain => return None,
+                None => {
+                    self.uses_shim = true;
+                    format!("(gd.field)({object}, {})", quoted(&field))
+                }
+            };
+            let changed = format!("{getter} {operator} {text}");
+            if let Some(write) = map::setter(&object, &field, &changed) {
+                self.uses_shim |= write.contains(map::SHIM_MARK);
+                return Some(format!("{pad}{};\n", discardable(&write)));
+            }
+            if plain {
+                return None;
+            }
+            self.uses_shim = true;
+            let write = format!("(gd.set_field)({object}, {}, {changed})", quoted(&field));
+            return Some(format!("{pad}{};\n", discardable(&write)));
         }
         let text = self.expression(value);
-        let write = map::setter(&object, &field, &text)?;
-        self.uses_shim |= write.contains(map::SHIM_MARK);
-        Some(format!("{pad}{write};\n"))
+        if let Some(write) = map::setter(&object, &field, &text) {
+            self.uses_shim |= write.contains(map::SHIM_MARK);
+            return Some(format!("{pad}{};\n", discardable(&write)));
+        }
+        // Another script's property: written through the setter the converted
+        // script carries.
+        if object.starts_with("(script::require(") || object == "this" {
+            return None;
+        }
+        self.uses_shim = true;
+        let write = format!("(gd.set_field)({object}, {}, {text})", quoted(&field));
+        Some(format!("{pad}{};\n", discardable(&write)))
     }
 
     pub(crate) fn expression(&mut self, value: &Expr) -> String {
@@ -392,9 +545,19 @@ impl<'a> Emitter<'a> {
             Expr::NodePath(path) => format!("this.node.get_node({})", quoted(path)),
             Expr::Unique(name) => format!("this.node.get_node({})", quoted(&format!("%{name}"))),
             Expr::Await(inner) => {
+                let was = self.awaited_here;
+                self.awaited_here = true;
+                let text = self.expression(inner);
+                self.awaited_here = was;
+                if !self.allow_await {
+                    self.note(
+                        "a wait inside a hook the engine calls synchronously; it is dropped"
+                            .to_string(),
+                    );
+                    return text;
+                }
                 self.awaits = true;
-                let inner = self.expression(inner);
-                format!("{inner}.await")
+                format!("{text}.await")
             }
             Expr::Cast(inner, name) => {
                 let text = self.expression(inner);
@@ -419,10 +582,25 @@ impl<'a> Emitter<'a> {
         if self.is_local(name) {
             return safe(name);
         }
+        if let Some(fallback) = self.context.static_vars.get(name).cloned() {
+            self.uses_shim = true;
+            let key = quoted(&format!("{}:{name}", self.context.static_prefix));
+            return format!("(gd.static_get)({key}, {fallback})");
+        }
+        if self.context.lazy.contains(name) {
+            return format!("{name}()");
+        }
         if self.context.consts.contains(name) {
             return name.to_string();
         }
         if self.context.members.contains(name) {
+            if self.in_static && !self.context.static_vars.contains_key(name) {
+                self.note(format!(
+                    "`{name}` is a member, and a static function has no instance to read it from"
+                ));
+                self.uses_shim = true;
+                return map::todo(name);
+            }
             return format!("this.{}", safe(name));
         }
         if self.context.signals.contains(name) {
@@ -437,9 +615,16 @@ impl<'a> Emitter<'a> {
         // Godot read a bare name off `self` when the class declared none, and
         // the node's own properties are what is left.
         if let Some(text) = map::property("this.node", name) {
-            return text;
+            return self.shimmed(text);
         }
-        safe(name)
+        if let Some(text) = map::global_constant(name) {
+            return text.to_string();
+        }
+        // A capitalised name with no class and no constant is a Godot type
+        // used as a value, which nothing here carries.
+        self.note(format!("`{name}`: no value of that name here"));
+        self.uses_shim = true;
+        map::todo(name)
     }
 
     /// A project class used as a value: the module beside it, required once
@@ -456,6 +641,9 @@ impl<'a> Emitter<'a> {
         if matches!(object, Expr::SelfRef) {
             if self.context.members.contains(field) {
                 return format!("this.{}", safe(field));
+            }
+            if self.context.lazy.contains(field) {
+                return format!("{field}()");
             }
             if self.context.consts.contains(field) {
                 return field.to_string();
@@ -483,7 +671,20 @@ impl<'a> Emitter<'a> {
         if let Some(mapped) = map::property(&text, field) {
             return self.shimmed(mapped);
         }
-        format!("{text}.{}", safe(field))
+        // A module's own item is a field; anything else may be a node whose
+        // script holds the value, so the read goes through the shim.
+        if text.starts_with("(script::require(") || text == "this" {
+            return format!("{text}.{}", safe(field));
+        }
+        self.uses_shim = true;
+        format!("(gd.field)({text}, {})", quoted(field))
+    }
+
+    /// A call the tables do not carry, as a stub that compiles and says so.
+    fn unresolved(&mut self, what: &str) -> String {
+        self.note(format!("`{what}`: no engine call of that name"));
+        self.uses_shim = true;
+        map::todo(what)
     }
 
     fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
@@ -528,12 +729,35 @@ impl<'a> Emitter<'a> {
             if let Some(text) = map::static_call(class, method, &parts) {
                 return self.shimmed(text);
             }
-            self.note(format!("`{class}.{method}()`: no engine call for it"));
+            return self.unresolved(&format!("{class}.{method}()"));
+        }
+        if let Expr::Field(object, method) = callee
+            && let Expr::Name(root) = &**object
+            && !self.is_local(root)
+            && let Some(fallback) = self.context.static_vars.get(root).cloned()
+        {
+            let key = quoted(&format!("{}:{root}", self.context.static_prefix));
+            let name = self.temp();
+            self.declare(&name);
+            self.before
+                .push(format!("let {name} = (gd.static_get)({key}, {fallback});"));
+            self.after
+                .push(format!("let _ = (gd.static_set)({key}, {name});"));
+            self.uses_shim = true;
+            if let Some(text) = map::method(&name, method, &parts) {
+                return self.shimmed(text);
+            }
+            return format!("{name}.{}({})", safe(method), parts.join(", "));
         }
         if let Expr::Field(object, method) = callee {
             let receiver = self.expression(object);
             if let Some(text) = map::method(&receiver, method, &parts) {
                 return self.shimmed(text);
+            }
+            // A required module's functions are its fields, and a field
+            // holding a function is called in parentheses.
+            if receiver.starts_with("script::require(") {
+                return format!("({receiver}.{})({})", safe(method), parts.join(", "));
             }
             return format!("{receiver}.{}({})", safe(method), parts.join(", "));
         }
@@ -547,14 +771,19 @@ impl<'a> Emitter<'a> {
                 self.uses_shim = true;
                 return format!("{head}({})", parts.join(", "));
             }
-            // Godot resolved a bare call on `self` when the class had no
-            // function of that name, and most of those are node verbs.
             if let Some(text) = map::implicit_self(name, &parts) {
                 return self.shimmed(text);
             }
-            self.note(format!("`{name}()`: no engine call of that name"));
+            return self.unresolved(&format!("{name}()"));
+            // Godot resolved a bare call on `self` when the class had no
+            // function of that name, and most of those are node verbs.
         }
         let head = self.expression(callee);
+        // A closure in a local is called through parentheses; a bare name
+        // there reads as a module item.
+        if matches!(callee, Expr::Name(name) if self.is_local(name)) {
+            return format!("({head})({})", parts.join(", "));
+        }
         format!("{head}({})", parts.join(", "))
     }
 
@@ -579,6 +808,9 @@ impl<'a> Emitter<'a> {
     /// A call to a function the async pass marked gets its `.await` here, so
     /// callers need no `await` of their own in the source.
     fn awaited(&mut self, name: &str, text: String) -> String {
+        if self.awaited_here || !self.allow_await {
+            return text;
+        }
         if self.context.asyncs.contains(name) {
             self.awaits = true;
             return format!("{text}.await");
@@ -607,14 +839,37 @@ impl<'a> Emitter<'a> {
             self.uses_shim = true;
             return format!("(gd.has)({right}, {left})");
         }
+        // `x == null` is `is_nil`: Rune does not compare against unit.
+        if matches!(op, "==" | "!=") && (matches!(left, Expr::Nil) || matches!(right, Expr::Nil)) {
+            let value = if matches!(left, Expr::Nil) {
+                right
+            } else {
+                left
+            };
+            let text = self.expression(value);
+            self.uses_shim = true;
+            let nil = format!("(gd.is_nil)({text})");
+            return if op == "==" { nil } else { format!("!{nil}") };
+        }
         if op == "**" {
             let left = self.expression(left);
             let right = self.expression(right);
             return format!("math::pow({left}, {right})");
         }
-        let left = self.expression(left);
-        let right = self.expression(right);
-        format!("{left} {op} {right}")
+        let comparison = matches!(op, "==" | "!=" | "<" | "<=" | ">" | ">=");
+        let group = |value: &Expr, text: String| {
+            let nested = matches!(value, Expr::Binary(inner, ..)
+                if matches!(*inner, "==" | "!=" | "<" | "<=" | ">" | ">="));
+            if comparison && nested {
+                return format!("({text})");
+            }
+            text
+        };
+        let left_text = self.expression(left);
+        let left_text = group(left, left_text);
+        let right_text = self.expression(right);
+        let right_text = group(right, right_text);
+        format!("{left_text} {op} {right_text}")
     }
 
     fn dict(&mut self, pairs: &[(Expr, Expr)]) -> String {
@@ -650,20 +905,39 @@ impl<'a> Emitter<'a> {
     fn lambda(&mut self, params: &[String], body: &[Stmt]) -> String {
         self.scopes.push(params.iter().cloned().collect());
         let bound: Vec<String> = params.iter().map(|name| safe(name)).collect();
-        let out = match body {
-            // A one-expression lambda reads as one, which is what most of
-            // these are.
-            [Stmt::Return(Some(value))] | [Stmt::Expr(value)] => {
-                let text = self.expression(value);
-                format!("|{}| {{ {text} }}", bound.join(", "))
-            }
-            _ => {
-                let text = self.block(body, 2);
-                format!("|{}| {{\n{text}    }}", bound.join(", "))
-            }
+        let outer = std::mem::replace(&mut self.awaits, false);
+        // A one-expression lambda reads as one, which is what most of these are.
+        let out = if let [Stmt::Return(Some(value)) | Stmt::Expr(value)] = body {
+            let text = self.expression(value);
+            format!("|{}| {{ {text} }}", bound.join(", "))
+        } else {
+            let text = self.block(body, 2);
+            format!("|{}| {{\n{text}    }}", bound.join(", "))
         };
         self.scopes.pop();
+        // A closure that waits is async, and its own waiting does not make the
+        // function around it async.
+        let inner = std::mem::replace(&mut self.awaits, outer);
+        if inner {
+            return format!("async {out}");
+        }
         out
+    }
+}
+
+/// The same chain with its root name swapped for a local, so a read-modify-
+/// write touches the copy the store handed out.
+fn replace_root(value: &Expr, name: &str) -> Expr {
+    match value {
+        Expr::Name(_) => Expr::Name(name.to_string()),
+        Expr::Index(object, index) => Expr::Index(
+            Box::new(replace_root(object, name)),
+            Box::new((**index).clone()),
+        ),
+        Expr::Field(object, field) => {
+            Expr::Field(Box::new(replace_root(object, name)), field.clone())
+        }
+        other => other.clone(),
     }
 }
 
@@ -678,6 +952,16 @@ fn empty_for(hint: Option<&str>) -> &'static str {
         Some("Dictionary") => "#{}",
         _ => "()",
     }
+}
+
+/// A statement that would start with `(` or `[` is bound instead: a block
+/// before it would otherwise read as a call or an index, which is Rune's
+/// parse, not a runtime error.
+pub(crate) fn discardable(text: &str) -> String {
+    if text.starts_with('(') || text.starts_with('[') {
+        return format!("let _ = {text}");
+    }
+    text.to_string()
 }
 
 /// A Rune string literal for arbitrary text.

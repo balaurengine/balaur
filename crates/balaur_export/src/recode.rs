@@ -484,10 +484,11 @@ mod tests {
     /// The samples symphonia reads back, decoding what a player decodes.
     fn decode_flac(bytes: &[u8]) -> Vec<i32> {
         use symphonia::core::audio::{Audio, GenericAudioBufferRef};
+        use symphonia::core::codecs::audio::AudioDecoderOptions;
 
         let (mut format, params) = probe_audio(bytes, "flac");
         let mut decoder = symphonia::default::get_codecs()
-            .make_audio_decoder(&params, &Default::default())
+            .make_audio_decoder(&params, &AudioDecoderOptions::default())
             .unwrap();
 
         let mut samples = Vec::new();
@@ -557,9 +558,11 @@ mod tests {
 
     /// How many frames symphonia reads back out of an Ogg Vorbis stream.
     fn decode_ogg_frames(bytes: &[u8]) -> u64 {
+        use symphonia::core::codecs::audio::AudioDecoderOptions;
+
         let (mut format, params) = probe_audio(bytes, "ogg");
         let mut decoder = symphonia::default::get_codecs()
-            .make_audio_decoder(&params, &Default::default())
+            .make_audio_decoder(&params, &AudioDecoderOptions::default())
             .unwrap();
 
         let mut frames = 0;

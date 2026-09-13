@@ -32,7 +32,14 @@ pub(crate) struct Body {
 
 /// Translate the lines of one function body, already stripped of its
 /// signature. `depth` is how far the output is indented.
-pub(crate) fn body(lines: &[String], context: &Context, depth: usize) -> Body {
+pub(crate) fn body(
+    lines: &[String],
+    context: &Context,
+    depth: usize,
+    params: &[String],
+    allow_await: bool,
+    in_static: bool,
+) -> Body {
     let source = dedented(lines);
     let borrowed: Vec<&str> = source.lines().collect();
     let tokens = match lex::lex(&source) {
@@ -47,6 +54,11 @@ pub(crate) fn body(lines: &[String], context: &Context, depth: usize) -> Body {
     };
     let statements = parse::Parser::new(&tokens, &borrowed).statements();
     let mut emitter = emit::Emitter::new(context);
+    emitter.allow_await = allow_await;
+    emitter.in_static = in_static;
+    for param in params {
+        emitter.declare(param);
+    }
     let rune = emitter.block(&statements, depth);
     Body {
         rune,
@@ -130,16 +142,31 @@ mod tests {
     use super::{body, dedented};
 
     fn translate(source: &str, context: &Context) -> String {
-        let lines: Vec<String> = source.lines().map(|line| line.to_string()).collect();
-        body(&lines, context, 1).rune
+        let lines: Vec<String> = source
+            .lines()
+            .map(std::string::ToString::to_string)
+            .collect();
+        body(&lines, context, 1, &[], true, false).rune
     }
 
     fn ship() -> Context {
         Context {
-            members: ["speed", "hull"].iter().map(|s| s.to_string()).collect(),
-            methods: ["sink", "repair"].iter().map(|s| s.to_string()).collect(),
-            consts: ["MAX"].iter().map(|s| s.to_string()).collect(),
-            signals: ["sunk"].iter().map(|s| s.to_string()).collect(),
+            members: ["speed", "hull"]
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+            methods: ["sink", "repair"]
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+            consts: ["MAX"]
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+            signals: ["sunk"]
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             ..Context::default()
         }
     }
@@ -190,8 +217,14 @@ mod tests {
 
     #[test]
     fn string_formatting_is_not_modulo() {
-        let out = translate("var a = \"%s of %d\" % [port, 2]\nvar b = 7 % 2\n", &ship());
-        assert!(out.contains(r#"(gd.format)("%s of %d", [port, 2])"#), "{out}");
+        let out = translate(
+            "var port = 1\nvar a = \"%s of %d\" % [port, 2]\nvar b = 7 % 2\n",
+            &ship(),
+        );
+        assert!(
+            out.contains(r#"(gd.format)("%s of %d", [port, 2])"#),
+            "{out}"
+        );
         assert!(out.contains("7 % 2"), "{out}");
     }
 
@@ -204,17 +237,16 @@ mod tests {
 
     #[test]
     fn a_ternary_is_parenthesised_so_a_block_never_leads_a_call() {
-        let out = translate("var a = 1 if ok else 2\n", &ship());
+        let out = translate("var ok = true\nvar a = 1 if ok else 2\n", &ship());
         assert!(out.contains("(if ok { 1 } else { 2 })"), "{out}");
     }
 
     #[test]
     fn an_unreadable_line_is_marked_and_the_rest_survives() {
         let out = translate("var a = 1\nassert(a == 1)\nvar b = 2\n", &ship());
-        assert!(out.contains("TODO(gdscript): assert(a == 1)"), "{out}");
+        assert!(out.contains("PORT(gdscript): assert(a == 1)"), "{out}");
         assert!(out.contains("let b = 2;"), "{out}");
     }
-
 
     #[test]
     fn probe() {
@@ -229,8 +261,8 @@ mod tests {
             "return await runner._wait_until(\n\t\tfunc(): return true)\n",
         ];
         for case in cases {
-            let lines: Vec<String> = case.lines().map(|l| l.to_string()).collect();
-            let out = body(&lines, &Context::default(), 0);
+            let lines: Vec<String> = case.lines().map(std::string::ToString::to_string).collect();
+            let out = body(&lines, &Context::default(), 0, &[], true, false);
             println!("--- {case:?}\n{}", out.rune);
         }
     }
@@ -239,16 +271,19 @@ mod tests {
     fn a_column_zero_comment_does_not_set_the_bodys_indent() {
         let lines: Vec<String> = ["\tvar a = 1", "", "# the next function's doc"]
             .iter()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
-        let out = body(&lines, &Context::default(), 0);
+        let out = body(&lines, &Context::default(), 0, &[], true, false);
         assert!(out.rune.contains("let a = 1;"), "{}", out.rune);
         assert!(out.notes.is_empty(), "{:?}", out.notes);
     }
 
     #[test]
     fn dedent_strips_the_common_indent_only() {
-        let lines: Vec<String> = ["\tif a:", "\t\tpass"].iter().map(|s| s.to_string()).collect();
+        let lines: Vec<String> = ["\tif a:", "\t\tpass"]
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         let out = dedented(&lines);
         assert_eq!(out, "if a:\n\tpass\n");
     }
