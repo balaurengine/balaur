@@ -167,7 +167,7 @@ pub fn snapshot(S) {
             pos: util::xyz(found.transform.position),
             scale: util::xyz(found.transform.scale),
             rot: model::doc_transform(node, "rotation_euler", [0.0, 0.0, 0.0]),
-            world: util::xyz(found.global_position()),
+            world: util::xyz(found.transform.global_position()),
         });
     }
     out

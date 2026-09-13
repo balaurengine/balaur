@@ -553,7 +553,7 @@ An on-screen stick that pushes one action per axis while a thumb drags it, readi
 
 ### `transform`
 
-`2d` · `3d` · 4 properties
+`2d` · `3d` · 4 properties · 4 methods
 
 Where the node sits in its parent's space, how it is turned and how big it is. A node without one is at its parent: `propagate_transforms` hands the parent's world transform straight down, which is what a node that only groups or only draws UI wants.
 
@@ -564,6 +564,18 @@ Where the node sits in its parent's space, how it is turned and how big it is. A
 <tr><td><code>rotation_euler</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rotation as euler angles in radians, x then y then z</td></tr>
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Size relative to the parent&#x27;s</td></tr>
 <tr><td><code>skew</code></td><td>float</td><td><code>0.0</code></td><td>A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it</td></tr>
+</tbody>
+</table>
+
+On a node carrying `transform`, as `node.transform.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>global_position()</code></td><td>—</td><td>The node&#x27;s position in world space, as of the last transform sync.</td><td><code>node</code></td></tr>
+<tr><td><code>global_rotation_euler()</code></td><td>—</td><td>The node&#x27;s world rotation as euler angles in radians, as of the last transform sync.</td><td><code>node</code></td></tr>
+<tr><td><code>global_scale()</code></td><td>—</td><td>The node&#x27;s scale in world space, as of the last transform sync.</td><td><code>node</code></td></tr>
+<tr><td><code>translate(x: float, y: float, z: float)</code></td><td>—</td><td>Move the node by an offset in its parent&#x27;s space, given as three numbers or one vector.</td><td><code>node</code></td></tr>
 </tbody>
 </table>
 
@@ -1388,7 +1400,7 @@ Values filed on the node by name, for whoever holds the node rather than for its
 
 `interaction` · 2 properties · 2 methods
 
-Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = "#ff8800"`. `node.go("hover")` patches them over what the node already has, so a state says only what differs.
+Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = "#ff8800"`. `node.states.go("hover")` patches them over what the node already has, so a state says only what differs.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

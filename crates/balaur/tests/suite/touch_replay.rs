@@ -9,7 +9,7 @@ use balaur::input::{InputSnapshot, TouchPhase};
 use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
-    this.node.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
+    this.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
 }
 ";
 
@@ -151,7 +151,7 @@ const VERBS: &str = "pub fn update(this, dt) {
     input::feed_action(\"reached\", 1.0);
 }
 pub fn fixed_update(this, dt) {
-    if input::action_pressed(\"jump\") { this.node.translate(dt, 0.0, 0.0); }
+    if input::action_pressed(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 

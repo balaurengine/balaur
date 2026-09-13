@@ -98,8 +98,8 @@ pub fn extents_at(S, i) {
         Some(he) => he,
         None => (0.6, 0.6),
     };
-    let s = found.global_scale();
-    let p = found.global_position();
+    let s = found.transform.global_scale();
+    let p = found.transform.global_position();
     Some(([p.x, p.y], [hx * s.x, hy * s.y]))
 }
 
@@ -146,15 +146,15 @@ fn geometry(S) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.global_position();
+    let p = found.transform.global_position();
     let (hx, hy) = match node_half_extents(node) {
         Some(he) => he,
         None => (0.6, 0.6),
     };
-    let s = found.global_scale();
+    let s = found.transform.global_scale();
     hx = hx * s.x;
     hy = hy * s.y;
-    let angle = found.global_rotation_euler().z;
+    let angle = found.transform.global_rotation_euler().z;
     let rs = HANDLE_PX * viewport::world_per_px(S);
     Some(#{
         center: [p.x, p.y],
@@ -405,11 +405,11 @@ fn pick(S, mx, my) {
         }
         if let Some(found) = model::live(S, i) {
             if let Some((hx, hy)) = node_half_extents(node) {
-                let s = found.global_scale();
+                let s = found.transform.global_scale();
                 hx = hx * s.x;
                 hy = hy * s.y;
-                let p = found.global_position();
-                let angle = found.global_rotation_euler().z;
+                let p = found.transform.global_position();
+                let angle = found.transform.global_rotation_euler().z;
                 let (lx, ly) = to_local(#{ center: [p.x, p.y], angle: angle }, mx, my);
                 if util::abs(lx) <= hx && util::abs(ly) <= hy {
                     let area = hx * hy;
@@ -429,7 +429,7 @@ fn pick(S, mx, my) {
     let best_d = 40.0 * wpp;
     for i in 0..S.doc.len() {
         if let Some(found) = model::live(S, i) {
-            let p = found.global_position();
+            let p = found.transform.global_position();
             let dist = math::sqrt((p.x - mx) * (p.x - mx) + (p.y - my) * (p.y - my));
             if dist < best_d {
                 best = Some(i);

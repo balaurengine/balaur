@@ -388,7 +388,7 @@ fn skeleton_section(S, k) {
                 tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
             }) {
                 if let Some(found) = model::live(S, S.sel) {
-                    let p = found.global_position();
+                    let p = found.transform.global_position();
                     rig::add_bone(S, S.sel, p.x, p.y + 1.0);
                 }
             }

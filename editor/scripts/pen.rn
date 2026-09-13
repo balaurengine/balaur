@@ -123,9 +123,9 @@ fn frame(S) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.global_position();
-    let angle = found.global_rotation_euler().z;
-    let s = found.global_scale();
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let s = found.transform.global_scale();
     Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
 }
 

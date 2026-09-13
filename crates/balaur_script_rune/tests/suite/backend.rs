@@ -384,7 +384,7 @@ fn the_node_api_is_available_as_methods() {
     let dir = project(&[(
         "move.rn",
         "pub fn init(this) { this.node.transform.position = [1.0, 2.0, 3.0]; }\n\
-         pub fn update(this, dt) { this.node.translate(1.0, 0.0, 0.0); }\n",
+         pub fn update(this, dt) { this.node.transform.translate(1.0, 0.0, 0.0); }\n",
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Mover");

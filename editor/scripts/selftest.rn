@@ -751,7 +751,7 @@ pub fn picking(S) {
         }
     };
     let found = model::live(S, i).unwrap();
-    let p = found.global_position();
+    let p = found.transform.global_position();
     let name = S.doc[i].name;
 
     // Straight down -z at it from well outside anything.
@@ -1597,8 +1597,8 @@ pub fn selecting(S) {
     selection::set(S, [a, b]);
     let before_a = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
     arrange::align(S, 0, "min");
-    let ax = util::f(model::live(S, a).unwrap().global_position().x);
-    let bx = util::f(model::live(S, b).unwrap().global_position().x);
+    let ax = util::f(model::live(S, a).unwrap().transform.global_position().x);
+    let bx = util::f(model::live(S, b).unwrap().transform.global_position().x);
     check(util::abs(ax - bx) < 1e-4, "align on x puts two nodes on one plane");
 
     shell::undo(S);
@@ -1745,7 +1745,7 @@ pub fn eventviews(S) {
     let written = events::as_script(S);
     check(written.contains("pub fn on_pointer_click(this, button)"),
         "the script it writes declares the hook the rows answer");
-    check(written.contains(".go(\"open\")"),
+    check(written.contains(".states.go(\"open\")"),
         "a state row becomes the call that goes to it");
     check(written.contains("scene::variable(\"score\")"),
         "a `when` becomes the read that fetches the variable");

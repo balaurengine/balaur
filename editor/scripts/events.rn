@@ -252,7 +252,7 @@ fn as_call(row) {
     let value = as_text(row.get("value"));
     let node = if target == "" { "this" } else { format!("this.get_node(\"{}\")", target) };
     match action {
-        "state" => format!("{}.go(\"{}\");", node, value),
+        "state" => format!("{}.states.go(\"{}\");", node, value),
         "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),
         "add_variable" => format!(
             "scene::set_variable(\"{}\", scene::variable(\"{}\") + {});",

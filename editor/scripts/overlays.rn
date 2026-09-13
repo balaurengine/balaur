@@ -38,7 +38,7 @@ pub fn guides(S) {
         Some(found) => found,
         None => return,
     };
-    let p = found.global_position();
+    let p = found.transform.global_position();
     let k = S.theme;
     let a = util::rgb(k.accent);
     let s = util::rgb(k.sage);
@@ -113,9 +113,9 @@ pub fn colliders2d(S) {
             Some(found) => found,
             None => continue,
         };
-        let p = found.global_position();
-        let angle = found.global_rotation_euler().z;
-        let s = found.global_scale();
+        let p = found.transform.global_position();
+        let angle = found.transform.global_rotation_euler().z;
+        let s = found.transform.global_scale();
         let ca = math::cos(angle);
         let sa = math::sin(angle);
         let pt = |ox, oy| (p.x + ca * ox - sa * oy, p.y + sa * ox + ca * oy);
@@ -179,8 +179,8 @@ pub fn lights2d(S) {
 // of strokes through the node, both in the light's own colour.
 fn light_gizmo(found, light) {
     let c = component_rgb(light.get("color").unwrap_or(()), [1.0, 1.0, 1.0]);
-    let p = found.global_position();
-    let angle = found.global_rotation_euler().z;
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
     let ca = math::cos(angle);
     let sa = math::sin(angle);
     // At rest a light2d shines along -y; the node's z rotation turns it.
@@ -239,7 +239,7 @@ pub fn colliders(S) {
             Some(found) => found,
             None => continue,
         };
-        let p = found.global_position();
+        let p = found.transform.global_position();
         let hx = 0.5;
         let hy = 0.5;
         let hz = 0.5;
@@ -283,7 +283,7 @@ pub fn colliders(S) {
 /// Where a node aims in 3D: -z turned by its rotation, the direction a
 /// `light3d` shines and a `camera` looks.
 fn forward_of(found) {
-    let r = found.global_rotation_euler();
+    let r = found.transform.global_rotation_euler();
     let b = util::basis_from_euler([r.x, r.y, r.z]);
     // The basis holds the local axes as columns; -z is the third, negated.
     [-b[2][0], -b[2][1], -b[2][2]]
@@ -338,7 +338,7 @@ pub fn lights3d(S) {
 
 fn light3d_gizmo(found, light, selected, k) {
     let c = if selected { util::rgb(k.accent) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
-    let p = util::xyz(found.global_position());
+    let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
     let kind = light.get("kind").unwrap_or(render::LIGHT_DIRECTIONAL);
     let width = if selected { 2.0 } else { 1.0 };
@@ -393,7 +393,7 @@ const FRUSTUM_REACH = 4.0;
 fn camera_gizmo(S, found, selected, k) {
     let c = if selected { util::rgb(k.accent) } else { util::rgb(k.dim) };
     let width = if selected { 2.0 } else { 1.0 };
-    let p = util::xyz(found.global_position());
+    let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
     let (u, v) = across(dir);
     let camera = util::obj(found.get_component("camera"));

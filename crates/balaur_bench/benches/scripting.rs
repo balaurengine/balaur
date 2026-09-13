@@ -18,7 +18,7 @@ fn source(backend: Backend, body: Body) -> String {
             "pub fn init(this) { this.n = 0.0; }\npub fn update(this, dt) { this.n = this.n + dt; }\n".into()
         }
         (Backend::Rune, Body::NodeApi) => {
-            "pub fn init(this) {}\npub fn update(this, dt) { this.node.translate(dt, 0.0, 0.0); }\n".into()
+            "pub fn init(this) {}\npub fn update(this, dt) { this.node.transform.translate(dt, 0.0, 0.0); }\n".into()
         }
     }
 }

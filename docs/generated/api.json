@@ -88,7 +88,7 @@
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
     "state_machine": "Runs a state machine over a player's clips: it enters its start state, follows `auto` transitions as their conditions come on, and fades between clips as each transition says. `animation.travel` heads for a state.",
-    "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
+    "states": "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.states.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
     "text2d": "A block of text drawn in the 2D pass, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "text3d": "A block of text drawn in the 3D pass on a quad that faces the camera, shaped by the engine's fonts and sized at `pixels_per_unit` font pixels to the world unit.",
     "tile_collision": "Collision for a `tilemap`'s own cells: every tile the tileset marks solid, as one shape per behaviour, with the material keys a `collider2d` takes. A tile that draws its own polygons gets a collider of its own.",
@@ -6395,15 +6395,28 @@
     },
     {
       "acts_on": {
+        "global_position": [
+          "transform"
+        ],
+        "global_rotation_euler": [
+          "transform"
+        ],
+        "global_scale": [
+          "transform"
+        ],
         "go": [
           "states"
         ],
         "state": [
           "states"
+        ],
+        "translate": [
+          "transform"
         ]
       },
       "components": [
-        "states"
+        "states",
+        "transform"
       ],
       "constants": [],
       "doc": "What every node has: its name and path, its place in the world, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.get_node(\"Arm\")`). `position`, `rotation_euler` and `scale` read the `transform` component, which `this.node.transform.position` reads and writes directly.",

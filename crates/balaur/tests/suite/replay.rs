@@ -5,7 +5,7 @@ use balaur::input::InputSnapshot;
 use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
-    if input::is_down(input::KEY_SPACE) { this.node.translate(dt, 0.0, 0.0); }
+    if input::is_down(input::KEY_SPACE) { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 

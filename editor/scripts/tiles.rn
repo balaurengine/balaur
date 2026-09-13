@@ -448,9 +448,9 @@ pub fn frame(S) {
         None => return None,
     };
     let rows = grid(S);
-    let p = found.global_position();
-    let angle = found.global_rotation_euler().z;
-    let s = found.global_scale();
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let s = found.transform.global_scale();
     let start = origin(S);
     Some(#{
         x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle),

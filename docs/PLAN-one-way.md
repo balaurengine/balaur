@@ -56,6 +56,15 @@ the code:
   take a rig root that is not itself a bone. Their `acts_on` was wrong, and
   is now empty.
 
+One rule was tightened past what step 3 asked for. A node operation naming a
+component was installed twice, as a node method and as a handle method, so
+`node.go("hover")` and `node.states.go("hover")` both worked. The node now
+installs only the operations that name no component, which is the same test
+the module install uses. So `translate`, `global_position`,
+`global_rotation_euler` and `global_scale` are on the transform handle, and
+`go` and `state` on the states handle. The node keeps what belongs to no
+component: its name, its place in the tree, its tags and its script.
+
 Two things the step list did not foresee:
 
 - Reading a property of a component a node does not carry answers the

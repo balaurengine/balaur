@@ -37,7 +37,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 
 | Crate | Version | Features on |
 | --- | --- | --- |
-| `egui` | 0.36.1 | `default_fonts` |
+| `egui` | 0.36.2 | `default_fonts` |
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `avif`, `bmp`, `dds`, `default-formats`, `exr`, `ff`, `gif`, `hdr`, `ico`, `jpeg`, `png`, `pnm`, `qoi`, `tga`, `tiff`, `webp` |
 | `rodio` | 0.22.2 | `cpal`, `flac`, `mp3`, `mp4`, `playback`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |

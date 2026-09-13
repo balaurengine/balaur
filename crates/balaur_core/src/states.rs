@@ -110,7 +110,7 @@ pub(crate) fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {
-            doc: "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
+            doc: "Named looks this node can be in. Every key beside `current` and `duration` is a state, and each holds a table per component of the properties that state sets: `[nodes.states.hover.shape3d] color = \"#ff8800\"`. `node.states.go(\"hover\")` patches them over what the node already has, so a state says only what differs.",
             schema: ComponentDef::parse_schema("states", &schema()),
             tags: &["interaction"],
             expects: &[],
