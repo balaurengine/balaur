@@ -528,10 +528,6 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
 pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
-    // Sized from the image unless `set_sprite_size` says otherwise, so the
-    // common case is one call and art keeps its authored proportions.
-    // One texture holding a `columns` x `rows` grid; the quad is sized to a
-    // single frame, not to the whole sheet.
 }
 
 /// What `trace_texture` was asked for, with the defaults a Trace button uses.
@@ -644,10 +640,6 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
 
 pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
-    // Frames are numbered left to right, top to bottom. Changing one only
-    // moves UVs, so this is cheap enough to call every frame.
-    // Override the size read off the image, in half-extents like set_rect.
-    // Returns ("", 0, 0, 0) when the node has no sprite.
 }
 
 /// Eleven numbers a segment: both ends, an rgb, a width and an on-top flag.

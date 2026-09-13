@@ -80,10 +80,8 @@ pub(crate) fn install(
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
 
-    // An operation that drives a component is reached through that
-    // component's handle, as every other one is: `node.transform.translate`,
-    // not `node.translate`. The node keeps what belongs to no component --
-    // its name, its place in the tree, its script.
+    // A component-driven operation lives on that component's handle
+    // (`node.transform.translate`); the node keeps only what no component owns.
     let component_driven: std::collections::HashSet<String> = crate::bindings::api_docs()
         .into_iter()
         .filter(|d| d.module == "node" && !d.acts_on.is_empty())
