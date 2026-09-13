@@ -28,14 +28,15 @@ cargo llvm-cov nextest \
 
 # Extensions are off by default, so the C ABI and the dlopen path compiled
 # above without a line of either running: their tests are behind the flag.
+# `--no-report` implies `--no-clean`; cargo-llvm-cov refuses the pair.
 cargo llvm-cov nextest -p balaur_plugin --features dylib \
-  --no-fail-fast --no-report --no-clean || status=$?
+  --no-fail-fast --no-report || status=$?
 cargo llvm-cov nextest -p balaur --features extensions \
-  --no-fail-fast --no-report --no-clean || status=$?
+  --no-fail-fast --no-report || status=$?
 
 # The CLI is a binary, and e2e.sh spawns it: exporting the profile environment
 # is what makes those runs record anything. One example walks every command.
-eval "$(cargo llvm-cov show-env --export-prefix)"
+eval "$(cargo llvm-cov show-env --sh)"
 ./scripts/e2e.sh target/coverage/e2e hello || status=$?
 
 # From the recorded profiles, not a second test run: HTML too costs nothing.

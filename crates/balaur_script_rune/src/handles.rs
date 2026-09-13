@@ -164,8 +164,15 @@ pub(crate) fn check(
     let (tokens, strings) = lex(source);
     let driven = drives();
     let props = properties(eng);
+    let uses = handle_uses(&tokens);
+    // `set` gives the node the component, wherever in the file it is written.
+    let added: BTreeSet<&str> = uses
+        .iter()
+        .filter(|used| used.call && used.member.text == "set")
+        .map(|used| used.component.text)
+        .collect();
     let mut found = Vec::new();
-    for used in handle_uses(&tokens) {
+    for used in &uses {
         let (component, method) = (used.component.text, used.member.text);
         if !registered.contains(component) {
             found.push(warn(
@@ -175,10 +182,11 @@ pub(crate) fn check(
             ));
             continue;
         }
-        // A component the script adds itself is named as a string somewhere in
-        // the file, and the scene is not the whole story about the node.
+        // A component the script adds itself is `set` on its handle or named
+        // as a string, and the scene is not the whole story about the node.
         if let Some(carried) = carried
             && !carried.contains(component)
+            && !added.contains(component)
             && !strings.contains(component)
         {
             found.push(warn(

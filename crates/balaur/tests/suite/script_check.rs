@@ -91,6 +91,19 @@ fn a_component_the_script_adds_itself_is_left_alone() {
     );
 }
 
+/// `set` is how a script gives a node a component, so the component it
+/// sets is one the node carries, whatever the scene says.
+#[test]
+fn a_component_the_script_sets_is_left_alone() {
+    assert_eq!(
+        check(
+            "    this.node.sprite.set(#{ image: \"a.png\" });\n\
+             \x20   this.node.sprite.frame = 0;"
+        ),
+        Vec::<String>::new()
+    );
+}
+
 #[test]
 fn a_property_called_as_a_method_says_so() {
     let found = check("    this.node.body2d.linear_damping();");
