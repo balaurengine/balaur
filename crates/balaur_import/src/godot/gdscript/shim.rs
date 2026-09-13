@@ -503,22 +503,41 @@ pub fn nan() {
     return 0.0 / 0.0;
 }
 
+/// A pose vector as Godot spells one: the engine answers a `vec3`, and every
+/// translated body reads `.x` and `.y` off it.
+pub fn vec_of(v) {
+    if is_nil(v) {
+        return vec2(0.0, 0.0);
+    }
+    return #{ "x": float(v.x), "y": float(v.y), "z": float(v.z) };
+}
+
 pub fn set_position(node, at) {
-    node.set_position(float(at.x), float(at.y), 0.0);
+    node.transform.position = [float(at.x), float(at.y), 0.0];
 }
 
 pub fn set_global_position(node, at) {
-    let here = node.global_position();
-    let parent = node.position();
-    node.set_position(
+    let here = node.transform.global_position();
+    let parent = node.transform.position;
+    node.transform.position = [
         float(parent.x) + float(at.x) - float(here.x),
         float(parent.y) + float(at.y) - float(here.y),
         0.0,
-    );
+    ];
 }
 
 pub fn set_scale(node, by) {
-    node.set_scale(float(by.x), float(by.y), 1.0);
+    node.transform.scale = [float(by.x), float(by.y), 1.0];
+}
+
+/// A 2D node turns about z, which is where Godot's one angle lives.
+pub fn rotation_of(node) {
+    return float(node.transform.rotation_euler.z);
+}
+
+pub fn set_rotation(node, radians) {
+    let euler = node.transform.rotation_euler;
+    node.transform.rotation_euler = [float(euler.x), float(euler.y), float(radians)];
 }
 
 pub fn set_tint(node, tint) {

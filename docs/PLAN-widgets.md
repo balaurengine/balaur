@@ -66,7 +66,7 @@ work, and the roadmap row stays open until they do.
 | `dialog` | a panel over a dimmed, deaf screen | `AcceptDialog`, `ConfirmationDialog` | built |
 | `window` | a panel with a title bar | `Window` | built |
 | `tooltip` | text after a hover delay, on any widget | `tooltip_text` | built |
-| `context` | a menu a right click or a long press opens at the pointer | `PopupMenu.popup()` at the mouse | open |
+| `context` | a menu a right click or a long press opens at the pointer | `PopupMenu.popup()` at the mouse | open; drafted |
 | `placement` | where a `menu` opens: under its button, above, at the pointer, centred | `PopupPanel`, `popup_at_pointer` | open |
 | `shortcut` | a chord on a menu row that runs its `on_click` while the menu is shut | `PopupMenu` accelerators | open |
 | `toast` | a message that arrives, stacks in a corner and leaves on a timer | none | open |
@@ -79,12 +79,30 @@ draws as it would anywhere. `placement` is what it lacks.
 The work, in order:
 
 1. **`context`.** A string property on every kind naming a `menu` node in
-   the same scene, by name. `response.secondary_clicked()` or
-   `response.long_touched()` opens that menu's rows at the pointer through
-   `egui::Popup::context_menu(&response)` and the existing `popup_rows`. The
-   long press is egui's own: a touch held past `Options::max_click_duration`
-   without moving, so the layer keeps no timer and the theme no key. The
-   widget's own `on_click` does not fire for that press.
+   the same scene, by name; the menu can be `visible = false` so it draws
+   no button of its own. A secondary click or a long touch opens its rows
+   at the pointer through `egui::Popup::new` with `PopupAnchor::PointerFixed`,
+   `PopupKind::Menu`, `menu_style`, `CloseOnClickOutside` and the existing
+   `popup_rows`, made `pub(crate)`. Read the press from the input, not a
+   response: a kind's own controls take the click first, and a list's row
+   hands no response back. The press is `pointer.button_clicked(Secondary)`
+   or `ctx.interaction_snapshot(|s| s.long_touched.is_some())`, the hit is
+   `ui.rect_contains_pointer(ui.min_rect())`, and a flag on `Painting` lets
+   the innermost widget under the pointer take it, since children draw
+   before their parent asks. Register a `Sense::CLICK` interact under the
+   kind before it draws: egui holds a long touch only on a widget that
+   senses a click, and a label senses none. The long press is egui's own, a
+   touch held past `Options::max_click_duration` without moving, so the
+   layer keeps no timer and the theme no key. The widget's own `on_click`
+   does not fire for that press. The rows draw in the menu's own theme, from
+   `arena::theme_at` over `layer::theme_root`. In `taffy::sync` a solve's
+   root is laid out whatever its `visible` says, on a node keyed apart from
+   the one its parent's tree holds, and a node made on this call syncs its
+   children whether or not the pass is deep: a hidden root was never solved
+   before. Tests: `press_with(pos, Secondary, ..)`, and `touch(pos, down)`
+   with `pass_at(.., Some(time))` past 0.8 s for the long touch. A draft of
+   all of this, with three passing tests, sits uncommitted on branch
+   `ui-menus-and-text` in the `../balaur-ui` worktree.
 2. **`placement`.** An enum on `menu`: `below` (today's), `above`, `pointer`,
    `center`, mapped to `Popup::align`, `at_pointer` and `at_position`.
 3. **Submenus, verified.** A `menu` row that is itself a `menu` should open

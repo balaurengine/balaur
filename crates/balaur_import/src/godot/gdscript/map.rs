@@ -245,14 +245,14 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     }
     Some(match field {
         "visible" => format!("{receiver}.visible()"),
-        "global_position" => format!("{receiver}.global_position()"),
-        "position" => format!("{receiver}.position()"),
-        "scale" => format!("{receiver}.scale()"),
+        "global_position" => format!("(gd.vec_of)({receiver}.transform.global_position())"),
+        "position" => format!("(gd.vec_of)({receiver}.transform.position)"),
+        "scale" => format!("(gd.vec_of)({receiver}.transform.scale)"),
         "modulate" | "self_modulate" => format!("{receiver}.tint()"),
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
-        "rotation_degrees" => format!("{receiver}.rotation_degrees()"),
-        "rotation" => format!("math::rad({receiver}.rotation_degrees())"),
+        "rotation_degrees" => format!("math::deg((gd.rotation_of)({receiver}))"),
+        "rotation" => format!("(gd.rotation_of)({receiver})"),
         "current_scene" | "root" => "scene::root()".into(),
         "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "selected"
         | "placeholder_text" | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
@@ -327,8 +327,8 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "modulate" | "self_modulate" => format!("(gd.set_tint)({receiver}, {value})"),
         "z_index" => format!("{receiver}.set_z_index({value})"),
         "name" => format!("{receiver}.set_name({value})"),
-        "rotation_degrees" => format!("{receiver}.set_rotation_degrees({value})"),
-        "rotation" => format!("{receiver}.set_rotation_degrees(math::deg({value}))"),
+        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
+        "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
         _ => return None,
     })
 }
