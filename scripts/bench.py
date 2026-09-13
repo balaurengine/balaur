@@ -11,8 +11,12 @@ runner times a benchmark badly. The ceilings are not measurements: they carry
 enough headroom that a regression in kind shows and a slow morning does not.
 """
 import argparse
+import datetime
 import json
+import os
+import platform
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -23,6 +27,10 @@ BUDGETS = ROOT / "crates" / "balaur_bench" / "budgets.toml"
 # What a recorded number is multiplied by to become a ceiling. Ten, so a
 # reading off a shared runner still means something.
 HEADROOM = 10.0
+# What `--compare` calls a regression on the machine that recorded the
+# readings. Criterion's own run-to-run spread on a warm laptop is a few
+# percent, so a fifth is a change in kind rather than a noisy morning.
+REGRESSION = 1.20
 FRAME_NS = 16_666_667  # 60 fps
 
 
@@ -46,6 +54,10 @@ def bench_targets():
 
 
 def run_benches(quick, only):
+    # Criterion keeps what it wrote, under the id the benchmark had at the
+    # time. A renamed or deleted case would be collected here forever, so a
+    # run starts from nothing and the report is only ever this run.
+    shutil.rmtree(ROOT / "target" / "criterion", ignore_errors=True)
     args = ["cargo", "bench", "-p", "balaur_bench"]
     for name in [only] if only else bench_targets():
         args += ["--bench", name]
@@ -83,32 +95,73 @@ def human(ns):
     return f"{ns / 1_000_000:.2f} ms"
 
 
-def budgets():
-    """Ceilings, by benchmark id. Absent file means nothing is gated."""
+def baseline():
+    """The recorded reading per benchmark id, and the machine it came off."""
     if not BUDGETS.exists():
-        return {}
+        return {}, {}
     with BUDGETS.open("rb") as f:
-        return tomllib.load(f).get("ceiling_ns", {})
+        saved = tomllib.load(f)
+    return saved.get("measured_ns", {}), saved.get("machine", {})
+
+
+def machine():
+    """What the reading is worth nothing without: where it was taken."""
+    def out(*args):
+        try:
+            got = subprocess.run(args, capture_output=True, text=True, check=True)
+            return got.stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            return ""
+
+    cpu = out("sysctl", "-n", "machdep.cpu.brand_string") or platform.processor()
+    memory = out("sysctl", "-n", "hw.memsize")
+    system = f"{platform.system()} {platform.release()}"
+    if platform.system() == "Darwin" and (product := out("sw_vers", "-productVersion")):
+        system = f"macOS {product} ({system})"
+    return {
+        "cpu": cpu or "unknown",
+        "cores": os.cpu_count() or 0,
+        "memory_gb": round(int(memory) / 1024**3) if memory.isdigit() else 0,
+        "os": system,
+        "toolchain": out("rustc", "--version"),
+        "commit": out("git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"),
+        "recorded": datetime.date.today().isoformat(),
+    }
 
 
 def record(results):
-    """Rewrite the budget file from this run, ceilings at HEADROOM times."""
+    """Rewrite the file from this run: the readings, and where they came from."""
     lines = [
-        "# The one place a performance number lives: written by `bench.py --record`\n",
-        f"# from a real run, multiplied by {HEADROOM:g} so a shared runner passes, and read\n",
-        "# by `bench.py --check`.\n\n",
-        "[ceiling_ns]\n",
+        "# Readings from `bench.py --record` on the machine below: `--compare`\n",
+        f"# reads them as they are, `--check` at {HEADROOM:g} times each.\n\n[machine]\n",
     ]
-    lines += [f'"{name}" = {round(ns * HEADROOM)}\n' for name, ns in results.items()]
+    for key, value in machine().items():
+        # json spells a quoted, escaped string the same way TOML does.
+        stated = json.dumps(value) if isinstance(value, str) else value
+        lines.append(f"{key} = {stated}\n")
+    lines.append("\n[measured_ns]\n")
+    lines += [f"{json.dumps(name)} = {round(ns)}\n" for name, ns in results.items()]
     BUDGETS.write_text("".join(lines), encoding="utf-8")
-    print(f"wrote {BUDGETS.relative_to(ROOT)} ({len(results)} ceilings)")
+    print(f"wrote {BUDGETS.relative_to(ROOT)} ({len(results)} readings)")
 
 
 def over_budget(results):
     """Benchmarks past their ceiling, and the ones nothing is gating."""
-    ceilings = budgets()
-    over = [(n, ns, ceilings[n]) for n, ns in results.items() if ns > ceilings.get(n, ns)]
-    return over, sorted(set(results) - set(ceilings))
+    saved, _ = baseline()
+    over = [
+        (n, ns, saved[n] * HEADROOM)
+        for n, ns in results.items()
+        if ns > saved.get(n, ns) * HEADROOM
+    ]
+    return over, sorted(set(results) - set(saved))
+
+
+def against_baseline(results):
+    """Every benchmark's shift from its reading, worst first, and the new ones."""
+    saved, _ = baseline()
+    moved = [(n, ns, saved[n], ns / saved[n]) for n, ns in results.items() if saved.get(n)]
+    moved.sort(key=lambda row: row[3], reverse=True)
+    return moved, sorted(set(results) - set(saved))
 
 
 def main():
@@ -117,8 +170,18 @@ def main():
     ap.add_argument("--bench", help="only this bench target (scripting, engine)")
     ap.add_argument("--no-run", action="store_true", help="report the last run")
     ap.add_argument("--check", action="store_true", help="fail if a result is over budget")
-    ap.add_argument("--record", action="store_true", help="rewrite the budgets from this run")
+    ap.add_argument("--record", action="store_true", help="rewrite the readings from this run")
+    ap.add_argument("--compare", action="store_true", help="shift from the recorded readings")
     args = ap.parse_args()
+
+    # A run of one target collects only that target, and recording from it
+    # would drop every other benchmark's reading from the file.
+    if args.record and args.bench:
+        print("--record needs every benchmark; drop --bench", file=sys.stderr)
+        return 1
+    if args.record and args.quick:
+        print("--record needs full samples; drop --quick", file=sys.stderr)
+        return 1
 
     if not args.no_run:
         run_benches(args.quick, args.bench)
@@ -145,6 +208,25 @@ def main():
 
     if args.record:
         record(results)
+    if args.compare:
+        moved, fresh = against_baseline(results)
+        _, where = baseline()
+        if not moved:
+            print("\nnothing recorded to compare against; run --record")
+            return 1
+        print(f"\nagainst {where.get('recorded', 'the reading')} "
+              f"on {where.get('cpu', 'an unnamed machine')}, worst first:\n")
+        for name, ns, was, ratio in moved:
+            mark = "  SLOWER" if ratio > REGRESSION else ""
+            print(f"{name.ljust(width)}  {human(was):>10} -> {human(ns):>10}"
+                  f"  {(ratio - 1) * 100:+7.1f}%{mark}")
+        for name in fresh:
+            print(f"{name.ljust(width)}  {'new':>10}")
+        slower = [row for row in moved if row[3] > REGRESSION]
+        if slower:
+            print(f"\n{len(slower)} benchmark(s) more than "
+                  f"{(REGRESSION - 1) * 100:.0f}% slower than the reading")
+            return 1
     if args.check:
         over, ungated = over_budget(results)
         for name in ungated:

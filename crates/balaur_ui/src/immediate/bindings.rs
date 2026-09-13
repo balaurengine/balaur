@@ -863,7 +863,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("available_height", &[], "", "The height left in the current container, in design pixels."),
         ("central_rect", &[], "", "The x, y, width and height of the surface being drawn into, in design pixels."),
         ("screen_size", &[], "", "The window's width and height, in design pixels."),
-        ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants."),
+        ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants. `cmd` answers to Control and to Command, on every platform."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard."),
         ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
         ("color", &[], "", "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
@@ -911,6 +911,8 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
                 let mut modifiers = egui::Modifiers::NONE;
                 for part in mods.split('+') {
                     modifiers |= match part.trim() {
+                        // The window layer sets `command` for Control and for
+                        // Command alike, so one chord covers both keys.
                         w::CMD => egui::Modifiers::COMMAND,
                         w::CTRL => egui::Modifiers::CTRL,
                         w::ALT => egui::Modifiers::ALT,

@@ -98,6 +98,7 @@ mod windowed {
     use balaur_core::Engine;
     use kiss3d::resource::{Texture, TextureManager, TextureSampling, TextureWrapping};
     use kiss3d::scene::{Blend2d, SceneNode2d, SceneNode3d};
+    use kiss3d::wgpu;
 
     /// Give a freshly built 2D node its image; a path that is empty or does
     /// not decode leaves kiss3d's default white texture, which is what a

@@ -103,9 +103,15 @@ fn widget_of(S, id) {
     util::obj(found.get_component("widget"))
 }
 
-/// What the scene states for one of a box's sizes.
+/// What the scene states for one of a box's sizes. A `padding` is four sides
+/// in the component whatever the scene spelled, so take the first.
 fn stated(S, id, key) {
-    util::f(widget_of(S, id).get(key).unwrap_or(0.0))
+    let value = widget_of(S, id).get(key).unwrap_or(0.0);
+    if value is Vec {
+        if value.is_empty() { 0.0 } else { util::f(value[0]) }
+    } else {
+        util::f(value)
+    }
 }
 
 /// The scene's own numbers, read back once before anything writes over them.
@@ -119,7 +125,7 @@ fn adopt(S) {
     if shell.is_empty() {
         return;
     }
-    m.gutter = util::f(shell.get("padding").unwrap_or(0.0));
+    m.gutter = stated(S, "shell", "padding");
     m.gap = util::f(widget_of(S, "body").get("gap").unwrap_or(0.0));
     m.pad = stated(S, "leftsheet", "padding");
     m.tree_w = stated(S, "left", "width");

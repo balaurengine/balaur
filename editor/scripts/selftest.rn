@@ -1139,6 +1139,10 @@ pub fn layout_step(S) {
     }
     check(util::abs(m.left.w - m.tree_w) < 0.51,
         format!("the tree column is the width the scene asked for ({} vs {})", m.left.w, m.tree_w));
+    // The gutter is a `padding`, which the component keeps as four sides
+    // whatever the scene spelled; reading all four back placed the shell at 0.
+    check(m.gutter > 0.0 && util::abs(m.bar.x - m.gutter) < 0.51,
+        format!("the shell keeps the gutter the scene asked for ({})", m.gutter));
 }
 
 // Sheets may abut, never overlap: an overlap is a rect two owners believe in.

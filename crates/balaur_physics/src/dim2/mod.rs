@@ -427,14 +427,8 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
         ("overlaps", &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
     crate::ragdoll::install_ragdoll_api(m, false);
-    // Constructors, so a 2D body can be built from script rather than only
-    // declared in a scene file.
-    // Takes the `collider2d` component's own table (`kind`, `radius`,
-    // `half_extents`, `restitution`, `friction`, `density`), so one
-    // vocabulary covers scripts and scene files.
-    // No reader by design (N8): `PhysicsState2d`'s rapier world already
-    // holds the gravity vector; add `physics2d.gravity` when a caller needs
-    // to read it back.
+    // No reader by design (N8): the rapier world holds the gravity vector;
+    // add `physics2d.gravity` when a caller needs to read it back.
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<PhysicsState2d>();
         state.borrow_mut().world.gravity = scalar::v2(x, y);

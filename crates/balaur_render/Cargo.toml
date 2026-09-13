@@ -10,7 +10,7 @@ authors.workspace = true
 default = []
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:wgpu", "dep:bytemuck"]
+kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:bytemuck"]
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
@@ -27,9 +27,7 @@ toml.workspace = true
 # operating systems and this one does not.
 libm.workspace = true
 kiss3d = { version = "0.46", optional = true, features = ["egui"] }
-# The same wgpu kiss3d builds against: the skinned polygon material is
-# written here against kiss3d's material trait, so the types must unify.
-wgpu = { version = "30", optional = true }
+egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }
 balaur_input = { workspace = true, optional = true }

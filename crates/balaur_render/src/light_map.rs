@@ -26,6 +26,7 @@ use kiss3d::resource::{
     multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
+use kiss3d::wgpu;
 
 use crate::light::{LightKind2d, LitLight2d, lights as scene_lights, occluder_edges, shadow_quad};
 use crate::{CameraConfig2d, shaders};

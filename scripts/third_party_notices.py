@@ -16,7 +16,9 @@ Usage:
   python3 scripts/third_party_notices.py --check    # fail if it would change
 """
 import argparse
+import difflib
 import hashlib
+import itertools
 import json
 import re
 import subprocess
@@ -173,6 +175,13 @@ def main():
         current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
         if current != text:
             print(f"{OUT.name} is stale; run python3 scripts/third_party_notices.py")
+            # Which lines, not just that it differs: this runs on a machine
+            # nobody is sitting at, and "stale" alone names no cause.
+            diff = difflib.unified_diff(
+                current.splitlines(), text.splitlines(), "committed", "generated", n=0
+            )
+            for line in itertools.islice(diff, 40):
+                print(line)
             return 1
         print(f"{OUT.name} is current")
         return 0

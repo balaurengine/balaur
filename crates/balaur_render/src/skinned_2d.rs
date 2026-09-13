@@ -25,6 +25,7 @@ use kiss3d::resource::{
     GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
+use kiss3d::wgpu;
 
 use crate::PolygonMesh;
 use crate::shaders;

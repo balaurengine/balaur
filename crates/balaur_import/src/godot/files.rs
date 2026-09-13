@@ -83,9 +83,13 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
             out.files.push(relative);
         }
     }
+    if scripts > 0 {
+        // Every converted body calls into the shim, so it ships with them.
+        write(project, "gd.rn", crate::godot::gdscript::SHIM, &mut out)?;
+    }
     let lines = report.write(project, &mut out)?;
     out.note = format!(
-        "{scenes} scene{} and {scripts} script skeleton{} converted{}; {lines} note{} in import-report.md",
+        "{scenes} scene{} and {scripts} script{} converted{}; {lines} note{} in import-report.md",
         if scenes == 1 { "" } else { "s" },
         if scripts == 1 { "" } else { "s" },
         if failed == 0 {

@@ -14,6 +14,7 @@
 use kiss3d::context::Context;
 use kiss3d::post_processing::{PostProcessingContext, PostProcessingEffect};
 use kiss3d::resource::RenderTarget;
+use kiss3d::wgpu;
 
 use crate::material::Compiled;
 

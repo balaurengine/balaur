@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 380 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 381 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 `WEB_THREADS=1` builds the second template, which adds `parallel` to that
@@ -19,7 +19,7 @@ atomics only that build has.
 | Feature | Default | Web template | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
-| `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `balaur_audio`, `dasp_sample`, `encoding_rs`, … (18 crates) |
+| `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `balaur_audio`, `dasp_sample`, `encoding_rs`, … (19 crates) |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |

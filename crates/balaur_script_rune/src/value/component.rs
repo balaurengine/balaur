@@ -115,15 +115,14 @@ fn index_access(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextE
     };
     let read = hold_node_fn(eng.clone(), read);
     let write = hold_node_fn(eng.clone(), write);
-    m.associated_function(
-        &Protocol::INDEX_GET,
-        move |this: &Component, key: String| read_key(this, &key, read),
-    )?;
+    // The key is borrowed, not taken: a `String` parameter moves the caller's
+    // local out of its slot, so `meta[key] = a` left `key` unreadable.
+    m.associated_function(&Protocol::INDEX_GET, move |this: &Component, key: &str| {
+        read_key(this, key, read)
+    })?;
     m.associated_function(
         &Protocol::INDEX_SET,
-        move |this: &Component, key: String, value: rune::Value| {
-            write_key(this, &key, write, &value)
-        },
+        move |this: &Component, key: &str, value: rune::Value| write_key(this, key, write, &value),
     )?;
     Ok(())
 }
