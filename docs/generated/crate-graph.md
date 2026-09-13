@@ -62,7 +62,6 @@ graph TD
   balaur_audio --> balaur_script
   balaur_bench --> balaur
   balaur_bench --> balaur_core
-  balaur_bench --> balaur_physics
   balaur_bench --> balaur_script
   balaur_bench --> balaur_script_rune
   balaur_bench --> balaur_ui
