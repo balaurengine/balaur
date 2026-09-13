@@ -478,7 +478,7 @@ Collision for the node's `tilemap` cells: every tile the tileset marks solid, on
 
 `2d` · `render` · 8 properties · 5 methods
 
-A grid of tiles from one `tileset` asset, centred on the node. `cells` holds one character per cell; `pixels_per_unit` is tile pixels per world unit.
+A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

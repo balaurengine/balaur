@@ -92,7 +92,7 @@
     "text2d": "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
     "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
     "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
-    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds one character per cell; `pixels_per_unit` is tile pixels per world unit.",
+    "tilemap": "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
     "timer": "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
     "touch_button": "An on-screen button that presses an `action` while a finger is on it. `anchor` and `offset` place it inside the screen's safe area.",
     "touch_stick": "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor` and `offset` place it.",
