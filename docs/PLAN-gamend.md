@@ -213,10 +213,11 @@ no server dependency and can start now.
   match replays from the admin portal's download with every digest matching.
 - **S5. The WebRTC relay.** Ends with: two browsers in one lobby exchange
   datagrams through Gamend with no engine web transport.
-- **E1. Typed bindings.** Its own plan, `docs/PLAN-gamend-bindings.md`:
-  the generator, the generated module, the events, the auth flows, the
-  docs. Ends with: `docs/generated/api.json` lists every Gamend operation
-  and the tests call each against the in-process server.
+- **E1. The SDK.** Its own plan, `docs/PLAN-gamend-bindings.md`: a
+  generator in Gamend's `clients/`, beside the Godot and JavaScript ones,
+  emitting a Rune addon that is copied into the engine's library and into
+  a game. Ends with: a game requires `addons/gamend` and calls every
+  operation by the name the Godot addon gives it.
 - **E2. Lobby to session.** With S1 and S2: matchmaking, lobby, game server,
   session, in one script. Ends with: two engines matched by Gamend play on a
   server Gamend launched, which is `docs/PLAN-networking.md` step 8 done.
@@ -239,9 +240,9 @@ can: a real NAT, a real region, a phone.
    isolation and simplicity; per process is memory and port economy. Start
    per lobby and measure.
 3. **When the bindings are generated.** Answered in
-   `docs/PLAN-gamend-bindings.md` §1: a checked-in `generated.rs` written by
-   `scripts/gen_gamend.py` from a spec copied beside it, with `--check` in
-   precommit.
+   `docs/PLAN-gamend-bindings.md` §1: in Gamend's own CI, as a Rune addon
+   published beside the Godot one, and copied into this repository's
+   `editor/library/addons/gamend` by `scripts/sync_gamend.sh --check`.
 4. **Whether the host-run game needs Gamend at all.** A host that listens
    still needs an address a friend can reach, which is NAT; Steam's relay
    (`docs/PLAN-steam.md` step 8) or the WebRTC relay answers it without a
