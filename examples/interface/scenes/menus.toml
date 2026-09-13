@@ -1,0 +1,263 @@
+# Menus, popups and what they open: a bar of menus, the rows one of them
+# drops with their shortcuts, a submenu, a context menu any widget can name,
+# and a toast in the corner. Nothing here is placed by hand.
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+[nodes.script]
+source = "scripts/shot.rn"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "panel"
+text = ""
+anchor = "center"
+x = 0
+y = 0
+width = 640
+height = 320
+padding = 14
+gap = 12
+
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 30
+gap = 10
+align = "center"
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "head"
+[nodes.widget]
+kind = "label"
+text = "Menus and popups"
+role = "title"
+
+# The bar: a row of menus, each dropping its own rows.
+[[nodes]]
+id = "bar"
+name = "Bar"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 28
+gap = 4
+
+[[nodes]]
+id = "file"
+name = "File"
+parent = "bar"
+[nodes.widget]
+kind = "menu"
+text = "File"
+trailing = "▾"
+# Held open by the scene rather than by a click, which is how a screenshot
+# and an offscreen run can show what a menu looks like open.
+showing = true
+
+[[nodes]]
+id = "file_new"
+name = "New"
+parent = "file"
+[nodes.widget]
+kind = "button"
+text = "New scene"
+shortcut = "cmd+n"
+width = 210
+height = 24
+
+[[nodes]]
+id = "file_open"
+name = "Open"
+parent = "file"
+[nodes.widget]
+kind = "button"
+text = "Open project"
+shortcut = "cmd+o"
+width = 210
+height = 24
+
+[[nodes]]
+id = "file_recent"
+name = "Recent"
+parent = "file"
+[nodes.widget]
+kind = "menu"
+text = "Open recent"
+trailing = "⏵"
+width = 210
+height = 24
+
+[[nodes]]
+id = "recent_one"
+name = "Platformer"
+parent = "file_recent"
+[nodes.widget]
+kind = "button"
+text = "Platformer"
+width = 150
+height = 24
+
+[[nodes]]
+id = "recent_two"
+name = "Shooter"
+parent = "file_recent"
+[nodes.widget]
+kind = "button"
+text = "Shooter"
+width = 150
+height = 24
+
+[[nodes]]
+id = "file_save"
+name = "Save"
+parent = "file"
+[nodes.widget]
+kind = "button"
+text = "Save"
+shortcut = "cmd+s"
+width = 210
+height = 24
+
+[[nodes]]
+id = "file_grid"
+name = "Grid"
+parent = "file"
+[nodes.widget]
+kind = "button"
+text = "Show grid"
+checked = true
+keep_open = true
+width = 210
+height = 24
+
+[[nodes]]
+id = "edit"
+name = "Edit"
+parent = "bar"
+[nodes.widget]
+kind = "menu"
+text = "Edit"
+trailing = "▾"
+
+[[nodes]]
+id = "edit_undo"
+name = "Undo"
+parent = "edit"
+[nodes.widget]
+kind = "button"
+text = "Undo"
+shortcut = "cmd+z"
+width = 180
+height = 24
+
+[[nodes]]
+id = "view"
+name = "View"
+parent = "bar"
+[nodes.widget]
+kind = "menu"
+text = "View"
+trailing = "▾"
+placement = "above"
+
+[[nodes]]
+id = "view_zoom"
+name = "Zoom"
+parent = "view"
+[nodes.widget]
+kind = "button"
+text = "Zoom in"
+shortcut = "cmd+equals"
+width = 180
+height = 24
+
+# What a right click or a long press opens, named by the canvas below.
+[[nodes]]
+id = "canvas_menu"
+name = "canvas_menu"
+parent = "sheet"
+[nodes.widget]
+kind = "menu"
+text = ""
+visible = false
+
+[[nodes]]
+id = "canvas_cut"
+name = "Cut"
+parent = "canvas_menu"
+[nodes.widget]
+kind = "button"
+text = "Cut"
+shortcut = "cmd+x"
+width = 160
+height = 24
+
+[[nodes]]
+id = "canvas_paste"
+name = "Paste"
+parent = "canvas_menu"
+[nodes.widget]
+kind = "button"
+text = "Paste"
+shortcut = "cmd+v"
+width = 160
+height = 24
+
+[[nodes]]
+id = "canvas"
+name = "Canvas"
+parent = "sheet"
+[nodes.widget]
+kind = "panel"
+text = ""
+grow = 1
+padding = 16
+gap = 6
+align = "end"
+text_align = "end"
+context = "canvas_menu"
+tooltip = "Right click, or press and hold"
+
+[[nodes]]
+id = "canvas_text"
+name = "CanvasText"
+parent = "canvas"
+[nodes.widget]
+kind = "label"
+text = "Right click anywhere here"
+role = "group"
+
+[[nodes]]
+id = "canvas_hint"
+name = "CanvasHint"
+parent = "canvas"
+[nodes.widget]
+kind = "label"
+text = "context = \"canvas_menu\" on this panel;\na long press does the same on a phone"
+role = "caption"
+
+# A toast: its own root, at its own corner, gone when its duration is up.
+[[nodes]]
+id = "toast"
+name = "Toast"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "toast"
+anchor = "top_right"
+x = 18
+y = 18
+padding = 12
+duration = 0
+text = "Scene saved"

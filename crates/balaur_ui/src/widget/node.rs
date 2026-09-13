@@ -50,6 +50,15 @@ pub struct Widget {
     /// Name of a `menu` node whose rows open at the pointer on a secondary
     /// click or a long touch. Empty means none.
     pub context: SmolStr,
+    /// Method called with the target of a `[url]` span that was clicked.
+    pub on_link: SmolStr,
+    /// Whether a drag over this label selects its text.
+    pub selectable: bool,
+    /// Units drawn after a `drag_value`'s number, as `placeholder` is drawn
+    /// before it.
+    pub suffix: SmolStr,
+    /// Whether a `drag_value` draws a step up and a step down beside itself.
+    pub arrows: bool,
     pub clicked: bool,
     /// Space inside a container's edge, in design pixels.
     /// Space inside a container's edge: left, top, right and bottom, in
@@ -99,6 +108,9 @@ pub struct Widget {
     /// Where a menu opens: under its button, above it, at the pointer, or
     /// centred on the screen.
     pub placement: SmolStr,
+    /// How long a `toast` stays, in seconds; zero or less stays until the
+    /// game takes it away.
+    pub duration: f32,
 
     /// Where text sits in the width the widget was given.
     pub text_align: SmolStr,
@@ -206,6 +218,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::DIALOG
             | w::WINDOW
             | w::MENU
+            | w::TOAST
     )
 }
 

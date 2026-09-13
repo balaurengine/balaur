@@ -50,7 +50,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\nlink = \"#3aa0ff\"                 # what a `[url]` span in markup text is drawn in\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
     }
   },
   "component_docs": {
@@ -4127,6 +4127,12 @@
         ],
         "type": "enum"
       },
+      "arrows": {
+        "default": false,
+        "description": "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`",
+        "group": "type",
+        "type": "bool"
+      },
       "avoid_keyboard": {
         "default": false,
         "description": "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop",
@@ -4186,6 +4192,13 @@
         "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
         "group": "paint",
         "type": "string"
+      },
+      "duration": {
+        "default": 3.0,
+        "description": "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away",
+        "group": "type",
+        "min": 0.0,
+        "type": "float"
       },
       "fill": {
         "default": "",
@@ -4348,6 +4361,7 @@
           "flow",
           "fold",
           "dialog",
+          "toast",
           "window",
           "separator",
           "code",
@@ -4421,6 +4435,12 @@
       "on_focus": {
         "default": "",
         "description": "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_link": {
+        "default": "",
+        "description": "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -4502,6 +4522,12 @@
         "group": "value",
         "type": "bool"
       },
+      "selectable": {
+        "default": false,
+        "description": "Let a drag over this label select its text, and the platform's copy key take it",
+        "group": "type",
+        "type": "bool"
+      },
       "shortcut": {
         "default": "",
         "description": "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
@@ -4541,6 +4567,12 @@
         "default": "",
         "description": "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own",
         "group": "paint",
+        "type": "string"
+      },
+      "suffix": {
+        "default": "",
+        "description": "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it",
+        "group": "type",
         "type": "string"
       },
       "text": {
@@ -8820,6 +8852,10 @@
         {
           "name": "WIDGET_TEXT_AREA",
           "value": "text_area"
+        },
+        {
+          "name": "WIDGET_TOAST",
+          "value": "toast"
         },
         {
           "name": "WIDGET_TREE",

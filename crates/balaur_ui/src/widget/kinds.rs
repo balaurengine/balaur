@@ -5,7 +5,6 @@
 //! The row kinds, `list`, `tree` and `table`, are [`super::rows`].
 
 use balaur_core::Engine;
-use balaur_core::hecs::Entity;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
 use crate::widget::arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
@@ -143,6 +142,9 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 fn warn_code(err: &anyhow::Error) {
     tracing::warn!("code widget: {err:#}");
 }
+
+/// How much of a `drag_value`'s box its two arrows take, gap included.
+const ARROWS: f32 = 18.0;
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
 /// list a `PopupMenu` shows. `options` are the entries and `text` is the
@@ -327,6 +329,9 @@ pub(crate) fn drag_value(
     if !widget.placeholder.is_empty() {
         drag = drag.prefix(format!("{} ", widget.placeholder));
     }
+    if !widget.suffix.is_empty() {
+        drag = drag.suffix(format!(" {}", widget.suffix));
+    }
     let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
     if bounded {
         drag = drag.range(widget.min..=widget.max);
@@ -336,14 +341,61 @@ pub(crate) fn drag_value(
     }
     let want = box_of(widget, at.assigned);
     if want.x > 0.0 {
-        ui.spacing_mut().interact_size.x = want.x;
+        // With arrows, the number is told what is left of the stated box, so
+        // the pair sits inside it rather than in the next widget's.
+        ui.spacing_mut().interact_size.x = if widget.arrows {
+            (want.x - ARROWS).max(24.0)
+        } else {
+            want.x
+        };
     }
+    let mut stepped = None;
     let response = ui.scope(|ui| {
         ui.style_mut().override_font_id = Some(font.clone());
         ui.visuals_mut().override_text_color = Some(color);
-        ui.add(drag)
+        if !widget.arrows {
+            return ui.add(drag);
+        }
+        // The box split by hand rather than by a layout: the number on the
+        // left, the two steps against its trailing edge. egui's own layouts
+        // size a `DragValue` from the room they have, which in a row is the
+        // whole box, and the steps then land in the next widget's.
+        let full = ui.available_rect_before_wrap();
+        let high = full.height().min(want.y.max(18.0));
+        let wide = ARROWS - 4.0;
+        let steps = egui::Rect::from_min_size(
+            pos2(full.right() - wide, full.top()),
+            vec2(wide, high),
+        );
+        let number =
+            egui::Rect::from_min_max(full.min, pos2(steps.left() - 4.0, full.top() + high));
+        let inner = ui.put(number, drag);
+        let each = (high - 1.0) / 2.0;
+        let mark = |glyph: &str| egui::Button::new(egui::RichText::new(glyph).size(each - 2.0));
+        let up = egui::Rect::from_min_size(steps.min, vec2(wide, each));
+        let down = egui::Rect::from_min_size(
+            pos2(steps.left(), steps.top() + each + 1.0),
+            vec2(wide, each),
+        );
+        if ui.put(up, mark("⏶")).clicked() {
+            stepped = Some(1.0);
+        }
+        if ui.put(down, mark("⏷")).clicked() {
+            stepped = Some(-1.0);
+        }
+        ui.advance_cursor_after_rect(egui::Rect::from_min_size(full.min, vec2(full.width(), high)));
+        inner
     });
-    if response.inner.changed() {
+    if let Some(way) = stepped {
+        let step = if widget.step > 0.0 { widget.step } else { 1.0 };
+        let moved = value + way * step;
+        value = if bounded {
+            moved.clamp(widget.min, widget.max)
+        } else {
+            moved
+        };
+        at.edits.push((placed.entity, Edit::Value(value)));
+    } else if response.inner.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
     }
 }

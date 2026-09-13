@@ -34,7 +34,7 @@ use std::collections::{HashMap, HashSet};
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
 pub use widget::input::{
-    CHANGE_EVENT, CLICK_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click,
+    CHANGE_EVENT, CLICK_EVENT, LINK_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click,
 };
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
@@ -116,6 +116,21 @@ pub struct ScrollDrag {
     /// Points per second, smoothed: one jittery frame should not decide how
     /// far a flick throws the list.
     pub velocity: egui::Vec2,
+}
+
+/// Put a message on screen that stacks in the corner and leaves on its own.
+///
+/// A `toast` node under the scene root, holding nothing but its text: what
+/// the `toast` binding action runs, so a scene shows one with no script.
+///
+/// # Errors
+/// If the widget component refuses the node, which means the plugin that
+/// declares it is not in this build.
+pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
+    let root = eng.root();
+    let entity = balaur_core::scene::spawn_node(&mut eng.world_mut(), "Toast", root);
+    let params = toml::toml! { kind = "toast" text = text anchor = "top_right" x = 16.0 y = 16.0 };
+    balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
 }
 
 /// Drop everything the plugin cached against a scene that is being rebuilt.

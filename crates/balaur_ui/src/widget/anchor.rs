@@ -69,7 +69,13 @@ pub(crate) fn root_frame(
         );
     }
     let (pos, align) = root_placement(widget, area);
-    (pos, align, egui::Vec2::ZERO, egui::Order::Middle)
+    // A toast is read over whatever is on screen, so it draws above it.
+    let order = if widget.kind == w::TOAST {
+        egui::Order::Foreground
+    } else {
+        egui::Order::Middle
+    };
+    (pos, align, egui::Vec2::ZERO, order)
 }
 
 /// Where a root's own `anchor`, `x` and `y` put it inside its surface. Only a

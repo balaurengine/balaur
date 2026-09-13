@@ -263,6 +263,13 @@ fn fill_action_runners(app: &balaur_core::App) {
     );
     set_runner(
         eng,
+        Action::Toast,
+        Rc::new(|eng: &Engine, _entity, value: &Value| {
+            balaur_ui::toast(eng, &text_of(value))
+        }),
+    );
+    set_runner(
+        eng,
         Action::Emit,
         Rc::new(|eng: &Engine, entity, value: &Value| {
             balaur_core::events::emit_from(eng, entity, &text_of(value), Value::Nil);

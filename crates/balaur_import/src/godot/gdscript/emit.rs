@@ -780,23 +780,8 @@ impl<'a> Emitter<'a> {
             }
             return self.unresolved(&format!("{class}.{method}()"));
         }
-        if let Expr::Field(object, method) = callee
-            && let Expr::Name(root) = &**object
-            && !self.is_local(root)
-            && let Some(fallback) = self.context.static_vars.get(root).cloned()
-        {
-            let key = quoted(&format!("{}:{root}", self.context.static_prefix));
-            let name = self.temp();
-            self.declare(&name);
-            self.before
-                .push(format!("let {name} = (gd.static_get)({key}, {fallback});"));
-            self.after
-                .push(format!("let _ = (gd.static_set)({key}, {name});"));
-            self.uses_shim = true;
-            if let Some(text) = map::method(&name, method, &parts) {
-                return self.shimmed(text);
-            }
-            return format!("{name}.{}({})", safe(method), parts.join(", "));
+        if let Some(text) = self.static_var_call(callee, &parts) {
+            return text;
         }
         if let Expr::Field(object, method) = callee {
             let receiver = self.expression(object);
@@ -811,8 +796,11 @@ impl<'a> Emitter<'a> {
             // No engine call of that name, so this is one script calling
             // another's method. Godot read it off the node; here the node is
             // asked at run time, which is what the shim's `invoke` does.
-            self.uses_shim = true;
-            return map::invoke(&receiver, &safe(method), &parts);
+            if let Some(text) = map::invoke(&receiver, &safe(method), &parts) {
+                self.uses_shim = true;
+                return text;
+            }
+            return self.unresolved(&format!("{method}() with {} arguments", parts.len()));
         }
         if let Expr::Name(name) = callee
             && !self.is_local(name)
@@ -892,6 +880,33 @@ impl<'a> Emitter<'a> {
 
     /// The signal a `sig.emit(..)` was written on, where the receiver names
     /// one this class declares.
+    /// A call on a `static var`, which lives on the scene root rather than in
+    /// the module: read before the call and written back after.
+    fn static_var_call(&mut self, callee: &Expr, parts: &[String]) -> Option<String> {
+        let Expr::Field(object, method) = callee else {
+            return None;
+        };
+        let Expr::Name(root) = &**object else {
+            return None;
+        };
+        if self.is_local(root) {
+            return None;
+        }
+        let fallback = self.context.static_vars.get(root).cloned()?;
+        let key = quoted(&format!("{}:{root}", self.context.static_prefix));
+        let name = self.temp();
+        self.declare(&name);
+        self.before
+            .push(format!("let {name} = (gd.static_get)({key}, {fallback});"));
+        self.after
+            .push(format!("let _ = (gd.static_set)({key}, {name});"));
+        self.uses_shim = true;
+        if let Some(text) = map::method(&name, method, parts) {
+            return Some(self.shimmed(text));
+        }
+        Some(format!("{name}.{}({})", safe(method), parts.join(", ")))
+    }
+
     /// `x.signal.connect(self._handler)`: a widget key for a widget's own
     /// signal, an event subscription for any other. Only a plain method name
     /// is taken as the handler; a lambda or `.bind(..)` is reported instead.
@@ -920,10 +935,8 @@ impl<'a> Emitter<'a> {
         if self.signal_of(&object).is_some() {
             return None;
         }
-        // The handler Godot named. A lambda or a `.bind(..)` is neither, and
-        // falls through to be reported rather than half-translated.
-        // A method of this class, which is what Godot's handler always is. A
-        // local holding a lambda is not one, and is reported instead.
+        // Godot's handler is always a method of this class. A lambda or a
+        // `.bind(..)` is not one, and is reported rather than half-translated.
         let is_handler = |name: &String| self.context.methods.contains(name);
         let named = match args.first() {
             Some(Expr::Name(name)) if is_handler(name) => Some(name.clone()),
@@ -935,7 +948,11 @@ impl<'a> Emitter<'a> {
             None => None,
             _ => return None,
         };
-        let handler = if verb == "disconnect" { None } else { named.clone() };
+        let handler = if verb == "disconnect" {
+            None
+        } else {
+            named.clone()
+        };
         let handler = handler.map(|name| self.method_name(&name));
         let receiver = self.expression(&object);
         // A widget's own signal is a key on the widget: the engine calls it on
@@ -945,6 +962,8 @@ impl<'a> Emitter<'a> {
         }
         // Any other signal is an event on the emitting node. The engine calls
         // `on_<name>`, so the module gains one that forwards to the handler.
+        // Both go through the shim, which checks the emitter is a node.
+        self.uses_shim = true;
         if verb == "disconnect" {
             return Some(map::signal_unsubscribe(&receiver, &signal));
         }

@@ -1,0 +1,136 @@
+# Text a game can edit: a label whose marks carry links and hints, a line a
+# player may select and copy, and a number with steps and units.
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+[nodes.script]
+source = "scripts/shot.rn"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "panel"
+text = ""
+anchor = "center"
+x = 0
+y = 0
+width = 560
+padding = 16
+gap = 12
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "Text a game can edit"
+role = "title"
+
+[[nodes]]
+id = "links_head"
+name = "LinksHead"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "LINKS AND HINTS"
+role = "group"
+
+[[nodes]]
+id = "links"
+name = "Links"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+markup = true
+on_link = "open"
+text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
+
+[[nodes]]
+id = "links_note"
+name = "LinksNote"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "caption"
+text = "[url=target] calls on_link; [hint=text] says it on hover"
+
+[[nodes]]
+id = "select_head"
+name = "SelectHead"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "SELECTABLE"
+role = "group"
+
+[[nodes]]
+id = "select"
+name = "Select"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+selectable = true
+text = "Seed 0x5eed-1f3a. Drag across this line to select it, then copy."
+
+[[nodes]]
+id = "numbers_head"
+name = "NumbersHead"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "NUMBERS"
+role = "group"
+
+[[nodes]]
+id = "numbers"
+name = "Numbers"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 30
+gap = 10
+align = "center"
+
+[[nodes]]
+id = "size"
+name = "Size"
+parent = "numbers"
+[nodes.widget]
+kind = "drag_value"
+value = 12
+min = 8
+max = 96
+step = 1
+arrows = true
+placeholder = "size"
+suffix = "px"
+width = 140
+
+[[nodes]]
+id = "speed"
+name = "Speed"
+parent = "numbers"
+[nodes.widget]
+kind = "drag_value"
+value = 4.5
+min = 0
+max = 20
+step = 0.5
+arrows = true
+placeholder = "speed"
+suffix = "m/s"
+width = 150
+
+[[nodes]]
+id = "numbers_note"
+name = "NumbersNote"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "caption"
+text = "arrows step by `step`, suffix follows the number"

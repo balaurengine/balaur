@@ -371,6 +371,7 @@ in the game; "not planned" is a deliberate no.
 | Areas, bodies, shapes, joints, a character controller, raycasts | Have |
 | A tick rate other than 60 | Have as a script's own clock over the fixed step; §5 asks whether `FIXED_DT` becomes a setting |
 | Soft bodies, navigation | `docs/PLAN-physics.md`; the roadmap's "Navigation" |
+| A concave dynamic body: a table, a wedge | 0.2, `docs/PLAN-convex-decomposition.md`: `collider2d` kind `convex_decomposition`, exact pieces grown across their seams. Until then several `convex_hull` colliders drawn by hand |
 
 ## 3. Steps
 

@@ -168,6 +168,13 @@ pub struct Quad {
     pub color: Option<Color32>,
     pub colored: bool,
     pub wave: Option<(f32, f32)>,
+    /// Which of [`Shaped::links`] this glyph reports when clicked.
+    pub link: Option<u16>,
+    /// Which of [`Shaped::hints`] this glyph says on hover.
+    pub hint: Option<u16>,
+    /// Where this glyph starts in [`Shaped::text`], in bytes: what a
+    /// selection is measured in.
+    pub start: u32,
 }
 
 /// An inline picture, positioned like a glyph.
@@ -181,6 +188,13 @@ pub struct Shaped {
     pub size: Vec2,
     pub quads: Vec<Quad>,
     pub pictures: Vec<Picture>,
+    /// What each `[url]` in the block points at.
+    pub links: Vec<String>,
+    /// What each `[hint]` in the block says.
+    pub hints: Vec<String>,
+    /// The text as it was laid out, with the marks taken off: what a glyph's
+    /// `start` indexes and what a selection copies.
+    pub text: String,
 }
 
 /// The shaper, its glyph cache and the atlas: one per engine, made when the
@@ -499,6 +513,9 @@ impl TextState {
                     color: span.and_then(|s| s.color),
                     colored: slot.colored,
                     wave: span.and_then(|s| s.wave),
+                    link: span.and_then(|s| s.link),
+                    hint: span.and_then(|s| s.hint),
+                    start: u32::try_from(glyph.start).unwrap_or(u32::MAX),
                 });
             }
         }
@@ -511,6 +528,9 @@ impl TextState {
             size: extent,
             quads,
             pictures,
+            links: parsed.links.clone(),
+            hints: parsed.hints.clone(),
+            text: parsed.spans.iter().map(|span| span.text.as_str()).collect(),
         }
     }
 }
@@ -579,8 +599,12 @@ fn spans_of(request: &RequestRef<'_>) -> markup::Markup {
             color: None,
             wave: None,
             image: None,
+            link: None,
+            hint: None,
         }],
         align: None,
+        links: Vec::new(),
+        hints: Vec::new(),
     }
 }
 
@@ -604,13 +628,15 @@ fn span_attrs<'a>(base: &Attrs<'a>, span: &markup::Span, index: usize, size: f32
 }
 
 /// Draw a shaped block with its top-left corner at `origin`. `time` drives
-/// the wave; `tint` is the label's colour where the markup set none.
+/// the wave; `tint` is the label's colour where the markup set none, and
+/// `linked` the colour a `[url]` run takes instead.
 pub fn paint(
     painter: &egui::Painter,
     texture: Option<egui::TextureId>,
     shaped: &Shaped,
     origin: Pos2,
     tint: Color32,
+    linked: Option<Color32>,
     time: f64,
 ) {
     let Some(texture) = texture else {
@@ -626,8 +652,12 @@ pub fn paint(
         }
         let color = if quad.colored {
             Color32::WHITE
+        } else if let Some(color) = quad.color {
+            color
+        } else if let Some(color) = linked.filter(|_| quad.link.is_some()) {
+            color
         } else {
-            quad.color.unwrap_or(tint)
+            tint
         };
         mesh.add_rect_with_uv(rect, quad.uv, color);
     }

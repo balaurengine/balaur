@@ -162,7 +162,7 @@ fn paint_face(
     }
     if let Some((shaped, texture)) = &face.shaped {
         let origin = pos2(at_x, rect.center().y - shaped.size.y / 2.0);
-        balaur_text::paint(ui.painter(), *texture, shaped, origin, ink, at.eng.time());
+        balaur_text::paint(ui.painter(), *texture, shaped, origin, ink, None, at.eng.time());
         return;
     }
     if let Some(plain) = &face.plain {

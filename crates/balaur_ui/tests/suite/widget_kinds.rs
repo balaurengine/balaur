@@ -841,3 +841,70 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
         );
     }
 }
+
+/// Toasts at one anchor stack rather than cover each other, and a toast
+/// leaves on its own once its `duration` is up.
+#[test]
+fn toasts_stack_at_their_anchor_and_leave_when_their_time_is_up() {
+    let (_dir, mut app) = app();
+    let one = toml::toml! {
+        kind = "toast" text = "Saved" anchor = "top_right" duration = 0.2
+        width = 120.0 height = 30.0
+    };
+    let first = add_widget(&app, &one.into());
+    let two = toml::toml! {
+        kind = "toast" text = "Copied" anchor = "top_right" duration = 0.2
+        width = 120.0 height = 30.0
+    };
+    let second = add_widget(&app, &two.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let above = balaur_ui::widget_rect(first).expect("the first toast drew");
+    let below = balaur_ui::widget_rect(second).expect("the second toast drew");
+    assert!(
+        below.min.y >= above.max.y,
+        "the second toast covers the first: {above:?} against {below:?}"
+    );
+    // Time is the engine's, so the toast goes when the ticks say so.
+    for _ in 0..20 {
+        app.tick(1.0 / 60.0);
+        pass(&app, &ctx, vec![]);
+    }
+    assert!(
+        !app.engine.world().contains(first),
+        "the toast outstayed its duration"
+    );
+    assert!(
+        !app.engine.world().contains(second),
+        "the second toast outstayed its duration"
+    );
+}
+
+/// A toast is read, not used: a click goes through it to whatever it covers.
+#[test]
+fn a_toast_takes_no_click_from_what_is_under_it() {
+    let (_dir, mut app) = app();
+    let behind = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "behind" x = 0.0 y = 0.0 width = 200.0 height = 60.0 }
+            .into(),
+    );
+    add_widget(
+        &app,
+        &toml::toml! {
+            kind = "toast" text = "Saved" anchor = "top_left" duration = 0.0
+            width = 200.0 height = 60.0
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = pos2(40.0, 20.0);
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    consume_input(&mut app);
+    assert!(
+        clicked(&app, behind),
+        "the toast swallowed the click meant for the button under it"
+    );
+}

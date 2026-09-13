@@ -65,9 +65,8 @@ pub(crate) fn shaped_caption(
 /// up yet, so the caller may fall back to egui's own text.
 pub(crate) fn shaped_label(
     ui: &mut egui::Ui,
-    at: &Painting<'_>,
+    at: &mut Painting<'_>,
     index: usize,
-    widget: &Widget,
     caption: &str,
     color: egui::Color32,
     font: &egui::FontId,
@@ -77,11 +76,21 @@ pub(crate) fn shaped_label(
     };
     let look = at.look(index);
     let style = &look.style;
+    let placed = &at.arena[index];
+    let entity = placed.entity;
+    let widget = &placed.widget;
+    let (wrap, stated, align, selectable) = (
+        widget.wrap,
+        widget.width,
+        widget.text_align.clone(),
+        widget.selectable,
+    );
+    let on_link = widget.on_link.clone();
     let room = ui.available_width();
-    let width = widget.wrap.then_some(room.max(1.0));
+    let width = wrap.then_some(room.max(1.0));
     // A stated width is a column, so a long line is cut off at its edge
     // rather than run into whatever sits beside it.
-    let column = (!widget.wrap && widget.width > 0.0).then_some(widget.width);
+    let column = (!wrap && stated > 0.0).then_some(stated);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
         let request = text_request(widget, caption, width, font, style);
@@ -89,25 +98,52 @@ pub(crate) fn shaped_label(
     };
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
-    let take = if width.is_none() && widget.text_align != w::START {
+    let take = if width.is_none() && align != w::START {
         room.max(shaped.size.x)
     } else {
         shaped.size.x
     };
     let take = column.unwrap_or(take);
-    let (rect, _) = ui.allocate_exact_size(vec2(take, shaped.size.y), egui::Sense::hover());
+    // A block with links or one a player may select answers the pointer;
+    // every other label is a picture of its text.
+    let sense = if selectable {
+        egui::Sense::click_and_drag()
+    } else if shaped.links.is_empty() && shaped.hints.is_empty() {
+        egui::Sense::hover()
+    } else {
+        egui::Sense::click()
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(take, shaped.size.y), sense);
     let held = ui.clip_rect();
     if column.is_some() {
         ui.set_clip_rect(held.intersect(rect));
     }
     let slack = (take - shaped.size.x).max(0.0);
-    let shift = match widget.text_align.as_str() {
+    let shift = match align.as_str() {
         w::CENTER if width.is_none() => slack / 2.0,
         w::END if width.is_none() => slack,
         _ => 0.0,
     };
     let origin = rect.min + vec2(shift, 0.0);
-    balaur_text::paint(ui.painter(), texture, &shaped, origin, color, at.eng.time());
+    if selectable {
+        selecting(ui, &response, &shaped, origin, entity);
+    }
+    // A link wears the theme's own `link` colour where it names one, and
+    // egui's otherwise, so a `[url]` never reads as plain text.
+    let linked = (!shaped.links.is_empty())
+        .then(|| at.theme.token("link").unwrap_or(ui.visuals().hyperlink_color));
+    balaur_text::paint(
+        ui.painter(),
+        texture,
+        &shaped,
+        origin,
+        color,
+        linked,
+        at.eng.time(),
+    );
+    if let Some(color) = linked {
+        underline(ui, &shaped, origin, color);
+    }
     for picture in &shaped.pictures {
         if let Ok(handle) = crate::images::texture_of(at.eng, ui.ctx(), &picture.path) {
             ui.painter().image(
@@ -118,8 +154,207 @@ pub(crate) fn shaped_label(
             );
         }
     }
+    spans(ui, at, &response, &shaped, (origin, entity, &on_link));
     ui.set_clip_rect(held);
     true
+}
+
+/// What the pointer is over: the glyph under it, if any.
+///
+/// The rect is widened to the line: between two glyphs is still the word,
+/// and a link half a pixel wide between letters is not a link.
+fn glyph_at(
+    shaped: &balaur_text::Shaped,
+    origin: egui::Pos2,
+    pos: egui::Pos2,
+) -> Option<&balaur_text::Quad> {
+    shaped
+        .quads
+        .iter()
+        .min_by(|a, b| {
+            let reach = |quad: &balaur_text::Quad| {
+                quad.rect
+                    .translate(origin.to_vec2())
+                    .expand2(vec2(1.0, 4.0))
+                    .distance_sq_to_pos(pos)
+            };
+            reach(a).total_cmp(&reach(b))
+        })
+        .filter(|quad| {
+            quad.rect
+                .translate(origin.to_vec2())
+                .expand2(vec2(1.0, 4.0))
+                .distance_sq_to_pos(pos)
+                <= 0.0
+        })
+}
+
+/// Where in the text a click at `pos` falls, in bytes: the near edge of the
+/// glyph under the pointer, or the far edge when the pointer is past its
+/// middle, so a drag from the right of a letter takes that letter.
+fn offset_at(shaped: &balaur_text::Shaped, origin: egui::Pos2, pos: egui::Pos2) -> u32 {
+    let Some(quad) = shaped.quads.iter().min_by(|a, b| {
+        let reach = |quad: &balaur_text::Quad| {
+            quad.rect.translate(origin.to_vec2()).distance_sq_to_pos(pos)
+        };
+        reach(a).total_cmp(&reach(b))
+    }) else {
+        return 0;
+    };
+    let box_ = quad.rect.translate(origin.to_vec2());
+    if pos.x <= box_.center().x {
+        return quad.start;
+    }
+    after(&shaped.text, quad.start)
+}
+
+/// The byte offset past the character starting at `start`.
+fn after(text: &str, start: u32) -> u32 {
+    let at = start as usize;
+    text.get(at..)
+        .and_then(|rest| rest.chars().next())
+        .map_or(start, |c| start + u32::try_from(c.len_utf8()).unwrap_or(1))
+}
+
+/// A drag over a selectable label, the selection it leaves behind it painted,
+/// and the copy that takes it.
+///
+/// The two offsets live in egui's own memory, keyed by the node: a selection
+/// is this screen's, not the scene's, and nothing should write it back.
+fn selecting(
+    ui: &mut egui::Ui,
+    response: &egui::Response,
+    shaped: &balaur_text::Shaped,
+    origin: egui::Pos2,
+    entity: balaur_core::hecs::Entity,
+) {
+    let id = egui::Id::new(("balaur-selection", entity));
+    let mut span = ui.data(|data| data.get_temp::<(u32, u32)>(id)).unwrap_or((0, 0));
+    if let Some(pos) = response.interact_pointer_pos() {
+        let at = offset_at(shaped, origin, pos);
+        // The press is the anchor, not the frame egui calls it a drag: by
+        // then the pointer has already moved off the letter it started on.
+        if ui.input(|input| input.pointer.any_pressed()) {
+            span = (at, at);
+        } else if response.dragged() || response.is_pointer_button_down_on() {
+            span.1 = at;
+        }
+        if response.double_clicked() {
+            span = word_around(&shaped.text, at);
+        }
+        if response.triple_clicked() {
+            span = (0, u32::try_from(shaped.text.len()).unwrap_or(u32::MAX));
+        }
+        ui.data_mut(|data| data.insert_temp(id, span));
+    }
+    let (from, to) = (span.0.min(span.1), span.0.max(span.1));
+    if from == to {
+        return;
+    }
+    let fill = ui.visuals().selection.bg_fill;
+    for quad in &shaped.quads {
+        if quad.start >= from && quad.start < to {
+            let box_ = quad.rect.translate(origin.to_vec2()).expand2(vec2(0.0, 2.0));
+            ui.painter().rect_filled(box_, 0.0, fill);
+        }
+    }
+    // The platform's copy key, which is what `ui::shortcut` spells `cmd+c`.
+    if ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::C))
+        && let Some(text) = shaped.text.get(from as usize..to as usize)
+    {
+        ui.ctx().copy_text(text.to_string());
+    }
+}
+
+/// The word around an offset, for the double click that takes one.
+fn word_around(text: &str, at: u32) -> (u32, u32) {
+    let at = (at as usize).min(text.len());
+    let before = text[..at]
+        .rfind(|c: char| c.is_whitespace())
+        .map_or(0, |i| i + 1);
+    let after = text[at..]
+        .find(|c: char| c.is_whitespace())
+        .map_or(text.len(), |i| at + i);
+    (
+        u32::try_from(before).unwrap_or(0),
+        u32::try_from(after).unwrap_or(u32::MAX),
+    )
+}
+
+/// A line under every `[url]` run, drawn one run at a time so the gaps
+/// between letters are under it rather than in it.
+fn underline(
+    ui: &egui::Ui,
+    shaped: &balaur_text::Shaped,
+    origin: egui::Pos2,
+    color: egui::Color32,
+) {
+    let mut run: Option<(u16, egui::Rect)> = None;
+    let draw = |(_, box_): (u16, egui::Rect)| {
+        let y = box_.max.y + 1.0;
+        ui.painter().hline(
+            box_.min.x..=box_.max.x,
+            y,
+            egui::Stroke::new(1.0, color),
+        );
+    };
+    for quad in &shaped.quads {
+        let box_ = quad.rect.translate(origin.to_vec2());
+        match (quad.link, run) {
+            (Some(link), Some((held, union))) if held == link && (union.max.y - box_.max.y).abs() < 1.0 => {
+                run = Some((link, union.union(box_)));
+            }
+            (Some(link), held) => {
+                if let Some(held) = held {
+                    draw(held);
+                }
+                run = Some((link, box_));
+            }
+            (None, held) => {
+                if let Some(held) = held {
+                    draw(held);
+                }
+                run = None;
+            }
+        }
+    }
+    if let Some(held) = run {
+        draw(held);
+    }
+}
+
+/// What a `[url]` or a `[hint]` span does under the pointer: the hand, the
+/// hover text, and the call a click makes.
+fn spans(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    response: &egui::Response,
+    shaped: &balaur_text::Shaped,
+    what: (egui::Pos2, balaur_core::hecs::Entity, &str),
+) {
+    let (origin, entity, on_link) = what;
+    let Some(pos) = response.hover_pos() else {
+        return;
+    };
+    let Some(quad) = glyph_at(shaped, origin, pos) else {
+        return;
+    };
+    if let Some(hint) = quad.hint.and_then(|i| shaped.hints.get(i as usize)) {
+        let id = egui::Id::new(("balaur-hint", entity, quad.hint));
+        let over = ui.interact(
+            quad.rect.translate(origin.to_vec2()),
+            id,
+            egui::Sense::hover(),
+        );
+        over.on_hover_text(hint);
+    }
+    let Some(target) = quad.link.and_then(|i| shaped.links.get(i as usize)) else {
+        return;
+    };
+    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    if response.clicked() && !on_link.is_empty() {
+        at.edits.push((entity, Edit::Link(target.clone())));
+    }
 }
 
 /// One line of typing. egui owns the caret and the selection; the buffer

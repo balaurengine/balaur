@@ -166,7 +166,12 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
     });
     let written = value.and_then(literal);
     let kind = if hint.is_empty() {
-        written.as_deref().and_then(kind_of_literal)
+        // `:=` states no type, so the value does. Its constructor is read
+        // before `literal` flattens it: `Color(..)` and `Vector2(..)` both
+        // become a list of numbers, which alone says neither.
+        value
+            .and_then(kind_of_constructor)
+            .or_else(|| written.as_deref().and_then(kind_of_literal))
     } else {
         kind_of_hint(&hint, classes)
     };
@@ -302,6 +307,17 @@ fn is_node(class: &str) -> bool {
 }
 
 /// What an untyped export is, from the literal it was given.
+/// The type a `Color(..)` or `Vector2(..)` default states by being one.
+fn kind_of_constructor(value: &str) -> Option<Kind> {
+    let name = value.trim().split_once('(')?.0.trim();
+    Some(match name {
+        "Color" => Kind::Color,
+        "Vector2" | "Vector2i" => Kind::Vec2,
+        "Vector3" | "Vector3i" => Kind::Vec3,
+        _ => return None,
+    })
+}
+
 fn kind_of_literal(literal: &str) -> Option<Kind> {
     match literal {
         "true" | "false" => Some(Kind::Bool),
@@ -537,6 +553,19 @@ mod tests {
                 .1
                 .as_deref(),
             Some("#{ \"type\": \"vec2\", \"default\": [1.0, 2.0] }")
+        );
+        // `:=` names no type, and a setter block leaves a trailing colon.
+        assert_eq!(
+            one("@export var tint := Color(0.5, 0.25, 0.125, 1.0):", &none)
+                .1
+                .as_deref(),
+            Some("#{ \"type\": \"color\", \"default\": [0.5, 0.25, 0.125, 1.0] }")
+        );
+        assert_eq!(
+            one("@export var span := Vector2(-4000.0, 50000.0)", &none)
+                .1
+                .as_deref(),
+            Some("#{ \"type\": \"vec2\", \"default\": [-4000.0, 50000.0] }")
         );
         assert_eq!(one("@export var table: Dictionary", &none), (None, None));
         assert_eq!(

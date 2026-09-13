@@ -194,7 +194,9 @@ impl WidgetTheme {
         // A stack is a panel that lays its children over one another, so
         // either takes the other's entry when the theme names only one.
         let sibling = match kind {
-            w::STACK => w::PANEL,
+            // A stack is a panel that lays its children over one another,
+            // and a toast one that leaves on its own.
+            w::STACK | w::TOAST => w::PANEL,
             w::PANEL => w::STACK,
             _ => return Style::default(),
         };
@@ -389,6 +391,7 @@ type = "widget_theme"            # a widget takes the theme of the nearest ances
 [colors]                         # named fills the rest of the file may use
 ink = "#1b1b1b"
 sky = "#3aa0ff"
+link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "sky"

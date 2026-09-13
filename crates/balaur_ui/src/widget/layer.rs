@@ -207,6 +207,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let focused = eng
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
+    let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
         arena: &placed,
@@ -241,7 +242,11 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
             }
             None => screen,
         };
-        draw_root(ctx, &mut painting, root, area);
+        // A toast is pushed clear of the toasts already at its anchor, and
+        // is drawn thinner as its time runs out.
+        let (area, fade) = toasts.place(eng, &placed[root], area);
+        draw_root(ctx, &mut painting, root, area, fade);
+        toasts.drew(&placed[root]);
     }
     // Published at the end of the draw, not the start of the next one: a
     // script's `draw_ui` runs after this and reads this frame's rects.
@@ -253,6 +258,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
+    // After the pass, never inside it: the arena the draw walked names them.
+    crate::widget::toast::clear(eng, &toasts.expired());
     // Only on the change: a handler firing every frame focus merely *stayed*
     // would be a different event, and not a useful one.
     let arrived = (focused != was_focused).then_some(focused).flatten();
@@ -262,7 +269,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
 /// Draw one root into the area its surface gives it, and record where it
 /// landed. Split from [`draw`] under `MAX_FN_LINES`; the seam is one root's
 /// own placement and pass, which needs nothing from the loop around it.
-fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area: egui::Rect) {
+fn draw_root(
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    root: usize,
+    area: egui::Rect,
+    fade: f32,
+) {
     let (eng, placed) = (painting.eng, painting.arena);
     let entity = placed[root].entity;
     let widget = &placed[root].widget;
@@ -294,7 +307,9 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     let mut root_area = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
         .order(order)
         .pivot(align)
-        .fixed_pos(pos);
+        .fixed_pos(pos)
+        // A toast is read, not used: it takes no click from what is under it.
+        .interactable(widget.kind != w::TOAST);
     if assigned != egui::Vec2::ZERO {
         // Egui's first frame otherwise guesses a size and pushes the corner
         // in to keep the guess on screen, and the cursor keeps it there.
@@ -304,6 +319,8 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     // sets; egui's fade would override both.
     let root_area = root_area.fade_in(false);
     let fill = |ui: &mut egui::Ui, painting: &mut Painting<'_>| {
+        // A toast on its way out, drawn over what it covers.
+        ui.multiply_opacity(fade);
         // A root handed a box reserves it before anything draws: its
         // children are placed at absolute rects and report nothing
         // back, so the area would otherwise hug the first of them.
@@ -566,6 +583,8 @@ pub(crate) enum Edit {
     Color([f32; 4]),
     /// A window's title bar dragged, in design pixels.
     Moved([f32; 2]),
+    /// The target of a `[url]` span that was clicked.
+    Link(String),
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.
@@ -647,7 +666,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::TEXT_AREA => crate::widget::text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
-        w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
+        w::PANEL | w::DIALOG | w::TOAST => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
         w::COLOR => crate::widget::kinds::color(ui, at, index),
@@ -712,7 +731,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            if !crate::widget::text::shaped_label(ui, at, index, widget, &caption, color, &font) {
+            if !crate::widget::text::shaped_label(ui, at, index, &caption, color, &font) {
                 let mut label = egui::Label::new(
                     egui::RichText::new(caption.as_str())
                         .font(font)

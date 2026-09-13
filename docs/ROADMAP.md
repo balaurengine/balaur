@@ -105,6 +105,7 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
+| **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls and tweens. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: a deformable mesh with stiffness, damping and pressure, drawn down the skinning path, on the fixed step. | 0.7 | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
 | **Cloth and rope** — a sheet that hangs and a rope of linked segments over the same solver, pinned to a node and cut by a script. | 0.7 | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
@@ -141,14 +142,14 @@ being built, marked `done`, never back in the shipped one.
 | --- | :-: | --- |
 | **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
 | **Lists, trees and tables** — `list`, `tree` and `table` kinds with selection, columns, and only the rows in view built, which every dock hand-rolls today. | 0.2 | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
-| **Menus, popups and tooltips** — a menu bar, a context menu, a tooltip and a toast in a scene, over a pass that draws above the widget tree. | 0.2 | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
+| **Menus, popups and tooltips** — a menu bar with submenus, a context menu a right click or a long press opens, shortcuts on rows, and a toast. | 0.2 done | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
 | **A picture that clicks, and checks that are exclusive** — an `image` naming an `on_click` senses it, a `group` makes a radio row, a `button` takes a picture, and every Godot anchor preset maps. | 0.2 done | [PLAN-godot-import.md#24-the-widget-kinds](PLAN-godot-import.md#24-the-widget-kinds) |
-| **Text a game can edit** — a multi-line `text` kind, a `code` kind with the gutter and colouring the editor has, a numeric `spin`, and links a label reports. | 0.2 | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
+| **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **Pickers, and drag and drop** — a colour wheel and a file chooser as widget kinds, with a payload one widget offers and another takes. | 0.5 | [PLAN-widgets.md#pickers-and-drag](PLAN-widgets.md#pickers-and-drag) |
-| **Accessibility** — a screen reader over the widget tree, captions, and colour-blind-safe defaults. | 0.6 | no plan |
-| **A controller-only shell** — directional focus between widgets, an on-screen keyboard, and button glyphs that follow the pad. | 0.8 | no plan |
+| **Accessibility** — a screen reader over the widget tree, text scaling, captions, and colour-blind-safe defaults. | 0.6 | no plan |
+| **A controller-only shell** — directional focus between widgets, an on-screen keyboard, safe-area insets applied to layout, and button glyphs that follow the pad. | 0.8 | no plan |
 | **A layout that fits the screen** — width, height and touch classes that widgets, themes and settings answer to, with a touch-target floor and a game's UI scale. | 0.6 | [PLAN-responsive.md](PLAN-responsive.md) |
 
 The `widget` component is what a scene holds, and `ui::*` is what the editor

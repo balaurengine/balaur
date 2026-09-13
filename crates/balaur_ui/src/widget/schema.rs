@@ -41,6 +41,10 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once", group = "type" }"#),
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
+                    (k::ON_LINK, r#"{ type = "string", default = "", description = "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
+                    (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
+                    (k::SELECTABLE, r#"{ type = "bool", default = false, description = "Let a drag over this label select its text, and the platform's copy key take it", group = "type" }"#),
                     (k::CONTEXT, r#"{ type = "string", default = "", description = "Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own", group = "events" }"#),
                     (k::GROW, r#"{ type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for", group = "placement" }"#),
                     (k::MIN_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels", group = "placement" }"#),
@@ -53,6 +57,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
                     (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
                     (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
+                    (k::DURATION, r#"{ type = "float", default = 3.0, min = 0.0, description = "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away", group = "type" }"#),
                     (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
                     (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
                     (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
@@ -97,24 +102,43 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             ),
             tags: &[balaur_core::components::tag::UI],
             expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                crate::widget::arena::widget_changed(entity);
-                eng.world_mut()
-                    .insert_one(entity, widget_from(params))
-                    .map_err(|_| anyhow::anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                crate::widget::arena::widget_changed(entity);
-                let _ = eng.world_mut().remove_one::<Widget>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let widget = world.get::<&Widget>(entity).ok()?;
-                Some(widget_to_toml(&widget))
-            }),
+            apply: Box::new(apply_widget),
+            remove: Box::new(remove_widget),
+            get: Box::new(read_widget),
         },
     );
+}
+
+/// Put the widget a table describes on the node, in place of whatever it
+/// had. The arena is told, since its copy is now a frame behind.
+fn apply_widget(
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+    params: &toml::Value,
+) -> Result<()> {
+    crate::widget::arena::widget_changed(entity);
+    eng.world_mut()
+        .insert_one(entity, widget_from(params))
+        .map_err(|_| anyhow::anyhow!("node is dead"))
+}
+
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the shape a component's `remove` hook is registered as"
+)]
+fn remove_widget(eng: &balaur_core::Engine, entity: balaur_core::hecs::Entity) -> Result<()> {
+    crate::widget::arena::widget_changed(entity);
+    let _ = eng.world_mut().remove_one::<Widget>(entity);
+    Ok(())
+}
+
+fn read_widget(
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+) -> Option<toml::Value> {
+    let world = eng.world();
+    let widget = world.get::<&Widget>(entity).ok()?;
+    Some(widget_to_toml(&widget))
 }
 
 /// A `Widget` back as the property table the inspector and a script read.
@@ -153,10 +177,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ON_CLICK.into(),
         toml::Value::String(widget.on_click.to_string()),
     );
-    map.insert(
-        k::CONTEXT.into(),
-        toml::Value::String(widget.context.to_string()),
-    );
+    reach_to_toml(widget, &mut map);
     map.insert(k::PADDING.into(), four(widget.padding));
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
     map.insert(
@@ -213,10 +234,36 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::PLACEMENT.into(),
         toml::Value::String(widget.placement.to_string()),
     );
+    map.insert(
+        k::DURATION.into(),
+        toml::Value::Float(f64::from(widget.duration)),
+    );
     text_to_toml(widget, &mut map);
     look_to_toml(widget, &mut map);
     controls_to_toml(widget, &mut map);
     toml::Value::Table(map)
+}
+
+/// The keys that say what a widget answers to: the menu a right click opens,
+/// the link a click reports, and what a number and a label let the player do.
+fn reach_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
+    map.insert(
+        k::CONTEXT.into(),
+        toml::Value::String(widget.context.to_string()),
+    );
+    map.insert(
+        k::ON_LINK.into(),
+        toml::Value::String(widget.on_link.to_string()),
+    );
+    map.insert(
+        k::SELECTABLE.into(),
+        toml::Value::Boolean(widget.selectable),
+    );
+    map.insert(
+        k::SUFFIX.into(),
+        toml::Value::String(widget.suffix.to_string()),
+    );
+    map.insert(k::ARROWS.into(), toml::Value::Boolean(widget.arrows));
 }
 
 /// The keys a widget's text carries: where it sits, the face it is drawn in,
@@ -389,6 +436,10 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
         ),
         (w::FOLD, "A header that shows or hides what is under it"),
         (
+            w::TOAST,
+            "A message that stacks at its anchor and leaves when its `duration` is up",
+        ),
+        (
             w::DIALOG,
             "A panel over everything, with the screen behind it dimmed and deaf",
         ),
@@ -479,6 +530,10 @@ fn widget_from(params: &toml::Value) -> Widget {
         font: s(k::FONT),
         on_click: s(k::ON_CLICK),
         context: s(k::CONTEXT),
+        on_link: s(k::ON_LINK),
+        selectable: r.flag(k::SELECTABLE),
+        suffix: s(k::SUFFIX),
+        arrows: r.flag(k::ARROWS),
         clicked: false,
         padding: sides(params, k::PADDING),
         gap: f(k::GAP),
@@ -500,6 +555,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         shortcut: s(k::SHORTCUT),
         showing: r.flag(k::SHOWING),
         placement: s(k::PLACEMENT),
+        duration: f(k::DURATION),
         text_align: s(k::TEXT_ALIGN),
         source: s(k::SOURCE),
         fit: s(k::FIT),

@@ -155,7 +155,7 @@ impl BitmapFont {
         let mut widest = 0.0f32;
         let mut top = 0.0f32;
         let mut previous: Option<char> = None;
-        for character in text.chars() {
+        for (offset, character) in text.char_indices() {
             if character == '\n' {
                 widest = widest.max(pen);
                 pen = 0.0;
@@ -187,6 +187,9 @@ impl BitmapFont {
                     rect: Rect::from_min_size(at, vec2(glyph.width * scale, glyph.height * scale)),
                     uv: Rect::from_min_max(uv_min, uv_max),
                     color: None,
+                    link: None,
+                    hint: None,
+                    start: u32::try_from(offset).unwrap_or(u32::MAX),
                     // The page carries its own colour, as an emoji does: the
                     // label's tint would otherwise wash the art out.
                     colored: true,
@@ -201,6 +204,9 @@ impl BitmapFont {
             size: vec2(widest, top + self.line_height * scale),
             quads,
             pictures: Vec::new(),
+            links: Vec::new(),
+            hints: Vec::new(),
+            text: text.to_string(),
         }
     }
 }

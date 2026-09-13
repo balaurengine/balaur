@@ -45,6 +45,8 @@ pub enum Action {
     Call,
     /// Show or hide the target; `value` is read as a bool.
     Visible,
+    /// Put `value` on screen as a toast that leaves on its own.
+    Toast,
 }
 
 /// The words a scene spells each action with, in the order the Events view
@@ -62,6 +64,7 @@ pub const ACTIONS: &[(&str, Action)] = &[
     ("emit", Action::Emit),
     ("call", Action::Call),
     ("visible", Action::Visible),
+    ("toast", Action::Toast),
 ];
 
 impl Action {

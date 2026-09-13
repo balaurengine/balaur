@@ -1,0 +1,22 @@
+// One picture of the screen this script sits on, for the manual and the blog.
+// `--shot=<path>` after `--` says where it goes; without it the screen is a
+// screen, and nothing is written.
+
+pub fn init(this) {
+    this.frame = 0;
+    this.shot = "";
+    for arg in engine::args() {
+        let parts = arg.split("=").collect::<Vec>();
+        if parts[0] == "--shot" && parts.len() > 1 {
+            this.shot = parts[1];
+        }
+    }
+}
+
+// Late enough that the layout has settled and every popup has opened.
+pub fn update(this, dt) {
+    this.frame += 1;
+    if this.frame == 30 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+}

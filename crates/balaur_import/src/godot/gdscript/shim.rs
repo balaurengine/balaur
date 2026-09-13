@@ -789,23 +789,260 @@ pub fn field(owner, name) {
     ()
 }
 
+/// Godot's Tween over `animation::tween`.
+///
+/// Godot builds a tween and runs it at the end of the frame; here a step runs
+/// as it is declared. A GDScript chain sets the easing before its steps, so
+/// what `tween_property` reads is what the chain asked for.
+pub fn create_tween(node) {
+    #{ "node": node, "trans": "linear", "mode": "in_out", "handles": [] }
+}
+
+pub fn set_trans(t, name) {
+    if name is String {
+        t.trans = name;
+    }
+    t
+}
+
+pub fn set_ease(t, name) {
+    if name is String {
+        t.mode = name;
+    }
+    t
+}
+
+/// Godot's transition and mode are balaur's one name: `TRANS_SINE` with
+/// `EASE_IN` is `in_sine`, and linear has no mode.
+fn easing(t) {
+    if t.trans == "linear" {
+        return "linear";
+    }
+    let out = `${t.mode}_${t.trans}`;
+    out
+}
+
+/// The track a Godot property name drives, and the channel of it, if any.
+fn tween_track(path) {
+    let name = path;
+    let channel = ();
+    if path is String && path.contains(":") {
+        let cut = path.split(":").collect::<Vec>();
+        name = cut[0];
+        channel = cut[1];
+    }
+    let track = match name {
+        "modulate" => "tint",
+        "self_modulate" => "tint",
+        "position" => "position",
+        "global_position" => "position",
+        "scale" => "scale",
+        "rotation" => "rotation",
+        "visible" => "visible",
+        _ => name,
+    };
+    (track, channel)
+}
+
+/// A Godot value as the list a track takes.
+fn tween_value(v) {
+    if v is Object {
+        if v.contains_key("r") {
+            return [float(v.r), float(v.g), float(v.b), float(v.a)];
+        }
+        if v.contains_key("z") {
+            return [float(v.x), float(v.y), float(v.z)];
+        }
+        if v.contains_key("x") {
+            return [float(v.x), float(v.y), 0.0];
+        }
+    }
+    v
+}
+
+/// Where a track stands now, so a tween of one channel keeps the rest.
+fn tween_now(node, track) {
+    if track == "tint" {
+        return tween_value(node.tint());
+    }
+    if track == "position" {
+        return tween_value(vec_of(node.transform.position));
+    }
+    if track == "scale" {
+        return tween_value(vec_of(node.transform.scale));
+    }
+    ()
+}
+
+pub fn tween_property(t, target, path, to, seconds) {
+    let (track, channel) = tween_track(path);
+    let want = tween_value(to);
+    if !is_nil(channel) {
+        let held = tween_now(target, track);
+        if held is Vec {
+            let slot = match channel {
+                "x" => 0,
+                "y" => 1,
+                "z" => 2,
+                "r" => 0,
+                "g" => 1,
+                "b" => 2,
+                "a" => 3,
+                _ => -1,
+            };
+            if slot >= 0 && slot < held.len() {
+                held[slot] = float(want);
+                want = held;
+            }
+        }
+    }
+    let handle = animation::tween(target, #{
+        "steps": [#{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) }],
+    });
+    t.handles.push(handle);
+    t
+}
+
+/// A tween that only waits, which a chain uses to space its steps.
+pub fn tween_interval(t, seconds) {
+    t
+}
+
+pub fn tween_callback(t, held) {
+    if !is_nil(held) {
+        held();
+    }
+    t
+}
+
+pub fn kill_tween(t) {
+    if t is Object {
+        for handle in t.handles {
+            animation::stop(handle);
+        }
+        t.handles = [];
+    }
+}
+
+pub fn tween_running(t) {
+    if !(t is Object) {
+        return false;
+    }
+    for handle in t.handles {
+        if animation::is_tween_running(handle) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Hearing another node's event. A `from` that is not a node is nothing to
+/// subscribe to, and saying so beats an error inside the engine.
+pub fn listen(node, name, from) {
+    if from is balaur::Node {
+        events::subscribe(node, name, from);
+        return ();
+    }
+    log::warn(`${name}: nothing to hear it from`);
+}
+
+pub fn unlisten(node, name, from) {
+    if from is balaur::Node {
+        events::unsubscribe(node, name, from);
+    }
+}
+
 /// Calling another script's method. A node is asked whether it has one; an
 /// object holding a function answers with that. Anything else is nothing,
 /// which is what Godot's own missing method would have been on a freed node.
-pub fn invoke(owner, name, args) {
+/// A path only known at run time, as the project spells it: `res://` goes,
+/// and a scene keeps its stem under `.toml`.
+pub fn load(path) {
+    if !(path is String) {
+        return path;
+    }
+    let rest = if path.starts_with("res://") { path[6..] } else { path };
+    if rest.ends_with(".tscn") {
+        // Bound first: a template straight after `return` is not an
+        // expression Rune's parser will take.
+        let stem = rest[..rest.len() - 5];
+        let out = `${stem}.toml`;
+        return out;
+    }
+    rest
+}
+
+pub fn invoke(owner, name) {
     if is_nil(owner) {
         return ();
     }
     if owner is balaur::Node {
         if owner.has_method(name) {
-            return owner.call(name, args);
+            return owner.call(name);
         }
         return ();
     }
     if owner is Object {
         let held = get(owner, name, ());
         if !is_nil(held) {
-            return held(args);
+            return held();
+        }
+    }
+    ()
+}
+
+pub fn invoke1(owner, name, a0) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        if owner.has_method(name) {
+            return owner.call(name, a0);
+        }
+        return ();
+    }
+    if owner is Object {
+        let held = get(owner, name, ());
+        if !is_nil(held) {
+            return held(a0);
+        }
+    }
+    ()
+}
+
+pub fn invoke2(owner, name, a0, a1) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        if owner.has_method(name) {
+            return owner.call(name, a0, a1);
+        }
+        return ();
+    }
+    if owner is Object {
+        let held = get(owner, name, ());
+        if !is_nil(held) {
+            return held(a0, a1);
+        }
+    }
+    ()
+}
+
+pub fn invoke3(owner, name, a0, a1, a2) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        if owner.has_method(name) {
+            return owner.call(name, a0, a1, a2);
+        }
+        return ();
+    }
+    if owner is Object {
+        let held = get(owner, name, ());
+        if !is_nil(held) {
+            return held(a0, a1, a2);
         }
     }
     ()

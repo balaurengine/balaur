@@ -17,5 +17,6 @@ mod widget_kinds;
 mod widget_layer;
 mod widget_menus;
 mod widget_scale;
+mod widget_text;
 mod widget_tree;
 mod widget_window;

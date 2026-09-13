@@ -299,6 +299,7 @@ type = "widget_theme"            # a widget takes the theme of the nearest ances
 [colors]                         # named fills the rest of the file may use
 ink = "#1b1b1b"
 sky = "#3aa0ff"
+link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "sky"

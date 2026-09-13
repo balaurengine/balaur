@@ -16,4 +16,5 @@ pub(crate) mod scroll;
 pub(crate) mod taffy;
 pub(crate) mod text;
 pub(crate) mod theme;
+pub(crate) mod toast;
 pub(crate) mod window;

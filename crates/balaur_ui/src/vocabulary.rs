@@ -35,11 +35,12 @@ pub(crate) mod words {
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
+    pub(crate) const TOAST: &str = "toast";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
         COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
-        DIALOG, WINDOW, SEPARATOR, CODE, STACK,
+        DIALOG, TOAST, WINDOW, SEPARATOR, CODE, STACK,
     ];
 
     pub(crate) const CONTAIN: &str = "contain";
@@ -126,6 +127,7 @@ pub(crate) mod words {
 pub(crate) mod keys {
     pub(crate) const ACTIVE: &str = "active";
     pub(crate) const ALIGN: &str = "align";
+    pub(crate) const ARROWS: &str = "arrows";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const AUTOFOCUS: &str = "autofocus";
     pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
@@ -148,6 +150,7 @@ pub(crate) mod keys {
     pub(crate) const DEADZONE: &str = "deadzone";
     pub(crate) const DECIMALS: &str = "decimals";
     pub(crate) const DISABLED: &str = "disabled";
+    pub(crate) const DURATION: &str = "duration";
     pub(crate) const DRAW: &str = "draw";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";
@@ -199,6 +202,7 @@ pub(crate) mod keys {
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const ON_FILL: &str = "on_fill";
+    pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_KNOB: &str = "on_knob";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
@@ -222,6 +226,7 @@ pub(crate) mod keys {
     pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const SECRET: &str = "secret";
+    pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";

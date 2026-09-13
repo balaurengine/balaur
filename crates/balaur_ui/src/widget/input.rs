@@ -136,6 +136,9 @@ pub const SUBMIT_EVENT: &str = "submit";
 /// `task::wait(events::next("click", button))`.
 pub const CLICK_EVENT: &str = "click";
 
+/// What a `[url]` span emits when it is clicked, with its target.
+pub const LINK_EVENT: &str = "link";
+
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
     // keeps what its first run had; only a live tick takes the draw's report.
@@ -258,6 +261,16 @@ fn settle_edits(
                 emitted.push((entity, CHANGE_EVENT, Value::Bool(*open)));
                 if !widget.on_change.is_empty() {
                     signals.push((entity, widget.on_change.to_string(), Value::Bool(*open)));
+                }
+            }
+            Edit::Link(target) => {
+                emitted.push((entity, LINK_EVENT, Value::Str(target.clone())));
+                if !widget.on_link.is_empty() {
+                    signals.push((
+                        entity,
+                        widget.on_link.to_string(),
+                        Value::Str(target.clone()),
+                    ));
                 }
             }
             Edit::Choice(choice) => {

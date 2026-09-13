@@ -425,6 +425,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_FLOW", w::FLOW),
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),
+    ("WIDGET_TOAST", w::TOAST),
     ("WIDGET_WINDOW", w::WINDOW),
     ("WIDGET_SEPARATOR", "separator"),
     ("WIDGET_CODE", w::CODE),

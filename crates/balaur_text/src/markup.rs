@@ -1,6 +1,7 @@
 //! Inline marks in a string: the small tag set a localized string carries.
 //!
-//! `[b]`, `[i]`, `[color=#rrggbb]`, `[wave amp=8 freq=4]` wrap text;
+//! `[b]`, `[i]`, `[color=#rrggbb]`, `[wave amp=8 freq=4]`, `[url=target]` and
+//! `[hint=text]` wrap text;
 //! `[center]` and `[right]` set the block's alignment; `[img=path width=32
 //! height=32]` stands alone. Anything else in brackets is text, so a string
 //! that was never markup still reads as it was written.
@@ -17,6 +18,10 @@ pub(crate) struct Span {
     pub(crate) wave: Option<(f32, f32)>,
     /// An inline picture the span stands in for, with its box.
     pub(crate) image: Option<Inline>,
+    /// Which of the block's link targets this span reports when clicked.
+    pub(crate) link: Option<u16>,
+    /// Which of the block's hints this span shows on hover.
+    pub(crate) hint: Option<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,6 +42,10 @@ pub enum Align {
 pub(crate) struct Markup {
     pub(crate) spans: Vec<Span>,
     pub(crate) align: Option<Align>,
+    /// What each `[url]` points at, in the order they opened.
+    pub(crate) links: Vec<String>,
+    /// What each `[hint]` says, in the order they opened.
+    pub(crate) hints: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -45,6 +54,8 @@ struct Style {
     italic: u32,
     colors: Vec<Color32>,
     waves: Vec<(f32, f32)>,
+    links: Vec<u16>,
+    hints: Vec<u16>,
 }
 
 impl Style {
@@ -56,6 +67,22 @@ impl Style {
             color: self.colors.last().copied(),
             wave: self.waves.last().copied(),
             image: None,
+            link: self.links.last().copied(),
+            hint: self.hints.last().copied(),
+        }
+    }
+}
+
+/// Open or close one of the values the block keeps once and the spans point
+/// at: a link's target, a hint's text.
+fn scoped(pool: &mut Vec<String>, open: &mut Vec<u16>, value: Option<String>) {
+    match value {
+        Some(value) => {
+            pool.push(value);
+            open.push(u16::try_from(pool.len() - 1).unwrap_or(0));
+        }
+        None => {
+            open.pop();
         }
     }
 }
@@ -65,6 +92,8 @@ impl Style {
 pub(crate) fn parse(source: &str) -> Markup {
     let mut spans: Vec<Span> = Vec::new();
     let mut align = None;
+    let mut links: Vec<String> = Vec::new();
+    let mut hints: Vec<String> = Vec::new();
     let mut style = Style::default();
     let mut text = String::new();
     let mut rest = source;
@@ -127,6 +156,18 @@ pub(crate) fn parse(source: &str) -> Markup {
                     align = Some(set);
                 }
             }
+            // The target is kept once for the block and the spans carry its
+            // index, the way a colour rides on a span.
+            Some(Tag::Link(target)) => {
+                text.push_str(before);
+                flush(&mut text, &mut spans, &style);
+                scoped(&mut links, &mut style.links, target);
+            }
+            Some(Tag::Hint(said)) => {
+                text.push_str(before);
+                flush(&mut text, &mut spans, &style);
+                scoped(&mut hints, &mut style.hints, said);
+            }
             Some(Tag::Image(inline)) => {
                 text.push_str(before);
                 flush(&mut text, &mut spans, &style);
@@ -145,7 +186,12 @@ pub(crate) fn parse(source: &str) -> Markup {
     }
     text.push_str(rest);
     flush(&mut text, &mut spans, &style);
-    Markup { spans, align }
+    Markup {
+        spans,
+        align,
+        links,
+        hints,
+    }
 }
 
 enum Tag {
@@ -156,6 +202,10 @@ enum Tag {
     /// `None` closes; the alignment stays what the opener set.
     Align(Option<Align>),
     Image(Inline),
+    /// What a span reports when clicked; `None` closes.
+    Link(Option<String>),
+    /// What a span says on hover; `None` closes.
+    Hint(Option<String>),
 }
 
 fn tag_of(tag: &str) -> Option<Tag> {
@@ -179,6 +229,16 @@ fn tag_of(tag: &str) -> Option<Tag> {
         ("center", false) => Some(Tag::Align(Some(Align::Center))),
         ("right", false) => Some(Tag::Align(Some(Align::End))),
         ("left", false) => Some(Tag::Align(Some(Align::Start))),
+        ("url", true) => Some(Tag::Link(None)),
+        ("url", false) => {
+            let target = args.trim();
+            (!target.is_empty()).then(|| Tag::Link(Some(target.to_string())))
+        }
+        ("hint", true) => Some(Tag::Hint(None)),
+        ("hint", false) => {
+            let said = args.trim();
+            (!said.is_empty()).then(|| Tag::Hint(Some(said.to_string())))
+        }
         ("img", false) => {
             let (path, extra) = args.split_once(' ').unwrap_or((args, ""));
             let path = path.trim();

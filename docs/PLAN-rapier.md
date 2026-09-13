@@ -61,7 +61,8 @@
    `convex_decomposition` and `fit` kinds. *`voxels` shipped 2026-09-06*, with
    `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in
    the 2D digest, because `docs/PLAN-tilemap.md` step 1 builds tile collision
-   on it.
+   on it. *`convex_decomposition` is 0.2's, with the overlap its pieces
+   need: `docs/PLAN-convex-decomposition.md`.*
 
    The four defects this item listed were re-audited on 2026-09-06 and are
    gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook

@@ -680,15 +680,18 @@ fn write_members(
             continue;
         };
         let name = name_of(rest);
-        let Some(value) = assigned(rest) else {
+        // Godot's `var x` with no value is null, and an `@onready var` is
+        // null until the scene is in. Both are that here, so a read before
+        // the write answers nothing rather than failing on a missing field.
+        let Some(value) = assigned(rest).filter(|_| !onready) else {
+            if onready {
+                notes.push(format!(
+                    "`@onready var {name}` reads the scene at load; set it in `init`"
+                ));
+            }
+            assignments.push(format!("    this.{} = ();", safe(&name)));
             continue;
         };
-        if onready {
-            notes.push(format!(
-                "`@onready var {name}` reads the scene at load; set it in `init`"
-            ));
-            continue;
-        }
         let body = gdscript::body(
             &[format!("var _x = {value}")],
             context,
@@ -740,7 +743,8 @@ fn write_functions(
     static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
-    let mut forwarders: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut forwarders: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
