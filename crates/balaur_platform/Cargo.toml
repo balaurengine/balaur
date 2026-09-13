@@ -13,7 +13,6 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 balaur_testkit.workspace = true

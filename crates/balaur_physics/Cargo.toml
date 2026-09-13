@@ -40,3 +40,7 @@ tempfile = "3"
 
 [lints]
 workspace = true
+
+# Named only to turn `spade` on for the copy rapier uses (see [dependencies]).
+[package.metadata.cargo-machete]
+ignored = ["parry2d", "parry3d"]

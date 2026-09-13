@@ -15,7 +15,6 @@ balaur_script.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tracing.workspace = true
 
 # The page itself, through web-sys. Native builds carry none of this and
 # answer every query with nil.

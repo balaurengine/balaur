@@ -13,8 +13,6 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
-tracing.workspace = true
-toml.workspace = true
 
 # No HTTP stack compiles for wasm; those get the emscripten fetch backend or,
 # outside emscripten, a stub whose every request resolves to an error event.

@@ -12,7 +12,6 @@ balaur.workspace = true
 balaur_core.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true
-balaur_physics.workspace = true
 balaur_ui.workspace = true
 egui.workspace = true
 hecs.workspace = true

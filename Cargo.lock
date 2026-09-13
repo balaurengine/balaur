@@ -509,7 +509,6 @@ dependencies = [
  "anyhow",
  "balaur",
  "balaur_core",
- "balaur_physics",
  "balaur_script",
  "balaur_script_rune",
  "balaur_ui",
@@ -543,8 +542,6 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
- "tracing-log",
- "tracing-subscriber",
  "ureq",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -645,8 +642,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "toml",
- "tracing",
  "ureq",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -724,7 +719,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "tracing",
 ]
 
 [[package]]
@@ -867,7 +861,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "tracing",
  "wasm-bindgen",
  "web-sys",
 ]
