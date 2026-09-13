@@ -100,9 +100,9 @@ The Scene persona has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
 The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
 left-drag paints it, right-drag erases, and a Rectangle mode fills between
 two corners. A layer is a sibling `tilemap` node: the Add layer button
-duplicates the map and empties it. Edits write `cells` through `history`, so
-undo is free, and a map authored as text stays text while every tile it holds
-still has a character.
+duplicates the map and empties it. Edits write `cells` through `history` as
+rows of tile ids, so undo is free; a map that names a `.cells` file is left
+alone rather than overwritten with rows.
 
 The palette is what asked for `ui.image_button` and `region` on `ui.image`:
 an atlas has to be shown a tile at a time and clicked. Both are general

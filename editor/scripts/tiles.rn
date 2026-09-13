@@ -213,8 +213,23 @@ pub fn component(node) {
     }
 }
 
+/// A tilemap whose cells are inline rows. One naming a `.cells` file is
+/// left alone: a paint would write rows into the scene over the file.
 pub fn editable(S) {
-    S.sel >= 0 && S.sel < S.doc.len() && component(S.doc[S.sel]).is_some()
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        return false;
+    }
+    match component(S.doc[S.sel]) {
+        Some(comp) => !file_backed(comp),
+        None => false,
+    }
+}
+
+/// Whether `cells` names a `.cells` file rather than holding rows. The
+/// schema default is the empty string, which is no file and no rows.
+fn file_backed(comp) {
+    let cells = comp.get("cells").unwrap_or("");
+    cells is String && cells != ""
 }
 
 /// The tile set behind the selected map: its texture, tile size and columns.
@@ -335,20 +350,11 @@ pub fn grid(S) {
         Some(comp) => comp,
         None => return [],
     };
-    let cells = comp.get("cells").unwrap_or("");
+    let cells = comp.get("cells").unwrap_or([]);
+    // A string is the schema's empty default or a `.cells` file name, and
+    // neither holds rows to edit here.
     if cells is String {
-        let rows = [];
-        for line in cells.split('\n') {
-            if line == "" {
-                continue;
-            }
-            let row = [];
-            for c in line.chars() {
-                row.push(tile_of_char(c));
-            }
-            rows.push(row);
-        }
-        return rows;
+        return [];
     }
     let rows = [];
     for row in util::vec(cells) {
@@ -361,29 +367,6 @@ pub fn grid(S) {
     rows
 }
 
-// The characters `cells` spells a tile with, tile 0 first. A tile past the
-// end of this has no character, which is what the list-of-rows form is for.
-fn alphabet() {
-    "0123456789abcdefghijklmnopqrstuvwxyz".chars().collect::<Vec>()
-}
-
-// A signed id, not the unsigned one `enumerate` counts with: -1 is what an
-// empty cell holds, and an unsigned slot cannot be compared against it.
-fn tile_of_char(c) {
-    match util::position(alphabet(), c) {
-        Some(index) => util::i(index),
-        None => -1,
-    }
-}
-
-fn char_of_tile(tile) {
-    let letters = alphabet();
-    if tile < 0 || tile >= letters.len() {
-        return ".";
-    }
-    format!("{}", letters[tile])
-}
-
 /// The widest row: what the engine counts as the map's columns.
 pub fn columns(rows) {
     let widest = 0;
@@ -391,47 +374,6 @@ pub fn columns(rows) {
         widest = util::max(widest, util::i(row.len()));
     }
     widest
-}
-
-/// Write a grid back in the form it was authored in.
-///
-/// The text form stays text while every tile it holds has a character, so a
-/// hand-written map keeps the shape its author can read in a diff; a tile
-/// past 35 has no character and turns the whole map into rows of ids.
-fn cells_value(rows, was_text) {
-    if was_text && spellable(rows) {
-        let lines = [];
-        for row in rows {
-            let line = "";
-            for tile in row {
-                line += char_of_tile(tile);
-            }
-            lines.push(line);
-        }
-        return util::join(lines, "\n");
-    }
-    rows
-}
-
-/// Whether every tile has a character, so the text form can still spell the
-/// map. A tile set past 36 tiles is what takes it away.
-fn spellable(rows) {
-    let letters = alphabet().len();
-    for row in rows {
-        for tile in row {
-            if tile >= letters {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-fn authored_as_text(S) {
-    match component(S.doc[S.sel]) {
-        Some(comp) => comp.get("cells").unwrap_or("") is String,
-        None => true,
-    }
 }
 
 /// Where the map's own origin sits and how a world point lands in it.
@@ -526,7 +468,6 @@ pub fn write_cells(S, cells, tile, label, key) {
         None => return false,
     };
     let rows = grid(S);
-    let was_text = authored_as_text(S);
     let (ox, oy) = origin(S);
     // Reach every cell first: the rows grow left and up by moving the origin,
     // which is what keeps the tiles already down where they are.
@@ -572,7 +513,7 @@ pub fn write_cells(S, cells, tile, label, key) {
         return false;
     }
     // Every row is as wide as the widest: a ragged grid draws the same, but
-    // the text form cannot spell one and a diff of it reads badly.
+    // a diff of one reads badly.
     let widest = columns(rows);
     for i in 0..rows.len() {
         let row = rows[i];
@@ -584,7 +525,7 @@ pub fn write_cells(S, cells, tile, label, key) {
     // Recorded with the document still as it was: everything below is the
     // step this undoes.
     history::record(S, label, key);
-    comp.cells = cells_value(rows, was_text);
+    comp.cells = rows;
     comp.origin = [util::f(low_x), util::f(low_y)];
     apply(S);
     true
@@ -640,7 +581,7 @@ pub fn add_layer(S) {
         Some(comp) => comp,
         None => return false,
     };
-    comp.cells = if authored_as_text(S) { "" } else { [] };
+    comp.cells = [];
     apply(S);
     true
 }

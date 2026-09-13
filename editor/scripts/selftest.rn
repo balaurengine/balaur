@@ -560,9 +560,7 @@ pub fn tiles_tool(S) {
     check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
     check(tiles::cell(S, 0, 0) == 3, format!("the cell holds the tile ({})", tiles::cell(S, 0, 0)));
     check(!tiles::paint(S, 0, 0, 3), "painting the same tile again changes nothing");
-    let text_form = S.doc[S.sel].tilemap.cells;
-    check(text_form is String, "a map authored as text stays text");
-    check(text_form.starts_with("3"), format!("the text spells the tile ({})", text_form));
+    check(S.doc[S.sel].tilemap.cells is Vec, "the map is written back as rows of ids");
 
     check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
     check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
@@ -584,12 +582,6 @@ pub fn tiles_tool(S) {
     check(tiles::fill_rect(S, (0, 0), (1, 1), 2), "a rectangle fills every cell in it");
     check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");
     check(tiles::cell(S, 2, 0) == -1, "and nothing outside it is");
-
-    // A tile past the alphabet has no character, so the whole map turns into
-    // rows of ids rather than losing it.
-    check(tiles::paint(S, 0, 0, 40), "a tile past the alphabet is painted");
-    check(!(S.doc[S.sel].tilemap.cells is String), "and turns the map into rows of ids");
-    check(tiles::cell(S, 0, 0) == 40, "the id form holds the tile");
 
     let layers = S.doc.len();
     // Counted rather than fixed at two: the game's own maps may be under this

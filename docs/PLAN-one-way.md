@@ -130,7 +130,9 @@ Two things the step list did not foresee:
 10. **Tilemap cells are id rows.** The character form goes from `parse_cells`
     in `crates/balaur_render/src/tilemap.rs`. `cells` is id rows inline or a
     `.cells` file of the same rows. `examples/tiles` and the tests convert by
-    script. `terrain` and `flags` are already rows and do not change.
+    script. `terrain` and `flags` are already rows and do not change. The
+    Tiles tool (`editor/scripts/tiles.rn`) writes rows only, and leaves a
+    map that names a `.cells` file alone.
 11. **Draw parity.** `render::draw_box`, `draw_sphere` and `draw_capsule` as
     3D wireframes over `draw_lines`, and `draw_polygon_2d` filled. Additive;
     the editor's 54 calls are untouched.

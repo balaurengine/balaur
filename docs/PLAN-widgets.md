@@ -77,10 +77,12 @@ draws as it would anywhere. `placement` is what it lacks.
 The work, in order:
 
 1. **`context`.** A string property on every kind naming a `menu` node in
-   the same scene, by name. A secondary click on the widget, or a touch held
-   past the theme's long-press time, opens that menu's rows at the pointer
-   through `egui::Popup::context_menu(&response)` and the existing
-   `popup_rows`. The widget's own `on_click` does not fire for that click.
+   the same scene, by name. `response.secondary_clicked()` or
+   `response.long_touched()` opens that menu's rows at the pointer through
+   `egui::Popup::context_menu(&response)` and the existing `popup_rows`. The
+   long press is egui's own: a touch held past `Options::max_click_duration`
+   without moving, so the layer keeps no timer and the theme no key. The
+   widget's own `on_click` does not fire for that press.
 2. **`placement`.** An enum on `menu`: `below` (today's), `above`, `pointer`,
    `center`, mapped to `Popup::align`, `at_pointer` and `at_position`.
 3. **Submenus, verified.** A `menu` row that is itself a `menu` should open
@@ -124,12 +126,29 @@ The work, in order:
 a `group`, the second is `text_area`.
 
 Why none of this is an egui widget: a `label` is not an `egui::Label`. The
-engine shapes text itself in `balaur_text` (cosmic-text, its own atlas, the
-markup, bitmap fonts, `text_key`), and paints `Shaped.quads`, one rect per
-glyph. So `Label::selectable`, `Hyperlink` and `egui_commonmark` never see a
-label, and links and selection are built on the quads instead. The quads
-already carry what the markup set per glyph (`color`, `wave`), which is the
-shape links take too.
+engine shapes text itself in `balaur_text` and paints `Shaped.quads`, one
+rect per glyph. Measured against egui 0.36, which shapes through `harfrust`
+now and no longer through `ab_glyph`, the reasons to keep that are:
+
+- **Bidi.** epaint reorders no right-to-left runs (`font.rs` still carries
+  `TODO(emilk): heed bidi characters`). cosmic-text does, so an Arabic or
+  Hebrew label reads in order.
+- **One atlas for the HUD and the world.** `text2d`, `text3d` and every
+  widget label share the shaper, the glyph atlas and the font chain, so a
+  name over a character and the score on the HUD are the same text.
+- **Bitmap fonts** as pages in that atlas, which epaint has no notion of.
+- **The markup**: `[wave]` moves glyphs per frame and `[img]` places a
+  picture inline, both per-quad effects a galley cannot carry.
+- **Measurement a script may trust.** The strict font set measures with the
+  project's faces only, never the machine's, so a headless run and a
+  windowed one agree on a width. egui's fonts are whatever the context has.
+
+What egui's stack would give and this one does not: `Label::selectable`,
+`Hyperlink` and `egui_commonmark`. Both are a hit-test over glyph rects,
+which the quads already are; the quads carry per-glyph `color` and `wave`
+from the markup, and a link and a byte offset ride the same way. That is
+two fields and a hit-test, against losing the five points above. Keep
+`balaur_text`; revisit only if epaint gains bidi.
 
 The work, in order:
 
@@ -165,8 +184,13 @@ The work, in order:
 both already. `view` waits on the render target
 [PLAN-views-and-culling.md](PLAN-views-and-culling.md) adds. `graph` is the
 canvas a Rune graph and a shader graph are both drawn on, so it lands before
-either of them; `egui-snarl` is the first thing to measure against before
-writing one.
+either of them. Measured 2026-09-13: `egui-snarl` 0.12 pins egui 0.36, is
+MIT or Apache, and depends on `slab` alone. It owns the graph as a
+`Snarl<T>` and draws through a `SnarlViewer` the caller implements, with
+wires, pins, pan and zoom done. A `graph` kind would implement the viewer
+over its child nodes and keep the graph in the scene's TOML rather than its
+`serde`, so the editor's undo and the replay see it. Viable; measure once
+more when the first graph editor is planned.
 
 ### Pickers and drag
 
@@ -179,7 +203,22 @@ writing one.
 `color` is built as a swatch over egui's `color_picker`. Drag and drop is a
 pair of properties on the kinds above rather than a kind of its own; the
 Assets dock and the node tree are its first two users, and a game's inventory
-the third. `egui_dnd` and `egui-file-dialog` are the crates to measure first.
+the third.
+
+Measured 2026-09-13:
+
+- **Drag and drop is egui's own.** `Response::dnd_set_drag_payload`,
+  `dnd_hover_payload` and `dnd_release_payload` over `egui::DragAndDrop`
+  carry a typed payload from any widget to any other, which is what `drag`
+  and `drop` need. `egui_dnd` 0.17 (pins egui 0.36, pulls `egui_animation`)
+  is a sortable-list widget, not a payload seam: a candidate for reordering
+  inside `list` and nothing else.
+- **`file` is not `egui-file-dialog`.** 0.15 pins egui 0.36 but browses the
+  machine through `std::fs`, `directories` and `sysinfo`: it cannot see a
+  project on the web's `MemoryFs` or inside a pack, and shows OS drives a
+  game should not. Project files are a `list` over `fs::list` with a filter,
+  the kind's own work; an OS file is `rfd`, already in the tree through
+  kiss3d and what the project manager plan opens folders with.
 
 ## 2. What egui gives, and what it cannot
 
@@ -196,9 +235,12 @@ Free, and worth taking in this batch:
   `at_pointer` for `placement`, `SubMenuButton` if nesting needs it.
 - `Tooltip::for_widget(&response).show(..)` if a tooltip ever needs more
   than text; not planned.
-- `egui_extras`' image loaders, if an `image` should draw SVG or an animated
-  GIF; the `image` kind decodes PNG and WebP through the `image` crate today.
-  Optional, and `resvg` is a weight.
+- Not `egui_extras`' image loaders. 0.36.2 pins egui 0.36, and its `svg`
+  feature is `resvg` 0.45 (usvg, tiny-skia, a second `fontdb` beside
+  cosmic-text's). The `image` kind decodes through `images.rs` into its own
+  `TextureHandle` cache, the one path world textures also take; egui's
+  loader is a second path with a second cache. If SVG is ever wanted, decode
+  with `resvg` inside `images.rs` and keep one path.
 
 Not reusable, and why:
 
@@ -213,9 +255,9 @@ Not reusable, and why:
 - `egui_taffy`, `egui_flex`: the layer drives taffy directly.
 - `egui_dock`, `egui_tiles`: the editor's docks are widget nodes, by design.
 
-Every ecosystem crate pins an egui version; before adding one, check it is
-on 0.36. `egui_extras` 0.36 is; the others were not checked when this was
-written.
+Every ecosystem crate pins an egui version. Checked 2026-09-13 against
+crates.io: `egui_extras` 0.36.2, `egui-snarl` 0.12, `egui-file-dialog` 0.15
+and `egui_dnd` 0.17 all pin egui 0.36.
 
 ## 3. Order
 
@@ -245,14 +287,11 @@ written.
 
 ## 5. Open questions
 
-1. **Long press.** Whether the widget layer already sees a held touch, or
-   the `deadzone` a `scroll` reads is the only touch timing there is.
-   `context` on a phone needs one or the other.
-2. **A shortcut on a hidden menu.** Whether a row's chord fires when the
+1. **A shortcut on a hidden menu.** Whether a row's chord fires when the
    menu's root is `visible = false`. The editor wants yes for a command
    palette; a game's pause menu wants no. Follow `visible`.
-3. **What a `tree` holds.** Rows handed in by a script every frame, or a
+2. **What a `tree` holds.** Rows handed in by a script every frame, or a
    model the widget owns? The editor wants the first, a game's inventory the
    second.
-4. **How far `code` goes.** Completion and diagnostics belong to the language
+3. **How far `code` goes.** Completion and diagnostics belong to the language
    server; the kind draws them without knowing what produced them.
