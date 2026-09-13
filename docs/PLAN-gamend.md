@@ -213,9 +213,10 @@ no server dependency and can start now.
   match replays from the admin portal's download with every digest matching.
 - **S5. The WebRTC relay.** Ends with: two browsers in one lobby exchange
   datagrams through Gamend with no engine web transport.
-- **E1. Typed bindings.** The generator, the generated module, the events,
-  the docs regenerated. Ends with: `docs/generated/api.json` lists every
-  Gamend operation and the tests call each against the in-process server.
+- **E1. Typed bindings.** Its own plan, `docs/PLAN-gamend-bindings.md`:
+  the generator, the generated module, the events, the auth flows, the
+  docs. Ends with: `docs/generated/api.json` lists every Gamend operation
+  and the tests call each against the in-process server.
 - **E2. Lobby to session.** With S1 and S2: matchmaking, lobby, game server,
   session, in one script. Ends with: two engines matched by Gamend play on a
   server Gamend launched, which is `docs/PLAN-networking.md` step 8 done.
@@ -237,10 +238,10 @@ can: a real NAT, a real region, a phone.
 2. **A process per lobby or a process hosting many sessions.** Per lobby is
    isolation and simplicity; per process is memory and port economy. Start
    per lobby and measure.
-3. **When the bindings are generated.** A build step needs the OpenAPI
-   document in this repository and re-runs on every change; a checked-in
-   `generated.rs` with a script matches `docs/generated/`. The second is the
-   default, with a CI check that the file is current.
+3. **When the bindings are generated.** Answered in
+   `docs/PLAN-gamend-bindings.md` §1: a checked-in `generated.rs` written by
+   `scripts/gen_gamend.py` from a spec copied beside it, with `--check` in
+   precommit.
 4. **Whether the host-run game needs Gamend at all.** A host that listens
    still needs an address a friend can reach, which is NAT; Steam's relay
    (`docs/PLAN-steam.md` step 8) or the WebRTC relay answers it without a

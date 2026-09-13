@@ -287,7 +287,8 @@ carry every one of those shapes — `call_hook`, `login`, `connect`/`join`/
 SDK. So what stands between the port and its online scenarios is an adapter
 of that surface onto the nine calls, written once in the port repository, not
 a translation of the SDK and not a wait on the engine. E1 would make that
-adapter thin and typed; it does not gate it.
+adapter thin and typed; it does not gate it. Both halves are step 6 of
+`docs/PLAN-gamend-bindings.md`.
 
 Getting there closed four bugs worth naming, two of them in the engine:
 
