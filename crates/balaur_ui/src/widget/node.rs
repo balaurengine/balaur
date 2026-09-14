@@ -59,6 +59,19 @@ pub struct Widget {
     pub suffix: SmolStr,
     /// Whether a `drag_value` draws a step up and a step down beside itself.
     pub arrows: bool,
+    /// The 1-based lines a `code` widget dots in its gutter, and the ones a
+    /// checker flagged: an error is underlined red, a warning amber.
+    pub breakpoints: Vec<u32>,
+    pub problems: Vec<u32>,
+    pub warnings: Vec<u32>,
+    /// The line a `code` widget highlights across its width, 1-based; 0 is
+    /// none, which is where a debugger is not stopped.
+    pub current_line: u32,
+    /// How wide a `code` widget's gutter is, in design pixels; 0 takes the
+    /// built-in width.
+    pub gutter_width: f32,
+    /// Method called with the 1-based line a click on the gutter landed on.
+    pub on_gutter: SmolStr,
     pub clicked: bool,
     /// Space inside a container's edge, in design pixels.
     /// Space inside a container's edge: left, top, right and bottom, in
@@ -90,6 +103,7 @@ pub struct Widget {
     pub hide_narrower: f32,
     pub hide_wider: f32,
     pub hide_shorter: f32,
+    pub hide_taller: f32,
     pub min_width: f32,
     pub min_height: f32,
     /// What fills a `draw` widget's rect: a method on this node's script or
@@ -175,6 +189,32 @@ pub struct Widget {
     pub step: f32,
     /// What a `dropdown` offers; `text` is the one chosen.
     pub options: Vec<SmolStr>,
+    /// The rows a `list`, `tree` or `table` holding many has picked. `text` is
+    /// the last row clicked, which is where a shift range measures from.
+    pub selection: Vec<SmolStr>,
+    /// Whether more than one row of a `list`, `tree` or `table` may be picked.
+    pub multi: bool,
+    /// A `table`'s column names, in order; a name ending in `>` draws its
+    /// column against the right edge. None takes the first row as the names.
+    pub titles: Vec<SmolStr>,
+    /// Each `table` column's share of the width, in the order `titles` names
+    /// them; empty divides it evenly. A drag on a seam writes it back.
+    pub widths: Vec<f32>,
+    /// Whether a `table` draws the strip that names its columns.
+    pub header: bool,
+    /// The column a `table`'s rows are ordered by, by name; empty leaves them
+    /// in the order they were given.
+    pub sort: SmolStr,
+    /// Whether a click on a `table`'s header sorts by that column.
+    pub sortable: bool,
+    /// The other way round: the sort descending, or the rows given bottom to
+    /// top where none is named.
+    pub reverse: bool,
+    /// Whether a drag moves a row of a `list` or a `tree`.
+    pub reorderable: bool,
+    /// Method called with the row moved, the row it landed on, and whether it
+    /// went `before` it, `after` it or `into` it.
+    pub on_move: SmolStr,
     /// How many children a `grid` puts on each row.
     pub columns: u32,
     /// Whether a `fold` shows its children.

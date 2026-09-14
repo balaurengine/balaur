@@ -180,6 +180,16 @@ fn import_model(file: &Path, project: &Path) -> Result<Imported> {
         std::fs::write(&path, data)?;
         out.files.push(format!("models/{name}"));
     }
+    // The shader the generated materials draw with, at its own path rather
+    // than under `models/`.
+    for (rel, text) in &imported.documents {
+        let path = project.join(rel);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, text)?;
+        out.files.push(rel.clone());
+    }
     let scene_rel = format!("scenes/{stem}.toml");
     std::fs::write(project.join(&scene_rel), imported.scene_toml()?)?;
     out.files.push(scene_rel.clone());

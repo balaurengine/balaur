@@ -66,9 +66,13 @@ pub fn modes(S) {
     let room = crate::layout::stage_room(S);
     let rail = rail_metrics(S);
     let rail_w = 2.0 * rail.pad + rail.d;
-    let rail_on = S.viewport_live && has_tools && room.w >= rail_w + STAGE_W_MIN;
+    let rail_on = S.viewport_live && has_tools && room.w >= rail_w + STAGE_W_MIN
+        && !S.chrome_off;
     S.rail_visible = rail_on;
-    let chrome = room.w >= STAGE_W_MIN && room.h >= 2.0 * hud_h(S) + STAGE_H_MIN;
+    // Into a local first: a field assigned a short circuit takes the local's
+    // slot too, which is the pitfall AGENTS.md names.
+    let chrome = room.w >= STAGE_W_MIN && room.h >= 2.0 * hud_h(S) + STAGE_H_MIN
+        && !S.chrome_off;
     S.stage_chrome = chrome;
     // The hooks list only earns its 172 px when the code has the centre to
     // itself; a split is already two columns.
@@ -338,6 +342,9 @@ fn viewport(S, k) {
         });
         });
     });
+    if S.chrome_off {
+        return;
+    }
     let foot_x = if S.rail_visible { S.layout.rail.x } else { vp.x };
     let foot_w = vp.x + vp.w - foot_x;
     ui::overlay("vp-hud", #{

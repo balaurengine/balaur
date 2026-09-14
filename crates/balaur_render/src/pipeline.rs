@@ -81,3 +81,52 @@ pub(crate) fn material_pipeline(
         cache: None,
     })
 }
+
+/// The geometry prepass's pipeline: the four targets the screen-space passes
+/// read, single-sampled, writing depth as the colour pass will test it.
+///
+/// The formats are the fork's own for `renderer::Ssao`'s G-buffer, and the
+/// order is the one `shaders/prepass.wesl` writes its locations in.
+pub(crate) fn prepass_pipeline(
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    buffers: &[Option<wgpu::VertexBufferLayout<'_>>],
+    cull: Option<wgpu::Face>,
+) -> wgpu::RenderPipeline {
+    let target = Some(wgpu::ColorTargetState {
+        format: wgpu::TextureFormat::Rgba16Float,
+        blend: None,
+        write_mask: wgpu::ColorWrites::ALL,
+    });
+    Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("material3d_pipeline_prepass"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            buffers,
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some("fs_main"),
+            targets: &[target.clone(), target.clone(), target.clone(), target],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            // Whatever the colour pass culls, and nothing else: a face the
+            // two disagree about is drawn and never measured.
+            cull_mode: cull,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Depth::Tested.state(),
+        multisample: multisample_state(1),
+        multiview_mask: None,
+        cache: None,
+    })
+}

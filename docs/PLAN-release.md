@@ -69,8 +69,9 @@ opens without a warning and updates itself.
    The Linux tarball ships; the AppImage does not exist yet.
 3. The Download page wired to a tagged release beside the nightly — done
    2026-09-10, and it reads the release list rather than `latest`, which skips
-   prereleases. `balaur update` still resolves `latest` and 404s against a
-   prerelease tag; `docs/RELEASING.md` says what the two fixes are.
+   prereleases. `balaur update` follows the channel its own version names, per
+   `docs/PLAN-release-channels.md`; a stable build still fails while no stable
+   release exists, which is the intended answer.
 
 ## Credentials
 

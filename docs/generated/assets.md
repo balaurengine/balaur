@@ -117,6 +117,21 @@ shader = "shaders/water.wesl"
 features = { lit = true }
 # a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or "#rrggbb"/"#rrggbbaa" a vec4
 params = { speed = 0.4, tint = "#3aa0ff" }
+
+# How a node drawing it rasterizes, rather than what colour it comes out.
+[surface]
+alpha = "blend"              # opaque, mask (a cutout), or blend
+alpha_cutoff = 0.5           # what a mask drops a fragment below
+double_sided = true
+transmission = 0.9           # above zero is glass: it refracts the scene behind it
+ior = 1.5                    # how sharply it bends light
+thickness = 0.2              # how far light travels inside it, in world units
+attenuation_color = "#dff0ea"
+attenuation_distance = 2.0
+mirror = true                # show the scene reflected in this surface's own plane
+mirror_intensity = 1.0
+mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
+mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
 ```
 
 ### `mesh`
@@ -130,6 +145,7 @@ Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own 
 id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
+part = "stone"                   # glTF only: just this material's triangles
 # ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
 # torus, pyramid, prism, tube:
 kind = "torus"
@@ -300,6 +316,13 @@ type = "widget_theme"            # a widget takes the theme of the nearest ances
 ink = "#1b1b1b"
 sky = "#3aa0ff"
 link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
+row_on = "#2f6fb0"               # a picked row of a `list`, `tree` or `table`
+row_on_color = "#ffffff"         # and the ink on it
+row_hover = "#ffffff12"          # what a row takes under the pointer; `row_press` while held
+row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
+row_head = "#ffffff08"           # its header's plate
+row_rule = "#00000000"           # the lines down its columns, hidden here
+row_guide = "#8a8a8a8c"          # the lines down a tree's indent
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "sky"
@@ -320,6 +343,12 @@ fill = "#5cb4ff"
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
+
+[table]                          # a row view is dressed like any other kind
+fill = "ink"
+stroke = "sky"
+radius = 6.0
+padding_x = 10.0                 # the air either side of a cell's text
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "#d33a3a"

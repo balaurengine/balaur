@@ -185,9 +185,112 @@ parent = "left_sheet"
 [nodes.widget]
 kind = "tree"
 grow = 1
+# A right click or a long press picks the row it lands on and opens these.
+context = "tree_menu"
 
 [nodes.widget.touch]
 row_height = 33
+
+# The node actions, on a menu that draws no button of its own. Each row calls
+# a method on the Editor node's script, which acts on the selection the click
+# just made.
+[[nodes]]
+id = "tree_menu"
+name = "tree_menu"
+parent = "left_sheet"
+[nodes.widget]
+kind = "menu"
+text = ""
+visible = false
+
+[[nodes]]
+id = "tree_add"
+name = "TreeAdd"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Add child"
+on_click = "tree_add_child"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_up"
+name = "TreeUp"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Move up"
+on_click = "tree_move_up"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_down"
+name = "TreeDown"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Move down"
+on_click = "tree_move_down"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_script"
+name = "TreeScript"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Attach script"
+on_click = "tree_attach_script"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_duplicate"
+name = "TreeDuplicate"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Duplicate"
+on_click = "tree_duplicate"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_hidden"
+name = "TreeHidden"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Hide or show"
+on_click = "tree_toggle_hidden"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_locked"
+name = "TreeLocked"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Lock or unlock"
+on_click = "tree_toggle_locked"
+width = 170
+height = 24
+
+[[nodes]]
+id = "tree_delete"
+name = "TreeDelete"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Delete"
+on_click = "tree_delete"
+width = 170
+height = 24
+
 [[nodes]]
 id = "left_outline"
 name = "LeftOutline"
@@ -471,8 +574,9 @@ visible = false
 grow = 1
 font = "mono"
 
-# Assets, Library and Tiles: three card grids, one node. Only one of them is
-# the bottom dock's active panel, so they take turns filling it.
+# Assets, Library and Tiles: three card grids, one node, filled in turns. Its
+# own `list` beside the log's, because a panel that forgot to state `columns`
+# would inherit the shape of whichever drew last.
 [nodes.widget.touch]
 row_height = 33
 [[nodes]]
@@ -485,11 +589,26 @@ visible = false
 grow = 1
 columns = 6
 
+# The Profiler and the Cost dock: named columns a drag resizes, over rows the
+# panels hand over whole. One node, as the log list is.
+[nodes.widget.touch]
+row_height = 33
+[[nodes]]
+id = "bottom_table"
+name = "BottomTable"
+parent = "bottom"
+[nodes.widget]
+kind = "table"
+visible = false
+grow = 1
+row_height = 18
+font = "mono"
+[nodes.widget.touch]
+row_height = 33
+
 # The four views that genuinely paint: lanes with a transport, and two
 # painting tools where the pointer is the input. A node each, so the scene
 # names every view and a reader can see which of them draw.
-[nodes.widget.touch]
-row_height = 33
 [[nodes]]
 id = "bottom_timeline"
 name = "BottomTimeline"

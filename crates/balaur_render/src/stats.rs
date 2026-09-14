@@ -146,9 +146,13 @@ fn count_image(eng: &Engine, seen: &mut BTreeMap<String, u64>, cost: &mut NodeCo
 }
 
 /// A 3D renderable's triangle count, from the geometry it names.
+/// How many triangles one node draws.
+///
+/// `MeshData::indices` is already one entry per triangle, so the count is its
+/// length: dividing it by three, as this did, reported a third of the frame.
 fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measured) -> u32 {
     if let Some(built) = &renderable.built {
-        return u32::try_from(built.indices.len() / 3).unwrap_or(u32::MAX);
+        return u32::try_from(built.triangle_count()).unwrap_or(u32::MAX);
     }
     if let Some(name) = &renderable.mesh
         && !name.is_empty()
@@ -157,7 +161,7 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measur
             return *count;
         }
         if let Ok(data) = balaur_core::mesh::resolved(eng, name) {
-            let count = u32::try_from(data.indices.len() / 3).unwrap_or(u32::MAX);
+            let count = u32::try_from(data.triangle_count()).unwrap_or(u32::MAX);
             cache.meshes.insert(name.clone(), count);
             return count;
         }
@@ -167,7 +171,7 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measur
             if let Some((_, count)) = cache.solids.iter().find(|(s, _)| *s == solid) {
                 return *count;
             }
-            let count = u32::try_from(solid.build().indices.len() / 3).unwrap_or(u32::MAX);
+            let count = u32::try_from(solid.build().triangle_count()).unwrap_or(u32::MAX);
             cache.solids.push((solid, count));
             count
         }

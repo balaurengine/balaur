@@ -218,6 +218,7 @@ fn fill_mesh(points: &[[f32; 2]], indices: &[[u32; 3]]) -> MeshData {
         colors: None,
         morphs: Vec::new(),
         source: None,
+        part: None,
         text: None,
         path: None,
         skin: None,

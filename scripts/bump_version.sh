@@ -30,6 +30,12 @@ current=$(awk '/^\[workspace\.package\]/{s=1;next} /^\[/{s=0} s&&/^version = /{g
 if [ -n "$exact" ]; then
   next=$exact
 else
+  # Where the next one goes from `0.2.0-alpha.1` is a judgement (the next
+  # alpha, or the release it leads to), so a prerelease is moved by hand.
+  if [[ $current == *-* ]]; then
+    printf '%s is a prerelease; move it with --set\n' "$current" >&2
+    exit 1
+  fi
   IFS=. read -r major minor patch <<<"$current"
   case $part in
     major) next="$((major + 1)).0.0" ;;
@@ -39,7 +45,9 @@ else
 fi
 
 # draft_release.sh compares the tag to this, so a malformed one fails in CI.
-[[ $next =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf 'not a version: %s\n' "$next" >&2; exit 1; }
+# The suffix is the channel the build is on (docs/RELEASING.md).
+[[ $next =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] \
+  || { printf 'not a version: %s\n' "$next" >&2; exit 1; }
 [ "$next" != "$current" ] || { printf 'already at %s\n' "$current" >&2; exit 1; }
 
 printf '%s -> %s\n' "$current" "$next"
@@ -91,9 +99,13 @@ def pins(text):
 
 rewrite("Cargo.toml", bump_cargo)
 rewrite("examples/extension_greeter/Cargo.toml", pins)
+
+# The VS Code marketplace takes no prerelease suffix, so the extension carries
+# the release the workspace is working towards.
+base, next_base = current.split("-")[0], next_.split("-")[0]
 rewrite(
     "editors/code/package.json",
-    lambda t: t.replace(f'"version": "{current}"', f'"version": "{next_}"', 1),
+    lambda t: t.replace(f'"version": "{base}"', f'"version": "{next_base}"', 1),
 )
 PY
 

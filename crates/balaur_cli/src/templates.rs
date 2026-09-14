@@ -110,7 +110,8 @@ mod fetch {
     /// binary was built comes from a different compiler, and fusing the two
     /// is undefined. The release's VERSION asset names the build it holds.
     fn refuse_a_stale_nightly(tag: &str) -> Result<()> {
-        let Some(own) = crate::version::build_id().filter(|id| !id.starts_with('v')) else {
+        let is_nightly = |id: &&str| crate::version::channel_of(id) == crate::version::NIGHTLY;
+        let Some(own) = crate::version::build_id().filter(is_nightly) else {
             return Ok(());
         };
         match fetch_text(&format!("{RELEASE_BASE}/{tag}/VERSION"))? {

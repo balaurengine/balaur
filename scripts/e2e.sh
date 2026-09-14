@@ -258,6 +258,7 @@ for ex in examples/*/; do
   # The library: a material copied in and pointed at the selection.
   printf '  library ...'
   edit_step "$name: library" "$ex" librarydemo
+  edit_step "$name: rows" "$ex" rowsdemo
   printf 'ok\n'
 
   # The Pen: anchors, a handle, the loop closed, and the asset it writes.

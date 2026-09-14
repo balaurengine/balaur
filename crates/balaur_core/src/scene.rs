@@ -734,6 +734,16 @@ thread_local! {
 
 /// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
 pub fn propagate_transforms(world: &mut World, root: Entity) {
+    propagate_transforms_at(world, root, 1.0);
+}
+
+/// [`propagate_transforms`], placing every node that draws between fixed
+/// steps `alpha` of the way along the pair of poses it kept.
+///
+/// `alpha` of 1.0 is the tick's own pose for every node, which is what a
+/// caller with no frame to place wants.
+pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
+    let blending = alpha < 1.0;
     PROPAGATE_STACK.with_borrow_mut(|stack| {
         stack.clear();
         stack.push((
@@ -742,9 +752,14 @@ pub fn propagate_transforms(world: &mut World, root: Entity) {
             GlobalAppearance::identity(),
         ));
         while let Some((entity, parent_global, parent_appearance)) = stack.pop() {
-            let global = match world.get::<&Transform>(entity) {
-                Ok(local) => parent_global.mul(&local),
-                Err(_) => parent_global,
+            let drawn = blending
+                .then(|| world.get::<&crate::interpolate::Interpolation>(entity).ok())
+                .flatten()
+                .map(|kept| kept.pose(alpha));
+            let global = match (drawn, world.get::<&Transform>(entity)) {
+                (Some(local), _) => parent_global.mul(&local),
+                (None, Ok(local)) => parent_global.mul(&local),
+                (None, Err(_)) => parent_global,
             };
             if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
                 *slot = global;

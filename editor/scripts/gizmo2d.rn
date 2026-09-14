@@ -14,6 +14,12 @@ use crate::viewport;
 const W = 4.2;
 // steadyum HANDLE_SCALE_2D: handle pick radius is ~12 px on screen.
 const HANDLE_PX = 12.0;
+
+// What a finger aims at: a cursor points at what it covers, a finger covers
+// what it points at, so half a touch target answers around the handle.
+fn pick_px(S) {
+    if S.touchscreen { util::max(HANDLE_PX, crate::shell::TOUCH_TARGET / 2.0) } else { HANDLE_PX }
+}
 // steadyum HANDLE_DRAW_HALF: drawn marker half-size vs the pick radius.
 const DRAW_HALF = 0.6;
 // Outward offset of the handle centers, in pick-radii (edge midpoints get
@@ -123,7 +129,8 @@ fn set_geometry(S) {
     if !any {
         return None;
     }
-    let rs = HANDLE_PX * viewport::world_per_px(S);
+    let per_px = viewport::world_per_px(S);
+    let rs = HANDLE_PX * per_px;
     let hx = (hi[0] - lo[0]) * 0.5;
     let hy = (hi[1] - lo[1]) * 0.5;
     Some(#{
@@ -131,6 +138,7 @@ fn set_geometry(S) {
         angle: 0.0,
         he: [hx, hy],
         rs: rs,
+        pick: pick_px(S) * per_px,
         marker: DRAW_HALF * rs,
         ring: util::min(0.75 * util::min(hx, hy), 2.4 * rs),
     })
@@ -155,13 +163,15 @@ fn geometry(S) {
     hx = hx * s.x;
     hy = hy * s.y;
     let angle = found.transform.global_rotation_euler().z;
-    let rs = HANDLE_PX * viewport::world_per_px(S);
+    let per_px = viewport::world_per_px(S);
+    let rs = HANDLE_PX * per_px;
     Some(#{
         center: [p.x, p.y],
         angle: angle,
         he: [hx, hy],
         // steadyum: the pick radius doubles as the camera-adaptive scale.
         rs: rs,
+        pick: pick_px(S) * per_px,
         marker: DRAW_HALF * rs,
         // steadyum ring: diameter 75% of the smallest bbox side, capped at
         // 4x the handle's full drawn size.
@@ -179,7 +189,8 @@ fn hit_test(S, geo, mx, my) {
     }
     for signs in handle_signs() {
         let (cx, cy) = handle_local(geo, signs);
-        if (lx - cx) * (lx - cx) + (ly - cy) * (ly - cy) <= geo.rs * geo.rs {
+        let reach = geo.get("pick").unwrap_or(geo.rs);
+        if (lx - cx) * (lx - cx) + (ly - cy) * (ly - cy) <= reach * reach {
             return Some(#{ kind: "handle", signs: [signs[0], signs[1]] });
         }
     }

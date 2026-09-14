@@ -11,134 +11,9 @@ use crate::util;
 // The `tree` node this file fills; the hatch still draws the search above it.
 const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
 const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
-const ROW_H = 23.0;
 // The pitch the `tree` node draws at. Stated rather than measured: the node
 // takes it as `row_height`, so `row_spot` and the rows cannot drift apart.
 const TREE_ROW = 23.0;
-const INDENT = 14.0;
-// Where the first guide sits, measured from the sheet's inner edge.
-const GUIDE_X = 9.0;
-
-// Real lines, drawn from the row's own y: glyph rails never lined up with the
-// row height, and a tree without them cannot show depth.
-fn guides(S, k, depth, is_last) {
-    if depth == 0 {
-        return;
-    }
-    let y = ui::cursor_y();
-    for level in 0..depth {
-        let x = GUIDE_X + (level as f64) * INDENT;
-        let last_level = level == depth - 1;
-        let h = if last_level && is_last { ROW_H / 2.0 } else { ROW_H };
-        ui::rect_stroke(x, y, 0.4, h, #{ color: k.line, width: 1.0 });
-        if last_level {
-            // The stub into the row: what makes a parent's last child read as
-            // the end of that branch rather than the start of another.
-            ui::rect_stroke(x, y + ROW_H / 2.0, INDENT + 10.0, 0.4, #{ color: k.line, width: 1.0 });
-        }
-    }
-}
-
-// One row: depth guides, collapse arrow, typed mark, name, trailing badge;
-// right-click opens the node's context menu.
-fn tree_row(S, k, row) {
-    let i = row.index;
-    let depth = row.depth;
-    let node = S.doc[i];
-    let selected = crate::selection::contains(S, i);
-    let active = i == S.sel;
-    guides(S, k, depth, row.is_last);
-    ui::horizontal(#{ height: ROW_H }, || {
-        ui::add_space(2.0 + (depth as f64) * INDENT);
-        if row.has_kids {
-            // Keyed by id, which is what the walk buckets on and what survives
-            // a rename: collapsing a node should not reopen it when it is
-            // renamed.
-            let id = node.get("id").unwrap_or("");
-            let open = !S.collapsed.contains_key(id);
-            if ui::pill(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, #{
-                height: 20, size: style::SM, radius: 3, min_width: 13,
-                color: k.faint, tooltip: "Collapse",
-            }) {
-                if open {
-                    S.collapsed[id] = true;
-                } else {
-                    S.collapsed.remove(id);
-                }
-            }
-        } else {
-            ui::add_space(13);
-        }
-        let (icon, token) = model::node_icon(node);
-        let icon_color = k.get(token).unwrap_or(k.faint);
-        if ui::pill(node.name, #{
-            role: if selected { "row_on" } else { "row" },
-            strong: depth == 0 || (selected && !active),
-            min_width: ui::available_width(),
-            icon: icon, icon_size: style::MD,
-            icon_color: if selected { k.on_accent } else { icon_color },
-            // A row from a prefab reads as one level quieter: it is real, and
-            // it is not this file's to restructure.
-            color: if selected {
-                k.on_accent
-            } else if model::is_instanced(node) {
-                k.dim
-            } else {
-                k.text
-            },
-            // An instance's own children come from another file and are not
-            // in this document, so the row says so rather than looking empty.
-            trailing: if crate::selection::is_locked(S, i) {
-                icons::ui("lock")
-            } else if node.get("visible") == Some(false) {
-                icons::ui("hidden")
-            } else if node.contains_key("instance") {
-                icons::ui("instance")
-            } else if node.contains_key("script") {
-                icons::ui("scriptfile")
-            } else {
-                ()
-            },
-            trailing_color: if selected { k.on_accent } else { k.sage },
-            menu: || {
-                if ui::menu_item(icons::ui("add") + "  Add child", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    model::add_child(S, None);
-                }
-                if ui::menu_item(icons::ui("caret-open") + "  Move up", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    model::move_sibling(S, -1);
-                }
-                if ui::menu_item(icons::ui("caret-shut") + "  Move down", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    model::move_sibling(S, 1);
-                }
-                if ui::menu_item("‹›  Attach script", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    shell::attach_script(S);
-                }
-                if ui::menu_item(icons::ui("instance") + "  Duplicate", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    model::duplicate_selected(S);
-                }
-                if ui::menu_item(icons::ui("hidden") + "  Hide or show", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    crate::arrange::toggle_hidden(S);
-                }
-                if ui::menu_item(icons::ui("lock") + "  Lock or unlock", #{ color: k.text }) {
-                    shell::choose(S, i);
-                    crate::arrange::toggle_locked(S);
-                }
-                if ui::menu_item("✕  Delete", #{ color: k.accent }) {
-                    shell::choose(S, i);
-                    model::delete_selected(S);
-                }
-            },
-        }) {
-            shell::choose_click(S, i);
-        }
-    });
-}
 
 // Rebuilt only when the document or a fold changed; both loops below are
 // linear in the document, which the drawing no longer is.
@@ -359,11 +234,15 @@ pub fn tree_body(S, k) {
     ui::add_space(4);
     facet_row(S, k);
     ui::add_space(4);
-    if query != "" || S.tree_facet != "" {
-        filtered_tree(S, k, query);
+    let filtering = query != "" || S.tree_facet != "";
+    let rows = if filtering { filtered_rows(S, query) } else { open_rows(S) };
+    if filtering && rows.len() == 0 {
+        hide_tree();
+        ui::add_space(8);
+        crate::search::nothing(k, if query != "" { query } else { S.tree_facet });
         return;
     }
-    show_tree(S, k, open_rows(S));
+    show_tree(S, k, rows);
 }
 
 // The outliner's rows on the `tree` node beside this hatch. One string a row:
@@ -389,10 +268,29 @@ fn show_tree(S, k, rows) {
         items.push(line);
     }
     let params = util::obj(found.get_component("widget"));
+    // `text` is the pick channel and nothing else: the node writes the row a
+    // click landed on, this reads it once and clears it. Held instead, a
+    // selection made anywhere else would be undone by the stale row here.
+    let picked = params["text"];
+    for (n, item) in items.iter().enumerate() {
+        if item == picked && rows[n].index != S.sel {
+            crate::shell::choose_click(S, rows[n].index);
+        }
+    }
+    // Every selected node lit, not only the active one: the document holds a
+    // set, and `multi` is what draws one.
+    let chosen = [];
+    for (n, row) in rows.iter().enumerate() {
+        if crate::selection::contains(S, row.index) {
+            chosen.push(items[n]);
+        }
+    }
     params["options"] = items;
     params["row_height"] = TREE_ROW;
     params["visible"] = true;
-    params["text"] = if S.sel < rows.len() { items[selected_row(rows, S.sel)] } else { "" };
+    params["multi"] = true;
+    params["selection"] = chosen;
+    params["text"] = "";
     found.set_component("widget", params);
 }
 
@@ -433,28 +331,22 @@ pub fn hide_tree() {
     found.set_component("widget", params);
 }
 
-// Every node the query and the facet chip both allow, as a flat list.
-fn filtered_tree(S, k, query) {
-    let any = false;
+// Every node the query and the facet chip both allow, as a flat walk. One
+// shape with `open_rows`, so the same node draws both.
+fn filtered_rows(S, query) {
+    let out = [];
     let facet = S.tree_facet;
-    ui::scroll("tree", #{ max_height: S.layout.left.h - 98.0 }, || {
-        ui::spacing(4, 1);
-        for (i, node) in S.doc.iter().enumerate() {
-            let text = format!("{} {}", node.name, model::node_type(node));
-            if !crate::search::matches(query, text) {
-                continue;
-            }
-            if facet != "" && !tagged(S, i, facet) {
-                continue;
-            }
-            any = true;
-            tree_row(S, k, #{ index: i, depth: 0, is_last: true, has_kids: false });
+    for (i, node) in S.doc.iter().enumerate() {
+        let text = format!("{} {}", node.name, model::node_type(node));
+        if !crate::search::matches(query, text) {
+            continue;
         }
-        if !any {
-            ui::add_space(8);
-            crate::search::nothing(k, if query != "" { query } else { facet });
+        if facet != "" && !tagged(S, i, facet) {
+            continue;
         }
-    });
+        out.push(#{ index: i, depth: 0, is_last: true, has_kids: false });
+    }
+    out
 }
 
 pub fn outline_body(S, k) {

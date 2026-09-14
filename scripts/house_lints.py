@@ -123,13 +123,17 @@ SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=].*?
 # `if let Some(x) = x` fails to compile with "Missing variable"; the name has
 # to differ on the two sides.
 REBOUND_LET = re.compile(r"\bif\s+let\s+\w+\(\s*(\w+)\s*\)\s*=\s*(\w+)\s*(\{|$)")
+# A control a finger can never reach: its `visible` answers to a hover, which
+# a touch screen does not have. The shell has none and this keeps it so.
+HOVER_GATED = re.compile(r"\bvisible\s*:\s*[^,}]*\bhover")
 
 
 def check_rune(path: Path) -> list[Finding]:
-    """The two Rune 0.14 traps that have each already cost a day.
+    """The two Rune 0.14 traps that have each already cost a day, and the one
+    control shape a touch screen cannot reach.
 
-    Both are compiler behaviour rather than style, and `AGENTS.md` writes them
-    up: one miscompiles silently, the other refuses to compile at all.
+    The first two are compiler behaviour rather than style, and `AGENTS.md`
+    writes them up: one miscompiles silently, the other refuses to compile.
     """
     rel = path.relative_to(ROOT)
     findings: list[Finding] = []
@@ -144,6 +148,11 @@ def check_rune(path: Path) -> list[Finding]:
             findings.append(Finding(rel, i, "rune-rebound-let",
                                     f"`if let ..({m.group(1)}) = {m.group(2)}` is a missing "
                                     "variable in Rune; bind to another name", "ERROR"))
+        if HOVER_GATED.search(code):
+            findings.append(Finding(rel, i, "hover-only-control",
+                                    "a control shown only while hovered cannot be reached by a "
+                                    "finger; show it always or put it behind a long press",
+                                    "ERROR"))
     return findings
 
 

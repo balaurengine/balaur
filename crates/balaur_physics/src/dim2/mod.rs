@@ -36,7 +36,7 @@ use query::overlaps_value;
 use balaur_core::digest::{Entry, Hasher, node_label};
 
 use crate::vocabulary::{component as c, hook};
-use balaur_core::FIXED_DT;
+use balaur_core::fixed_dt;
 
 pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
@@ -115,6 +115,11 @@ crate::shared::world::functions!(
 );
 
 fn step_system(eng: &Engine, _dt: f32) {
+    // One world, so a paused game holds every body — an `always` subtree
+    // included, as `crate::step_system` holds the 3D one.
+    if eng.paused() {
+        return;
+    }
     // A map whose cells moved rebuilds once, before the step that has to
     // collide with them.
     tiles::sync_tile_colliders(eng);
@@ -149,9 +154,10 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
         }
 
-        // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
-        // second accumulator here would drift out of step with the scripts.
-        state.world.integration_parameters.dt = scalar::real(FIXED_DT);
+        // Exactly one step: Stage::FixedUpdate already repeats at the fixed
+        // step, and a second accumulator here would drift out of step with
+        // the scripts.
+        state.world.integration_parameters.dt = scalar::real(fixed_dt());
         // The step rebuilds the broad phase itself, as in 3D; without this a
         // query after a collider was added rebuilds it a second time.
         state.queries_ready = true;

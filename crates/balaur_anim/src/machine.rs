@@ -16,7 +16,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::clip::{Clip, Wrap};
-use crate::player::{AnimationState, FIXED_DT, Fade, Playback};
+use crate::player::{AnimationState, Fade, Playback, fixed_dt};
 
 /// The asset type a machine's states and transitions are parsed through.
 pub const MACHINE_ASSET_TYPE: &str = "state_machine";
@@ -339,9 +339,10 @@ pub(crate) fn step(
     machines: &mut DetHashMap<Entity, MachineRun>,
     players: &mut DetHashMap<Entity, Playback>,
     ended: &[Entity],
+    paused: balaur_core::process::Pause,
 ) {
     for (&entity, run) in machines.iter_mut() {
-        if !run.active {
+        if !run.active || !balaur_core::process::ticks(world, entity, paused) {
             continue;
         }
         let Some(machine) = run.machine.clone() else {
@@ -424,7 +425,7 @@ fn wrapped(playback: &Playback) -> bool {
     if clip.wrap == Wrap::None || clip.length <= 0.0 || !playback.playing {
         return false;
     }
-    let before = (playback.time - FIXED_DT * playback.speed).max(0.0);
+    let before = (playback.time - fixed_dt() * playback.speed).max(0.0);
     // Which pass over the clip each end of the step is on, as a whole number.
     let pass = |time: f32| libm::floorf(time / clip.length) as i64;
     pass(before) != pass(playback.time)

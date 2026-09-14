@@ -73,10 +73,20 @@ pub enum PostPass {
     Ssao,
     Ssr,
     Dof,
+    /// Antialiasing over the finished picture, for a frame MSAA did not
+    /// smooth: it reads edges rather than geometry, so it catches the ones a
+    /// shader drew.
+    Fxaa,
+    /// Contrast-adaptive sharpening, which puts back the definition a
+    /// smoothing pass took out.
+    Sharpen,
     /// Where the film becomes a picture. A material before it works in linear
     /// light and is what blooms; one after it works on the finished frame.
     /// Implicit at the head of a list that does not name it.
     Tonemap,
+    /// One of the finishing passes the engine ships as a post-process
+    /// material: it draws where it is listed, like any other material.
+    Finish(&'static str),
     /// A `material` asset, by id.
     Material(String),
 }
@@ -88,8 +98,13 @@ impl PostPass {
             words::SSAO => Self::Ssao,
             words::SSR => Self::Ssr,
             words::DOF => Self::Dof,
+            words::FXAA => Self::Fxaa,
+            words::SHARPEN => Self::Sharpen,
             words::TONEMAP => Self::Tonemap,
-            other => Self::Material(other.to_string()),
+            other => match words::FINISHES.iter().find(|finish| **finish == other) {
+                Some(finish) => Self::Finish(finish),
+                None => Self::Material(other.to_string()),
+            },
         }
     }
 
@@ -99,9 +114,126 @@ impl PostPass {
             Self::Ssao => words::SSAO,
             Self::Ssr => words::SSR,
             Self::Dof => words::DOF,
+            Self::Fxaa => words::FXAA,
+            Self::Sharpen => words::SHARPEN,
             Self::Tonemap => words::TONEMAP,
+            Self::Finish(finish) => finish,
             Self::Material(id) => id,
         }
+    }
+}
+
+/// What the screen-space occlusion pass measures with.
+///
+/// Every one is in world units or over them, so a scene's own scale decides
+/// them: a radius that reads a room reads nothing in a courtyard, and a bias
+/// that stops a surface occluding itself close up stops nothing far away.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Occlusion {
+    /// How far from a point the pass looks for something occluding it.
+    pub radius: f32,
+    /// How far a sample must be in front of the surface to count. Too small
+    /// and a surface at a glancing angle occludes itself into black.
+    pub bias: f32,
+    pub intensity: f32,
+    /// The contrast the result is raised to.
+    pub power: f32,
+}
+
+impl Default for Occlusion {
+    fn default() -> Self {
+        Self {
+            radius: 0.5,
+            bias: 0.025,
+            intensity: 1.2,
+            power: 1.5,
+        }
+    }
+}
+
+impl Occlusion {
+    /// The values as bits, for a comparison that treats two equal floats as
+    /// equal however they were computed.
+    #[must_use]
+    pub fn bits(&self) -> [u32; 4] {
+        [
+            self.radius.to_bits(),
+            self.bias.to_bits(),
+            self.intensity.to_bits(),
+            self.power.to_bits(),
+        ]
+    }
+}
+
+impl Post {
+    /// The plain numbers beside `post`, paired with the key each is spelled by.
+    fn knobs(&self) -> [(&'static str, f32); 9] {
+        [
+            (k::VIGNETTE_AMOUNT, self.finish.vignette_amount),
+            (k::VIGNETTE_ROUNDNESS, self.finish.vignette_roundness),
+            (k::ABERRATION_AMOUNT, self.finish.aberration_amount),
+            (k::GRAIN_AMOUNT, self.finish.grain_amount),
+            (k::PIXELATE_SIZE, self.finish.pixelate_size),
+            (k::SSAO_RADIUS, self.occlusion.radius),
+            (k::SSAO_BIAS, self.occlusion.bias),
+            (k::SSAO_INTENSITY, self.occlusion.intensity),
+            (k::SSAO_POWER, self.occlusion.power),
+        ]
+    }
+}
+
+/// What the engine's finishing passes are turned by.
+///
+/// They are post-process materials, so their values would be a material's
+/// `[params]` — but the engine ships them and a project names them by word,
+/// so the knobs sit beside `post` on the camera, as bloom's already do.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Finish {
+    pub vignette_amount: f32,
+    pub vignette_roundness: f32,
+    pub aberration_amount: f32,
+    pub grain_amount: f32,
+    pub pixelate_size: f32,
+}
+
+impl Default for Finish {
+    fn default() -> Self {
+        Self {
+            vignette_amount: 0.35,
+            vignette_roundness: 1.0,
+            aberration_amount: 0.004,
+            grain_amount: 0.06,
+            pixelate_size: 4.0,
+        }
+    }
+}
+
+impl Finish {
+    /// The values as bits, for a comparison that has to treat two equal
+    /// floats as equal however they were computed.
+    #[must_use]
+    pub fn bits(&self) -> [u32; 5] {
+        [
+            self.vignette_amount.to_bits(),
+            self.vignette_roundness.to_bits(),
+            self.aberration_amount.to_bits(),
+            self.grain_amount.to_bits(),
+            self.pixelate_size.to_bits(),
+        ]
+    }
+
+    /// The knob each finishing pass reads, by the name its shader's `Params`
+    /// gives it.
+    #[must_use]
+    pub fn params(&self) -> Vec<(String, crate::material::Param)> {
+        use crate::material::Param::Float;
+        vec![
+            (k::VIGNETTE_AMOUNT.into(), Float(self.vignette_amount)),
+            (k::VIGNETTE_ROUNDNESS.into(), Float(self.vignette_roundness)),
+            (k::ABERRATION_AMOUNT.into(), Float(self.aberration_amount)),
+            (k::GRAIN_AMOUNT.into(), Float(self.grain_amount)),
+            (k::PIXELATE_SIZE.into(), Float(self.pixelate_size)),
+        ]
     }
 }
 
@@ -112,6 +244,8 @@ pub struct Post {
     pub passes: Vec<PostPass>,
     pub bloom_threshold: f32,
     pub bloom_intensity: f32,
+    pub finish: Finish,
+    pub occlusion: Occlusion,
 }
 
 impl Post {
@@ -151,6 +285,14 @@ impl Post {
                 PostPass::Tonemap => tonemapped = true,
                 PostPass::Material(id) if tonemapped => screen.push(id.clone()),
                 PostPass::Material(id) => film.push(id.clone()),
+                // Every pass the engine draws as an effect of its own goes
+                // in the list by name, so what the order says is what happens.
+                PostPass::Finish(name) if tonemapped => screen.push((*name).into()),
+                PostPass::Finish(name) => film.push((*name).into()),
+                PostPass::Fxaa if tonemapped => screen.push(words::FXAA.into()),
+                PostPass::Fxaa => film.push(words::FXAA.into()),
+                PostPass::Sharpen if tonemapped => screen.push(words::SHARPEN.into()),
+                PostPass::Sharpen => film.push(words::SHARPEN.into()),
                 _ => {}
             }
         }
@@ -164,6 +306,8 @@ impl Default for Post {
             passes: Vec::new(),
             bloom_threshold: 1.0,
             bloom_intensity: 0.6,
+            finish: Finish::default(),
+            occlusion: Occlusion::default(),
         }
     }
 }
@@ -248,7 +392,9 @@ fn drive_post(eng: &Engine, post: &Post) {
         && config.film == film
         && config.screen == screen
         && config.bloom_threshold.to_bits() == post.bloom_threshold.to_bits()
-        && config.bloom_intensity.to_bits() == post.bloom_intensity.to_bits();
+        && config.bloom_intensity.to_bits() == post.bloom_intensity.to_bits()
+        && config.finish.bits() == post.finish.bits()
+        && config.occlusion.bits() == post.occlusion.bits();
     if same {
         return;
     }
@@ -260,6 +406,8 @@ fn drive_post(eng: &Engine, post: &Post) {
     config.screen = screen;
     config.bloom_threshold = post.bloom_threshold;
     config.bloom_intensity = post.bloom_intensity;
+    config.finish = post.finish;
+    config.occlusion = post.occlusion;
     config.changed = true;
 }
 
@@ -294,10 +442,25 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
                 .collect()
         })
         .unwrap_or_default();
+    let base = Finish::default();
+    let occlusion = Occlusion::default();
     Ok(Camera {
         kind,
         ambient: color_from_params_named(params, "ambient"),
         post: Post {
+            occlusion: Occlusion {
+                radius: num(k::SSAO_RADIUS, f64::from(occlusion.radius)).max(1e-3),
+                bias: num(k::SSAO_BIAS, f64::from(occlusion.bias)).max(0.0),
+                intensity: num(k::SSAO_INTENSITY, f64::from(occlusion.intensity)).max(0.0),
+                power: num(k::SSAO_POWER, f64::from(occlusion.power)).max(1e-3),
+            },
+            finish: Finish {
+                vignette_amount: num(k::VIGNETTE_AMOUNT, f64::from(base.vignette_amount)),
+                vignette_roundness: num(k::VIGNETTE_ROUNDNESS, f64::from(base.vignette_roundness)),
+                aberration_amount: num(k::ABERRATION_AMOUNT, f64::from(base.aberration_amount)),
+                grain_amount: num(k::GRAIN_AMOUNT, f64::from(base.grain_amount)),
+                pixelate_size: num(k::PIXELATE_SIZE, f64::from(base.pixelate_size)),
+            },
             passes,
             bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
             bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
@@ -326,6 +489,15 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                     (k::POST, &format!(r#"{{ type = "strings", default = [], description = "The frame's passes, in order. {} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}"#, words::POST_EFFECTS.join(", "))),
                     (k::BLOOM_THRESHOLD, r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#),
                     (k::BLOOM_INTENSITY, r#"{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#),
+                    (k::VIGNETTE_AMOUNT, r#"{ type = "float", default = 0.35, min = 0.0, max = 1.0, description = "How dark the corners go under the `vignette` pass" }"#),
+                    (k::VIGNETTE_ROUNDNESS, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "1 darkens in a circle whatever shape the frame is; 0 follows the frame" }"#),
+                    (k::ABERRATION_AMOUNT, r#"{ type = "float", default = 0.004, min = 0.0, description = "How far `aberration` slides red from blue at the frame's edge, as a fraction of it" }"#),
+                    (k::GRAIN_AMOUNT, r#"{ type = "float", default = 0.06, min = 0.0, description = "How much the `grain` pass lightens and darkens a pixel" }"#),
+                    (k::PIXELATE_SIZE, r#"{ type = "float", default = 4.0, min = 1.0, description = "The side of one block the `pixelate` pass reads the frame back in, in pixels" }"#),
+                    (k::SSAO_RADIUS, r#"{ type = "float", default = 0.5, min = 0.001, description = "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene" }"#),
+                    (k::SSAO_BIAS, r#"{ type = "float", default = 0.025, min = 0.0, description = "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black" }"#),
+                    (k::SSAO_INTENSITY, r#"{ type = "float", default = 1.2, min = 0.0, description = "How strongly the `ssao` pass darkens" }"#),
+                    (k::SSAO_POWER, r#"{ type = "float", default = 1.5, min = 0.001, description = "The contrast the occlusion is raised to" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -386,6 +558,11 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                     k::BLOOM_INTENSITY.into(),
                     toml::Value::Float(f64::from(camera.post.bloom_intensity)),
                 );
+                // The inspector reads this, so the knobs beside `post` are
+                // here too rather than only in the table the scene handed over.
+                for (key, value) in camera.post.knobs() {
+                    map.insert(key.into(), toml::Value::Float(f64::from(value)));
+                }
                 Some(toml::Value::Table(map))
             }),
         },

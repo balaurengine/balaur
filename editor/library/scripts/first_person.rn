@@ -1,6 +1,21 @@
-// Walk with WASD, look with the mouse; the camera and the character are one
-// node. Raw keys rather than actions, so the rig works in a project that has
+// Walk with WASD, look with the mouse, space jumps.
+
+// Two nodes: `character3d` and `collider3d` here, `camera` on a child put at
+// eye height. With no such child it drives a camera on this node instead, and
+// cannot keep the body's wobble out of the view.
+
+// Raw keys rather than actions, so the rig works in a project that has
 // declared none: swap them for `input::action_*` to rebind.
+
+// How far ahead the looked-at point is put. The position read here is the one
+// before this frame's move, and distance is what keeps that lag off the pitch:
+// a target an arm's length ahead tilts the view five degrees during a fall.
+const FAR = 1000.0;
+
+// How far the body may wander from where the eye is held before the eye moves
+// at all. `snap_to_ground` lets a walking capsule rise and settle by a
+// centimetre or two, and that is noise rather than ground.
+const WOBBLE = 0.03;
 
 pub fn exports() {
     #{ speed: 4.5, sensitivity: 0.12, gravity: 24.0, jump: 7.0, pitch: 0.0, yaw: 0.0 }
@@ -8,6 +23,18 @@ pub fn exports() {
 
 pub fn init(this) {
     this.vy = 0.0;
+    this.held = this.node.transform.position.y;
+    this.eye = this.node;
+    this.rise = 0.0;
+    this.apart = false;
+    for child in this.node.children() {
+        if child.has_component("camera") {
+            this.eye = child;
+            this.rise = child.transform.position.y;
+            this.apart = true;
+            break;
+        }
+    }
 }
 
 pub fn update(this, dt) {
@@ -16,7 +43,37 @@ pub fn update(this, dt) {
     // Straight up and straight down are where a first-person view stops:
     // past them the world rolls over.
     this.pitch = math::clamp(this.pitch - dy * this.sensitivity, -89.0, 89.0);
-    this.node.transform.rotation_euler = [math::rad(this.pitch), math::rad(this.yaw), 0.0];
+    let eye = this.node.transform.position;
+    let yaw = math::rad(this.yaw);
+    let pitch = math::rad(this.pitch);
+    // A 3D camera is aimed by `camera.look_at`, never by the node's rotation,
+    // so looking around is moving the point it looks at.
+    let flat = math::cos(pitch) * FAR;
+    let ahead = [
+        eye.x - math::sin(yaw) * flat,
+        eye.y + math::sin(pitch) * FAR,
+        eye.z - math::cos(yaw) * flat,
+    ];
+    this.eye.patch_component("camera", #{ look_at: ahead });
+    this.node.transform.rotation_euler = [0.0, yaw, 0.0];
+}
+
+/// Carry the eye node at the body's height, give or take `WOBBLE`.
+///
+/// Inside that it does not move at all, which is the solver's millimetres; past
+/// it, exactly as the body does, which is a step or a fall. Easing across the
+/// two instead makes a fall alternate between holding and catching up.
+fn hold_eye(this, body) {
+    let gap = body - this.held;
+    if gap > WOBBLE {
+        this.held = body - WOBBLE;
+    } else if gap < -WOBBLE {
+        this.held = body + WOBBLE;
+    }
+    if this.apart {
+        let at = this.eye.transform.position;
+        this.eye.transform.position = [at.x, this.rise + this.held - body, at.z];
+    }
 }
 
 pub fn fixed_update(this, dt) {
@@ -28,11 +85,17 @@ pub fn fixed_update(this, dt) {
     let x = (sideways * cos - forward * sin) * this.speed * dt;
     let z = (-sideways * sin - forward * cos) * this.speed * dt;
     if this.node.character3d.is_grounded() {
+        // Nothing holds it down: a push big enough to keep the capsule on the
+        // floor aims the move into it, and the controller spends whole frames
+        // resolving that instead of walking.
         this.vy = if input::is_down(input::KEY_SPACE) { this.jump } else { 0.0 };
     } else {
         this.vy -= this.gravity * dt;
     }
     this.node.character3d.move_character(x, this.vy * dt, z);
+    // After the move, because this reads where the body ended up and the view
+    // is drawn from there.
+    hold_eye(this, this.node.transform.position.y);
 }
 
 /// One axis from two keys, so a pair reads as -1, 0 or 1.

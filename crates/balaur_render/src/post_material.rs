@@ -18,12 +18,25 @@ use kiss3d::wgpu;
 
 use crate::material::Compiled;
 
+/// Matches `PostFrame` in `shaders/post.wesl`.
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct PostFrame {
+    size_clock: [f32; 4],
+}
+
 /// One compiled `camera.post` material, ready to draw over a frame.
 pub(crate) struct PostMaterial {
     pipeline: wgpu::RenderPipeline,
     frame_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    frame_uniform: wgpu::Buffer,
     params: Option<wgpu::BindGroup>,
+    /// The render clock a pass reads. Started when the pass was built, which
+    /// is close enough for anything that moves.
+    started: balaur_core::time::Instant,
+    /// The frame's size in pixels, as the chain last reported it.
+    size: (f32, f32),
 }
 
 /// Which group the material's own `Params` land in. Group 0 is the frame.
@@ -52,6 +65,7 @@ impl PostMaterial {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                crate::bind_layout::uniform_entry(2),
             ],
         });
         // Clamped, because a pass that reads its neighbours reads past the edge
@@ -107,13 +121,29 @@ impl PostMaterial {
             pipeline,
             frame_layout,
             sampler,
+            frame_uniform: ctxt.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("post_frame_uniform"),
+                size: std::mem::size_of::<PostFrame>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
             params: params.map(|(_, group)| group),
+            // Render time, outside the simulation: a pass that moves must
+            // never be something a replay can disagree about.
+            #[allow(clippy::disallowed_methods)]
+            started: balaur_core::time::Instant::now(),
+            size: (1.0, 1.0),
         }
     }
 }
 
 impl PostProcessingEffect for PostMaterial {
-    fn update(&mut self, _dt: f32, _w: f32, _h: f32, _znear: f32, _zfar: f32) {}
+    fn update(&mut self, _dt: f32, w: f32, h: f32, _znear: f32, _zfar: f32) {
+        // The only place the chain says how big the frame is. `dt` is a fixed
+        // step here whatever the frame took, so the clock comes from a real
+        // one below rather than from accumulating this.
+        self.size = (w.max(1.0), h.max(1.0));
+    }
 
     fn draw(&mut self, target: &RenderTarget, context: &mut PostProcessingContext<'_>) {
         let Some(input) = target.color_view() else {
@@ -122,6 +152,18 @@ impl PostProcessingEffect for PostMaterial {
             return;
         };
         let ctxt = Context::get();
+        ctxt.write_buffer(
+            &self.frame_uniform,
+            0,
+            bytemuck::bytes_of(&PostFrame {
+                size_clock: [
+                    self.size.0,
+                    self.size.1,
+                    self.started.elapsed().as_secs_f32(),
+                    0.0,
+                ],
+            }),
+        );
         let frame = ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("post_frame_bind_group"),
             layout: &self.frame_layout,
@@ -133,6 +175,10 @@ impl PostProcessingEffect for PostMaterial {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.frame_uniform.as_entire_binding(),
                 },
             ],
         });
@@ -165,6 +211,40 @@ impl PostProcessingEffect for PostMaterial {
     }
 }
 
+/// One pass on a camera's chain, as built.
+///
+/// A concrete enum rather than a box: the fork's chain takes
+/// `&mut [&mut dyn PostProcessingEffect]`, and a boxed trait object cannot
+/// shorten its own lifetime behind a mutable reference to land there.
+pub(crate) enum Pass {
+    /// A shader a project wrote, or one of the engine's finishing passes.
+    Material(PostMaterial),
+    Fxaa(kiss3d::post_processing::Fxaa),
+    Sharpen(kiss3d::post_processing::Cas),
+}
+
+impl PostProcessingEffect for Pass {
+    fn update(&mut self, dt: f32, w: f32, h: f32, znear: f32, zfar: f32) {
+        match self {
+            Self::Material(pass) => pass.update(dt, w, h, znear, zfar),
+            Self::Fxaa(pass) => pass.update(dt, w, h, znear, zfar),
+            Self::Sharpen(pass) => pass.update(dt, w, h, znear, zfar),
+        }
+    }
+
+    fn draw(&mut self, target: &RenderTarget, context: &mut PostProcessingContext<'_>) {
+        match self {
+            Self::Material(pass) => pass.draw(target, context),
+            Self::Fxaa(pass) => pass.draw(target, context),
+            Self::Sharpen(pass) => pass.draw(target, context),
+        }
+    }
+}
+
+/// What a chain was built from. A change in any of it rebuilds both sides,
+/// which is cheaper than working out which pass each move touched.
+type Built = (Vec<String>, Vec<String>, u64, [u32; 5]);
+
 /// The `camera.post` materials as built, each side of the tonemap.
 ///
 /// Rebuilt when the camera's list changes or an asset is saved, and not
@@ -172,10 +252,11 @@ impl PostProcessingEffect for PostMaterial {
 /// it draws.
 #[derive(Default)]
 pub(crate) struct PostChain {
-    pub(crate) film: Vec<PostMaterial>,
-    pub(crate) screen: Vec<PostMaterial>,
-    /// The lists and the asset generation these were built from.
-    built: Option<(Vec<String>, Vec<String>, u64)>,
+    pub(crate) film: Vec<Pass>,
+    pub(crate) screen: Vec<Pass>,
+    /// What these were built from: the two lists, the asset generation, and
+    /// the finishing knobs.
+    built: Option<Built>,
 }
 
 impl PostChain {
@@ -192,17 +273,17 @@ impl PostChain {
         let Some(config) = app.engine.try_resource::<crate::PostConfig>() else {
             return;
         };
-        let (film, screen) = {
+        let (film, screen, finish) = {
             let config = config.borrow();
-            (config.film.clone(), config.screen.clone())
+            (config.film.clone(), config.screen.clone(), config.finish)
         };
-        let wanted = (film, screen, generation);
+        let wanted = (film, screen, generation, finish.bits());
         if self.built.as_ref() == Some(&wanted) {
             return;
         }
-        let (film, screen, _) = &wanted;
-        self.film = build_all(app, film, kiss3d::post_processing::HDR_FORMAT);
-        self.screen = build_all(app, screen, screen_format);
+        let (film, screen, _, _) = &wanted;
+        self.film = build_all(app, film, kiss3d::post_processing::HDR_FORMAT, &finish);
+        self.screen = build_all(app, screen, screen_format, &finish);
         self.built = Some(wanted);
     }
 }
@@ -211,9 +292,10 @@ fn build_all(
     app: &balaur_core::App,
     ids: &[String],
     format: wgpu::TextureFormat,
-) -> Vec<PostMaterial> {
+    finish: &crate::Finish,
+) -> Vec<Pass> {
     ids.iter()
-        .filter_map(|id| match build(app, id, format) {
+        .filter_map(|id| match build(app, id, format, finish) {
             Ok(material) => Some(material),
             Err(why) => {
                 tracing::error!("camera post pass '{id}': {why:#}");
@@ -227,11 +309,34 @@ fn build(
     app: &balaur_core::App,
     reference: &str,
     format: wgpu::TextureFormat,
-) -> anyhow::Result<PostMaterial> {
+    finish: &crate::Finish,
+) -> anyhow::Result<Pass> {
+    use crate::shape::words;
+    // Two the fork already owns, drawn where the list puts them rather than
+    // at a fixed place in the pipeline.
+    match reference {
+        words::FXAA => return Ok(Pass::Fxaa(kiss3d::post_processing::Fxaa::new())),
+        // Half sharpness: enough to put back what a smoothing pass took out,
+        // short of the ringing the full amount draws around an edge.
+        words::SHARPEN => return Ok(Pass::Sharpen(kiss3d::post_processing::Cas::new(0.5))),
+        _ => {}
+    }
+    // The engine's own finishing passes are materials too; what a project
+    // does not supply for them is their name, their shader and their values.
+    if words::FINISHES.contains(&reference) {
+        let material = crate::material::Material {
+            features: vec![(reference.to_string(), true)],
+            params: finish.params(),
+            ..crate::material::Material::default()
+        };
+        let modules = crate::shaders::plugin_modules(&app.engine);
+        let compiled = crate::material::compile_with(&material, crate::shaders::FINISH, &modules)?;
+        return Ok(Pass::Material(PostMaterial::new(&compiled, format)));
+    }
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
-    Ok(PostMaterial::new(&compiled, format))
+    Ok(Pass::Material(PostMaterial::new(&compiled, format)))
 }

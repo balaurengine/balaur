@@ -1,6 +1,8 @@
 > **Status:** §3 step 1 built 2026-09-07: the outliner draws its viewport
-> rather than the document, and §0 records what that was worth. The rest of
-> the plan is not built. No crate has been added and no widget kind written.
+> rather than the document, and §0 records what that was worth. The `table`
+> kind now places its body the same way and the Profiler and Cost docks are
+> on it, so §2 step 1 is built and still no crate has been added. §2 steps 3
+> and 4 and §3 step 2, the inspector, are not built.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
@@ -102,9 +104,9 @@ interpreter.
 that takes the whole model in one call and iterates it natively, so a dock of
 N rows is one crossing rather than N.
 
-1. **`table`**, over `egui_extras::TableBuilder`. Its `body.rows()` builds only
-   the rows inside the viewport. Resizable columns come with it, which the
-   Events view and the Cost dock both want.
+1. **`table`**, built rather than taken: `egui_extras::TableBuilder` would
+   have brought a crate for `show_rows` and a drag, both of which the kind
+   now does itself, and `balaur_ui` ships in every exported game.
 2. **`list`**, over `egui_virtual_list`, for rows whose height is not uniform:
    the outliner tree and the Assets grid.
 3. The script API takes a row count and a callback, in the shape `ui.fold`
@@ -144,7 +146,9 @@ In this order, measuring after each:
    owns the 12.8 microseconds a node costs and it is the whole of §0's slope.
 2. The inspector's property rows, which are bounded by a node's components
    rather than by the document, so they cost a constant.
-3. The Assets dock, the Docs dock's function list, the Events view.
+3. The Assets dock, the Docs dock's function list, the Events view. The
+   first two are on the kinds; the Events view draws a row of controls per
+   binding, so it is a form rather than a list and stays hand-drawn.
 
 ## 4. What this costs to ship
 
@@ -228,11 +232,17 @@ re-run, take the difference.
 
 ## Phases
 
-1. The `table` kind and the inspector on it. Re-run §0 and record the numbers
-   here.
+1. The `table` kind and the inspector on it. Built without a crate: the kind
+   places its body by `ScrollArea::show_rows`, the way `list` and `tree`
+   already did, and its columns are shares of the width a drag on the header
+   moves. The inspector is still rows from `model::schema`.
 2. The `list` kind and the outliner, against a scene with 50,000 nodes.
 3. The remaining docks, and a self-test state that fails when the shell costs
-   more than a frame.
+   more than a frame. The Profiler, the Cost dock and the Library's templates
+   are on `table`, and the outliner's search view draws on the same `tree`
+   node the unfiltered walk does, so no view of the document emits a row at a
+   time any more. What still does draws controls per row rather than rows.
+   `rowsdemo` is the self-test state that reads the outliner's node back.
 4. The gizmo and overlay line lists cached against their inputs, and the
    tessellation cache in the fork. Neither waits on the kinds above.
 

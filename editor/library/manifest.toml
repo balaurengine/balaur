@@ -34,6 +34,30 @@ needs = ["shaders/pbr_surface.wesl"]
 note = "Lit from inside; a lamp's own surface."
 
 [[entries]]
+id = "layers_plain"
+kind = "material"
+name = "Layer stack"
+file = "materials/layered.toml"
+needs = ["shaders/layers.wesl"]
+note = "Every layer off; switch one on in `[features]`."
+
+[[entries]]
+id = "layers_holographic"
+kind = "material"
+name = "Holographic"
+file = "materials/holographic.toml"
+needs = ["shaders/layers.wesl"]
+note = "A gradient under a glowing rim."
+
+[[entries]]
+id = "layers_toon"
+kind = "material"
+name = "Toon"
+file = "materials/toon.toml"
+needs = ["shaders/layers.wesl"]
+note = "Light in four bands, with a silhouette."
+
+[[entries]]
 id = "sky_clear_day"
 kind = "sky"
 name = "Clear day"

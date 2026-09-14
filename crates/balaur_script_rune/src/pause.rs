@@ -13,6 +13,7 @@ use rune::runtime::VmExecution;
 use rune::{TypeHash as _, Vm};
 
 use crate::debugger::{self, Hit, Lines, Outcome, StepPlan, Stops};
+use crate::value;
 use crate::{Method, Paused, RuneHost, State};
 
 /// The instance and method an execution is running for.
@@ -394,14 +395,97 @@ impl RuneHost {
 
     /// The instances a tick visits, collected first so a script may attach,
     /// detach or spawn during its own update without the host state being
-    /// borrowed. The paused instance and everything under the frozen root
-    /// stay out.
+    /// borrowed. The paused instance, everything under the frozen root and
+    /// everything the game's own pause holds stay out.
     pub(crate) fn live_batch(&self) -> Vec<(Entity, Rc<str>, rune::Value)> {
+        let paused = balaur_core::process::pause(&self.engine);
+        let world = self.engine.world();
+        self.batch(|entity| balaur_core::process::ticks(&world, entity, paused))
+    }
+
+    /// [`Self::live_batch`] without the pause: what `on_paused` is announced
+    /// over, since a script the pause stopped is exactly the one that wants
+    /// to hear about it.
+    pub(crate) fn unpaused_batch(&self) -> Vec<(Entity, Rc<str>, rune::Value)> {
+        self.batch(|_| true)
+    }
+
+    pub fn call_all(&self, method: &str) {
+        // Resolved per script, like a tick: `draw_ui` runs over every node
+        // every frame and most scripts do not declare it.
+        let mut prepared = Vec::new();
+        let profiling = self.profiling();
+        for (entity, key, state) in self.live_batch() {
+            let slot = self.slot_for(&mut prepared, &key, method);
+            if !prepared[slot].declares() {
+                continue;
+            }
+            self.invoke_prepared(
+                entity,
+                &mut prepared[slot],
+                method,
+                (state,),
+                profiling,
+                true,
+            );
+        }
+        self.release(prepared);
+    }
+
+    /// As [`Self::call_all`], with `args` after the instance.
+    pub fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
+        self.call_batch_with(method, args, self.live_batch());
+    }
+
+    /// As [`Self::call_all_with`], reaching the instances the game's pause
+    /// holds too. What `on_paused` is announced over.
+    pub fn announce(&self, method: &str, args: &[balaur_script::Value]) {
+        self.call_batch_with(method, args, self.unpaused_batch());
+    }
+
+    fn call_batch_with(
+        &self,
+        method: &str,
+        args: &[balaur_script::Value],
+        batch: Vec<(Entity, Rc<str>, rune::Value)>,
+    ) {
+        let mut extra = Vec::with_capacity(args.len());
+        for arg in args {
+            match value::from_neutral(arg) {
+                Ok(value) => extra.push(value),
+                Err(err) => {
+                    tracing::error!("{method}: {err}");
+                    return;
+                }
+            }
+        }
+        let mut prepared = Vec::new();
+        let profiling = self.profiling();
+        for (entity, key, state) in batch {
+            let slot = self.slot_for(&mut prepared, &key, method);
+            if !prepared[slot].declares() {
+                continue;
+            }
+            let mut call_args = vec![state];
+            call_args.extend(extra.iter().cloned());
+            self.invoke_prepared(
+                entity,
+                &mut prepared[slot],
+                method,
+                call_args,
+                profiling,
+                true,
+            );
+        }
+        self.release(prepared);
+    }
+
+    fn batch(&self, keep: impl Fn(Entity) -> bool) -> Vec<(Entity, Rc<str>, rune::Value)> {
         let state = self.state.borrow();
         state
             .instances
             .iter()
-            .filter(|(e, _)| !self.is_held(**e, &state))
+            .filter(|(e, _)| !self.is_held(**e, &state) && keep(**e))
             .filter_map(|(e, i)| Some((*e, i.key.clone(), i.state.try_clone().ok()?)))
             .collect()
     }

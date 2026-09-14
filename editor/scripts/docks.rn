@@ -80,7 +80,7 @@ pub fn follow_screen(S, width, height) {
 /// than two side docks and a stage at their floors, or less height than the
 /// bar, a bottom dock and a stage at theirs, holds one sheet and the stage.
 pub fn one_at_a_time(S) {
-    let (w, h) = crate::layout::floors();
+    let (w, h) = crate::layout::floors(S);
     S.screen_w < w || S.screen_h < h
 }
 
@@ -354,7 +354,8 @@ fn owns_a_node(S, side, d) {
 fn node_owners() {
     #{
         bottom: [
-            #{ hide: "log", panels: ["output", "problems", "cost", "profiler", "docs"] },
+            #{ hide: "log", panels: ["output", "problems", "docs"] },
+            #{ hide: "table", panels: ["cost", "profiler", "library"] },
             #{ hide: "cards", panels: ["assets", "library", "tiles"] },
             #{ hide: "stack", panels: ["debugger"] },
         ],
@@ -371,6 +372,8 @@ fn node_owners() {
 fn hide_node(which) {
     if which == "log" {
         dock::hide_log();
+    } else if which == "table" {
+        dock::hide_table();
     } else if which == "cards" {
         dock::hide_cards();
     } else if which == "stack" {
@@ -446,6 +449,21 @@ fn tail_of(side) {
     head_stem(side) + "Tail"
 }
 
+/// The box the panel's own tools were given, in design pixels, or `None`
+/// before the row has drawn. The self-test reads it: a hatch with no box is
+/// a dock whose tools are there and invisible.
+pub fn tools_box(side) {
+    let found = scene::get_node(tail_of(side) + "/C0");
+    if crate::util::is_nil(found) {
+        return None;
+    }
+    let box = ui::widget_rect(found);
+    if crate::util::is_nil(box) {
+        return None;
+    }
+    Some(box)
+}
+
 fn tab_row(S, k, side, d) {
     crate::pool::strip(S, head_of(side), tab_controls(S, k, side, d));
     crate::pool::strip(S, tail_of(side), tail_controls(S, side));
@@ -456,7 +474,9 @@ fn tab_row(S, k, side, d) {
 fn tail_controls(S, side) {
     [
         #{
-            kind: "draw", width: 1, grow: 1,
+            // A box, not a share: this row hugs what is in it, so a hatch
+            // that only grows is one pixel wide and nothing draws in it.
+            kind: "draw", width: tools_room(S, side), height: tab_h(S),
             draw: format!("draw_dock_tools_{}", side),
         },
         #{
@@ -517,7 +537,23 @@ pub fn draw_tools(S, k, side) {
     if d.shut || d.tabs.len() == 0 {
         return;
     }
-    tools(S, k, d.active, S.layout[side].w);
+    tools(S, k, d.active, tools_room(S, side));
+}
+
+/// How much of the tab row the panel's own tools may take: what its tabs and
+/// the fold leave, and never more than half the dock.
+///
+/// Zero where the tabs already fill the row, which is what makes the tools
+/// give way rather than the names. The hatch is given this and the drawing
+/// reads the same number, so what a panel is told it has is the box it got.
+fn tools_room(S, side) {
+    let d = S.docks[side];
+    if d.shut || d.tabs.len() == 0 || d.active == "" {
+        return 0.0;
+    }
+    let width = S.layout[side].w;
+    let free = width - 60.0 - tabs_width(S, d.active);
+    crate::util::clamp(free, 0.0, width * 0.5)
 }
 
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
@@ -539,20 +575,22 @@ fn tabs_width(S, id) {
 
 // The controls that belong to the panel showing, in the tab row's one slot.
 // A narrow dock keeps its tabs: the tools are what give way, not the names.
-fn tools(S, k, id, width) {
+fn tools(S, k, id, room) {
     if id == "scene" {
         left::tree_tools(S, k);
         return;
     }
-    let room = width - 60.0 - tabs_width(S, id);
     if id == "output" {
         dock::output_tools(S, k, room);
         return;
     }
+    if id == "profiler" && room > 90.0 {
+        dock::profiler_tools(S, k);
+    }
     if S.compact || room < 150.0 {
         return;
     }
-    let hint = dock::hint(S, id);
+    let hint = dock::hint(S, id, room);
     if hint != "" {
         ui::add_space(6);
         ui::label(hint, style::mono_sm(k.faint));
@@ -688,6 +726,9 @@ pub fn fold_inset(S) {
 /// the zoom reading. A folded dock gives its space back, so this is the way
 /// back to it.
 pub fn fold_strip(S, k, vp) {
+    if S.chrome_off {
+        return;
+    }
     // A side sheet that is the whole screen offers one way out, its own fold:
     // a handle to a second sheet would open it over the first. An open bottom
     // dock leaves the stage, and the handles on it, where they were.
@@ -706,7 +747,7 @@ pub fn fold_strip(S, k, vp) {
 /// The bottom dock's handle, drawn into the row the zoom reading is in so it
 /// lands just after it.
 pub fn fold_foot(S, k) {
-    if !has_handle(S, "bottom") || (one_at_a_time(S) && side_open(S)) {
+    if S.chrome_off || !has_handle(S, "bottom") || (one_at_a_time(S) && side_open(S)) {
         return;
     }
     let step = crate::center::hud_step(S);

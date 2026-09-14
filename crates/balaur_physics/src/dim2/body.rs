@@ -197,13 +197,16 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "teleport",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
-            with_body(eng, entity_of(node)?, |state, handle| {
+            let entity = entity_of(node)?;
+            with_body(eng, entity, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.set_translation(scalar::v2(x, y), true);
                 body.set_linvel(Vector2::ZERO, true);
                 body.set_angvel(0.0, true);
                 state.queries_ready = false;
-            })
+            })?;
+            balaur_core::interpolate::reset(eng, entity);
+            Ok(())
         },
     );
 }

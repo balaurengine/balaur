@@ -62,7 +62,7 @@ being built, marked `done`, never back in the shipped one.
 | **Script completion and hover** — completion, hover, go-to-definition, rename and formatting. | 0.1 done | no plan |
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
 | **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
-| **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder, Godot import. | 0.2 | [PLAN-project-manager.md](PLAN-project-manager.md) |
+| **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder, Godot import. | 0.2 done | [PLAN-project-manager.md](PLAN-project-manager.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -118,7 +118,7 @@ being built, marked `done`, never back in the shipped one.
 | **Visibility and tint on a track** — `visible` and `tint` as clip properties on the appearance every node carries, and names and flags on any component property, held from key to key. | 0.2 done | [PLAN-godot-import.md#22-visible-as-an-animation-track](PLAN-godot-import.md#22-visible-as-an-animation-track) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. | 0.3 | no plan |
 | **Root motion** — a clip that moves the character rather than sliding under it, its root delta handed to `character2d` and `character3d` per tick. | 0.7 | no plan |
-| **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, and a tick rate setting. | 0.2 | [PLAN-time.md](PLAN-time.md) |
+| **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, and a tick rate setting. | 0.2 done | [PLAN-time.md](PLAN-time.md) |
 | **The rest of rapier** — named collision layers, solver tuning carried in a recording's header, and a solver that actually threads. | (0.3) | [PLAN-rapier.md](PLAN-rapier.md) |
 | **Node destruction that is not quadratic in siblings** — and a sibling reorder, the first measured at fifty times Godot's in `docs/BENCHMARKS.md`. | (0.3) | no plan |
 
@@ -141,7 +141,7 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Widgets, text and the batteries** — nineteen widget kinds over cosmic-text, containers that hand out rects, text, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
-| **Lists, trees and tables** — `list`, `tree` and `table` kinds with selection, columns, and only the rows in view built, which every dock hand-rolls today. | 0.2 | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
+| **Lists, trees and tables** — `list`, `tree` and `table` kinds with many rows selected, columns a drag resizes, and only the rows in view built. | 0.2 done | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
 | **Menus, popups and tooltips** — a menu bar with submenus, a context menu a right click or a long press opens, shortcuts on rows, and a toast. | 0.2 done | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
 | **A picture that clicks, and checks that are exclusive** — an `image` naming an `on_click` senses it, a `group` makes a radio row, a `button` takes a picture, and every Godot anchor preset maps. | 0.2 done | [PLAN-godot-import.md#24-the-widget-kinds](PLAN-godot-import.md#24-the-widget-kinds) |
 | **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
@@ -162,7 +162,9 @@ can do today, in the batches it would be built in.
 | --- | :-: | --- |
 | **An inherited tint** — a colour multiplied down a subtree, so one key fades a whole panel or rig rather than one per node. | 0.2 done | [PLAN-godot-import.md#21-an-inherited-tint](PLAN-godot-import.md#21-an-inherited-tint) |
 | **What draws today** — sprites, tile maps, 2D lights, `light3d` and an `environment`, PBR, WESL shaders, the finishing passes, sixteen primitives, booleans and particles. | 0.1 done | no plan |
-| **The 3D look** — image-based lighting and SSAO bound, glTF keeping its factors and maps, glass, mirrors, probes, finishing passes and layer stacks. | 0.2 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
+| **The 3D look** — image-based lighting and SSAO bound, glTF keeping its factors and maps, glass, mirrors, probes, finishing passes and layer stacks. | 0.2 done | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
+| **A rendered still** — the fork's path tracer behind the editor's Export sheet, with a sample count and a denoise toggle. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
+| **Decals and volumetric fog** — a `decal` component projected onto the depth buffer, and fog a light throws shafts through. | 0.4 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Lit normal-mapped sprites** — 2D lights and shadows are built, and the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
 | **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, automatic instancing, MSAA, level of detail in the mesh asset, 2D batching and `multimesh`. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
@@ -227,7 +229,7 @@ waits for its tick to settle.
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 done | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
-| **Update channels** — `balaur update --channel alpha` follows a rolling tag per line, and a build tracks the channel its own version names. | 0.2 | [PLAN-release-channels.md](PLAN-release-channels.md) |
+| **Update channels** — `balaur update --channel alpha` follows a rolling tag per line, and a build tracks the channel its own version names. | 0.2 done | [PLAN-release-channels.md](PLAN-release-channels.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics, the clipboard, keep-awake and vibration, behind one `device` module. | 0.8 | [PLAN-2d-games.md](PLAN-2d-games.md) |
 | **A web module that loads in parts** — the wasm split so a game fetches the physics, audio or networking it uses, with a pack arriving in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |

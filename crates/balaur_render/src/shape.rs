@@ -91,7 +91,19 @@ pub(crate) mod words {
     pub(crate) const TONEMAP: &str = "tonemap";
     /// The passes a `camera`'s `post` list may name; any other name in it is a
     /// `material` asset.
-    pub(crate) const POST_EFFECTS: &[&str] = &[BLOOM, SSAO, SSR, DOF, TONEMAP];
+    pub(crate) const FXAA: &str = "fxaa";
+    pub(crate) const SHARPEN: &str = "sharpen";
+    pub(crate) const VIGNETTE: &str = "vignette";
+    pub(crate) const ABERRATION: &str = "aberration";
+    pub(crate) const GRAIN: &str = "grain";
+    pub(crate) const PIXELATE: &str = "pixelate";
+    /// The finishing passes the engine ships as post-process materials,
+    /// rather than as flags on the pipeline. Named in the order they read
+    /// best stacked, which is also the order the shader declares them.
+    pub(crate) const FINISHES: &[&str] = &[VIGNETTE, ABERRATION, GRAIN, PIXELATE];
+    pub(crate) const POST_EFFECTS: &[&str] = &[
+        BLOOM, SSAO, SSR, DOF, FXAA, SHARPEN, TONEMAP, VIGNETTE, ABERRATION, GRAIN, PIXELATE,
+    ];
 
     pub(crate) const POINT: &str = "point";
     pub(crate) const DIRECTIONAL: &str = "directional";
@@ -107,6 +119,12 @@ pub(crate) mod words {
     pub(crate) const NONE: &str = "none";
     /// How fog thickens with distance, plus the word for no fog at all.
     pub(crate) const FOG_KINDS: &[&str] = &[NONE, LINEAR, EXPONENTIAL, EXPONENTIAL_SQUARED];
+
+    pub(crate) const OPAQUE: &str = "opaque";
+    pub(crate) const MASK: &str = "mask";
+    pub(crate) const BLEND: &str = "blend";
+    /// How a surface's alpha is read: ignored, a cutout, or a blend.
+    pub(crate) const ALPHA_MODES: &[&str] = &[OPAQUE, MASK, BLEND];
 
     pub(crate) const ACES: &str = "aces";
     pub(crate) const REINHARD: &str = "reinhard";
@@ -141,6 +159,9 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("LIGHT_POINT", words::POINT),
     ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
     ("LIGHT_SPOT", words::SPOT),
+    ("ALPHA_OPAQUE", words::OPAQUE),
+    ("ALPHA_MASK", words::MASK),
+    ("ALPHA_BLEND", words::BLEND),
     ("FOG_NONE", words::NONE),
     ("FOG_LINEAR", words::LINEAR),
     ("FOG_EXPONENTIAL", words::EXPONENTIAL),
@@ -174,8 +195,17 @@ pub(crate) mod keys {
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
     pub(crate) const BILLBOARD: &str = "billboard";
+    pub(crate) const ABERRATION_AMOUNT: &str = "aberration_amount";
     pub(crate) const BLOOM_INTENSITY: &str = "bloom_intensity";
     pub(crate) const BLOOM_THRESHOLD: &str = "bloom_threshold";
+    pub(crate) const GRAIN_AMOUNT: &str = "grain_amount";
+    pub(crate) const PIXELATE_SIZE: &str = "pixelate_size";
+    pub(crate) const SSAO_BIAS: &str = "ssao_bias";
+    pub(crate) const SSAO_INTENSITY: &str = "ssao_intensity";
+    pub(crate) const SSAO_POWER: &str = "ssao_power";
+    pub(crate) const SSAO_RADIUS: &str = "ssao_radius";
+    pub(crate) const VIGNETTE_AMOUNT: &str = "vignette_amount";
+    pub(crate) const VIGNETTE_ROUNDNESS: &str = "vignette_roundness";
     pub(crate) const C: &str = "c";
     pub(crate) const CELLS: &str = "cells";
     pub(crate) const ORIGIN: &str = "origin";
@@ -191,6 +221,7 @@ pub(crate) mod keys {
     pub(crate) const DOUBLE_SIDED: &str = "double_sided";
     pub(crate) const EMITTING: &str = "emitting";
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
+    pub(crate) const FALLOFF: &str = "falloff";
     pub(crate) const FAMILY: &str = "family";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
@@ -203,7 +234,9 @@ pub(crate) mod keys {
     pub(crate) const GRAVITY: &str = "gravity";
     pub(crate) const HALF_EXTENTS: &str = p::HALF_EXTENTS;
     pub(crate) const HEIGHT: &str = p::HEIGHT;
+    pub(crate) const IMAGE: &str = "image";
     pub(crate) const INTENSITY: &str = "intensity";
+    pub(crate) const MIRROR: &str = "mirror";
     pub(crate) const KIND: &str = p::KIND;
     pub(crate) const LETTER_SPACING: &str = "letter_spacing";
     pub(crate) const LIFETIME: &str = "lifetime";
@@ -220,6 +253,7 @@ pub(crate) mod keys {
     pub(crate) const OUTLINE_SIZE: &str = "outline_size";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const POST: &str = "post";
+    pub(crate) const ROTATION: &str = "rotation";
     pub(crate) const RADIUS: &str = p::RADIUS;
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";

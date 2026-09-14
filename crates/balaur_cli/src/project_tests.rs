@@ -84,7 +84,7 @@ pub(crate) fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()
         .context("no script backend for the project")?;
     host.attach(balaur::node_id_of(node), rel)?;
     for _ in 0..frames {
-        app.tick(balaur::FIXED_DT);
+        app.tick(balaur::fixed_dt());
     }
     Ok(())
 }

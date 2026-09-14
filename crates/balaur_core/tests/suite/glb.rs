@@ -384,7 +384,11 @@ fn an_import_carries_the_side_buffer_and_the_texture_along() {
     };
     let imported = glb::import(json.as_bytes(), "column.gltf", &reader).unwrap();
     let names: Vec<&str> = imported.files.iter().map(|(n, _)| n.as_str()).collect();
-    assert_eq!(names, vec!["column.bin", "column_texture.png"]);
+    // The image, and the sidecar carrying the sampler the file asked for.
+    assert_eq!(
+        names,
+        vec!["column.bin", "column_0.png", "column_0.png.toml"]
+    );
     assert_eq!(imported.files[1].1, PIXEL_PNG);
     let nodes = imported.scene.get("nodes").unwrap().as_array().unwrap();
     let mesh = nodes
@@ -397,8 +401,341 @@ fn an_import_carries_the_side_buffer_and_the_texture_along() {
         mesh.get("source").unwrap().get("source").unwrap().as_str(),
         Some("models/column.gltf")
     );
+    // The base colour reaches the surface through the material's `albedo`
+    // slot now, rather than through the node's one texture key.
+    let material = imported.scene.get("assets").unwrap().as_array().unwrap();
+    assert_eq!(material.len(), 1);
     assert_eq!(
-        mesh.get("texture").unwrap().as_str(),
-        Some("models/column_texture.png")
+        mesh.get("material").unwrap().as_str(),
+        Some(format!("#{}", material[0].get("id").unwrap().as_str().unwrap()).as_str())
+    );
+    assert_eq!(
+        material[0]
+            .get("params")
+            .unwrap()
+            .get("albedo")
+            .unwrap()
+            .as_str(),
+        Some("models/column_0.png")
+    );
+    assert!(mesh.get("texture").is_none());
+    // The shader the material draws with goes into the project beside it.
+    let documents: Vec<&str> = imported.documents.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(documents, vec![glb::MATERIAL_SHADER_PATH]);
+}
+
+/// Two triangles, one per material, with the factors and maps a real export
+/// carries: enough to say what `balaur import` keeps of a glTF material.
+///
+/// Written by hand rather than exported so the numbers under test are the
+/// ones written here.
+fn two_materials() -> String {
+    let positions = f32s(&[
+        0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 3.0, 0.0, 0.0, 2.0, 1.0, 0.0,
+    ]);
+    let indices = u16s(&[0, 1, 2, 3, 4, 5]);
+    let (bin, views, descs) = pack(&[
+        Accessor {
+            bytes: positions,
+            component_type: 5126,
+            kind: "VEC3",
+            count: 6,
+            bounds: Some(([0.0, 0.0, 0.0], [3.0, 1.0, 0.0])),
+        },
+        Accessor {
+            bytes: indices,
+            component_type: 5123,
+            kind: "SCALAR",
+            count: 6,
+            bounds: None,
+        },
+        Accessor {
+            bytes: PIXEL_PNG.to_vec(),
+            component_type: 5121,
+            kind: "SCALAR",
+            count: PIXEL_PNG.len(),
+            bounds: None,
+        },
+    ]);
+    format!(
+        r#"{{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0]}}],
+"nodes":[{{"name":"Body","mesh":0}}],
+"meshes":[{{"primitives":[
+  {{"attributes":{{"POSITION":0}},"indices":1,"material":0}},
+  {{"attributes":{{"POSITION":0}},"indices":1,"material":1}}
+]}}],
+"images":[{{"bufferView":2,"mimeType":"image/png"}},
+          {{"bufferView":2,"mimeType":"image/png"}}],
+"textures":[{{"source":0}},{{"source":1}}],
+"materials":[
+  {{"name":"Stone","doubleSided":true,"alphaMode":"MASK","alphaCutoff":0.25,
+    "emissiveFactor":[0.1,0.2,0.3],
+    "pbrMetallicRoughness":{{"baseColorFactor":[0.8,0.6,0.4,1.0],
+      "metallicFactor":0.25,"roughnessFactor":0.75,
+      "baseColorTexture":{{"index":0}},"metallicRoughnessTexture":{{"index":0}}}},
+    "normalTexture":{{"index":1}},"occlusionTexture":{{"index":0}}}},
+  {{"name":"Pane","alphaMode":"OPAQUE",
+    "pbrMetallicRoughness":{{"baseColorFactor":[1.0,1.0,1.0,1.0],
+      "metallicFactor":0.0,"roughnessFactor":0.05}},
+    "extensions":{{"KHR_materials_transmission":{{"transmissionFactor":0.9}},
+      "KHR_materials_ior":{{"ior":1.52}},
+      "KHR_materials_volume":{{"thicknessFactor":0.2,
+        "attenuationColor":[0.9,0.97,0.94],"attenuationDistance":3.0}}}}}}
+],
+"buffers":[{{"byteLength":{},"uri":"data:application/octet-stream;base64,{}"}}],
+"bufferViews":[{views}],
+"accessors":[{descs}]}}"#,
+        bin.len(),
+        base64(&bin)
+    )
+}
+
+fn imported_two_materials() -> glb::GlbImport {
+    glb::import(two_materials().as_bytes(), "hall.gltf", &glb::no_side_files).unwrap()
+}
+
+#[test]
+fn a_material_keeps_its_factors_and_every_map_it_names() {
+    let imported = imported_two_materials();
+    let assets = imported.scene.get("assets").unwrap().as_array().unwrap();
+    let stone = assets
+        .iter()
+        .find(|a| a.get("id").unwrap().as_str() == Some("hall_stone"))
+        .expect("the file names a Stone material");
+    let params = stone.get("params").unwrap();
+    let base = params.get("base_color").unwrap().as_array().unwrap();
+    assert!(close(base[0].as_float().unwrap() as f32, 0.8));
+    assert!(close(base[2].as_float().unwrap() as f32, 0.4));
+    assert!(close(
+        params.get("metallic").unwrap().as_float().unwrap() as f32,
+        0.25
+    ));
+    assert!(close(
+        params.get("roughness").unwrap().as_float().unwrap() as f32,
+        0.75
+    ));
+    let emissive = params.get("emissive").unwrap().as_array().unwrap();
+    assert!(close(emissive[1].as_float().unwrap() as f32, 0.2));
+    // The four slots this material named. The normal map is the file's second
+    // image, the rest its first.
+    for slot in ["albedo", "metallic_roughness", "occlusion"] {
+        assert_eq!(
+            params.get(slot).unwrap().as_str(),
+            Some("models/hall_0.png"),
+            "{slot}"
+        );
+    }
+    assert_eq!(
+        params.get("normal").unwrap().as_str(),
+        Some("models/hall_1.png")
+    );
+    assert!(params.get("emissive_map").is_none());
+    // A map the file did not name turns its feature off, so the factor
+    // stands where glTF says a missing map is one.
+    let features = stone.get("features").unwrap();
+    assert_eq!(
+        features.get("metallic_roughness_map").unwrap().as_bool(),
+        Some(true)
+    );
+    assert_eq!(features.get("emissive_map").unwrap().as_bool(), Some(false));
+    // An image is named once, however many slots point at it, and each gets a
+    // sidecar of its own.
+    let files: Vec<&str> = imported.files.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(
+        files,
+        vec![
+            "hall_0.png",
+            "hall_0.png.toml",
+            "hall_1.png",
+            "hall_1.png.toml"
+        ]
+    );
+}
+
+#[test]
+fn a_masked_material_carries_its_cutoff_and_draws_both_sides() {
+    let imported = imported_two_materials();
+    let assets = imported.scene.get("assets").unwrap().as_array().unwrap();
+    let stone = assets
+        .iter()
+        .find(|a| a.get("id").unwrap().as_str() == Some("hall_stone"))
+        .unwrap();
+    let surface = stone.get("surface").unwrap();
+    assert_eq!(surface.get("alpha").unwrap().as_str(), Some("mask"));
+    assert!(close(
+        surface.get("alpha_cutoff").unwrap().as_float().unwrap() as f32,
+        0.25
+    ));
+    assert_eq!(surface.get("double_sided").unwrap().as_bool(), Some(true));
+}
+
+#[test]
+fn a_transmissive_material_becomes_glass_with_its_volume() {
+    let imported = imported_two_materials();
+    let assets = imported.scene.get("assets").unwrap().as_array().unwrap();
+    let pane = assets
+        .iter()
+        .find(|a| a.get("id").unwrap().as_str() == Some("hall_pane"))
+        .expect("the file names a Pane material");
+    let surface = pane.get("surface").unwrap();
+    assert!(close(
+        surface.get("transmission").unwrap().as_float().unwrap() as f32,
+        0.9
+    ));
+    assert!(close(
+        surface.get("ior").unwrap().as_float().unwrap() as f32,
+        1.52
+    ));
+    assert!(close(
+        surface.get("thickness").unwrap().as_float().unwrap() as f32,
+        0.2
+    ));
+    assert!(close(
+        surface
+            .get("attenuation_distance")
+            .unwrap()
+            .as_float()
+            .unwrap() as f32,
+        3.0
+    ));
+    // The shader reads the same numbers, so the node that draws as glass
+    // shades as glass too.
+    let params = pane.get("params").unwrap();
+    assert!(close(
+        params.get("transmission").unwrap().as_float().unwrap() as f32,
+        0.9
+    ));
+    let attenuation = params.get("attenuation").unwrap().as_array().unwrap();
+    assert!(close(attenuation[1].as_float().unwrap() as f32, 0.97));
+    assert!(close(attenuation[3].as_float().unwrap() as f32, 3.0));
+    // An index of refraction of 1.52 is a touch above the 0.5 that spells the
+    // 4% of common glass.
+    let reflectance = params.get("reflectance").unwrap().as_float().unwrap() as f32;
+    assert!((0.5..0.53).contains(&reflectance), "{reflectance}");
+}
+
+#[test]
+fn a_model_with_two_materials_becomes_one_mesh_node_for_each() {
+    let imported = imported_two_materials();
+    let nodes = imported.scene.get("nodes").unwrap().as_array().unwrap();
+    let names: Vec<&str> = nodes
+        .iter()
+        .map(|n| n.get("name").unwrap().as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Hall", "HallMesh_stone", "HallMesh_pane"]);
+    let mesh_of = |name: &str| {
+        nodes
+            .iter()
+            .find(|n| n.get("name").unwrap().as_str() == Some(name))
+            .unwrap()
+            .get("mesh")
+            .unwrap()
+            .clone()
+    };
+    let stone = mesh_of("HallMesh_stone");
+    assert_eq!(
+        stone.get("source").unwrap().get("part").unwrap().as_str(),
+        Some("Stone")
+    );
+    assert_eq!(stone.get("material").unwrap().as_str(), Some("#hall_stone"));
+    assert_eq!(
+        mesh_of("HallMesh_pane")
+            .get("source")
+            .unwrap()
+            .get("part")
+            .unwrap()
+            .as_str(),
+        Some("Pane")
+    );
+}
+
+#[test]
+fn a_part_takes_only_that_materials_triangles() {
+    let json = two_materials();
+    let whole = mesh::parse(json.as_bytes(), "hall.gltf").unwrap();
+    assert_eq!(whole.indices.len(), 4, "both primitives, drawn together");
+    let stone = mesh::parse_part(
+        json.as_bytes(),
+        "hall.gltf",
+        &glb::no_side_files,
+        Some("Stone"),
+    )
+    .unwrap();
+    assert_eq!(stone.indices.len(), 2);
+    assert_eq!(stone.part.as_deref(), None, "the parser does not record it");
+}
+
+#[test]
+fn a_part_the_file_does_not_name_says_what_it_does_name() {
+    let json = two_materials();
+    let err = format!(
+        "{:#}",
+        mesh::parse_part(
+            json.as_bytes(),
+            "hall.gltf",
+            &glb::no_side_files,
+            Some("Marble"),
+        )
+        .unwrap_err()
+    );
+    assert!(
+        err.contains("Marble") && err.contains("Stone") && err.contains("Pane"),
+        "{err}"
+    );
+}
+
+/// A map is only half of what a file says about a texture; the other half is
+/// how to sample it, and Balaur's own defaults are not glTF's.
+///
+/// A floor whose UVs run past one and whose sampler was dropped clamps to a
+/// single texel and draws flat, which is what the sidecar exists to stop.
+#[test]
+fn a_texture_keeps_the_sampler_the_file_gave_it() {
+    let imported = imported_two_materials();
+    let sidecar: Vec<&(String, Vec<u8>)> = imported
+        .files
+        .iter()
+        .filter(|(name, _)| name.ends_with(".toml"))
+        .collect();
+    assert_eq!(sidecar.len(), 2, "one sidecar beside each image");
+    assert_eq!(sidecar[0].0, "hall_0.png.toml");
+    let text = String::from_utf8(sidecar[0].1.clone()).unwrap();
+    let settings: toml::Value = toml::from_str(&text).unwrap();
+    // The fixture names no sampler, so glTF's own defaults apply: repeat, and
+    // a mip chain, both of which Balaur would otherwise have turned off.
+    assert_eq!(settings.get("repeat_u").unwrap().as_str(), Some("repeat"));
+    assert_eq!(settings.get("repeat_v").unwrap().as_str(), Some("repeat"));
+    assert_eq!(settings.get("mipmaps").unwrap().as_bool(), Some(true));
+    assert_eq!(settings.get("filter").unwrap().as_str(), Some("linear"));
+    // A model is walked at a glancing angle, where a mip chain on its own
+    // blurs a floor into bands.
+    assert_eq!(settings.get("anisotropy").unwrap().as_integer(), Some(16));
+}
+
+/// sRGB describes colour, and a normal or a roughness is not colour: read back
+/// through that curve a stored roughness of 0.19 becomes 0.03, and the scene
+/// of mirrors that makes turns every glancing surface white.
+#[test]
+fn only_the_colour_maps_are_marked_srgb() {
+    let imported = imported_two_materials();
+    let of = |name: &str| -> toml::Value {
+        let bytes = imported
+            .files
+            .iter()
+            .find(|(f, _)| f == name)
+            .unwrap_or_else(|| panic!("no {name}"))
+            .1
+            .clone();
+        toml::from_str(&String::from_utf8(bytes).unwrap()).unwrap()
+    };
+    assert_eq!(
+        of("hall_0.png.toml").get("srgb").unwrap().as_bool(),
+        Some(true),
+        "the base colour is colour"
+    );
+    assert_eq!(
+        of("hall_1.png.toml").get("srgb").unwrap().as_bool(),
+        Some(false),
+        "the normal map is not"
     );
 }

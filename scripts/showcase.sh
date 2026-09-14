@@ -76,9 +76,29 @@ screen() { # screen <name> <project> [frames]
   local held
   held=$(cat "$scene")
   # The scene's own `shot` prop is where the picture goes; put it back after.
-  printf '%s' "${held//shot = \"\"/shot = \"$PWD/$work/$1.png\"}" >"$scene"
+  printf '%s\n' "${held//shot = \"\"/shot = \"$PWD/$work/$1.png\"}" >"$scene"
   balaur run "$2" --offscreen --frames "${3:-60}" >"$work/$1.log" 2>&1 || true
-  printf '%s' "$held" >"$scene"
+  printf '%s\n' "$held" >"$scene"
+  [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
+  cp "$work/$1.png" "$img/$1.png"
+  echo ok
+}
+
+# One scene of a project that holds several, at twice the design size it
+# names. The project may not state `[window]` or `[ui]`: TOML refuses a
+# table twice.
+scene_shot() { # scene_shot <name> <project> <scene> <width> <height>
+  wanted "$1" || return 0
+  printf '%-22s image  ' "$1"
+  rm -f "$work/$1.png"
+  local proj=$2/project.toml
+  local held
+  held=$(cat "$proj")
+  printf '%s\n[window]\nwidth = %d\nheight = %d\n\n[ui]\nscale = 2.0\n' \
+    "$held" "$(($4 * 2))" "$(($5 * 2))" >"$proj"
+  balaur run "$2" --scene "$3" --offscreen --frames 60 -- \
+    "--shot=$PWD/$work/$1.png" >"$work/$1.log" 2>&1 || true
+  printf '%s\n' "$held" >"$proj"
   [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
   cp "$work/$1.png" "$img/$1.png"
   echo ok
@@ -94,9 +114,9 @@ screen_clip() { # screen_clip <name> <project> <frames>
   local scene=$2/scenes/main.toml
   local held
   held=$(cat "$scene")
-  printf '%s' "${held//frames = \"\"/frames = \"$PWD/$work/$1\"}" >"$scene"
+  printf '%s\n' "${held//frames = \"\"/frames = \"$PWD/$work/$1\"}" >"$scene"
   balaur run "$2" --offscreen --frames "$3" >"$work/$1.log" 2>&1 || true
-  printf '%s' "$held" >"$scene"
+  printf '%s\n' "$held" >"$scene"
   # Any frame will do: a project may well skip the first, which is drawn
   # before its scene is.
   if grep -q ERROR "$work/$1.log" || ! ls "$work/$1"/*.png >/dev/null 2>&1; then failed "$1"; return 0; fi
@@ -126,14 +146,56 @@ clip() { # clip <name> <project> <frames> <state>
   echo "ok $(du -h "$vid/$1.webm" | cut -f1)"
 }
 
+# One picture per example for the start screen: the example running on its
+# own, which is what `--shot` takes. They ship inside the editor's library,
+# because `ui.image` reads the editor's own project and no other.
+covers() {
+  wanted covers || return 0
+  local out=editor/library/examples
+  mkdir -p "$out"
+  for dir in examples/*/; do
+    local id=${dir%/}
+    id=${id#examples/}
+    [ -f "$dir/project.toml" ] || continue
+    printf '%-22s cover  ' "$id"
+    rm -f "$work/cover-$id.png"
+    balaur run "$dir" --offscreen --frames 150 --shot "$PWD/$work/cover-$id.png" \
+      >"$work/cover-$id.log" 2>&1 || true
+    if [ ! -f "$work/cover-$id.png" ]; then failed "cover-$id"; continue; fi
+    # Centre-cropped to the card's shape, so no picture is stretched to fit.
+    python3 -c "from PIL import Image; import sys; \
+im = Image.open(sys.argv[1]).convert('RGB'); w, h = im.size; want = 480 / 272; \
+box = ((w - int(h * want)) // 2, 0, (w - int(h * want)) // 2 + int(h * want), h) \
+  if w / h > want else (0, (h - int(w / want)) // 2, w, (h - int(w / want)) // 2 + int(w / want)); \
+im.crop(box).resize((480, 272), Image.LANCZOS).save(sys.argv[2])" \
+      "$work/cover-$id.png" "$out/$id.png"
+    echo ok
+  done
+}
+
 backup_examples
+covers
 shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:45"
+# The screen a bare launch opens on. Taken with a project given, since the
+# take needs one to boot; the state puts the manager over it either way.
+shot project_manager   examples/hello      "manager"
 # A screen made only of widget nodes: the card grid, the controls and the
 # theme's roles. Run rather than edited, so the picture is the screen itself.
 screen ui_kinds        examples/interface
+# The same project's other two screens, each its own scene: the menu bar with
+# a submenu and a toast, and the marks a label takes.
+scene_shot ui_menus    examples/interface scenes/menus.toml 800 480
+scene_shot ui_text     examples/interface scenes/text.toml  640 420
+# The three row views over one set of entries: a list holding two rows, the
+# same entries as an outline, and the same again with named columns.
+scene_shot ui_rows     examples/interface scenes/rows.toml  900 400
 # Two tables and what the solver holds for each: the pieces are drawn by the
 # example itself, so the picture is the decomposition rather than a diagram.
 screen concave_pieces  examples/concave    120
+# Pause, process modes and the time scale over eight seconds: the boxes fall,
+# freeze, and fall again at a quarter speed while the `always` heading and
+# marker keep going. Its poster lands inside the paused stretch.
+screen_clip pause_states examples/pause 245
 # The same scene over its first four seconds: the beam inside the grown
 # table is pushed out, the one inside the plain table is not.
 screen_clip concave_beam examples/concave  130

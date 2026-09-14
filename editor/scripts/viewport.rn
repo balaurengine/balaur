@@ -33,6 +33,82 @@ pub fn rail_drag(S, dpi) {
     }
 }
 
+/// Two fingers on the stage: pinch to dolly, drag to slide. Answered before
+/// a tool sees the frame, and true while it holds the camera, so the gizmo
+/// and the backend's own mouse orbit both stand off.
+///
+/// One finger is a mouse drag to everything below, which is the orbit a
+/// cursor gets. Two is the gesture nothing else claims.
+pub fn camera_gesture(S) {
+    let pinch = input::pinch();
+    let pan = input::pan();
+    let spread = pinch.get("scale").unwrap_or(0.0);
+    let dx = util::f(pan.get("x").unwrap_or(0.0));
+    let dy = util::f(pan.get("y").unwrap_or(0.0));
+    let scale = util::f(spread);
+    let gesturing = scale > 0.0 || dx != 0.0 || dy != 0.0;
+    if !gesturing {
+        return false;
+    }
+    // Where the fingers are, not where a mouse is: a sheet under them owns
+    // them, the way a pointer over a sheet is the sheet's.
+    let at = if scale > 0.0 {
+        (util::f(pinch.get("x").unwrap_or(0.0)), util::f(pinch.get("y").unwrap_or(0.0)))
+    } else {
+        input::mouse_position()
+    };
+    let (fx, fy) = at;
+    if !owns_pointer(S, fx / S.ui_scale, fy / S.ui_scale) {
+        return false;
+    }
+    if S.mode2d {
+        pan_zoom_2d(S, scale, dx, dy);
+    } else {
+        orbit_3d(S, scale, dx, dy);
+    }
+    true
+}
+
+// The 2D camera is a centre and a zoom, so a pinch is the zoom and a drag is
+// the centre, both in the world units the centre is kept in.
+fn pan_zoom_2d(S, scale, dx, dy) {
+    let (cx, cy, zoom) = render::camera_2d();
+    let held = util::max(zoom, 0.01);
+    let next = if scale > 0.0 { util::clamp(held * scale, 0.02, 4000.0) } else { held };
+    render::set_camera_2d(cx - dx / next, cy + dy / next, next);
+}
+
+// The 3D camera is an eye and a target, so a pinch walks the eye along the
+// line between them and a drag slides both across it.
+fn orbit_3d(S, scale, dx, dy) {
+    let (ex, ey, ez, tx, ty, tz, fov, _) = render::camera_pose();
+    let (ax, ay, az) = (ex - tx, ey - ty, ez - tz);
+    let dist = math::sqrt(ax * ax + ay * ay + az * az);
+    if dist < 0.0001 {
+        return;
+    }
+    // Apart is closer, the way a pinch out is on every phone.
+    let want = if scale > 0.0 { util::clamp(dist / scale, 0.05, 10000.0) } else { dist };
+    let (ux, uy, uz) = (ax / dist, ay / dist, az / dist);
+    // Screen right and up in world units, from the view axis and world up.
+    let right = [uz, 0.0, -ux];
+    let len = math::sqrt(right[0] * right[0] + right[2] * right[2]);
+    let right = if len < 0.0001 { [1.0, 0.0, 0.0] } else { [right[0] / len, 0.0, right[2] / len] };
+    let up = [
+        uy * right[2] - uz * right[1],
+        uz * right[0] - ux * right[2],
+        ux * right[1] - uy * right[0],
+    ];
+    // The world a design pixel covers at the target's depth: the same
+    // distance under the finger as the ground it started on.
+    let tall = util::max(S.layout.stage.h, 1.0);
+    let per_px = 2.0 * want * math::tan(util::max(fov, 0.01) / 2.0) / tall;
+    let step = per_px / util::max(S.ui_scale, 0.01);
+    let slide = |i| (0.0 - dx) * right[i] * step + dy * up[i] * step;
+    let (nx, ny, nz) = (tx + slide(0), ty + slide(1), tz + slide(2));
+    render::set_camera(nx + ux * want, ny + uy * want, nz + uz * want, nx, ny, nz);
+}
+
 /// steadyum's selection orange.
 pub fn orange() {
     [1.0, 0.647, 0.0]

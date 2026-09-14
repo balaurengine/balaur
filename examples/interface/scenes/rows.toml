@@ -1,0 +1,150 @@
+# The three views over one set of entries: a list holding two rows, the same
+# entries as an outline, and the same again with named columns.
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+[nodes.script]
+source = "scripts/rows.rn"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "panel"
+text = ""
+anchor = "center"
+x = 0
+y = 0
+width = 900
+padding = 16
+gap = 12
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "Lists, trees and tables"
+role = "title"
+
+[[nodes]]
+id = "views"
+name = "Views"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+gap = 12
+height = 300
+
+[[nodes]]
+id = "list_box"
+name = "ListBox"
+parent = "views"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 6
+
+[[nodes]]
+id = "list_head"
+name = "ListHead"
+parent = "list_box"
+[nodes.widget]
+kind = "label"
+text = "LIST"
+role = "group"
+
+# `multi` lets more than one row be picked: the command key toggles one and
+# shift takes the run. `selection` is what it holds. `reorder` senses a drag
+# and `on_move` says where the row was let go; the script does the moving.
+[[nodes]]
+id = "list"
+name = "List"
+parent = "list_box"
+[nodes.widget]
+kind = "list"
+multi = true
+reorderable = true
+on_move = "on_move"
+row_height = 22
+grow = 1
+
+[[nodes]]
+id = "tree_box"
+name = "TreeBox"
+parent = "views"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 6
+
+[[nodes]]
+id = "tree_head"
+name = "TreeHead"
+parent = "tree_box"
+[nodes.widget]
+kind = "label"
+text = "TREE"
+role = "group"
+
+[[nodes]]
+id = "outline"
+name = "Outline"
+parent = "tree_box"
+[nodes.widget]
+kind = "tree"
+reorderable = true
+on_move = "on_move"
+row_height = 22
+font = "mono"
+grow = 1
+
+[[nodes]]
+id = "table_box"
+name = "TableBox"
+parent = "views"
+[nodes.widget]
+kind = "column"
+grow = 1.3
+gap = 6
+
+[[nodes]]
+id = "table_head"
+name = "TableHead"
+parent = "table_box"
+[nodes.widget]
+kind = "label"
+text = "TABLE"
+role = "group"
+
+# The column names, split on the separator the rows are; a name ending in `>`
+# draws its column against the right edge.
+[[nodes]]
+id = "table"
+name = "Table"
+parent = "table_box"
+[nodes.widget]
+kind = "table"
+text = "Torus\u001Fmesh\u001F3.8 kB"
+titles = ["name", "kind", "size>"]
+# A click on a header sorts by that column and the next turns it round; the
+# shares are the scene's until a drag on a seam writes its own.
+sortable = true
+sort = "size"
+widths = ["2", "1.4", "1"]
+row_height = 22
+font = "mono"
+grow = 1
+
+[[nodes]]
+id = "note"
+name = "Note"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "caption"
+text = "one row or many; a drag moves a row; a header sorts, and its seams resize"

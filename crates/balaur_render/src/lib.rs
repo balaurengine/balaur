@@ -53,6 +53,7 @@ mod polyline_strip;
 pub mod preview;
 #[cfg(feature = "kiss3d")]
 mod probe;
+pub mod reflection;
 mod script_api;
 pub mod shaders;
 mod shape;
@@ -69,7 +70,7 @@ mod tilemap;
 #[cfg(feature = "kiss3d")]
 mod tilemap_mesh;
 pub mod world_text;
-pub use camera::{Camera, CameraKind, Post, PostPass};
+pub use camera::{Camera, CameraKind, Finish, Occlusion, Post, PostPass};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
@@ -87,6 +88,7 @@ pub use light3d::{Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonema
 pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
+pub use reflection::{LitProbe, ReflectionProbe};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 
@@ -98,6 +100,8 @@ mod bind_layout;
 mod debug_lines;
 #[cfg(feature = "kiss3d")]
 mod device;
+#[cfg(feature = "kiss3d")]
+mod frame_group;
 #[cfg(all(
     feature = "kiss3d",
     target_family = "wasm",
@@ -143,6 +147,14 @@ mod touch_draw;
 pub struct ScreenshotRequest {
     pub path: std::path::PathBuf,
     pub after_frame: u64,
+}
+
+/// What `render.screenshot` does for a script, for a caller holding a path.
+pub fn request_screenshot(eng: &balaur_core::Engine, path: std::path::PathBuf) {
+    eng.insert_resource(ScreenshotRequest {
+        path,
+        after_frame: 0,
+    });
 }
 
 /// Complain about a screenshot nobody could take.
@@ -214,6 +226,12 @@ pub struct PostConfig {
     /// Brightness a pixel blooms past, and how much of it is added back.
     pub bloom_threshold: f32,
     pub bloom_intensity: f32,
+    /// What the engine's own finishing passes are turned by, whichever of
+    /// them the chain names.
+    pub finish: camera::Finish,
+    /// What the occlusion pass measures with, which a scene's own scale
+    /// decides.
+    pub occlusion: camera::Occlusion,
     /// `material` assets drawn over the whole frame before the tonemap, in the
     /// order the camera listed them: these work in linear light, so what they
     /// write is what blooms.
@@ -232,6 +250,8 @@ impl Default for PostConfig {
             dof: false,
             bloom_threshold: 1.0,
             bloom_intensity: 0.6,
+            finish: camera::Finish::default(),
+            occlusion: camera::Occlusion::default(),
             film: Vec::new(),
             screen: Vec::new(),
             changed: false,
@@ -1047,6 +1067,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         light::register_light2d_component(reg);
         light3d::register_light3d_component(reg);
         light3d::register_environment_component(reg);
+        reflection::register_reflection_probe_component(reg);
         light::register_occluder2d_component(reg);
         boolean::register_boolean3d_component(reg);
         boolean::register_boolean2d_component(reg);

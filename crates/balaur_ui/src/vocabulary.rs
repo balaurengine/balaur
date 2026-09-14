@@ -123,6 +123,11 @@ pub(crate) mod words {
     /// The families a widget may draw in, as the picker offers them.
     pub(crate) const WIDGET_FONTS: &[&str] = &[UI, MONO, HEADING, ICON];
 
+    /// Where a dragged row landed, as `on_move` reports it.
+    pub(crate) const BEFORE: &str = "before";
+    pub(crate) const INTO: &str = "into";
+    pub(crate) const AFTER: &str = "after";
+
     pub(crate) const CMD: &str = "cmd";
     pub(crate) const CTRL: &str = "ctrl";
     pub(crate) const ALT: &str = "alt";
@@ -204,6 +209,7 @@ pub(crate) mod keys {
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
     pub(crate) const HIDE_WIDER: &str = "hide_wider";
     pub(crate) const HIDE_SHORTER: &str = "hide_shorter";
+    pub(crate) const HIDE_TALLER: &str = "hide_taller";
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const NUMERIC: &str = "numeric";
@@ -215,6 +221,7 @@ pub(crate) mod keys {
     pub(crate) const ON_FILL: &str = "on_fill";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
+    pub(crate) const ON_GUTTER: &str = "on_gutter";
     pub(crate) const ON_KNOB: &str = "on_knob";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
@@ -236,8 +243,27 @@ pub(crate) mod keys {
     pub(crate) const ROUND: &str = "round";
     pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
+    pub(crate) const TITLES: &str = "titles";
+    pub(crate) const WIDTHS: &str = "widths";
+    pub(crate) const HEADER: &str = "header";
+    pub(crate) const SORT: &str = "sort";
+    pub(crate) const SORTABLE: &str = "sortable";
+    pub(crate) const REVERSE: &str = "reverse";
+    pub(crate) const REORDERABLE: &str = "reorderable";
+    pub(crate) const ON_MOVE: &str = "on_move";
+    /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
+    pub(crate) const ROW_ON: &str = "row_on";
+    pub(crate) const ROW_ON_COLOR: &str = "row_on_color";
+    pub(crate) const ROW_HOVER: &str = "row_hover";
+    pub(crate) const ROW_ACTIVE: &str = "row_active";
+    pub(crate) const ROW_STRIPE: &str = "row_stripe";
+    pub(crate) const ROW_HEAD: &str = "row_head";
+    pub(crate) const ROW_RULE: &str = "row_rule";
+    pub(crate) const ROW_GUIDE: &str = "row_guide";
     pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTABLE: &str = "selectable";
+    pub(crate) const SELECTION: &str = "selection";
+    pub(crate) const MULTI: &str = "multi";
     pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";

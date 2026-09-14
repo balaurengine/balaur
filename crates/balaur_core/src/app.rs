@@ -52,9 +52,46 @@ pub const TICK_HZ: u32 = 60;
 pub const FIXED_DT: f32 = 1.0 / TICK_HZ as f32;
 
 /// How far behind a frame may fall before time is dropped rather than caught
-/// up on. Without it a stalled frame spends its recovery in a spiral of
-/// catch-up steps.
+/// up on, at [`TICK_HZ`]. Without it a stalled frame spends its recovery in a
+/// spiral of catch-up steps.
 pub const MAX_SUBSTEPS: u32 = 4;
+
+thread_local! {
+    /// The rate this run ticks at: `[time] tick_hz`, or [`TICK_HZ`] until a
+    /// project says otherwise. Per thread rather than global because a test
+    /// binary runs many apps at once, each with its own project.
+    static TICK: std::cell::Cell<(u32, f32)> =
+        const { std::cell::Cell::new((TICK_HZ, FIXED_DT)) };
+}
+
+/// How many fixed steps a second this run takes.
+#[must_use]
+pub fn tick_hz() -> u32 {
+    TICK.with(|t| t.get().0)
+}
+
+/// The fixed step this run takes, in seconds. What every subsystem counting
+/// simulation time reads instead of [`FIXED_DT`], which is only the default.
+#[must_use]
+pub fn fixed_dt() -> f32 {
+    TICK.with(|t| t.get().1)
+}
+
+/// [`MAX_SUBSTEPS`] at this run's rate: the same wall clock of catch-up
+/// whatever the tick, so a faster tick does not cap a frame sooner.
+#[must_use]
+pub fn max_substeps() -> u32 {
+    (MAX_SUBSTEPS * tick_hz() / TICK_HZ).max(1)
+}
+
+/// Set the rate this run ticks at. For [`App`] reading `[time] tick_hz` and
+/// for [`crate::replay`] restoring the rate a recording was made at; anything
+/// else moving it mid-run changes the simulation under everything holding a
+/// step count.
+pub fn set_tick_hz(hz: u32) {
+    let hz = hz.max(1);
+    TICK.with(|t| t.set((hz, 1.0 / hz as f32)));
+}
 
 pub type SystemFn = Box<dyn FnMut(&Engine, f32)>;
 
@@ -161,6 +198,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
     eng.insert_resource(crate::components::Attached::default());
+    eng.insert_resource(crate::components::Authored::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
@@ -320,6 +358,9 @@ impl App {
             fixed_dt: None,
             accumulator: 0.0,
         };
+        // A test binary builds many apps on one thread, and the rate is that
+        // thread's: each starts at the default until its project moves it.
+        set_tick_hz(TICK_HZ);
         register_core_content(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
@@ -336,6 +377,7 @@ impl App {
         });
         app.add_system(Stage::First, crate::facts::read_clock_system);
         app.add_system(Stage::First, crate::facts::announce_device_system);
+        app.add_system(Stage::First, crate::process::announce_pause_system);
         app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
         app.add_system(Stage::FixedUpdate, crate::timer::step_system);
         app.add_system(Stage::PreUpdate, |eng, _| {
@@ -361,7 +403,14 @@ impl App {
         app.add_system(Stage::SceneSync, |eng, _| {
             crate::timings::measure(eng, "scene/transforms", || {
                 let root = eng.root();
-                scene::propagate_transforms(&mut eng.world_mut(), root);
+                // 1.0 is the tick's own pose for every node, and the pass
+                // skips the per-node lookup that a blend would cost.
+                let alpha = if crate::interpolate::on(eng) {
+                    eng.frame_alpha()
+                } else {
+                    1.0
+                };
+                scene::propagate_transforms_at(&mut eng.world_mut(), root, alpha);
             });
         });
         app.add_system(Stage::Last, |eng, _| {
@@ -425,9 +474,20 @@ impl App {
     ///
     /// A rollback session drives at exactly this, so the substep accumulator
     /// is back at zero every time it captures.
+    /// The shortest a frame may be, from `[window] max_fps`; `None` when the
+    /// project set no cap and the loop paces itself against the tick.
+    ///
+    /// A cap is what stops a menu screen from drawing four hundred frames a
+    /// second on a machine with vsync off, which on a laptop is audible.
+    #[must_use]
+    pub fn frame_budget(&self) -> Option<Duration> {
+        let fps = crate::project::max_fps(&self.engine);
+        (fps > 0).then(|| Duration::from_secs_f32(1.0 / fps as f32))
+    }
+
     #[must_use]
     pub fn fixed_step(&self) -> f32 {
-        self.fixed_dt.unwrap_or(FIXED_DT)
+        self.fixed_dt.unwrap_or_else(fixed_dt)
     }
 
     pub fn set_fixed_dt(&mut self, dt: Option<f32>) -> &mut Self {
@@ -680,6 +740,9 @@ impl App {
             );
         }
         let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
+        // Before the scene: a node's `interpolate` key is read as it is built,
+        // and its step is what the first tick takes.
+        self.apply_time_settings();
         let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
         let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
         let scene_src = if let Some(pack) = &self.pack {
@@ -706,6 +769,22 @@ impl App {
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;
         Ok(self)
+    }
+
+    /// Put `[time]` into effect: the rate this run ticks at and whether it
+    /// draws between steps.
+    fn apply_time_settings(&self) {
+        let hz = crate::settings::get(&self.engine, "time/tick_hz")
+            .as_ref()
+            .and_then(crate::components::as_f64)
+            .filter(|n| *n >= 1.0);
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a rate from a setting bounded at 1..=480"
+        )]
+        set_tick_hz(hz.map_or(TICK_HZ, |n| n as u32));
+        crate::interpolate::apply_setting(&self.engine);
     }
 
     /// Load `presets.toml`, letting a project name its own recipes.
@@ -759,7 +838,13 @@ impl App {
         match plan {
             crate::replay::Step::Live => {
                 self.engine.set_replay_hold(false);
-                self.tick(self.fixed_dt.unwrap_or(measured_dt));
+                // The scale is a wall-clock matter: a run driving at a fixed
+                // step is reproducing a tick sequence, and scaling that would
+                // change the simulation rather than how fast it is watched.
+                self.tick(
+                    self.fixed_dt
+                        .unwrap_or(measured_dt * self.engine.time_scale()),
+                );
             }
             crate::replay::Step::Hold => {
                 self.engine.set_replay_hold(true);
@@ -850,21 +935,36 @@ impl App {
     /// One accumulator for the whole simulation, so scripts and physics take
     /// the same number of steps in the same order every frame. Time past
     /// [`MAX_SUBSTEPS`] is dropped rather than caught up on.
+    ///
+    /// A game's own pause does not stop this: the step still runs, and each
+    /// subsystem skips the nodes the pause holds, so an `always` subtree
+    /// keeps ticking. A debugger's freeze stops the whole stage.
     fn run_fixed_steps(&mut self, dt: f32) -> u32 {
         // A debugger pause holds the simulation: the time is dropped, not owed.
         if self.engine.frozen_root().is_some() {
             self.accumulator = 0.0;
+            // A held frame draws the tick's own pose, so what the inspector
+            // reports and what the viewport shows are the same place.
+            self.engine.set_frame_alpha(1.0);
             return 0;
         }
+        let step = fixed_dt();
         let mut steps = 0;
-        self.accumulator = (self.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
-        while self.accumulator >= FIXED_DT {
+        // Fast forward is owed more steps per frame than real time is, or the
+        // cap would silently undo the scale.
+        let budget = step * max_substeps() as f32 * self.engine.time_scale().max(1.0);
+        self.accumulator = (self.accumulator + dt).min(budget);
+        while self.accumulator >= step {
             for system in &mut self.systems[Stage::FixedUpdate as usize] {
-                system(&self.engine, FIXED_DT);
+                system(&self.engine, step);
             }
-            self.accumulator -= FIXED_DT;
+            // After the step, so the pair kept is the pose this step left and
+            // the one before it: what a frame between the two blends.
+            crate::interpolate::capture(&self.engine);
+            self.accumulator -= step;
             steps += 1;
         }
+        self.engine.set_frame_alpha(self.accumulator / step);
         steps
     }
 
@@ -881,7 +981,9 @@ impl App {
         reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
     )]
     pub fn run(&mut self) {
-        let target = Duration::from_secs_f32(self.fixed_dt.unwrap_or(FIXED_DT));
+        let target = self
+            .frame_budget()
+            .unwrap_or_else(|| Duration::from_secs_f32(self.fixed_step()));
         let mut last = Instant::now();
         while !self.engine.quit_requested() {
             let now = Instant::now();

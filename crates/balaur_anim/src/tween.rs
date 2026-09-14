@@ -62,7 +62,7 @@ use glamx::{Quat, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 use crate::ease::Easing;
-use crate::player::{AnimationState, FIXED_DT};
+use crate::player::{AnimationState, fixed_dt};
 use crate::sampler::{self, euler_from_quat};
 use crate::system::Effect;
 
@@ -199,7 +199,7 @@ pub fn start_value(
     };
     push_segment(&mut track, 0.0, duration, from, to, ease);
     let clip = Clip {
-        length: duration.max(FIXED_DT),
+        length: duration.max(fixed_dt()),
         wrap: Wrap::None,
         tracks: vec![track],
     };
@@ -372,7 +372,7 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
     }
     let clip = tween.clip.clone();
     let was = tween.time;
-    tween.time += FIXED_DT * tween.speed;
+    tween.time += fixed_dt() * tween.speed;
     let (time, over) = sampler::clip_time(&clip, tween.time);
     if !tween.value {
         let pose = sampler::sample(&clip, time);
@@ -435,7 +435,7 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
         length: if builder.chain > 0.0 {
             builder.chain
         } else {
-            FIXED_DT
+            fixed_dt()
         },
         // Repeats are the tween's own business: `loops` counts them, and a
         // looping clip would never end and never be cleaned up.

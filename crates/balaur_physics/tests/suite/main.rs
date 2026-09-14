@@ -17,6 +17,7 @@ mod determinism;
 mod freeing;
 mod internal_edges;
 mod joints_and_characters;
+mod paused;
 mod queries;
 mod ragdoll;
 mod script_api;

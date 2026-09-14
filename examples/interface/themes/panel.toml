@@ -48,6 +48,11 @@ radius = 8
 fill = "sunken"
 radius = 8
 
+[table]
+fill = "sunken"
+radius = 8
+padding_x = 10
+
 [roles.title]
 font = "heading"
 size = 22

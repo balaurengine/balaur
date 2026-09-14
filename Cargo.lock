@@ -535,6 +535,7 @@ dependencies = [
  "dirs",
  "flate2",
  "js-sys",
+ "rfd",
  "serde",
  "serde_json",
  "sha2",
@@ -3096,7 +3097,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#16bf4bbf810e335f8ada58d10f8912f029775bd7"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#5fb037adcc5dbb539c827973e71f10d13669c3d8"
 dependencies = [
  "android-activity",
  "bitflags 2.13.2",
@@ -3132,7 +3133,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#16bf4bbf810e335f8ada58d10f8912f029775bd7"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#5fb037adcc5dbb539c827973e71f10d13669c3d8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6222,7 +6223,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
 dependencies = [
- "skrifa 0.40.0",
+ "skrifa 0.44.0",
  "yazi",
  "zeno",
 ]
@@ -6549,7 +6550,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",

@@ -19,6 +19,7 @@ pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
         &mut [
             Box::new(export_api::ExportPlugin::new(path.to_path_buf())),
             Box::new(import_api::ImportPlugin::new(path.to_path_buf())),
+            Box::new(crate::project_api::ProjectPlugin::new()),
         ],
     )?;
     #[cfg(target_family = "wasm")]

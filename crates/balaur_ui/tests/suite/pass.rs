@@ -14,14 +14,17 @@ use balaur_core::App;
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Build a project whose `draw_ui` runs `body`, then run two egui passes.
-fn draw(body: &str) -> (App, Vec<String>) {
-    let (app, _, errors) = draw_with(body);
-    (app, errors)
+fn draw(body: &str) -> (tempfile::TempDir, App, Vec<String>) {
+    let (dir, app, _, errors) = draw_with(body);
+    (dir, app, errors)
 }
 
 /// The same, keeping the context the passes ran in: fonts are bound to that
 /// one, so a test running further passes has to use it.
-fn draw_with(body: &str) -> (App, egui::Context, Vec<String>) {
+/// The project directory comes back with the app: dropped while the app is
+/// still alive, a later pass fails to re-read the script and logs an error
+/// into whatever test is reading the log buffer at the time.
+fn draw_with(body: &str) -> (tempfile::TempDir, App, egui::Context, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -63,11 +66,11 @@ fn draw_with(body: &str) -> (App, egui::Context, Vec<String>) {
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
         .collect();
-    (app, ctx, errors)
+    (dir, app, ctx, errors)
 }
 
 fn draw_clean(body: &str) {
-    let (_app, errors) = draw(body);
+    let (_dir, _app, errors) = draw(body);
     assert!(errors.is_empty(), "the pass logged errors: {errors:#?}");
 }
 
@@ -144,7 +147,7 @@ fn interactive_widgets_report_no_interaction_without_input() {
 
 #[test]
 fn the_code_editor_returns_its_buffer_unchanged() {
-    let (app, errors) = draw(
+    let (_dir, app, errors) = draw(
         r#"
         this.drawn = this.get("drawn").unwrap_or(0);
         this.edits = this.get("edits").unwrap_or(0);
@@ -170,7 +173,7 @@ fn the_code_editor_returns_its_buffer_unchanged() {
 
 #[test]
 fn bad_options_are_reported_rather_than_fatal() {
-    let (_app, errors) = draw(
+    let (_dir, _app, errors) = draw(
         r#"
         ui::central_panel(#{}, || {
             ui::label("still drawn");
@@ -182,7 +185,7 @@ fn bad_options_are_reported_rather_than_fatal() {
 
 #[test]
 fn a_script_error_inside_a_pass_is_logged_not_fatal() {
-    let (_app, errors) = draw(
+    let (_dir, _app, errors) = draw(
         r#"
         ui::central_panel(#{}, || {
             panic!("deliberate");
@@ -214,7 +217,7 @@ fn the_scale_factor_is_readable_and_settable() {
 /// checks from Rust that the pass really called it.
 #[test]
 fn draw_ui_is_actually_called() {
-    let (app, _) = draw(r#"this.passes = this.get("passes").unwrap_or(0) + 1;"#);
+    let (_dir, app, _) = draw(r#"this.passes = this.get("passes").unwrap_or(0) + 1;"#);
     let passes = field(&app, "passes").unwrap_or(0.0);
     assert!(
         passes > 0.0,
@@ -243,7 +246,7 @@ fn the_remaining_widgets_are_callable() {
 
 #[test]
 fn a_modal_runs_its_body() {
-    let (app, errors) = draw(
+    let (_dir, app, errors) = draw(
         r#"
         this.in_modal = 0;
         ui::central_panel(#{}, || {
@@ -272,7 +275,7 @@ fn set_text_replaces_a_field_buffer() {
 
 #[test]
 fn a_missing_image_does_not_stop_the_pass() {
-    let (_app, errors) = draw(
+    let (_dir, _app, errors) = draw(
         r#"
         ui::central_panel(#{}, || {
             ui::image("no/such/picture.png", #{});
@@ -325,7 +328,7 @@ fn shortcuts_report_no_press_without_input() {
 /// is `Backslash` whatever the layout prints on it.
 #[test]
 fn a_cmd_chord_answers_to_control_and_to_command() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r#"
         this.focus = this.get("focus").unwrap_or(0);
         ui::central_panel(#{}, || {
@@ -398,7 +401,7 @@ fn pass_names(app: &App) -> Vec<String> {
 /// read as one expensive pass instead of two ordinary ones.
 #[test]
 fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
-    let (mut app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
+    let (_dir, mut app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
     // Publish the passes the helper ran, so the table below holds this frame.
     app.tick(balaur_core::FIXED_DT);
     // What the windowed loop calls once a frame, which is what starts one.
@@ -459,7 +462,7 @@ fn tap(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
 /// used to fall through to nothing.
 #[test]
 fn a_frame_menu_opens_from_a_click_on_its_caption() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r#"
         this.rows = 0.0;
         ui::central_panel(#{}, || {
@@ -486,7 +489,7 @@ fn a_frame_menu_opens_from_a_click_on_its_caption() {
 /// under the callback's own widgets rather than over them.
 #[test]
 fn a_frame_menu_lights_up_under_the_pointer() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r##"
         ui::central_panel(#{}, || {
             ui::frame(#{
@@ -530,7 +533,7 @@ fn a_frame_menu_lights_up_under_the_pointer() {
 /// difference from `menu`, whose menu waits for the other button.
 #[test]
 fn a_pill_menu_opens_on_a_left_click() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r#"
         this.rows = 0.0;
         ui::central_panel(#{}, || {
@@ -567,7 +570,7 @@ fn a_pill_menu_opens_on_a_left_click() {
 /// it comes up, so the frames between are the scene's alone.
 #[test]
 fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
-    let (app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
+    let (_dir, app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
     let away = egui::pos2(500.0, 400.0);
     feed(&app, &ctx, tap(away, true));
     assert!(
@@ -590,7 +593,8 @@ fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
 /// pointer does.
 #[test]
 fn a_drag_that_began_on_a_widget_still_wants_its_passes() {
-    let (app, ctx, errors) = draw_with(r#"ui::central_panel(#{}, || { ui::pill("Go", #{}); });"#);
+    let (_dir, app, ctx, errors) =
+        draw_with(r#"ui::central_panel(#{}, || { ui::pill("Go", #{}); });"#);
     assert!(errors.is_empty(), "{errors:#?}");
     feed(&app, &ctx, tap(egui::pos2(24.0, 20.0), true));
     assert!(!balaur_ui::pointer_is_dragging_elsewhere(&ctx, true));
@@ -605,7 +609,7 @@ const IDLE_TICK: std::time::Duration = std::time::Duration::from_millis(250);
 /// camera lurches out of.
 #[test]
 fn the_idle_tick_waits_out_a_drag_the_ui_is_no_part_of() {
-    let (app, ctx, errors) =
+    let (_dir, app, ctx, errors) =
         draw_with(r#"ui::set_lazy(true); ui::central_panel(#{}, || { ui::label("x"); });"#);
     assert!(errors.is_empty(), "{errors:#?}");
     balaur_ui::honour_lazy(&app.engine);
@@ -638,7 +642,7 @@ fn the_idle_tick_waits_out_a_drag_the_ui_is_no_part_of() {
 /// or its colours do, and the galley must be the same one until then.
 #[test]
 fn the_code_editor_lays_its_text_out_once_until_its_look_changes() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r##"
         this.n = this.get("n").unwrap_or(0) + 1;
         let comment = if this.n > 2 { "#ff0000" } else { "#808080" };
@@ -680,7 +684,7 @@ fn laid_out(app: &App) -> std::sync::Arc<egui::Galley> {
 /// pointer off every control under the whole of it.
 #[test]
 fn a_sized_overlay_keeps_its_layer_inside_the_box_it_was_given() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r#"
         ui::overlay("chips", #{ x: 10, y: 10, w: 60, h: 24 }, || {
             ui::horizontal(#{ height: 24 }, || {
@@ -708,7 +712,7 @@ fn a_sized_overlay_keeps_its_layer_inside_the_box_it_was_given() {
 /// colours are spelled from the same tokens the rest of the role names.
 #[test]
 fn a_roles_hover_table_repaints_the_pill_under_the_pointer() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r##"
         ui::set_theme(#{
             dark: true, ink: "#101215", warm: "#2b3037",
@@ -745,7 +749,7 @@ fn a_roles_hover_table_repaints_the_pill_under_the_pointer() {
 /// its layer inside must not cost the controls in it their own state.
 #[test]
 fn a_pill_in_a_sized_overlay_still_lights_up() {
-    let (app, ctx, errors) = draw_with(
+    let (_dir, app, ctx, errors) = draw_with(
         r##"
         ui::overlay("bar", #{ x: 0, y: 0, w: 200, h: 40 }, || {
             ui::horizontal(#{ height: 30 }, || {

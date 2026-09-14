@@ -847,3 +847,59 @@ window smaller than the one the pictures are taken at.
   cannot answer. It asks what the room affords: every window owes the stage
   inside it, no two sheets overlapping and 44 points under a finger; a window
   with room for three columns owes the rest.
+
+## 19. The rest of steps 6 and 7
+
+What the two editor steps asked for beyond the folding, built in one pass.
+
+**A phone on its side holds its floors.** The height floors counted the bar,
+the dock and the stage, and not the status strip, the gutter or the seams
+between them, which take about 60 points together. On a 289-point-tall
+surface that is the whole margin, so the shell kept three sheets where there
+was room for one and the rail ran into the dock. `layout::chrome(S)` names
+what the shell spends on itself, and the floors, `three_fit` and the stage's
+own room all subtract it. The selftest passes at every size from 390 by 844
+to 2560 by 1440, landscape phone included.
+
+**Two fingers drive the camera.** The engine already derived pinch, pan,
+swipe and long press from the touches a recording holds; nothing in the
+editor read them. `viewport::camera_gesture` takes the frame when two
+fingers are on the stage: a pinch walks the eye along the line to what it
+looks at, a drag slides both across it, and the 2D camera gets the same pair
+as a zoom and a centre. The slide is measured in world units per design
+pixel at the target's depth, so the ground stays under the finger. While it
+holds the camera the gizmo does not see the frame and the backend's own
+mouse orbit stands off. `--state gesturedemo` feeds the two fingers and
+checks both, a frame apart, because a fed finger is read by the next tick and
+acted on later in that frame.
+
+**A finger reaches the gizmo.** The 3D hit test used 12, 16 and 18 design
+pixels around the ring, the face rects and the corners; under touch each is
+at least half a touch target. The 2D gizmo's pick radius is now separate from
+its drawn one, so the handle a finger can hit is not a handle that looks
+fatter.
+
+**The hover audit found nothing, and a lint keeps it that way.** No control
+in the shell is drawn only while hovered: the 25 `.hover` theme tables are
+paint, and the two `match hovered` sites are gizmo picking. Tooltips stopped
+being hover-only when a hold opened them. A house rule now refuses a
+`visible` that answers to a hover, with the reason that a touch screen has
+none.
+
+**The dialogs fit a phone.** The palette was 560 wide with a 440 field and
+430 rows; it takes the screen less its margin now, and every column inside
+is measured off that. A window sheet is the screen less its margin where the
+screen is smaller than the sheet's own floor, and `window::inner_w(S)` is
+what a body measures its rows against, since a row that hugs its contents
+gives `ui::right` the whole layer to align against. The settings screen puts
+its category list above the rows rather than beside them under 520 points,
+and its editors take what the sheet leaves.
+
+**`hide_taller` exists**, the fourth line, with the same test as the other
+three.
+
+**The simulator template builds.** `scripts/package_template.sh ios-sim`
+takes the host's own architecture, since that is what a simulator runs, and
+writes the same unsigned bundle under its own name. What it cannot answer is
+whether the editor is usable on a phone in the hand, which is the check the
+first person holding one makes.

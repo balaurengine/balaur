@@ -64,7 +64,19 @@ pub fn taken(id, params) {
 /// One row of a `list` or `tree`: the icon, the label, a trailing note and a
 /// colour of its own, joined by the unit separator the kind splits on.
 pub fn row(icon, label, trailing, tint) {
-    icon + "\u{1f}" + label + "\u{1f}" + trailing + "\u{1f}" + tint
+    cells([icon, label, trailing, tint])
+}
+
+/// Cells joined by the unit separator every row splits on.
+pub fn cells(parts) {
+    let line = "";
+    for (n, part) in parts.iter().enumerate() {
+        if n > 0 {
+            line += "\u{1f}";
+        }
+        line += part;
+    }
+    line
 }
 
 pub fn vec(v) {

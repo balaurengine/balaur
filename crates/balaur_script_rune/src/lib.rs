@@ -601,6 +601,11 @@ impl RuneHost {
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
+        // A script that simulates on the fixed step moves its node between
+        // frames, which is exactly what drawing between steps is for.
+        if self.resolve(&key, "fixed_update").is_some() {
+            balaur_core::interpolate::enable(&self.engine, entity);
+        }
         self.invoke(entity, &key, "init", (state,), true, None);
         Ok(())
     }
@@ -738,61 +743,6 @@ impl RuneHost {
         args: &[balaur_script::Value],
     ) -> Option<balaur_script::Value> {
         self.call_on_done(entity, method, args, None)
-    }
-
-    pub fn call_all(&self, method: &str) {
-        // Resolved per script, like a tick: `draw_ui` runs over every node
-        // every frame and most scripts do not declare it.
-        let mut prepared = Vec::new();
-        let profiling = self.profiling();
-        for (entity, key, state) in self.live_batch() {
-            let slot = self.slot_for(&mut prepared, &key, method);
-            if !prepared[slot].declares() {
-                continue;
-            }
-            self.invoke_prepared(
-                entity,
-                &mut prepared[slot],
-                method,
-                (state,),
-                profiling,
-                true,
-            );
-        }
-        self.release(prepared);
-    }
-
-    /// As [`Self::call_all`], with `args` after the instance.
-    pub fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
-        let mut extra = Vec::with_capacity(args.len());
-        for arg in args {
-            match value::from_neutral(arg) {
-                Ok(value) => extra.push(value),
-                Err(err) => {
-                    tracing::error!("{method}: {err}");
-                    return;
-                }
-            }
-        }
-        let mut prepared = Vec::new();
-        let profiling = self.profiling();
-        for (entity, key, state) in self.live_batch() {
-            let slot = self.slot_for(&mut prepared, &key, method);
-            if !prepared[slot].declares() {
-                continue;
-            }
-            let mut call_args = vec![state];
-            call_args.extend(extra.iter().cloned());
-            self.invoke_prepared(
-                entity,
-                &mut prepared[slot],
-                method,
-                call_args,
-                profiling,
-                true,
-            );
-        }
-        self.release(prepared);
     }
 
     /// Recompile a script and rebind its live instances.
@@ -1089,6 +1039,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
         RuneHost::call_all_with(self, method, args);
+    }
+
+    fn announce(&self, method: &str, args: &[balaur_script::Value]) {
+        RuneHost::announce(self, method, args);
     }
 
     fn wake(&self, token: u64, payload: &balaur_script::Value) {

@@ -58,6 +58,17 @@ macro_rules! functions {
                     apply_collider(eng, entity, &collider)?;
                 }
             }
+            // A static body never moves between steps, so only the two kinds
+            // the step actually drives are worth drawing blended.
+            let moves = !matches!(
+                body_type(v::text(params, k::KIND, w::DYNAMIC))?,
+                RigidBodyType::Fixed
+            );
+            if moves {
+                balaur_core::interpolate::enable(eng, entity);
+            } else {
+                balaur_core::interpolate::disable(eng, entity);
+            }
             with_body(eng, entity, |state, handle| {
                 let may_sleep = state.sleeping_allowed;
                 write_body(&mut state.world.bodies[handle], params, may_sleep);

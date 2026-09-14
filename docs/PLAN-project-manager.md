@@ -1,3 +1,8 @@
+> **Status:** built on 2026-09-15, three tabs. `balaur` with no project opens
+> the screen, a double-clicked bundle lands there too, `project.*` and
+> `release.*` are the modules behind it, the palette reaches it from inside a
+> project, and `--state managerdemo` checks all of it. What is left is §8.
+
 # Plan: project manager
 
 The screen the editor starts on when it was not given a project: recent
@@ -30,6 +35,11 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
   tree as a dependency of kiss3d.
 - Start-up states (`--state`, `shell::apply_start_state`) already switch the
   shell into a named arrangement at boot, which is what the manager is.
+- The shell answers to the screen it gets, which the manager inherits:
+  `ui::screen_size()`, `ui::width_class()`, `style::row_h(S)` for a row a
+  finger picks, `window::sheet` and `window::inner_w(S)` for a sheet that
+  fits a phone, and `--size WIDTHxHEIGHT --touch` to render either
+  ([PLAN-responsive.md](PLAN-responsive.md)).
 
 ## What changes
 
@@ -64,10 +74,100 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
 5. **Tests and shots.** A headless selftest under `--state manager`: create
    from `empty` into a temp dir, assert `project.toml`, assert one recent
    row, forget it, assert none. A `showcase.rn` shot named `manager` for the
-   manual and the getting-started page.
+   manual and the getting-started page, and one at 390 by 844 under
+   `--touch` for the responsive record.
 6. **Docs.** Getting started's Download section becomes: open the app, the
    project manager opens, New. The CLI page gets the bare `balaur` line.
    `manual/editor.mdx` gets a Project manager section with the shot.
+
+## 7. What it owes a small screen
+
+The manager is the first screen anybody sees, and on a phone it is the only
+one until a project is open. It follows the shell's own rules rather than
+inventing a second set.
+
+- **One column under `narrow`.** The recent list and the three actions sit
+  side by side where there is room and stack where there is not, at the line
+  `ui::width_class()` already draws. No new breakpoint.
+- **Every row a finger picks is `style::row_h(S)` tall**, which is 33 under
+  touch, and every button clears 44 points the way the shell's do. The
+  editor's own selftest already measures that for the bar and the dock tabs;
+  the manager's rows join the walk.
+- **A path is a path.** A recent row shows the project's name large and its
+  folder small and truncated, never a wrapped absolute path.
+- **The folder picker is the platform's.** `rfd` on a desktop; on a phone
+  there is no folder to pick, so the row is not drawn where
+  `platform().touchscreen` is true and a project arrives by import instead.
+
+## 7a. The three tabs
+
+The first build put the recent list and a new-project form side by side and
+gave the engine a column of five channels. Both read as a form rather than a
+screen, so the second build is three tabs of one centred column.
+
+- **Projects is a list.** Opening something you already have is the common
+  case, so the rows take the screen and the three verbs are a toolbar:
+  New project, which opens the shell's own sheet, and the two that use the
+  platform's folder picker. A row is the name, the folder under it, when it
+  was last opened and which engine opened it, and the mark that forgets it.
+  The list is `ui::list`, which builds only the rows on screen.
+- **Examples is a grid.** The twelve example projects ship beside the editor
+  already, so the tab is a card each, with a line from
+  `editor/library/examples.toml` saying what it is. Opening one copies it into
+  the reader's own folder: the shipped example is the engine's, and a second
+  copy is `hello-2` rather than an overwrite. Each card carries a picture of
+  the example running, written by `scripts/showcase.sh` into the editor's own
+  library, since `ui.image` reads the editor's project and no other. Taking
+  them needed `balaur run --shot`, which saves a picture of a run on the
+  frame before its budget ends: the game's own screen at its own size, with
+  nothing of the editor over it, which the scene-file edit the showcase's
+  `screen` helper does was the old way round. A card gives the picture its
+  width and lets the height follow, since a width and a height together
+  stretch it. The shell also gained `shut:chrome`, which folds the chip strip,
+  the reading at the stage's foot, the rail, the fold handles and the gizmo,
+  for a picture of a scene taken inside the editor.
+- **Engine is one build and one line.** The head says what is installed and
+  whether it is current; `Follow` picks the channel; the list under it is that
+  channel's releases, newest first, with the installed one marked and an
+  `Install` on the rest. A rolling tag names no build, so its `VERSION` asset
+  is read to name it. The release feed is one read when the tab opens.
+
+## 7b. The engine's own versions
+
+The screen's second tab is the build rather than the project, because which
+engine opens a project is the same decision as which project to open.
+
+- **`versions.*`** answers what this build is (`installed`), what lines exist
+  (`channels`), what one line holds now (`published`), and replaces the
+  install (`install`). The last two are `balaur update`'s own code, split into
+  two functions the command and the screen share, so a button and a flag
+  cannot drift.
+- **A check is a press.** Reading a channel's `VERSION` is a network call that
+  blocks, so nothing is read until the reader asks for it, and each answer is
+  kept beside its channel's name.
+- **A downgrade is allowed from here.** Naming an older release is the only
+  reason to name one; the command still refuses without `--allow-downgrade`,
+  which is the difference between typing a flag and pressing a row.
+- **A source build belongs to no channel** and says so rather than guessing
+  one, which is what `channel()` already answered.
+
+## 8. What is left
+
+- **The web half.** `project::open` starts a second process, which a tab
+  cannot do. On the web the same screen should call `web_store`'s
+  `open_project`, and the page's own list in `editor.tsx` becomes redundant.
+- **A dirty document asks first.** Opening another project from inside one
+  quits this process; a scene with unsaved edits should say so. The editor
+  already knows it is dirty.
+- **The Godot import runs after the project is made.** `import_godot` writes
+  an empty project and opens it; the conversion itself still has to be run
+  from the Import dock in the new editor. One call once the new process is up
+  would finish it.
+- **The simulator check.** Both editor steps of
+  [PLAN-responsive.md](PLAN-responsive.md) end with the editor opening a
+  project in a simulator, which needed a screen to land on. It has one now,
+  and the iOS bundle still has to carry the editor project for it to run at
+  all.
 
 ## What not to do
 

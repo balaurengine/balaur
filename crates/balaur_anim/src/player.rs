@@ -18,7 +18,7 @@ use crate::tween::{Tween, TweenId};
 
 /// The simulation tick animation advances on, and the ceiling on catch-up
 /// steps: both are core's, so animation falls behind exactly as physics does.
-pub(crate) use balaur_core::{FIXED_DT, MAX_SUBSTEPS};
+pub(crate) use balaur_core::{fixed_dt, max_substeps};
 
 /// The asset type name every clip is parsed through, and the one this crate
 /// registers.

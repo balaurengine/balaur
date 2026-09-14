@@ -4,8 +4,9 @@
 > node strips, the Inspector and Import are a row pool, and the layout is
 > `taffy` rather than the arithmetic this file used to describe.
 >
-> What is left is listed in §6: the popup pass the modal screens want, and
-> the Events view's own row pool.
+> What is left is listed in §6: the popup pass the modal screens want, the
+> Events view's own row pool, and the strip a panel draws its own chrome in
+> over the node it fills.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
 > — it was code — and to say what moving it to nodes would take.
@@ -153,3 +154,11 @@ Making a *game's* UI authorable this way — that already works, and
    method by string, so a plugin's property editor cannot be a node. Until
    that API takes a name, the panel falls back to drawing.
 4. **`graph`** is `docs/PLAN-authoring-without-code.md`.
+5. **A panel's chrome over the node it fills.** `DockBody` is the strip a
+   panel draws itself into, and it is a `draw` node beside the `list` or
+   `table` the panel fills. A `draw` node measures nothing, so a sibling that
+   grows leaves it one pixel: measured 2026-09-15 at 944 x 1, which clips the
+   Assets dock's path, verbs and search, and the Library's chips. The tab
+   row's tools had the same shape and were fixed by giving the hatch a box
+   rather than a share; this one needs the height the panel's own chrome
+   wants, which differs per panel. `layoutdemo` asserts the tab row's box.

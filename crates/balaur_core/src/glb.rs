@@ -20,6 +20,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use glamx::{Mat4, Quat, Vec3};
 
 use crate::collections::DetHashMap;
+use crate::glb_material::{
+    DEFAULT_MATERIAL, Images, Surface, drawn_with, material_names, surfaces,
+};
+/// The stock surface an imported material draws with, and where it is
+/// written. Named here because this is the module `balaur import` calls.
+pub use crate::glb_material::{MATERIAL_SHADER, MATERIAL_SHADER_PATH};
 use crate::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
 use crate::skeleton::euler_from_quat;
 
@@ -39,8 +45,8 @@ pub fn no_side_files(uri: &str) -> Result<Vec<u8>> {
 }
 
 /// A loaded file with the node facts every reader needs.
-struct Model {
-    document: gltf::Document,
+pub(crate) struct Model {
+    pub(crate) document: gltf::Document,
     /// One per glTF buffer, in index order.
     buffers: Vec<Vec<u8>>,
     /// The side files the buffers came from, to carry along on import.
@@ -118,7 +124,7 @@ impl Model {
 
     /// The bytes of a buffer view, for an image the file embeds. The end is
     /// checked rather than added: both numbers come off the file.
-    fn view_bytes(&self, view: &gltf::buffer::View<'_>) -> Option<&[u8]> {
+    pub(crate) fn view_bytes(&self, view: &gltf::buffer::View<'_>) -> Option<&[u8]> {
         let data = self.buffer(&view.buffer())?;
         let end = view.offset().checked_add(view.length())?;
         data.get(view.offset()..end)
@@ -276,7 +282,7 @@ impl Rig {
 
 /// A URI's bytes: a `data:` URI is decoded here, anything else is read
 /// beside the model.
-fn uri_bytes(uri: &str, side: SideReader<'_>) -> Result<Vec<u8>> {
+pub(crate) fn uri_bytes(uri: &str, side: SideReader<'_>) -> Result<Vec<u8>> {
     if let Some(rest) = uri.strip_prefix("data:") {
         let (_, payload) = rest
             .split_once(',')
@@ -287,7 +293,7 @@ fn uri_bytes(uri: &str, side: SideReader<'_>) -> Result<Vec<u8>> {
 }
 
 /// `%20` and friends back to the characters a file name has.
-fn percent_decoded(uri: &str) -> String {
+pub(crate) fn percent_decoded(uri: &str) -> String {
     let bytes = uri.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -499,7 +505,30 @@ impl Streams {
 /// If the file does not read, a buffer is missing, or a primitive is not
 /// triangles.
 pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<MeshData> {
+    parse_gltf_part(bytes, name, side, None)
+}
+
+/// [`parse_gltf`], keeping only the primitives `part` names the material of.
+///
+/// # Errors
+/// As [`parse_gltf`], and if the file names no material `part`.
+pub fn parse_gltf_part(
+    bytes: &[u8],
+    name: &str,
+    side: SideReader<'_>,
+    part: Option<&str>,
+) -> Result<MeshData> {
     let model = Model::load(bytes, name, side)?;
+    let materials = material_names(&model.document);
+    if let Some(part) = part
+        && part != DEFAULT_MATERIAL
+        && !materials.iter().any(|known| known == part)
+    {
+        bail!(
+            "{name} has no material '{part}'; it names {}",
+            materials.join(", ")
+        );
+    }
     let rig = Rig::first(&model)?;
     let mut streams = Streams::default();
     for node_index in model.scene_nodes() {
@@ -518,6 +547,9 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
             model.global(node_index)
         };
         for primitive in mesh.primitives() {
+            if part.is_some_and(|part| drawn_with(&materials, &primitive) != part) {
+                continue;
+            }
             if primitive.mode() != gltf::mesh::Mode::Triangles {
                 bail!(
                     "{name}: mesh '{}' is not triangles",
@@ -550,7 +582,10 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
         had_colors,
     } = streams;
     if mesh.positions.is_empty() {
-        bail!("{name} draws no triangles");
+        match part {
+            Some(part) => bail!("{name}: material '{part}' draws no triangles"),
+            None => bail!("{name} draws no triangles"),
+        }
     }
     if had_normals {
         mesh.normals = Some(normals);
@@ -613,13 +648,17 @@ fn morph_names(mesh: &gltf::Mesh<'_>, primitive: usize) -> Vec<String> {
 /// animations, a clip library.
 pub struct GlbImport {
     /// A scene document: the model's root node, its hierarchy with `bone3d`
-    /// on every joint, and one `mesh` node.
+    /// on every joint, one `mesh` node per material, and a `material` asset
+    /// carrying each one's factors and maps.
     pub scene: toml::Value,
     /// An `animation_clip` library with one entry per animation, or `None`.
     pub clips: Option<toml::Value>,
     /// Files to write beside the model under `models/`: the `.bin` a
-    /// `.gltf` names, and the base colour texture when there is one.
+    /// `.gltf` names, and every texture its materials name.
     pub files: Vec<(String, Vec<u8>)>,
+    /// Text files to write at their own project-relative paths: the shader
+    /// the generated materials draw with.
+    pub documents: Vec<(String, String)>,
 }
 
 impl GlbImport {
@@ -637,7 +676,7 @@ impl GlbImport {
     }
 }
 
-fn floats(values: impl IntoIterator<Item = f32>) -> toml::Value {
+pub(crate) fn floats(values: impl IntoIterator<Item = f32>) -> toml::Value {
     toml::Value::Array(
         values
             .into_iter()
@@ -646,7 +685,7 @@ fn floats(values: impl IntoIterator<Item = f32>) -> toml::Value {
     )
 }
 
-fn slug(name: &str) -> String {
+pub(crate) fn slug(name: &str) -> String {
     let mut out = String::from("n_");
     let mut gap = true;
     for c in name.chars() {
@@ -677,10 +716,13 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
     let rig = Rig::first(&model)?;
     let clips = clips_of(&model);
     let mut files = model.side_files.clone();
-    let texture = texture_file(&model, stem, side)?;
-    if let Some(file) = &texture {
-        files.push(file.clone());
-    }
+    let mut images = Images {
+        stem,
+        by_index: DetHashMap::default(),
+        files: Vec::new(),
+    };
+    let surfaces = surfaces(&model, stem, side, &mut images)?;
+    files.extend(images.files);
     let root_name = {
         let mut chars = stem.chars();
         chars.next().map_or_else(String::new, |c| {
@@ -708,10 +750,98 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
         .as_ref()
         .map(|r| r.joints.iter().map(|&j| (j, ())).collect())
         .unwrap_or_default();
+    nodes.extend(scene_nodes(&model, &joints, &root_id));
+
+    // One mesh node per material, so a scene exported with a surface per
+    // material draws each with its own. A file with one keeps one node and
+    // names no part, which is what it always wrote.
+    let drawn = drawn_surfaces(&model, &surfaces);
+    if drawn.len() > 1 {
+        for surface in &drawn {
+            nodes.push(mesh_node(
+                &model,
+                rig.as_ref(),
+                &root_id,
+                &root_name,
+                model_file,
+                Some(surface),
+            ));
+        }
+    } else {
+        nodes.push(mesh_node(
+            &model,
+            rig.as_ref(),
+            &root_id,
+            &root_name,
+            model_file,
+            drawn.first().copied(),
+        ));
+    }
+
+    let mut scene = toml::map::Map::new();
+    if !drawn.is_empty() {
+        scene.insert(
+            "assets".into(),
+            toml::Value::Array(drawn.iter().map(|s| s.asset()).collect()),
+        );
+    }
+    scene.insert("nodes".into(), toml::Value::Array(nodes));
+    let documents = if drawn.is_empty() {
+        Vec::new()
+    } else {
+        vec![(
+            MATERIAL_SHADER_PATH.to_string(),
+            MATERIAL_SHADER.to_string(),
+        )]
+    };
+    Ok(GlbImport {
+        scene: toml::Value::Table(scene),
+        clips,
+        files,
+        documents,
+    })
+}
+
+/// The materials the file's triangles actually draw with, in file order.
+///
+/// A material a scene declares but nothing references would become a mesh
+/// node with no triangles, which fails to load rather than drawing nothing.
+fn drawn_surfaces<'a>(model: &Model, surfaces: &'a [Surface]) -> Vec<&'a Surface> {
+    let names = material_names(&model.document);
+    let mut used: Vec<&str> = Vec::new();
+    for node_index in model.scene_nodes() {
+        let Some(mesh) = model
+            .document
+            .nodes()
+            .nth(node_index)
+            .and_then(|node| node.mesh())
+        else {
+            continue;
+        };
+        for primitive in mesh.primitives() {
+            let name = drawn_with(&names, &primitive);
+            if let Some(found) = surfaces.iter().find(|s| s.part == name)
+                && !used.contains(&found.part.as_str())
+            {
+                used.push(&found.part);
+            }
+        }
+    }
+    surfaces
+        .iter()
+        .filter(|s| used.contains(&s.part.as_str()))
+        .collect()
+}
+
+/// The model's hierarchy as scene nodes, joints carrying their rest pose.
+///
+/// A leaf that only carried geometry is left out: its triangles are in the
+/// mesh node the import writes at the root, so the node itself has nothing
+/// left to say.
+fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> Vec<toml::Value> {
+    let mut out = Vec::new();
     let mut ids: DetHashMap<usize, String> = DetHashMap::default();
     for node_index in model.scene_nodes() {
-        // A leaf that only carried geometry has nothing left to say: its
-        // triangles are in the mesh node below.
         let carries_only_a_mesh = model.document.nodes().nth(node_index).is_some_and(|n| {
             n.mesh().is_some() && n.children().len() == 0 && !joints.contains_key(&node_index)
         });
@@ -723,7 +853,7 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
         ids.insert(node_index, id.clone());
         let parent_id = model.parent[node_index]
             .and_then(|p| ids.get(&p).cloned())
-            .unwrap_or_else(|| root_id.clone());
+            .unwrap_or_else(|| root_id.to_string());
         let (t, r, s) = model
             .document
             .nodes()
@@ -746,43 +876,40 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
             bone.insert("rest_scale".into(), floats(s));
             entry.insert("bone3d".into(), toml::Value::Table(bone));
         }
-        nodes.push(toml::Value::Table(entry));
+        out.push(toml::Value::Table(entry));
     }
-
-    nodes.push(mesh_node(
-        &model,
-        rig.as_ref(),
-        &root_id,
-        &root_name,
-        model_file,
-        texture.as_ref().map(|(name, _)| name.as_str()),
-    ));
-
-    let mut scene = toml::map::Map::new();
-    scene.insert("nodes".into(), toml::Value::Array(nodes));
-    Ok(GlbImport {
-        scene: toml::Value::Table(scene),
-        clips,
-        files,
-    })
+    out
 }
 
-/// One mesh node for the whole file, at the root: rigid primitives were
-/// baked into the root's frame and skinned ones live in bind space.
+/// One mesh node at the root, drawing `surface`'s triangles: rigid
+/// primitives were baked into the root's frame and skinned ones live in bind
+/// space. `surface` is `None` only for a file whose triangles name no
+/// material at all.
 fn mesh_node(
     model: &Model,
     rig: Option<&Rig>,
     root_id: &str,
     root_name: &str,
     model_file: &str,
-    texture: Option<&str>,
+    surface: Option<&Surface>,
 ) -> toml::Value {
+    // A file with one material keeps the plain name it always had; only a
+    // file split across several needs one node id per part.
+    let suffix = surface
+        .map(|s| format!("_{}", s.id.rsplit_once('_').map_or("", |(_, tail)| tail)))
+        .unwrap_or_default();
+    let split = model.document.materials().count() > 1;
+    let (id, name) = if split {
+        (
+            format!("{root_id}_mesh{suffix}"),
+            format!("{root_name}Mesh{suffix}"),
+        )
+    } else {
+        (format!("{root_id}_mesh"), format!("{root_name}Mesh"))
+    };
     let mut mesh_node = toml::map::Map::new();
-    mesh_node.insert("id".into(), toml::Value::String(format!("{root_id}_mesh")));
-    mesh_node.insert(
-        "name".into(),
-        toml::Value::String(format!("{root_name}Mesh")),
-    );
+    mesh_node.insert("id".into(), toml::Value::String(id));
+    mesh_node.insert("name".into(), toml::Value::String(name));
     mesh_node.insert("parent".into(), toml::Value::String(root_id.to_string()));
     // An asset reference names a definition, so the file goes inside one:
     // a table is a definition, and this one just points at the model.
@@ -791,12 +918,15 @@ fn mesh_node(
         "source".into(),
         toml::Value::String(format!("models/{model_file}")),
     );
+    if split && let Some(surface) = surface {
+        definition.insert("part".into(), toml::Value::String(surface.part.clone()));
+    }
     let mut mesh = toml::map::Map::new();
     mesh.insert("source".into(), toml::Value::Table(definition));
-    if let Some(texture) = texture {
+    if let Some(surface) = surface {
         mesh.insert(
-            "texture".into(),
-            toml::Value::String(format!("models/{texture}")),
+            "material".into(),
+            toml::Value::String(format!("#{}", surface.id)),
         );
     }
     if let Some(rig) = rig {
@@ -814,55 +944,6 @@ fn mesh_node(
     }
     mesh_node.insert("mesh".into(), toml::Value::Table(mesh));
     toml::Value::Table(mesh_node)
-}
-
-/// The first base colour texture the file's materials name, as a file to
-/// write under `models/`: a side image as it is, an embedded one as
-/// `<stem>_texture.<ext>`.
-fn texture_file(
-    model: &Model,
-    stem: &str,
-    side: SideReader<'_>,
-) -> Result<Option<(String, Vec<u8>)>> {
-    let Some(image) = model.document.materials().find_map(|material| {
-        material
-            .pbr_metallic_roughness()
-            .base_color_texture()
-            .map(|info| info.texture().source())
-    }) else {
-        return Ok(None);
-    };
-    match image.source() {
-        gltf::image::Source::Uri { uri, .. } => {
-            if uri.starts_with("data:") {
-                let extension = if uri.starts_with("data:image/jpeg") {
-                    "jpg"
-                } else {
-                    "png"
-                };
-                return Ok(Some((
-                    format!("{stem}_texture.{extension}"),
-                    uri_bytes(uri, side)?,
-                )));
-            }
-            let name = percent_decoded(uri);
-            let bytes = side(&name).with_context(|| format!("texture '{name}'"))?;
-            Ok(Some((name, bytes)))
-        }
-        gltf::image::Source::View { view, mime_type } => {
-            let bytes = model
-                .view_bytes(&view)
-                .ok_or_else(|| anyhow!("the embedded texture's buffer view is out of range"))?;
-            let extension = match mime_type {
-                "image/jpeg" => "jpg",
-                _ => "png",
-            };
-            Ok(Some((
-                format!("{stem}_texture.{extension}"),
-                bytes.to_vec(),
-            )))
-        }
-    }
 }
 
 fn first_clip_name(clips: &toml::Value) -> Option<String> {

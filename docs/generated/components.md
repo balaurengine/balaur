@@ -691,20 +691,29 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 
 ### `camera`
 
-`3d` · `render` · 8 properties
+`3d` · `render` · 17 properties
 
 The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
 <tr><td><code>ambient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`; only a `2d` camera&#x27;s is read</td></tr>
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
-<tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, tonemap name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
+<tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
+<tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
+<tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
+<tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
+<tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
+<tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
 <tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>
@@ -840,7 +849,7 @@ The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour g
 <tr><td><code>shadow_resolution</code></td><td>int</td><td><code>2048</code></td><td>Side of the shadow map, in texels At least 256.</td></tr>
 <tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
 <tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
-<tr><td><code>show_sky</code></td><td>bool</td><td><code>true</code></td><td>False lights the scene from the sky without drawing it, leaving the background colour</td></tr>
+<tr><td><code>show_sky</code></td><td>bool</td><td><code>true</code></td><td>False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both</td></tr>
 <tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
 <tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
 <tr><td><code>sky_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
@@ -955,6 +964,23 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
 <tr><td><code>use_gravity</code></td><td>bool</td><td><code>false</code></td><td>Whether a jiggle chain is pulled by `gravity`</td></tr>
+</tbody>
+</table>
+
+### `reflection_probe`
+
+`3d` · `render` · 5 properties
+
+A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>falloff</code></td><td>float</td><td><code>0.5</code></td><td>How wide the soft edge at the box&#x27;s face is; a surface crossing it fades back to the sky At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[5.0, 5.0, 5.0]</code></td><td>Half the box this probe speaks for, in world units, centred on the node At least 0.0.</td></tr>
+<tr><td><code>image</code></td><td>string</td><td>—</td><td>Baked equirectangular image, project-relative. Empty captures the scene from the node&#x27;s own position</td></tr>
+<tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of what the probe reflects At least 0.0.</td></tr>
+<tr><td><code>rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the captured map about y, in degrees</td></tr>
 </tbody>
 </table>
 
@@ -1295,7 +1321,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 81 properties
+`ui` · 98 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1308,11 +1334,13 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>arrows</code></td><td>bool</td><td><code>false</code></td><td>Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`</td></tr>
 <tr><td><code>avoid_keyboard</code></td><td>bool</td><td><code>false</code></td><td>On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop</td></tr>
 <tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a scroll moves; the other way its contents fill the box it was given One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+<tr><td><code>breakpoints</code></td><td>strings</td><td><code>[]</code></td><td>The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
-<tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list At least 0.</td></tr>
+<tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list. A `table`&#x27;s columns are its `titles` At least 0.</td></tr>
 <tr><td><code>context</code></td><td>string</td><td>—</td><td>Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own</td></tr>
+<tr><td><code>current_line</code></td><td>int</td><td><code>0</code></td><td>The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none At least 0.</td></tr>
 <tr><td><code>deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
 <tr><td><code>disabled</code></td><td>bool</td><td><code>false</code></td><td>Grey the widget out and swallow its clicks</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
@@ -1327,10 +1355,13 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>gap</code></td><td>float</td><td><code>-1.0</code></td><td>Space between a container&#x27;s children, in design pixels; below zero takes the theme&#x27;s own, which is 8 where it says nothing, and a stated zero puts them edge to edge</td></tr>
 <tr><td><code>group</code></td><td>string</td><td>—</td><td>A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
-<tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
+<tr><td><code>gutter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `code` widget&#x27;s gutter is, in design pixels; 0 takes the built-in width, which holds four digits At least 0.0.</td></tr>
+<tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing At least 0.0.</td></tr>
+<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns. Off, the columns are still `titles`&#x27;, and a table that names none keeps its first row as a row</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>hide_narrower</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_shorter</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is shorter than this many design pixels. Zero is no line At least 0.0.</td></tr>
+<tr><td><code>hide_taller</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this tall or taller, in design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_wider</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
@@ -1344,42 +1375,54 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1</td></tr>
 <tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
+<tr><td><code>multi</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `field` to digits, a sign and a point</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_gutter</code></td><td>string</td><td>—</td><td>Script method called with the line a click on a `code` widget&#x27;s gutter landed on, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_move</code></td><td>string</td><td>—</td><td>Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside a container&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme&#x27;s own, and a stated zero is no space at all</td></tr>
 <tr><td><code>padding_x</code></td><td>float</td><td><code>-1.0</code></td><td>The air either side of a caption, in design pixels; below zero takes the theme&#x27;s own</td></tr>
-<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`&#x27;s column names split on U+001F</td></tr>
+<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty, and the letter a `drag_value` puts before its number</td></tr>
 <tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen One of <code>below</code>, <code>above</code>, <code>pointer</code>, <code>center</code>.</td></tr>
+<tr><td><code>problems</code></td><td>strings</td><td><code>[]</code></td><td>The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
+<tr><td><code>reorderable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script&#x27;s to reorder</td></tr>
+<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>safe_area</code></td><td>bool</td><td><code>false</code></td><td>Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
+<tr><td><code>selection</code></td><td>strings</td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one</td></tr>
 <tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
 <tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
+<tr><td><code>sort</code></td><td>string</td><td>—</td><td>The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`</td></tr>
+<tr><td><code>sortable</code></td><td>bool</td><td><code>false</code></td><td>Let a click on a `table`&#x27;s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret</td></tr>
 <tr><td><code>source</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption&#x27;s height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights</td></tr>
 <tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
 <tr><td><code>stroke</code></td><td>string</td><td>—</td><td>The outline around this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `drag_value`&#x27;s number, the way `placeholder` is drawn before it</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
-<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given, and where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Text color; fully transparent takes the theme&#x27;s colour for this widget&#x27;s role or kind, and failing that a near-white</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
+<tr><td><code>titles</code></td><td>strings</td><td><code>[]</code></td><td>A `table`&#x27;s column names, in order, and with them how many columns it has: a name ending in `&gt;` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names</td></tr>
 <tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
+<tr><td><code>warnings</code></td><td>strings</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>widths</code></td><td>strings</td><td><code>[]</code></td><td>Each `table` column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
 <tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>

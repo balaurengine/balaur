@@ -1,0 +1,38 @@
+# What each example project is, for the start screen's Examples tab. The
+# projects themselves ship beside the editor; this is the line under each name.
+
+[hello]
+note = "A spinning cube, a bouncing ball and a HUD label"
+
+[angrynerds]
+note = "A 2D slingshot game: bodies, joints and widgets"
+
+[rig]
+note = "A 2D skeleton: a skinned leg and two-bone IK"
+
+[rig3d]
+note = "A 3D rig imported from a .glb, with a ragdoll"
+
+[interface]
+note = "Every widget kind the engine draws"
+
+[tiles]
+note = "A tile map with autotiling and voxel collision"
+
+[objects]
+note = "Meshes, materials and the 3D shapes"
+
+[shaders]
+note = "WESL shaders and the post-processing passes"
+
+[text]
+note = "Fonts, markup and the locale catalogue"
+
+[concave]
+note = "Convex decomposition of a concave shape"
+
+[pause]
+note = "Pause, process modes and the time scale"
+
+[benchmark]
+note = "The scene the benchmarks measure"

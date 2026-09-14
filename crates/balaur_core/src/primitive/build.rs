@@ -101,6 +101,7 @@ impl Build {
             colors: None,
             morphs: Vec::new(),
             source: None,
+            part: None,
             text: None,
             path: None,
             skin: None,

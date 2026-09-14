@@ -156,6 +156,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// As [`ScriptHost::call_all`], with arguments after the instance.
     fn call_all_with(&self, method: &str, args: &[Value]);
 
+    /// As [`ScriptHost::call_all_with`], reaching the instances a pause is
+    /// holding as well: `on_paused(true)` is how a script learns it stopped,
+    /// so the pause must not filter it. A debugger's freeze still stops it.
+    fn announce(&self, method: &str, args: &[Value]) {
+        self.call_all_with(method, args);
+    }
+
     /// Resume every script task suspended on `token`, giving each `payload`.
     /// No waiter is not an error: the wake is simply dropped.
     ///

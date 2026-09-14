@@ -19,6 +19,7 @@ mod morph_weights;
 mod particles;
 mod picking;
 mod polygon;
+mod reflection;
 mod script_api;
 mod sheet;
 mod sprite;

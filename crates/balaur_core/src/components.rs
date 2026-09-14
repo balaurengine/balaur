@@ -236,6 +236,10 @@ pub struct ComponentDef {
     pub apply: ApplyFn,
     pub remove: RemoveFn,
     /// Current property table, or None when the entity lacks the component.
+    ///
+    /// Every property the component holds, because [`patch`] rebuilds from this
+    /// and defaults whatever it omits. Values the component derives are the
+    /// exception, and must be left out for the same reason.
     pub get: GetFn,
 }
 
@@ -584,6 +588,61 @@ pub const MAX_COMPONENTS: usize = 128;
 #[derive(Default)]
 pub struct Attached(pub crate::collections::DetHashMap<Entity, u128>);
 
+/// What a scene or a script asked of each component, by node and definition.
+///
+/// A component's live state is its own Rust struct, and `get` is the only way
+/// back to a table. [`patch`] builds on this rather than on `get` alone, so a
+/// `get` that does not mention a property cannot have it reset.
+#[derive(Default)]
+pub struct Authored(pub crate::collections::DetHashMap<(Entity, usize), toml::Value>);
+
+/// Merge what is being asked for into what was asked before.
+fn record(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>, over: bool) {
+    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name)) else {
+        return;
+    };
+    let mut authored = authored.borrow_mut();
+    let slot = authored
+        .0
+        .entry((entity, index))
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+    if over {
+        *slot = toml::Value::Table(toml::map::Map::new());
+    }
+    let (Some(slot), Some(asked)) = (slot.as_table_mut(), params.and_then(toml::Value::as_table))
+    else {
+        return;
+    };
+    for (key, value) in asked {
+        slot.insert(key.clone(), value.clone());
+    }
+}
+
+/// What was asked of this component before now, if anything.
+fn asked_for(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
+    let index = index_of(eng, name)?;
+    let authored = eng.try_resource::<Authored>()?;
+    let asked = authored.borrow().0.get(&(entity, index)).cloned();
+    drop(authored);
+    asked
+}
+
+/// Forget what was asked of one component on one node.
+fn forget(eng: &Engine, entity: Entity, name: &str) {
+    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name)) else {
+        return;
+    };
+    authored.borrow_mut().0.swap_remove(&(entity, index));
+}
+
+/// A registered component's position in the registry, which is its key above.
+fn index_of(eng: &Engine, name: &str) -> Option<usize> {
+    let registry = eng.try_resource::<ComponentRegistry>()?;
+    let at = registry.borrow().index_of(name);
+    drop(registry);
+    at
+}
+
 /// Set or clear one node's bit for the definition at `index`.
 fn mark(eng: &Engine, entity: Entity, index: usize, on: bool) {
     let Some(attached) = eng.try_resource::<Attached>() else {
@@ -832,7 +891,10 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     // to look things up.
     let schema = schema_of(eng, name)?;
     let full = properties(eng, &schema, params)?;
-    apply_full(eng, entity, name, &full)
+    apply_full(eng, entity, name, &full)?;
+    // Describing the component whole replaces what was asked of it before.
+    record(eng, entity, name, params, true);
+    Ok(())
 }
 
 /// Write `params` over what the component currently holds, rather than over
@@ -847,15 +909,28 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
 ///
 /// On a node that does not have the component yet there is nothing to read
 /// back, so the schema defaults are its current value and `patch` adds it.
+///
+/// A component's live state is its own Rust struct; `get` is the only way back
+/// to a table. So a `get` that leaves out a property it holds has that property
+/// reset to the schema default by the next patch of any other one. Reporting a
+/// derived value is the other half of that, and as wrong: it freezes what the
+/// component would otherwise work out again. Report what the component holds
+/// and nothing else.
 pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
     let schema = schema_of(eng, name)?;
+    let asked = asked_for(eng, entity, name);
     let current = get(eng, entity, name);
     let mut out = defaults_of(&schema);
+    // What was asked for first, then what the component says it holds now, so
+    // a value something else has moved since wins over the one that was set.
+    overlay(&schema, &mut out, asked.as_ref())?;
     overlay(&schema, &mut out, current.as_ref())?;
     overlay(&schema, &mut out, Some(params))?;
     expand_colors(&schema, &mut out);
     let full = resolved(eng, &schema, toml::Value::Table(out))?;
-    apply_full(eng, entity, name, &full)
+    apply_full(eng, entity, name, &full)?;
+    record(eng, entity, name, Some(params), false);
+    Ok(())
 }
 
 /// Whether a name is a registered component, as opposed to some other scene
@@ -916,6 +991,7 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
         index
     };
     mark(eng, entity, index, false);
+    forget(eng, entity, name);
     Ok(())
 }
 

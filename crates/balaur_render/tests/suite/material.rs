@@ -562,3 +562,68 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo, textu
     let compiled = balaur_render::material::compile(&material, shader).expect("a slot links");
     assert!(compiled.wgsl.contains("texture_2"), "{}", compiled.wgsl);
 }
+
+/// Every material the editor's library ships compiles against the shader it
+/// names, with the features it sets.
+///
+/// A library entry is copied into a project whole, so a param the shader does
+/// not read or a feature it does not declare would land in a user's project
+/// as a material that will not link. This is where that is caught.
+#[test]
+fn every_library_material_links_against_the_shader_it_names() {
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library");
+    let mut seen = 0;
+    for entry in std::fs::read_dir(library.join("materials")).expect("the library ships materials")
+    {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        let value: toml::Value = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let material = balaur_render::material::parse(&value)
+            .unwrap_or_else(|why| panic!("{}: {why:#}", path.display()));
+        let shader = std::fs::read_to_string(library.join(&material.shader))
+            .unwrap_or_else(|why| panic!("{}: {} {why}", path.display(), material.shader));
+        compile(&material, &shader).unwrap_or_else(|why| panic!("{}: {why:#}", path.display()));
+        seen += 1;
+    }
+    assert!(seen >= 4, "the library ships materials to check: {seen}");
+}
+
+/// The layer stack links with no layers at all, with each layer on its own,
+/// and with every one at once — which is the combination most likely to
+/// collide over a helper's name.
+#[test]
+fn the_layer_stack_links_layer_by_layer_and_all_at_once() {
+    use balaur_render::shaders::{link, wgsl};
+    let names = [
+        "image", "gradient", "noise", "matcap", "fresnel", "toon", "outline",
+    ];
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../editor/library/shaders/layers.wesl"),
+    )
+    .expect("the library ships the layer stack");
+    let link_with = |on: &dyn Fn(&str) -> bool| {
+        let features: Vec<(&str, bool)> = names.iter().map(|name| (*name, on(name))).collect();
+        link(
+            &[("package::layers", &source)],
+            "package::layers",
+            &features,
+        )
+        .map(|l| wgsl(&l))
+    };
+    let bare = link_with(&|_| false).expect("a stack with no layers must link");
+    assert!(bare.contains("fn fs_main"), "{bare}");
+    assert!(
+        !bare.contains("noise_hash"),
+        "an absent layer links to nothing"
+    );
+    for name in names {
+        link_with(&|other| other == name)
+            .unwrap_or_else(|why| panic!("the '{name}' layer must link: {why:#}"));
+    }
+    let every = link_with(&|_| true).expect("every layer at once must link");
+    assert!(every.contains("noise_hash"), "{every}");
+    assert!(every.len() > bare.len(), "layers add code, not nothing");
+}

@@ -1,8 +1,9 @@
-> **Status:** steps 1 and 3 built 2026-09-07, and step 2's `environment`
-> component with it, alongside `docs/PLAN-editor-ergonomics.md`, which stood
-> on them. Image-based lighting, SSAO, transparency, the finishing passes,
-> mirrors, the path tracer and layer stacks are not built. Written down on
-> 2026-09-05, after comparing the engine against Spline, the 3D design tool. The order is what is visible
+> **Status:** steps 1 to 6 and 8 are built. Lights and the environment
+> landed 2026-09-07; image-based lighting, occlusion, glass, mirrors, probes,
+> the finishing passes and the layer stack landed 2026-09-14. Left: the path
+> tracer behind the Export sheet (step 7), and decals and volumetrics (step
+> 9). Written down on 2026-09-05, after comparing the engine against Spline,
+> the 3D design tool. The order is what is visible
 > first: lights, because a scene lights itself with one hard-coded sun today
 > and nothing a designer places changes that; then the material contract,
 > because every map and knob below sits on it; then the sky, which is what
@@ -31,37 +32,48 @@ Built, and not built for this:
 | --- | --- |
 | `light3d`: point, directional and spot, with shadows and light layers, resolved headless. The backend's own sun retires when a scene places one | `light3d.rs`, `LightSlots` |
 | `environment`: sky, ambient, fog, exposure, tonemap, grading, the shadow budget | `light3d.rs::Environment`, `sync_environment` |
-| A physically based surface over the frame's lights: GGX, Smith, Schlick, with a normal map from screen-space derivatives | `shaders/pbr.wesl`, mounted as `package::pbr` |
+| A physically based surface over the frame's lights: GGX, Smith, Schlick, with a normal map over a tangent frame solved from screen-space derivatives, so a mirrored UV shell lights as its twin does | `shaders/pbr.wesl`, mounted as `package::pbr`, `mesh::tangent_frame` |
 | Six texture slots on group 2, each with the fork's one-pixel neutral | `material::TEXTURE_SLOTS`, `Param::Texture` |
 | `shadows` and `layers` on `mesh` and `shape3d` | `Renderable`, `lighting_from_params` |
 | A 3D material contract with sixteen lights of three kinds, ambient and fog in its frame uniforms | `shaders/mesh.wesl`, `shader_material_3d.rs` (`MAX_LIGHTS`) |
-| `camera.post` flags applied to the fork's passes: bloom, SSAO, SSR, depth of field | `kiss3d_backend.rs:365-369`, `window.set_bloom_enabled` and friends |
+| `camera.post` flags applied to the fork's passes: bloom, SSAO, SSR, depth of field | `kiss3d_backend.rs::apply_post`, `window.set_bloom_enabled` and friends |
+| Image-based lighting, screen occlusion, reflection probes and the refraction background, bound for every 3D material | `frame_group.rs`, group 0 of `shaders/mesh.wesl` |
+| A geometry prepass every 3D material draws, so occlusion and depth of field measure it | `shaders/prepass.wesl`, `pipeline::prepass_pipeline` |
+| A `[surface]` on a material: alpha mode, double-sided, glass and its volume, a planar mirror | `material::Surface`, `kiss3d_backend::apply_surface` |
+| `reflection_probe`, resolved headless and registered with the window | `reflection.rs`, `ProbeSlots` |
+| Four finishing passes and two the fork owns, drawn where `camera.post` lists them | `shaders/finish.wesl`, `post_material::Pass` |
+| The layer stack a designer builds a look out of, in the editor's library | `editor/library/shaders/layers.wesl` |
 | A `material` asset: a WESL shader, `features`, `params` read off the shader's `Params` struct | `material.rs`, `render.material_params` |
 | One albedo `texture` per `mesh` node | `mesh.rs`, bind group 2 |
 | 2D lights, occluders and a light map, resolved headless | `light.rs`, `light_map.rs` |
-| glTF import that keeps the base colour texture and drops the rest of the material | `balaur_core::glb` |
+| glTF import that keeps every factor and map, one `material` and one mesh node per material | `balaur_core::glb`, `mesh::parse_part` |
 | An HDR film, tonemap and bloom in the fork, driven by Balaur for bloom only | `kiss3d::post_processing::hdr` |
 | Headless `wesl` evaluation of pure shader functions, and offscreen golden frames | `render.shader_probe`, `balaur run --offscreen`, `scripts/showcase.sh` |
 
 Missing:
 
-- **A `light3d` component.** Scenes cannot place a light. `LIGHT_DIRECTIONAL`
-  and `LIGHT_POINT` are `render` constants, and only `light2d` reads them.
-- **Any authoring of ambient, fog, sky, exposure or tonemap.** `camera.ambient`
-  is read by the 2D camera only; the fork's `set_fog`, `set_skybox_*`,
-  `set_exposure`, `set_tonemap` and `set_ambient` are never called.
-- **Shadows.** `set_shadows_enabled` is never called; no node says whether it
-  casts.
-- **A physically based contract.** `mesh.wesl` shades Lambert over one albedo.
-  `shader_material_3d.rs` says what it does not bind: image-based lighting,
-  reflection probes, SSAO, the transmission background and the clustered
-  light buffers.
-- **Texture maps beyond albedo.** `Param` is float, vec2, vec3, vec4; a
-  material cannot name a normal, roughness, occlusion or emissive map.
-- **Transparency modes.** Alpha blending in 2D; in 3D nothing chooses opaque,
-  mask or blend, and there is no glass.
-- **Four finishing passes.** Vignette, chromatic aberration, grain and
-  pixelation are in neither Balaur nor the fork.
+- **Order-independent transparency for a project's material.** A `blend`
+  surface draws in the opaque pass with alpha blending, ordered by the scene.
+  The fork's own pass wants a second fragment entry point, and the contract
+  lets a material declare one. See question 6.
+- **The clustered light buffers.** `MAX_LIGHTS` is sixteen and the frame group
+  binds no storage buffers; a scene with more lights lights with the first
+  sixteen.
+- **Screen-space reflections off a Balaur material.** The prepass writes
+  geometry, and writes a neutral roughness for it: the pass reads a material's
+  surface as diffuse. Occlusion, depth of field and the depth glass tests
+  against are exact.
+- **Shadows on a material.** The fork hands every material a shadow atlas in
+  `RenderContext::shadow` and the contract never binds it, so a node naming a
+  `material` casts shadows and receives none. `light3d.shadows` defaults to
+  true, which reads as a promise this does not keep.
+- **`environment.show_sky = false`.** The fork has one intensity for the drawn
+  sky and the light it casts, so switching the sky off stops both. Lighting
+  from a sky that is not drawn wants a second dial on the fork.
+- **A cutout in the prepass.** `shaders/prepass.wesl` does not discard, so an
+  alpha-masked leaf writes its whole rectangle into the depth the occlusion
+  and refraction passes read. The fork's own prepass does the same.
+- **The path tracer, decals and volumetric fog**, which are steps 7 and 9.
 
 ## 1. Design
 
@@ -152,20 +164,20 @@ the module.
 | Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file. `docs/PLAN-views-and-culling.md` step 2 puts the matching `cull_mask` on a camera |
 | Ambient; fog with linear, exponential and squared modes and height falloff (*fork* `Fog`, `set_ambient`) | Step 2, `environment`. Balaur's contract already carries both in its frame uniforms |
 | Equirectangular skybox, orientation, intensity (*fork* `renderer/skybox.rs`) | Step 2, `environment.sky`. `.hdr` and `.exr` load through `image`, which the window build already enables |
-| Image-based lighting, mip-as-prefilter (*fork* `renderer/ibl.rs`) | Step 2, on by the sky; no separate setting |
+| Image-based lighting, mip-as-prefilter (*fork* `renderer/ibl.rs`) | Built, on by the sky. It replaces `environment.ambient` rather than adding to it: both stand for the same bounced light |
 | Exposure, auto exposure, five tonemaps, colour grading (*fork* `HdrSettings`, `ColorGrading`) | Step 2, `environment` |
 | Bloom threshold, knee, intensity (*fork* `HdrSettings`) | Have on `camera.post`; `bloom_knee` joins |
 | Metallic, roughness, emissive, reflectance, clearcoat, anisotropy, specular tint, subsurface (*fork* `ObjectData3d`) | Step 3, `pbr.wesl` params; subsurface and anisotropy last, they are the ones a design tool hides |
 | Normal, metallic-roughness, occlusion, emissive and height maps, parallax (*fork* `set_*_map`) | Step 3, texture params. Parallax is a `features` flag |
-| Alpha modes opaque, mask, blend; order-independent transparency (*fork* `AlphaMode`, `hdr_oit`) | Step 4. OIT is the backend's business when a material blends |
-| Glass: transmission, ior, thickness, attenuation, the transmission background (*fork* `Bsdf::Glass`, `renderer/transmission.rs`) | Step 4 |
-| Planar mirror (*fork* `renderer/reflector.rs`) | Step 6, `mirror` on the material, with `intensity` and `normal_falloff` |
-| Reflection probes, parallax-corrected (*fork* `renderer/reflection_probe.rs`) | Step 6, a `reflection_probe` component: box extents, a baked `.hdr` or a capture |
-| SSR, SSAO, depth of field (*fork*) | Have as flags. Their settings become `<pass>_<knob>` properties beside `post`, as bloom's did |
-| FXAA, contrast-adaptive sharpening (*fork* `post_processing/fxaa.rs`, `cas.rs`) | Step 5, two more `post` names. MSAA is `docs/PLAN-views-and-culling.md`'s |
-| Vignette, chromatic aberration, grain, pixelation | Step 5, four post-process materials shipped with the engine |
+| Alpha modes opaque, mask, blend; order-independent transparency (*fork* `AlphaMode`, `hdr_oit`) | Built as `surface.alpha`. A project's material blends in the opaque pass, not the order-independent one: see question 6 |
+| Glass: transmission, ior, thickness, attenuation, the transmission background (*fork* `Bsdf::Glass`, `renderer/transmission.rs`) | Built as `[surface]` plus `pbr::shade_glass` |
+| Planar mirror (*fork* `renderer/reflector.rs`) | Built as `surface.mirror`, with `mirror_intensity`, `mirror_falloff` and the plane's own `mirror_normal` |
+| Reflection probes, parallax-corrected (*fork* `renderer/reflection_probe.rs`) | Built as `reflection_probe`. A probe the scene stops placing keeps its array slot and is shrunk to nothing: the fork registers into a fixed array and takes none back |
+| SSR, SSAO, depth of field (*fork*) | Flags on `camera.post`, and every 3D material now draws the prepass they read. SSAO's radius, bias, intensity and power are `ssao_*` on the camera, because they are in world units and a scene's scale decides them; SSR's and depth of field's are still the fork's defaults |
+| FXAA, contrast-adaptive sharpening (*fork* `post_processing/fxaa.rs`, `cas.rs`) | Built as `fxaa` and `sharpen`. They are chain effects rather than pipeline flags, so they draw where the list puts them. MSAA is `docs/PLAN-views-and-culling.md`'s |
+| Vignette, chromatic aberration, grain, pixelation | Built as `shaders/finish.wesl`, one variant each, turned by `vignette_amount` and its four neighbours on `camera` |
 | Grayscale, sobel edge highlight, CRT, waves, loupe (*fork* `post_processing`) | Not surfaced. Each is a post-process material a project writes in minutes once step 5 lands |
-| Clustered forward+ lights beyond the primary sixteen (*fork* `builtin/clustered.rs`) | Step 1 binds the buffers; the split is the backend's. `MAX_LIGHTS` stays the primary tier |
+| Clustered forward+ lights beyond the primary sixteen (*fork* `builtin/clustered.rs`) | Not built. The frame group binds no storage buffers, so `MAX_LIGHTS` is the whole tier; see question 4 |
 | The progressive path tracer, denoise, aperture (*fork* `renderer/raytracer`) | Step 7: a still from the editor's Export sheet. Never a run mode; a game never depends on it |
 | AOVs: depth, normals, segmentation (*fork* `builtin/aov.rs`) | Not planned for games. `docs/PLAN-editor-ergonomics.md` may borrow the normals view |
 | 2D global illumination (*fork* `post_processing/gi2d.rs`) | Not planned; the light map is 2D's answer. Revisit only if `light2d` shadows prove too hard-edged |
@@ -183,21 +195,32 @@ the module.
 2. **Environment.** *Built in part.* The component, fog, exposure, tonemap and
    grading are pushed to the window; the sky loads and orients. Image-based
    lighting is not bound, so a sky lights nothing yet.
-3. **The contract.** *Built in part.* `Param::Texture` and its six slots, and
-   `package::pbr` as the surface a material imports. Not built: `pbr.wesl` as
-   the *built-in* a node with no material draws (that changes every existing
-   scene's look), the shadow, IBL and SSAO reads, and `glb.rs` keeping factors
-   and maps.
-4. **Transparency and glass.** Alpha modes, OIT when blending, transmission.
-5. **Finishing.** Post-process materials on `camera.post`
-   (`docs/PLAN-shaders.md` phase 9) with the four passes; FXAA and CAS as
-   flags.
-6. **Mirrors and probes.**
+3. **The contract.** *Built.* `Param::Texture` and its six slots,
+   `package::pbr` as the surface a material imports, and group 0 carrying the
+   sky, the occlusion, the probes and the scene behind glass. `glb.rs` keeps
+   every factor and map, splitting a model into one mesh node per material.
+   Not built: `pbr.wesl` as the *built-in* a node with no material draws,
+   which would change every existing scene's look, and the shadow atlas read.
+4. **Transparency and glass.** *Built.* `[surface]` carries the alpha mode and
+   the cutout, the transmission, index of refraction, thickness and volume;
+   `shade_glass` refracts the resolved scene and layers the surface's own
+   reflections over it. A `blend` surface draws in the opaque pass rather than
+   the order-independent one: see question 6.
+5. **Finishing.** *Built.* Vignette, chromatic aberration, grain and
+   pixelation as one shader with a variant each, resolved by name off
+   `camera.post`; FXAA and contrast-adaptive sharpening from the fork, in the
+   chain rather than as pipeline flags, so the order a list gives is the order
+   they draw in.
+6. **Mirrors and probes.** *Built.* `surface.mirror` puts a planar reflector on
+   the node and binds its picture in group 1; `reflection_probe` places a box,
+   baked from an image or captured from the scene.
 7. **A still.** The path tracer behind the Export sheet's Image, with samples
    and a denoise toggle.
-8. **Layers.** `shaders/layers.wesl` and its inspector folds, last because it
-   is the designer's face over everything above and should not be designed
-   before the parts exist.
+8. **Layers.** *Built.* `editor/library/shaders/layers.wesl`: colour, image,
+   gradient, noise, matcap, fresnel, toon and outline, each an `@if` feature
+   bringing its own knobs, over the same physically based surface. It ships in
+   the library rather than the engine because a project copies it and edits
+   it. Not built: the inspector folds that would group a layer's knobs.
 9. **Decals and volumetrics.** A `decal` component projecting onto the depth
    buffer, and a froxel march for fog a light shafts through. Both are new
    passes rather than fork features, and both want step 1's shadow atlas.
@@ -232,3 +255,13 @@ the module.
    of the fork leaks into `mesh.wesl`.
 5. **WebGL2.** The fork's compute passes have no WebGL2 path.
    `docs/PLAN-embed.md` carries that question; it is the same one.
+6. **Whether the contract inverts so a material can blend properly.** The
+   order-independent pass wants a second fragment entry point writing two
+   accumulation targets, and a material declares its own `fs_main`. The fix is
+   for a material to write `fn surface(in) -> vec4<f32>` and the engine to
+   write every entry point around it — which is a better contract and breaks
+   every material written against this one.
+7. **Whether the fork should let a probe be taken back.** `ReflectionProbes`
+   registers into a fixed array with no `clear`, so a scene that removes a
+   probe leaves its layer allocated and shrunk to nothing. Eight layers is
+   enough that this has not bitten, and a `clear` on the fork is two lines.

@@ -312,3 +312,89 @@ fn the_camera_hands_its_two_chains_to_the_backend() {
     assert_eq!(config.screen, ["materials/grade.toml"]);
     assert!(config.bloom, "and the engine's own is still switched on");
 }
+
+#[test]
+fn patching_one_camera_property_leaves_the_rest_alone() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(
+        &app,
+        cam,
+        "post = [\"ssao\", \"vignette\"]\nssao_bias = 0.25\nssao_radius = 0.6\nvignette_amount = 0.32",
+    );
+    // What a script driving the view does every frame.
+    let aim: toml::Value = toml::from_str("look_at = [1.0, 2.0, 3.0]").unwrap();
+    components::patch(&app.engine, cam, "camera", &aim).unwrap();
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    let config = config.borrow();
+    assert!(
+        (config.occlusion.bias - 0.25).abs() < 1e-6,
+        "a patched aim reset the occlusion bias to {}",
+        config.occlusion.bias
+    );
+    assert!((config.occlusion.radius - 0.6).abs() < 1e-6);
+    assert!((config.finish.vignette_amount - 0.32).abs() < 1e-6);
+}
+
+/// The inspector shows a component through its `get` hook, so a property the
+/// hook leaves out is a property nothing displays. `patch` no longer depends on
+/// this -- it keeps what was asked for -- but a reader still does.
+#[test]
+fn every_component_reports_every_property_it_holds() {
+    // These report what is in effect rather than every property: a ball has no
+    // `tube_radius`, and a size or a tile a sheet derived is not the
+    // component's to state. Their omissions are the design.
+    const DERIVED: &[&str] = &["shape3d", "shape2d", "sprite", "tilemap"];
+    let app = app();
+    let root = app.engine.root();
+    let mut offenders = Vec::new();
+    let mut checked = 0;
+    for (name, schema) in components::schemas(&app.engine) {
+        let entity = scene::spawn_node(&mut app.engine.world_mut(), "N", root);
+        if components::add(&app.engine, entity, &name, None).is_err() {
+            continue;
+        }
+        let Some(read) = components::get(&app.engine, entity, &name) else {
+            continue;
+        };
+        let (Some(want), Some(got)) = (schema.as_table(), read.as_table()) else {
+            continue;
+        };
+        checked += 1;
+        let missing: Vec<&str> = want
+            .keys()
+            .filter(|key| !got.contains_key(*key))
+            .map(String::as_str)
+            .collect();
+        if !missing.is_empty() && !DERIVED.contains(&name.as_str()) {
+            offenders.push(format!("{name} does not report {missing:?}"));
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "patching any other property resets these: {offenders:?}"
+    );
+    assert!(checked > 5, "only {checked} components were reachable");
+}
+
+#[test]
+fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
+    let app = app();
+    let node = node_at(&app, app.engine.root(), Vec3::ZERO);
+    // A ball has no half-extents, so `shape3d` does not report the ones asked
+    // for here: they are only in the table the scene handed over.
+    let asked: toml::Value =
+        toml::from_str("kind = \"ball\"\nradius = 0.7\nhalf_extents = [2.0, 1.0, 2.0]").unwrap();
+    components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
+    let becomes: toml::Value = toml::from_str("kind = \"cuboid\"").unwrap();
+    components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
+    let read = components::get(&app.engine, node, "shape3d").unwrap();
+    let half = read["half_extents"].as_array().unwrap();
+    let sizes: Vec<f64> = half.iter().map(|v| v.as_float().unwrap()).collect();
+    assert_eq!(
+        sizes,
+        vec![2.0, 1.0, 2.0],
+        "the patch fell back to the schema default instead of what was asked for"
+    );
+}

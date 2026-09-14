@@ -370,6 +370,19 @@ mod classes {
             !drawn_at(844.0, 390.0, stack.into()),
             "a screen on its side still drew it"
         );
+        // The fourth line, the other way down: what a tall screen has room
+        // for elsewhere and a short one wants in the corner.
+        let handle = toml::toml! {
+            kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_taller = 480.0
+        };
+        assert!(
+            drawn_at(844.0, 390.0, handle.clone().into()),
+            "a screen on its side lost it"
+        );
+        assert!(
+            !drawn_at(844.0, 844.0, handle.into()),
+            "an upright screen still drew it"
+        );
     }
 
     /// A line is read against the room a widget is laid out in, not only

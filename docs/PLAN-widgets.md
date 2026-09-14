@@ -1,4 +1,7 @@
-> **Status:** the two open 0.2 roadmap rows are done. Menus and popups:
+> **Status:** the three open 0.2 roadmap rows are done. Data views: `multi`
+> and `selection` on the three row kinds, a `table` with columns a drag
+> resizes over rows it no longer all builds, and the Profiler and Cost docks
+> moved onto it. Menus and popups:
 > `context`, `placement`, submenus, `shortcut`, `toast` and `dialog` on
 > `egui::Modal`. Text a game can edit: `[url]`, `[hint]`, `selectable`,
 > `arrows` and `suffix`. Three crate questions stay settled: `graph` on
@@ -51,13 +54,93 @@ rows and a theme entry.
 | Kind | What it is | Godot | State |
 | --- | --- | --- | --- |
 | `list` | rows of text or icons, one or many selected, `on_change` with the selection; above one `columns` a card grid | `ItemList` | built |
-| `tree` | a `list` whose rows nest, with an open state per row | `Tree` | built, no drag to reparent |
-| `table` | a `tree` with named columns | `Tree` columns | built, widths not draggable |
+| `tree` | a `list` whose rows nest, with an open state per row and a drag that reports where a row was dropped | `Tree` | built |
+| `table` | a `tree` with named columns, widths a drag or the scene states, and a sort | `Tree` columns | built |
 
-All three build only the rows the box shows. The editor's docks still rebuild
-every row every frame; moving the node tree and the Assets dock onto the
-three kinds is [PLAN-editor-performance.md](PLAN-editor-performance.md)'s
-work, and the roadmap row stays open until they do.
+All three build only the rows the box shows, the `table` included: it places
+its body by `ScrollArea::show_rows` as the other two do, rather than by the
+`egui::Grid` that built every row.
+
+- **Many rows.** `multi` lets a `list`, `tree` or `table` hold more than one:
+  the platform's command key toggles a row, shift takes the run between the
+  last row clicked and this one, and `selection` is what it holds. `text`
+  stays the row last hit, which is where a shift range measures from, and a
+  widget without `multi` keeps the single pick it always had. `on_change`
+  hears the whole set where the widget holds many, and the row where it holds
+  one.
+- **Columns.** A `table`'s `placeholder` names them, split on U+001F as its
+  rows are; a name ending in `>` draws its column against the right edge,
+  which is what a column of numbers wants. Each column's share of the width
+  is dragged by the seam in the header and held per table, so the widths
+  survive a rebuild of the rows. A row may carry an `#rrggbb` past its last
+  cell, the way a `list` row carries its own colour.
+- **A row a secondary click lands on is picked**, so a `context` menu acts on
+  what it opened over rather than on whatever was picked before. A row already
+  picked keeps the set it is in, which is how a menu is opened over several.
+  It is not a click: the widget's own `on_click` stays quiet.
+- **The docks.** Every view in the editor whose rows are rows is on the kinds:
+  the outliner and its search, the secondary list, Assets, Library, Tiles, the
+  Debugger's stack, Output, Problems, Docs, and now the Profiler, the Cost
+  dock and the Library's templates, whose columns of numbers were being padded
+  into a monospace string. The outliner's rows carry the whole selection
+  rather than the active node alone, and its context menu is a hidden `menu`
+  node the tree names. [PLAN-editor-performance.md](PLAN-editor-performance.md)
+  holds the measurements.
+- **What stays hand-drawn, and why.** The Events view, the weights table, the
+  bone map and the session list draw a control per row rather than a row: they
+  are forms, and a kind that drew them would be a form kind. The timeline and
+  the session lanes are painted. The command palette and the refactor dialog
+  are rows, but they are drawn inside immediate-mode overlays, so they move
+  when the chrome does: [PLAN-editor-as-scene.md](PLAN-editor-as-scene.md).
+
+- **What a theme dresses.** The three kinds take a `[<kind>]` table like any
+  other: `fill`, `stroke`, `stroke_width`, `radius`, and `image` with `slice`
+  for a nine-patch, plus `padding_x` for the air either side of a cell and
+  `gap` for the space between a `list`'s cards. A widget's own `fill`,
+  `stroke` and `radius` win over it, as everywhere. What they paint past that
+  one box is named in `[colors]`, the way `code` names its gutter and its
+  keywords: `row_on` and `row_on_color`, `row_hover` and `row_press`,
+  `row_stripe`, `row_head`, `row_rule` and `row_guide`. Each keeps the
+  built-in look where the theme names none, and a colour with no alpha draws
+  nothing, so `row_rule = "#00000000"` is a table with no lines.
+
+- **Columns a scene states.** `titles` names them and says how many there
+  are, in a list of its own rather than a string joined on U+001F: it used to
+  be `placeholder`, which is a `field`'s hint and a `drag_value`'s prefix and
+  had no business naming columns. `widths` is a share a column in the same
+  order, normalised, so `["3", "1"]` is three quarters and a quarter and
+  empty divides the width evenly. A drag on a seam writes the shares back
+  onto the widget rather than into egui's memory, so the scene keeps them and
+  a script may read them.
+- **A header that can go.** `header = false` draws no strip. The columns are
+  still `titles`', and a table that names none keeps its first row as a row
+  rather than promoting it.
+- **A sort.** `sort` names the column the rows are drawn in the order of and
+  `reverse` turns it round, both statable and both written back when
+  `sortable` lets a click on a header ask. A cell that starts with a number
+  sorts as one, so `12 KB` follows `3 KB` rather than leading it; anything
+  else sorts as text, case folded. The rows themselves are untouched: the
+  order is the drawing's, so `options` stays the script's.
+- **A drag that moves a row.** `reorderable` on a `list` or a `tree` senses a
+  drag, draws where the row in hand would land -- a line across the gap, or a
+  frame around the row it would go inside -- and calls `on_move` with the row
+  moved, the row it landed on, and `before`, `after` or `into`. The kind moves
+  nothing itself, because a row view holds strings and what they stand for is
+  the script's; `egui_dnd` stays unnecessary for the same reason. It is not
+  the drag and drop batch's `drop`: this one never leaves the widget, and that
+  one is a payload from anywhere to anywhere.
+- **One row or many, read the same way.** `selection` carries what the widget
+  holds whether it holds one row or several, so nothing reading it back
+  branches on `multi`; `text` is the row last clicked, which is where a shift
+  range measures from and what a one-shot pick channel clears. `row_height`
+  is the pitch and `height` is the box, which a `list` used to conflate: a
+  list 200 pixels tall drew one row 200 pixels high.
+
+The last of it, and not this row's: the editor's outliner cannot act on
+`on_move` yet, because `model.rn` has no reparent -- only `move_sibling`
+within one parent. That is document surgery with a transform question in it
+(Godot asks whether to keep the world pose), so it belongs to the editor's
+own plan rather than here.
 
 ### Menus and popups
 
@@ -132,6 +215,7 @@ The work, in order:
 | --- | --- | --- | --- |
 | `text_area` | a `field` over several lines, with selection, wrapping, undo and IME | `TextEdit` | built, on `egui::TextEdit` |
 | `code` | a `text_area` with the gutter, colouring and caret the editor has | `CodeEdit` | built, sharing `immediate::code` |
+| `code` gutter | `breakpoints`, `problems`, `warnings`, `current_line`, `gutter_width` and `on_gutter` on the node; its colours are the theme's `[colors]` | `CodeEdit` gutter | built |
 | `drag_value` | a number dragged or typed, with `min`, `max`, `step`, a prefix, a `suffix` and `arrows` | `SpinBox` | built |
 | `check` + `group` | one of a named set chosen | `CheckBox` groups | built |
 | `[url]` in `markup` | a span a click reports | `RichTextLabel` `[url]`, `meta_clicked` | built |
@@ -191,6 +275,14 @@ The work, in order:
    down at its trailing edge, each moving by `step` and clamped to `min` and
    `max`; `suffix` follows the number as `placeholder` leads it, so `12 px`
    reads as Godot's SpinBox does.
+5. **The gutter as node properties.** Built. `breakpoints`, `problems` and
+   `warnings` are lines counted from 1, `current_line` the row a debugger
+   stopped on, and `gutter_width` the column's own width; a click on the
+   gutter reports its line through `on_gutter` and the `gutter` event, so what
+   a mark means stays the script's. The twelve colours are the theme's
+   `[colors]` under the names the options table already spells, so a
+   `widget_theme` dresses the editor a scene holds and no kind's colours reach
+   the schema.
 
 ### Containers
 
@@ -288,7 +380,7 @@ and `egui_dnd` 0.17 all pin egui 0.36.
 | --- | --- |
 | Menus and popups | Six small steps on what is built; `context` and `shortcut` are what a game's menus need |
 | Text | Links and selection are the last thing a `label` lacks against `RichTextLabel` |
-| Data views | The kinds are built; what remains is the editor moving onto them |
+| Data views | Built, and the editor's docks are on the kinds |
 | Containers | `graph` gates both graph editors; `view` waits on render targets |
 | Pickers and drag | The smallest batch, and the last thing the editor hand-rolls |
 
@@ -310,8 +402,17 @@ and `egui_dnd` 0.17 all pin egui 0.36.
 
 ## 5. Open questions
 
-1. **What a `tree` holds.** Rows handed in by a script every frame, or a
-   model the widget owns? The editor wants the first, a game's inventory the
-   second.
+1. **What a `tree` holds. Settled: rows handed in.** A view takes the strings
+   a script hands it and owns no model, which is why `sort` and `reverse` are
+   the drawing's order rather than a rewrite of `options`, and why a drag
+   reports where a row was dropped rather than moving it. A game that wants a
+   model keeps it in the script and hands over the rows it wants drawn, as
+   the editor's docks do.
+
+   What that costs, and what is not planned because of it: no icon in a
+   `table` cell, since a row is one separator deep and a per-cell mark needs
+   a second; no per-column alignment past the `>` that draws one against its
+   right edge; and no width in pixels, only shares. Keyboard navigation over
+   rows is the controller shell's row, in §4.
 2. **How far `code` goes.** Completion and diagnostics belong to the language
    server; the kind draws them without knowing what produced them.

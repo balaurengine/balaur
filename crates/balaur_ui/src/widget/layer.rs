@@ -602,12 +602,25 @@ pub(crate) enum Edit {
     Open(bool),
     /// A dropdown's pick.
     Choice(String),
+    /// A row of a `list`, `tree` or `table` clicked, and everything the click
+    /// leaves picked -- empty where the widget holds one row at a time.
+    Picked(String, Vec<String>),
+    /// A `table`'s column shares, as a drag on a seam left them.
+    Widths(Vec<f32>),
+    /// The column a `table`'s header was clicked to sort by, and whether that
+    /// click asked for the other way round.
+    Sorted(String, bool),
+    /// A row dragged over another: the row moved, the row it landed on, and
+    /// whether it went before it, after it, or into it.
+    Dropped(String, String, String),
     /// A swatch's colour.
     Color([f32; 4]),
     /// A window's title bar dragged, in design pixels.
     Moved([f32; 2]),
     /// The target of a `[url]` span that was clicked.
     Link(String),
+    /// The 1-based line a click on a `code` widget's gutter landed on.
+    Gutter(i64),
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.
@@ -697,7 +710,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::MENU => crate::widget::kinds::menu(ui, at, index, &caption, &font, color),
         w::LIST => crate::widget::rows::list(ui, at, index, &font, color),
         w::TREE => crate::widget::rows::tree(ui, at, index, &font, color),
-        w::TABLE => crate::widget::rows::table(ui, at, index, &font, color),
+        w::TABLE => crate::widget::table::table(ui, at, index, &font, color),
         // The file being edited, with the gutter and the colouring the script
         // call has always had.
         w::CODE => crate::widget::kinds::code(ui, at, index),

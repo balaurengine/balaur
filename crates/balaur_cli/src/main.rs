@@ -22,6 +22,8 @@ mod fmt;
 mod import_api;
 mod lsp;
 mod new_project;
+#[cfg(not(target_family = "wasm"))]
+mod project_api;
 mod project_tests;
 mod templates;
 mod update;
@@ -71,6 +73,10 @@ enum Command {
         /// target floor, and a long press where a hover was.
         #[arg(long)]
         touch: bool,
+        /// Save a PNG of the run, on the frame before `--frames` ends it. The
+        /// game's own screen, with nothing of the editor over it.
+        #[arg(long, value_name = "PATH", requires = "frames")]
+        shot: Option<PathBuf>,
         /// Write one `<tick> <digest>` line per frame. Two runs whose traces
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
@@ -204,16 +210,8 @@ enum Command {
         check: bool,
     },
     /// Update this install — the binary, the bundled editor and its runtime
-    /// template — to the latest published build.
-    Update {
-        /// Release tag to update to. Defaults to the latest release, or to
-        /// the rolling nightly for a nightly build.
-        #[arg(long)]
-        tag: Option<String>,
-        /// Only report whether an update exists.
-        #[arg(long)]
-        check: bool,
-    },
+    /// template — to the newest build on this one's channel.
+    Update(UpdateOpts),
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
     Edit(EditOpts),
@@ -344,7 +342,7 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
     let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(pack)?))?;
     app.load_project()?;
     for _ in 0..frames {
-        app.tick(balaur::FIXED_DT);
+        app.tick(balaur::fixed_dt());
     }
     Ok(())
 }
@@ -368,6 +366,7 @@ fn dispatch(command: Command) -> Result<()> {
             offscreen,
             fixed_tick,
             touch,
+            shot,
             trace_digest,
             timings,
             record,
@@ -379,6 +378,7 @@ fn dispatch(command: Command) -> Result<()> {
             scene,
             display: Display::of(headless, offscreen),
             frames,
+            shot,
             fixed_tick,
             touch,
             trace_digest,
@@ -437,7 +437,7 @@ fn dispatch(command: Command) -> Result<()> {
         } => project_tests::test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
         Command::Fmt { paths, check } => fmt::run(&paths, check),
-        Command::Update { tag, check } => update::run(tag.as_deref(), check),
+        Command::Update(opts) => update::run(&opts),
         Command::Play { pack, frames } => play_pack(&pack, frames),
     }
 }
@@ -452,7 +452,7 @@ fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     app.load_project()?;
     if let Some(frames) = frames {
         for _ in 0..frames {
-            app.tick(balaur::FIXED_DT);
+            app.tick(balaur::fixed_dt());
         }
         return Ok(());
     }
@@ -496,6 +496,8 @@ struct RunOpts {
     scene: Option<String>,
     display: Display,
     frames: Option<u64>,
+    /// Where to write a picture of the run, taken on the frame before it ends.
+    shot: Option<PathBuf>,
     fixed_tick: bool,
     touch: bool,
     trace_digest: Option<PathBuf>,
@@ -504,6 +506,24 @@ struct RunOpts {
     debug: Option<u16>,
     debug_wait: bool,
     args: Vec<String>,
+}
+
+/// What `update` was asked for. A build follows the channel its own version
+/// names (docs/RELEASING.md); everything here is a way of saying otherwise.
+#[derive(clap::Args)]
+pub(crate) struct UpdateOpts {
+    /// Release channel to follow: alpha, beta, rc, stable or nightly.
+    #[arg(long)]
+    channel: Option<String>,
+    /// One exact release tag, rather than whatever a channel holds now.
+    #[arg(long, conflicts_with = "channel")]
+    tag: Option<String>,
+    /// Only report whether an update exists.
+    #[arg(long)]
+    check: bool,
+    /// Install the published build even when it is older than this one.
+    #[arg(long)]
+    allow_downgrade: bool,
 }
 
 /// What `edit` was asked for. One bag rather than eight arguments, and the
@@ -603,7 +623,7 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
     balaur::replay::play(&app.engine);
 
     while balaur::replay::is_running(&app.engine) {
-        app.advance(balaur::FIXED_DT);
+        app.advance(balaur::fixed_dt());
         if let Some(at) = entries_at
             && app.engine.tick() >= at
         {
@@ -653,6 +673,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         scene,
         display,
         frames,
+        shot,
         fixed_tick,
         touch,
         trace_digest,
@@ -688,7 +709,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     }
     app.load_project()?;
     if *fixed_tick {
-        app.set_fixed_dt(Some(balaur::FIXED_DT));
+        app.set_fixed_dt(Some(balaur::fixed_dt()));
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {
@@ -711,7 +732,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
                     if engine.quit_requested() {
                         break;
                     }
-                    app.tick(balaur::FIXED_DT);
+                    app.tick(balaur::fixed_dt());
                 }
             }
             None => app.run(),
@@ -727,8 +748,14 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     // works the same in every loop.
     if let Some(frames) = frames {
         let mut count = 0u64;
+        // The picture is asked for a frame before the quit, so the backend
+        // has one more frame to render and write it.
+        let shot = shot.clone();
         app.add_system(balaur::Stage::Last, move |eng, _| {
             count += 1;
+            if let Some(path) = shot.as_ref().filter(|_| count + 1 == frames) {
+                balaur::render::request_screenshot(eng, path.clone());
+            }
             if count >= frames {
                 eng.request_quit();
             }
@@ -826,11 +853,18 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         touch,
         timings,
     } = opts;
-    let game = joinable(
-        &path
-            .canonicalize()
-            .with_context(|| format!("project not found: {}", path.display()))?,
-    );
+    // A folder with no manifest is not an error: it is somebody who ran the
+    // editor without saying which project, and the start screen is the answer.
+    let opened = path.join("project.toml").is_file();
+    let game = if opened {
+        joinable(
+            &path
+                .canonicalize()
+                .with_context(|| format!("project not found: {}", path.display()))?,
+        )
+    } else {
+        PathBuf::new()
+    };
     let editor_root = editor
         .clone()
         .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
@@ -852,8 +886,19 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         .context("no editor project found; pass --editor <dir>")?;
     let mut config = AppConfig::dev(editor_root.to_string_lossy().as_ref());
     config.script_args = vec![game.to_string_lossy().into_owned()];
-    if let Some(state) = state {
-        config.script_args.push(state.clone());
+    // The start screen is a start-up state like any other, so a caller that
+    // named one of its own still gets it.
+    let opening = if opened {
+        state.clone()
+    } else {
+        Some(
+            state
+                .as_ref()
+                .map_or_else(|| "manager".to_string(), |asked| format!("manager,{asked}")),
+        )
+    };
+    if let Some(state) = opening {
+        config.script_args.push(state);
     }
     let mut app = balaur::standard_app(config)?;
     // Registered here rather than in the engine: exporting is the CLI's
@@ -862,9 +907,16 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(game.clone()))?;
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(game.clone()))?;
+    // The start screen's own module: the projects this machine has opened and
+    // the ways to start another.
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut project_api::ProjectPlugin::new())?;
     // The editor's project is the editor; the game it edits is another root,
-    // and every path it reads back is an absolute one inside it.
-    balaur::file_api::add_root(&app.engine, &game);
+    // and every path it reads back is an absolute one inside it. With no
+    // project there is no second root until one is opened.
+    if opened {
+        balaur::file_api::add_root(&app.engine, &game);
+    }
     // Before the project loads: the editor's scripts read the platform at
     // init, and a fact that lands after that is a frame of the wrong shell.
     if *touch {
@@ -874,7 +926,9 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]
-    declare_game_input(&app, &game);
+    if opened {
+        declare_game_input(&app, &game);
+    }
     if let Some(frames) = *frames {
         let mut count = 0u64;
         app.add_system(balaur::Stage::Last, move |eng, _| {
@@ -965,6 +1019,7 @@ fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plug
         vec![
             Box::new(export_api::ExportPlugin::new(project.clone())),
             Box::new(import_api::ImportPlugin::new(project.clone())),
+            Box::new(project_api::ProjectPlugin::new()),
         ]
     }
 }
@@ -980,27 +1035,11 @@ fn argv() -> Vec<std::ffi::OsString> {
     if args.len() > 1 {
         return args;
     }
-    let Some(project) = bundle_project() else {
-        return args;
-    };
+    // No project named: `edit` with no path, which opens the start screen.
+    // A bundle never opens last time's project by itself — Finder starts it
+    // with no arguments, and the screen is where a reader says which one.
     args.push("edit".into());
-    args.push(project.into_os_string());
     args
-}
-
-/// The project a bundle opens on: one under the home directory, made from the
-/// starter on first launch. Not `~/Documents`, whose first write is a macOS
-/// permission dialog — the warning this bundle exists to avoid.
-fn bundle_project() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    if !exe.parent()?.ends_with("Contents/MacOS") {
-        return None;
-    }
-    let project = PathBuf::from(std::env::var_os("HOME")?).join("Balaur");
-    if !project.join("project.toml").is_file() {
-        new_project::create(&project, None).ok()?;
-    }
-    Some(project)
 }
 
 #[cfg(test)]

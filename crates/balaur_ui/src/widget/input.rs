@@ -139,6 +139,13 @@ pub const CLICK_EVENT: &str = "click";
 /// What a `[url]` span emits when it is clicked, with its target.
 pub const LINK_EVENT: &str = "link";
 
+/// What a `code` widget emits when its gutter is clicked, with the line.
+pub const GUTTER_EVENT: &str = "gutter";
+
+/// What a row view emits when a dragged row is dropped, with the row moved,
+/// the row it landed on, and where it went.
+pub const MOVE_EVENT: &str = "move";
+
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
     // keeps what its first run had; only a live tick takes the draw's report.
@@ -200,6 +207,110 @@ fn apply_system(eng: &Engine, _dt: f32) {
     announce_focus(eng, focused.as_ref());
 }
 
+/// One edit written onto the widget it names, and what that says.
+///
+/// The match answers with the event, the value and the handler rather than
+/// reporting them, so the three lines that emit and call are written once
+/// for every kind of edit. `None` is an edit that reports nothing.
+fn settle_one(
+    entity: Entity,
+    widget: &mut Widget,
+    edit: &Edit,
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
+    signals: &mut Vec<(Entity, String, Value)>,
+) {
+    let said = match edit {
+        Edit::Width(w) => {
+            widget.width = *w;
+            None
+        }
+        Edit::Height(h) => {
+            widget.height = *h;
+            None
+        }
+        Edit::Active(name) => {
+            widget.active = name.as_str().into();
+            None
+        }
+        Edit::Moved([dx, dy]) => {
+            let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);
+            widget.x += dx * sx;
+            widget.y += dy * sy;
+            None
+        }
+        Edit::Text(text) => {
+            widget.text = text.as_str().into();
+            Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change))
+        }
+        Edit::Submit(text) => {
+            widget.text = text.as_str().into();
+            Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit))
+        }
+        Edit::Value(value) => {
+            widget.value = *value;
+            let said = Value::Num(f64::from(*value));
+            Some((CHANGE_EVENT, said, &widget.on_change))
+        }
+        Edit::Open(open) => {
+            widget.open = *open;
+            Some((CHANGE_EVENT, Value::Bool(*open), &widget.on_change))
+        }
+        Edit::Color(rgba) => {
+            widget.color = *rgba;
+            Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change))
+        }
+        Edit::Choice(choice) => {
+            widget.text = choice.as_str().into();
+            Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change))
+        }
+        Edit::Picked(row, rows) => {
+            let said = picked(widget, row, rows);
+            Some((CHANGE_EVENT, said, &widget.on_change))
+        }
+        // The chrome a reader dragged: written down so the scene keeps it,
+        // and reported to nobody, as a seam between two containers is.
+        Edit::Widths(shares) => {
+            widget.widths.clone_from(shares);
+            None
+        }
+        Edit::Sorted(column, reverse) => {
+            widget.sort = column.as_str().into();
+            widget.reverse = *reverse;
+            None
+        }
+        Edit::Dropped(moved, target, side) => {
+            let said = [moved, target, side]
+                .into_iter()
+                .map(|part| Value::Str(part.clone()))
+                .collect();
+            Some((MOVE_EVENT, Value::List(said), &widget.on_move))
+        }
+        // Written nowhere: a link and a gutter mark are the script's to act on.
+        Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
+        Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
+    };
+    // The node emits its event whatever the widget carries, and the handler
+    // is called only where one is named.
+    let Some((event, value, handler)) = said else {
+        return;
+    };
+    emitted.push((entity, event, value.clone()));
+    if !handler.is_empty() {
+        signals.push((entity, handler.to_string(), value));
+    }
+}
+
+/// A row pick written onto the widget, and what it says: the whole set where
+/// it holds many, and the row hit where it holds one.
+fn picked(widget: &mut Widget, row: &str, rows: &[String]) -> Value {
+    widget.text = row.into();
+    widget.selection = rows.iter().map(|row| row.as_str().into()).collect();
+    if widget.multi {
+        return Value::List(rows.iter().map(|row| Value::Str(row.clone())).collect());
+    }
+    Value::Str(row.to_owned())
+}
+
 /// Apply a dragged seam, a chosen tab or typed text to the widget that owns
 /// it, and collect the field handlers to call with what was typed.
 fn settle_edits(
@@ -219,84 +330,7 @@ fn settle_edits(
         // Written straight onto the component, so the arena's copy of this one
         // is stale until the next pass re-reads it.
         crate::widget::arena::widget_changed(entity);
-        match edit {
-            Edit::Width(w) => widget.width = *w,
-            Edit::Height(h) => widget.height = *h,
-            Edit::Active(name) => widget.active = name.as_str().into(),
-            Edit::Text(text) => {
-                widget.text = text.as_str().into();
-                emitted.push((entity, CHANGE_EVENT, Value::Str(text.clone())));
-                if !widget.on_change.is_empty() {
-                    signals.push((
-                        entity,
-                        widget.on_change.to_string(),
-                        Value::Str(text.clone()),
-                    ));
-                }
-            }
-            Edit::Submit(text) => {
-                widget.text = text.as_str().into();
-                emitted.push((entity, SUBMIT_EVENT, Value::Str(text.clone())));
-                if !widget.on_submit.is_empty() {
-                    signals.push((
-                        entity,
-                        widget.on_submit.to_string(),
-                        Value::Str(text.clone()),
-                    ));
-                }
-            }
-            Edit::Value(value) => {
-                widget.value = *value;
-                emitted.push((entity, CHANGE_EVENT, Value::Num(f64::from(*value))));
-                if !widget.on_change.is_empty() {
-                    signals.push((
-                        entity,
-                        widget.on_change.to_string(),
-                        Value::Num(f64::from(*value)),
-                    ));
-                }
-            }
-            Edit::Open(open) => {
-                widget.open = *open;
-                emitted.push((entity, CHANGE_EVENT, Value::Bool(*open)));
-                if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.to_string(), Value::Bool(*open)));
-                }
-            }
-            Edit::Link(target) => {
-                emitted.push((entity, LINK_EVENT, Value::Str(target.clone())));
-                if !widget.on_link.is_empty() {
-                    signals.push((
-                        entity,
-                        widget.on_link.to_string(),
-                        Value::Str(target.clone()),
-                    ));
-                }
-            }
-            Edit::Choice(choice) => {
-                widget.text = choice.as_str().into();
-                emitted.push((entity, CHANGE_EVENT, Value::Str(choice.clone())));
-                if !widget.on_change.is_empty() {
-                    signals.push((
-                        entity,
-                        widget.on_change.to_string(),
-                        Value::Str(choice.clone()),
-                    ));
-                }
-            }
-            Edit::Moved([dx, dy]) => {
-                let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);
-                widget.x += dx * sx;
-                widget.y += dy * sy;
-            }
-            Edit::Color(rgba) => {
-                widget.color = *rgba;
-                emitted.push((entity, CHANGE_EVENT, Value::Color(*rgba)));
-                if !widget.on_change.is_empty() {
-                    signals.push((entity, widget.on_change.to_string(), Value::Color(*rgba)));
-                }
-            }
-        }
+        settle_one(entity, &mut widget, edit, emitted, &mut signals);
     }
     signals
 }

@@ -271,6 +271,10 @@ pub struct Header {
     /// When the session started, for naming and listing it.
     #[serde(default)]
     pub started: String,
+    /// The rate the session ticked at. Zero in a file written before the
+    /// rate was a setting, which is the same thing as the default.
+    #[serde(default)]
+    pub tick_hz: u32,
     /// Loaded state a plugin declared through `App::add_replay_setup`, keyed
     /// by its name. Restored before the first tick, so what a recording
     /// derives is what it derived when it was made.
@@ -599,6 +603,7 @@ pub fn start_recording(
         origin: Origin::of(eng),
         scripts: scripts.to_string(),
         started: timestamp(),
+        tick_hz: crate::tick_hz(),
         setup: capture_setup(eng),
     };
     let recorder = Recorder::create(
@@ -911,6 +916,11 @@ impl ReplayPlayer {
 /// the game's scripts attach: an `init` that opens a socket must be
 /// suppressed, and one that takes a token must take the recorded one.
 pub fn begin(eng: &Engine, session: Session) {
+    // The step every recorded frame was taken at. A file from before the rate
+    // was a setting says zero, which is the default it was made at.
+    if session.header.tick_hz > 0 {
+        crate::set_tick_hz(session.header.tick_hz);
+    }
     session.header.origin.restore(eng);
     restore_setup(eng, &session.header.setup);
     let seed = session.header.seed;

@@ -68,6 +68,11 @@ fn commands(S) {
         command("Reload scripts", "⟳", "⇧R", || shell::reload_scripts(S)),
         command("Export game…", "⇧", "⌘E", || crate::exporter::open(S)),
         command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
+        // The start screen, from inside a project: the same module, so what
+        // opens from here is what opens on a bare launch.
+        command("Open project…", icons::panel("assets"), "", || crate::manager::pick(S)),
+        command("New project…", icons::ui("add"), "", || crate::manager::open(S)),
+        command("Recent projects…", icons::panel("library"), "", || crate::manager::open(S)),
         command("Toggle dark chrome", icons::ui("dark"), "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
@@ -177,16 +182,22 @@ pub fn draw(S) {
         return;
     }
     let k = S.theme;
+    let screen = ui::screen_size();
+    // One width, taken from the screen: a phone is narrower than the 560 a
+    // laptop gets, and every column inside is measured off what is left.
+    let width = util::min(560.0, util::max(screen[0] - 32.0, 240.0));
+    let inner = width - 32.0;
+    let row_h = crate::style::row_h(S);
     let scrim_clicked = ui::modal("palette", #{
-        width: 560, top: 0.11, fill: k.panel, stroke: k.line,
+        width: width, top: 0.11, fill: k.panel, stroke: k.line,
         scrim: "#0b0e126b",
     }, || {
         ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
-            ui::horizontal(#{ height: 24 }, || {
+            ui::horizontal(#{ height: row_h }, || {
                 ui::label(icons::ui("search"), #{ size: style::XL, color: k.accent });
                 ui::add_space(4);
                 let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
-                    size: style::XL, width: 440, autofocus: true, color: k.text,
+                    size: style::XL, width: inner - 90.0, autofocus: true, color: k.text,
                 });
                 S.palette_query = text;
                 ui::right(|| {
@@ -198,7 +209,7 @@ pub fn draw(S) {
             });
         });
         ui::separator(k.line);
-        ui::scroll("palette-results", #{ max_height: 326 }, || {
+        ui::scroll("palette-results", #{ max_height: util::max(screen[1] * 0.5, 160.0) }, || {
             ui::spacing(4, 4);
             ui::add_space(8);
             let query = S.palette_query.to_lowercase();
@@ -212,11 +223,11 @@ pub fn draw(S) {
                     matched += 1;
                     let hit = #{ run: false };
                     let highlighted = first;
-                    ui::horizontal(#{ height: 30 }, || {
+                    ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
                         ui::add_space(8);
                         if ui::pill(cmd.label, #{
-                            height: 30, size: style::MD, align: ui::ALIGN_LEFT,
-                            min_width: 430,
+                            height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
+                            min_width: inner - 100.0,
                             icon: cmd.icon, icon_size: style::LG, icon_color: k.accent,
                             fill: if highlighted { k.sunken } else { "#00000000" },
                             hover_fill: k.sunken,

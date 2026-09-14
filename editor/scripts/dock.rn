@@ -11,7 +11,7 @@ use crate::util;
 
 /// The right-hand hint for a panel, one table rather than an `if` chain that
 /// fell through to the animation branch for everything unlisted.
-pub fn hint(S, id) {
+pub fn hint(S, id, room) {
     if id == "assets" {
         // A project-relative path: the absolute one is this machine's, and
         // lands in every screenshot.
@@ -22,6 +22,12 @@ pub fn hint(S, id) {
             return S.debug.paused.reason;
         }
         return "F5 run · F10 over · F11 into · ⇧F11 out";
+    }
+    if id == "profiler" {
+        return frame_hint();
+    }
+    if id == "cost" {
+        return cost_hint(S, room);
     }
     if id == "timeline" {
         let (node, _, _) = anim::player(S);
@@ -38,6 +44,56 @@ pub fn hint(S, id) {
         return text;
     }
     ""
+}
+
+// What the last frame cost, against the budget: the Profiler's headline, in
+// the tab row because the panel's body is the table it fills.
+fn frame_hint() {
+    let timings = engine::timings();
+    if !(timings is Object) {
+        return "no timings yet";
+    }
+    let stage_ms = util::f(timings.frame) * 1000.0;
+    let wall_ms = util::f(timings.wall) * 1000.0;
+    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
+    let steps = util::i(timings.fixed_steps);
+    let line = format!("{} ms of {} · {} step{}",
+        fixed(frame_ms, 2), fixed(BUDGET_MS, 1), steps, if steps == 1 { "" } else { "s" });
+    if frame_ms > BUDGET_MS {
+        line += format!(" · {} fps", fixed(1000.0 / frame_ms, 1));
+    }
+    line
+}
+
+// What the frame draws, and how big the last export was where the row is wide
+// enough to say both. A tab row cannot scroll, so a line too long is a line
+// cut off mid-word.
+fn cost_hint(S, room) {
+    let stats = util::obj(render::stats());
+    let line = format!("{} draws · {} triangles · {} in {} textures",
+        util::i(stats.get("draws").unwrap_or(0)),
+        util::i(stats.get("triangles").unwrap_or(0)),
+        bytes(util::f(stats.get("texture_bytes").unwrap_or(0))),
+        util::i(stats.get("textures").unwrap_or(0)));
+    if room > 560.0 {
+        line += format!(" · pack {}", pack_size(S));
+    }
+    line
+}
+
+/// The Profiler's one control, beside its numbers in the tab row.
+pub fn profiler_tools(S, k) {
+    let on = S.get("script_profiling").unwrap_or(false);
+    ui::add_space(6);
+    if ui::pill("scripts", #{
+        height: 24, size: style::SM, strong: true,
+        tooltip: "Count what each script costs, in VM instructions",
+        fill: if on { k.accent } else { k.sunken },
+        color: if on { k.sunken } else { k.dim },
+    }) {
+        S.script_profiling = !on;
+        engine::profile_scripts(!on);
+    }
 }
 
 /// Output owns the tab row's slot when it is showing: a log without a filter,
@@ -140,11 +196,10 @@ const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
 // separated by U+001F, which is what a `list` row splits on.
 pub fn show_log(items) {
     util::fill(LOG_NODE, #{ options: items, visible: true });
-    true
 }
 
-// What the node reports as picked, and clearing it once acted on.
-fn picked_log() {
+// What the log reports as picked, cleared once the caller has acted on it.
+fn taken_log() {
     util::taken(LOG_NODE, util::fill(LOG_NODE, #{}))
 }
 
@@ -170,6 +225,35 @@ pub fn hide_tree() {
     util::hide(TREE_NODE);
 }
 
+// The bottom dock's `table` node, which the panels with columns fill: the
+// Profiler and the Cost dock take turns on it, as the log panels do above.
+const TABLE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTable";
+
+// `titles` names the columns and a row is one cell a column. `widths` is a
+// share a column, stated only when the columns change: restating it every
+// frame would snap the reader's own drag away.
+pub fn show_table(titles, widths, items) {
+    let held = util::fill(TABLE_NODE, #{});
+    let same = util::cells(util::vec(held.get("titles").unwrap_or([]))) == util::cells(titles);
+    let params = #{ titles: titles, options: items, visible: true, sortable: true };
+    if !same {
+        params["widths"] = widths;
+        // The last panel's sort was by a column this one does not have.
+        params["sort"] = "";
+        params["reverse"] = false;
+    }
+    util::fill(TABLE_NODE, params);
+}
+
+pub fn hide_table() {
+    util::hide(TABLE_NODE);
+}
+
+// What the table reports as picked, cleared once the caller has acted on it.
+pub fn taken_table() {
+    util::taken(TABLE_NODE, util::fill(TABLE_NODE, #{}))
+}
+
 pub fn output(S, k) {
     let shown = filtered(S);
     let items = [];
@@ -191,52 +275,14 @@ pub fn output(S, k) {
         line += "\u{1f}\u{1f}" + tint;
         items.push(line);
     }
-    if show_log(items) {
-        return;
+    show_log(items);
+    if shown.rows.len() == 0 {
+        style::empty(k, if shown.hidden > 0 {
+            format!("{} entries hidden by the filter", shown.hidden)
+        } else {
+            "nothing logged yet"
+        });
     }
-    ui::scroll("output", #{ stick_to_bottom: true, max_height: S.layout.body_h - 6.0 }, || {
-        ui::spacing(4, 2);
-        for entry in shown.rows {
-            ui::horizontal((), || {
-                ui::add_space(6);
-                let color = k.dim;
-                let marker = " ";
-                if entry.level == "error" {
-                    color = k.accent;
-                    marker = icons::ui("close");
-                } else if entry.level == "warn" {
-                    color = k.accent;
-                    marker = "!";
-                } else if entry.tag == "env" {
-                    color = k.sage;
-                }
-                ui::label(marker, util::merge(style::mono(color), #{ strong: true }));
-                ui::label(format!("{:6.1}s", util::f(entry.time)), style::mono(k.faint));
-                ui::add_space(6);
-                let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
-                let tag_color = if entry.level == "error" { k.accent } else { color };
-                ui::label(tag + util::repeat(" ", 9 - tag.len()),
-                    util::merge(style::mono(tag_color), #{ strong: true }));
-                ui::add_space(6);
-                let bad = entry.level == "error";
-                ui::label(entry.message,
-                    util::merge(style::mono(if bad { k.text } else { k.dim }), #{ strong: bad }));
-                // Structured fields the event carried, which the message text
-                // deliberately does not repeat.
-                for field in util::vec(entry.get("fields").unwrap_or([])) {
-                    ui::add_space(8);
-                    ui::label(format!("{}={}", field.name, field.value), style::mono_sm(k.faint));
-                }
-            });
-        }
-        if shown.rows.len() == 0 {
-            style::empty(k, if shown.hidden > 0 {
-                format!("{} entries hidden by the filter", shown.hidden)
-            } else {
-                "nothing logged yet"
-            });
-        }
-    });
 }
 
 // Icon and ink by extension, so a directory of assets reads at a glance. The
@@ -735,44 +781,19 @@ pub fn problems(S, k) {
         line += "\u{1f}\u{1f}" + if bad { k.accent } else { k.sage };
         items.push(line);
     }
-    if rows.len() > 0 && show_log(items) {
-        // The pick is the row, so the click opens the file it names.
-        let picked = picked_log();
-        for (n, item) in items.iter().enumerate() {
-            if item == picked {
-                open_at(S, rows[n]);
-            }
-        }
+    if rows.len() == 0 {
+        hide_log();
+        style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
         return;
     }
-    ui::scroll("problems", #{ max_height: S.layout.body_h - 6.0 }, || {
-        ui::spacing(4, 2);
-        if rows.len() == 0 {
-            style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
-            return;
+    show_log(items);
+    // The pick is the row, so the click opens the file it names.
+    let picked = taken_log();
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            open_at(S, rows[n]);
         }
-        for f in rows {
-            let bad = f.severity == "error";
-            ui::horizontal(#{ height: 24 }, || {
-                ui::add_space(6);
-                // `×`, not `✕`: the mono face has no glyph for the latter.
-                ui::label(if bad { "×" } else { "!" },
-                    util::merge(style::mono(if bad { k.accent } else { k.sage }), #{ strong: true }));
-                ui::add_space(6);
-                let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
-                if ui::pill(at, #{
-                    height: 20, size: style::SM, font: ui::FONT_MONO,
-                    fill: k.sunken, color: k.dim,
-                    tooltip: "Open the file at this line",
-                }) {
-                    open_at(S, f);
-                }
-                ui::add_space(6);
-                ui::label(f.message,
-                    util::merge(style::mono(if bad { k.text } else { k.dim }), #{ strong: bad }));
-            });
-        }
-    });
+    }
 }
 
 // Select the node whose script this is and show it, so a click lands on the
@@ -1011,102 +1032,50 @@ pub fn profiler(S, k) {
     ui::request_repaint();
     let timings = engine::timings();
     if !(timings is Object) {
+        hide_table();
         style::empty(k, "no timings yet");
         return;
     }
-    // The stages are the smaller half of a windowed frame: the mirror, the UI
-    // pass and the render are named spans, and `wall` is what the loop took.
-    let stage_ms = util::f(timings.frame) * 1000.0;
-    let wall_ms = util::f(timings.wall) * 1000.0;
-    let frame_ms = if wall_ms > 0.0 { wall_ms } else { stage_ms };
-    ui::add_space(8);
-    ui::horizontal((), || {
-        ui::add_space(12);
-        ui::label("FRAME", style::heading(k));
-        ui::add_space(8);
-        let over = frame_ms > BUDGET_MS;
-        ui::label(
-            format!("{} ms of {} ({} steps)", fixed(frame_ms, 2), fixed(BUDGET_MS, 1), timings.fixed_steps),
-            style::mono(if over { k.accent } else { k.text }),
-        );
-        if over {
-            ui::add_space(8);
-            ui::label(format!("{} fps", fixed(1000.0 / frame_ms, 1)), style::mono_sm(k.accent));
-        }
-    });
-    ui::add_space(6);
-    ui::horizontal((), || {
-        ui::add_space(12);
-        let on = S.get("script_profiling").unwrap_or(false);
-        if ui::pill("scripts", #{
-            height: 24, size: style::SM, strong: true,
-            tooltip: "Count what each script costs, in VM instructions",
-            fill: if on { k.accent } else { k.sunken },
-            color: if on { k.sunken } else { k.dim },
-        }) {
-            S.script_profiling = !on;
-            engine::profile_scripts(!on);
-        }
-    });
-    ui::add_space(6);
     let items = [];
-    log_rows(items, k, util::obj(timings.stages), "stage");
+    cost_rows(items, k, util::obj(timings.stages), "stage");
     let spans = util::obj(timings.spans);
     if !spans.is_empty() {
-        log_rows(items, k, spans, "span");
+        cost_rows(items, k, spans, "span");
     }
-    if show_log(items) {
-        return;
+    if S.get("script_profiling").unwrap_or(false) {
+        script_rows(items, k);
     }
-    ui::scroll("profiler", (), || {
-        rows(k, util::obj(timings.stages), "stage");
-        let spans = util::obj(timings.spans);
-        if !spans.is_empty() {
-            style::section_label(k, "named");
-            rows(k, spans, "span");
-        }
-        if S.get("script_profiling").unwrap_or(false) {
-            style::section_label(k, "scripts");
-            script_rows(k);
-        }
-    });
+    show_table(["what", "cost>", "share of a frame"], ["2", "1", "2"], items);
 }
 
-/// What each script cost the last frame, dearest first.
+/// What each script cost the last frame, dearest first, against the dearest
+/// of them rather than against the budget: the unit is instructions.
 ///
 /// Instructions rather than milliseconds: the same frame runs the same
 /// instructions on every machine, so a number that moved is a change in what
 /// a script does. Re-armed after reading, so a row is one frame's work.
-fn script_rows(k) {
+fn script_rows(items, k) {
     let costs = engine::script_costs();
-    if costs.is_empty() {
-        ui::add_space(4);
-        ui::horizontal(#{ height: 20 }, || {
-            ui::add_space(12);
-            ui::label("nothing ran this frame", style::mono_sm(k.dim));
-        });
-        engine::profile_scripts(true);
-        return;
-    }
-    let worst = util::f(costs[0].instructions);
+    let worst = if costs.is_empty() { 0.0 } else { util::f(costs[0].instructions) };
     for row in costs {
         let count = util::f(row.instructions);
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
-        ui::horizontal(#{ height: 20 }, || {
-            ui::add_space(12);
-            ui::horizontal(#{ height: 20, width: 132 }, || {
-                ui::label(row.path, style::mono_sm(k.sage));
-            });
-            ui::horizontal(#{ height: 20, width: 68 }, || {
-                ui::label(format!("{}", row.instructions), style::mono_sm(k.dim));
-            });
-            let width = util::max(1.0, share * 180.0);
-            ui::frame(#{ fill: k.sage, radius: 3, padding_x: 0 }, || {
-                ui::horizontal(#{ height: 8, width: width }, || {});
-            });
-        });
+        items.push(util::cells([
+            row.path, format!("{} instr", row.instructions), bar(share), k.sage,
+        ]));
     }
     engine::profile_scripts(true);
+}
+
+/// A share as blocks, which reads at a glance where a number has to be read.
+/// Twelve cells, so one is about eight percent: twenty overran the Cost
+/// dock's column, which is a fifth of the dock.
+///
+/// Filled blocks and nothing else: a track drawn in the light block reads as
+/// noise down a column of them.
+fn bar(share) {
+    let filled = util::i(util::clamp(share, 0.0, 1.0) * 12.0);
+    util::repeat("\u{2588}", filled)
 }
 
 // Worst first. A hand-written pass rather than a comparator: a float
@@ -1133,44 +1102,20 @@ fn by_cost(table) {
     out
 }
 
-// One row per entry, worst first, with a bar as its share of the budget.
-// The same rows as `rows`, as strings for the `list` node: a name, its cost
-// and a bar drawn in blocks rather than a filled rect.
-fn log_rows(items, k, table, kind) {
+// One row per entry, worst first, with a bar as its share of the budget: a
+// number needs reading, a bar does not.
+fn cost_rows(items, k, table, kind) {
     for row in by_cost(table) {
-        let share = util::clamp(row.ms / BUDGET_MS, 0.0, 1.0);
-        let filled = util::i(share * 20.0);
-        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 20 - filled);
-        let line = "\u{1f}";
-        line += format!("{:<26}{:>9} ms  {}", row.name, fixed(row.ms, 3), bar);
-        line += "\u{1f}\u{1f}";
-        line += if row.ms > BUDGET_MS * 0.5 { k.accent } else if kind == "span" { k.sage } else { k.dim };
-        items.push(line);
-    }
-}
-
-fn rows(k, table, kind) {
-    for row in by_cost(table) {
-        let name = row.name;
-        let ms = row.ms;
-        let share = util::clamp(ms / BUDGET_MS, 0.0, 1.0);
-        ui::horizontal(#{ height: 20 }, || {
-            ui::add_space(12);
-            ui::horizontal(#{ height: 20, width: 132 }, || {
-                ui::label(name, style::mono_sm(if kind == "span" { k.sage } else { k.text }));
-            });
-            ui::horizontal(#{ height: 20, width: 68 }, || {
-                ui::label(fixed(ms, 3) + " ms", style::mono_sm(k.dim));
-            });
-            // The bar is the point: a number needs reading, a bar does not.
-            let width = util::max(1.0, share * 180.0);
-            ui::frame(#{
-                fill: if ms > BUDGET_MS * 0.5 { k.accent } else { k.sage },
-                radius: 3, padding_x: 0,
-            }, || {
-                ui::horizontal(#{ height: 8, width: width }, || {});
-            });
-        });
+        let tint = if row.ms > BUDGET_MS * 0.5 {
+            k.accent
+        } else if kind == "span" {
+            k.sage
+        } else {
+            k.dim
+        };
+        items.push(util::cells([
+            row.name, fixed(row.ms, 3) + " ms", bar(row.ms / BUDGET_MS), tint,
+        ]));
     }
 }
 
@@ -1215,26 +1160,9 @@ fn by_key(rows, key) {
 pub fn cost(S, k) {
     ui::request_repaint();
     let stats = util::obj(render::stats());
-    ui::add_space(8);
-    ui::horizontal((), || {
-        ui::add_space(12);
-        ui::label("FRAME", style::heading(k));
-        ui::add_space(8);
-        ui::label(format!("{} draws · {} triangles · {} in {} textures",
-            util::i(stats.get("draws").unwrap_or(0)),
-            util::i(stats.get("triangles").unwrap_or(0)),
-            bytes(util::f(stats.get("texture_bytes").unwrap_or(0))),
-            util::i(stats.get("textures").unwrap_or(0))),
-            style::mono(k.text));
-    });
-    ui::add_space(4);
-    ui::horizontal((), || {
-        ui::add_space(12);
-        ui::label(format!("pack · {}", pack_size(S)), style::mono_sm(k.faint));
-    });
-    ui::add_space(6);
     let nodes = util::vec(stats.get("nodes").unwrap_or([]));
     if nodes.len() == 0 {
+        hide_table();
         style::empty(k, "nothing is drawing");
         return;
     }
@@ -1242,46 +1170,21 @@ pub fn cost(S, k) {
     let items = [];
     for row in by_key(nodes, "triangles") {
         let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);
-        let filled = util::i(share * 16.0);
-        let bar = util::repeat("\u{2588}", filled) + util::repeat("\u{2591}", 16 - filled);
         let copies = util::i(row.copies);
-        let mark = if copies > 1 { format!("x{}", copies) } else { "" };
-        let line = "\u{1f}";
-        line += format!("{:<22}{:>10} tri {:>9}  {}  {}",
-            util::leaf(row.node), util::i(row.triangles),
-            bytes(util::f(row.texture_bytes)), bar, mark);
-        line += "\u{1f}\u{1f}" + k.dim;
-        items.push(line);
+        items.push(util::cells([
+            util::leaf(row.node),
+            format!("{} tri", util::i(row.triangles)),
+            bytes(util::f(row.texture_bytes)),
+            if copies > 1 { format!("x{}", copies) } else { "" },
+            bar(share),
+            k.dim,
+        ]));
     }
-    if show_log(items) {
-        return;
-    }
-    ui::scroll("cost", (), || {
-        for row in by_key(nodes, "triangles") {
-            let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);
-            ui::horizontal(#{ height: 20 }, || {
-                ui::add_space(12);
-                ui::horizontal(#{ height: 20, width: 150 }, || {
-                    ui::label(util::leaf(row.node), style::mono_sm(k.text));
-                });
-                ui::horizontal(#{ height: 20, width: 76 }, || {
-                    ui::label(format!("{} tri", util::i(row.triangles)), style::mono_sm(k.dim));
-                });
-                ui::horizontal(#{ height: 20, width: 62 }, || {
-                    ui::label(bytes(util::f(row.texture_bytes)), style::mono_sm(k.dim));
-                });
-                let copies = util::i(row.copies);
-                ui::horizontal(#{ height: 20, width: 46 }, || {
-                    if copies > 1 {
-                        ui::label(format!("x{}", copies), style::mono_sm(k.sage));
-                    }
-                });
-                ui::frame(#{ fill: k.sage, radius: 3, padding_x: 0 }, || {
-                    ui::horizontal(#{ height: 8, width: util::max(1.0, share * 150.0) }, || {});
-                });
-            });
-        }
-    });
+    show_table(
+        ["node", "triangles>", "textures>", "copies>", "share of the worst"],
+        ["2", "1", "1", "0.7", "1.6"],
+        items,
+    );
 }
 
 /// How big the last export was, or a line saying none has been made. The

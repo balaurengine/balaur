@@ -1,38 +1,46 @@
 # Plan: update channels
 
-`docs/RELEASING.md` describes the scheme this builds: the SemVer prerelease
+`docs/RELEASING.md` describes the scheme this built: the SemVer prerelease
 identifier in a version is the name of its channel, and each channel has a
-rolling tag pointing at its newest release. This file is the work.
+rolling tag pointing at its newest release.
 
 ## Where it stands
 
-`crates/balaur_cli/src/update.rs` has two cases in `asset_base`: a build whose
-version starts with `v` resolves to GitHub's `latest`, anything else to
-`nightly`. That is a channel model with two channels, one of which is
-unreachable while every release is a prerelease — `latest` answers 404, which
-is what `balaur update` does today on a tagged build.
+Built. A build reads its own channel out of its version, `--channel` crosses
+lines, a published release moves that line's pointer, and a failure says which
+channel it was on.
 
+| Piece | Where |
+| --- | --- |
+| The channel a version names, and how two versions order | `crates/balaur_cli/src/version.rs` |
+| `--channel`, `--tag`, `--allow-downgrade` | `crates/balaur_cli/src/update.rs` |
+| The pointer a published release moves | `scripts/move_channel.sh`, `.github/workflows/channel.yml` |
+| A prerelease version the workspace can hold | `scripts/bump_version.sh` |
+
+The channel release carries one asset. VERSION names the version release, and
+the archives come from there, so a channel costs one small file rather than a
+second copy of every download. `nightly` is the exception, because its VERSION
+names a build and not a tag; its assets stay on the `nightly` release.
+
+`balaur update` on a stable build still fails while no stable release exists.
 That failure is correct and stays. Nothing on the stable line exists to update
-to, and quietly handing somebody an alpha instead is worse than an error.
+to, and quietly handing somebody an alpha instead is worse than an error. It
+now names the channels that do have one.
 
-## What changes
+## What was decided
 
-1. **Read the channel out of the version.** `0.2.0-alpha.3` is the alpha line,
-   `0.2.0` is stable. `version::build_id()` already returns the string;
-   `asset_base` parses the prerelease identifier from it instead of testing
-   whether it begins with `v`.
-2. **Add `--channel`.** `balaur update --channel alpha` resolves against that
-   line rather than the build's own. `--tag` stays what it is, an escape hatch
-   for one exact release; `--channel` is the thing people will actually reach
-   for.
-3. **Publish a rolling tag per channel.** `scripts/draft_release.sh` already
-   moves `nightly`; a channel is the same move under a different name, done
-   when a release on that line is published. Then an update is a fetch of
-   `releases/download/<channel>/VERSION` — no API call, so no rate limit, and
-   no dependence on `latest`.
-4. **Say which channel a failure was on.** "no release on the stable channel"
-   rather than a bare 404, and name the channels that do have one, since the
-   fix is almost always `--channel alpha`.
+- **Downgrading is refused, not prompted.** `--channel stable` from
+  `0.2.0-alpha.3` onto a `0.1.0` release is a step back, and a prompt is a
+  question no CI job can answer. `--allow-downgrade` is the way through.
+- **A part bump off a prerelease refuses.** Whether `0.2.0-alpha.1` steps to
+  the next alpha or to the release it leads to is a judgement, so
+  `bump_version.sh --set` is how a prerelease moves.
+- **The channel's own tag is never moved.** Only its VERSION asset is
+  rewritten. A `GITHUB_TOKEN` may not tag a commit whose workflows differ from
+  the default branch, and nothing reads that tag's tree.
+- **The VS Code extension keeps a bare version.** The marketplace takes no
+  prerelease suffix, so `editors/code/package.json` carries the release the
+  workspace is working towards.
 
 ## What not to do
 
@@ -40,13 +48,12 @@ to, and quietly handing somebody an alpha instead is worse than an error.
 - **No channel stored on the machine.** The version already says what it is,
   and a stored channel is a second source of truth that goes stale the moment
   someone moves lines by hand.
-- **No new channel names.** `alpha`, `beta`, `rc`, `stable`, and `nightly`
-  which already exists. Anything else has to earn its way in.
+- **No new channel names.** `alpha`, `beta`, `rc`, `stable`, and `nightly`.
+  Anything else has to earn its way in, in `version.rs` and in
+  `move_channel.sh` alike.
 
-## Worth checking when this is picked up
+## What is left
 
-Whether `balaur update --channel stable` from an alpha build should refuse when
-the stable release is *older* than what is installed. Moving from
-`0.2.0-alpha.3` to `0.1.0` is a downgrade, and it is the one case where
-following the instruction literally is probably not what was meant. A prompt,
-or `--allow-downgrade`.
+Nothing, until the first prerelease is cut. The whole path from
+`bump_version.sh --set 0.2.0-alpha.1` to `balaur update --channel alpha` has
+never run against a real release, only against its parts.

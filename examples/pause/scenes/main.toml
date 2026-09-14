@@ -1,0 +1,77 @@
+# Pause, process modes and the time scale in one screen: the boxes fall, the
+# game pauses, and it runs again at a quarter speed. The heading, the marker
+# and the script driving them sit under a node whose `process` is `always`.
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_hud"
+name = "Hud"
+parent = "n_scene"
+# The one key this example is about: everything under this node runs whether
+# the game is paused or not.
+process = "always"
+
+[nodes.script]
+source = "scripts/driver.rn"
+
+[nodes.script.props]
+# Set when the manual's picture or clip is being taken; empty for a normal run.
+shot = ""
+frames = ""
+
+[[nodes]]
+body2d = { kind = "static" }
+id = "n_ground"
+name = "Ground"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, -2.6, 0.0]
+
+[nodes.collider2d]
+half_extents = [6.0, 0.3]
+kind = "rect"
+
+[nodes.shape2d]
+color = "#3c4753"
+half_extents = [6.0, 0.3]
+kind = "rect"
+
+[[nodes]]
+body2d = { kind = "static" }
+id = "n_wall_l"
+name = "WallL"
+parent = "n_scene"
+
+[nodes.transform]
+position = [-4.2, -0.3, 0.0]
+
+[nodes.collider2d]
+half_extents = [0.3, 2.6]
+kind = "rect"
+
+[nodes.shape2d]
+color = "#3c4753"
+half_extents = [0.3, 2.6]
+kind = "rect"
+
+[[nodes]]
+body2d = { kind = "static" }
+id = "n_wall_r"
+name = "WallR"
+parent = "n_scene"
+
+[nodes.transform]
+position = [4.2, -0.3, 0.0]
+
+[nodes.collider2d]
+half_extents = [0.3, 2.6]
+kind = "rect"
+
+[nodes.shape2d]
+color = "#3c4753"
+half_extents = [0.3, 2.6]
+kind = "rect"

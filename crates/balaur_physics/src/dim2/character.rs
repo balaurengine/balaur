@@ -15,10 +15,10 @@ use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::FIXED_DT;
 use crate::character::shared_character_schema;
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{self as v, component as c, keys as k, map};
+use balaur_core::fixed_dt;
 use glamx::EulerRot;
 
 pub struct Character2d(pub toml::Value);
@@ -60,7 +60,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
         let mut collisions = Vec::new();
         let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
-            scalar::real(FIXED_DT),
+            scalar::real(fixed_dt()),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -80,7 +80,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
                 filter,
             );
             controller.solve_character_collision_impulses(
-                scalar::real(FIXED_DT),
+                scalar::real(fixed_dt()),
                 &mut queries,
                 shape.as_ref(),
                 mass,

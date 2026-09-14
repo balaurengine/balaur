@@ -1,6 +1,6 @@
-// Drag to turn, wheel to pull back. The camera owns only its own place under
-// the pivot, so the rig works wherever the pivot is put and whatever it is
-// following. Angles are degrees, which is what the inspector shows.
+// Drag to turn, wheel to pull back. The node goes under a pivot: that parent
+// is what it orbits and what it looks at, so the rig works wherever the pivot
+// is put. Angles are degrees, which is what the inspector shows.
 
 pub fn exports() {
     #{
@@ -49,4 +49,9 @@ pub fn update(this, dt) {
         math::cos(yaw) * flat,
     ];
     this.node.transform.rotation_euler = [pitch, yaw, 0.0];
+    // A 3D camera is aimed by `camera.look_at` and never by the node's own
+    // rotation, so the pivot has to be named in world units. Without this the
+    // rig looks at the origin, which is only the pivot while it has not moved.
+    let at = this.node.parent().transform.global_position();
+    this.node.patch_component("camera", #{ look_at: [at.x, at.y, at.z] });
 }

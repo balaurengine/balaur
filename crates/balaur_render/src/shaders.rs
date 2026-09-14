@@ -37,10 +37,29 @@ pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
 /// importing it shades with GGX over the same lights `package::mesh` collects.
 pub(crate) static PBR: &str = include_str!("shaders/pbr.wesl");
 
+/// The geometry pass every 3D material draws before its colour one. The
+/// engine's own, not a project's: the pass wants the shape, not the paint.
+pub static PREPASS: &str = include_str!("shaders/prepass.wesl");
+
+/// The prepass as WGSL, for a material whose vertices do or do not carry a
+/// colour — the one thing that changes its vertex attributes.
+pub fn link_prepass(vertex_color: bool) -> Result<String> {
+    let linked = link(
+        &[("package::prepass", PREPASS)],
+        "package::prepass",
+        &[(crate::material::VERTEX_COLOR, vertex_color)],
+    )?;
+    Ok(wgsl(&linked))
+}
+
 /// What a channel view draws: one entry point per channel, chosen by feature.
 /// What a `camera.post` material imports: the frame, and the triangle that
 /// covers the screen with it.
 pub static POST: &str = include_str!("shaders/post.wesl");
+
+/// The finishing passes the engine ships as `camera.post` materials:
+/// vignette, chromatic aberration, grain and pixelation, one variant each.
+pub static FINISH: &str = include_str!("shaders/finish.wesl");
 
 pub static CHANNEL: &str = include_str!("shaders/channel.wesl");
 
@@ -253,6 +272,193 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_mesh_prepass_links_with_and_without_vertex_colours() {
+        for colours in [false, true] {
+            let wgsl = link_prepass(colours).expect("the engine's own shader must link");
+            assert!(wgsl.contains("fn vs_main"), "{wgsl}");
+            assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+            // The four targets the screen-space passes read.
+            assert!(wgsl.contains("@location(3)"), "{wgsl}");
+            assert_eq!(
+                wgsl.contains("vertex_tint"),
+                colours,
+                "the colour attribute belongs only to the variant that asked"
+            );
+        }
+    }
+
+    /// The prepass measures geometry, and a material's own values live in a
+    /// group it does not bind. Binding one would be a pipeline that cannot be
+    /// built from the material's layout.
+    #[test]
+    fn the_mesh_prepass_binds_only_the_frame_and_the_object() {
+        let wgsl = link_prepass(false).expect("the engine's own shader must link");
+        assert!(wgsl.contains("@group(0)"), "{wgsl}");
+        assert!(wgsl.contains("@group(1)"), "{wgsl}");
+        assert!(!wgsl.contains("@group(2)"), "{wgsl}");
+        assert!(!wgsl.contains("@group(3)"), "{wgsl}");
+    }
+
+    /// The equirectangular convention the fork builds its skies and probes in.
+    /// A direction that reads the wrong texel is a sky rotated or flipped, and
+    /// no test with a GPU in it would be cheap enough to catch that.
+    #[test]
+    fn a_direction_reads_the_environment_where_the_fork_wrote_it() {
+        let linked = surroundings();
+        let at = |x: f32, y: f32, z: f32| {
+            eval_floats(&linked, &format!("at(vec3<f32>({x:?}, {y:?}, {z:?}))")).unwrap()
+        };
+        let up = at(0.0, 1.0, 0.0);
+        assert!(up[1].abs() < 1e-5, "straight up is the top row: {up:?}");
+        let down = at(0.0, -1.0, 0.0);
+        assert!(
+            (down[1] - 1.0).abs() < 1e-5,
+            "straight down is the bottom row: {down:?}"
+        );
+        let front = at(1.0, 0.0, 0.0);
+        assert!(
+            (front[0] - 0.5).abs() < 1e-5 && (front[1] - 0.5).abs() < 1e-5,
+            "+x is the middle of the horizon: {front:?}"
+        );
+        let behind = at(-1.0, 0.0, 0.0);
+        assert!(
+            behind[0] < 1e-5 || (behind[0] - 1.0).abs() < 1e-5,
+            "-x is the seam, either edge of it: {behind:?}"
+        );
+    }
+
+    /// Reflections brighten at a glancing angle and a rough surface reflects
+    /// less than a smooth one. Both come out of `env_brdf`'s fit, and a sign
+    /// slipped in it would light every metal in the engine wrongly.
+    #[test]
+    fn the_environment_reflects_more_at_a_glance_and_less_when_rough() {
+        let linked = surroundings();
+        let brdf = |roughness: f32, ndotv: f32| {
+            eval_floats(&linked, &format!("reflected({roughness:?}, {ndotv:?})")).unwrap()[0]
+        };
+        let head_on = brdf(0.1, 1.0);
+        let glancing = brdf(0.1, 0.05);
+        assert!(
+            glancing > head_on,
+            "a glancing view reflects more: {glancing} vs {head_on}"
+        );
+        let smooth = brdf(0.05, 0.5);
+        let rough = brdf(0.9, 0.5);
+        assert!(
+            smooth > rough,
+            "a smooth surface reflects more than a rough one: {smooth} vs {rough}"
+        );
+    }
+
+    /// What `balaur import` writes for a glTF material links against the
+    /// contract, in every combination of maps the file may have named. The
+    /// shader lives in `balaur_core`, which has no linker; this is the only
+    /// place the two meet.
+    #[test]
+    fn the_imported_gltf_material_links_with_any_maps() {
+        for metallic_roughness in [false, true] {
+            for emissive in [false, true] {
+                let linked = link(
+                    &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
+                    "package::imported",
+                    &[
+                        ("metallic_roughness_map", metallic_roughness),
+                        ("emissive_map", emissive),
+                    ],
+                )
+                .unwrap_or_else(|why| {
+                    panic!("the imported material must link ({metallic_roughness}, {emissive}): {why:#}")
+                });
+                let wgsl = wgsl(&linked);
+                assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+                // Glass is a runtime branch on a constant, not a variant, so
+                // every combination carries the refraction path.
+                assert!(wgsl.contains("transmission"), "{wgsl}");
+            }
+        }
+    }
+
+    /// Each finishing pass links on its own, with one variant reaching the
+    /// entry point and the other three stripped.
+    #[test]
+    fn every_finishing_pass_links_to_one_variant() {
+        for name in crate::shape::words::FINISHES {
+            let features: Vec<(&str, bool)> = crate::shape::words::FINISHES
+                .iter()
+                .map(|other| (*other, other == name))
+                .collect();
+            let wgsl = link(&[("package::finish", FINISH)], "package::finish", &features)
+                .map_or_else(
+                    |why| panic!("the '{name}' pass must link: {why:#}"),
+                    |linked| wgsl(&linked),
+                );
+            assert!(wgsl.contains("fn fs_main"), "{name}: {wgsl}");
+            assert_eq!(
+                wgsl.matches("fn finish").count(),
+                1,
+                "{name} must leave one variant: {wgsl}"
+            );
+        }
+    }
+
+    /// Two variants at once is a shader with two `finish` functions, which is
+    /// a link error rather than a silent pick.
+    #[test]
+    fn two_finishing_passes_at_once_do_not_link() {
+        let features = [("vignette", true), ("grain", true)];
+        assert!(
+            link(&[("package::finish", FINISH)], "package::finish", &features).is_err(),
+            "one pass per material, or the entry point is ambiguous"
+        );
+    }
+
+    /// A model that mirrors a UV shell -- most of them, because it halves the
+    /// texture -- has the opposite handedness on one side. Taking the
+    /// bitangent as `cross(n, t)` gives both sides the same one, and the two
+    /// halves of a mirrored wall then light differently with a seam down the
+    /// join.
+    #[test]
+    fn a_mirrored_uv_shell_flips_the_bitangent() {
+        let linked = surroundings();
+        let axis = |column: i32, duv1: [f32; 2], duv2: [f32; 2]| {
+            let call = format!(
+                "frame_axis({column}, vec2<f32>({:?}, {:?}), vec2<f32>({:?}, {:?}))",
+                duv1[0], duv1[1], duv2[0], duv2[1]
+            );
+            eval_floats(&linked, &call).unwrap()
+        };
+        let plain = axis(1, [1.0, 0.0], [0.0, 1.0]);
+        let mirrored = axis(1, [1.0, 0.0], [0.0, -1.0]);
+        assert!(
+            (plain[1] - 1.0).abs() < 1e-5,
+            "v runs up on a plain shell: {plain:?}"
+        );
+        assert!(
+            (mirrored[1] + 1.0).abs() < 1e-5,
+            "and down on a mirrored one: {mirrored:?}"
+        );
+        // The tangent is what the old frame got right, so it must not move.
+        let across = axis(0, [1.0, 0.0], [0.0, -1.0]);
+        assert!((across[0] - 1.0).abs() < 1e-5, "{across:?}");
+    }
+
+    /// Degenerate UVs leave the geometric normal alone rather than dividing
+    /// by nothing and lighting the surface with a NaN.
+    #[test]
+    fn a_surface_with_no_uvs_keeps_the_normal_it_had() {
+        let linked = surroundings();
+        let call = "frame_axis(2, vec2<f32>(0.0, 0.0), vec2<f32>(0.0, 0.0))";
+        let normal = eval_floats(&linked, call).unwrap();
+        assert!((normal[2] - 1.0).abs() < 1e-5, "{normal:?}");
+        let tangent = eval_floats(
+            &linked,
+            "frame_axis(0, vec2<f32>(0.0, 0.0), vec2<f32>(0.0, 0.0))",
+        )
+        .unwrap();
+        assert!(tangent.iter().all(|v| v.abs() < 1e-5), "{tangent:?}");
+    }
+
+    #[test]
     fn the_skinning_shader_links() {
         let wgsl = link(
             &[("package::skinned_2d", SKINNED_2D)],
@@ -368,6 +574,54 @@ import package::mesh::{Light, contribution, VertexInput, VertexOutput, vertex};
     fn probe() -> wesl::CompileResult {
         link(&[("package::probe", PROBE)], "package::probe", &[])
             .expect("the probe shader must link")
+    }
+
+    /// The same trick for what a surface reads off its surroundings: linking
+    /// keeps only what an entry point reaches, so the helpers under test are
+    /// wrapped and called.
+    const SURROUNDINGS: &str = r"
+import package::mesh::{equirect_uv, tangent_frame, VertexInput, VertexOutput, vertex};
+import package::pbr::{env_brdf};
+
+@const fn at(d: vec3<f32>) -> vec2<f32> {
+    return equirect_uv(d);
+}
+
+@const fn reflected(roughness: f32, ndotv: f32) -> vec3<f32> {
+    return env_brdf(vec3<f32>(0.04, 0.04, 0.04), roughness, ndotv);
+}
+
+// A flat surface in the xy plane, with the UV derivatives handed in: the
+// tangent and the bitangent the frame solves for.
+@const fn frame_axis(column: i32, duv1: vec2<f32>, duv2: vec2<f32>) -> vec3<f32> {
+    let frame = tangent_frame(
+        vec3<f32>(0.0, 0.0, 1.0),
+        vec3<f32>(1.0, 0.0, 0.0),
+        vec3<f32>(0.0, 1.0, 0.0),
+        duv1,
+        duv2,
+    );
+    return frame[column];
+}
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    let uv = at(vec3<f32>(1.0, 0.0, 0.0));
+    let axis = frame_axis(1, vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0));
+    return vec4<f32>(reflected(0.5, 0.5) + vec3<f32>(uv, 0.0) + axis, 1.0);
+}
+";
+
+    fn surroundings() -> wesl::CompileResult {
+        link(
+            &[("package::surroundings", SURROUNDINGS)],
+            "package::surroundings",
+            &[],
+        )
+        .expect("the surroundings probe must link")
     }
 
     #[test]
