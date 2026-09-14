@@ -69,7 +69,10 @@ pub fn follow_screen(S, width, height) {
     let only_one = one_at_a_time(S);
     let tight = !crate::layout::three_fit(S);
     for side in ["left", "right", "bottom"] {
-        S.docks[side].shut = if side == "bottom" { only_one } else { only_one || tight };
+        // Into a local first: a field assigned a branch of the loop's own
+        // variables is the pitfall AGENTS.md names.
+        let fold = if side == "bottom" { only_one } else { only_one || tight };
+        S.docks[side].shut = fold;
     }
 }
 

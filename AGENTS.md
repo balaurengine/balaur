@@ -53,8 +53,9 @@ in the tree; a plain-comment block over three lines fails CI.
 
 `obj.field = a || b` (and `&&`) **overwrites `a`** when `a` is a local — the
 short-circuit result lands in the local's slot too. Parentheses do not help.
-Index targets (`arr[i] = a || b`) are affected; `let`, call arguments and `if`
-conditions are safe. Compute into a local first:
+Index targets (`arr[i] = a || b`) are affected, and so is a branch of an `if`
+expression assigned to a field; `let`, call arguments and `if` conditions are
+safe. Compute into a local first:
 
     let live = split || !document;
     S.viewport_live = live;
