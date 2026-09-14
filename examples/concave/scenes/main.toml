@@ -1,0 +1,94 @@
+# The same concave table twice. The left one's convex pieces meet edge to
+# edge; the right one's grow through the seams they share. A beam laid across
+# a seam stays wedged in the left one and is pushed clear of the right one.
+
+[[assets]]
+id = "table"
+type = "mesh"
+positions = [
+  [0.0, 0.0], [0.3, 0.0], [0.3, 1.0], [1.7, 1.0],
+  [1.7, 0.0], [2.0, 0.0], [2.0, 1.2], [0.0, 1.2],
+]
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[nodes.script]
+source = "scripts/pieces.rn"
+[nodes.script.props]
+# Set when the manual's picture is being taken; empty for a normal run.
+shot = ""
+
+[[nodes]]
+id = "n_plain"
+name = "Plain"
+parent = "n_scene"
+
+[nodes.transform]
+position = [-2.6, -0.6, 0.0]
+
+[nodes.polygon]
+mesh = "#table"
+color = [0.40, 0.36, 0.31, 1.0]
+
+[nodes.collider2d]
+kind = "convex_decomposition"
+mesh = "#table"
+overlap = 0.0
+
+[[nodes]]
+id = "n_grown"
+name = "Grown"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.6, -0.6, 0.0]
+
+[nodes.polygon]
+mesh = "#table"
+color = [0.40, 0.36, 0.31, 1.0]
+
+[nodes.collider2d]
+kind = "convex_decomposition"
+mesh = "#table"
+overlap = 0.9
+
+# Each beam starts inside its table, across the seam between a leg and the
+# top: the deep overlap a level, an animation or a script can hand the solver.
+# No gravity on them, so the only thing that moves one is the contact.
+[[nodes]]
+id = "n_beam_plain"
+name = "BeamPlain"
+parent = "n_scene"
+body2d = { kind = "dynamic", gravity_scale = 0.0 }
+
+[nodes.transform]
+position = [-2.35, 0.42, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.6, 0.02]
+color = [0.93, 0.84, 0.55, 1.0]
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [0.6, 0.02]
+
+[[nodes]]
+id = "n_beam_grown"
+name = "BeamGrown"
+parent = "n_scene"
+body2d = { kind = "dynamic", gravity_scale = 0.0 }
+
+[nodes.transform]
+position = [0.85, 0.42, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.6, 0.02]
+color = [0.93, 0.84, 0.55, 1.0]
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [0.6, 0.02]

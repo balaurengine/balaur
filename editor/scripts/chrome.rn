@@ -20,13 +20,30 @@ const BUTTON_PITCH = 29.0;
 const BLOCK_W = 87.0;
 // The theme switch and the command pill at the bar's right end.
 const THEME_W = 26.0;
+// The play triangle fills its em box where the pause bars and the stop square
+// sit inside theirs, so at one font size the three do not read as one set.
+const PLAY_SIZE = 11.0;
+const STEP_SIZE = 16.0;
 const CMD_W = 118.0;
 const CMD_W_COMPACT = 26.0;
 // One document tab, as the showcase's pointer estimates it.
 const TAB_W = 104.0;
 // The bar's own row, a step shorter in a small window.
 fn row_h(S) {
-    if S.compact { 26.0 } else { 30.0 }
+    if S.touchscreen { 33.0 } else if S.compact { 26.0 } else { 30.0 }
+}
+
+/// The tabs sit a little inside the bar where a cursor drives them. Under a
+/// finger everything in the bar is one height, so no two of them disagree.
+fn tab_h(S) {
+    if S.touchscreen { row_h(S) } else { row_h(S) - 4.0 }
+}
+
+/// An icon-only control is square, and states it: left to itself a button is
+/// as wide as its glyph plus the theme's side padding, which is a different
+/// width per glyph and squeezes the glyph off centre in a stated box.
+fn icon_w(S) {
+    row_h(S)
 }
 
 // The edited project's mark, when it ships one, else balaur's. A project
@@ -135,7 +152,7 @@ fn strip_spot(S, slot) {
 }
 
 // The strip beside the brand, which every control past it lives on.
-const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadStrip";
+const STRIP_NODE = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip";
 const BRAND_NODE = "Editor/Shell/Head/HeadRow/Brand";
 const STATUS_NODE = "Editor/Shell/Body/Centre/Bottom/Status";
 
@@ -158,7 +175,7 @@ pub fn top_bar(S) {
 // Everything on the bar past the brand, in the order it reads: the personas,
 // the open documents, then the split, and the right end after a spring.
 fn bar_controls(S, k) {
-    let h = row_h(S) - 4.0;
+    let h = tab_h(S);
     let out = [];
     for p in defs::personas() {
         let id = p.id;
@@ -204,14 +221,17 @@ fn bar_controls(S, k) {
         out.push(entry);
     }
     out.push(#{
-        kind: "button", height: row_h(S), width: THEME_W, role: "bar",
+        kind: "button", height: row_h(S), width: icon_w(S), padding_x: 0, role: "bar",
         text: "", icon: if k.dark { icons::ui("dark") } else { icons::ui("light") },
         tooltip: "Toggle theme",
         on: |_| { theme::set_dark(S, !k.dark); },
     });
+    let named = !S.compact;
     out.push(#{
         kind: "button", height: row_h(S), role: "bar",
-        text: if S.compact { "" } else { "Run a command" }, icon: icons::ui("search"),
+        width: if named { 0.0 } else { icon_w(S) },
+        padding_x: if named { -1.0 } else { 0.0 },
+        text: if named { "Run a command" } else { "" }, icon: icons::ui("search"),
         tooltip: "⌘K",
         on: |_| { shell::open_palette(S, ""); },
     });
@@ -289,13 +309,14 @@ fn transport_controls(S) {
     [
         #{
             kind: "button", text: "", icon: icons::ui("play"), height: row_h(S),
+            width: icon_w(S), padding_x: 0, icon_size: PLAY_SIZE,
             role: if S.playing { "transport_on" } else { "transport" },
             tooltip: if S.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
             on: |_| { shell::toggle_play(S); },
         },
         #{
             kind: "button", text: "", icon: icons::ui("pause"), disabled: !running,
-            height: row_h(S),
+            height: row_h(S), width: icon_w(S), padding_x: 0, icon_size: STEP_SIZE,
             role: if paused { "transport_on" } else { "transport" },
             tooltip: if !running {
                 "Run the scene first"
@@ -314,7 +335,8 @@ fn transport_controls(S) {
         },
         #{
             kind: "button", text: "", icon: icons::ui("stop"), disabled: !running,
-            height: row_h(S), role: "transport",
+            height: row_h(S), width: icon_w(S), padding_x: 0, icon_size: STEP_SIZE,
+            role: "transport",
             tooltip: if running { "Stop" } else { "Nothing is running" },
             on: |_| {
                 if replaying {

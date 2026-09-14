@@ -1,5 +1,6 @@
-> **Status:** steps 1 to 4 built 2026-09-13, with their tests; steps 5 to 7
-> are not started. Written the same day after an investigation of the editor
+> **Status:** steps 1 to 5 built 2026-09-13, with their tests. Step 6 and 7's
+> folding behaviour is built; what is left of them is the bottom bar, the dock
+> sheets and the scrollable strips, and §8 says where the last one stopped. Written the same day after an investigation of the editor
 > and a game's UI on a tablet and a phone, and of native platform UI, which §0
 > declines. A phone editor ships, and the class lines are `[ui]` settings
 > rather than constants. §3 is the surface, §4 the steps, and §7 records what
@@ -237,8 +238,9 @@ scene's, and `layout.rn` reads the class for what the tables cannot say.
 | --- | --- |
 | `wide`, `tall`, `pointer` | Today |
 | `touch` | The floor. Long press for context menus and tooltips. Gizmo handles at the floor's size. Two-finger pan and pinch on the stage, read from `input.pan()` and `input.pinch()` rather than the mouse. Every hover-only control gets a resting form. A drag in the outliner starts from a long press |
-| `medium` | The editor's compact mode, and one side dock at a time: opening one folds the other |
-| `narrow` | One sheet, the stage. The docks become a bar of tabs along the bottom; a tapped tab opens its dock as a sheet over the stage and a second tap closes it. The tool rail folds to one row above the bar. Dialogs fill the screen. The top bar keeps play and the palette |
+| `medium` | The editor's compact mode, both side docks folded away at the start, and an unfolded one taking half the screen |
+| `narrow` | All three docks folded at the start, and one at a time: unfolding one folds the other two. An unfolded dock takes the screen less a strip of the stage, which is the way back. The tool rail and the viewport's chips go with it, since a strip is somewhere to return to rather than somewhere to work |
+| `short` | The bottom dock folds as well, and the one-at-a-time rule applies: a phone on its side is wide enough to read a seam and too short to stack anything under the stage |
 | `short` | The bottom dock hides and the top bar folds as `narrow` does |
 
 A script on a phone is read and lightly edited; real editing wants a hardware
@@ -261,7 +263,7 @@ decision.
 | A typo in a class table | Planned: an error at load naming the key |
 | A theme that changes by class | Planned: `[<kind>.<class>]` in a `widget_theme` asset, beside `[<kind>.hover]` |
 | A setting that changes by class | Have, for the input class: `[override.touch.<table>]` through the tag. Not planned for width and height: a tag is a run's constant |
-| A touch target | Planned: the default theme's `touch` table sets `interact_size` and floors `Style::height` at 44 for interacting roles |
+| A touch target | Have, and not as a floor: the shell draws larger on a touch screen and the theme states a bigger box under `touch`, which grow a control's glyph and its bar with it. §9 says why a floor did not |
 | A fat scroll bar | Not planned: content drags, with inertia |
 | A tooltip under a finger | Planned: one helper over the six hover sites, opening on `long_touched` under touch |
 | A context menu under a finger | Have, in PLAN-widgets: `long_touched` opens `context`. Planned: `max_click_duration` from `[input] long_press_seconds` |
@@ -400,13 +402,220 @@ Two things the plan did not foresee:
   struct, so the class tables had to be put back into it or a save would drop
   what the scene was authored with.
 
-**Step 4, the floor and the finger.** Under `touch` every kind a finger has to
-hit takes a floor of 44 design pixels, and egui's own controls take it through
-`interact_size`, remembered rather than invented so a cursor's screen is left
-exactly as it was. `[input] long_press_seconds` reaches egui's
+**Step 4, the floor and the finger.** The floor was built as a minimum box on
+every kind a finger reaches, and on a real screen it was wrong. §9 says what
+replaced it. `[input] long_press_seconds` reaches egui's
 `max_click_duration` through the settings registry, so the widget layer's long
 press and the tick's are one number. `safe_area` on a root insets it by what a
 notch covers.
 
-What is left of step 4: the tooltip helper over the six `on_hover_*` sites, and
-a drag payload that starts from a long press.
+The tooltip helper took all seven `on_hover_*` sites. It times the hold itself
+rather than reading `Response::long_touched`, which egui sets only on a widget
+that senses a click: a tooltip's own rect senses hover, and giving it a click
+would take the press off the control under it.
+
+A drag payload that starts from a long press has nothing to start from yet.
+The widget layer has no payload seam; [PLAN-widgets.md](PLAN-widgets.md) has it
+at 0.5 under pickers and drag. The row moves there, and the rule it carries is
+that a finger's drag begins with a hold.
+
+**Step 5, the proof harness.** `balaur edit --size WIDTHxHEIGHT` replaces the
+constant framebuffer, and `--touch` on both `edit` and `run` sets the fact and
+the tag together, since a widget asks the fact for its floor and a setting asks
+the tag for its override. `scripts/uiaudit.sh` gained a second shooter and four
+shots, one per screen class, because a class is read from the framebuffer and
+the `scale:` state cannot stand in for it.
+
+What those four shots show, on the first run: a tablet at 834 by 1194 is a
+working editor, with a real viewport, taller rows and a reachable tool rail. A
+phone at 390 by 844 still draws all three docks side by side, so the viewport
+is a slit and the inspector is clipped. That is the layout step 7 is for, and
+it is now a picture rather than a prediction.
+
+## 8. The shells, as far as they are built
+
+The folding half of steps 6 and 7 is built, from the direction that a dock
+should start out of the way and open to something worth reading.
+
+- Both side docks start folded on every class but `wide`, and unfold again
+  when the screen grows back. Applied on the change, so a reader who opens one
+  keeps it until the screen itself changes.
+- Height folds them too, which the first build missed. A phone on its side is
+  844 design pixels wide, past the line a layout may spread out at, and 390
+  tall. It read `wide` and kept all three docks over a stage two centimetres
+  high. A screen that is `short` now folds the side docks and the bottom dock
+  both, and takes the one-at-a-time rule with it.
+- On `narrow`, unfolding one folds the other: there is room for the stage and
+  one sheet, and two would leave nothing between them.
+- An unfolded dock takes the screen less 56 design pixels on `narrow`, and
+  half the screen on `medium`. A dock somebody unfolded on purpose is one they
+  want to read, and a 220 pixel column of it on a phone is a list of truncated
+  words. The strip of stage that is left is the way back.
+- A start-up state that opens a dock survives the first fold, since it asked
+  before the screen had been read.
+
+The shots say it works: a phone gets the whole viewport, and the outliner it
+opens is the whole phone less the tool rail.
+
+**The strips scroll now.** The top bar and the three dock tab rows are each a
+`scroll` node around the pooled row, so they clip at their sheet's edge and
+drag sideways instead of drawing past it. Tab names keep their length: the
+truncation that put an ellipsis in every one of them was there because nothing
+shrank a button and a long row pushed the fold off the sheet.
+
+Two things had to be true first, and neither was obvious.
+
+- **A scroll states its own height.** The kind measures nothing on either
+  axis, so in a row it took the width its `grow` asked for and no height at
+  all, and everything inside it was clipped to nothing. That is what emptied
+  the top bar on the first attempt.
+- **What must stay reachable sits outside it.** A dock's fold and its panel's
+  own tools were at the end of the same strip as the tabs, so a scroll around
+  the lot would have dragged them away. The head is now a scrolling row of
+  tabs and a fixed tail beside it.
+
+`ui::scroll` also takes an `axis` of `horizontal`, `vertical` or `both`, for
+anything the editor draws itself rather than as nodes.
+
+## 9. Why the floor became a scale
+
+Built as §2 rule 4 said, a floor of 44 design pixels on every kind a finger
+reaches. The first screens of the editor under it were worse than the ones
+before, in three ways the rule could not see.
+
+- **It grew a box and not its contents.** A 26 pixel icon button became 44 and
+  kept its 14 pixel glyph, so the icon sat in a field of empty plate. Rows of
+  controls that used to match no longer did.
+- **It overflowed the bar holding it.** The shell's head row is 26 design
+  pixels tall and its buttons are its own height. Floored to 44, they drew
+  outside the bar.
+- **It made nothing easier to read.** Text, icons and spacing kept their
+  sizes, so a phone still showed desktop-sized type in taller boxes.
+
+The mechanism that does work is the one step 1 built. A scale grows every part
+of a control together, glyph and plate and the bar around it, which is what
+`set_zoom_factor` is for and what iOS and Android do with their own display
+scaling.
+
+So the target is reached by two things that already existed:
+
+- **The shell draws larger on a touch screen.** `scale_for_screen` returns at
+  least 1.35, above whatever the reader set. Not the 1.7 that 26 design pixels
+  would need alone: a phone is 390 points wide, and at 1.7 the shell has 229
+  to lay out in, which is less than its own chrome.
+- **The theme states a bigger box under `touch`.** `[roles.icon_button.touch]`
+  and its siblings ask for 33 design pixels, which at 1.35 is 44.5 points. The
+  scene's own bar carries a `touch` table beside them, so it grows with what it
+  holds. This is step 3's class table, used for the thing it was for.
+
+The editor's selftest measures a drawn control and asserts the points it
+covers, so the pair is checked together rather than either alone.
+
+Three inconsistencies in the editor's theme came out of the same screens, none
+of them to do with touch. The bar icons had boxes of 21, 26 and 28 and glyphs
+of 12 and 14, and the transport buttons were the only round controls in the
+shell. They are one box and one glyph now, and square.
+
+## 10. What the first screens under a finger were still getting wrong
+
+Four things, all of them the same shape: a number stated once for a cursor and
+read by something that had grown.
+
+- **The bar drew past its own edge.** Nothing clipped a strip, so a row longer
+  than its sheet painted over the window. §8 says what fixed it.
+- **The sheet holding the bar did not grow with it.** `Head` is 40 design
+  pixels with 5 inside each edge, which leaves its row 30. Its buttons are 33
+  where a finger reaches them, and the 3 pixels came off one side, which reads
+  as uneven padding. It carries a `touch` height now, as the rows inside it do.
+- **A tab was not a control a finger could pick.** `tab_h` answered 20 in a
+  compact window, so a phone drew the smallest thing on screen where it most
+  needs the largest. It answers 33 on a touch screen, and the tile centres its
+  two halves, which is why the close mark sat low.
+- **The close mark read as half the name beside it.** Its glyph draws well
+  inside its own box, so at the name's size it looked smaller than the text;
+  it is stated larger than the text rather than equal to it.
+
+One thing was not fixed. The play glyph fills more of its em box than the
+pause and stop glyphs do, so at one font size the three do not read as one
+set. That is the icon set's own proportion rather than a layout fault, and the
+fix is a size per glyph or a different set, not a rule.
+
+## 11. Three more, from the screens after that
+
+Each one the same seam again: a control or a strip that answered to a number
+meant for a cursor.
+
+- **A folded dock's handle was not an icon button.** It was built from the
+  zoom reading's tile and padding, 32 by 26, beside icon buttons that had
+  grown to 33 square. It takes the icon button's own size now, and the room
+  it reserves above the tool rail and at the head of the chip strip follows
+  it, so nothing it clears is measured twice.
+- **The tool rail pushed the axis pill sideways.** The rail is a column of
+  the centre, so the stage begins after it and the pill sat wherever the rail
+  ended. The rail stops well above the stage's foot, so the foot strip starts
+  at the rail's own left edge instead. A dock opening still moves it, which is
+  the only thing that should.
+- **The zoom reading was cut off at the plus.** Its frame states a width, and
+  the width was `50 + 6.6` a character, which is two 20 pixel pills and the
+  text. The pills are 28 where a finger reaches them, so the plus fell outside
+  the frame. The width is computed from the pill it actually draws.
+
+## 12. Measured, not eyeballed
+
+The screens after §11 were judged by eye and the eye was wrong about which
+controls disagreed, so the shell's own rects were printed instead. Three
+numbers came out of one bar: the persona tabs were 26 tall, the transport 30,
+and the theme toggle 26 wide against the transport's 38.
+
+None of it was the touch work. The bar has always drawn its tabs at
+`row_h - 4` and its trailing controls at `row_h`, and an icon-only button left
+to itself is as wide as its glyph plus the theme's side padding, which is a
+different width per glyph. A stated width with that padding still inside it
+squeezed the glyph off centre, which is why the theme toggle's moon sat high
+and left in its own box.
+
+So the bar states one height for everything in it, and an icon-only control
+states a square box and no side padding. Every one of them measures 33 by 33
+now, and the selftest asserts it: it walks the bar, the dock's tabs and its
+tail, takes the shortest rect any of them drew, and fails under 44 points.
+Measured off what was drawn, because a control's size comes from the theme,
+the widget that states one and the scale together, and only the rect answers
+for all three.
+
+Four more came out of the same print:
+
+- **The foot strip was 28 tall and its pills 28**, so the zoom reading lost
+  its bottom edge. The strip's height follows the pills now.
+- **The fold handles drew their glyph at 12** where the bar draws at 14.
+- **The output panel drew under an empty hatch of its own height.** The shared
+  hatch gives its room up to a canvas view that has a node, and a log has a
+  node too; it did not know that. The log is 123 tall where it was 62, and the
+  gap under the tabs is gone.
+- **The viewport's chip strip painted over what sat beside it.** It scrolls
+  sideways now, like the bars.
+
+## 13. One panel, and what goes with it
+
+A phone holds the stage and one sheet, so all three docks start folded and
+unfolding one folds the other two. The bottom dock is in the rule now: it was
+left out, and the class default then reopened it under whichever side panel
+had just been asked for.
+
+The tool rail and the viewport's chips follow the same question rather than a
+class of their own. They show when there is more than one panel's worth of
+room, which is one rule read off the same test the docks use: a strip of stage
+behind an unfolded sheet is the way back, and a rail over the whole of it
+leaves nothing to point at. The chips used to paint across the panel beside
+them, because the stage rect they are placed against is not settled when they
+are decided.
+
+Three sizing faults came out of the same screens, all in the editor's own
+chrome rather than in the engine:
+
+- **The fold in a dock's head was 22 wide** beside icon buttons of 33, and it
+  is the control somebody has to hit to get their panel back.
+- **The play glyph fills its em box** where the pause bars and the stop square
+  sit inside theirs, so one font size drew three different-looking controls.
+  The transport states a size per glyph, 11 for play against 16 for the other
+  two, which is the icon set's proportion answered rather than argued with.
+- **The dock hatch outlived its panel.** Covered in §12.

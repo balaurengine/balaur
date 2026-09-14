@@ -31,6 +31,17 @@ Written in Rust. One file to ship.
 - **Platforms** — Windows, macOS, Linux; iOS, Android and web cross-compiled in CI on every push.
 - **Export** — one self-contained binary per target: bytecode, scenes and assets fused onto the runtime.
 
+## Prerequisites
+
+[rustup](https://rustup.rs) (`rust-toolchain.toml` pins the version), a C and C++ compiler, and on Linux:
+
+```bash
+sudo apt-get install -y build-essential pkg-config libasound2-dev libudev-dev \
+  libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev libwayland-dev
+```
+
+Other platforms and distros: [Build from source](https://balaurengine.org/docs/building).
+
 ## Quickstart
 
 ```bash

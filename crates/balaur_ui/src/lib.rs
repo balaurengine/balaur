@@ -46,6 +46,15 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
 }
 
+/// The smallest a control may be where a finger is what reaches it, in the
+/// points a platform measures its own guidance in. Apple asks for 44 and
+/// Material for 48; 44 is the smaller promise both are met by.
+///
+/// Reached by the zoom rather than by a floor on each control. A floor grows
+/// a control's box without growing its glyph or the bar holding it, so the
+/// bar overflows and the icons stop matching; the zoom grows all three.
+pub const TOUCH_TARGET: f32 = 44.0;
+
 pub use immediate::{
     ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS,
 };
@@ -324,7 +333,6 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
     widget::theme::set_pass_classes(&widget::arena::active_classes(eng));
-    theme::apply_touch_floor(ctx);
     apply_long_press(eng, ctx);
     bridge::enter_pass(ctx, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is

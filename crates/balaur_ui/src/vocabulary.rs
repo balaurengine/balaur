@@ -188,7 +188,12 @@ pub(crate) mod keys {
     pub(crate) const LINE_HEIGHT: &str = "line_height";
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX: &str = "max";
+    pub(crate) const AXIS: &str = "axis";
+    pub(crate) const BOTH: &str = "both";
+    pub(crate) const HORIZONTAL: &str = "horizontal";
+    pub(crate) const VERTICAL: &str = "vertical";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
+    pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MENU: &str = "menu";
     pub(crate) const MENU_CLICK: &str = "menu_click";

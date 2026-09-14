@@ -187,10 +187,9 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
                 StrokeKind::Inside,
             );
         }
-        let response = match opts.string(k::TOOLTIP) {
-            Some(tip) => response.on_hover_text(tip),
-            None => response,
-        };
+        if let Some(text) = opts.str(k::TOOLTIP) {
+            crate::widget::theme::tip(&response, text);
+        }
         crate::immediate::layout::attach_menus(eng, &response, opts);
         Ok(response.clicked())
     })

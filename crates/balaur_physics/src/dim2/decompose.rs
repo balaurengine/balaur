@@ -63,14 +63,81 @@ pub(crate) fn grown(points: &[Vector2], pieces: &[Vec<u32>], overlap: f32) -> Ve
         .iter()
         .enumerate()
         .map(|(which, ring)| {
-            let mut out: Vec<Vector2> = Vec::with_capacity(ring.len());
-            for at in 0..ring.len() {
-                out.push(points[ring[at] as usize]);
-                out.extend(growth(points, pieces, &seams, (which, at), overlap));
-            }
-            tidied(&out)
+            let chains: Vec<Vec<Vector2>> = (0..ring.len())
+                .map(|at| growth(points, pieces, &seams, (which, at), overlap))
+                .collect();
+            kept(points, ring, &chains)
         })
         .collect()
+}
+
+/// A piece grows through as many of its seams as leave it convex, deepest
+/// first. Two seams facing different ways can each be sound alone and bulge
+/// past the polygon together, so each is kept only while the ring holds.
+fn kept(points: &[Vector2], ring: &[u32], chains: &[Vec<Vector2>]) -> Vec<Vector2> {
+    let mut order: Vec<usize> = (0..chains.len())
+        .filter(|&at| !chains[at].is_empty())
+        .collect();
+    order.sort_by(|&one, &other| {
+        gained(points, ring, chains, other)
+            .total_cmp(&gained(points, ring, chains, one))
+            .then(one.cmp(&other))
+    });
+    let mut keep = vec![false; chains.len()];
+    for at in order {
+        keep[at] = true;
+        if !convex_ring(&assembled(points, ring, chains, &keep)) {
+            keep[at] = false;
+        }
+    }
+    let out = assembled(points, ring, chains, &keep);
+    // The hull only drops the points an edge runs straight through, and is
+    // the shape itself once the ring is convex.
+    if convex_ring(&out) {
+        hull_of(&out)
+    } else {
+        out
+    }
+}
+
+/// The ring with the seams `keep` names replaced by what grew through them.
+fn assembled(
+    points: &[Vector2],
+    ring: &[u32],
+    chains: &[Vec<Vector2>],
+    keep: &[bool],
+) -> Vec<Vector2> {
+    let mut out: Vec<Vector2> = Vec::with_capacity(ring.len());
+    for at in 0..ring.len() {
+        out.push(points[ring[at] as usize]);
+        if keep[at] {
+            out.extend(chains[at].iter().copied());
+        }
+    }
+    out
+}
+
+/// Twice the area one seam's growth adds, for taking the deepest first.
+fn gained(points: &[Vector2], ring: &[u32], chains: &[Vec<Vector2>], at: usize) -> f32 {
+    let mut patch = vec![points[ring[at] as usize]];
+    patch.extend(chains[at].iter().copied());
+    patch.push(points[step(ring, at, 1) as usize]);
+    twice_area(&patch).abs()
+}
+
+/// Whether every corner turns the same way, measured as the sine of the turn
+/// so the answer does not move with the shape's size.
+fn convex_ring(ring: &[Vector2]) -> bool {
+    if ring.len() < 3 {
+        return false;
+    }
+    (0..ring.len()).all(|at| {
+        let here = ring[at];
+        let one = here - ring[(at + ring.len() - 1) % ring.len()];
+        let other = ring[(at + 1) % ring.len()] - here;
+        let scale = one.length() * other.length();
+        scale <= EPSILON || cross(one, other) / scale >= -1.0e-4
+    })
 }
 
 /// Where each directed edge lives, so the piece across a seam is one lookup:
@@ -235,15 +302,6 @@ fn hull_of(points: &[Vector2]) -> Vec<Vector2> {
         return points.to_vec();
     }
     convex_hull(points)
-}
-
-/// A grown ring with its repeated points dropped, through the hull that also
-/// drops the ones an edge runs straight through.
-fn tidied(ring: &[Vector2]) -> Vec<Vector2> {
-    if twice_area(ring).abs() <= EPSILON {
-        return ring.to_vec();
-    }
-    hull_of(ring)
 }
 
 fn cross(one: Vector2, other: Vector2) -> f32 {
@@ -512,5 +570,190 @@ mod tests {
             decompose_polygon(&table(), 0.9).unwrap(),
             decompose_polygon(&table(), 0.9).unwrap()
         );
+    }
+}
+
+#[cfg(test)]
+mod stress {
+    use super::{decompose_polygon, pieces as cut_pieces};
+    use crate::scalar::Vector2;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((self.0 >> 33) as f32) / ((1u64 << 31) as f32)
+        }
+    }
+
+    fn star(seed: u64, corners: usize, low: f32, high: f32) -> Vec<Vector2> {
+        let mut rng = Rng(seed);
+        (0..corners)
+            .map(|at| {
+                let angle = std::f32::consts::TAU * (at as f32) / (corners as f32);
+                let radius = low + rng.next() * (high - low);
+                Vector2::new(libm::cosf(angle) * radius, libm::sinf(angle) * radius)
+            })
+            .collect()
+    }
+
+    fn comb(teeth: usize) -> Vec<Vector2> {
+        let width = teeth as f32 * 2.0;
+        let mut out = vec![Vector2::new(0.0, 0.0)];
+        for tooth in 0..teeth {
+            let x = tooth as f32 * 2.0;
+            out.push(Vector2::new(x + 0.6, 0.0));
+            out.push(Vector2::new(x + 0.6, -2.0));
+            out.push(Vector2::new(x + 1.4, -2.0));
+            out.push(Vector2::new(x + 1.4, 0.0));
+        }
+        out.push(Vector2::new(width, 0.0));
+        out.push(Vector2::new(width, 1.0));
+        out.push(Vector2::new(0.0, 1.0));
+        out
+    }
+
+    fn zigzag(folds: usize) -> Vec<Vector2> {
+        let mut top = Vec::new();
+        let mut bottom = Vec::new();
+        for at in 0..=folds {
+            let x = at as f32;
+            let y = if at % 2 == 0 { 0.0 } else { 1.5 };
+            top.push(Vector2::new(x, y + 0.4));
+            bottom.push(Vector2::new(x, y));
+        }
+        bottom.reverse();
+        top.extend(bottom);
+        top
+    }
+
+    fn inside(ring: &[Vector2], point: Vector2) -> bool {
+        let mut hit = false;
+        let mut j = ring.len() - 1;
+        for i in 0..ring.len() {
+            let (a, b) = (ring[i], ring[j]);
+            if (a.y > point.y) != (b.y > point.y) {
+                let x = (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+                if point.x < x {
+                    hit = !hit;
+                }
+            }
+            j = i;
+        }
+        hit
+    }
+
+    fn near_edge(ring: &[Vector2], point: Vector2, skip: f32) -> bool {
+        (0..ring.len()).any(|at| {
+            let a = ring[at];
+            let edge = ring[(at + 1) % ring.len()] - a;
+            let len = edge.length_squared();
+            let t = if len <= 0.0 {
+                0.0
+            } else {
+                ((point - a).dot(edge) / len).clamp(0.0, 1.0)
+            };
+            (point - (a + edge * t)).length() < skip
+        })
+    }
+
+    fn convex(piece: &[Vector2]) -> bool {
+        (0..piece.len()).all(|at| {
+            let here = piece[at];
+            let one = here - piece[(at + piece.len() - 1) % piece.len()];
+            let other = piece[(at + 1) % piece.len()] - here;
+            one.x * other.y - one.y * other.x >= -1.0e-3
+        })
+    }
+
+    /// Every check one shape gets: convex pieces, and a collider that covers
+    /// the polygon and nothing else.
+    fn probe(name: &str, polygon: &[Vector2], overlap: f32) -> usize {
+        let grown = decompose_polygon(polygon, overlap).unwrap();
+        let ring: Vec<u32> = (0..polygon.len() as u32).collect();
+        let plain = cut_pieces(
+            polygon,
+            &balaur_core::triangulate::triangulate(polygon, &ring).unwrap(),
+        );
+        let bent = grown.iter().filter(|piece| !convex(piece)).count();
+
+        let mut low = Vector2::new(f32::MAX, f32::MAX);
+        let mut high = Vector2::new(f32::MIN, f32::MIN);
+        for point in polygon {
+            low = low.min(*point);
+            high = high.max(*point);
+        }
+        let span = high - low;
+        let (steps, skip) = (80usize, span.max_element() * 0.01);
+        let (mut tested, mut missing, mut extra, mut stacked) = (0, 0, 0, 0);
+        for ix in 0..steps {
+            for iy in 0..steps {
+                let point = Vector2::new(
+                    low.x + span.x * (ix as f32 + 0.5) / steps as f32,
+                    low.y + span.y * (iy as f32 + 0.5) / steps as f32,
+                );
+                if near_edge(polygon, point, skip) {
+                    continue;
+                }
+                tested += 1;
+                let want = inside(polygon, point);
+                let held = grown.iter().filter(|piece| inside(piece, point)).count();
+                if want && held == 0 {
+                    missing += 1;
+                }
+                if !want && held > 0 {
+                    extra += 1;
+                }
+                stacked = stacked.max(held);
+            }
+        }
+        assert_eq!(
+            (bent, missing, extra),
+            (0, 0, 0),
+            "{name}: {} points, {} pieces, {bent} bent, {missing} of {tested} samples uncovered, \
+             {extra} covered outside the polygon, worst stack {stacked}",
+            polygon.len(),
+            plain.len(),
+        );
+        stacked
+    }
+
+    /// The invariants on shapes nobody drew by hand: every piece convex, the
+    /// pieces covering the polygon, and none of them covering anything else.
+    #[test]
+    fn arbitrary_shapes_hold_up() {
+        let mut bad = 0;
+        for seed in 0..10u64 {
+            let corners = 6 + (seed as usize % 5) * 6;
+            bad += probe(
+                &format!("star {seed}/{corners}"),
+                &star(seed * 7919 + 13, corners, 0.35, 1.0),
+                0.9,
+            );
+        }
+        for teeth in [2usize, 4, 8, 16] {
+            bad += probe(&format!("comb {teeth}"), &comb(teeth), 0.9);
+        }
+        for folds in [3usize, 8, 20] {
+            bad += probe(&format!("zigzag {folds}"), &zigzag(folds), 0.9);
+        }
+        for overlap in [0.0f32, 0.25, 0.5, 1.0] {
+            bad += probe(
+                &format!("star @ {overlap}"),
+                &star(13, 18, 0.35, 1.0),
+                overlap,
+            );
+        }
+        for corners in [60usize, 120, 240] {
+            bad += probe(
+                &format!("star {corners}"),
+                &star(99, corners, 0.5, 1.0),
+                0.9,
+            );
+        }
+        assert!(bad > 0, "nothing was measured");
     }
 }

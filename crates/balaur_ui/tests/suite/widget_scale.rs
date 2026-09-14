@@ -189,46 +189,6 @@ mod classes {
         assert!(why.contains("kind"), "the error did not name the kind: {why}");
     }
 
-    /// What a finger has to be able to hit. Apple asks for 44 points and
-    /// Material for 48; a control that states less is raised to it, and one
-    /// that states more keeps what it states.
-    #[test]
-    fn a_control_a_finger_reaches_is_never_smaller_than_the_target() {
-        let size_of = |touch: bool, kind: &str| {
-            let (_dir, app) = app();
-            let widget = add_widget(
-                &app,
-                &toml::toml! { kind = kind text = "x" x = 0.0 y = 0.0 }.into(),
-            );
-            balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
-                facts.screen_size = [1200.0, 900.0];
-                facts.ui_scale = 1.0;
-            });
-            let mut platform = balaur_core::facts::platform(&app.engine);
-            platform.touchscreen = touch;
-            app.engine
-                .resource::<balaur_core::facts::Facts>()
-                .borrow_mut()
-                .0 = Some(platform);
-            let ctx = egui::Context::default();
-            settle(&app, &ctx);
-            balaur_ui::widget_rect(widget).expect("it drew").size()
-        };
-        let cursor = size_of(false, "button");
-        let finger = size_of(true, "button");
-        assert!(
-            cursor.y < 44.0,
-            "control: a cursor's button was already {cursor:?}"
-        );
-        assert!(
-            finger.x >= 43.0 && finger.y >= 43.0,
-            "a finger's button is {finger:?}, under the touch target"
-        );
-        // A label is read, not hit, so it keeps its own size.
-        let label = size_of(true, "label");
-        assert!(label.y < 44.0, "a label was grown to a touch target: {label:?}");
-    }
-
     /// A theme states what a finger needs beside what a cursor needs, and the
     /// screen picks. This is the seam the touch floor is built on.
     #[test]
@@ -273,6 +233,51 @@ mod classes {
             (finger - 44.0).abs() < 1.0,
             "the touch table did not apply: {finger}"
         );
+    }
+
+    /// A finger never hovers, so a tooltip a cursor rests for is one a phone
+    /// would otherwise never see. It opens on the hold and stays until the
+    /// finger lifts.
+    #[test]
+    fn a_held_finger_opens_the_tooltip_a_cursor_rests_for() {
+        use crate::support::{pass_at, touch};
+
+        let (_dir, app) = app();
+        add_widget(
+            &app,
+            &toml::toml! {
+                kind = "button" text = "ok" x = 0.0 y = 0.0
+                width = 80.0 height = 40.0 tooltip = "why"
+            }
+            .into(),
+        );
+        balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+            facts.screen_size = [390.0, 844.0];
+            facts.ui_scale = 1.0;
+        });
+        let mut platform = balaur_core::facts::platform(&app.engine);
+        platform.touchscreen = true;
+        app.engine
+            .resource::<balaur_core::facts::Facts>()
+            .borrow_mut()
+            .0 = Some(platform);
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let at = egui::pos2(40.0, 20.0);
+        let says_why = |out: &egui::FullOutput| {
+            out.shapes.iter().any(|s| match &s.shape {
+                egui::epaint::Shape::Text(text) => text.galley.text().contains("why"),
+                _ => false,
+            })
+        };
+        let down = pass_at(&app, &ctx, touch(at, true), Some(0.0));
+        assert!(!says_why(&down), "the tooltip opened on the touch, not the hold");
+        // Past egui's click length, which the project's long press sets.
+        pass_at(&app, &ctx, vec![], Some(1.0));
+        let held = pass_at(&app, &ctx, vec![], Some(1.1));
+        assert!(says_why(&held), "holding the finger did not open the tooltip");
+        let lifted = pass_at(&app, &ctx, touch(at, false), Some(1.2));
+        assert!(!says_why(&lifted), "the tooltip outlived the finger");
     }
 
     /// A notch covers the top of the screen whatever the layout wants, so a

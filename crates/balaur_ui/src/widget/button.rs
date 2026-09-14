@@ -211,12 +211,7 @@ pub(crate) fn button(
     let focused = at.focused;
     let face = face_of(ui, at, index, caption, font, &base);
     let pad_x = base.padding_x.unwrap_or(ui.spacing().button_padding.x);
-    // What the theme asks for, under what a finger has to be able to hit.
-    let reach = crate::widget::theme::kind_floor(&widget.kind);
-    let floor = vec2(
-        base.width.unwrap_or(0.0).max(reach),
-        base.height.unwrap_or(0.0).max(reach),
-    );
+    let floor = vec2(base.width.unwrap_or(0.0), base.height.unwrap_or(0.0));
     // The box the layout handed it too: a button in a column fills its width
     // rather than hugging its caption, as it does in Godot and in CSS.
     let given = crate::widget::arrange::box_of(&widget, at.assigned);

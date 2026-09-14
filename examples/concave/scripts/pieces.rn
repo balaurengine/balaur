@@ -1,0 +1,78 @@
+// What a `convex_decomposition` collider2d actually holds, drawn over the
+// body itself: convex pieces, each grown through the seams it shares.
+// Why: https://box2d.org/posts/2020/04/stuck-inside/
+
+const TABLE = [
+    [0.0, 0.0], [0.3, 0.0], [0.3, 1.0], [1.7, 1.0],
+    [1.7, 0.0], [2.0, 0.0], [2.0, 1.2], [0.0, 1.2],
+];
+
+// Where each table's node stands, so a piece comes back in world space.
+const PLAIN_AT = [-2.6, -0.6];
+const GROWN_AT = [0.6, -0.6];
+
+// One per piece, translucent: where two pieces cover the same ground the
+// tints stack, and that band is the overlap the seam gained.
+const TINTS = [
+    [0.88, 0.42, 0.28, 0.55],
+    [0.29, 0.56, 0.82, 0.55],
+    [0.37, 0.69, 0.54, 0.55],
+    [0.79, 0.63, 0.25, 0.55],
+];
+
+const EDGE = [1.0, 1.0, 1.0, 0.35];
+const INK = [0.93, 0.94, 0.96, 1.0];
+const FAINT = [0.62, 0.66, 0.72, 1.0];
+
+pub fn exports() {
+    #{ shot: "" }
+}
+
+pub fn init(this) {
+    this.frame = 0;
+    render::set_background(0.07, 0.08, 0.10);
+    render::set_camera_2d(0.0, 0.05, 250.0);
+}
+
+// The table's outline where that table stands, so the pieces come back in
+// world space and go straight to the renderer.
+fn table_at(at) {
+    let out = [];
+    for point in TABLE {
+        out.push([point[0] + at[0], point[1] + at[1]]);
+    }
+    out
+}
+
+fn draw_pieces(at, overlap) {
+    let cut = geometry2d::convex_decomposition(table_at(at), #{ overlap: overlap });
+    let which = 0;
+    for piece in cut {
+        render::draw_polygon_2d(piece, TINTS[which % TINTS.len()]);
+        render::draw_polyline_2d(piece, 1.5, EDGE);
+        which += 1;
+    }
+    cut.len()
+}
+
+fn label(x, y, text, size, color) {
+    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: "center" });
+}
+
+pub fn update(this, dt) {
+    let plain = draw_pieces(PLAIN_AT, 0.0);
+    let grown = draw_pieces(GROWN_AT, 0.9);
+
+    label(-1.6, 1.25, "overlap = 0", 26.0, INK);
+    label(1.6, 1.25, "overlap = 0.9", 26.0, INK);
+    label(-1.6, 0.95, `${plain} pieces, edge to edge`, 18.0, FAINT);
+    label(1.6, 0.95, `${grown} pieces, grown through the seams`, 18.0, FAINT);
+    label(-1.6, -1.15, "the beam stays wedged", 18.0, FAINT);
+    label(1.6, -1.15, "the beam is pushed out", 18.0, FAINT);
+
+    this.frame += 1;
+    // Late enough that both beams have settled where the solver leaves them.
+    if this.frame == 100 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+}

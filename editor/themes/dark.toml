@@ -143,13 +143,18 @@ color = "text"
 [roles.tab_close]
 height = 22
 radius = 4
-size = 12
+# Larger than the name beside it: the close glyph draws well inside its own
+# box, so at the name's size it reads as half of it.
+size = 17
 padding_x = 0
 color = "faint"
 
 [roles.tab_close.hover]
 fill = "raised"
 color = "text"
+
+[roles.tab_close.touch]
+height = 33
 
 [roles.navtab]
 height = 26
@@ -231,49 +236,67 @@ color = "text"
 fill = "accent_soft"
 
 [roles.icon_button]
-height = 21
-radius = 4
+d = 26
+radius = 6
 size = 14
-padding_x = 6
+padding_x = 0
 color = "dim"
 [roles.icon_button.hover]
 fill = "raised"
 color = "text"
 
+# A finger wants 44 points, and the shell draws at 1.35 on a touch screen.
+[roles.icon_button.touch]
+d = 33
+
 [roles.tool]
-d = 28
+d = 26
+radius = 6
 size = 14
 color = "dim"
 [roles.tool.hover]
 fill = "raised"
 color = "text"
 
+[roles.tool.touch]
+d = 33
+
 [roles.tool_on]
-d = 28
+d = 26
+radius = 6
 size = 14
 fill = "accent_soft"
 color = "accent"
 [roles.tool_on.hover]
 color = "text"
 
+[roles.tool_on.touch]
+d = 33
+
 [roles.transport]
 d = 26
+radius = 6
 size = 14
-round = true
 fill = "sunken"
 color = "dim"
 [roles.transport.hover]
 fill = "raised"
 color = "text"
 
+[roles.transport.touch]
+d = 33
+
 [roles.transport_on]
 d = 26
+radius = 6
 size = 14
-round = true
 fill = "accent_fill"
 color = "on_accent"
 [roles.transport_on.hover]
 fill = "accent"
+
+[roles.transport_on.touch]
+d = 33
 
 [roles.chip_quiet]
 height = 22

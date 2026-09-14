@@ -31,6 +31,22 @@ shot() { # shot <name> <project> <state>
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 
+# The shell at a stated framebuffer, and optionally as a screen a finger
+# reaches: what the width and input classes actually do to the layout.
+#   sized <name> <project> <WIDTHxHEIGHT> <state> [--touch]
+sized() {
+  if [ ${#only[@]} -gt 0 ]; then
+    local want n=0
+    for want in "${only[@]}"; do [ "$want" = "$1" ] && n=1; done
+    [ $n -eq 1 ] || return 0
+  fi
+  printf '%-24s ' "$1"
+  rm -f "$out/$1.png"
+  "$BALAUR_BIN" edit "$2" --editor "$editor" --offscreen --frames 110 \
+    --size "$3" ${5:-} --state "$4,shot=$out/$1.png" >"$out/$1.log" 2>&1
+  if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
+}
+
 # Offscreen means a frame really is drawn, which is the only place the
 # centre's layout assertions can run.
 check_layout() {
@@ -91,6 +107,14 @@ shot 29-narrow          examples/angrynerds "scene,select:Bird,scale:1.8"
 shot 30-narrower        examples/angrynerds "scene,select:Bird,scale:2.4"
 shot 26-docks-minimised examples/hello      "scene,select:Spinner,shut:left,shut:right"
 shot 27-docks-moved     examples/hello      "scene,select:Spinner,move:output:left,move:assets:right"
+
+# One per screen class, since a class is read from the framebuffer and a
+# scale cannot stand in for it: 390x844 is a phone upright, 844x390 the same
+# phone on its side, and 834x1194 a tablet. `--touch` is the input class.
+sized 38-class-wide    examples/hello "1920x1080" "scene,select:Spinner"
+sized 39-class-tablet  examples/hello "834x1194"  "scene,select:Spinner" --touch
+sized 40-class-narrow  examples/hello "390x844"   "scene,select:Spinner" --touch
+sized 41-class-short   examples/hello "844x390"   "scene,select:Spinner" --touch
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed: ${failed[*]}" >&2

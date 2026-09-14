@@ -36,6 +36,10 @@ text = ""
 height = 40
 padding = 5
 gap = 0
+# Its contents are 33 where a finger reaches them, and a sheet that kept 40
+# would leave them 30 and show the difference as one-sided padding.
+[nodes.widget.touch]
+height = 43
 
 # A panel stacks what is in it, so the bar's own direction is this row.
 [[nodes]]
@@ -60,14 +64,30 @@ role = "brand"
 tooltip = "Menu"
 height = 26
 gap = 0
+[nodes.widget.touch]
+height = 33
+
+# Longer than a narrow window, and than any window once enough documents are
+# open, so it clips and drags sideways rather than drawing past the bar. A
+# scroll measures nothing on either axis, so it states the bar's own height.
+[[nodes]]
+id = "head_scroll"
+name = "HeadScroll"
+parent = "head_row"
+[nodes.widget]
+kind = "scroll"
+grow = 1
+height = 26
+deadzone = 6
+[nodes.widget.touch]
+height = 33
 
 [[nodes]]
 id = "head_strip"
 name = "HeadStrip"
-parent = "head_row"
+parent = "head_scroll"
 [nodes.widget]
 kind = "row"
-grow = 1
 gap = 4
 align = "center"
 
@@ -113,14 +133,38 @@ parent = "left_sheet"
 kind = "row"
 height = 24
 gap = 3
+[nodes.widget.touch]
+height = 33
 
+# The tabs clip and drag sideways; the fold and the panel's own tools sit
+# outside the scroll, so they stay reachable however many tabs there are.
 [[nodes]]
 id = "left_tabs"
 name = "LeftTabs"
 parent = "left_head"
 [nodes.widget]
-kind = "row"
+kind = "scroll"
 grow = 1
+height = 24
+deadzone = 6
+[nodes.widget.touch]
+height = 33
+
+[[nodes]]
+id = "left_tabs_row"
+name = "LeftTabsRow"
+parent = "left_tabs"
+[nodes.widget]
+kind = "row"
+gap = 3
+align = "center"
+
+[[nodes]]
+id = "left_tail"
+name = "LeftTail"
+parent = "left_head"
+[nodes.widget]
+kind = "row"
 gap = 3
 align = "center"
 
@@ -201,14 +245,38 @@ parent = "right_sheet"
 kind = "row"
 height = 24
 gap = 3
+[nodes.widget.touch]
+height = 33
 
+# The tabs clip and drag sideways; the fold and the panel's own tools sit
+# outside the scroll, so they stay reachable however many tabs there are.
 [[nodes]]
 id = "right_tabs"
 name = "RightTabs"
 parent = "right_head"
 [nodes.widget]
-kind = "row"
+kind = "scroll"
 grow = 1
+height = 24
+deadzone = 6
+[nodes.widget.touch]
+height = 33
+
+[[nodes]]
+id = "right_tabs_row"
+name = "RightTabsRow"
+parent = "right_tabs"
+[nodes.widget]
+kind = "row"
+gap = 3
+align = "center"
+
+[[nodes]]
+id = "right_tail"
+name = "RightTail"
+parent = "right_head"
+[nodes.widget]
+kind = "row"
 gap = 3
 align = "center"
 
@@ -321,14 +389,38 @@ parent = "bottom"
 kind = "row"
 height = 24
 gap = 3
+[nodes.widget.touch]
+height = 33
 
+# The tabs clip and drag sideways; the fold and the panel's own tools sit
+# outside the scroll, so they stay reachable however many tabs there are.
 [[nodes]]
 id = "bottom_tabs"
 name = "BottomTabs"
 parent = "bottom_head"
 [nodes.widget]
-kind = "row"
+kind = "scroll"
 grow = 1
+height = 24
+deadzone = 6
+[nodes.widget.touch]
+height = 33
+
+[[nodes]]
+id = "bottom_tabs_row"
+name = "BottomTabsRow"
+parent = "bottom_tabs"
+[nodes.widget]
+kind = "row"
+gap = 3
+align = "center"
+
+[[nodes]]
+id = "bottom_tail"
+name = "BottomTail"
+parent = "bottom_head"
+[nodes.widget]
+kind = "row"
 gap = 3
 align = "center"
 

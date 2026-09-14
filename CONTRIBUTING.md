@@ -23,6 +23,9 @@ is what a pull request is held to.
 
 ## Before a pull request
 
+The toolchain and the per-platform packages a build needs are in `README.md`,
+and in full at <https://balaurengine.org/docs/building>.
+
 ```bash
 cargo check                     # the loop while writing
 scripts/precommit.sh --files    # fmt and the five lints that only read files

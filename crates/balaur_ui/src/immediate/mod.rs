@@ -685,7 +685,7 @@ pub(crate) fn left_pill(
             ui.available_width().max(40.0)
         }
     };
-    let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     // The box is measured before the state is known and painted after: a row
     // that grew under the pointer would push the rows below it down.
     let opts = &opts.in_state(response.hovered(), response.is_pointer_button_down_on());
@@ -761,8 +761,8 @@ pub(crate) fn left_pill(
             t_color,
         );
     }
-    if let Some(tip) = opts.string(k::TOOLTIP) {
-        response = response.on_hover_text(tip);
+    if let Some(text) = opts.str(k::TOOLTIP) {
+        crate::widget::theme::tip(&response, text);
     }
     crate::immediate::layout::attach_menus(eng, &response, opts);
     Ok(response.clicked())

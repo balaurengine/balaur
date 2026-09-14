@@ -317,10 +317,6 @@ fn pass_classes() -> (Vec<SmolStr>, u32) {
     PASS_CLASSES.with(|held| held.borrow().clone())
 }
 
-/// The smallest a control may be drawn where a finger is what reaches it, in
-/// design pixels. Apple asks for 44 points and Material for 48; 44 is the
-/// smaller promise and the one both sets of guidance are met by.
-pub(crate) const TOUCH_TARGET: f32 = 44.0;
 
 /// Whether a finger is what reaches this screen, as the pass settled it.
 pub(crate) fn pass_is_touch() -> bool {
@@ -332,30 +328,54 @@ pub(crate) fn pass_is_touch() -> bool {
     })
 }
 
-/// The floor a control of this kind takes, in design pixels: the touch target
-/// where a finger is what reaches it, and nothing at all where a cursor is.
+/// A tooltip a cursor gets by resting and a finger gets by holding.
 ///
-/// Only what a finger has to hit. A label, a panel and a picture keep their
-/// own size, and a container is as big as what it lays out.
-pub(crate) fn kind_floor(kind: &str) -> f32 {
-    let reached = matches!(
-        kind,
-        w::BUTTON
-            | w::CHECK
-            | w::DROPDOWN
-            | w::FIELD
-            | w::SLIDER
-            | w::DRAG_VALUE
-            | w::TAB
-            | w::FOLD
-            | w::COLOR
-    );
-    if reached && pass_is_touch() {
-        TOUCH_TARGET
-    } else {
-        0.0
+/// Touch has no hover: a finger that lands is a click, and egui hides a
+/// tooltip that a click preceded, so `on_hover_text` alone means a phone
+/// never sees one. Held open until the finger lifts, since a long press is
+/// one frame and a tooltip nobody can read is not one.
+pub(crate) fn tip(response: &egui::Response, text: &str) {
+    if text.is_empty() {
+        return;
     }
+    if !pass_is_touch() {
+        response.clone().on_hover_text(text.to_owned());
+        return;
+    }
+    // Timed here rather than taken from `Response::long_touched`, which egui
+    // only sets on a widget that senses a click: a tooltip's own rect senses
+    // hover, and giving it a click would take the press off the control.
+    let (down, now) = response.ctx.input(|i| (i.pointer.any_down(), i.time));
+    let length = response
+        .ctx
+        .options(|options| options.input_options.max_click_duration);
+    let over = response.contains_pointer();
+    HELD_TIP.with(|held| {
+        let mut held = held.borrow_mut();
+        if !down || !over {
+            if held.is_some_and(|(id, _)| id == response.id) {
+                *held = None;
+            }
+            return;
+        }
+        let (_, since) = *held.get_or_insert((response.id, now));
+        if held.is_some_and(|(id, _)| id != response.id) {
+            *held = Some((response.id, now));
+            return;
+        }
+        if now - since >= length {
+            response.show_tooltip_text(text.to_owned());
+        }
+    });
 }
+
+thread_local! {
+    /// The widget a finger is resting on, and when it landed. One at a time,
+    /// because one finger drives the pointer.
+    static HELD_TIP: std::cell::RefCell<Option<(egui::Id, f64)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
 
 /// One `[kind]` or `[roles.name]` table as a style, with its own `hover` and
 /// `active` sub-tables read as styles over it.

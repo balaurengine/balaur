@@ -1,4 +1,4 @@
-> **Status:** built 2026-09-13, bar the showcase clip the site's card wants.
+> **Status:** built 2026-09-13, with its example, picture and post.
 > Written for 0.2 after
 > Erin Catto's [Stuck Inside](https://box2d.org/posts/2020/04/stuck-inside/):
 > a concave body cut into convex pieces leaves seams a thin body wedges into,
@@ -79,7 +79,16 @@ each internal edge e = (a, b) with neighbour Q:
 
 Every piece grows across every internal edge it has, clipping against the
 *original* pieces, never grown ones, so the result is the same whatever the
-iteration order and the digest agrees across platforms. What falls out:
+iteration order and the digest agrees across platforms.
+
+A piece with several seams takes them deepest first and keeps each only while
+the whole ring stays convex. Two seams facing different ways can each be
+sound alone and bulge past the polygon together: the ring is the union's own
+boundary, so a convex ring is the union and a bulge shows up as a reflex
+corner. Without that gate a spiky outline grew a few percent of its area into
+open space, which `arbitrary_shapes_hold_up` now samples for.
+
+What falls out:
 
 - The table top does not grow into the legs: its edges either side of the
   seam are collinear with it, the strip has no width, nothing is added.
@@ -158,10 +167,13 @@ All built on 2026-09-13 except the clip in step 6.
 5. **The importer** — built. `collision_polygon` and the
    `ConcavePolygonShape2D` arm, with a table, a rail and a bank in the
    fixture scene and a test over all three.
-6. **Something to look at** — the example is built: `examples/angrynerds`
-   has one concave `Table` body where two columns and a plank stood, and the
-   tower still stands after five seconds. The showcase clip the site's card
-   needs is open (`scripts/showcase.sh`).
+6. **Something to look at** — built. `examples/concave` stands the same
+   table twice, plain pieces beside grown ones, and draws what the collider
+   holds over each through `geometry2d.convex_decomposition`; a beam laid
+   across a seam stays wedged in the left one and rests clear of the right.
+   `scripts/showcase.sh` takes its picture as `concave_pieces`, the site's
+   card and the post carry it, and `examples/angrynerds` has one concave
+   `Table` body where two columns and a plank stood.
 
 ## What not to do
 
@@ -188,3 +200,26 @@ All built on 2026-09-13 except the clip in step 6.
   `geometry2d.convex_decomposition` exists to draw from.
 - Whether `overlap` wants to be per seam for a hand-tuned body, or whether
   a script editing the pieces covers that.
+- **What it costs where it is used.** Measured 2026-09-14 on a 240-point
+  star, one small box tested against the collider at 19 600 placements:
+  `trimesh` 118 ns, `polyline` 157 ns, `convex_hull` 199 ns,
+  `convex_decomposition` 187 ns at `overlap = 0` and 367 ns at 0.9. So the
+  growth roughly doubles the narrow phase, and the kind is about three times
+  a trimesh. Stepping 200 dynamic boxes on it costs 69 µs a step for a
+  trimesh and 431 µs for the grown decomposition.
+
+  The same run says what that buys. A beam started inside the table is still
+  inside after four seconds against a `trimesh`, a `polyline` or the plain
+  pieces, and clear of it against the grown ones. A `convex_hull` also clears
+  it, by filling the gap under the table in. So static geometry a body only
+  ever touches from outside is cheaper as a trimesh; static geometry a body
+  can end up inside of, by spawning, teleporting or tunnelling, is what this
+  kind is for.
+- **How many pieces may cover one point.** `overlap` scales each piece's
+  depth, not how many of them meet. On a hand-drawn outline the worst stack
+  is two or three; on a 240-tooth gear, where 137 thin wedges all reach the
+  middle, it is 80, and a body there raises a manifold against each. An
+  absolute cap on growth depth would bound it where a fraction cannot.
+  Growing only the deeper side of each seam was measured and does not help:
+  80 stays 80, because the stack comes from many pieces converging rather
+  than from both sides of one seam.

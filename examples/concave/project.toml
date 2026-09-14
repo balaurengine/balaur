@@ -1,0 +1,3 @@
+[application]
+name = "concave"
+main_scene = "scenes/main.toml"

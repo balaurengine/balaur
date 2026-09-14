@@ -799,7 +799,7 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
     let id = egui::Id::new(("balaur-tip", entity));
     let response = ui.interact(rect, id, egui::Sense::hover());
     if ui.is_enabled() {
-        response.on_hover_text(tooltip);
+        crate::widget::theme::tip(&response, tooltip);
     } else {
         response.on_disabled_hover_text(tooltip);
     }

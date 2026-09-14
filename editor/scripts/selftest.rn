@@ -1117,6 +1117,10 @@ pub fn layout_step(S) {
     check(stage.w > S.screen_w * 0.35 && stage.h > S.screen_h * 0.4,
         format!("the stage is most of the window ({} × {})", stage.w as i64, stage.h as i64));
     check(!overlapping(crate::layout::sheets(S)), "no two sheets overlap");
+    // A finger wants 44 points. Delivered by the theme stating a bigger box
+    // under `touch` and the shell drawing larger, not by a floor on each
+    // control: a floor grew the box and left the glyph and its bar behind.
+    check_touch_targets(S);
     check(!crate::layout::over_sheet(S, stage.x + stage.w / 2.0, stage.y + stage.h / 2.0),
         "the middle of the stage belongs to the scene");
     check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
@@ -1138,6 +1142,47 @@ pub fn layout_step(S) {
 }
 
 // Sheets may abut, never overlap: an overlap is a rect two owners believe in.
+/// Every control a finger picks clears the target it has to.
+///
+/// Measured off what was drawn rather than off what the theme states: a
+/// control takes its size from the theme, the widget that states one, and the
+/// scale, and only the rect it ends up with answers for all three.
+fn check_touch_targets(S) {
+    if !S.touchscreen {
+        return;
+    }
+    let smallest = 1000.0;
+    let where = "";
+    for path in [
+        "Editor/Shell/Head/HeadRow/Brand",
+        "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTabs/BottomTabsRow",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTail",
+    ] {
+        let node = scene::get_node(path);
+        if util::is_nil(node) {
+            continue;
+        }
+        let boxes = [ui::widget_rect(node)];
+        for kid in node.children() {
+            boxes.push(ui::widget_rect(kid));
+        }
+        for r in boxes {
+            if util::is_nil(r) || r.h <= 0.0 {
+                continue;
+            }
+            let points = r.h * S.ui_scale;
+            if points < smallest {
+                smallest = points;
+                where = path;
+            }
+        }
+    }
+    check(smallest >= 44.0,
+        format!("every control a finger picks clears 44 points (smallest {} in {})",
+            smallest as i64, where));
+}
+
 fn overlapping(rects) {
     for (i, a) in rects.iter().enumerate() {
         for j in (i + 1)..rects.len() {

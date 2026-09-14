@@ -419,9 +419,7 @@ fn card(
         text,
         color,
     );
-    if !trailing.is_empty() {
-        response.clone().on_hover_text(trailing);
-    }
+    crate::widget::theme::tip(&response, trailing);
     response.clicked()
 }
 

@@ -67,6 +67,10 @@ enum Command {
         /// frame time: the mode a replay or a networked peer reproduces.
         #[arg(long)]
         fixed_tick: bool,
+        /// Run as if a finger reached the screen: the `touch` tag, the touch
+        /// target floor, and a long press where a hover was.
+        #[arg(long)]
+        touch: bool,
         /// Write one `<tick> <digest>` line per frame. Two runs whose traces
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
@@ -232,6 +236,16 @@ enum Command {
         /// "light", "play"), mirroring the design prototype's startPersona.
         #[arg(long)]
         state: Option<String>,
+        /// The offscreen framebuffer, as `WIDTHxHEIGHT` in physical pixels.
+        /// What renders the shell at a phone's or a tablet's size, so the
+        /// layout every screen class gets is a picture CI can compare.
+        #[arg(long, value_name = "WIDTHxHEIGHT")]
+        size: Option<String>,
+        /// Run as if a finger reached the screen: the `touch` tag, the touch
+        /// target floor, and a long press where a hover was. What proves the
+        /// touch half without a phone.
+        #[arg(long)]
+        touch: bool,
         /// Print what each frame cost when the editor closes. The editor's
         /// own shell is most of a frame, so this is how a slow one is read.
         #[arg(long)]
@@ -387,6 +401,7 @@ fn dispatch(command: Command) -> Result<()> {
             frames,
             offscreen,
             fixed_tick,
+            touch,
             trace_digest,
             timings,
             record,
@@ -399,6 +414,7 @@ fn dispatch(command: Command) -> Result<()> {
             display: Display::of(headless, offscreen),
             frames,
             fixed_tick,
+            touch,
             trace_digest,
             timings,
             record,
@@ -417,8 +433,10 @@ fn dispatch(command: Command) -> Result<()> {
             frames,
             offscreen,
             state,
+            size,
+            touch,
             timings,
-        } => edit_project(&path, editor, frames, offscreen, state, timings),
+        } => edit_project(&path, editor, frames, offscreen, state, size, touch, timings),
         Command::Export {
             path,
             output,
@@ -518,6 +536,7 @@ struct RunOpts {
     display: Display,
     frames: Option<u64>,
     fixed_tick: bool,
+    touch: bool,
     trace_digest: Option<PathBuf>,
     timings: bool,
     record: Option<PathBuf>,
@@ -635,6 +654,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         display,
         frames,
         fixed_tick,
+        touch,
         trace_digest,
         timings: _,
         record,
@@ -664,6 +684,9 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         facts.dark_mode = balaur::render::dark_mode();
     });
     app.load_project()?;
+    if *touch {
+        pretend_touchscreen(&app);
+    }
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
     }
@@ -740,6 +763,45 @@ fn exit_with(code: i32) {
 /// `window/width` and `window/height` instead.
 const OFFSCREEN_SIZE: (u32, u32) = (1920, 1080);
 
+/// Answer as a screen a finger reaches, on a machine with no such screen.
+///
+/// The fact and the tag together, because they are read by different halves:
+/// a widget asks the fact for its touch floor, and a setting asks the tag for
+/// `[override.touch]`. Set once the project is loaded and before the first
+/// tick, which is where the recording takes its header from.
+fn pretend_touchscreen(app: &balaur_core::App) {
+    let mut facts = balaur_core::facts::platform(&app.engine);
+    facts.touchscreen = true;
+    app.engine
+        .resource::<balaur_core::facts::Facts>()
+        .borrow_mut()
+        .0 = Some(facts);
+    app.engine
+        .resource::<balaur_core::tags::Tags>()
+        .borrow_mut()
+        .set_input_class(true);
+}
+
+/// `WIDTHxHEIGHT` as the framebuffer to render offscreen into, or the
+/// default where nothing asked. A size the shell cannot draw in is the
+/// caller's to choose: the point of the flag is to see what it does.
+fn offscreen_size(asked: Option<&str>) -> Result<(u32, u32)> {
+    let Some(text) = asked else {
+        return Ok(OFFSCREEN_SIZE);
+    };
+    let (wide, tall) = text
+        .split_once(['x', 'X'])
+        .ok_or_else(|| anyhow::anyhow!("--size wants WIDTHxHEIGHT, as in 390x844: got {text}"))?;
+    let read = |part: &str, which: &str| {
+        part.trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(|| anyhow::anyhow!("--size {which} is not a size: {part}"))
+    };
+    Ok((read(wide, "width")?, read(tall, "height")?))
+}
+
 /// A canonical path the rest of the engine can join to with `/`.
 ///
 /// Windows' canonical form is a `\\?\` UNC path, which turns *off* path
@@ -759,6 +821,8 @@ fn edit_project(
     frames: Option<u64>,
     offscreen: bool,
     state: Option<String>,
+    size: Option<String>,
+    touch: bool,
     timings: bool,
 ) -> Result<()> {
     let game = joinable(
@@ -800,6 +864,9 @@ fn edit_project(
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
     app.load_project()?;
+    if touch {
+        pretend_touchscreen(&app);
+    }
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]
@@ -816,7 +883,8 @@ fn edit_project(
     // Registered last, so the frame it folds in is the whole frame.
     let log = timings.then(|| log_timings(&mut app));
     let ran = if offscreen {
-        balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+        let (wide, tall) = offscreen_size(size.as_deref())?;
+        balaur::run_offscreen(app, "balaur editor", wide, tall)
     } else {
         balaur::run(app, "balaur editor")
     };

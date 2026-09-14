@@ -346,7 +346,7 @@ fn spans(
             id,
             egui::Sense::hover(),
         );
-        over.on_hover_text(hint);
+        crate::widget::theme::tip(&over, hint);
     }
     let Some(target) = quad.link.and_then(|i| shaped.links.get(i as usize)) else {
         return;

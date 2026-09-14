@@ -80,7 +80,18 @@ pub fn init(this) {
         palette_submit: false,
         chip_state: #{},
         compact: false,
+        // Empty until the first frame reads the screen, so whatever class it
+        // turns out to be is a change and folds the docks accordingly.
+        width_class: "",
+        height_class: "",
         ui_scale: 1.25,
+        // What the reader set, kept apart from what the screen makes of it:
+        // a touch screen draws larger without moving the setting.
+        asked_scale: 1.25,
+        // Read on the first frame rather than at init: a host that says the
+        // screen takes a finger says so after the project has loaded.
+        touchscreen: false,
+        platform_read: false,
         script_buffers: #{},
         schemas: #{},
         expects: #{},
@@ -122,6 +133,9 @@ pub fn init(this) {
         screen_h: 800.0,
         viewport: #{ x: 322.0, y: 112.0, w: 640.0, h: 482.0, at: 0 },
         rail_visible: false,
+        // Whether the stage is worth labelling: a strip of it behind an
+        // unfolded panel is the way back, not a viewport.
+        stage_chrome: true,
         rail_shut: false,
         fontdemo: false,
         menu_open: false,
@@ -298,7 +312,7 @@ pub fn update(this, dt) {
     let widgets_on = (S.playing || S.persona == "ui") && S.viewport_live;
     // Inset by the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
-    let band = if widgets_on { center::HUD_H + 6.0 } else { 0.0 };
+    let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
     // The shell is on its own surface, declared rather than assumed: an
     // unconfigured layer takes the default one, and the default is off
@@ -366,6 +380,15 @@ pub fn draw_ui(this) {
     // window asks for it whatever the setting says.
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
+    if !S.platform_read {
+        S.platform_read = true;
+        S.touchscreen = engine::platform().touchscreen;
+    }
+    docks::follow_screen(S, ui::width_class(), ui::height_class());
+    let want = shell::scale_for_screen(S);
+    if util::f(math::abs(S.ui_scale - want)) > 0.001 {
+        shell::set_ui_scale(S, want);
+    }
 
     // The popup owns the arrows, Tab, Enter and Escape while it is open, so
     // the shell's own keys do not fire under it.
@@ -401,10 +424,10 @@ pub fn draw_ui(this) {
         shell::toggle_split(S);
     }
     if ui::shortcut("cmd+equals") {
-        shell::set_ui_scale(S, S.ui_scale + 0.125);
+        shell::ask_ui_scale(S, S.ui_scale + 0.125);
     }
     if ui::shortcut("cmd+minus") {
-        shell::set_ui_scale(S, S.ui_scale - 0.125);
+        shell::ask_ui_scale(S, S.ui_scale - 0.125);
     }
     if ui::shortcut("cmd+comma") {
         settings::open(S);

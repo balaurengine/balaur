@@ -115,8 +115,8 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
                     if clicked {
                         response = response.on_hover_cursor(CursorIcon::PointingHand);
                     }
-                    if let Some(tip) = tip {
-                        response.clone().on_hover_text(tip);
+                    if let Some(text) = tip {
+                        crate::widget::theme::tip(&response, &text);
                     }
                     attach_menus(eng, &response, &opts);
                 }
@@ -131,9 +131,29 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.scroll`, spacing and separators.
+/// The area a `ui.scroll` or a `ui.list` opens: which ways it scrolls, and
+/// what caps it. A strip of tabs wider than its dock is why sideways exists.
+fn scroll_area(id: String, opts: &Opts) -> egui::ScrollArea {
+    let axis = opts.str(k::AXIS).unwrap_or(k::VERTICAL);
+    let sideways = matches!(axis, k::HORIZONTAL | k::BOTH);
+    let downwards = matches!(axis, k::VERTICAL | k::BOTH);
+    let mut area = egui::ScrollArea::new([sideways, downwards])
+        .id_salt(id)
+        .auto_shrink([false, false]);
+    let max_h = opts.px(k::MAX_HEIGHT, 0.0);
+    if max_h > 0.0 {
+        area = area.max_height(max_h);
+    }
+    let max_w = opts.px(k::MAX_WIDTH, 0.0);
+    if max_w > 0.0 {
+        area = area.max_width(max_w);
+    }
+    area
+}
+
 pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("scroll", &[], "", "Put the callback in a vertical scroll area; `max_height` caps it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels down."),
+        ("scroll", &[], "", "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels along."),
         ("list", &[], "(id, opts, count, |i|)", "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels."),
         ("add_space", &[], "", "Insert blank space along the current layout, in design pixels."),
         ("separator", &[], "", "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
@@ -145,13 +165,9 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
-                let mut area = egui::ScrollArea::vertical()
-                    .id_salt(id)
-                    .auto_shrink([false, false]);
-                let max_h = opts.px(k::MAX_HEIGHT, 0.0);
-                if max_h > 0.0 {
-                    area = area.max_height(max_h);
-                }
+                // A strip of tabs wider than its dock is the reason sideways
+                // exists: a finger drags along it to reach the rest.
+                let mut area = scroll_area(id, &opts);
                 // A log follows what is arriving unless the reader has scrolled
                 // away from the end, which egui tracks for us.
                 if opts.boolean(k::STICK_TO_BOTTOM, false) {
@@ -161,7 +177,11 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 // offset where the reader last left it.
                 let offset = opts.px(k::OFFSET, -1.0);
                 if offset >= 0.0 {
-                    area = area.vertical_scroll_offset(offset);
+                    area = if opts.str(k::AXIS) == Some(k::HORIZONTAL) {
+                        area.horizontal_scroll_offset(offset)
+                    } else {
+                        area.vertical_scroll_offset(offset)
+                    };
                 }
                 area.show(ui, |ui| {
                     result = scoped(eng, ui, cb);
@@ -240,10 +260,10 @@ fn enabled_add(ui: &mut egui::Ui, button: egui::Button<'_>, opts: &Opts) -> egui
 /// explains why the button is off.
 fn hover_text(response: egui::Response, opts: &Opts, tip: String) -> egui::Response {
     if opts.boolean(k::DISABLED, false) {
-        response.on_disabled_hover_text(tip)
-    } else {
-        response.on_hover_text(tip)
+        return response.on_disabled_hover_text(tip);
     }
+    crate::widget::theme::tip(&response, &tip);
+    response
 }
 
 /// Hang a control's menus off its response: `menu` opens on a right click

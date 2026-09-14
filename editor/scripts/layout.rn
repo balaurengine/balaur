@@ -17,6 +17,10 @@ const LEFT_MIN = 180.0;
 const RIGHT_MIN = 220.0;
 const BOTTOM_MIN = 84.0;
 const STAGE_MIN = 260.0;
+// What the stage keeps of itself behind an unfolded dock, so the way back is
+// on screen rather than remembered.
+const NARROW_PEEK = 56.0;
+const MEDIUM_PEEK = 220.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
 const EASE_S = 0.16;
@@ -281,8 +285,8 @@ pub fn compute(S) {
     // A seam resizes and only resizes: a dock is put away by the mark in its
     // own tab row, so a drag that reaches the floor stops there. The ceiling is
     // what the other dock and the stage leave.
-    let tree_w = side_w(S, "left", held(S, "tree_w", LEFT_MIN, w - STAGE_MIN - RIGHT_MIN));
-    let insp_w = side_w(S, "right", held(S, "insp_w", RIGHT_MIN, w - STAGE_MIN - tree_w));
+    let tree_w = side_w(S, "left", w, held(S, "tree_w", LEFT_MIN, w - STAGE_MIN - RIGHT_MIN));
+    let insp_w = side_w(S, "right", w, held(S, "insp_w", RIGHT_MIN, w - STAGE_MIN - tree_w));
     let tall = if crate::docks::bottom_tall(S) { TALL_EXTRA } else { 0.0 };
     let body_h = held(S, "dock_h", BOTTOM_MIN, S.screen_h - m.bar.h - STAGE_MIN - tall - m.status_h);
     // Minimised, the dock is gone: its handle sits beside the zoom reading,
@@ -401,11 +405,23 @@ fn right_head_h(S) {
 
 // A side dock's width: nothing when it holds no panel, its rail when it is
 // folded, and what the seam was dragged to otherwise.
-fn side_w(S, side, open_w) {
+/// How wide an open side dock is: what the seam was dragged to on a screen
+/// with room for three columns, and most of the screen on one without.
+///
+/// A dock a reader had to unfold on purpose is one they want to read, and a
+/// 220 px column of it on a phone is a list of truncated words. The stage
+/// keeps a strip, so it is still there to go back to.
+fn side_w(S, side, room, open_w) {
     if S.docks[side].tabs.len() == 0 || S.docks[side].shut {
         return 0.0;
     }
-    open_w
+    // A phone on its side is wide enough to read the seam's own width, so
+    // only the two classes that are actually short of room override it.
+    match S.width_class {
+        ui::NARROW => room - NARROW_PEEK,
+        ui::MEDIUM => util::clamp(room * 0.5, open_w, room - MEDIUM_PEEK),
+        _ => open_w,
+    }
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

@@ -119,36 +119,6 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     });
 }
 
-/// Give egui's own controls the same floor balaur's take.
-///
-/// `interact_size` is the minimum egui sizes a button, a checkbox and a drag
-/// value at, so setting it once is what makes a picker and a slider grow for
-/// a finger without every call site knowing about fingers.
-pub(crate) fn apply_touch_floor(ctx: &egui::Context) {
-    let held = ctx.style_of(egui::Theme::Dark).spacing.interact_size;
-    // Whatever egui was built with, remembered the first time it is seen, so
-    // a screen with a cursor is left exactly as it was.
-    let cursor = CURSOR_INTERACT.with(|once| *once.borrow_mut().get_or_insert(held));
-    let want = if crate::widget::theme::pass_is_touch() {
-        let target = crate::widget::theme::TOUCH_TARGET;
-        egui::vec2(cursor.x.max(target), cursor.y.max(target))
-    } else {
-        cursor
-    };
-    if (held - want).length() < f32::EPSILON {
-        return;
-    }
-    ctx.all_styles_mut(|style| {
-        style.spacing.interact_size = want;
-    });
-}
-
-thread_local! {
-    /// What egui sizes a control at where a cursor reaches it: its own
-    /// default, or whatever a host set before the first pass.
-    static CURSOR_INTERACT: std::cell::RefCell<Option<egui::Vec2>> =
-        const { std::cell::RefCell::new(None) };
-}
 
 /// The named family for a widget option value.
 pub(crate) fn family(name: &str) -> FontFamily {

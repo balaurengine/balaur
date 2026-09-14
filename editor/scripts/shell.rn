@@ -208,9 +208,29 @@ pub fn open_palette(S, query) {
     ui::set_text("palette-query", query);
 }
 
+/// The reader asking for a scale, which outranks what the screen wanted.
+pub fn ask_ui_scale(S, f) {
+    S.asked_scale = util::clamp(f, 0.75, 2.5);
+    set_ui_scale(S, S.asked_scale);
+}
+
 pub fn set_ui_scale(S, f) {
     S.ui_scale = util::clamp(f, 0.75, 2.5);
     ui::set_scale(S.ui_scale);
+}
+
+// As far as a 390 point phone can carry: at the 1.7 a 26 pixel control would
+// need, the shell has 229 points to lay out in, less than its own chrome.
+const TOUCH_SCALE = 1.35;
+
+/// The scale this screen wants: what the reader set, and at least enough on a
+/// touch screen that the smallest control clears a finger.
+pub fn scale_for_screen(S) {
+    let asked = S.asked_scale;
+    if S.touchscreen && asked < TOUCH_SCALE {
+        return TOUCH_SCALE;
+    }
+    asked
 }
 
 pub fn close_palette(S) {
