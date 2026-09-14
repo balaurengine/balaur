@@ -112,6 +112,9 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
         // 4 px base grid; panels/widgets add their own padding.
         style.spacing.item_spacing = egui::vec2(4.0, 4.0);
         style.spacing.button_padding = egui::vec2(12.0, 0.0);
+        // The bar floats over the content rather than taking a strip of it,
+        // so a scroll's rows are as wide as the sheet's padding leaves them.
+        style.spacing.scroll = egui::style::ScrollStyle::floating();
         style.spacing.window_margin = egui::Margin::ZERO;
         style.spacing.menu_margin = egui::Margin::ZERO;
         style.visuals.menu_corner_radius = CornerRadius::same(16);

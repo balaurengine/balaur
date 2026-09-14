@@ -225,7 +225,8 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let ui = &mut inner_ui;
         hold_to(ui, inner);
         let dead = widget.deadzone;
-        let mut area = egui::ScrollArea::both()
+        let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
+        let mut area = egui::ScrollArea::new([sideways, downwards])
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
             .max_height(inner.y);
@@ -247,10 +248,10 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
-            let room = crate::widget::taffy::Room::scrolling(egui::Rect::from_min_size(
-                ui.max_rect().min,
-                vec2(inner.x, inner.y),
-            ));
+            let room = crate::widget::taffy::Room::scrolling(
+                egui::Rect::from_min_size(ui.max_rect().min, vec2(inner.x, inner.y)),
+                &widget.axis,
+            );
             let solved = crate::widget::taffy::solve_subtree(
                 at.eng,
                 at.arena,

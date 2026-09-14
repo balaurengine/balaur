@@ -3,6 +3,11 @@
 // the editor's chrome rather than under it.
 pub const HUD_H = 28.0;
 
+// The least stage worth labelling or pointing at beside a rail: below this
+// what is left is the way back to the viewport, not the viewport.
+const STAGE_W_MIN = 160.0;
+const STAGE_H_MIN = 120.0;
+
 /// The strip's height: tall enough for the controls in it, which are bigger
 /// where a finger reaches them.
 pub fn hud_h(S) {
@@ -49,12 +54,16 @@ pub fn modes(S) {
     let open = document || split;
     S.doc_open = open;
     let has_tools = defs::tools(S.persona).len() > 0;
-    // A screen with room for one panel at a time leaves the stage a strip
-    // that is the way back to it, and nothing to put a rail or a chip on.
-    let crowded = crate::docks::one_at_a_time(S) && crate::docks::any_open(S);
-    let rail_on = S.viewport_live && has_tools && !crowded;
+    // Each shows where its own minimum fits in the room the docks leave: a
+    // rail wants its column and a stage worth pointing at beside it, and the
+    // chip and foot strips want the stage taller than the two of them.
+    let room = crate::layout::stage_room(S);
+    let rail = rail_metrics(S);
+    let rail_w = 2.0 * rail.pad + rail.d;
+    let rail_on = S.viewport_live && has_tools && room.w >= rail_w + STAGE_W_MIN;
     S.rail_visible = rail_on;
-    S.stage_chrome = !crowded;
+    let chrome = room.w >= STAGE_W_MIN && room.h >= 2.0 * hud_h(S) + STAGE_H_MIN;
+    S.stage_chrome = chrome;
     // The hooks list only earns its 172 px when the code has the centre to
     // itself; a split is already two columns.
     let hooks_on = code && !split;
@@ -65,12 +74,13 @@ pub fn modes(S) {
 /// `layout.rn` can state a rail exactly as tall as what this draws into it:
 /// the two disagreed by 18 px, which showed as padding only at the foot.
 pub fn rail_metrics(S) {
-    // The pad is a pixel wider than the gap: with none to spare the sheet's
-    // own rounded corner cut into the selected tool's tile.
+    // The theme's tool tile, so a folded dock's handle is the same control on
+    // the same sheet; the pad a pixel wider than the gap, clear of the corner.
+    let d = style::role_px(S, "tool", "d", 26.0);
     if S.compact {
-        return #{ d: 24.0, gap: 3.0, pad: 6.0 };
+        return #{ d: d, gap: 3.0, pad: 6.0 };
     }
-    #{ d: 28.0, gap: 4.0, pad: 8.0 }
+    #{ d: d, gap: 4.0, pad: 8.0 }
 }
 
 /// The marks the rail carries: the persona's tools, then the one that folds

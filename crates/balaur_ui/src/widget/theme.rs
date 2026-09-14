@@ -186,7 +186,11 @@ pub struct WidgetTheme {
     /// `resolved` remembered: a kind and a role name the same style for as
     /// long as the theme lives, and working it out walked two maps and cloned
     /// a style for every widget on the screen, every frame.
-    settled: RefCell<rustc_hash::FxHashMap<(SmolStr, SmolStr, u32), Rc<Style>>>,
+    settled: RefCell<rustc_hash::FxHashMap<(SmolStr, SmolStr), Rc<Style>>>,
+    /// The class generation `settled` was filled under. A new one empties it
+    /// rather than keying beside it, so a rotation does not leave the last
+    /// screen's styles in the map for the life of the theme.
+    settled_at: std::cell::Cell<u32>,
 }
 
 impl WidgetTheme {
@@ -213,13 +217,12 @@ impl WidgetTheme {
     #[must_use]
     pub fn resolved(&self, kind: &str, role: &str) -> Rc<Style> {
         let (active, generation) = pass_classes();
-        // The screen's classes are part of the answer, so a rotation does not
-        // read back the style the last one settled on.
-        let key = (
-            SmolStr::new(kind),
-            SmolStr::new(role),
-            generation,
-        );
+        // The screen's classes are part of the answer, so a rotation empties
+        // what the last screen settled on rather than reading it back.
+        if self.settled_at.replace(generation) != generation {
+            self.settled.borrow_mut().clear();
+        }
+        let key = (SmolStr::new(kind), SmolStr::new(role));
         if let Some(held) = self.settled.borrow().get(&key) {
             return Rc::clone(held);
         }
@@ -294,9 +297,7 @@ fn is_reserved(key: &str) -> bool {
 // The class words in force, and a number that changes when they do, so the
 // resolved-style cache answers for this pass's screen, not the last one's.
 thread_local! {
-    static PASS_CLASSES: RefCell<(Vec<SmolStr>, u32)> = const {
-        RefCell::new((Vec::new(), 0))
-    };
+    static PASS_CLASSES: RefCell<(Rc<[SmolStr]>, u32)> = RefCell::new((Rc::from([]), 0));
 }
 
 /// Tell the theme which classes this pass answers to. Called once a pass,
@@ -309,12 +310,17 @@ pub(crate) fn set_pass_classes(active: &[&str]) {
         }
         held.0 = active.iter().map(|word| SmolStr::new(*word)).collect();
         held.1 = held.1.wrapping_add(1);
+        // Shared with every `resolved` call this pass, which was cloning a
+        // vector per widget before.
     });
 }
 
 /// The classes in force and the number that stands for them.
-fn pass_classes() -> (Vec<SmolStr>, u32) {
-    PASS_CLASSES.with(|held| held.borrow().clone())
+fn pass_classes() -> (Rc<[SmolStr]>, u32) {
+    PASS_CLASSES.with(|held| {
+        let held = held.borrow();
+        (Rc::clone(&held.0), held.1)
+    })
 }
 
 

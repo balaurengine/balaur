@@ -4179,6 +4179,17 @@
         "group": "placement",
         "type": "bool"
       },
+      "axis": {
+        "default": "both",
+        "description": "Which way a scroll moves; the other way its contents fill the box it was given",
+        "group": "layout",
+        "options": [
+          "both",
+          "horizontal",
+          "vertical"
+        ],
+        "type": "enum"
+      },
       "checked": {
         "default": false,
         "description": "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
@@ -4331,6 +4342,27 @@
       "height": {
         "default": 0.0,
         "description": "Panel height in design pixels; 0 sizes to content",
+        "group": "placement",
+        "min": 0.0,
+        "type": "float"
+      },
+      "hide_narrower": {
+        "default": 0.0,
+        "description": "Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line",
+        "group": "placement",
+        "min": 0.0,
+        "type": "float"
+      },
+      "hide_shorter": {
+        "default": 0.0,
+        "description": "Not drawn while the room is shorter than this many design pixels. Zero is no line",
+        "group": "placement",
+        "min": 0.0,
+        "type": "float"
+      },
+      "hide_wider": {
+        "default": 0.0,
+        "description": "Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line",
         "group": "placement",
         "min": 0.0,
         "type": "float"

@@ -8,21 +8,16 @@ use crate::left;
 use crate::style;
 use crate::util;
 
-// One folded dock's handle, and the sheet's own air: the zoom reading's
-// numbers, so the pair match across the viewport.
-const TILE = 20.0;
+// The bottom dock's handle sits beside the zoom reading, and takes the
+// reading's own air, so the pair match across the foot of the stage.
 const PAD_X = 6.0;
 const PAD_Y = 3.0;
 
-/// The handle's own box, which is a control a finger picks like any other:
-/// the tile and its air on a cursor's screen, and the icon button's own size
-/// where a finger reaches it.
-fn tile_w(S) {
-    if S.touchscreen { 33.0 } else { TILE + 2.0 * PAD_X }
-}
-
-fn tile_h(S) {
-    if S.touchscreen { 33.0 } else { TILE + 2.0 * PAD_Y }
+/// A side dock's handle is the tool rail's tile: an icon button on a sheet,
+/// with the rail's own inset, so the two sit in one column at one size.
+fn tile(S) {
+    let m = crate::center::rail_metrics(S);
+    m.d + 2.0 * m.pad
 }
 
 pub fn sides() {
@@ -42,7 +37,6 @@ pub fn apply_persona(S, id) {
         // A dock the reader folded away stays folded: the persona says which
         // panels, not whether the sheet is up.
         want[side].shut = S.docks[side].shut;
-        want[side].asked = S.docks[side].asked;
     }
     S.docks = want;
     // A plugin's dock is in no persona's set: it was adopted when the plugin
@@ -62,23 +56,20 @@ pub fn apply_persona(S, id) {
 /// Applied on the change, not every frame, so a reader who opens a dock on a
 /// phone keeps it open until the screen itself changes.
 pub fn follow_screen(S, width, height) {
-    if S.width_class == width && S.height_class == height {
-        return;
-    }
-    let first = S.width_class == "";
     S.width_class = width;
     S.height_class = height;
+    // A string, since Rune compares no tuples: three words for three answers.
+    let key = format!("{} {} {}", crate::layout::three_fit(S), one_at_a_time(S), height == ui::SHORT);
+    if S.screen_key == key {
+        return;
+    }
+    S.screen_key = key;
     // A phone holds the stage and one sheet, so it starts with neither and
     // opens one at a time. A tablet keeps the bottom dock, which is along the
     // stage rather than beside it, and folds only the columns.
     let only_one = one_at_a_time(S);
-    let tight = cramped(S);
+    let tight = !crate::layout::three_fit(S) || S.height_class == ui::SHORT;
     for side in ["left", "right", "bottom"] {
-        // A start-up state that opened a dock asked for it before the screen
-        // had been read, and is not the default this is applying.
-        if first && S.docks[side].asked {
-            continue;
-        }
         S.docks[side].shut = if side == "bottom" {
             only_one || S.height_class == ui::SHORT
         } else {
@@ -87,21 +78,17 @@ pub fn follow_screen(S, width, height) {
     }
 }
 
-/// Whether the screen is too small to hold a dock beside the stage.
-fn cramped(S) {
-    S.width_class != ui::WIDE || S.height_class == ui::SHORT
-}
-
-/// Whether only one side dock may be open at a time: a phone has room for
-/// the stage and one sheet, and two would leave nothing between them.
+/// Whether only one dock may be open at a time: a screen with less width
+/// than two side docks and a stage at their floors, or less height than the
+/// bar, a bottom dock and a stage at theirs, holds one sheet and the stage.
 pub fn one_at_a_time(S) {
-    S.width_class == ui::NARROW || S.height_class == ui::SHORT
+    let (w, h) = crate::layout::floors();
+    S.screen_w < w || S.screen_h < h
 }
 
 /// Open a side dock, folding the other where there is only room for one.
 fn unfold(S, side) {
     S.docks[side].shut = false;
-    S.docks[side].asked = true;
     if !one_at_a_time(S) {
         return;
     }
@@ -697,6 +684,12 @@ pub fn any_open(S) {
     false
 }
 
+/// Whether a side dock is open: the one sheet that takes the whole body where
+/// there is room for one, which the bottom dock never does.
+pub fn side_open(S) {
+    !folded(S, "left") || !folded(S, "right")
+}
+
 /// Whether a side dock is folded with something to go back to.
 fn has_handle(S, side) {
     folded(S, side) && S.docks[side].tabs.len() > 0
@@ -706,7 +699,7 @@ fn has_handle(S, side) {
 /// it goes when there is a rail to sit over.
 pub fn rail_top_h(S) {
     if S.rail_visible && has_handle(S, "left") {
-        return tile_h(S) + 6.0;
+        return tile(S) + 6.0;
     }
     0.0
 }
@@ -715,7 +708,7 @@ pub fn rail_top_h(S) {
 /// centre with no rail to put it over.
 pub fn fold_inset(S) {
     if !S.rail_visible && has_handle(S, "left") {
-        return tile_w(S) + 6.0;
+        return tile(S) + 6.0;
     }
     0.0
 }
@@ -725,23 +718,30 @@ pub fn fold_inset(S) {
 /// the zoom reading. A folded dock gives its space back, so this is the way
 /// back to it.
 pub fn fold_strip(S, k, vp) {
+    // A side sheet that is the whole screen offers one way out, its own fold:
+    // a handle to a second sheet would open it over the first. An open bottom
+    // dock leaves the stage, and the handles on it, where they were.
+    if one_at_a_time(S) && side_open(S) {
+        return;
+    }
     let top = S.layout.railtop;
     if top.h > 0.0 {
-        handle_tile(S, k, "left", top.x, top.y - 1.0);
+        handle_tile(S, k, "left", top.x, top.y);
     } else {
         handle_tile(S, k, "left", vp.x, vp.y);
     }
-    handle_tile(S, k, "right", vp.x + vp.w - tile_w(S), vp.y);
+    handle_tile(S, k, "right", vp.x + vp.w - tile(S), vp.y);
 }
 
 /// The bottom dock's handle, drawn into the row the zoom reading is in so it
 /// lands just after it.
 pub fn fold_foot(S, k) {
-    if !has_handle(S, "bottom") {
+    if !has_handle(S, "bottom") || (one_at_a_time(S) && side_open(S)) {
         return;
     }
+    let step = crate::center::hud_step(S);
     if ui::pill(icons::ui(open_icon("bottom")), #{
-        height: tile_h(S), min_width: tile_w(S), size: style::LG,
+        height: step + 2.0 * PAD_Y, min_width: step + 2.0 * PAD_X, size: style::LG,
         padding_x: 0, radius: 8, fill: k.panel, color: k.dim,
         tooltip: "Open the dock",
     }) {
@@ -749,21 +749,18 @@ pub fn fold_foot(S, k) {
     }
 }
 
-// The zoom reading's own geometry, because the two are the same thing at
-// opposite corners: same height, same edge, centred on the row it shares.
+// The rail's own geometry: one tool on one sheet, drawn the way the rail
+// draws each of its marks.
 fn handle_tile(S, k, side, x, y) {
     if !has_handle(S, side) {
         return;
     }
     let p = panel(S, S.docks[side].active);
-    ui::overlay("fold-" + side, #{
-        x: x, y: y + 1.0, w: tile_w(S), h: tile_h(S),
-        fill: k.panel, radius: 8, padding_x: PAD_X, padding_y: PAD_Y,
-    }, || {
-        if ui::pill(icons::ui(open_icon(side)), #{
-            height: tile_h(S) - 2.0 * PAD_Y, min_width: tile_w(S) - 2.0 * PAD_X,
-            size: style::LG, padding_x: 0,
-            color: k.dim, tooltip: format!("Open the {}", p.name.to_lowercase()),
+    let m = crate::center::rail_metrics(S);
+    let box = #{ x: x, y: y, w: tile(S), h: tile(S) };
+    style::sheet(k, "fold-" + side, box, m.pad, m.pad, || {
+        if ui::circle_button(icons::ui(open_icon(side)), #{
+            role: "tool", d: m.d, tooltip: format!("Open the {}", p.name.to_lowercase()),
         }) {
             unfold(S, side);
         }

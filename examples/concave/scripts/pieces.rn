@@ -25,7 +25,7 @@ const INK = [0.93, 0.94, 0.96, 1.0];
 const FAINT = [0.62, 0.66, 0.72, 1.0];
 
 pub fn exports() {
-    #{ shot: "" }
+    #{ shot: "", frames: "" }
 }
 
 pub fn init(this) {
@@ -74,5 +74,21 @@ pub fn update(this, dt) {
     // Late enough that both beams have settled where the solver leaves them.
     if this.frame == 100 && this.shot != "" {
         render::screenshot(this.shot);
+    }
+    // Four seconds at one picture a frame, the beam being pushed out. The
+    // very first frame is taken before anything has drawn, so it is skipped.
+    if this.frames != "" && this.frame >= 2 && this.frame <= 121 {
+        render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
+    }
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n) {
+    if n < 10 {
+        `00${n}`
+    } else if n < 100 {
+        `0${n}`
+    } else {
+        `${n}`
     }
 }

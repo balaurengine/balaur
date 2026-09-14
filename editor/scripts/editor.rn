@@ -84,14 +84,18 @@ pub fn init(this) {
         // turns out to be is a change and folds the docks accordingly.
         width_class: "",
         height_class: "",
+        // The room's answers the docks were last folded for: a change is a
+        // new screen, whatever the class words did.
+        screen_key: "",
         ui_scale: 1.25,
         // What the reader set, kept apart from what the screen makes of it:
         // a touch screen draws larger without moving the setting.
         asked_scale: 1.25,
-        // Read on the first frame rather than at init: a host that says the
-        // screen takes a finger says so after the project has loaded.
         touchscreen: false,
+        // Whether the first frame has run: the start-up states apply on it,
+        // after the screen's room has folded the docks.
         platform_read: false,
+        start_states: "",
         script_buffers: #{},
         schemas: #{},
         expects: #{},
@@ -210,7 +214,8 @@ pub fn init(this) {
     settings::load_files(S);
     theme::apply(S);
     render::set_app_icon("assets/balaur-logo.png");
-    ui::set_scale(S.ui_scale);
+    S.touchscreen = engine::platform().touchscreen;
+    shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
     // pass is most of the frame, and nothing in it moves untouched.
     ui::set_lazy(true);
@@ -220,12 +225,8 @@ pub fn init(this) {
 
     // Optional start-up states, comma-separated (persona id, "palette",
     // "light", "play", "select:<node>", "shot=<png path>"), applied in order.
-    let states = engine::args().get(1).unwrap_or("");
-    for token in states.split(',') {
-        if token != "" {
-            shell::apply_start_state(S, token);
-        }
-    }
+    // Applied on the first frame, after the screen's class has folded the docks.
+    S.start_states = engine::args().get(1).unwrap_or("");
 }
 
 fn resolve_refs(S) {
@@ -380,14 +381,15 @@ pub fn draw_ui(this) {
     // window asks for it whatever the setting says.
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
-    if !S.platform_read {
-        S.platform_read = true;
-        S.touchscreen = engine::platform().touchscreen;
-    }
+    let first = !S.platform_read;
+    S.platform_read = true;
     docks::follow_screen(S, ui::width_class(), ui::height_class());
-    let want = shell::scale_for_screen(S);
-    if util::f(math::abs(S.ui_scale - want)) > 0.001 {
-        shell::set_ui_scale(S, want);
+    if first {
+        for token in S.start_states.split(',') {
+            if token != "" {
+                shell::apply_start_state(S, token);
+            }
+        }
     }
 
     // The popup owns the arrows, Tab, Enter and Escape while it is open, so

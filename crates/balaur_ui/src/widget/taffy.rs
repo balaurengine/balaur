@@ -149,7 +149,7 @@ fn style_key(
     pad: crate::widget::arrange::Pad,
     gap: f32,
     drawn: bool,
-    fills: Option<egui::Vec2>,
+    fills: Fill,
     shown: bool,
 ) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
@@ -169,9 +169,9 @@ fn style_key(
     }
     gap.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
-    fills
-        .map(|f| (f.x.to_bits(), f.y.to_bits()))
-        .hash(&mut hasher);
+    for side in fills {
+        side.map(f32::to_bits).hash(&mut hasher);
+    }
     hasher.finish()
 }
 
@@ -181,18 +181,23 @@ fn styled(
     pad: crate::widget::arrange::Pad,
     gap: f32,
     drawn: bool,
-    fills: Option<egui::Vec2>,
+    fills: Fill,
     shown: bool,
 ) -> Style {
     let mut want = style_of(widget, pad, gap, drawn, shown);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
-    if let Some(box_size) = fills {
-        want.size = Size {
-            width: length(box_size.x),
-            height: length(box_size.y),
-        };
+    if let Some(width) = fills[0] {
+        want.size.width = length(width);
+    }
+    if let Some(height) = fills[1] {
+        want.size.height = length(height);
+    }
+    // A scroll is a root in its own solve and a child in its parent's, on one
+    // node: filled one way it keeps its `grow`, which is what the parent's
+    // solve still needs the other way.
+    if fills[0].is_some() && fills[1].is_some() {
         want.flex_grow = 0.0;
     }
     want
@@ -264,9 +269,19 @@ pub(crate) struct Room {
     pub(crate) origin: egui::Pos2,
     pub(crate) space: Size<AvailableSpace>,
     /// Whether the subtree's own node takes the whole box or hugs what is in
-    /// it. A container handed a rect fills it; a root anchored to a corner
-    /// takes what it measures.
-    fill: Option<egui::Vec2>,
+    /// it, per axis. A container handed a rect fills it; a root anchored to a
+    /// corner takes what it measures.
+    fill: Fill,
+}
+
+/// A stated width and height the subtree's root takes, each where it is
+/// `Some`.
+pub(crate) type Fill = [Option<f32>; 2];
+
+/// Which ways a scroll moves, from its `axis` word: both where it says
+/// nothing.
+pub(crate) fn scroll_axes(axis: &str) -> (bool, bool) {
+    (axis != w::VERTICAL, axis != w::HORIZONTAL)
 }
 
 impl Room {
@@ -278,7 +293,7 @@ impl Room {
                 width: AvailableSpace::Definite(rect.width()),
                 height: AvailableSpace::Definite(rect.height()),
             },
-            fill: Some(rect.size()),
+            fill: [Some(rect.width()), Some(rect.height())],
         }
     }
 
@@ -290,19 +305,33 @@ impl Room {
                 width: AvailableSpace::Definite(rect.width()),
                 height: AvailableSpace::Definite(rect.height()),
             },
-            fill: None,
+            fill: [None, None],
         }
     }
 
-    /// A box bounded across and free along: what a scroll gives its contents.
-    pub(crate) fn scrolling(rect: egui::Rect) -> Self {
+    /// A scroll's inside: free along the way it moves, so the contents take
+    /// what they measure and the bar makes up the difference. One that moves
+    /// one way fills the other, as a form fills a vertical one.
+    pub(crate) fn scrolling(rect: egui::Rect, axis: &str) -> Self {
+        let (sideways, downwards) = scroll_axes(axis);
         Self {
             origin: rect.min,
             space: Size {
-                width: AvailableSpace::Definite(rect.width()),
-                height: AvailableSpace::MAX_CONTENT,
+                width: if sideways && !downwards {
+                    AvailableSpace::MAX_CONTENT
+                } else {
+                    AvailableSpace::Definite(rect.width())
+                },
+                height: if downwards {
+                    AvailableSpace::MAX_CONTENT
+                } else {
+                    AvailableSpace::Definite(rect.height())
+                },
             },
-            fill: None,
+            fill: [
+                (!sideways).then_some(rect.width()),
+                (!downwards).then_some(rect.height()),
+            ],
         }
     }
 }
@@ -351,7 +380,7 @@ pub(crate) fn solve(
                 index,
                 &at,
                 &mut measure,
-                None,
+                [None, None],
                 false,
                 true,
             );
@@ -439,7 +468,7 @@ fn sync(
     index: usize,
     theme: &Rc<WidgetTheme>,
     measure: &mut Measure<'_>,
-    fills: Option<egui::Vec2>,
+    fills: Fill,
     is_root: bool,
     deep: bool,
 ) -> NodeId {
@@ -519,7 +548,7 @@ fn sync(
             .iter()
             .map(|child| {
                 sync(
-                    held, arena, *child, &theme, measure, None, false, true,
+                    held, arena, *child, &theme, measure, [None, None], false, true,
                 )
             })
             .collect()

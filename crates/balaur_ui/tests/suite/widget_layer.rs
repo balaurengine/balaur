@@ -611,6 +611,56 @@ fn a_scroll_keeps_its_box_however_long_its_contents() {
     );
 }
 
+/// A scroll that moves one way fills the other: a column in a vertical scroll
+/// is as wide as the scroll, with nothing inside it stating the width.
+#[test]
+fn a_one_way_scroll_fills_the_other_way() {
+    let inner_width = |axis: &str| {
+        let (_dir, app) = app();
+        // A scroll that takes what its sheet leaves, as a dock's does: one
+        // with a stated width would fill it whatever its axis said.
+        let sheet = add_widget(
+            &app,
+            &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 300.0 height = 300.0 }.into(),
+        );
+        add_child_widget(&app, sheet, "head", &toml::toml! { kind = "panel" height = 40.0 }.into());
+        let holder = add_child_widget(
+            &app,
+            sheet,
+            "scroll",
+            &toml::toml! { kind = "scroll" grow = 1.0 axis = axis }.into(),
+        );
+        let column = add_child_widget(&app, holder, "form", &toml::toml! { kind = "column" }.into());
+        // A filled box of a height nothing else has and no width of its own:
+        // it is as wide as the column stretches it.
+        add_child_widget(
+            &app,
+            column,
+            "row",
+            &toml::toml! { kind = "panel" height = 21.0 fill = "#ff0000" }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let out = pass(&app, &ctx, vec![]);
+        out.shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) if (r.rect.height() - 21.0).abs() < 1.0 => {
+                    Some(r.rect.width())
+                }
+                _ => None,
+            })
+            .fold(0.0_f32, f32::max)
+    };
+    let filled = inner_width("vertical");
+    let hugged = inner_width("both");
+    assert!(filled > 250.0, "a vertical scroll left its column hugging: {filled}");
+    assert!(
+        hugged + 100.0 < filled,
+        "control: a scroll free both ways should hug ({hugged} against {filled})"
+    );
+}
+
 /// A tab shows one page and names the rest, so adding a page is adding a node.
 #[test]
 fn a_tab_shows_the_page_it_names_and_only_that_one() {

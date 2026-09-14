@@ -17,9 +17,7 @@ const LEFT_MIN = 180.0;
 const RIGHT_MIN = 220.0;
 const BOTTOM_MIN = 84.0;
 const STAGE_MIN = 260.0;
-// What the stage keeps of itself behind an unfolded dock, so the way back is
-// on screen rather than remembered.
-const NARROW_PEEK = 56.0;
+// What the stage keeps of itself beside a dock that took half a tablet.
 const MEDIUM_PEEK = 220.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
@@ -317,6 +315,9 @@ pub fn compute(S) {
     for side in ["left", "right", "bottom"] {
         show(S, side, !crate::docks::folded(S, side));
     }
+    // One sheet at a time: a side sheet takes the whole body and the centre
+    // goes, since a box left at zero width still takes the row's gap beside it.
+    show(S, "centre", !(crate::docks::one_at_a_time(S) && crate::docks::side_open(S)));
     size(S, "bottom", "height", dock_h);
     // The right sheet's header, above the rows the pool makes: a `draw` node
     // with no size takes whatever is left, which would be the whole sheet.
@@ -405,6 +406,39 @@ fn right_head_h(S) {
 
 // A side dock's width: nothing when it holds no panel, its rail when it is
 // folded, and what the seam was dragged to otherwise.
+/// The least screen that holds one side dock beside a stage worth having,
+/// as a width; and down, the bar, the bottom dock and the stage. Below
+/// either, the shell is one sheet at a time.
+pub fn floors() {
+    (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN, BAR_H_GUESS + BOTTOM_MIN + STAGE_MIN)
+}
+
+/// Whether three columns fit across: both side docks and the stage at their
+/// floors. Below this the side docks start folded and an open one takes half.
+pub fn three_fit(S) {
+    S.screen_w >= LEFT_MIN + STAGE_MIN + RIGHT_MIN
+}
+
+// The bar's height before its node has been measured, for the floor above:
+// the head sheet as the scene states it.
+const BAR_H_GUESS = 43.0;
+
+/// The room the docks leave the stage, as `#{ w, h }` in design pixels,
+/// from the same widths the layout is about to use. Asked before the layout
+/// runs, by everything that shows only where there is room for it.
+pub fn stage_room(S) {
+    let m = S.layout;
+    let w = S.screen_w;
+    let tree_w = side_w(S, "left", w, util::max(m.tree_w, LEFT_MIN));
+    let insp_w = side_w(S, "right", w, util::max(m.insp_w, RIGHT_MIN));
+    let dock_h = if crate::docks::folded(S, "bottom") {
+        0.0
+    } else {
+        util::max(m.dock_h, BOTTOM_MIN) + m.status_h
+    };
+    #{ w: w - tree_w - insp_w, h: S.screen_h - m.bar.h - dock_h }
+}
+
 /// How wide an open side dock is: what the seam was dragged to on a screen
 /// with room for three columns, and most of the screen on one without.
 ///
@@ -415,13 +449,19 @@ fn side_w(S, side, room, open_w) {
     if S.docks[side].tabs.len() == 0 || S.docks[side].shut {
         return 0.0;
     }
-    // A phone on its side is wide enough to read the seam's own width, so
-    // only the two classes that are actually short of room override it.
-    match S.width_class {
-        ui::NARROW => room - NARROW_PEEK,
-        ui::MEDIUM => util::clamp(room * 0.5, open_w, room - MEDIUM_PEEK),
-        _ => open_w,
+    // One sheet at a time takes the whole body: its own fold is the way back,
+    // and a strip of stage beside it is dead space once nothing sits on it.
+    // Less the shell's gutter each side, which is the body's, not the sheet's.
+    if crate::docks::one_at_a_time(S) {
+        let gutter = if S.compact { TIGHT_GUTTER } else { S.layout.gutter };
+        return room - 2.0 * gutter;
     }
+    // Where a dock and the stage fit but not two docks, an open dock takes
+    // half: the seam's own width was set beside two columns, not one.
+    if !three_fit(S) {
+        return util::clamp(room * 0.5, open_w, room - MEDIUM_PEEK);
+    }
+    open_w
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

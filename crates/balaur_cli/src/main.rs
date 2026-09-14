@@ -683,10 +683,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     balaur_core::facts::update_device(&app.engine, |facts| {
         facts.dark_mode = balaur::render::dark_mode();
     });
-    app.load_project()?;
     if *touch {
         pretend_touchscreen(&app);
     }
+    app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
     }
@@ -863,10 +863,12 @@ fn edit_project(
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
-    app.load_project()?;
+    // Before the project loads: the editor's scripts read the platform at
+    // init, and a fact that lands after that is a frame of the wrong shell.
     if touch {
         pretend_touchscreen(&app);
     }
+    app.load_project()?;
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]

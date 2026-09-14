@@ -1295,7 +1295,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 77 properties
+`ui` · 81 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1307,6 +1307,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
 <tr><td><code>arrows</code></td><td>bool</td><td><code>false</code></td><td>Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`</td></tr>
 <tr><td><code>avoid_keyboard</code></td><td>bool</td><td><code>false</code></td><td>On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop</td></tr>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a scroll moves; the other way its contents fill the box it was given One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color` swatch holds; `on_change` hears the new one</td></tr>
@@ -1328,6 +1329,9 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>handle</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>hide_narrower</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line At least 0.0.</td></tr>
+<tr><td><code>hide_shorter</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is shorter than this many design pixels. Zero is no line At least 0.0.</td></tr>
+<tr><td><code>hide_wider</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
 <tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes One of <code>start</code>, <code>center</code>, <code>end</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>

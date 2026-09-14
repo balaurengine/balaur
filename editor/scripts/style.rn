@@ -2,6 +2,8 @@
 // is then one edit, and `util::merge` covers the per-call overrides Rune has
 // no spread syntax for.
 
+use crate::util;
+
 /// The type scale, in design pixels. Four steps and no others: a call site
 /// that wants a size names one of these, and everything else takes the size
 /// its `role` carries.
@@ -44,6 +46,32 @@ pub fn field(k, width) {
 /// unsized area as unconstrained — which piles every sheet into the corner.
 pub fn placed(r) {
     r.w > 0.0 && r.h > 0.0
+}
+
+/// A role's stated size as the theme file gives it: the touch table's where
+/// a finger drives the screen and the role has one, else the role's own.
+pub fn role_px(S, role, key, fallback) {
+    let table = match S.theme.roles.get(role) {
+        Some(table) => table,
+        None => return fallback,
+    };
+    if S.touchscreen {
+        if let Some(touch) = table.get("touch") {
+            if let Some(v) = touch.get(key) {
+                return util::f(v);
+            }
+        }
+    }
+    match table.get(key) {
+        Some(v) => util::f(v),
+        None => fallback,
+    }
+}
+
+/// A form row, and the field or search box in one: the theme's touch box
+/// where a finger picks it, a cursor's line otherwise.
+pub fn row_h(S) {
+    if S.touchscreen { crate::shell::TOUCH_CONTROL } else { 24.0 }
 }
 
 /// A floating panel: Stage's one surface. `r` is a rect from `layout`, and

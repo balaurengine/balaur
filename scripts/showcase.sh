@@ -84,6 +84,30 @@ screen() { # screen <name> <project> [frames]
   echo ok
 }
 
+# A running project's own screen over time: the scene's `frames` prop names
+# the directory, and the project writes one picture a frame into it.
+screen_clip() { # screen_clip <name> <project> <frames>
+  wanted "$1" || return 0
+  printf '%-22s clip   ' "$1"
+  rm -rf "$work/$1"
+  mkdir -p "$work/$1"
+  local scene=$2/scenes/main.toml
+  local held
+  held=$(cat "$scene")
+  printf '%s' "${held//frames = \"\"/frames = \"$PWD/$work/$1\"}" >"$scene"
+  balaur run "$2" --offscreen --frames "$3" >"$work/$1.log" 2>&1 || true
+  printf '%s' "$held" >"$scene"
+  # Any frame will do: a project may well skip the first, which is drawn
+  # before its scene is.
+  if grep -q ERROR "$work/$1.log" || ! ls "$work/$1"/*.png >/dev/null 2>&1; then failed "$1"; return 0; fi
+  ffmpeg -y -loglevel error -framerate 30 -pattern_type glob -i "$work/$1/*.png" \
+    -c:v libvpx-vp9 -crf 34 -b:v 0 -pix_fmt yuv420p "$vid/$1.webm"
+  ffmpeg -y -loglevel error -framerate 30 -pattern_type glob -i "$work/$1/*.png" \
+    -c:v libx264 -crf 24 -pix_fmt yuv420p -movflags +faststart "$vid/$1.mp4"
+  poster "$1"
+  echo "ok $(du -h "$vid/$1.webm" | cut -f1)"
+}
+
 clip() { # clip <name> <project> <frames> <state>
   wanted "$1" || return 0
   printf '%-22s clip   ' "$1"
@@ -110,6 +134,9 @@ screen ui_kinds        examples/interface
 # Two tables and what the solver holds for each: the pieces are drawn by the
 # example itself, so the picture is the decomposition rather than a diagram.
 screen concave_pieces  examples/concave    120
+# The same scene over its first four seconds: the beam inside the grown
+# table is pushed out, the one inside the plain table is not.
+screen_clip concave_beam examples/concave  130
 shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:tiles,zoom:60"
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"

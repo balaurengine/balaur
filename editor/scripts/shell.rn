@@ -219,16 +219,22 @@ pub fn set_ui_scale(S, f) {
     ui::set_scale(S.ui_scale);
 }
 
-// As far as a 390 point phone can carry: at the 1.7 a 26 pixel control would
-// need, the shell has 229 points to lay out in, less than its own chrome.
-const TOUCH_SCALE = 1.35;
+// What a finger needs, and the box the theme's `touch` tables state for a
+// control. The scale is what makes the one the other, rounded up to 0.05.
+const TOUCH_TARGET = 44.0;
+pub const TOUCH_CONTROL = 33.0;
+
+fn touch_scale() {
+    math::ceil(TOUCH_TARGET / TOUCH_CONTROL * 20.0) / 20.0
+}
 
 /// The scale this screen wants: what the reader set, and at least enough on a
 /// touch screen that the smallest control clears a finger.
 pub fn scale_for_screen(S) {
     let asked = S.asked_scale;
-    if S.touchscreen && asked < TOUCH_SCALE {
-        return TOUCH_SCALE;
+    let wanted = touch_scale();
+    if S.touchscreen && asked < wanted {
+        return wanted;
     }
     asked
 }

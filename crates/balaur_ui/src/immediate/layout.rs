@@ -134,9 +134,9 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 /// The area a `ui.scroll` or a `ui.list` opens: which ways it scrolls, and
 /// what caps it. A strip of tabs wider than its dock is why sideways exists.
 fn scroll_area(id: String, opts: &Opts) -> egui::ScrollArea {
-    let axis = opts.str(k::AXIS).unwrap_or(k::VERTICAL);
-    let sideways = matches!(axis, k::HORIZONTAL | k::BOTH);
-    let downwards = matches!(axis, k::VERTICAL | k::BOTH);
+    let axis = opts.str(k::AXIS).unwrap_or(w::VERTICAL);
+    let sideways = matches!(axis, w::HORIZONTAL | w::BOTH);
+    let downwards = matches!(axis, w::VERTICAL | w::BOTH);
     let mut area = egui::ScrollArea::new([sideways, downwards])
         .id_salt(id)
         .auto_shrink([false, false]);
@@ -177,7 +177,7 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 // offset where the reader last left it.
                 let offset = opts.px(k::OFFSET, -1.0);
                 if offset >= 0.0 {
-                    area = if opts.str(k::AXIS) == Some(k::HORIZONTAL) {
+                    area = if opts.str(k::AXIS) == Some(w::HORIZONTAL) {
                         area.horizontal_scroll_offset(offset)
                     } else {
                         area.vertical_scroll_offset(offset)

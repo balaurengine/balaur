@@ -459,7 +459,7 @@ pub fn apply(S) {
     }
     let scale = settings::get("editor/appearance/ui_scale");
     if !(scale is Tuple) {
-        crate::shell::set_ui_scale(S, util::f(scale));
+        crate::shell::ask_ui_scale(S, util::f(scale));
     }
     // Kept apart from `S.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.

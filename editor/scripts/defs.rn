@@ -26,9 +26,9 @@ pub fn persona_docks(id) {
 
 fn docks(left, bottom, right) {
     #{
-        left: #{ tabs: left, active: left[0], shut: false, asked: false },
-        bottom: #{ tabs: bottom, active: bottom[0], shut: false, asked: false },
-        right: #{ tabs: right, active: right[0], shut: false, asked: false },
+        left: #{ tabs: left, active: left[0], shut: false },
+        bottom: #{ tabs: bottom, active: bottom[0], shut: false },
+        right: #{ tabs: right, active: right[0], shut: false },
     }
 }
 

@@ -36,6 +36,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::PADDING, r#"{ type = "vec4", default = [-1.0, -1.0, -1.0, -1.0], description = "Space inside a container's edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme's own, and a stated zero is no space at all", group = "layout" }"#),
                     (k::GAP, r#"{ type = "float", default = -1.0, description = "Space between a container's children, in design pixels; below zero takes the theme's own, which is 8 where it says nothing, and a stated zero puts them edge to edge", group = "layout" }"#),
                     (k::ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a container puts its children across its own direction", group = "layout" }}"#, w::START, v::options(w::ALIGNS))),
+                    (k::AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which way a scroll moves; the other way its contents fill the box it was given", group = "layout" }}"#, w::BOTH, v::options(w::AXES))),
                     (k::FOCUSABLE, r#"{ type = "bool", default = true, description = "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be", group = "events" }"#),
                     (k::ON_FOCUS, r#"{ type = "string", default = "", description = "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::THEME, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one", group = "paint" }}"#, crate::widget::theme::ASSET_TYPE)),
@@ -48,6 +49,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::SELECTABLE, r#"{ type = "bool", default = false, description = "Let a drag over this label select its text, and the platform's copy key take it", group = "type" }"#),
                     (k::CONTEXT, r#"{ type = "string", default = "", description = "Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own", group = "events" }"#),
                     (k::GROW, r#"{ type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for", group = "placement" }"#),
+                    (k::HIDE_NARROWER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line", group = "placement" }"#),
+                    (k::HIDE_WIDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line", group = "placement" }"#),
+                    (k::HIDE_SHORTER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is shorter than this many design pixels. Zero is no line", group = "placement" }"#),
                     (k::MIN_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::MIN_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::DRAW, r#"{ type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function", group = "paint" }"#),
@@ -185,6 +189,20 @@ fn class_tables_of(widget: &Widget) -> toml::map::Map<String, toml::Value> {
     map
 }
 
+/// The sizes a widget asks of the room around it: its minimums, and the
+/// surface lines it is not drawn past.
+fn write_room(map: &mut toml::map::Map<String, toml::Value>, widget: &Widget) {
+    for (key, value) in [
+        (k::MIN_WIDTH, widget.min_width),
+        (k::MIN_HEIGHT, widget.min_height),
+        (k::HIDE_NARROWER, widget.hide_narrower),
+        (k::HIDE_WIDER, widget.hide_wider),
+        (k::HIDE_SHORTER, widget.hide_shorter),
+    ] {
+        map.insert(key.into(), toml::Value::Float(f64::from(value)));
+    }
+}
+
 /// A `Widget` back as the property table the inspector and a script read.
 ///
 /// The class tables come back with it: they are not properties of the widget,
@@ -232,6 +250,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ALIGN.into(),
         toml::Value::String(widget.align.to_string()),
     );
+    map.insert(k::AXIS.into(), toml::Value::String(widget.axis.to_string()));
     map.insert(k::FOCUSABLE.into(), toml::Value::Boolean(widget.focusable));
     map.insert(
         k::ON_FOCUS.into(),
@@ -246,14 +265,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::String(widget.text_key.to_string()),
     );
     map.insert(k::GROW.into(), toml::Value::Float(f64::from(widget.grow)));
-    map.insert(
-        k::MIN_WIDTH.into(),
-        toml::Value::Float(f64::from(widget.min_width)),
-    );
-    map.insert(
-        k::MIN_HEIGHT.into(),
-        toml::Value::Float(f64::from(widget.min_height)),
-    );
+    write_room(&mut map, widget);
     map.insert(k::DRAW.into(), toml::Value::String(widget.draw.to_string()));
     map.insert(
         k::HANDLE.into(),
@@ -587,6 +599,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         padding: sides(params, k::PADDING),
         gap: f(k::GAP),
         align: s(k::ALIGN),
+        axis: s(k::AXIS),
         focusable: r.flag(k::FOCUSABLE),
         on_focus: s(k::ON_FOCUS),
         theme: s(k::THEME),
@@ -640,6 +653,9 @@ fn widget_from(params: &toml::Value) -> Widget {
         slice: [0.0; 4],
         deadzone: 0.0,
         safe_area: false,
+        hide_narrower: 0.0,
+        hide_wider: 0.0,
+        hide_shorter: 0.0,
         authored: None,
     };
     read_controls(&mut widget, params);
@@ -721,6 +737,9 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
     widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
     widget.safe_area = b(k::SAFE_AREA);
+    widget.hide_narrower = f(k::HIDE_NARROWER);
+    widget.hide_wider = f(k::HIDE_WIDER);
+    widget.hide_shorter = f(k::HIDE_SHORTER);
     widget.slice = crate::widget::theme::four_of(params.get(k::SLICE));
     widget.deadzone = f(k::DEADZONE);
 }

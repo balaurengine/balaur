@@ -719,7 +719,9 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
     });
     m.function("set_scale", |eng: &Engine, f: f32| {
         let config = eng.resource::<UiConfig>();
-        config.borrow_mut().scale = f.clamp(0.25, 3.0);
+        let mut config = config.borrow_mut();
+        config.scale = f.clamp(0.25, 3.0);
+        config.asked = true;
         Ok(())
     });
 }
@@ -916,7 +918,13 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
             Ok((rect.min.x, rect.min.y, rect.width(), rect.height()))
         })
     });
-    m.function("screen_size", |_eng: &Engine, ()| {
+    m.function("screen_size", |eng: &Engine, ()| {
+        // The backend publishes the screen before the tick, and the tick runs
+        // before the first pass: until then egui's viewport is a placeholder.
+        let [w, h] = balaur_core::facts::device(eng).design_size();
+        if w > 0.0 && h > 0.0 {
+            return Ok((w, h));
+        }
         with_ctx(|ctx| {
             let rect = ctx.viewport_rect();
             Ok((rect.width(), rect.height()))

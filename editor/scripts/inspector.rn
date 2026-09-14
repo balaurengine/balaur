@@ -10,8 +10,6 @@ use crate::style;
 use crate::util;
 
 const LABEL_W = 82.0;
-// Control area width: 308 panel − 24 padding − 84 label − spacing.
-const CONTROL_W = 184.0;
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
 // tree's, under an `inspector/` key so the two never collide.
@@ -19,14 +17,14 @@ fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
     let (mark, tint) = icons::component(title.to_lowercase());
-    wide_row(S, 24, || {
-        ui::horizontal(#{ height: 20 }, || {
+    wide_row(S, row_h(S), || {
+        ui::horizontal(#{ height: control_h(S) }, || {
             ui::add_space(2);
             ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
                 #{ size: style::SM, color: k.faint });
             ui::add_space(4);
             if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
-                height: 20, radius: 4, align: ui::ALIGN_LEFT,
+                height: control_h(S), radius: 4, align: ui::ALIGN_LEFT,
                 icon: mark, icon_size: style::MD, icon_color: k.get(tint).unwrap_or(k.dim),
             })) {
                 if open {
@@ -43,6 +41,15 @@ fn section(S, k, title) {
 // The host the pool builds the rows on, and the hatch a drawn row names.
 const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
 const ROW_HATCH = "draw_form_row";
+
+/// A form row and the control inside it, taller where a finger picks them.
+fn row_h(S) {
+    style::row_h(S)
+}
+
+fn control_h(S) {
+    if S.touchscreen { 29.0 } else { 20.0 }
+}
 
 // The rows this frame wants, and the closures the drawn ones run. Built as
 // the sections walk the selection, then handed to `pool::sync` in one go.
@@ -63,7 +70,7 @@ pub fn open_pool(S) {
 }
 
 pub fn close_pool(S) {
-    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), control_w(S));
+    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
 }
 
 /// One labelled row of controls, for a panel describing its own form.
@@ -81,7 +88,7 @@ fn row(S, k, label, body) {
 /// cuts what does not fit, so the tooltip is where the whole of it lives.
 fn tip_row(S, k, label, tooltip, body) {
     S.form_draws.push(body);
-    push(S, #{ label: label, tooltip: tooltip, height: 24, draw: ROW_HATCH });
+    push(S, #{ label: label, tooltip: tooltip, height: row_h(S), draw: ROW_HATCH });
 }
 
 /// A drawn row for one schema property, labelled and described from its spec.
@@ -134,19 +141,39 @@ pub fn draw_row(S) {
     }
 }
 
-// The two columns of a row, both derived from the panel: at a width neither
-// fits, the label gives way first and the control keeps a usable size.
+// The label column, derived from the form: at a width neither column fits,
+// the label gives way first and the control keeps a usable size.
 fn label_w(S) {
-    util::clamp(S.layout.right.w * 0.34, 46.0, LABEL_W)
+    util::clamp(form_w(S) * 0.34, 46.0, LABEL_W)
 }
 
-fn control_w(S) {
-    util::max(72.0, util::min(320.0, S.layout.right.w - 22.0 - label_w(S)))
+/// The control column, as the row's hatch was handed it. Read before the body
+/// places anything: it is what is left of the hatch, not what the hatch was.
+fn control_w() {
+    ui::available_width()
 }
 
-// A full-width row inside the panel: the sheet less its padding.
-fn panel_w(S) {
-    util::max(S.layout.right.w - 26.0, 150.0)
+// The form's own width, as its rows were last drawn: a frame late, like every
+// box the layout reads back, and the sheet's inside until there is a frame.
+fn form_w(S) {
+    let host = scene::get_node(FORM_NODE);
+    if !util::is_nil(host) {
+        let r = ui::widget_rect(host);
+        if !util::is_nil(r) && r.w > 0.0 {
+            return r.w;
+        }
+    }
+    S.layout.right.w - 16.0
+}
+
+// The control width the rows were drawn at. Under it the label goes above the
+// control and each takes the whole row, as Godot's inspector does in a
+// narrow dock.
+const CONTROL_MIN = 180.0;
+
+/// Whether a row puts its label above its control rather than beside it.
+pub fn stacked(S) {
+    form_w(S) - label_w(S) - 6.0 < CONTROL_MIN
 }
 
 fn value_field(k, value, opts) {
@@ -168,7 +195,7 @@ fn multi_note(S, k) {
         return;
     }
     ui::add_space(4);
-    ui::horizontal(#{ height: 24 }, || {
+    ui::horizontal(#{ height: row_h(S) }, || {
         ui::add_space(2);
         let note = if S.compact {
             format!("{} nodes selected", n)
@@ -176,7 +203,7 @@ fn multi_note(S, k) {
             format!("{} nodes selected · editing applies to all", n)
         };
         ui::pill(note, #{
-            height: 24, size: style::SM, radius: 4, min_width: panel_w(S) - 16.0,
+            height: row_h(S), size: style::SM, radius: 4, min_width: ui::available_width(),
             align: ui::ALIGN_LEFT, fill: k.accent_soft, color: k.accent,
             icon: icons::ui("select-all"), icon_size: style::SM,
         });
@@ -188,21 +215,22 @@ fn instance_note(S, k) {
     if !model::is_instanced(node) {
         return;
     }
-    wide_row(S, 54, || {
+    wide_row(S, row_h(S) + 30.0, || {
+    let w = control_w();
     ui::add_space(6);
     ui::horizontal((), || {
         ui::add_space(8);
         ui::frame(#{ fill: k.sunken, radius: 12, padding_x: 10 }, || {
-            ui::horizontal(#{ height: 24 }, || {
+            ui::horizontal(#{ height: row_h(S) }, || {
                 // A prefab path is as long as the project makes it: ellipsis
                 // rather than a note that stretches the panel.
-                ui::horizontal(#{ height: 24, width: panel_w(S) - 90.0 }, || {
+                ui::horizontal(#{ height: row_h(S), width: w - 90.0 }, || {
                     ui::label(icons::ui("instance") + " from " + model::prefab_of(S, node),
                         util::merge(style::mono_sm(k.dim), #{ truncate: true }));
                 });
                 ui::add_space(8);
                 if ui::pill("open", #{
-                    height: 20, size: style::SM, fill: k.panel, color: k.dim,
+                    height: control_h(S), size: style::SM, fill: k.panel, color: k.dim,
                     tooltip: "Edit the prefab itself, for every instance of it",
                 }) {
                     model::open_prefab(S);
@@ -224,13 +252,14 @@ fn instance_source_row(S, k, node) {
         return;
     }
     row(S, k, "Instance", || {
+        let w = control_w();
         ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
-            ui::horizontal(#{ height: 30, width: control_w(S) - 24.0 }, || {
+            ui::horizontal(#{ height: row_h(S), width: w - 24.0 }, || {
                 ui::label(node.instance,
                     util::merge(style::mono(k.sage), #{ truncate: true }));
                 ui::right(|| {
                     if ui::pill("open", #{
-                        height: 20, size: style::SM, strong: true,
+                        height: control_h(S), size: style::SM, strong: true,
                         fill: k.panel, color: k.dim,
                         tooltip: "Edit the prefab itself, for every instance of it",
                     }) {
@@ -253,14 +282,14 @@ fn script_section(S, k, title) {
     row(S, k, "Script", || {
         let id = format!("script:{}", S.sel);
         let (text, _, submitted) = ui::text_field(id, "scripts/name.rn",
-            util::merge(style::field(k, control_w(S) - 52.0),
+            util::merge(style::field(k, control_w() - 52.0),
                 #{ value: model::script_rel(node).unwrap_or(""), color: k.sage }));
         if submitted {
             shell::set_script_path(S, text);
         }
         ui::right(|| {
             let (picked, changed) = ui::dropdown(format!("pick:{}", id), "pick", shell::script_files(S), #{
-                width: 46, size: style::SM, height: 20, color: k.text,
+                width: 46, size: style::SM, height: control_h(S), color: k.text,
             });
             if changed {
                 shell::set_script_path(S, picked);
@@ -322,7 +351,7 @@ fn script_props_rows(S, k, node) {
             let name = export.name;
             let back = export["default"];
             push(S, #{ label: "", height: 22, controls: [#{
-                kind: "button", height: 20, text: "reset", role: "chip", width: 52,
+                kind: "button", height: control_h(S), text: "reset", role: "chip", width: 52,
                 tooltip: "Back to the script's default",
                 on: |_| { model::set_script_prop(S, name, back); },
             }] });
@@ -336,7 +365,7 @@ fn clip_source_row(S, k, node) {
     let path = anim::library_path(node);
     row(S, k, "Source", || {
         // The clip's file, ellipsised: a library path is longer than the row.
-        ui::horizontal(#{ height: 24, width: control_w(S) - 96.0 }, || {
+        ui::horizontal(#{ height: row_h(S), width: control_w() - 96.0 }, || {
             ui::label(path.unwrap_or("— inline —"),
                 util::merge(style::mono(k.faint), #{ truncate: true }));
         });
@@ -344,7 +373,7 @@ fn clip_source_row(S, k, node) {
             let inline = path.is_none();
             let label = if inline { "save as file" } else { "make inline" };
             if ui::pill(label, #{
-                height: 20, size: style::SM, strong: true,
+                height: control_h(S), size: style::SM, strong: true,
                 tooltip: if inline {
                     "Write this clip to animations/ and reference it"
                 } else {
@@ -378,7 +407,7 @@ fn skeleton_section(S, k) {
     row(S, k, "Bones", || {
         let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
         // The node's own name is in the line: ellipsis, not a wider panel.
-        ui::horizontal(#{ height: 24, width: control_w(S) - 76.0 }, || {
+        ui::horizontal(#{ height: row_h(S), width: control_w() - 76.0 }, || {
             ui::label(format!("{} · {}", count, what),
                 util::merge(style::mono(k.text), #{ truncate: true }));
         });
@@ -481,7 +510,7 @@ fn polygon_section(S, k) {
         if count > 0 {
             ui::right(|| {
                 if ui::pill("clear", #{
-                    height: 20, size: style::SM, strong: true,
+                    height: control_h(S), size: style::SM, strong: true,
                     tooltip: "Back to filling the outline automatically",
                     fill: k.sunken, color: k.dim,
                 }) {
@@ -549,7 +578,7 @@ fn polygon_section(S, k) {
     }
     row(S, k, "Bones", || {
         if ui::pill("sync to rig", #{
-            height: 24, size: style::SM, strong: true,
+            height: row_h(S), size: style::SM, strong: true,
             tooltip: "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
             fill: k.sage_soft, color: k.sage,
         }) {
@@ -558,11 +587,10 @@ fn polygon_section(S, k) {
     });
     for (i, bone) in polygon::bones(S).iter().enumerate() {
         let active = S.polygon.bone == Some(i);
-        ui::horizontal(#{ height: 24 }, || {
-            ui::spacing(8, 0);
-            ui::add_space(label_w(S));
-            if ui::pill(bone.path, #{
-                height: 24, size: style::SM, align: ui::ALIGN_LEFT, min_width: CONTROL_W,
+        let held = bone;
+        row(S, k, "", || {
+            if ui::pill(held.path, #{
+                height: row_h(S), size: style::SM, align: ui::ALIGN_LEFT, min_width: control_w(),
                 icon: "⋈", icon_size: style::SM,
                 fill: if active { k.accent_soft } else { k.sunken },
                 color: if active { k.accent } else { k.text },
@@ -573,7 +601,7 @@ fn polygon_section(S, k) {
         });
     }
     row(S, k, "Brush", || {
-        let w = CONTROL_W / 2.0 - 5.0;
+        let w = control_w() / 2.0 - 5.0;
         let (radius, ch) = ui::drag_value(S.polygon.radius, #{
             width: w, speed: 0.5, decimals: 0, prefix: "px", prefix_color: k.accent,
             fill: k.sunken, stroke: k.line, color: k.text,
@@ -604,7 +632,7 @@ fn animation_section(S, k) {
             row(S, k, "Clip", || {
                 if ui::pill(icons::ui("add") + " Create clip", #{
                     height: 30, size: style::MD, strong: true,
-                    min_width: CONTROL_W,
+                    min_width: control_w(),
                     fill: k.accent_soft, color: k.accent,
                 }) {
                     anim::ensure_clip(S);
@@ -627,7 +655,7 @@ fn animation_section(S, k) {
         // The engine's own vocabulary, not a boolean: pingpong is a third
         // answer and a toggle cannot say it.
         let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or("none"), ["none", "loop", "pingpong"], #{
-            width: control_w(S), size: style::MD, height: 24, color: k.text,
+            width: control_w(), size: style::MD, height: row_h(S), color: k.text,
         });
         if ch {
             def["loop"] = v;
@@ -740,7 +768,7 @@ fn edit_flags(S, k, comp, prop, spec, value) {
         for name in util::vec(spec.get("options").unwrap_or([])) {
             let on = util::contains(held, name);
             if ui::pill(name, #{
-                height: 20, size: style::SM, strong: on,
+                height: control_h(S), size: style::SM, strong: on,
                 fill: if on { k.accent_fill } else { k.sunken },
                 color: if on { k.on_accent } else { k.dim },
             }) {
@@ -766,7 +794,7 @@ fn edit_node(S, k, comp, prop, spec, value) {
     spec_row(S, k, prop, spec, || {
         let id = format!("node:{}:{}:{}", comp, prop, S.sel);
         let (text, _, submitted) = ui::text_field(id, "— none —",
-            util::merge(style::field(k, CONTROL_W - 78.0), #{ value: as_text(value) }));
+            util::merge(style::field(k, control_w() - 78.0), #{ value: as_text(value) }));
         if submitted {
             write(S, comp, prop, text);
         }
@@ -776,7 +804,7 @@ fn edit_node(S, k, comp, prop, spec, value) {
         }
         ui::right(|| {
             let (picked, changed) = ui::dropdown(format!("pick:{}", id), "pick", paths, #{
-                width: 74, size: style::SM, height: 20, color: k.text,
+                width: 74, size: style::SM, height: control_h(S), color: k.text,
             });
             if changed {
                 write(S, comp, prop, if picked == "— none —" { "" } else { picked });
@@ -821,15 +849,15 @@ fn subsection(S, k, comp, group, count) {
     // box cannot find.
     let open = S.opened.contains_key(key)
         || crate::search::query(S, "inspector") != "";
-    wide_row(S, 22, || {
-        ui::horizontal(#{ height: 20 }, || {
+    wide_row(S, row_h(S), || {
+        ui::horizontal(#{ height: control_h(S) }, || {
             ui::add_space(14);
             ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
                 #{ size: style::SM, color: k.faint });
             ui::add_space(4);
             if ui::pill(format!("{} · {}", util::prop_label(group), count), #{
-                height: 20, size: style::SM, radius: 4, align: ui::ALIGN_LEFT,
-                min_width: panel_w(S) - 40.0, fill: k.sunken, color: k.dim,
+                height: control_h(S), size: style::SM, radius: 4, align: ui::ALIGN_LEFT,
+                min_width: ui::available_width(), fill: k.sunken, color: k.dim,
             }) {
                 if open {
                     S.opened.remove(key);
@@ -1011,7 +1039,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
             ui::label("— inline —", style::mono(k.faint));
         } else {
             let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
-            let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
+            let width = if dir == "" { control_w() } else { control_w() - 78.0 };
             let (text, _, submitted) = ui::text_field(id, placeholder,
                 util::merge(style::field(k, width), #{ value: reference }));
             if submitted {
@@ -1024,7 +1052,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
         ui::right(|| {
             let label = if inline { "save as file" } else { "make inline" };
             if ui::pill(label, #{
-                height: 20, size: style::SM, strong: true,
+                height: control_h(S), size: style::SM, strong: true,
                 tooltip: if inline {
                     format!("Write this {} to {}/ and reference it", asset_type, dir)
                 } else {
@@ -1119,7 +1147,7 @@ fn shader_row(S, k, reference, shader) {
     }
     row(S, k, "  Shader", || {
         if ui::pill(icons::ui("open"), #{
-            role: "icon_button", min_width: 22, height: 24,
+            role: "icon_button", min_width: 22, height: row_h(S),
             tooltip: "Edit " + current, fill: k.sage_soft, color: k.sage,
         }) {
             S.shader_rel = model::relative_file(S, shader);
@@ -1128,7 +1156,7 @@ fn shader_row(S, k, reference, shader) {
         ui::add_space(4);
         let (picked, changed) = ui::dropdown(
             format!("shader:{}", reference), current, choices,
-            #{ width: control_w(S) - 26.0, size: style::SM, height: 24, color: k.text },
+            #{ width: ui::available_width(), size: style::SM, height: row_h(S), color: k.text },
         );
         if changed && picked != current {
             write_material_key(S, reference, "shader", "shaders/" + picked);
@@ -1215,7 +1243,7 @@ fn material_row(S, k, reference, name, datatype, value) {
                 format!("mat:{}:{}", reference, name),
                 if current == "" { "none" } else { current },
                 choices,
-                #{ width: control_w(S), size: style::MD, height: 24, color: k.text },
+                #{ width: control_w(), size: style::MD, height: row_h(S), color: k.text },
             );
             if changed {
                 write_material_param(S, reference, name, if picked == "none" { "" } else { picked });
@@ -1223,7 +1251,7 @@ fn material_row(S, k, reference, name, datatype, value) {
         } else {
             let count = if datatype == "vec2" { 2 } else { 3 };
             let letters = ["x", "y", "z"];
-            let w = CONTROL_W / (count as f64) - 5.0;
+            let w = control_w() / (count as f64) - 5.0;
             let v = util::vec(value);
             let cell = #{ changed: false, out: [] };
             for i in 0..count {
@@ -1324,7 +1352,7 @@ fn readonly_row(S, k, prop, spec, data) {
     spec_row(S, k, prop, spec, || {
         // A read-only value is whatever the component reports, a joined list
         // included: it gets the column, and an ellipsis past its end.
-        ui::horizontal(#{ height: 24, width: control_w(S) - 62.0 }, || {
+        ui::horizontal(#{ height: row_h(S), width: control_w() - 62.0 }, || {
             ui::label(readonly_text(spec, value),
                 util::merge(style::mono(k.faint), #{ truncate: true }));
         });
@@ -1338,13 +1366,13 @@ fn readonly_row(S, k, prop, spec, data) {
 // draw: the rows are tables, not properties.
 fn bindings_note(S, k) {
     section(S, k, "BINDINGS");
-    wide_row(S, 26, || {
-        ui::horizontal(#{ height: 24 }, || {
+    wide_row(S, row_h(S) + 2.0, || {
+        ui::horizontal(#{ height: row_h(S) }, || {
             ui::add_space(2);
             if ui::pill(format!("{}  {} row(s) · open the Events view",
                 icons::ui("events"), crate::events::rows(S).len()), #{
-                height: 24, size: style::SM, align: ui::ALIGN_LEFT,
-                min_width: panel_w(S) - 16.0,
+                height: row_h(S), size: style::SM, align: ui::ALIGN_LEFT,
+                min_width: ui::available_width(),
                 fill: k.sunken, color: k.text,
             }) {
                 shell::open_doc(S, "events");
@@ -1443,14 +1471,14 @@ fn component_sections(S, k, filter) {
         let open = !S.collapsed.contains_key(key);
         let held = comp;
         let (mark, tint) = icons::component(held);
-        wide_row(S, 24, || {
-            ui::horizontal(#{ height: 20 }, || {
+        wide_row(S, row_h(S), || {
+            ui::horizontal(#{ height: control_h(S) }, || {
                 ui::add_space(2);
                 ui::label(if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
                     #{ size: style::SM, color: k.faint });
                 ui::add_space(4);
                 if ui::pill(held.to_uppercase(), util::merge(style::heading(k), #{
-                    icon: mark, icon_size: style::MD, icon_color: k.get(tint).unwrap_or(k.dim), height: 20,
+                    icon: mark, icon_size: style::MD, icon_color: k.get(tint).unwrap_or(k.dim), height: control_h(S),
                     align: ui::ALIGN_LEFT, radius: 4,
                 })) {
                     if open {
@@ -1462,7 +1490,7 @@ fn component_sections(S, k, filter) {
                 ui::right(|| {
                     ui::add_space(2);
                     if ui::pill(icons::ui("close"), #{
-                        height: 20, size: style::SM, strong: true, tooltip: "Remove component",
+                        height: control_h(S), size: style::SM, strong: true, tooltip: "Remove component",
                         fill: k.sunken, color: k.faint,
                     }) {
                         model::remove_component(S, held);
@@ -1517,7 +1545,7 @@ fn events_section(S, k) {
     let script = match model::script_rel(node) {
         Some(script) => script,
         None => {
-            wide_row(S, 26, || {
+            wide_row(S, row_h(S) + 2.0, || {
                 style::empty(k, "no script attached");
             });
             return;
@@ -1525,7 +1553,7 @@ fn events_section(S, k) {
     };
     for hook in model::hooks(S, script) {
         let held = hook;
-        wide_row(S, 26, || {
+        wide_row(S, row_h(S) + 2.0, || {
             style::hook_pill(k, held.name, held.name + "()", "→ engine");
         });
     }
@@ -1534,7 +1562,7 @@ fn events_section(S, k) {
 pub fn body(S, k) {
     let node = model::selected_node(S);
     ui::add_space(2);
-    ui::horizontal(#{ height: 24 }, || {
+    ui::horizontal(#{ height: row_h(S) }, || {
         let (icon, token) = model::node_icon(node);
         ui::label(icon, #{ size: style::LG, color: k.get(token).unwrap_or(k.accent) });
         ui::add_space(7);
@@ -1549,7 +1577,7 @@ pub fn body(S, k) {
     });
     multi_note(S, k);
     ui::add_space(3);
-    crate::search::field(S, k, "inspector", "Search", panel_w(S) - 16.0);
+    crate::search::field(S, k, "inspector", "Search", ui::available_width());
     // Every row is a node now: the sections describe them, and the pool makes
     // and reuses them under the sheet's scroll.
     open_form(S);
@@ -1579,14 +1607,13 @@ pub fn body(S, k) {
     }
     events_section(S, k);
     crate::plugins::draw_sections(S, k, node);
-    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), control_w(S));
+    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
 }
 
 /// The one control under the scroll, so a long form cannot push it away.
 pub fn foot_controls(S) {
     [#{
-        kind: "button", role: "button", height: 30,
-        width: S.layout.right.w - 26.0,
+        kind: "button", role: "button", height: 30, width: 0.0, grow: 1.0,
         icon: icons::ui("add"), text: "Add component",
         on: |_| { shell::open_palette(S, "add "); },
     }]

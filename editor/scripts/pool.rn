@@ -50,16 +50,21 @@ fn remember(S, host, key, value) {
     S.pool[host] = table;
 }
 
-// A row: a label of a fixed width, then the controls sharing what is left.
-// One shape for every property, so the columns line up down the whole panel.
+// A label's line where a row is stacked: the label role's text and its air.
+const LABEL_H = 16.0;
+
+// A row: a label of a fixed width, then the control column taking what is
+// left, a row of its own so a script's body runs left to right in it.
 fn make_row(host, index) {
     let row = host.add_child(format!("R{}", index));
     row.set_component("widget", #{ kind: "row", gap: 6, height: 24 });
     let label = row.add_child("L");
     label.set_component("widget", #{ kind: "label", role: "label" });
-    let slot = row.add_child("C");
+    let column = row.add_child("H");
+    column.set_component("widget", #{ kind: "row", gap: 0, grow: 1 });
+    let slot = column.add_child("C");
     slot.set_component("widget", #{ kind: "row", gap: 1, grow: 1 });
-    let hatch = row.add_child("D");
+    let hatch = column.add_child("D");
     hatch.set_component("widget", #{ kind: "draw", visible: false, grow: 1 });
     row
 }
@@ -187,7 +192,10 @@ fn group(S, host, i, node, want, inner) {
 /// Put `specs` on the host's children, making what is missing and hiding what
 /// is spare. A spec is `#{ label, controls }`, and a control is a widget
 /// property table plus an `on` the pool calls with the reader's edit.
-pub fn sync(S, host_path, specs, label_w, control_w) {
+///
+/// The rows are as wide as the host: `stacked` puts each label above its
+/// control column instead of beside it, for a host too narrow for both.
+pub fn sync(S, host_path, specs, label_w, stacked) {
     let host = scene::get_node(host_path);
     if util::is_nil(host) {
         return;
@@ -204,37 +212,48 @@ pub fn sync(S, host_path, specs, label_w, control_w) {
             continue;
         }
         let spec = specs[i];
-        row.patch_component("widget", #{ visible: true, height: spec.get("height").unwrap_or(24) });
+        let full = spec.get("full").unwrap_or(false);
+        let text = spec.get("label").unwrap_or("");
+        // Stacked, a labelled row is a column of its label and its control
+        // column, a label's line taller; a full or unlabelled row spans both.
+        let stack = stacked && !full && text != "";
+        let h = util::f(spec.get("height").unwrap_or(24.0));
+        row.patch_component("widget", #{
+            visible: true,
+            kind: if stack { "column" } else { "row" },
+            gap: if stack { 2 } else { 6 },
+            height: if stack { h + LABEL_H + 2.0 } else { h },
+        });
+        let label = row.get_node("L");
+        if !util::is_nil(label) {
+            label.patch_component("widget", #{
+                visible: !full && (text != "" || !stacked),
+                text: text,
+                width: if stack { 0.0 } else { label_w },
+                height: if stack { LABEL_H } else { 0.0 },
+                role: spec.get("label_role").unwrap_or("label"),
+                tooltip: spec.get("tooltip").unwrap_or(""),
+            });
+        }
+        let column = row.get_node("H");
+        if util::is_nil(column) {
+            continue;
+        }
         // A row the caller draws itself: the bespoke ones no control table
         // describes. It is still a node, and it still sits in the column.
         let drawn = spec.get("draw");
-        let hatch = row.get_node("D");
+        let hatch = column.get_node("D");
         if !util::is_nil(hatch) {
             match drawn {
                 Some(name) => hatch.patch_component("widget", #{ visible: true, draw: name }),
                 None => hatch.patch_component("widget", #{ visible: false }),
             }
         }
-        let full = spec.get("full").unwrap_or(false);
-        let label = row.get_node("L");
-        if !util::is_nil(label) {
-            label.patch_component("widget", #{
-                visible: !full,
-                text: spec.get("label").unwrap_or(""),
-                width: label_w,
-                role: spec.get("label_role").unwrap_or("label"),
-                tooltip: spec.get("tooltip").unwrap_or(""),
-            });
-        }
-        let slot = row.get_node("C");
+        let slot = column.get_node("C");
         if util::is_nil(slot) {
             continue;
         }
-        slot.patch_component("widget", #{
-            visible: drawn.is_none(),
-            width: if full { 0.0 } else { control_w },
-            grow: if full { 1.0 } else { 0.0 },
-        });
+        slot.patch_component("widget", #{ visible: drawn.is_none() });
         if drawn.is_some() {
             continue;
         }

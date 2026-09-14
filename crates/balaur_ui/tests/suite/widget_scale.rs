@@ -81,6 +81,22 @@ fn a_stated_size_is_the_same_points_at_every_scale_and_more_pixels() {
     );
 }
 
+/// `[ui] scale` seeds the scale on the first tick, which is after a script's
+/// `init`. A scale the script asked for by then is what it keeps.
+#[test]
+fn a_scale_a_script_asked_for_survives_the_first_tick() {
+    let (_dir, mut app) = app();
+    {
+        let config = app.engine.resource::<balaur_ui::UiConfig>();
+        let mut config = config.borrow_mut();
+        config.scale = 1.7;
+        config.asked = true;
+    }
+    app.tick(1.0 / 60.0);
+    let kept = app.engine.resource::<balaur_ui::UiConfig>().borrow().scale;
+    assert!((kept - 1.7).abs() < f32::EPSILON, "the seed overwrote the ask: {kept}");
+}
+
 /// A widget's class table, and what it takes to make one apply.
 mod classes {
     use balaur_core::facts::DeviceFacts;
@@ -278,6 +294,71 @@ mod classes {
         assert!(says_why(&held), "holding the finger did not open the tooltip");
         let lifted = pass_at(&app, &ctx, touch(at, false), Some(1.2));
         assert!(!says_why(&lifted), "the tooltip outlived the finger");
+    }
+
+    /// A number where the words are not fine enough: a widget states the
+    /// surface it needs and is not drawn on one that cannot give it.
+    #[test]
+    fn a_widget_states_the_surface_it_needs_and_folds_away_without_it() {
+        let drawn_at = |width: f32, height: f32, params: toml::Value| {
+            let (_dir, app) = app();
+            add_widget(&app, &params);
+            screen(&app, width, height);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            !pass(&app, &ctx, vec![]).shapes.is_empty()
+        };
+        let minimap = toml::toml! {
+            kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_narrower = 600.0
+        };
+        assert!(drawn_at(1200.0, 900.0, minimap.clone().into()), "a wide screen lost the widget");
+        assert!(!drawn_at(390.0, 900.0, minimap.into()), "a narrow screen still drew it");
+        let thumb = toml::toml! {
+            kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_wider = 600.0
+        };
+        assert!(drawn_at(390.0, 900.0, thumb.clone().into()), "a phone lost its own control");
+        assert!(!drawn_at(1200.0, 900.0, thumb.into()), "a desktop drew a phone's control");
+        let stack = toml::toml! {
+            kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_shorter = 480.0
+        };
+        assert!(drawn_at(844.0, 844.0, stack.clone().into()), "an upright screen lost it");
+        assert!(!drawn_at(844.0, 390.0, stack.into()), "a screen on its side still drew it");
+    }
+
+    /// A line is read against the room a widget is laid out in, not only
+    /// the screen: a child of a stated box asks how wide that box is.
+    #[test]
+    fn a_line_reads_the_container_that_states_a_size() {
+        use crate::support::add_child_widget;
+        let child_drawn = |panel_w: f32| {
+            let (_dir, app) = app();
+            let panel = add_widget(
+                &app,
+                &toml::toml! { kind = "panel" x = 0.0 y = 0.0 width = panel_w height = 80.0 }.into(),
+            );
+            // A filled box of a width nothing else on screen has: a label is a
+            // glyph mesh, which a shape search cannot read the text of.
+            add_child_widget(
+                &app,
+                panel,
+                "c",
+                &toml::toml! {
+                    kind = "panel" width = 77.0 height = 30.0 fill = "#ff0000" hide_narrower = 300.0
+                }
+                .into(),
+            );
+            screen(&app, 1200.0, 900.0);
+            let ctx = egui::Context::default();
+            // One more pass than usual: the room is where the box drew last.
+            settle(&app, &ctx);
+            let out = pass(&app, &ctx, vec![]);
+            out.shapes.iter().any(|s| match &s.shape {
+                egui::epaint::Shape::Rect(r) => (r.rect.width() - 77.0).abs() < 1.0,
+                _ => false,
+            })
+        };
+        assert!(child_drawn(400.0), "a box wide enough hid its child");
+        assert!(!child_drawn(200.0), "a box too narrow still drew its child, on a wide screen");
     }
 
     /// A notch covers the top of the screen whatever the layout wants, so a

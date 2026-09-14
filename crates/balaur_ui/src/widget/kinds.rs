@@ -479,7 +479,7 @@ pub(crate) fn fold(
     let body = Rect::from_min_max(pos2(room.min.x + pad.left, room.min.y), room.max);
     // Solved on its own: the header is drawn here rather than authored, so
     // what is under it is a subtree of its own from the layout's side.
-    let space = crate::widget::taffy::Room::scrolling(body);
+    let space = crate::widget::taffy::Room::scrolling(body, w::BOTH);
     let solved = crate::widget::taffy::solve_subtree(
         at.eng,
         at.arena,

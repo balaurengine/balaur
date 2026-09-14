@@ -239,7 +239,7 @@ scene's, and `layout.rn` reads the class for what the tables cannot say.
 | `wide`, `tall`, `pointer` | Today |
 | `touch` | The floor. Long press for context menus and tooltips. Gizmo handles at the floor's size. Two-finger pan and pinch on the stage, read from `input.pan()` and `input.pinch()` rather than the mouse. Every hover-only control gets a resting form. A drag in the outliner starts from a long press |
 | `medium` | The editor's compact mode, both side docks folded away at the start, and an unfolded one taking half the screen |
-| `narrow` | All three docks folded at the start, and one at a time: unfolding one folds the other two. An unfolded dock takes the screen less a strip of the stage, which is the way back. The tool rail and the viewport's chips go with it, since a strip is somewhere to return to rather than somewhere to work |
+| `narrow` | All three docks folded at the start, and one at a time: unfolding one folds the other two. An unfolded dock takes the whole screen, and its own fold is the way back. The rail, the chips and the other handles go with it |
 | `short` | The bottom dock folds as well, and the one-at-a-time rule applies: a phone on its side is wide enough to read a seam and too short to stack anything under the stage |
 | `short` | The bottom dock hides and the top bar folds as `narrow` does |
 
@@ -259,7 +259,8 @@ decision.
 | The lines | Planned: `[ui] narrow_below`, `wide_from` and `short_below`, defaults 600, 840 and 480, overridable per tag |
 | A project's own class words | Not planned: the words are the contract a theme, a scene and an addon share. A fourth line is a script reading `ui.screen_size()` |
 | A game played in the editor | Planned: its class from the layer's rect and its own `[ui]` lines, declared by the editor at play |
-| A widget that changes by class | Planned: a table per class word on the `widget` component, any declared key but `kind`, resolved each frame in the declared order |
+| A widget that changes by class | Have: a table per class word on the `widget` component, any declared key but `kind`, resolved each frame in the declared order |
+| A widget that needs a surface of a stated size | Have: `hide_narrower`, `hide_wider` and `hide_shorter`, in design pixels of the surface, for where the words are not fine enough. A game's minimap states the width it needs; a phone-only control states the width it is not wanted past |
 | A typo in a class table | Planned: an error at load naming the key |
 | A theme that changes by class | Planned: `[<kind>.<class>]` in a `widget_theme` asset, beside `[<kind>.hover]` |
 | A setting that changes by class | Have, for the input class: `[override.touch.<table>]` through the tag. Not planned for width and height: a tag is a run's constant |
@@ -619,3 +620,198 @@ chrome rather than in the engine:
   The transport states a size per glyph, 11 for play against 16 for the other
   two, which is the icon set's proportion answered rather than argued with.
 - **The dock hatch outlived its panel.** Covered in §12.
+
+## 14. Minimums, and the room they are asked against
+
+The rules that decide what the editor draws beside its docks read the room
+rather than the screen's class, which is what makes them one rule each instead
+of one per device.
+
+- **The engine's half is three keys on a widget.** `hide_narrower`,
+  `hide_wider` and `hide_shorter` state the surface a widget needs in design
+  pixels, and it is not drawn on one that cannot give it. Read against the
+  surface, like the class words, so it cannot oscillate: hiding the widget
+  changes nothing it was measured against. A game's minimap says 600 and a
+  phone's thumbstick says it is not wanted past 600.
+- **The editor's half is one number.** `layout::stage_room` is the stage the
+  docks leave, from the widths the layout is about to use, asked before it
+  runs. The tool rail shows where its column and a stage worth pointing at
+  fit beside each other, and the chip and foot strips where the stage is
+  taller than the two of them.
+- **One rule is not about room.** A sheet that is the whole screen shows one
+  way out, its own fold. A handle to a second sheet would open it over the
+  first, so on a screen with one sheet at a time the other handles go.
+
+The bottom dock is the case that told the two apart. Open on a phone, it
+leaves the stage its full width and most of its height, so the rail, the
+chips, the axis pill and the zoom reading all fit and all stay. A side dock
+open leaves a strip, and none of them fit.
+
+## 15. What is good about this, and what is not
+
+Asked 2026-09-14, after the screens looked right: is the design sound, is
+there a better API, is it efficient, is it general.
+
+**Sound.** Two facts about the screen, read in one place, that everything
+else answers to. The input class is a tag, so every existing override works
+on it; the width and height are per frame, so a rotation is a frame. The same
+override shape reaches a widget, a theme and a setting, and a game's HUD gets
+every piece the editor got. A phone editor session replays on a desktop.
+
+**Two ways to ask one question.** A class word and a numeric surface line
+both answer "is the screen small". The words are the contract a theme, a
+scene and an addon share; the numbers are for a widget whose line is its own.
+CSS has named breakpoints in every framework and raw queries beneath them,
+for the same reason. Documented as: words for what is shared, numbers for what
+is not.
+
+**Surface, not container.** `hide_narrower` reads the whole surface, so a
+sidebar that should fold when its own panel is narrow cannot say so. A
+container query needs the layout solved once to know the room and again to
+apply the answer, and a naive version oscillates. The surface reading is
+stable and answers the game's case. The editor's own version is in script,
+`stage_room`, and it duplicates the layout's arithmetic, which is the weakest
+seam here: two places know how wide a dock is. The fix is a layout in two
+phases, docks then chrome, and it is the thing to do next if the rules grow.
+
+**Two numbers that must agree.** The touch box of 33 in the theme and the
+scale of 1.35 in the shell clear 44 together and are stated apart. The
+selftest measures the drawn rect, so a drift fails, but a derivation would be
+better than a guard: the shell could compute its scale from the target and
+the theme's own number.
+
+**Efficient enough, after two fixes.** A class table costs its widget one
+pointer, and resolves only on an arena rebuild, which a rotation is. The
+theme's resolved-style cache keyed a generation beside each entry and never
+evicted, so every rotation left the last screen's styles behind for the life
+of the theme; it empties on a new generation now. And `pass_classes` cloned a
+vector per widget per rebuild, which is a refcount now. What is still paid
+per frame: the class words are computed three times a pass, for the stamp,
+the arena and the theme, and could be computed once and handed down.
+
+**The editor's rules are room-based with one exception.** One sheet at a time
+follows from the floors: a screen narrower than two side docks and a stage at
+their minimums, or shorter than the bar, a bottom dock and a stage at theirs.
+The rail and the chrome show where their own minimums fit in the room the
+docks leave. The one rule that is not about room is that a sheet filling the
+screen shows only its own fold, because a handle to a second sheet would open
+it over the first. And the strip of stage a lone sheet used to leave is gone:
+it was the way back while the handles lived on it, and dead space once they
+did not.
+
+**Two warts.** A start-up state that opens a dock has to survive the first
+class fold, which is an `asked` flag rather than an ordering; states should
+apply after the first frame reads the screen. And `hide_taller` does not
+exist, for symmetry's sake alone.
+
+## 16. The second review, and what it changed
+
+Asked again once the screens were right: whether two ways to ask one question
+is a design or a smell, whether the surface reading can be made general, and
+what to do about the three things §15 said still bothered.
+
+**Two ways stays, with the line drawn.** A class word is a name shared by a
+theme, a scene, an addon and the inspector's picker: it is what lets a theme
+written elsewhere mean the same thing in this project. A numeric line is one
+widget's own business. Words for what is shared, numbers for what is not, and
+the second is implemented on the first: a class is a line with a name.
+
+**The lines read the room now, not only the screen.** `hide_narrower` and its
+two siblings are measured against the nearest container that states a size or
+grows, where that container drew last pass; a root that hugs its contents, and
+a widget under nothing definite, read the screen. That is the container query
+the first build declined, without the oscillation it feared: a definite
+container's box does not depend on the child that asks. The cost is one pass
+of lag on a resize, which a resize hides. The test is a stated box that hides
+its child at 200 wide and shows it at 400, on a 1200 wide screen.
+
+**What still bothered, fixed.** The scale is derived, the target over the box
+the theme states, rounded up to a twentieth. The class words are read once a
+pass and handed to the arena, the stamp and the theme. The start-up states
+apply on the first frame after the fold rather than before it, and the flag
+that let one survive the fold is gone.
+
+**Three things the round found underneath.**
+
+- **`[ui] scale` seeded over a script's ask.** The seed runs on the first
+  tick, after `init`, so a scale set in `init` lasted one frame. A seed that
+  found the scale already asked for leaves it; there is a test.
+- **`ui.screen_size` answered egui's placeholder on the first frame.** The
+  tick runs before the first pass, and egui's viewport is a 7407 pixel square
+  until a pass has run. It answers the size the backend published before the
+  tick, which is also what the class words read.
+- **One sheet at a time follows from the floors,** not from a class word: a
+  screen narrower than one side dock and a stage at their minimums, or
+  shorter than the bar, a bottom dock and a stage. Whether three columns fit
+  is a second question from the same floors, and decides what folds at the
+  start and whether an open dock takes half. The fold re-applies when either
+  answer changes, which the class words alone did not notice.
+
+**The inspector stacks.** A row puts its label above its control where the
+control column would fall under 200, which is what Godot's inspector does in
+a narrow dock. The desktop's default inspector is 220 wide and had the same
+clipped rows the phone showed, so it stacks there too. Two things had to be
+stated for it to work: a stacked row's slot and hatch each state the row's
+width, because a column aligns its items to the start and a node hugging its
+contents gives a right-aligned control no edge; and the row is two lines tall
+under its label, since a control aligned right of a full-width line wraps.
+
+**Every row a finger picks is finger-sized.** Trees and lists carry a `touch`
+row height of 33, and the inspector's rows and controls take a touch height
+of their own.
+
+## 17. The second look: one padding, one tile
+
+The phone inspector after §16, as the user read it: rows ran past the search
+field's edge, sections sat far apart, and the desktop's rail sat a step below
+the sheets. On the tablet a folded dock's handle was smaller than a rail tool,
+though the two are the same control on the same sheet. Each had one cause.
+
+**A scroll that moves one way fills the other.** The form's rows were the
+width their label and control columns stated, which added up to the dock's
+width less the sheet's padding and the scroll bar's strip. Nothing else in
+the sheet knew that sum, so the search field and the footer took widths of
+their own. Two engine changes make the arithmetic unnecessary. The scroll bar
+floats over its contents rather than taking a strip, so a scroll's inside is
+the sheet's padding and nothing else. A `scroll` node now says which way it
+moves, `axis`, and fills the other: a vertical scroll's column is as wide as
+the scroll, with nothing inside it stating a width. The room a one-way scroll
+solves in is definite across and free along, and the root takes the definite
+side. It keeps its `grow`, because the scroll is a root in its own solve and a
+child in its parent's, on one taffy node; zeroing `grow` there left the
+parent's solve nothing to grow, and the dock drew nothing. The test uses a
+scroll that takes what its sheet leaves, since one with a stated width fills
+it whatever its axis says.
+
+**The control column is a node.** A pooled row is its label and one row node
+the slot and the hatch live in. The row grows the column to what the label
+leaves; stacked, the column stretches under the label and the hatch fills the
+column. What a script draws into the hatch runs left to right whichever way
+the row is laid out, which is what let a right-aligned control wrap under a
+full-width line before. Every width the inspector used to compute is gone. A
+body reads `ui::available_width()` before it places anything, and the search
+and the footer take what the sheet gives. `stacked` reads the form's own drawn
+width against the width the rows were designed at, 184, so the desktop no
+longer stacks. A stacked row is a label's line and the control's, and a row
+with no label skips the line.
+
+**A row's body sits on the row's centre line,** where `ui::right` puts its own
+run, so a field and the dropdown after it are one line.
+
+**The handle is the rail's tile.** A folded dock's handle is an icon button on
+a sheet, and so is a rail tool, so the two share one geometry now. It is the
+theme's `tool` tile with the rail's inset, read through `style::role_px`
+rather than restated in the script, and the rail's marks take the theme's size
+too. The rail sat a step low because its slot took the default gap above an
+empty handle row; the slot states none.
+
+**A lone sheet is centred, and only a side sheet is lone.** The sheet sat six
+further from the left edge than the right: the centre column it replaced was
+still there at zero width, and a zero-width box still takes the row's gap
+beside it. The centre goes while a side sheet has the body, the rule the side
+docks already followed. And the bottom dock is not that sheet: it leaves the
+stage, so the two side handles stay on it while it is open.
+
+Verified as before: 149 UI tests, the editor selftest clean with and without
+touch, house, comment and generated-doc lints clean, and the post's two
+pictures regenerated from these renders.

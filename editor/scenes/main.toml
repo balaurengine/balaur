@@ -76,6 +76,7 @@ name = "HeadScroll"
 parent = "head_row"
 [nodes.widget]
 kind = "scroll"
+axis = "horizontal"
 grow = 1
 height = 26
 deadzone = 6
@@ -144,6 +145,7 @@ name = "LeftTabs"
 parent = "left_head"
 [nodes.widget]
 kind = "scroll"
+axis = "horizontal"
 grow = 1
 height = 24
 deadzone = 6
@@ -184,6 +186,8 @@ parent = "left_sheet"
 kind = "tree"
 grow = 1
 
+[nodes.widget.touch]
+row_height = 33
 [[nodes]]
 id = "left_outline"
 name = "LeftOutline"
@@ -195,6 +199,8 @@ grow = 1
 
 # The tool rail down one side, and everything else beside it. The rail is a
 # column of the whole height so the dock below starts clear of it too.
+[nodes.widget.touch]
+row_height = 33
 [[nodes]]
 id = "centre"
 name = "Centre"
@@ -256,6 +262,7 @@ name = "RightTabs"
 parent = "right_head"
 [nodes.widget]
 kind = "scroll"
+axis = "horizontal"
 grow = 1
 height = 24
 deadzone = 6
@@ -297,6 +304,7 @@ name = "RightScroll"
 parent = "right_sheet"
 [nodes.widget]
 kind = "scroll"
+axis = "vertical"
 grow = 1
 
 [[nodes]]
@@ -329,6 +337,9 @@ parent = "upper_row"
 [nodes.widget]
 kind = "column"
 width = 44
+# The handle's row states its own air; an empty one would still hold the
+# rail a gap below the stage's top.
+gap = 0
 
 # Where a folded left dock's handle goes, above the tools rather than beside
 # them; `layout.rn` gives it a height only when there is one to draw.
@@ -400,6 +411,7 @@ name = "BottomTabs"
 parent = "bottom_head"
 [nodes.widget]
 kind = "scroll"
+axis = "horizontal"
 grow = 1
 height = 24
 deadzone = 6
@@ -447,6 +459,8 @@ row_height = 18
 font = "mono"
 
 # The Debugger's call stack: frames, with each frame's locals a level in.
+[nodes.widget.touch]
+row_height = 33
 [[nodes]]
 id = "bottom_tree"
 name = "BottomTree"
@@ -459,6 +473,8 @@ font = "mono"
 
 # Assets, Library and Tiles: three card grids, one node. Only one of them is
 # the bottom dock's active panel, so they take turns filling it.
+[nodes.widget.touch]
+row_height = 33
 [[nodes]]
 id = "bottom_cards"
 name = "BottomCards"
@@ -472,6 +488,8 @@ columns = 6
 # The four views that genuinely paint: lanes with a transport, and two
 # painting tools where the pointer is the input. A node each, so the scene
 # names every view and a reader can see which of them draw.
+[nodes.widget.touch]
+row_height = 33
 [[nodes]]
 id = "bottom_timeline"
 name = "BottomTimeline"

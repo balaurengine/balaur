@@ -68,6 +68,9 @@ pub struct Widget {
     pub gap: f32,
     /// Cross-axis placement of a container's children.
     pub align: SmolStr,
+    /// Which way a `scroll` moves: `horizontal`, `vertical`, or both where it
+    /// says nothing. The other way, its contents fill the box it was given.
+    pub axis: SmolStr,
     /// Whether focus may land here, for a widget that could take it.
     pub focusable: bool,
     /// Method on this node's script, called when focus arrives.
@@ -80,6 +83,13 @@ pub struct Widget {
     /// what `width`/`height` or the content asks for.
     pub grow: f32,
     /// The author's floor, whatever the content measures.
+    /// The surface widths and height, in design pixels, this widget is not
+    /// drawn at: a number where the class words are not fine enough, and the
+    /// room a game's HUD has rather than the room a container gave. Zero is
+    /// no line.
+    pub hide_narrower: f32,
+    pub hide_wider: f32,
+    pub hide_shorter: f32,
     pub min_width: f32,
     pub min_height: f32,
     /// What fills a `draw` widget's rect: a method on this node's script or

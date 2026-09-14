@@ -175,8 +175,6 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect) -> egui::Rect {
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
-    // Before the arena or a theme is read: both answer differently by class.
-    crate::widget::theme::set_pass_classes(&crate::widget::arena::active_classes(eng));
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
@@ -737,7 +735,15 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let rect = egui::Rect::from_min_size(room.min, size);
             let entity = placed.entity;
             let target = widget.draw.clone();
-            let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            // A row's body sits on the row's centre line, where `ui::right`
+            // puts its own run: a field and the dropdown after it are one line.
+            let layout = *ui.layout();
+            let layout = if layout.is_horizontal() {
+                layout.with_cross_align(egui::Align::Center)
+            } else {
+                layout
+            };
+            let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
             inner.set_clip_rect(rect.intersect(ui.clip_rect()));
             crate::bridge::scoped_named(
                 at.eng,

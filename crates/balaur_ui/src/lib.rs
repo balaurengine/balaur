@@ -130,8 +130,13 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
         held.system_text_size = settings.system_text_size;
     }
     // Seeded, not owned: `ui.set_scale` changes it afterwards, the way
-    // `render.set_window_mode` changes what `[window] mode` opened with.
-    eng.resource::<UiConfig>().borrow_mut().scale = settings.scale.clamp(0.25, 3.0);
+    // `render.set_window_mode` changes what `[window] mode` opened with. And
+    // a script that already asked in its `init` is not overwritten by it.
+    let config = eng.resource::<UiConfig>();
+    let mut config = config.borrow_mut();
+    if !config.asked {
+        config.scale = settings.scale.clamp(0.25, 3.0);
+    }
 }
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
@@ -147,6 +152,10 @@ pub struct UiConfig {
     /// Set by `ui.set_theme`, cleared once the theme reaches egui.
     pub changed: bool,
     pub scale: f32,
+    /// Whether a script has set the scale. `[ui] scale` seeds it on the first
+    /// tick, which is after a script's `init` has run, so a seed that did not
+    /// ask would overwrite what the script just asked for.
+    pub asked: bool,
 }
 
 impl Default for UiConfig {
@@ -155,6 +164,7 @@ impl Default for UiConfig {
             theme: ThemeTokens::default(),
             changed: false,
             scale: 1.0,
+            asked: false,
         }
     }
 }
@@ -332,7 +342,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
-    widget::theme::set_pass_classes(&widget::arena::active_classes(eng));
+    widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
     apply_long_press(eng, ctx);
     bridge::enter_pass(ctx, roles);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
