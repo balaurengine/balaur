@@ -122,7 +122,6 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     });
 }
 
-
 /// The named family for a widget option value.
 pub(crate) fn family(name: &str) -> FontFamily {
     match name {

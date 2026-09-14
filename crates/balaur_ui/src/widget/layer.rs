@@ -257,9 +257,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
             continue;
         }
         let area = match surface.rect {
-            Some([x, y, w, h]) => {
-                egui::Rect::from_min_size(pos2(x, y), vec2(w, h))
-            }
+            Some([x, y, w, h]) => egui::Rect::from_min_size(pos2(x, y), vec2(w, h)),
             None => screen,
         };
         // A toast is pushed clear of the toasts already at its anchor, and
@@ -890,14 +888,7 @@ fn panel(
         .filter(|_| caption.is_empty() && box_size == egui::Vec2::ZERO);
     let background = pad.around(content.unwrap_or_else(|| inner.min_rect()));
     if let Some(path) = style.image.as_ref() {
-        crate::widget::kinds::nine_patch_plate(
-            ui,
-            at.eng,
-            plate,
-            path,
-            style.slice,
-            background,
-        );
+        crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, background);
     } else {
         ui.painter().set(
             plate,

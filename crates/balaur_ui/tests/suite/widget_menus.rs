@@ -228,13 +228,24 @@ fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
     settle(&app, &ctx);
     let at = root_rect(&ctx, target).center();
     let before = pass(&app, &ctx, vec![]);
-    assert!(rows_drawn(&before, 173.0).is_none(), "the menu opened unasked");
+    assert!(
+        rows_drawn(&before, 173.0).is_none(),
+        "the menu opened unasked"
+    );
     assert!(
         !texts(&before).iter().any(|(text, _)| text == "Hidden"),
         "a hidden menu drew its button"
     );
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
+    pass(
+        &app,
+        &ctx,
+        press_with(at, egui::PointerButton::Secondary, true),
+    );
+    pass(
+        &app,
+        &ctx,
+        press_with(at, egui::PointerButton::Secondary, false),
+    );
     // Shown the pass after the click, as a menu's rows are.
     let after = pass(&app, &ctx, vec![]);
     let rows = rows_drawn(&after, 173.0).expect("the secondary click opened no menu");
@@ -244,7 +255,10 @@ fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
         rows.min
     );
     consume_input(&mut app);
-    assert!(!clicked(&app, target), "a secondary click counted as a click");
+    assert!(
+        !clicked(&app, target),
+        "a secondary click counted as a click"
+    );
 }
 
 /// A finger held on a widget past egui's click length is the same press as a
@@ -284,7 +298,8 @@ fn the_innermost_context_takes_the_press() {
         padding = [0.0, 0.0, 0.0, 0.0]
     };
     let panel = add_widget(&app, &panel.into());
-    let child = toml::toml! { kind = "label" text = "Inner" width = 100.0 height = 30.0 context = "inner" };
+    let child =
+        toml::toml! { kind = "label" text = "Inner" width = 100.0 height = 30.0 context = "inner" };
     let child = add_child_widget(&app, panel, "child", &child.into());
     let root = app.engine.root();
     for (name, width) in [("outer", 150.0), ("inner", 173.0)] {
@@ -295,12 +310,28 @@ fn the_innermost_context_takes_the_press() {
     }
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    let at = balaur_ui::widget_rect(child).expect("the child drew").center();
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, true));
-    pass(&app, &ctx, press_with(at, egui::PointerButton::Secondary, false));
+    let at = balaur_ui::widget_rect(child)
+        .expect("the child drew")
+        .center();
+    pass(
+        &app,
+        &ctx,
+        press_with(at, egui::PointerButton::Secondary, true),
+    );
+    pass(
+        &app,
+        &ctx,
+        press_with(at, egui::PointerButton::Secondary, false),
+    );
     let after = pass(&app, &ctx, vec![]);
-    assert!(rows_drawn(&after, 173.0).is_some(), "the child's menu did not open");
-    assert!(rows_drawn(&after, 150.0).is_none(), "the parent's menu opened for the child's press");
+    assert!(
+        rows_drawn(&after, 173.0).is_some(),
+        "the child's menu did not open"
+    );
+    assert!(
+        rows_drawn(&after, 150.0).is_none(),
+        "the parent's menu opened for the child's press"
+    );
 }
 
 /// Where a menu opens is the node's to say: under its button, above it, at

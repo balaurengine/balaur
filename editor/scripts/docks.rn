@@ -58,23 +58,18 @@ pub fn apply_persona(S, id) {
 pub fn follow_screen(S, width, height) {
     S.width_class = width;
     S.height_class = height;
-    // A string, since Rune compares no tuples: three words for three answers.
-    let key = format!("{} {} {}", crate::layout::three_fit(S), one_at_a_time(S), height == ui::SHORT);
+    // A string, since Rune compares no tuples: two words for two answers.
+    let key = format!("{} {}", crate::layout::three_fit(S), one_at_a_time(S));
     if S.screen_key == key {
         return;
     }
     S.screen_key = key;
-    // A phone holds the stage and one sheet, so it starts with neither and
-    // opens one at a time. A tablet keeps the bottom dock, which is along the
-    // stage rather than beside it, and folds only the columns.
+    // Room, not a class word: a phone opens one sheet at a time, a tablet
+    // folds the columns and keeps the bottom dock, a laptop keeps all three.
     let only_one = one_at_a_time(S);
-    let tight = !crate::layout::three_fit(S) || S.height_class == ui::SHORT;
+    let tight = !crate::layout::three_fit(S);
     for side in ["left", "right", "bottom"] {
-        S.docks[side].shut = if side == "bottom" {
-            only_one || S.height_class == ui::SHORT
-        } else {
-            tight
-        };
+        S.docks[side].shut = if side == "bottom" { only_one } else { only_one || tight };
     }
 }
 
@@ -513,24 +508,6 @@ fn tab_controls(S, k, side, d) {
     out
 }
 
-// The longest name the strip can carry, from the room and how many tabs share
-// it. About 6.4 px a character at 11 px semibold, plus the tile's own air.
-fn name_cap(S, d, room) {
-    let n = util::f(d.tabs.len());
-    if n < 1.0 {
-        return 99;
-    }
-    let each = room / n - 34.0;
-    util::i(util::clamp(math::floor(each / 6.4), 3.0, 99.0))
-}
-
-fn clipped(name, cap) {
-    if name.len() <= cap {
-        return name;
-    }
-    name[..util::max(1, cap - 1)] + "…"
-}
-
 /// The panel's own controls, in the slot beside its dock's tabs.
 pub fn draw_tools(S, k, side) {
     let d = S.docks[side];
@@ -672,16 +649,6 @@ pub fn draw_body(S, k, side) {
         return;
     }
     body_scrolled(S, k, d.active);
-}
-
-/// Whether any dock is unfolded, whichever edge it came from.
-pub fn any_open(S) {
-    for side in sides() {
-        if !folded(S, side) {
-            return true;
-        }
-    }
-    false
 }
 
 /// Whether a side dock is open: the one sheet that takes the whole body where

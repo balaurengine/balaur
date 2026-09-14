@@ -415,11 +415,8 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
         let font = FontId::new(opts.px(k::TRAILING_SIZE, 11.0), theme::family("ui"));
         let galley = ui.painter().layout_no_wrap(trailing, font, tint);
         let ty = rect.center().y - galley.size().y / 2.0;
-        ui.painter().galley(
-            pos2(rect.max.x - 10.0 - galley.size().x, ty),
-            galley,
-            tint,
-        );
+        ui.painter()
+            .galley(pos2(rect.max.x - 10.0 - galley.size().x, ty), galley, tint);
     }
     if response.clicked() {
         // A row that changes something the menu itself shows keeps the menu

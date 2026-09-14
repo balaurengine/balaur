@@ -94,7 +94,10 @@ fn a_scale_a_script_asked_for_survives_the_first_tick() {
     }
     app.tick(1.0 / 60.0);
     let kept = app.engine.resource::<balaur_ui::UiConfig>().borrow().scale;
-    assert!((kept - 1.7).abs() < f32::EPSILON, "the seed overwrote the ask: {kept}");
+    assert!(
+        (kept - 1.7).abs() < f32::EPSILON,
+        "the seed overwrote the ask: {kept}"
+    );
 }
 
 /// A widget's class table, and what it takes to make one apply.
@@ -158,12 +161,20 @@ mod classes {
             screen(&app, screen_width, 900.0);
             let ctx = egui::Context::default();
             settle(&app, &ctx);
-            balaur_ui::widget_rect(widget).expect("the widget drew").width()
+            balaur_ui::widget_rect(widget)
+                .expect("the widget drew")
+                .width()
         };
         // A desktop is `pointer` and `wide`: only the input class is named.
-        assert!((width_at(1200.0) - 250.0).abs() < 1.0, "the pointer table did not apply");
+        assert!(
+            (width_at(1200.0) - 250.0).abs() < 1.0,
+            "the pointer table did not apply"
+        );
         // Narrow is read after the input class, so it takes the key back.
-        assert!((width_at(390.0) - 100.0).abs() < 1.0, "narrow did not outrank pointer");
+        assert!(
+            (width_at(390.0) - 100.0).abs() < 1.0,
+            "narrow did not outrank pointer"
+        );
     }
 
     /// A class table is the one place a typo cannot be the game's own space,
@@ -180,8 +191,14 @@ mod classes {
         }
         .into();
         let refused = balaur::components::add(&app.engine, entity, "widget", Some(&params));
-        let why = format!("{:#}", refused.expect_err("an invented key must be refused"));
-        assert!(why.contains("narrow.widht"), "the error did not name the key: {why}");
+        let why = format!(
+            "{:#}",
+            refused.expect_err("an invented key must be refused")
+        );
+        assert!(
+            why.contains("narrow.widht"),
+            "the error did not name the key: {why}"
+        );
     }
 
     /// A widget cannot become another kind halfway down a resize: its state
@@ -202,7 +219,10 @@ mod classes {
             balaur::components::add(&app.engine, entity, "widget", Some(&params))
                 .expect_err("a kind that changes with the screen must be refused")
         );
-        assert!(why.contains("kind"), "the error did not name the kind: {why}");
+        assert!(
+            why.contains("kind"),
+            "the error did not name the kind: {why}"
+        );
     }
 
     /// A theme states what a finger needs beside what a cursor needs, and the
@@ -244,7 +264,10 @@ mod classes {
         };
         let cursor = height_with(false);
         let finger = height_with(true);
-        assert!((cursor - 24.0).abs() < 1.0, "the theme's height was {cursor}");
+        assert!(
+            (cursor - 24.0).abs() < 1.0,
+            "the theme's height was {cursor}"
+        );
         assert!(
             (finger - 44.0).abs() < 1.0,
             "the touch table did not apply: {finger}"
@@ -287,11 +310,17 @@ mod classes {
             })
         };
         let down = pass_at(&app, &ctx, touch(at, true), Some(0.0));
-        assert!(!says_why(&down), "the tooltip opened on the touch, not the hold");
+        assert!(
+            !says_why(&down),
+            "the tooltip opened on the touch, not the hold"
+        );
         // Past egui's click length, which the project's long press sets.
         pass_at(&app, &ctx, vec![], Some(1.0));
         let held = pass_at(&app, &ctx, vec![], Some(1.1));
-        assert!(says_why(&held), "holding the finger did not open the tooltip");
+        assert!(
+            says_why(&held),
+            "holding the finger did not open the tooltip"
+        );
         let lifted = pass_at(&app, &ctx, touch(at, false), Some(1.2));
         assert!(!says_why(&lifted), "the tooltip outlived the finger");
     }
@@ -311,18 +340,36 @@ mod classes {
         let minimap = toml::toml! {
             kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_narrower = 600.0
         };
-        assert!(drawn_at(1200.0, 900.0, minimap.clone().into()), "a wide screen lost the widget");
-        assert!(!drawn_at(390.0, 900.0, minimap.into()), "a narrow screen still drew it");
+        assert!(
+            drawn_at(1200.0, 900.0, minimap.clone().into()),
+            "a wide screen lost the widget"
+        );
+        assert!(
+            !drawn_at(390.0, 900.0, minimap.into()),
+            "a narrow screen still drew it"
+        );
         let thumb = toml::toml! {
             kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_wider = 600.0
         };
-        assert!(drawn_at(390.0, 900.0, thumb.clone().into()), "a phone lost its own control");
-        assert!(!drawn_at(1200.0, 900.0, thumb.into()), "a desktop drew a phone's control");
+        assert!(
+            drawn_at(390.0, 900.0, thumb.clone().into()),
+            "a phone lost its own control"
+        );
+        assert!(
+            !drawn_at(1200.0, 900.0, thumb.into()),
+            "a desktop drew a phone's control"
+        );
         let stack = toml::toml! {
             kind = "panel" x = 0.0 y = 0.0 width = 100.0 height = 100.0 hide_shorter = 480.0
         };
-        assert!(drawn_at(844.0, 844.0, stack.clone().into()), "an upright screen lost it");
-        assert!(!drawn_at(844.0, 390.0, stack.into()), "a screen on its side still drew it");
+        assert!(
+            drawn_at(844.0, 844.0, stack.clone().into()),
+            "an upright screen lost it"
+        );
+        assert!(
+            !drawn_at(844.0, 390.0, stack.into()),
+            "a screen on its side still drew it"
+        );
     }
 
     /// A line is read against the room a widget is laid out in, not only
@@ -334,7 +381,8 @@ mod classes {
             let (_dir, app) = app();
             let panel = add_widget(
                 &app,
-                &toml::toml! { kind = "panel" x = 0.0 y = 0.0 width = panel_w height = 80.0 }.into(),
+                &toml::toml! { kind = "panel" x = 0.0 y = 0.0 width = panel_w height = 80.0 }
+                    .into(),
             );
             // A filled box of a width nothing else on screen has: a label is a
             // glyph mesh, which a shape search cannot read the text of.
@@ -358,7 +406,10 @@ mod classes {
             })
         };
         assert!(child_drawn(400.0), "a box wide enough hid its child");
-        assert!(!child_drawn(200.0), "a box too narrow still drew its child, on a wide screen");
+        assert!(
+            !child_drawn(200.0),
+            "a box too narrow still drew its child, on a wide screen"
+        );
     }
 
     /// A notch covers the top of the screen whatever the layout wants, so a
@@ -384,7 +435,10 @@ mod classes {
             settle(&app, &ctx);
             balaur_ui::widget_rect(widget).expect("it drew").min.y
         };
-        assert!(top_of(false) < 10.0, "the control drew under the notch as asked");
+        assert!(
+            top_of(false) < 10.0,
+            "the control drew under the notch as asked"
+        );
         assert!(
             top_of(true) >= 47.0,
             "the root was not moved clear of the notch: {}",
@@ -411,6 +465,9 @@ mod classes {
             .get("narrow")
             .and_then(toml::Value::as_table)
             .expect("the narrow table came back");
-        assert_eq!(narrow.get("width").and_then(toml::Value::as_float), Some(100.0));
+        assert_eq!(
+            narrow.get("width").and_then(toml::Value::as_float),
+            Some(100.0)
+        );
     }
 }

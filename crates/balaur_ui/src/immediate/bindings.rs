@@ -857,10 +857,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let origin = ui.max_rect().min;
-                let rect = Rect::from_min_size(
-                    pos2(origin.x + x, origin.y + y),
-                    vec2(w, h),
-                );
+                let rect = Rect::from_min_size(pos2(origin.x + x, origin.y + y), vec2(w, h));
                 let stroke = Stroke::new(
                     opts.f32(k::WIDTH, 1.5),
                     opts.color(k::COLOR, Color32::from_rgb(0xd5, 0x81, 0x4e)),

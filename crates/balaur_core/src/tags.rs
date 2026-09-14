@@ -148,9 +148,11 @@ impl Tags {
         self.0.retain(|tag| tag != TOUCH && tag != POINTER);
         // Where `current` puts it: narrower than the kind of machine, broader
         // than the operating system.
-        let at = usize::from(self.0.first().is_some_and(|first| {
-            first == DESKTOP || first == MOBILE
-        }));
+        let at = usize::from(
+            self.0
+                .first()
+                .is_some_and(|first| first == DESKTOP || first == MOBILE),
+        );
         self.0.insert(at, want.to_string());
     }
 

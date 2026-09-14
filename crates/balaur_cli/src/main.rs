@@ -216,41 +216,7 @@ enum Command {
     },
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
-    Edit {
-        /// The game project to edit.
-        #[arg(default_value = ".")]
-        path: PathBuf,
-        /// The editor project to run (defaults to the bundled one, also
-        /// overridable with BALAUR_EDITOR).
-        #[arg(long)]
-        editor: Option<PathBuf>,
-        /// Stop after N frames (smoke tests).
-        #[arg(long)]
-        frames: Option<u64>,
-        /// Render the editor to a hidden window: real GPU, no OS window.
-        /// What a visual CI job wants, and the only way to capture the
-        /// editor without one popping up.
-        #[arg(long)]
-        offscreen: bool,
-        /// Start-up state for the editor scripts (persona id, "palette",
-        /// "light", "play"), mirroring the design prototype's startPersona.
-        #[arg(long)]
-        state: Option<String>,
-        /// The offscreen framebuffer, as `WIDTHxHEIGHT` in physical pixels.
-        /// What renders the shell at a phone's or a tablet's size, so the
-        /// layout every screen class gets is a picture CI can compare.
-        #[arg(long, value_name = "WIDTHxHEIGHT")]
-        size: Option<String>,
-        /// Run as if a finger reached the screen: the `touch` tag, the touch
-        /// target floor, and a long press where a hover was. What proves the
-        /// touch half without a phone.
-        #[arg(long)]
-        touch: bool,
-        /// Print what each frame cost when the editor closes. The editor's
-        /// own shell is most of a frame, so this is how a slow one is read.
-        #[arg(long)]
-        timings: bool,
-    },
+    Edit(EditOpts),
     /// Play back a session recorded with `run --record`.
     ///
     /// The recording carries its project and every tick's input, so this
@@ -427,16 +393,7 @@ fn dispatch(command: Command) -> Result<()> {
             verify,
             entries_at,
         } => replay_session(&file, verify, entries_at),
-        Command::Edit {
-            path,
-            editor,
-            frames,
-            offscreen,
-            state,
-            size,
-            touch,
-            timings,
-        } => edit_project(&path, editor, frames, offscreen, state, size, touch, timings),
+        Command::Edit(opts) => edit_project(&opts),
         Command::Export {
             path,
             output,
@@ -530,6 +487,10 @@ impl Display {
     }
 }
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one command-line flag, and they are not exclusive"
+)]
 struct RunOpts {
     path: PathBuf,
     scene: Option<String>,
@@ -543,6 +504,45 @@ struct RunOpts {
     debug: Option<u16>,
     debug_wait: bool,
     args: Vec<String>,
+}
+
+/// What `edit` was asked for. One bag rather than eight arguments, and the
+/// flags clap parses rather than a second spelling of them.
+#[derive(clap::Args)]
+struct EditOpts {
+    /// The game project to edit.
+    #[arg(default_value = ".")]
+    path: PathBuf,
+    /// The editor project to run (defaults to the bundled one, also
+    /// overridable with BALAUR_EDITOR).
+    #[arg(long)]
+    editor: Option<PathBuf>,
+    /// Stop after N frames (smoke tests).
+    #[arg(long)]
+    frames: Option<u64>,
+    /// Render the editor to a hidden window: real GPU, no OS window.
+    /// What a visual CI job wants, and the only way to capture the
+    /// editor without one popping up.
+    #[arg(long)]
+    offscreen: bool,
+    /// Start-up state for the editor scripts (persona id, "palette",
+    /// "light", "play"), mirroring the design prototype's startPersona.
+    #[arg(long)]
+    state: Option<String>,
+    /// The offscreen framebuffer, as `WIDTHxHEIGHT` in physical pixels.
+    /// What renders the shell at a phone's or a tablet's size, so the
+    /// layout every screen class gets is a picture CI can compare.
+    #[arg(long, value_name = "WIDTHxHEIGHT")]
+    size: Option<String>,
+    /// Run as if a finger reached the screen: the `touch` tag, the touch
+    /// target floor, and a long press where a hover was. What proves the
+    /// touch half without a phone.
+    #[arg(long)]
+    touch: bool,
+    /// Print what each frame cost when the editor closes. The editor's
+    /// own shell is most of a frame, so this is how a slow one is read.
+    #[arg(long)]
+    timings: bool,
 }
 
 /// Fold every frame's timings into one log, kept by the caller so it survives
@@ -815,22 +815,24 @@ fn joinable(path: &Path) -> PathBuf {
     }
 }
 
-fn edit_project(
-    path: &Path,
-    editor: Option<PathBuf>,
-    frames: Option<u64>,
-    offscreen: bool,
-    state: Option<String>,
-    size: Option<String>,
-    touch: bool,
-    timings: bool,
-) -> Result<()> {
+fn edit_project(opts: &EditOpts) -> Result<()> {
+    let EditOpts {
+        path,
+        editor,
+        frames,
+        offscreen,
+        state,
+        size,
+        touch,
+        timings,
+    } = opts;
     let game = joinable(
         &path
             .canonicalize()
             .with_context(|| format!("project not found: {}", path.display()))?,
     );
     let editor_root = editor
+        .clone()
         .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
         .or_else(|| {
             // A downloaded build: the editor project ships beside the binary.
@@ -851,7 +853,7 @@ fn edit_project(
     let mut config = AppConfig::dev(editor_root.to_string_lossy().as_ref());
     config.script_args = vec![game.to_string_lossy().into_owned()];
     if let Some(state) = state {
-        config.script_args.push(state);
+        config.script_args.push(state.clone());
     }
     let mut app = balaur::standard_app(config)?;
     // Registered here rather than in the engine: exporting is the CLI's
@@ -865,7 +867,7 @@ fn edit_project(
     balaur::file_api::add_root(&app.engine, &game);
     // Before the project loads: the editor's scripts read the platform at
     // init, and a fact that lands after that is a frame of the wrong shell.
-    if touch {
+    if *touch {
         pretend_touchscreen(&app);
     }
     app.load_project()?;
@@ -873,7 +875,7 @@ fn edit_project(
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]
     declare_game_input(&app, &game);
-    if let Some(frames) = frames {
+    if let Some(frames) = *frames {
         let mut count = 0u64;
         app.add_system(balaur::Stage::Last, move |eng, _| {
             count += 1;
@@ -884,7 +886,7 @@ fn edit_project(
     }
     // Registered last, so the frame it folds in is the whole frame.
     let log = timings.then(|| log_timings(&mut app));
-    let ran = if offscreen {
+    let ran = if *offscreen {
         let (wide, tall) = offscreen_size(size.as_deref())?;
         balaur::run_offscreen(app, "balaur editor", wide, tall)
     } else {

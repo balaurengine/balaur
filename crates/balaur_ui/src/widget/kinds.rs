@@ -7,11 +7,11 @@
 use balaur_core::Engine;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
+use crate::vocabulary::words as w;
 use crate::widget::arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
-use crate::vocabulary::words as w;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -217,8 +217,8 @@ fn dropped<'a>(
 ) -> egui::Popup<'a> {
     // The rows decide for themselves: egui's default closes on any click
     // inside, which would shut the menu under a toggle that keeps it open.
-    let mut popup = egui::Popup::menu(response)
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    let mut popup =
+        egui::Popup::menu(response).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
     popup = match placement {
         w::ABOVE => popup.align(egui::RectAlign::TOP_START),
         // Where the pointer was when the menu opened, not where it is now:
@@ -362,10 +362,8 @@ pub(crate) fn drag_value(
         let full = ui.available_rect_before_wrap();
         let high = full.height().min(want.y.max(18.0));
         let wide = ARROWS - 4.0;
-        let steps = egui::Rect::from_min_size(
-            pos2(full.right() - wide, full.top()),
-            vec2(wide, high),
-        );
+        let steps =
+            egui::Rect::from_min_size(pos2(full.right() - wide, full.top()), vec2(wide, high));
         let number =
             egui::Rect::from_min_max(full.min, pos2(steps.left() - 4.0, full.top() + high));
         let inner = ui.put(number, drag);
@@ -382,7 +380,10 @@ pub(crate) fn drag_value(
         if ui.put(down, mark("⏷")).clicked() {
             stepped = Some(-1.0);
         }
-        ui.advance_cursor_after_rect(egui::Rect::from_min_size(full.min, vec2(full.width(), high)));
+        ui.advance_cursor_after_rect(egui::Rect::from_min_size(
+            full.min,
+            vec2(full.width(), high),
+        ));
         inner
     });
     if let Some(way) = stepped {
@@ -792,7 +793,11 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
     if placed.widget.context.is_empty() {
         return;
     }
-    let rect = at.rects.get(&index).copied().unwrap_or_else(|| ui.max_rect());
+    let rect = at
+        .rects
+        .get(&index)
+        .copied()
+        .unwrap_or_else(|| ui.max_rect());
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return;
     }

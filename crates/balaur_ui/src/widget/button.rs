@@ -60,11 +60,10 @@ fn face_of(
     } else {
         Some(widget.trailing.to_string())
     };
-    let trailing = shown
-        .map(|text| {
-            ui.painter()
-                .layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER)
-        });
+    let trailing = shown.map(|text| {
+        ui.painter()
+            .layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER)
+    });
     let icon = (!widget.icon.is_empty()).then(|| {
         let mark = egui::FontId::new(font.size, family(w::ICON));
         ui.painter()
@@ -162,7 +161,15 @@ fn paint_face(
     }
     if let Some((shaped, texture)) = &face.shaped {
         let origin = pos2(at_x, rect.center().y - shaped.size.y / 2.0);
-        balaur_text::paint(ui.painter(), *texture, shaped, origin, ink, None, at.eng.time());
+        balaur_text::paint(
+            ui.painter(),
+            *texture,
+            shaped,
+            origin,
+            ink,
+            None,
+            at.eng.time(),
+        );
         return;
     }
     if let Some(plain) = &face.plain {

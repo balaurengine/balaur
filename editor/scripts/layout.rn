@@ -105,6 +105,12 @@ fn widget_of(S, id) {
     util::obj(found.get_component("widget"))
 }
 
+/// The shell's own gutter: the scene's number, a step tighter in a small
+/// window. Read by whoever needs the body's edge, so no two callers disagree.
+pub fn gutter(S) {
+    if S.compact { TIGHT_GUTTER } else { S.layout.gutter }
+}
+
 /// What the scene states for one of a box's sizes. A `padding` is four sides
 /// in the component whatever the scene spelled, so take the first.
 fn stated(S, id, key) {
@@ -301,7 +307,7 @@ pub fn compute(S) {
     // The gutter round the shell and the seams between its sheets: a step
     // tighter in a small window, where they are most of what is on screen.
     let tight = S.compact;
-    size(S, "shell", "padding", if tight { TIGHT_GUTTER } else { m.gutter });
+    size(S, "shell", "padding", gutter(S));
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
         size(S, id, "gap", if tight { TIGHT_GAP } else { m.gap });
     }
@@ -344,6 +350,7 @@ pub fn compute(S) {
         dockbody: box_of(S, "dockbody"),
         rail: box_of(S, "rail"),
         railtop: box_of(S, "railtop"),
+        railslot: box_of(S, "railslot"),
         centre: box_of(S, "centre"),
         canvas: box_of(S, "canvas"),
         stage: box_of(S, "stage"),
@@ -358,7 +365,10 @@ pub fn compute(S) {
     m.hooks = r.hooks;
     m.rail = r.rail;
     m.railtop = r.railtop;
-    m.rail_room = util::max(120.0, r.centre.h);
+    // The column the rail is in, not the whole centre: the dock below takes
+    // its share of the centre, and a rail measured against that overran it.
+    let column = if r.railslot.h > 0.0 { r.railslot.h } else { r.centre.h };
+    m.rail_room = util::max(120.0, column);
     // What a dock panel may scroll: its share of the sheet, less the tab row
     // and the status strip at the foot.
     m.body_h = util::max(0.0, r.dockbody.h - crate::docks::row_h(S));
@@ -410,7 +420,11 @@ fn right_head_h(S) {
 /// as a width; and down, the bar, the bottom dock and the stage. Below
 /// either, the shell is one sheet at a time.
 pub fn floors() {
-    (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN, BAR_H_GUESS + BOTTOM_MIN + STAGE_MIN)
+    // The stage's own floor down the screen, not the seam's: a dock shrinks
+    // to `BOTTOM_MIN` before the stage is asked to give anything up, so a
+    // laptop window keeps all three docks rather than folding to one.
+    (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN,
+        BAR_H_GUESS + BOTTOM_MIN + crate::center::stage_floor().h)
 }
 
 /// Whether three columns fit across: both side docks and the stage at their
@@ -453,15 +467,20 @@ fn side_w(S, side, room, open_w) {
     // and a strip of stage beside it is dead space once nothing sits on it.
     // Less the shell's gutter each side, which is the body's, not the sheet's.
     if crate::docks::one_at_a_time(S) {
-        let gutter = if S.compact { TIGHT_GUTTER } else { S.layout.gutter };
-        return room - 2.0 * gutter;
+        return room - 2.0 * gutter(S);
     }
-    // Where a dock and the stage fit but not two docks, an open dock takes
-    // half: the seam's own width was set beside two columns, not one.
-    if !three_fit(S) {
+    // Where a dock and the stage fit but not two docks, the open one takes
+    // half: the seam's own width was set beside two columns, not one. Both
+    // open, they keep their stated widths, or half each would leave no stage.
+    if !three_fit(S) && !both_sides_open(S) {
         return util::clamp(room * 0.5, open_w, room - MEDIUM_PEEK);
     }
     open_w
+}
+
+/// Whether the left and right docks are both showing a panel.
+fn both_sides_open(S) {
+    !crate::docks::folded(S, "left") && !crate::docks::folded(S, "right")
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

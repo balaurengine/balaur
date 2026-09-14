@@ -623,14 +623,24 @@ fn a_one_way_scroll_fills_the_other_way() {
             &app,
             &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 300.0 height = 300.0 }.into(),
         );
-        add_child_widget(&app, sheet, "head", &toml::toml! { kind = "panel" height = 40.0 }.into());
+        add_child_widget(
+            &app,
+            sheet,
+            "head",
+            &toml::toml! { kind = "panel" height = 40.0 }.into(),
+        );
         let holder = add_child_widget(
             &app,
             sheet,
             "scroll",
             &toml::toml! { kind = "scroll" grow = 1.0 axis = axis }.into(),
         );
-        let column = add_child_widget(&app, holder, "form", &toml::toml! { kind = "column" }.into());
+        let column = add_child_widget(
+            &app,
+            holder,
+            "form",
+            &toml::toml! { kind = "column" }.into(),
+        );
         // A filled box of a height nothing else has and no width of its own:
         // it is as wide as the column stretches it.
         add_child_widget(
@@ -654,7 +664,10 @@ fn a_one_way_scroll_fills_the_other_way() {
     };
     let filled = inner_width("vertical");
     let hugged = inner_width("both");
-    assert!(filled > 250.0, "a vertical scroll left its column hugging: {filled}");
+    assert!(
+        filled > 250.0,
+        "a vertical scroll left its column hugging: {filled}"
+    );
     assert!(
         hugged + 100.0 < filled,
         "control: a scroll free both ways should hug ({hugged} against {filled})"

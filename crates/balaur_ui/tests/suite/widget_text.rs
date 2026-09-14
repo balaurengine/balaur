@@ -102,9 +102,7 @@ fn a_hint_span_shows_its_text_on_hover() {
         shown = pass_at(&app, &ctx, vec![], Some(1.0 + f64::from(tick) * 0.25));
     }
     assert!(
-        texts(&shown)
-            .iter()
-            .any(|(text, _)| text == "one a second"),
+        texts(&shown).iter().any(|(text, _)| text == "one a second"),
         "the hint said nothing: {:?}",
         texts(&shown)
     );

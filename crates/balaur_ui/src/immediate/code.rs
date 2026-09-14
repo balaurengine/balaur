@@ -219,9 +219,9 @@ pub(crate) fn highlight(
         if i > 0 {
             job.append("\n", 0.0, fmt(colors.punct, egui::Stroke::NONE));
         }
-        let underline = marks.color(i + 1).map_or(egui::Stroke::NONE, |color| {
-            egui::Stroke::new(1.0, color)
-        });
+        let underline = marks
+            .color(i + 1)
+            .map_or(egui::Stroke::NONE, |color| egui::Stroke::new(1.0, color));
         if line.trim_start().starts_with(syntax.line_comment) {
             job.append(line, 0.0, fmt(colors.comment, underline));
             continue;

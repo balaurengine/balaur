@@ -67,14 +67,16 @@ impl Stack {
         let Some(rect) = crate::widget::arrange::placing_at(placed.entity) else {
             return;
         };
-        *self.stacked.entry(placed.widget.anchor.clone()).or_default() += rect.height() + GAP;
+        *self
+            .stacked
+            .entry(placed.widget.anchor.clone())
+            .or_default() += rect.height() + GAP;
     }
 
     /// The toasts to free, with the rest of the clock tidied.
     pub(crate) fn expired(self) -> Vec<Entity> {
         BORN.with(|born| {
-            born.borrow_mut()
-                .retain(|key, _| self.seen.contains(key));
+            born.borrow_mut().retain(|key, _| self.seen.contains(key));
         });
         self.expired
     }
@@ -86,10 +88,7 @@ fn shifted(anchor: &str, area: egui::Rect, offset: f32) -> egui::Rect {
     if offset == 0.0 {
         return area;
     }
-    let down = !matches!(
-        anchor,
-        w::BOTTOM_LEFT | w::BOTTOM_RIGHT | w::CENTER_BOTTOM
-    );
+    let down = !matches!(anchor, w::BOTTOM_LEFT | w::BOTTOM_RIGHT | w::CENTER_BOTTOM);
     area.translate(egui::vec2(0.0, if down { offset } else { -offset }))
 }
 

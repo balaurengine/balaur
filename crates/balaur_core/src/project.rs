@@ -247,23 +247,11 @@ impl UiSettings {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
             theme: setting_string(eng, "ui/theme"),
             scale: setting_f32(eng, "ui/scale", fallback.scale),
-            system_text_size: setting_bool(
-                eng,
-                "ui/system_text_size",
-                fallback.system_text_size,
-            ),
+            system_text_size: setting_bool(eng, "ui/system_text_size", fallback.system_text_size),
             classes: crate::facts::ClassLines {
-                narrow_below: setting_f32(
-                    eng,
-                    "ui/narrow_below",
-                    fallback.classes.narrow_below,
-                ),
+                narrow_below: setting_f32(eng, "ui/narrow_below", fallback.classes.narrow_below),
                 wide_from: setting_f32(eng, "ui/wide_from", fallback.classes.wide_from),
-                short_below: setting_f32(
-                    eng,
-                    "ui/short_below",
-                    fallback.classes.short_below,
-                ),
+                short_below: setting_f32(eng, "ui/short_below", fallback.classes.short_below),
             },
         }
     }

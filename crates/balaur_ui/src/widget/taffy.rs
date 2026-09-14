@@ -128,11 +128,7 @@ fn size_or_auto(px: f32) -> Dimension {
 /// than the log and push its neighbours off the row. Nothing here has ever
 /// had that floor, and `min_width` is how a scene asks for one.
 fn floor_or_none(px: f32) -> LengthPercentageAuto {
-    if px > 0.0 {
-        length(px)
-    } else {
-        length(0.0)
-    }
+    if px > 0.0 { length(px) } else { length(0.0) }
 }
 
 /// One widget's `taffy::Style`.
@@ -548,7 +544,14 @@ fn sync(
             .iter()
             .map(|child| {
                 sync(
-                    held, arena, *child, &theme, measure, [None, None], false, true,
+                    held,
+                    arena,
+                    *child,
+                    &theme,
+                    measure,
+                    [None, None],
+                    false,
+                    true,
                 )
             })
             .collect()

@@ -130,8 +130,11 @@ pub(crate) fn shaped_label(
     }
     // A link wears the theme's own `link` colour where it names one, and
     // egui's otherwise, so a `[url]` never reads as plain text.
-    let linked = (!shaped.links.is_empty())
-        .then(|| at.theme.token("link").unwrap_or(ui.visuals().hyperlink_color));
+    let linked = (!shaped.links.is_empty()).then(|| {
+        at.theme
+            .token("link")
+            .unwrap_or(ui.visuals().hyperlink_color)
+    });
     balaur_text::paint(
         ui.painter(),
         texture,
@@ -195,7 +198,9 @@ fn glyph_at(
 fn offset_at(shaped: &balaur_text::Shaped, origin: egui::Pos2, pos: egui::Pos2) -> u32 {
     let Some(quad) = shaped.quads.iter().min_by(|a, b| {
         let reach = |quad: &balaur_text::Quad| {
-            quad.rect.translate(origin.to_vec2()).distance_sq_to_pos(pos)
+            quad.rect
+                .translate(origin.to_vec2())
+                .distance_sq_to_pos(pos)
         };
         reach(a).total_cmp(&reach(b))
     }) else {
@@ -229,7 +234,9 @@ fn selecting(
     entity: balaur_core::hecs::Entity,
 ) {
     let id = egui::Id::new(("balaur-selection", entity));
-    let mut span = ui.data(|data| data.get_temp::<(u32, u32)>(id)).unwrap_or((0, 0));
+    let mut span = ui
+        .data(|data| data.get_temp::<(u32, u32)>(id))
+        .unwrap_or((0, 0));
     if let Some(pos) = response.interact_pointer_pos() {
         let at = offset_at(shaped, origin, pos);
         // The press is the anchor, not the frame egui calls it a drag: by
@@ -254,7 +261,10 @@ fn selecting(
     let fill = ui.visuals().selection.bg_fill;
     for quad in &shaped.quads {
         if quad.start >= from && quad.start < to {
-            let box_ = quad.rect.translate(origin.to_vec2()).expand2(vec2(0.0, 2.0));
+            let box_ = quad
+                .rect
+                .translate(origin.to_vec2())
+                .expand2(vec2(0.0, 2.0));
             ui.painter().rect_filled(box_, 0.0, fill);
         }
     }
@@ -292,16 +302,15 @@ fn underline(
     let mut run: Option<(u16, egui::Rect)> = None;
     let draw = |(_, box_): (u16, egui::Rect)| {
         let y = box_.max.y + 1.0;
-        ui.painter().hline(
-            box_.min.x..=box_.max.x,
-            y,
-            egui::Stroke::new(1.0, color),
-        );
+        ui.painter()
+            .hline(box_.min.x..=box_.max.x, y, egui::Stroke::new(1.0, color));
     };
     for quad in &shaped.quads {
         let box_ = quad.rect.translate(origin.to_vec2());
         match (quad.link, run) {
-            (Some(link), Some((held, union))) if held == link && (union.max.y - box_.max.y).abs() < 1.0 => {
+            (Some(link), Some((held, union)))
+                if held == link && (union.max.y - box_.max.y).abs() < 1.0 =>
+            {
                 run = Some((link, union.union(box_)));
             }
             (Some(link), held) => {

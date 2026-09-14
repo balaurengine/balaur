@@ -31,7 +31,11 @@ fn each_width_answers_the_word_its_side_of_the_line_does() {
 fn each_height_answers_the_word_its_side_of_the_line_does() {
     let lines = ClassLines::default();
     for (height, want) in [(390.0, SHORT), (479.0, SHORT), (480.0, TALL), (900.0, TALL)] {
-        assert_eq!(height_class(height, lines), want, "at {height} design pixels");
+        assert_eq!(
+            height_class(height, lines),
+            want,
+            "at {height} design pixels"
+        );
     }
 }
 

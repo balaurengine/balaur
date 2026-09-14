@@ -177,10 +177,7 @@ pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> f3
 /// that only clips should stay invisible until asked.
 /// The frame carries the look and no margin: `egui::Margin` is whole device
 /// pixels, and a caller shrinks its own rect by the float padding instead.
-fn themed_frame(
-    style: &crate::widget::theme::Style,
-    fill: Option<Color32>,
-) -> egui::Frame {
+fn themed_frame(style: &crate::widget::theme::Style, fill: Option<Color32>) -> egui::Frame {
     egui::Frame::new()
         .fill(style.fill.or(fill).unwrap_or(Color32::TRANSPARENT))
         .corner_radius(egui::CornerRadius::same(

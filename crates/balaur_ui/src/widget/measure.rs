@@ -141,10 +141,7 @@ impl<'a> Measure<'a> {
                 }
                 widest + self.padding + vec2(20.0, 0.0)
             }
-            w::SLIDER | w::PROGRESS => vec2(
-                160.0,
-                widget.font_size + self.padding.y,
-            ),
+            w::SLIDER | w::PROGRESS => vec2(160.0, widget.font_size + self.padding.y),
             w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
@@ -212,10 +209,7 @@ impl<'a> Measure<'a> {
             // A panel's caption sits above its children, so it adds a row.
             vec2(across.max(caption.x), along + caption.y)
         };
-        let pad = padding_of(
-            widget,
-            &crate::widget::theme::styled(theme, widget),
-        );
+        let pad = padding_of(widget, &crate::widget::theme::styled(theme, widget));
         inner + pad.taken()
     }
 
@@ -230,10 +224,7 @@ impl<'a> Measure<'a> {
         for child in &children {
             want = want.max(self.of(*child, theme));
         }
-        let pad = padding_of(
-            &widget,
-            &crate::widget::theme::styled(theme, &widget),
-        );
+        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
         want + pad.taken()
     }
 
@@ -262,10 +253,7 @@ impl<'a> Measure<'a> {
             across as f32 * cell.x + gap * (across as f32 - 1.0),
             rows as f32 * cell.y + gap * (rows as f32 - 1.0),
         );
-        let pad = padding_of(
-            &widget,
-            &crate::widget::theme::styled(theme, &widget),
-        );
+        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
         inner + pad.taken()
     }
 
@@ -275,10 +263,7 @@ impl<'a> Measure<'a> {
         let widget = placed.widget.clone();
         let children = placed.children.clone();
         let gap = widget.gap;
-        let pad = padding_of(
-            &widget,
-            &crate::widget::theme::styled(theme, &widget),
-        );
+        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
         let limit = if widget.width > 0.0 {
             widget.width - pad.taken().x
         } else {
@@ -370,9 +355,7 @@ impl<'a> Measure<'a> {
         let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
         let between = font.size * 0.5 * parts.saturating_sub(1) as f32;
         let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
-        let pad = style
-            .padding_x
-            .map_or(self.padding.x, |p| p * 2.0);
+        let pad = style.padding_x.map_or(self.padding.x, |p| p * 2.0);
         let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0));
         vec2(
             pic.x + mark.x + text.x + between + tail_gap + tail.x + pad,
@@ -402,11 +385,7 @@ impl<'a> Measure<'a> {
         } else {
             1.0
         };
-        let plate = if style.plate.is_some() {
-            4.0
-        } else {
-            0.0
-        };
+        let plate = if style.plate.is_some() { 4.0 } else { 0.0 };
         vec2(line * aspect + plate, line + plate)
     }
 

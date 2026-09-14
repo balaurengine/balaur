@@ -8,6 +8,12 @@ pub const HUD_H = 28.0;
 const STAGE_W_MIN = 160.0;
 const STAGE_H_MIN = 120.0;
 
+/// The least stage the shell draws chrome on, which is also the least it
+/// leaves the docks: below this a window has no scene worth pointing at.
+pub fn stage_floor() {
+    #{ w: STAGE_W_MIN, h: STAGE_H_MIN }
+}
+
 /// The strip's height: tall enough for the controls in it, which are bigger
 /// where a finger reaches them.
 pub fn hud_h(S) {

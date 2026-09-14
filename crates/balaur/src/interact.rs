@@ -264,9 +264,7 @@ fn fill_action_runners(app: &balaur_core::App) {
     set_runner(
         eng,
         Action::Toast,
-        Rc::new(|eng: &Engine, _entity, value: &Value| {
-            balaur_ui::toast(eng, &text_of(value))
-        }),
+        Rc::new(|eng: &Engine, _entity, value: &Value| balaur_ui::toast(eng, &text_of(value))),
     );
     set_runner(
         eng,

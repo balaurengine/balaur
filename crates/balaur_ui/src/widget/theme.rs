@@ -156,7 +156,7 @@ impl Style {
             icon_color: self.icon_color.or(base.icon_color),
             round: self.round.or(base.round),
             hover: self.hover.clone().or_else(|| base.hover.clone()),
-        classes: self.classes.clone().or_else(|| base.classes.clone()),
+            classes: self.classes.clone().or_else(|| base.classes.clone()),
             active: self.active.clone().or_else(|| base.active.clone()),
         }
     }
@@ -323,7 +323,6 @@ fn pass_classes() -> (Rc<[SmolStr]>, u32) {
     })
 }
 
-
 /// Whether a finger is what reaches this screen, as the pass settled it.
 pub(crate) fn pass_is_touch() -> bool {
     PASS_CLASSES.with(|held| {
@@ -381,7 +380,6 @@ thread_local! {
     static HELD_TIP: std::cell::RefCell<Option<(egui::Id, f64)>> =
         const { std::cell::RefCell::new(None) };
 }
-
 
 /// One `[kind]` or `[roles.name]` table as a style, with its own `hover` and
 /// `active` sub-tables read as styles over it.
@@ -579,10 +577,17 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     let visuals = ui.visuals_mut();
     for (state, look) in [
         (&mut visuals.widgets.inactive, Some(style)),
-        (&mut visuals.widgets.hovered, style.hover.as_deref().or(Some(style))),
+        (
+            &mut visuals.widgets.hovered,
+            style.hover.as_deref().or(Some(style)),
+        ),
         (
             &mut visuals.widgets.active,
-            style.active.as_deref().or(style.hover.as_deref()).or(Some(style)),
+            style
+                .active
+                .as_deref()
+                .or(style.hover.as_deref())
+                .or(Some(style)),
         ),
     ] {
         let Some(look) = look else {
@@ -657,11 +662,7 @@ pub(crate) fn family_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
 /// A property left at its default is the widget saying nothing, so the theme
 /// answers: a transparent `text_color`, a `font_size` of 0, the `ui` family
 /// and a weight of 400 each take what the role or the kind carries.
-pub(crate) fn face(
-    theme: &WidgetTheme,
-    style: &Style,
-    widget: &Widget,
-) -> (Color32, egui::FontId) {
+pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Color32, egui::FontId) {
     // The theme's own text colour last, not a constant: a widget with no role
     // drew in near-white, which is invisible on a light theme.
     let ink = if widget.text_color[3] > 0.0 {

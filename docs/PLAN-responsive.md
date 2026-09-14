@@ -815,3 +815,35 @@ stage, so the two side handles stay on it while it is open.
 Verified as before: 149 UI tests, the editor selftest clean with and without
 touch, house, comment and generated-doc lints clean, and the post's two
 pictures regenerated from these renders.
+
+## 18. What CI found
+
+The branch's first green run needed four fixes, and the run that followed
+found three more in the shell itself.
+
+**The four CI named.** `cargo fmt` had not been run. Clippy refused the
+`edit` command: eight arguments, four bools in the `run` bag, and a `String`
+passed by value it never consumed. The `edit` flags are now one `clap` struct
+the command carries, the way the export flags already were, and the run bag
+says why its bools are bools. The editor's own checker refused three unused
+functions, left behind when the tabs learned to scroll and when the fold rule
+learned about side sheets; they are gone. And the iOS build needed the fork
+commit that follows `objc2-ui-kit` 0.3, which the lock now pins.
+
+**Three the layout selftest found, once it could run.** They only show in a
+window smaller than the one the pictures are taken at.
+
+- **The tool rail measured itself against the whole centre,** including the
+  bottom dock's share of it, so in a short window it ran into the dock. It
+  measures the column it is in.
+- **The fold followed a class word.** A window under 480 design pixels tall
+  reads `short`, which is a phone on its side, and the shell folded all three
+  docks for it — a 1000 by 470 laptop window included. Folding follows the
+  floors alone now, and the floor down the screen is the stage's own minimum
+  rather than the seam's: a dock shrinks to its floor before the stage is
+  asked to give anything up, so a small window keeps all three docks.
+- **The selftest asked every window for a desktop.** It demanded all four
+  sheets be placed and the stage be most of the window, which a folded shell
+  cannot answer. It asks what the room affords: every window owes the stage
+  inside it, no two sheets overlapping and 44 points under a finger; a window
+  with room for three columns owes the rest.
