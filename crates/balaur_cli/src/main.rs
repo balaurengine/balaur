@@ -259,6 +259,21 @@ enum Command {
         #[arg(long = "layer")]
         layers: Vec<String>,
     },
+    /// Write a smaller copy of a project's 3D images, as the variant one
+    /// target answers to: `wall.png` gains `wall.web.png`, and an export for
+    /// that target folds it onto the name the scene already uses. A 2D image
+    /// is left alone, because a sprite's size is its texture's pixels.
+    Shrink {
+        /// The project to write into.
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+        /// The target the copy is for: `web`, `mobile`, `android`, `ios`.
+        #[arg(long, default_value = "web")]
+        tag: String,
+        /// The fraction of the original to scale to.
+        #[arg(long, default_value_t = 0.5)]
+        scale: f32,
+    },
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
@@ -352,6 +367,25 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
 fn dispatch(command: Command) -> Result<()> {
     match command {
         Command::Api => api_dump::dump_api(),
+        Command::Shrink {
+            project,
+            tag,
+            scale,
+        } => {
+            let done = balaur_import::shrink::shrink(&project, &tag, scale)?;
+            for (path, why) in &done.skipped {
+                tracing::info!("left {path} alone: {why}");
+            }
+            let saved = done.before.saturating_sub(done.after);
+            tracing::info!(
+                "{} images at {scale} for '{tag}': {:.1} MB -> {:.1} MB, {:.1} MB saved",
+                done.written.len(),
+                done.before as f64 / 1e6,
+                done.after as f64 / 1e6,
+                saved as f64 / 1e6,
+            );
+            Ok(())
+        }
         Command::Import {
             file,
             project,

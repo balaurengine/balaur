@@ -389,7 +389,13 @@ fn an_import_carries_the_side_buffer_and_the_texture_along() {
         names,
         vec!["column.bin", "column_0.png", "column_0.png.toml"]
     );
-    assert_eq!(imported.files[1].1, PIXEL_PNG);
+    // The `.bin` is named rather than carried: importing a model never holds
+    // the files it only copies.
+    assert!(
+        imported.files[0].1.bytes().is_none(),
+        "the side buffer should be named, not held"
+    );
+    assert_eq!(imported.files[1].1.bytes().unwrap(), PIXEL_PNG);
     let nodes = imported.scene.get("nodes").unwrap().as_array().unwrap();
     let mesh = nodes
         .iter()
@@ -684,6 +690,54 @@ fn a_part_the_file_does_not_name_says_what_it_does_name() {
     );
 }
 
+/// A texture is copied, never decoded, so the import does not read one.
+///
+/// Sponza's 69 images are 41 MB of its 50, and holding them to write them is
+/// what made importing it cost the whole model in memory.
+#[test]
+fn an_image_the_file_names_is_not_read_while_importing() {
+    let (plain, bin) = column_parts(Buffer::Side, false);
+    let json = plain
+        .replace(r#""indices":1}]}]"#, r#""indices":1,"material":0}]}]"#)
+        .replace(
+            r#""buffers":["#,
+            r#""images":[{"uri":"stone.png"}],"textures":[{"source":0}],
+"materials":[{"pbrMetallicRoughness":{"baseColorTexture":{"index":0}}}],
+"buffers":["#,
+        );
+    let asked = std::cell::RefCell::new(Vec::new());
+    let reader = |uri: &str| {
+        asked.borrow_mut().push(uri.to_string());
+        if uri == "column.bin" {
+            Ok(bin.clone())
+        } else {
+            Err(anyhow::anyhow!("'{uri}' should not be read here"))
+        }
+    };
+    let imported = glb::import(json.as_bytes(), "column.gltf", &reader).unwrap();
+    assert_eq!(
+        *asked.borrow(),
+        vec!["column.bin".to_string()],
+        "only the buffer the geometry needs is read"
+    );
+    let stone = imported
+        .files
+        .iter()
+        .find(|(name, _)| name == "stone.png")
+        .expect("the named image is carried along");
+    assert!(
+        stone.1.bytes().is_none(),
+        "a named image is a name, not bytes"
+    );
+    // Its sampler is written here, so that one is bytes.
+    let sidecar = imported
+        .files
+        .iter()
+        .find(|(name, _)| name == "stone.png.toml")
+        .expect("a sidecar beside it");
+    assert!(sidecar.1.bytes().is_some());
+}
+
 /// A map is only half of what a file says about a texture; the other half is
 /// how to sample it, and Balaur's own defaults are not glTF's.
 ///
@@ -692,14 +746,14 @@ fn a_part_the_file_does_not_name_says_what_it_does_name() {
 #[test]
 fn a_texture_keeps_the_sampler_the_file_gave_it() {
     let imported = imported_two_materials();
-    let sidecar: Vec<&(String, Vec<u8>)> = imported
+    let sidecar: Vec<&(String, glb::Beside)> = imported
         .files
         .iter()
         .filter(|(name, _)| name.ends_with(".toml"))
         .collect();
     assert_eq!(sidecar.len(), 2, "one sidecar beside each image");
     assert_eq!(sidecar[0].0, "hall_0.png.toml");
-    let text = String::from_utf8(sidecar[0].1.clone()).unwrap();
+    let text = String::from_utf8(sidecar[0].1.bytes().unwrap().to_vec()).unwrap();
     let settings: toml::Value = toml::from_str(&text).unwrap();
     // The fixture names no sampler, so glTF's own defaults apply: repeat, and
     // a mip chain, both of which Balaur would otherwise have turned off.
@@ -725,7 +779,9 @@ fn only_the_colour_maps_are_marked_srgb() {
             .find(|(f, _)| f == name)
             .unwrap_or_else(|| panic!("no {name}"))
             .1
-            .clone();
+            .bytes()
+            .unwrap_or_else(|| panic!("{name} is named rather than carried"))
+            .to_vec();
         toml::from_str(&String::from_utf8(bytes).unwrap()).unwrap()
     };
     assert_eq!(

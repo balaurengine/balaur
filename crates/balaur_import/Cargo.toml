@@ -13,7 +13,10 @@ balaur_plugin.workspace = true
 # `balaur import file.aseprite` reads the editor's own format.
 balaur_render = { workspace = true, features = ["aseprite"] }
 anyhow.workspace = true
+# `balaur shrink` decodes, scales and re-encodes a project's images.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 serde_json.workspace = true
+toml.workspace = true
 # Tiled and LDtk levels, read at import: the engine never sees either format.
 tiled = "0.16"
 # Type-checks a shader the importer translated, which linking does not; the

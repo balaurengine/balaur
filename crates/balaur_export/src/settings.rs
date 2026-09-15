@@ -15,23 +15,15 @@ use balaur::ComponentDef;
 use balaur::Engine;
 use balaur::settings::{Scope, define_group};
 
-/// Declare all three. Called by whoever installs the exporter, so a game that
-/// cannot export does not carry export settings it can do nothing with.
-pub fn declare(eng: &Engine) {
-    let parse = |name: &str, text: &str| ComponentDef::parse_schema(name, text);
-    define_group(
-        eng,
-        "export",
-        Scope::Project,
-        &parse(
-            "settings.export",
-            r#"
+/// The `[export]` keys, as the editor's settings panel draws them. One copy,
+/// so a mode offered here is one [`crate::config::ExportConfig`] can read.
+pub(crate) const EXPORT_SCHEMA: &str = r#"
 output = { type = "string", default = "", order = 1, help = "A project-relative directory; each target gets a subdirectory of it. Empty exports where the command stands." }
 strip = { type = "bool", default = false, order = 2, help = "Drop an asset no scene, script or keep-glob names. Off by default: a script may compute a path this cannot see, and losing an asset is worse than shipping one." }
 tags = { type = "strings", default = [], order = 11, help = "Names this build answers to besides its platform's, such as demo or store. An override or an asset variant may be written for any of them; per target, set it under that target's override." }
 keep = { type = "strings", default = [], order = 3, help = "Globs an export keeps whatever else it decides, for the paths a script builds at run time." }
-images = { type = "enum", default = "keep", options = ["keep", "png", "webp", "smallest", "quantised"], order = 4, help = "How an image is re-encoded on the way into the pack. Every mode keeps the size; quantised is the one that does not keep the pixels." }
-images_quality = { type = "int", default = 70, min = 0, max = 100, order = 5, help = "imagequant's quality target, which images = \"quantised\" reads and every other mode ignores." }
+images = { type = "enum", default = "keep", options = ["keep", "webp", "quantised"], order = 4, help = "How an image is re-encoded on the way into the pack. Every mode keeps the size; quantised is the one that does not keep the pixels." }
+images_quality = { type = "int", default = 80, min = 0, max = 100, order = 5, help = "imagequant's quality target, which images = \"quantised\" reads and every other mode ignores." }
 fonts = { type = "enum", default = "keep", options = ["keep", "subset"], order = 6, help = "Whether a font is cut down to the characters the project's scenes and scripts name." }
 font_ranges = { type = "strings", default = [], order = 7, help = "Code points a subset font keeps beyond the ones found in the project, as first-last hex ranges (\"0020-00FF\"), for text from a server or typed by a player." }
 font_keep = { type = "strings", default = [], order = 8, help = "Faces that ship whole however fonts is set, as globs: the one a text field draws with cannot be subset to the characters this project happens to contain." }
@@ -46,8 +38,15 @@ android_key = { type = "string", default = "", order = 25, help = "Which key in 
 bundletool = { type = "string", default = "", order = 26, help = "Where bundletool.jar is. Empty looks at BALAUR_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK." }
 windows_certificate = { type = "string", default = "", order = 27, help = "A project-relative .pfx, or an Azure Trusted Signing metadata file when the key lives in a cloud HSM." }
 windows_timestamp_url = { type = "string", default = "http://timestamp.digicert.com", order = 28, help = "The timestamp authority a Windows signature is countersigned by." }
-"#,
-        ),
+"#;
+
+pub fn declare(eng: &Engine) {
+    let parse = |name: &str, text: &str| ComponentDef::parse_schema(name, text);
+    define_group(
+        eng,
+        "export",
+        Scope::Project,
+        &parse("settings.export", EXPORT_SCHEMA),
     );
     define_group(
         eng,

@@ -9,10 +9,10 @@
 //!
 //! [`crate::glb`] owns the geometry and the scene tree; this owns the paint.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 
 use crate::collections::DetHashMap;
-use crate::glb::{Model, SideReader, floats, percent_decoded, slug, uri_bytes};
+use crate::glb::{Beside, Model, SideReader, floats, percent_decoded, slug, uri_bytes};
 
 /// What a primitive with no material of its own draws with. A `part` may name
 /// it, so it needs a name nothing else can take.
@@ -75,7 +75,7 @@ const SLOTS: [&str; 5] = [
 pub(crate) struct Images<'a> {
     pub(crate) stem: &'a str,
     pub(crate) by_index: DetHashMap<usize, String>,
-    pub(crate) files: Vec<(String, Vec<u8>)>,
+    pub(crate) files: Vec<(String, Beside)>,
 }
 
 /// How a glTF sampler says a texture is read, as the keys an import sidecar
@@ -142,9 +142,10 @@ impl Images<'_> {
         }
         let (name, bytes) = match image.source() {
             gltf::image::Source::Uri { uri, .. } if !uri.starts_with("data:") => {
+                // Named, not read: nothing here decodes a texture, so the
+                // copy at the other end is the only thing that needs it.
                 let name = percent_decoded(uri);
-                let bytes = side(&name).with_context(|| format!("texture '{name}'"))?;
-                (name, bytes)
+                (name.clone(), Beside::Named(name))
             }
             gltf::image::Source::Uri { uri, .. } => {
                 let extension = if uri.starts_with("data:image/jpeg") {
@@ -154,7 +155,7 @@ impl Images<'_> {
                 };
                 (
                     format!("{}_{}.{extension}", self.stem, image.index()),
-                    uri_bytes(uri, side)?,
+                    Beside::Bytes(uri_bytes(uri, side)?),
                 )
             }
             gltf::image::Source::View { view, mime_type } => {
@@ -167,7 +168,7 @@ impl Images<'_> {
                 };
                 (
                     format!("{}_{}.{extension}", self.stem, image.index()),
-                    bytes.to_vec(),
+                    Beside::Bytes(bytes.to_vec()),
                 )
             }
         };
@@ -175,7 +176,7 @@ impl Images<'_> {
         self.files.push((name.clone(), bytes));
         self.files.push((
             crate::import::sidecar_of(&name),
-            sampling_of(texture, is_colour(slot)).into_bytes(),
+            Beside::Bytes(sampling_of(texture, is_colour(slot)).into_bytes()),
         ));
         Ok(name)
     }

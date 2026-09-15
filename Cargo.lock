@@ -658,6 +658,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_render",
+ "image",
  "naga",
  "serde_json",
  "tempfile",

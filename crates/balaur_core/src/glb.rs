@@ -33,6 +33,33 @@ use crate::skeleton::euler_from_quat;
 /// `.gltf`, an image — or says why it cannot.
 pub type SideReader<'a> = &'a dyn Fn(&str) -> Result<Vec<u8>>;
 
+/// A file to write beside the model, and where its bytes come from.
+///
+/// A model's textures are the bulk of it -- Sponza's 69 are 41 MB of its 50 --
+/// and nothing here decodes one: they are copied. So a file the model *named*
+/// is carried as that name and read when it is written, and only what the
+/// model itself holds is carried as bytes.
+pub enum Beside {
+    /// Bytes out of the model: an embedded image, or a `data:` URI, or a
+    /// sidecar written here rather than read from anywhere.
+    Bytes(Vec<u8>),
+    /// A file the model named beside itself, by the same relative URI its
+    /// [`SideReader`] takes.
+    Named(String),
+}
+
+impl Beside {
+    /// The bytes, for a file the model carried. `None` for one still to be
+    /// read from beside the source.
+    #[must_use]
+    pub fn bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes),
+            Self::Named(_) => None,
+        }
+    }
+}
+
 /// The reader for a model that must stand alone: a `.glb`, or a `.gltf`
 /// whose buffers are all `data:` URIs.
 ///
@@ -49,8 +76,10 @@ pub(crate) struct Model {
     pub(crate) document: gltf::Document,
     /// One per glTF buffer, in index order.
     buffers: Vec<Vec<u8>>,
-    /// The side files the buffers came from, to carry along on import.
-    side_files: Vec<(String, Vec<u8>)>,
+    /// The files the buffers were read from, by URI, to carry along on
+    /// import. Names rather than bytes: a `.bin` is the second largest thing
+    /// in a model and the copy re-reads it.
+    side_files: Vec<String>,
     /// Unique per node, so a path of names resolves to one node.
     names: Vec<String>,
     parent: Vec<Option<usize>>,
@@ -72,7 +101,7 @@ impl Model {
                     let data =
                         uri_bytes(uri, side).with_context(|| format!("{name}: buffer '{uri}'"))?;
                     if !uri.starts_with("data:") {
-                        side_files.push((percent_decoded(uri), data.clone()));
+                        side_files.push(percent_decoded(uri));
                     }
                     data
                 }
@@ -654,8 +683,10 @@ pub struct GlbImport {
     /// An `animation_clip` library with one entry per animation, or `None`.
     pub clips: Option<toml::Value>,
     /// Files to write beside the model under `models/`: the `.bin` a
-    /// `.gltf` names, and every texture its materials name.
-    pub files: Vec<(String, Vec<u8>)>,
+    /// `.gltf` names, every texture its materials name, and a sidecar per
+    /// texture. Each says whether its bytes are here or still beside the
+    /// source, so importing a model never holds its textures.
+    pub files: Vec<(String, Beside)>,
     /// Text files to write at their own project-relative paths: the shader
     /// the generated materials draw with.
     pub documents: Vec<(String, String)>,
@@ -715,7 +746,11 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
     let model = Model::load(bytes, model_file, side)?;
     let rig = Rig::first(&model)?;
     let clips = clips_of(&model);
-    let mut files = model.side_files.clone();
+    let mut files: Vec<(String, Beside)> = model
+        .side_files
+        .iter()
+        .map(|uri| (uri.clone(), Beside::Named(uri.clone())))
+        .collect();
     let mut images = Images {
         stem,
         by_index: DetHashMap::default(),
