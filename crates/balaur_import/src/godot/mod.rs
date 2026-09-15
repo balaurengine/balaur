@@ -27,6 +27,7 @@ pub(crate) mod strings;
 pub(crate) mod textures;
 pub(crate) mod theme;
 pub(crate) mod tiles;
+pub(crate) mod walk;
 
 use std::collections::BTreeMap;
 

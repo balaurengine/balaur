@@ -205,7 +205,7 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: global_z_index,
     },
     NodeOp {
-        name: "process",
+        name: crate::process::KEY,
         call: process,
     },
     NodeOp {
@@ -217,7 +217,7 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: ticking,
     },
     NodeOp {
-        name: "interpolate",
+        name: crate::interpolate::KEY,
         call: interpolate,
     },
     NodeOp {
@@ -300,10 +300,10 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
         ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
         ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
-        ("process", &[], "(node)", "When this node ticks: \"inherit\", \"pausable\", \"when_paused\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer."),
+        (crate::process::KEY, &[], "(node)", "When this node ticks: \"inherit\", \"pausable\", \"when_paused\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer."),
         ("set_process", &[], "(node, mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"when_paused\" runs only while paused; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says."),
         ("ticking", &[], "(node)", "Whether the node ticks this frame, its process mode and the game's pause together."),
-        ("interpolate", &[], "(node)", "Whether the node is drawn between fixed steps."),
+        (crate::interpolate::KEY, &[], "(node)", "Whether the node is drawn between fixed steps."),
         ("set_interpolate", &[], "(node, on: bool)", "Draw the node between fixed steps, or stop. Needs `[time] interpolate` on; a body and a script with `fixed_update` ask for it on their own."),
         ("reset_interpolation", &[], "(node)", "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you."),
         ("tags", &[], "(node)", "The names the node is filed under, sorted."),

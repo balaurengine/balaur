@@ -1,4 +1,24 @@
-> **Status:** steps 1 to 3 built 2026-09-15. `import_bytes` takes a name and
+> **Status:** every step built, and the browser half run in a tab on
+> 2026-09-16: the editor's module answers `import.handles("hero.glb")` with
+> true where a tab used to answer false, and `import.choose` opens its chooser
+> with no panic. What no automation can do is the reader's own pick, which
+> wants a gesture and a file of their own.
+>
+> A project is walked a file at a time too, over `ProjectWalk`, so the one
+> import that takes seconds has a count that climbs rather than one long slice.
+>
+> `import.start` runs an import a few files per frame and reports each to
+> whatever `import.listen` named,
+> `import.running` counts what is in flight, and `import.file` stays as the one
+> call a command and a test want. A drop starts a job, the status strip says
+> what is in flight, `chrome::toast` lists the batch with a bar under it, and a
+> failure opens the Output dock.
+> `jobdemo` drops a real `.glb` and asserts all of it across frames. Of step
+> 5's own half:
+> `plan_bytes` answers a `Plan` that has written nothing, and
+> `Plan::write_next` writes one file and says whether any are left, so a
+> caller keeping its frame drives an import a slice at a time.
+> Of the steps before it: `import_bytes` takes a name and
 > bytes, `Sink` takes one file at a time, and `ProjectSink` writes through the
 > file backend. The Godot importer reads and writes through it too, over
 > `godot::io`, so a whole project converts inside a `MemoryFs` with no disk in
@@ -75,39 +95,32 @@ import that writes 143 files in a loop would hold the tab exactly as it holds
 the editor today. The write loop is the yield point, which is the same boundary
 the progress event wants, so one design serves both.
 
-### 1.1 The spawn, which is copied and should not be
+### 1.1 What is worth one type, and what is not
 
-The half `ExternalIo` does not cover is how the work leaves the tick, and it is
-written out per subsystem per target as a `mod backend` exposing one name:
+The half `ExternalIo` does not cover is how the work leaves the tick, written
+out per subsystem per target as a `mod backend` exposing one name:
 `balaur_http` in three (`request.rs`, `browser.rs`, `emscripten.rs`),
-`balaur_gamend` in two, `balaur_webtransport` in two, and export in two. Import
-would be the fifth. So it is worth a type, in `balaur_core` beside the events
-it reports on.
+`balaur_gamend` in two, `balaur_webtransport` in two, and export in two.
 
-One type cannot serve both, because the bounds are not the same shape.
-`std::thread::spawn` takes `FnOnce + Send + 'static` and runs beside the
-frame; `spawn_local` takes a `Future + 'static`, is not `Send`, and advances
-only when the page yields. So two, with the target picking the bound rather
-than the caller:
+**One type, and only for the work that is the same work.** `task::step` is
+that: a state machine advanced a slice at a time, a thread natively and the
+tick's own pump on the web. File work qualifies, which is why the import job
+runs unchanged on both -- it is pure Rust over the file backend either side.
 
-- **`task::spawn`**, async first, with `Send` required natively and not on the
-  web. Natively a thread that blocks on the future, on the web a
-  `spawn_local`. This is what the subsystems waiting on a socket or a fetch
-  already do by hand.
-- **`task::step`**, for work that is neither waiting nor parallel. The work is
-  a state machine that returns after a slice. Natively the runtime loops it on
-  a thread; on the web the tick's own pump steps it. An import is this kind:
-  read a file, write a file, answer how far along it is.
+**The socket subsystems do not qualify, and this file used to say they did.**
+Read side by side, `balaur_http`'s two halves are not one body with two
+spawns: the native one spawns a thread and blocks in `ureq`, the browser one
+spawns a task and awaits Fetch. Different code, not a different spawn. A
+generic that took both would need the native half rewritten against an async
+HTTP stack, for a wrapper around one line. So the `mod backend` per target is
+the right shape there, and there is nothing to collapse: what those
+subsystems share is the event, the listeners and the pump, and that is
+[`crate::jobs`] already.
 
-`task::step` is the one this plan needs, and it earns its place twice over. A
-stepped import on the web runs under the tick rather than beside it, so a
-cancel is a flag rather than a signal, and what a recording sees is the same
-sequence a live run saw for the same reason every other `ExternalIo` source is.
-
-`ARCHITECTURE.md` already names the guard this wants beside it: "Nothing forces
-a new subsystem to use `ExternalIo`. A lint on `std::sync::mpsc::channel`
-outside core is the next guard." A lint on `thread::spawn` and `spawn_local`
-outside core and `task` is the same guard for this half.
+For the same reason there is no lint on `thread::spawn` and `spawn_local`
+outside core: it would fire on the honest per-target backend. The guard that
+matters is the one `ARCHITECTURE.md` names -- a channel outside `ExternalIo`
+-- and `scripts/house_lints.py` has it.
 
 ## 2. Design
 
@@ -180,12 +193,12 @@ this.
 
 - **A job strip, not an import panel.** Export and import are the same kind of
   thing in flight, and two panels for it is the wrong split. One strip, fed by
-  both, in the status bar: the name, the count, and a cancel where the work can
-  take one.
-- **A toast on the end of one.** `done` and `failed` both want to be seen
-  without a dock being open. The editor has `ui::overlay` to draw one with;
-  `PLAN-widgets.md`'s popup pass is what would make it a kind instead, and this
-  does not wait for that.
+  both, in the status bar: the state, and a cancel where the work can take one.
+- **The batch in one overlay.** Each import of the batch on its own line with
+  its count, one `ui::bar` under them for the lot, and a line kept for a few
+  seconds after it ends. `ui::overlay` draws it, so the list, the counts and
+  the bar are one pass and cannot disagree; `PLAN-widgets.md`'s popup pass is
+  what would make it a kind instead, and this does not wait for that.
 - **The Output dock opens itself on a failure**, the way starting a play
   already opens it (`editor/scripts/shell.rn:258`).
 
@@ -207,19 +220,36 @@ this.
 The web editor and an exported game are one module today:
 `scripts/package_play.sh` copies `balaur.js` and `balaur_bg.wasm` out of
 `package_template.sh web` and ships them beside `editor.bpak` and a pack per
-example. An `import` cargo feature on `balaur_cli` splits them:
+example. The `import` cargo feature on `balaur_cli` is what splits them, and
+is built: on by default and in every native build, which is where the command
+lives, and off in `package_template.sh web`, so a game a reader downloads
+carries no importer. `balaur import` and `balaur shrink` exist only with it.
 
-- on by default, and on for every native build, which is where the command
-  lives;
-- on for the module `package_play.sh` builds, which is what the editor runs;
-- off for `package_template.sh web`, so a game a reader downloads carries no
-  importer.
+**The importers do compile for a browser**, which was the open question:
+`balaur_import` checks clean for `wasm32-unknown-unknown`, and so does the
+editor's whole module with `--features audio,http,websocket,gamend,web,window,
+import`. Nothing in them wanted a desktop.
 
-`gen_docs.py` reads the feature list off `package_template.sh`, so
-`docs/generated/features.md` states the cost of the feature once it exists
-rather than this file guessing it. `naga` and `image` are already linked
-through `window`; what is left is `tiled`, the aseprite decoder and the
-importer's own code.
+`docs/generated/features.md` now measures the feature rather than this file
+guessing at it: nine crates, the `tiled` and `quick-xml` readers, the aseprite
+decoder and the importer's own code among them. `naga` left `window`'s column
+in the same pass, because the importer reaches it too.
+
+The second module is built. `package_play.sh` takes `EDITOR_MODULE` when a
+build already made one and builds its own otherwise, and `build-platforms`
+grew a third web entry -- `variant: editor`, the plain set plus `import` --
+which `bundle web` downloads and points at. `WEB_VARIANT` carries the name
+through `package_template.sh`, so the tarball matches the artifact the way
+`-threads` already did.
+
+Run here, not only planned: the editor's module is **21.43 MB raw, 5.81 MB
+brotli**, and the bundle it lands in is 11.25 MB holding `editor.bpak` and
+twelve example packs.
+
+**The exporter has to be current.** `package_play.sh` compiles the editor's
+scripts while exporting its pack, using the binary that exports, so a stale
+one fails with `Missing item {root}::::import::cancel` and names the script
+rather than itself.
 
 ## 3. Steps
 
@@ -251,27 +281,132 @@ importer's own code.
    `advance_parked_system` at `Stage::First` is what advances it. `running()`
    counts what has not finished, on both.
 
-   What is left of this step is the cleanup: the four subsystems that
-   hand-roll a backend module per target still do, and each waits on a socket
-   or a fetch rather than stepping, so they want the async twin -- `task::spawn`
-   -- before they can move. The lint on `thread::spawn` and `spawn_local`
-   outside core waits on that too.
-5. **The job.** `ImportCore` over `ExternalIo<ImportEvent>`, `pump` at
-   `Stage::First`, and `start`, `running` and `listen` beside the call that
-   stays. The importer sends `wrote` from the sink.
-6. **The editor.** `dropin` starts a job instead of calling; the job strip, the
-   toast, and the Output dock opening itself on a failure.
-7. **The buttons.** `assets::import`, Import project in the manager, and the
-   two extension lists.
-8. **The web.** The `import` feature, `package_play.sh` building its own
-   module, and the import stepped from the pump. A dropped `.gltf` gets its
-   `side` from the files the drop carried.
+   Nothing is left of this step. The four subsystems keep their own backend
+   module per target, which §1.1 says is right: their two halves are
+   different code, not one body behind two spawns. Export's copy of the
+   *reporting* half is what was duplicated, and that is gone -- step 5 says
+   how.
+5. **The job.** Built. `Reporting<ImportEvent>` in `crates/balaur_cli/jobs.rs`
+   is the generic seam -- the event, the listeners, the pump -- and the job is
+   a `Stepped` that reads on its first slice and writes up to
+   `FILES_PER_SLICE` after it, reporting `wrote` per file.
+
+   It is parked rather than given a thread, because the sink holds the file
+   backend and an `Rc` never crosses one. So a desktop import shares the frame
+   it no longer stops, and the browser runs the same job.
+
+   A level and a Godot project cannot be sliced yet -- both walk their own
+   folder -- so `balaur_import::slices` says so and the job gives them one long
+   slice, with `files` zero to say the count is not known.
+
+   `export_shared.rs` moved onto `jobs.rs` with it: `ExportCore` is
+   `Reporting<ExportEvent>`, the event implements `Reported`, and that file is
+   the event and the line documenting `listen` and nothing else. The change is
+   type-identical, so the compiler checked the wiring; nothing but the editor
+   drives an export's events, so what was checked beyond that is that the
+   editor boots and registers `export::listen`, and that a pack still
+   exports.
+6. **The editor.** Built, bar the toast. `dropin::take` starts a job and
+   `dropin::report` is where every step lands: the status strip says
+   `importing column.glb · 12/143` while one runs, a failure opens the Output
+   dock the way a play already does, and the scene is instanced when the job
+   says it is done rather than when the call returns. Per-file lines are not
+   logged, because a project is ten thousand files.
+
+   `chrome::say` is the toast, an `ui::overlay` read top right for four
+   seconds; `PLAN-widgets.md`'s popup pass is what would make it a kind. It
+   took a new option on the verb: an overlay is an egui layer, so one that is
+   only read declares `interactive = false` and hands its clicks back.
+
+   `import::cancel` stops what is in flight at the end of the file it is
+   writing, which every job reads at the top of its next slice. What was
+   written stays: the files are the output, not a transaction. `jobdemo`
+   cancels before the first slice, where the count is deterministic.
+
+   What a script sees of a count is an integer, not a float. `Value::Num` for
+   `files` and `done` made `import::running() == 1` a type error in Rune and
+   printed "3.0 files"; both went away with `Value::Int`.
+7. **The buttons.** Import project is built and the lists are one list.
+
+   The manager's button converts now: `manager::converted` finds a manifest it
+   knows, makes the balaur project, runs `import::into` and answers where it
+   landed, and `import_project` is that plus the open. They are apart because
+   opening quits the process, so a test can drive the conversion and assert on
+   what it wrote, which `managerdemo` does over the smallest Godot project the
+   importer will read. The button no longer says Godot: `MANIFESTS` is the list
+   it looks for, and a second engine is a line there.
+
+   `balaur_import::claims` is the one list of what an importer reads. The copy
+   in `import_api.rs` is gone and `dropin::kind_of` asks the verb, which is why
+   a `.tscn` that `balaur import` has always read was refused by a drop. A
+   whole `project.godot` is still not a drop: it makes a project rather than
+   adding to one, and that is the manager's.
+
+   The Assets dock has an Import button over `import::pick`, whose filter is
+   `claimed()` so the dialog cannot drift from the list either. While an
+   import runs the same button is the cancel.
+
+   A tab now says "nothing to do with hero.glb" rather than naming the
+   desktop, because `handles` answers for the build it is in; step 8 is what
+   makes that true again.
+8. **The web.** Built. `import::choose` is one verb on both machines: the OS
+   dialog on a desktop, and in a tab the page's own `<input type="file">`,
+   which takes several files so a `.gltf` can be picked with the images it
+   names. `crates/balaur_cli/src/import_web.rs` is that half, and
+   `import::pick` is gone, since `choose` is the one way to ask.
+
+   A job's bytes are a `Source`: `Beside(path)` reads them and their siblings
+   through the file backend, `Chosen { name, bytes, with }` has them in hand
+   and answers `side` from what was picked. The first file an importer claims
+   is the model and the rest are what it may name, so a reader who picked the
+   `.gltf` alone is told which image is missing rather than left with half a
+   model.
+
+   **Run in a tab, 2026-09-16.** The play bundle was served from the
+   scratchpad and opened in a browser, with an editor pack whose init logs
+   what it can see: `handles("hero.glb")` true and `handles("a.png")` false,
+   where a tab used to answer false to both, and `choose()` true with no panic
+   and no element left in the page. So the module carries the importers and
+   every web-sys call in the shim works. A browser ignores a file dialog asked
+   for outside a gesture, which is why none opened, and why the reader's own
+   pick is the one step automation cannot take.
+
+   Behind it, tested natively: a job imports bytes that came with no path, and
+   `Source::Chosen` names what was not picked.
+
 
 Steps 1 to 3 are the importer alone and land first, and none of them changes
 what a reader sees. Step 4 is a refactor of four subsystems and can go before
 or after them. Steps 5 to 7 are the editor, and 8 is the one that needs the
 second module. Steps 1 to 7 are the editor row in `docs/ROADMAP.md`; step 8
 belongs with `The editor in a browser`.
+
+## 3a. What this owed the website, and what paying it changed
+
+Paid on 2026-09-16: `blog/2026-09-16-an-import-you-can-watch.mdx` with the
+`shots` entry beside it, over `import_shot editor_import`, which now takes two
+imports a frame apart rather than one file.
+
+Three things had to change before the picture was worth taking, and each is a
+better editor for it.
+
+- **The count had nowhere to live.** Every import the repo can do writes three
+  or four files inside one slice, so a job was in flight for exactly one frame
+  and the count flashed past. A job that has ended now stays in the list for a
+  few seconds with what it wrote, so a batch of two reads as a batch of two.
+- **A count in the strip could not agree with the toast.** The strip is pooled
+  nodes, and `widget::layer::draw` runs before a script's `draw_ui`, so what
+  `pool::strip` patches is laid out the *next* pass: the strip was a frame
+  behind its own overlay and the two named different files. The numbers moved
+  to the toast, which draws its list and its bar in one pass, and the strip
+  says the state and no more.
+- **The import that needs a bar had none.** A project was one long slice
+  reporting `files: 0`. `ProjectWalk` steps the walk a file at a time, so ten
+  thousand files are three hundred slices with a count that climbs.
+
+`pool::strip` also patched rather than set, so a node that was a six-pixel
+spacer last frame kept that width as this frame's label: `kiss3d · wgpu` drew
+as `k`. Every control now names its shape or is given a neutral one.
 
 ## 4. What CI can prove, and what it cannot
 

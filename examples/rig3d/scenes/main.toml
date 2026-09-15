@@ -78,8 +78,7 @@ parent = "n_main"
 [nodes.transform]
 position = [4.0, 3.2, 5.5]
 
-[nodes.camera]
-kind = "3d"
+[nodes.camera3d]
 look_at = [0.0, 1.5, 0.0]
 
 [[nodes]]

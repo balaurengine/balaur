@@ -366,7 +366,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_core::hecs::Entity;
     use balaur_core::scene::{self, Transform};
     use balaur_core::{App, AppConfig, components, snapshot};
-    use balaur_physics::{PhysicsPlugin, PhysicsState};
+    use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
@@ -415,7 +415,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     }
     let taken = snapshot::capture(&app.engine);
     let before = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         (
             state.joints.len(),
@@ -429,7 +429,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     }
     snapshot::restore(&app.engine, &taken);
     let after = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         (
             state.joints.len(),

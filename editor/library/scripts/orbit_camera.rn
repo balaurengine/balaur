@@ -53,5 +53,5 @@ pub fn update(this, dt) {
     // rotation, so the pivot has to be named in world units. Without this the
     // rig looks at the origin, which is only the pivot while it has not moved.
     let at = this.node.parent().transform.global_position();
-    this.node.patch_component("camera", #{ look_at: [at.x, at.y, at.z] });
+    this.node.patch_component("camera3d", #{ look_at: [at.x, at.y, at.z] });
 }

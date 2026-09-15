@@ -42,10 +42,21 @@ const NEW_SHEET = "manager-new";
 // is not open yet, so every row wears this one.
 const LOGO = "assets/balaur-logo.png";
 
+/// Whether the editor is running in a browser tab, where a project is opened
+/// by the page rather than by starting a second editor.
+pub fn in_tab() {
+    project::in_tab()
+}
+
 /// The `manager` start state: show the screen instead of the docks.
 pub fn open(S) {
     S.manager.on = true;
     S.manager.read = false;
+    // The other two pages are not offered in a tab, so neither is a state
+    // that left the screen on one of them.
+    if in_tab() {
+        S.manager.tab = "projects";
+    }
 }
 
 /// The screen, on its examples half.
@@ -83,7 +94,13 @@ pub fn showing(S) {
 }
 
 fn tabs() {
-    [["projects", "Projects"], ["examples", "Examples"], ["engine", "Engine"]]
+    // A tab installs no engine and fetches its examples from the page it runs
+    // in, so the screen there is the list of what this browser keeps.
+    if in_tab() {
+        return [["projects", "Projects"]];
+    }
+    // `return`, because a block followed by `[` is an index in Rune.
+    return [["projects", "Projects"], ["examples", "Examples"], ["engine", "Engine"]];
 }
 
 // One column under this, two above it.
@@ -178,18 +195,21 @@ fn tab_row(S, k, w) {
 fn toolbar(S, k, w) {
     let h = util::max(style::row_h(S), 30.0);
     let tight = narrow(w);
+    // A tab has no folder picker and nowhere to write a template: the page it
+    // runs in is what starts a project there, and this screen reopens one.
+    let acting = !in_tab();
     // Written back to front: `ui::right` puts the first one at the right
     // edge, so New project reads leftmost of the three.
     let verbs = |room| {
         if !S.touchscreen {
-            if ui::pill(icons::panel("import") + " Import Godot", #{
+            if ui::pill(icons::panel("import") + " Import project", #{
                 height: h, size: style::MD, radius: 8, padding_x: 14, min_width: room,
                 fill: k.panel, color: k.text,
-                tooltip: "Pick a folder holding project.godot",
+                tooltip: "Pick a project folder to convert; Godot is the one read today",
             }) {
                 let picked = project::pick_folder();
                 if picked is String {
-                    import_godot(S, picked);
+                    import_project(S, picked);
                 }
             }
             ui::add_space(6);
@@ -212,13 +232,13 @@ fn toolbar(S, k, w) {
         }
     };
     ui::horizontal(#{ height: h, width: w }, || {
-        let field_w = if tight { w } else { w - 420.0 };
+        let field_w = if tight || !acting { w } else { w - 420.0 };
         S.manager.filter = crate::search::field(S, k, "manager", "Filter projects", field_w);
-        if !tight {
+        if !tight && acting {
             ui::right(|| { verbs(0.0); });
         }
     });
-    if tight {
+    if tight && acting {
         ui::add_space(8);
         ui::horizontal(#{ height: h, width: w }, || { verbs((w - 12.0) / 3.0); });
     }
@@ -229,8 +249,13 @@ fn projects_page(S, k, col, tall) {
     ui::add_space(SEAM);
     let rows = shown(S);
     if rows.len() == 0 {
-        let why = if S.manager.recent.len() == 0 {
+        let empty = if in_tab() {
+            "This browser keeps no projects yet. The page opens one, and it is listed here after that."
+        } else {
             "Nothing opened on this machine yet. Start from an example, or make one."
+        };
+        let why = if S.manager.recent.len() == 0 {
+            empty
         } else {
             "No project matches that filter."
         };
@@ -620,27 +645,50 @@ fn create(S) {
     go(S, path);
 }
 
-// A Godot project becomes a balaur one beside it: the import writes into an
-// empty project rather than over the folder it read.
-fn import_godot(S, folder) {
-    let manifest = folder + "/project.godot";
-    if !fs::exists(manifest) {
-        S.manager.failed = "no project.godot in " + folder;
-        return;
+// The manifests this screen reads, in the order it looks. A second engine is
+// a line here and a route in `balaur_import`.
+const MANIFESTS = ["project.godot"];
+
+// Another engine's project becomes a balaur one beside it, converted before
+// it is opened: opening quits this process, so nothing after it would run.
+fn import_project(S, folder) {
+    let path = converted(S, folder);
+    if path != "" {
+        go(S, path);
+    }
+}
+
+// The conversion alone, answering where it landed or "" with the reason in
+// `S.manager.failed`, so a test can drive it without the open that quits.
+pub fn converted(S, folder) {
+    let manifest = "";
+    for name in MANIFESTS {
+        if manifest == "" && fs::exists(folder + "/" + name) {
+            manifest = folder + "/" + name;
+        }
+    }
+    if manifest == "" {
+        S.manager.failed = "no project to import in " + folder + ": looked for project.godot";
+        return "";
     }
     let name = util::last_segment(folder);
     let path = S.manager.parent + "/" + name + "-balaur";
     let made = util::obj(project::create(path, "empty"));
-    let failed = made.get("error");
-    if let Some(why) = failed {
+    if let Some(why) = made.get("error") {
         S.manager.failed = why;
-        return;
+        return "";
+    }
+    let result = util::obj(import::into(manifest, path));
+    if let Some(why) = result.get("error") {
+        S.manager.failed = "importing " + manifest + ": " + why;
+        return "";
     }
     S.manager.failed = "";
-    S.manager.note = "importing " + manifest + " into " + path;
-    log::info(S.manager.note);
-    go(S, path);
+    S.manager.note = result.get("note").unwrap_or("");
+    log::info(format!("imported {} into {}: {}", manifest, path, S.manager.note));
+    path
 }
+
 
 // Replace this install. The reader pressed it, so a downgrade is allowed:
 // naming an older release is the only reason to name one.

@@ -72,6 +72,11 @@ pub fn hooks(S, rel) {
 }
 
 pub fn list(S, rel) {
+    // No project, no listing: the start screen is up, and asking `fs` for a
+    // path under a root that does not exist is an error rather than nothing.
+    if S.game_root == "" {
+        return [];
+    }
     let now = engine::time();
     if let Some(entry) = S.listings.get(rel) {
         if now - entry.at < TTL {
@@ -369,8 +374,7 @@ pub fn is_2d(S) {
             || node.contains_key("tilemap") {
             return true;
         }
-        let camera = node.get("camera").unwrap_or(());
-        if camera is Object && camera.get("kind") == Some("2d") {
+        if node.contains_key("camera2d") {
             return true;
         }
     }
@@ -825,6 +829,9 @@ pub fn id_path(S, reference) {
 // Game-relative file paths (a texture) are made absolute for the mirror,
 // whose engine resolves against the editor's root; `relative_file` undoes it
 // on the way back, and `S.id_paths` keeps an `id://` spelling for that.
+
+// Only a node's own values: a file the engine opens itself is resolved
+// against the root that owns it, in `balaur_core::document_paths`.
 fn absolute_files(S, value) {
     if value is String {
         if value.starts_with("id://") {
@@ -842,7 +849,7 @@ fn absolute_files(S, value) {
         }
         if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
             let abs = S.game_root + "/" + value;
-            // Inlined so what it names resolves against the editor's root (D24),
+            // Inlined so the inspector edits one document rather than two,
             // except a material: it resolves its own files, and a path saves.
             if value.ends_with(".toml") {
                 let (ok, loaded) = script::attempt(|| assets::load(abs));
@@ -1250,6 +1257,26 @@ pub fn move_sibling(S, delta) {
 // Add a node under the selected one, in both document and mirror, optionally
 // applying a preset. A preset is a recipe: the components land on the node and
 // nothing records which one put them there.
+/// Rename the selected node, in the document and on the live node both.
+///
+/// The name is made unique first: two siblings sharing one is what made
+/// `find_node` answer with whichever came first.
+pub fn rename_selected(S, name) {
+    let wanted = name.trim();
+    if wanted == "" || refuse_structure(S, "rename a node") {
+        return;
+    }
+    if wanted == S.doc[S.sel].name {
+        return;
+    }
+    history::record(S, "rename node", None);
+    let unique = unique_name(S.doc, wanted);
+    S.doc[S.sel].name = unique;
+    if let Some(found) = live(S, S.sel) {
+        found.set_name(unique);
+    }
+}
+
 pub fn add_child(S, preset) {
     if refuse_structure(S, "add a node") {
         return;

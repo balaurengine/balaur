@@ -130,6 +130,33 @@ Draws the node as its 2D children combined by `op`: `union`, `difference` or `in
 </tbody>
 </table>
 
+### `camera2d`
+
+`2d` · `render` · 15 properties
+
+The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
+<tr><td><code>ambient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`</td></tr>
+<tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
+<tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
+<tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
+<tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
+<tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
+<tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
+<tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
+<tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
+<tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
+<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
+</tbody>
+</table>
+
 ### `character2d`
 
 `2d` · `physics` · 12 properties · 2 methods
@@ -689,23 +716,21 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 </tbody>
 </table>
 
-### `camera`
+### `camera3d`
 
-`3d` · `render` · 17 properties
+`3d` · `render` · 14 properties
 
-The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.
+The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
-<tr><td><code>ambient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`; only a `2d` camera&#x27;s is read</td></tr>
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
-<tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
+<tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the camera looks at</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
 <tr><td><code>post</code></td><td>strings</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
 <tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
@@ -714,7 +739,6 @@ The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
-<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>
 

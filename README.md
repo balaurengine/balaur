@@ -115,4 +115,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Balaur is [MIT licensed](LICENSE).
 
 ## Star History
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=balaurengine/balaur&type=date&legend=top-left)](https://star-history.dera.page/#balaurengine/balaur&type=date&legend=top-left)
+<a href="https://www.star-history.com/?repos=balaurengine%2Fbalaur&type=timeline&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=balaurengine/balaur&type=timeline&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=balaurengine/balaur&type=timeline&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=balaurengine/balaur&type=timeline&legend=bottom-right" />
+ </picture>
+</a>

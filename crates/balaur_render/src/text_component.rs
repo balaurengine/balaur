@@ -366,7 +366,7 @@ pub(crate) fn sync_text(
     }
     drop(world);
 
-    // Shape every block that moved before the atlas is uploaded, so one
+    // Shape3d every block that moved before the atlas is uploaded, so one
     // upload covers the lot.
     let mut blocks = Vec::with_capacity(wanted.len());
     for (entity, text, resolved, raster) in &wanted {
@@ -460,7 +460,7 @@ fn place(
     // Where the eye is, for the blocks that face it.
     let eye = app
         .engine
-        .try_resource::<crate::ViewportSnapshot>()
+        .try_resource::<crate::ViewportSnapshot3d>()
         .map(|snapshot| {
             let e = snapshot.borrow().eye;
             glamx::Vec3::new(e[0], e[1], e[2])
@@ -543,7 +543,7 @@ fn raster_size(
 ) -> f32 {
     let em_world = text.style.size / text.pixels_per_unit.max(0.01);
     let per_unit = if text.in_3d {
-        let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot>() else {
+        let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot3d>() else {
             return balaur_text::bucket(text.style.size);
         };
         let snapshot = snapshot.borrow();

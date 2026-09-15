@@ -97,7 +97,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
         ("left_panel", &[], "", "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("right_panel", &[], "", "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("central_panel", &[], "", "Draw the callback into whatever room the docked panels left over."),
-        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet."),
+        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it."),
     ]);
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:expr, $span:ident) => {
@@ -180,7 +180,10 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     .constrain(!sized)
                     // Layout, not a popup: a sheet that replaces another, as
                     // a dock collapsing to its rail does, must not fade in.
-                    .fade_in(false);
+                    .fade_in(false)
+                    // An area is a layer over what is behind it, so one that
+                    // is only read has to hand its clicks back.
+                    .interactable(opts.boolean(k::INTERACTIVE, true));
                 let box_rect = egui::Rect::from_min_size(pos2(x, y), vec2(w, h));
                 area.show(ctx, |ui| {
                     let mut frame = egui::Frame::new()

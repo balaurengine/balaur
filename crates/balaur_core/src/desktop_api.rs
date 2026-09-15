@@ -19,7 +19,7 @@ pub(crate) fn open_url(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-#[cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))]
+#[cfg(desktop)]
 pub(crate) fn reveal(eng: &Engine, args: &[Value]) -> Result<Value> {
     if !crate::replay::suppressed(eng) {
         crate::desktop::reveal(std::path::Path::new(crate::engine_api::text(args, 0)?))?;
@@ -28,7 +28,7 @@ pub(crate) fn reveal(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// Neither a tab nor a phone has a file manager to show a file in.
-#[cfg(any(target_family = "wasm", target_os = "ios", target_os = "android"))]
+#[cfg(not(desktop))]
 pub(crate) fn reveal(_: &Engine, _: &[Value]) -> Result<Value> {
     Err(anyhow::anyhow!("engine.reveal needs a desktop"))
 }

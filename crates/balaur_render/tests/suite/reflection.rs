@@ -239,7 +239,7 @@ fn the_frame_counts_every_triangle_it_draws() {
     };
     let expected = {
         let world = app.engine.world();
-        let renderable = world.get::<&balaur_render::Renderable>(entity).unwrap();
+        let renderable = world.get::<&balaur_render::Renderable3d>(entity).unwrap();
         let solid = renderable.shape.solid().expect("a cuboid is a solid");
         let built = solid.build();
         assert_eq!(

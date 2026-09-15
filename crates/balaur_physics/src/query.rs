@@ -21,11 +21,11 @@ use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 
-use crate::PhysicsState;
+use crate::PhysicsState3d;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
 
 crate::shared::query::functions!(
-    state = PhysicsState,
+    state = PhysicsState3d,
     vector = Vec3,
     dimensions = 3,
     vocabulary = c::COLLIDER_3D
@@ -53,7 +53,7 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         // Without a script predicate rapier stops at the nearest hit and prunes
         // the tree by it; `raycast_all` is what walks every collider instead.
         if !has_predicate(&opts) {
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
             let mut groups = None;
             let skip = excluded(&opts, &state);
@@ -81,7 +81,7 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         // run with it released.
         let mut candidates = Vec::new();
         {
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
             let mut groups = None;
             let filter = filter_of(&opts, &mut groups);
@@ -132,7 +132,7 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
         let (ray, max, solid) = ray_of(&opts);
         let mut hits = Vec::new();
         {
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
             let mut groups = None;
             let filter = filter_of(&opts, &mut groups);
@@ -190,7 +190,7 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
@@ -230,7 +230,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
@@ -260,7 +260,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
@@ -278,7 +278,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
         let at = scalar::v3a(opts.vec3(k::AT, [0.0; 3]));
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
@@ -295,7 +295,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let min = scalar::v3a(opts.vec3(k::MIN, [0.0; 3]));
         let max = scalar::v3a(opts.vec3(k::MAX, [0.0; 3]));
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
@@ -407,7 +407,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
         ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
         Ok(node_list(&mut nodes))
@@ -415,7 +415,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
     // Awake bodies only: a game that walks every body each frame to read a
     // position is doing the one thing sleeping was meant to save.
     m.function("active_bodies", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state
             .bodies
@@ -455,7 +455,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
 /// within a pair and by entity bits between pairs.
 fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
     let entity = entity_of(node)?;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return Ok(Value::List(Vec::new()));
@@ -505,7 +505,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
 /// 2D has had this since it shipped; 3D gets it here.
 fn max_contact_impulse(eng: &Engine, node: NodeId) -> Result<Real> {
     let entity = entity_of(node)?;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return Ok(0.0);
@@ -531,7 +531,7 @@ fn with_pair(
     f: impl FnOnce(&crate::rapier3d::pipeline::PhysicsWorld, &Collider, &Collider) -> Result<Value>,
 ) -> Result<Value> {
     let (a, b) = (entity_of(a)?, entity_of(b)?);
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let first = crate::collider::first_collider(&state, a)
         .map_err(|why| anyhow!("the first node has no collider: {why}"))?;

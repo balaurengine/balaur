@@ -13,7 +13,7 @@ parent = "n_world"
 position = [4, 3, 6]
 rotation_euler = [-0.31416, 0.59341, 0]
 
-[nodes.camera]
+[nodes.camera3d]
 current = true
 fov = 45
 

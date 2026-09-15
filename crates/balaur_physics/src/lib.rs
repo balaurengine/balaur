@@ -54,7 +54,7 @@ use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::fixed_dt;
 
-pub struct PhysicsState {
+pub struct PhysicsState3d {
     pub world: PhysicsWorld,
     /// Insertion-ordered with an unseeded hasher: iteration order must be
     /// deterministic (see `balaur_core::collections`).
@@ -63,7 +63,7 @@ pub struct PhysicsState {
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle>>,
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
-    pub joints: DetHashMap<Entity, joint::JointRef>,
+    pub joints: DetHashMap<Entity, joint::JointRef3d>,
     /// What each collider and joint was authored from.
     ///
     /// Rapier keeps a shape, not the asset it was built from, and not the
@@ -78,7 +78,7 @@ pub struct PhysicsState {
     /// What a script set on each wheel, and what the last step left there.
     /// Beside the world because rapier's vehicle controller is rebuilt every
     /// step (see [`vehicle`]).
-    pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput>,
+    pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput3d>,
     /// What the last `move_character` found under each character's feet, so
     /// `is_grounded` can answer without sweeping the shape again.
     pub grounded: DetHashMap<Entity, bool>,
@@ -99,7 +99,7 @@ pub struct PhysicsState {
     pub sleeping_allowed: bool,
 }
 
-impl PhysicsState {
+impl PhysicsState3d {
     fn new() -> Self {
         Self {
             world: PhysicsWorld::default(),
@@ -166,7 +166,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 "#,
             ),
         );
-        reg.insert_resource(PhysicsState::new());
+        reg.insert_resource(PhysicsState3d::new());
         reg.add_system(Stage::FixedUpdate, step_system);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
@@ -242,7 +242,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 /// can agree on every position and still be about to diverge.
 fn build_physics_digest(reg: &mut Registry<'_>) {
     reg.add_digest_source("physics", |eng, out| {
-        let Some(state) = eng.try_resource::<PhysicsState>() else {
+        let Some(state) = eng.try_resource::<PhysicsState3d>() else {
             return;
         };
         let state = state.borrow();
@@ -287,14 +287,14 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
 /// carry (the pipeline, the CCD solver), and reconstructing islands and
 /// contact state by hand would be a second physics engine.
 #[derive(serde::Deserialize)]
-struct PhysicsFrame {
+struct PhysicsFrame3d {
     world: PhysicsWorld,
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
-    joints: Vec<(NodeKey, joint::JointRef)>,
+    joints: Vec<(NodeKey, joint::JointRef3d)>,
     collider_params: Vec<(NodeKey, toml::Value)>,
     joint_params: Vec<(NodeKey, toml::Value)>,
-    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput)>,
+    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
     grounded: Vec<(NodeKey, bool)>,
     shape_revision: u64,
     paused: bool,
@@ -304,14 +304,14 @@ struct PhysicsFrame {
 /// The save side borrows: a rollback ring holds many of these, and
 /// `PhysicsWorld` is not `Clone` precisely because copying one is expensive.
 #[derive(serde::Serialize)]
-struct PhysicsFrameRef<'a> {
+struct PhysicsFrameRef3d<'a> {
     world: &'a PhysicsWorld,
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
-    joints: Vec<(NodeKey, joint::JointRef)>,
+    joints: Vec<(NodeKey, joint::JointRef3d)>,
     collider_params: Vec<(NodeKey, toml::Value)>,
     joint_params: Vec<(NodeKey, toml::Value)>,
-    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput)>,
+    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
     grounded: Vec<(NodeKey, bool)>,
     shape_revision: u64,
     paused: bool,
@@ -360,10 +360,10 @@ pub(crate) fn resolved<V>(eng: &Engine, rows: Vec<(NodeKey, V)>) -> DetHashMap<E
 }
 
 fn save_physics(eng: &Engine) -> serde_json::Value {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let world = eng.world();
-    let frame = PhysicsFrameRef {
+    let frame = PhysicsFrameRef3d {
         world: &state.world,
         bodies: keyed(&world, &state.bodies),
         colliders: keyed(&world, &state.colliders),
@@ -380,7 +380,7 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
 }
 
 fn load_physics(eng: &Engine, value: &serde_json::Value) {
-    let frame: PhysicsFrame = match PhysicsFrame::deserialize(value) {
+    let frame: PhysicsFrame3d = match PhysicsFrame3d::deserialize(value) {
         Ok(frame) => frame,
         Err(e) => {
             tracing::error!(error = %e, "restoring the physics world");
@@ -394,7 +394,7 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let joint_params = resolved(eng, frame.joint_params);
     let wheel_inputs = resolved(eng, frame.wheel_inputs);
     let grounded = resolved(eng, frame.grounded);
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;
     state.shape_revision = frame.shape_revision;
@@ -411,12 +411,12 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
 }
 
 crate::shared::world::functions!(
-    state = PhysicsState,
+    state = PhysicsState3d,
     component = c::JOINT_3D,
     prune = prune_freed_nodes_except_wheels
 );
 
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
+pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
     prune_freed_nodes_except_wheels(eng, state);
     let world = eng.world();
     state.wheel_inputs.retain(|e, _| world.contains(*e));
@@ -479,13 +479,13 @@ fn step_system(eng: &Engine, _dt: f32) {
         return;
     }
     {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         prune_freed_nodes(eng, &mut state);
     }
     resolve_pending_joints(eng);
     let events = {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
         if state.paused {
@@ -569,7 +569,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Everything here spans BOTH worlds: editors and games treat
     // "physics" as one simulation. Per-dimension calls live in physics3d/2d.
     m.function("set_paused", |eng: &Engine, paused: bool| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         state.borrow_mut().paused = paused;
         dim2::set_paused(eng, paused);
         Ok(())
@@ -577,7 +577,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Spans BOTH worlds: `set_paused` pauses them together, so one answer
     // is the truth for both.
     m.function("is_paused", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let v = state.borrow().paused;
         Ok(v)
     });
@@ -586,7 +586,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // added later as well as to the ones alive now.
     m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
         use crate::rapier3d::prelude::RigidBodyActivation;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         state.sleeping_allowed = allowed;
         let handles: Vec<_> = state.bodies.values().copied().collect();
@@ -606,14 +606,14 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Reads back what `set_sleeping_allowed` last wrote (true by default).
     // Spans BOTH worlds, because the setter writes both.
     m.function("sleeping_allowed", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let v = state.borrow().sleeping_allowed;
         Ok(v)
     });
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session). Spans BOTH worlds.
     m.function("clear", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         // A fresh world, not a drained one: see `dim2::clear` for why a
         // rebuilt scene would otherwise not simulate the way a fresh process

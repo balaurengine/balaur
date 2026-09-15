@@ -138,7 +138,7 @@ impl Playback {
 }
 
 /// Every node's playback and every running tween, plus the fixed-step
-/// accumulator: state this plugin owns outright, in the shape `PhysicsState`
+/// accumulator: state this plugin owns outright, in the shape `PhysicsState3d`
 /// established.
 #[derive(Default)]
 pub struct AnimationState {

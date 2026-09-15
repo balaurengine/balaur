@@ -1,6 +1,10 @@
 [application]
 name = "balaur-editor"
 main_scene = "scenes/main.toml"
+# Over the shell while it assembles: the first frames place the docks, fill
+# the tree and settle the layout, and this is what shows instead of that.
+splash = "assets/balaur-logo.png"
+splash_seconds = 0.0
 
 # The editor holds itself to its own checker: a warning here is a failure,
 # not a line in the output someone might read.

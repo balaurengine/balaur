@@ -137,14 +137,9 @@ fn geometry(S) {
     geometry_at(S, S.sel)
 }
 
-// The world half-extents of one row before the handle padding, which both the
-// gizmo and box select need.
-pub fn extents_at(S, i) {
-    let found = match model::live(S, i) {
-        Some(found) => found,
-        None => return None,
-    };
-    let node = S.doc[i];
+// The half-extents a row's `shape3d` or `collider3d` describes, before the
+// node's own scale. A row with neither is the default box.
+fn half_extents(node) {
     let hx = 0.6;
     let hy = 0.6;
     let hz = 0.6;
@@ -168,8 +163,23 @@ pub fn extents_at(S, i) {
             }
         }
     }
+    // Bound rather than returned bare: a `}` followed by `[` indexes the
+    // block above instead of starting a list.
+    let he = [hx, hy, hz];
+    he
+}
+
+// The world half-extents of one row before the handle padding, which both the
+// gizmo and box select need.
+pub fn extents_at(S, i) {
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return None,
+    };
+    let node = S.doc[i];
+    let he = half_extents(node);
     let s = found.transform.global_scale();
-    Some((util::xyz(found.transform.global_position()), [hx * s.x, hy * s.y, hz * s.z]))
+    Some((util::xyz(found.transform.global_position()), [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
 }
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
@@ -218,35 +228,13 @@ fn geometry_at(S, i) {
         None => return None,
     };
     let p = found.transform.global_position();
-    let hx = 0.6;
-    let hy = 0.6;
-    let hz = 0.6;
-    let shape = match node.get("shape3d") {
-        Some(shape) => Some(shape),
-        None => node.get("collider3d"),
-    };
-    let shape_some = shape;
-    if let Some(shape) = shape_some {
-        if shape is Object {
-            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_BALL) {
-                let r = util::f(shape.radius);
-                hx = r;
-                hy = r;
-                hz = r;
-            } else if let Some(he) = shape.get("half_extents") {
-                let he = util::vec3(he, [0.5, 0.5, 0.5]);
-                hx = he[0];
-                hy = he[1];
-                hz = he[2];
-            }
-        }
-    }
+    let he = half_extents(node);
     // The renderer sizes and orients by the GLOBAL transform (parents may
     // carry scale/rotation), so the gizmo must too.
     let s = found.transform.global_scale();
-    hx = hx * s.x + 0.06;
-    hy = hy * s.y + 0.06;
-    hz = hz * s.z + 0.06;
+    let hx = he[0] * s.x + 0.06;
+    let hy = he[1] * s.y + 0.06;
+    let hz = he[2] * s.z + 0.06;
     let min_he = util::min(hx, util::min(hy, hz));
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.

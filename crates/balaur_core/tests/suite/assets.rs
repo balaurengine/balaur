@@ -641,3 +641,52 @@ fn an_asset_type_says_where_its_files_belong() {
         "an unknown type has no home rather than a made-up one"
     );
 }
+
+/// An asset file in a second root names its own files from that root, and goes
+/// back to the file spelled the way that root's project spells it.
+///
+/// The editor loads a material, edits one key and saves it: a path made
+/// absolute on the way in and written back would not survive another machine.
+#[test]
+fn an_asset_file_from_another_root_resolves_and_saves_back_relative() {
+    let editor = project();
+    let game = project();
+    std::fs::create_dir_all(game.path().join("shaders")).unwrap();
+    std::fs::write(game.path().join("shaders/wave.wesl"), "the game's shader").unwrap();
+    std::fs::write(
+        game.path().join("notes/tune.toml"),
+        "type = \"note\"\npitch = 1.0\nshader = \"shaders/wave.wesl\"\n",
+    )
+    .unwrap();
+    let app = app_in(editor.path(), None);
+    balaur_core::file_api::add_root(&app.engine, game.path());
+    let reference = game
+        .path()
+        .join("notes/tune.toml")
+        .to_string_lossy()
+        .into_owned();
+
+    let definition = assets::definition(&app.engine, &reference).unwrap();
+    let named = definition
+        .get("shader")
+        .and_then(toml::Value::as_str)
+        .expect("the shader key");
+    assert_eq!(
+        std::fs::read_to_string(named).ok().as_deref(),
+        Some("the game's shader"),
+        "read under the editor's root instead: {named}"
+    );
+
+    let mut edited = definition.clone();
+    edited
+        .as_table_mut()
+        .unwrap()
+        .insert("pitch".into(), toml::Value::Float(2.0));
+    assets::save(&app.engine, &reference, &edited).unwrap();
+    let written = std::fs::read_to_string(game.path().join("notes/tune.toml")).unwrap();
+    assert!(
+        written.contains("shader = \"shaders/wave.wesl\""),
+        "an absolute path was written into the game: {written}"
+    );
+    assert!(written.contains("pitch = 2.0"), "the edit was not saved");
+}

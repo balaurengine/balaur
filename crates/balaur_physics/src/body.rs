@@ -19,7 +19,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::collider::{apply_collider, get_collider_params};
 use crate::query::overlaps_value;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
-use crate::{PhysicsState, node_pose};
+use crate::{PhysicsState3d, node_pose};
 
 /// The schema `body3d` and `body2d` share, minus the dimension-shaped
 /// properties each adds for itself. One text, so a property cannot mean two
@@ -78,7 +78,7 @@ pub(crate) fn shared_body_schema() -> String {
 }
 
 crate::shared::body::functions!(
-    state = PhysicsState,
+    state = PhysicsState3d,
     handle = RigidBodyHandle,
     builder = RigidBodyBuilder,
     node_pose = node_pose,
@@ -180,7 +180,7 @@ fn write_mass(body: &mut RigidBody, params: &toml::Value) {
 
 /// Every property `apply` writes, read back off the body.
 pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let body = &state.world.bodies[*state.bodies.get(&entity)?];
     let axes = body.locked_axes();
@@ -443,17 +443,17 @@ pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
         })
     });
     m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         state.borrow_mut().world.gravity = scalar::v3(x, y, z);
         Ok(())
     });
     m.function("gravity", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let g = state.borrow().world.gravity;
         Ok((g.x, g.y, g.z))
     });
     m.function("wake_all", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         state.borrow_mut().world.wake_up_all(true);
         Ok(())
     });
@@ -560,7 +560,7 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
     });
     m.function("potential_energy", |eng: &Engine, node: NodeId| {
         let gravity = {
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
 
             state.borrow().world.gravity
         };
@@ -703,7 +703,7 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The `body3d` key. Not backed by a component type: it writes into
-/// [`crate::PhysicsState`].
+/// [`crate::PhysicsState3d`].
 pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let kinds = v::options(w::BODY_KINDS);
     let axes = v::options(w::LOCK_AXES);

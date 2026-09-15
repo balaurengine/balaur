@@ -438,3 +438,48 @@ fn mouse_position_is_readable_without_a_window() {
         "the script did not run to its end"
     );
 }
+
+/// A sidecar is a document, and a pack keeps its documents apart from its
+/// assets: an image's settings used to be read from the assets alone, so a
+/// shipped game sampled every texture at the defaults it was imported to
+/// avoid. The size a smaller copy was drawn at rides the same key.
+#[test]
+fn a_packed_project_reads_its_image_sidecars() {
+    const PIXEL: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("art")).unwrap();
+    std::fs::create_dir_all(root.join("scenes")).unwrap();
+    std::fs::write(
+        root.join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("scenes/main.toml"), "[[nodes]]\nid = \"root\"\nname = \"Root\"\n")
+        .unwrap();
+    std::fs::write(root.join("art/hero.png"), PIXEL).unwrap();
+    std::fs::write(root.join("art/hero.png.toml"), "size = [400, 200]\nsrgb = false\n").unwrap();
+    let bytes = balaur::build_pack(root).unwrap().encode();
+    drop(dir);
+
+    let pack = balaur_core::Pack::decode(&bytes).unwrap();
+    let mut app = standard_app(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+    assert_eq!(
+        balaur_core::import::drawn_size(&app.engine, "art/hero.png"),
+        Some((400, 200)),
+        "the size the picture was drawn at, out of the pack"
+    );
+    let settings = balaur_core::import::resolved(&app.engine, "art/hero.png");
+    assert_eq!(
+        settings.settings.get("srgb").and_then(toml::Value::as_bool),
+        Some(false),
+        "and its sampling, which rides the same sidecar"
+    );
+}

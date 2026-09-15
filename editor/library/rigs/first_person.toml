@@ -17,6 +17,5 @@ kind = "capsule"
 radius = 0.35
 height = 1.2
 
-[nodes.camera]
-kind = "3d"
+[nodes.camera3d]
 current = true

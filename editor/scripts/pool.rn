@@ -136,6 +136,12 @@ fn apply_control(S, host, key, node, want) {
     }
 }
 
+/// What a control that does not name its own shape gets. A pooled node is
+/// patched rather than set, so a key this frame's control leaves out would
+/// otherwise keep last frame's: a spacer that becomes a label draws it six
+/// pixels wide, which is one letter and an ellipsis.
+const SHAPELESS = #{ width: 0, height: 0, grow: 0, radius: -1, fill: "", tooltip: "" };
+
 /// Fill a row of controls, one node each, making and hiding as needed.
 ///
 /// The strip the chrome is made of: how many personas, documents and tools
@@ -161,7 +167,7 @@ pub fn strip(S, host_path, controls) {
         // A control that carries its own controls is a group: one box with no
         // air in it, which is how a tab and the mark that closes it read as a
         // single tile rather than two.
-        let held = controls[i];
+        let held = util::merge(SHAPELESS, controls[i]);
         let inner = held.get("controls");
         match inner {
             Some(inner) => group(S, host_path, i, node, held, inner),
@@ -185,7 +191,7 @@ fn group(S, host, i, node, want, inner) {
             kid.patch_component("widget", #{ visible: false });
             continue;
         }
-        apply_control(S, host, format!("{}:{}", i, n), kid, inner[n]);
+        apply_control(S, host, format!("{}:{}", i, n), kid, util::merge(SHAPELESS, inner[n]));
     }
 }
 

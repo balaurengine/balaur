@@ -53,10 +53,6 @@ pub const ALL: [&str; 14] = [
     WASM32, DEBUG,
 ];
 
-/// Where a project names tags of its own: `[export] tags = ["demo"]`, and
-/// per target under an override of the same key.
-pub const DECLARED: &str = "export/tags";
-
 /// Where an export writes the tags it resolved, for the runtime to answer to:
 /// `[build] tags`. Written into the pack's manifest, never by hand.
 pub const BUILT: &str = "build/tags";
@@ -225,7 +221,7 @@ pub const fn input_class(touchscreen: bool) -> &'static str {
 pub fn group() -> Option<&'static str> {
     if cfg!(target_family = "wasm") {
         None
-    } else if cfg!(any(target_os = "ios", target_os = "android")) {
+    } else if cfg!(mobile) {
         Some(MOBILE)
     } else {
         Some(DESKTOP)

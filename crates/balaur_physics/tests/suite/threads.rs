@@ -3,7 +3,7 @@
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components};
-use balaur_physics::{PhysicsPlugin, PhysicsState};
+use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -58,7 +58,7 @@ fn residual_speed(x: f32) -> f32 {
     for _ in 0..240 {
         app.tick(1.0 / 60.0);
     }
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let velocity = state.world.bodies[state.bodies[&ball]].linvel();
     velocity.length()

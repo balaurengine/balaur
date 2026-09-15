@@ -24,22 +24,15 @@ pub const MATERIAL_ASSET_TYPE: &str = "material";
 /// A file a material names, as its own project would find it. A material
 /// handed in by absolute path — the editor mirrors a game's files that way —
 /// names its shader and textures relative to that game, not this engine's
-/// root, so the path is joined under the nearest `project.toml` above it.
+/// root, so the path is joined under the root that owns the material.
 #[must_use]
 pub fn project_path(eng: &Engine, reference: &str, path: &str) -> Option<String> {
     let material = std::path::Path::new(reference);
     if !balaur_core::files::rooted(material) {
         return None;
     }
-    let fs = balaur_core::files::backend(eng);
-    let mut dir = material.parent();
-    while let Some(d) = dir {
-        if fs.exists(&d.join("project.toml")) {
-            return Some(d.join(path).to_string_lossy().into_owned());
-        }
-        dir = d.parent();
-    }
-    None
+    let owner = balaur_core::document_paths::owner_of(eng, material)?;
+    Some(owner.join(path).to_string_lossy().into_owned())
 }
 
 /// The shader a material names, read against the material's own project.
@@ -130,7 +123,7 @@ fn names_an_image(text: &str) -> bool {
 
 /// A parsed `material` asset.
 #[derive(Clone, Debug, Default)]
-pub struct Material {
+pub struct Material3d {
     /// Project-relative path to the WESL shader this material draws with.
     pub shader: String,
     /// `@if` flags, in the order written; chosen when the shader is linked.
@@ -144,7 +137,7 @@ pub struct Material {
 /// The feature a material names to be handed a colour per vertex.
 pub const VERTEX_COLOR: &str = "vertex_color";
 
-impl Material {
+impl Material3d {
     /// The image each texture slot is bound to, in [`TEXTURE_SLOTS`] order;
     /// `None` for a slot this material left out.
     #[must_use]
@@ -447,7 +440,7 @@ fn parse_surface(value: &toml::Value) -> Result<Surface> {
 }
 
 /// Parse a `material` definition table.
-pub fn parse(value: &toml::Value) -> Result<Material> {
+pub fn parse(value: &toml::Value) -> Result<Material3d> {
     let shader = value
         .get("shader")
         .and_then(toml::Value::as_str)
@@ -468,7 +461,7 @@ pub fn parse(value: &toml::Value) -> Result<Material> {
             params.push((name.clone(), parse_param(name, value)?));
         }
     }
-    Ok(Material {
+    Ok(Material3d {
         shader,
         features,
         params,
@@ -486,7 +479,7 @@ pub fn surface_of(eng: &Engine, reference: &str) -> Surface {
     if reference.is_empty() {
         return Surface::default();
     }
-    balaur_core::assets::load_typed::<Material>(eng, reference)
+    balaur_core::assets::load_typed::<Material3d>(eng, reference)
         .map_or_else(|_| Surface::default(), |material| material.surface)
 }
 
@@ -515,7 +508,7 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
 pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
     let world = eng.world_mut();
     let mut renderable = world
-        .get::<&mut crate::Renderable>(entity)
+        .get::<&mut crate::Renderable3d>(entity)
         .map_err(|_| anyhow!("node has no 3D shape yet"))?;
     if renderable.material != reference {
         renderable.material = reference.to_string();
@@ -933,7 +926,7 @@ import package::pbr::{shade, default_surface, shade_pbr};
     return shade_pbr(in, s);
 }
 ";
-        let material = Material {
+        let material = Material3d {
             shader: "shaders/metal.wesl".into(),
             ..Default::default()
         };

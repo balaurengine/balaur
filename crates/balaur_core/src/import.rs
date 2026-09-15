@@ -45,6 +45,10 @@ pub mod keys {
     pub const ANISOTROPY: &str = "anisotropy";
     pub const PREMULTIPLY: &str = "premultiply";
     pub const RECODE: &str = "recode";
+    /// The pixel size an image was drawn at, when a smaller copy shipped in
+    /// its place. Written by an export that folds a variant; read by whatever
+    /// measures the picture rather than samples it.
+    pub const SIZE: &str = "size";
 }
 
 /// The values a key takes.
@@ -151,6 +155,27 @@ pub fn resolved(eng: &Engine, path: &str) -> Rc<Resolved> {
     found
 }
 
+/// The size an image was drawn at, when its sidecar says a smaller copy
+/// shipped in its place; `None` for a file that is its own size.
+///
+/// 2D measures with pixels — a sprite's quad, a sheet's frames, a tile — so
+/// a shrunk texture must still answer with the pixels the artist counted.
+#[must_use]
+pub fn drawn_size(eng: &Engine, path: &str) -> Option<(u32, u32)> {
+    size_in(&resolved(eng, path).settings)
+}
+
+/// [`keys::SIZE`] out of a settings table: two counts, both above zero.
+fn size_in(settings: &toml::Table) -> Option<(u32, u32)> {
+    let pair = settings.get(keys::SIZE)?.as_array()?;
+    let side = |at: usize| {
+        u32::try_from(pair.get(at)?.as_integer()?)
+            .ok()
+            .filter(|n| *n > 0)
+    };
+    Some((side(0)?, side(1)?))
+}
+
 /// One file's settings: the project's defaults for its kind, with the
 /// sidecar's keys written over them.
 ///
@@ -164,8 +189,14 @@ pub fn settings(eng: &Engine, path: &str) -> toml::Table {
         return table;
     };
     let sidecar = sidecar_of(path);
-    let Ok(bytes) = files.borrow().read(&sidecar) else {
-        return table;
+    // A sidecar is a document, kept with a pack's scenes where `ProjectFiles`
+    // never looks; the file read is for a run with no scene source at all.
+    let bytes = match crate::project::scene_text(eng, &sidecar) {
+        Ok(text) => text.into_bytes(),
+        Err(_) => match files.borrow().read(&sidecar) {
+            Ok(bytes) => bytes,
+            Err(_) => return table,
+        },
     };
     if let Ok(Ok(overrides)) = std::str::from_utf8(&bytes).map(toml::from_str::<toml::Table>) {
         for (key, value) in overrides {
@@ -354,6 +385,18 @@ pub mod texture {
 
 #[cfg(test)]
 mod tests {
+    /// Two counts above zero, or nothing: a size that is not a size would
+    /// measure a sprite as a point.
+    #[test]
+    fn the_drawn_size_is_two_counts_or_nothing() {
+        let read = |text: &str| super::size_in(&toml::from_str::<toml::Table>(text).unwrap());
+        assert_eq!(read("size = [400, 200]"), Some((400, 200)));
+        assert_eq!(read("size = [400]"), None);
+        assert_eq!(read("size = [0, 200]"), None);
+        assert_eq!(read("size = \"400x200\""), None);
+        assert_eq!(read("filter = \"linear\""), None);
+    }
+
     use super::{flag, is_sidecar, kind_of, kinds, sidecar_of, stamp, word};
 
     #[test]

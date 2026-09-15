@@ -20,11 +20,20 @@ mod export_api;
 mod export_shared;
 mod fmt;
 mod import_api;
+// Asking a tab's reader for a file: only a page has a chooser.
+#[cfg(all(feature = "import", target_family = "wasm"))]
+mod import_web;
+mod jobs;
 mod lsp;
 mod new_project;
-#[cfg(not(target_family = "wasm"))]
+// The editor's start screen. A tab compiles it too: the editor's scripts name
+// `project::*` whatever they run on, and what a tab cannot do it answers for.
 mod project_api;
 mod project_tests;
+// The start screen in a browser tab: the projects it keeps and the handshake
+// that opens one, which is a page reload rather than a second process.
+#[cfg(target_family = "wasm")]
+mod project_web;
 mod templates;
 mod update;
 mod version;
@@ -259,10 +268,11 @@ enum Command {
         #[arg(long = "layer")]
         layers: Vec<String>,
     },
-    /// Write a smaller copy of a project's 3D images, as the variant one
-    /// target answers to: `wall.png` gains `wall.web.png`, and an export for
-    /// that target folds it onto the name the scene already uses. A 2D image
-    /// is left alone, because a sprite's size is its texture's pixels.
+    /// Write a smaller copy of a project's images, as the variant one target
+    /// answers to: `wall.png` gains `wall.web.png`, and an export for that
+    /// target folds it onto the name the scene already uses, recording the
+    /// size the original was drawn at so a sprite over it stays that size.
+    /// Pixel art, sampled nearest, is left alone.
     Shrink {
         /// The project to write into.
         #[arg(long, default_value = ".")]
@@ -362,6 +372,25 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+/// `balaur shrink`: the copies written, what was left alone and why, and the
+/// bytes it came to.
+fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
+    let done = balaur_import::shrink::shrink(project, tag, scale)?;
+    for (path, why) in &done.skipped {
+        tracing::info!("left {path} alone: {why}");
+    }
+    let saved = done.before.saturating_sub(done.after);
+    tracing::info!(
+        "{} images at {scale} for '{tag}': {:.1} MB -> {:.1} MB, {:.1} MB saved",
+        done.written.len(),
+        done.before as f64 / 1e6,
+        done.after as f64 / 1e6,
+        saved as f64 / 1e6,
+    );
+    Ok(())
+}
+
 /// Each subcommand, to the one function that runs it.
 #[cfg(not(target_arch = "wasm32"))]
 fn dispatch(command: Command) -> Result<()> {
@@ -371,21 +400,7 @@ fn dispatch(command: Command) -> Result<()> {
             project,
             tag,
             scale,
-        } => {
-            let done = balaur_import::shrink::shrink(&project, &tag, scale)?;
-            for (path, why) in &done.skipped {
-                tracing::info!("left {path} alone: {why}");
-            }
-            let saved = done.before.saturating_sub(done.after);
-            tracing::info!(
-                "{} images at {scale} for '{tag}': {:.1} MB -> {:.1} MB, {:.1} MB saved",
-                done.written.len(),
-                done.before as f64 / 1e6,
-                done.after as f64 / 1e6,
-                saved as f64 / 1e6,
-            );
-            Ok(())
-        }
+        } => shrink(&project, &tag, scale),
         Command::Import {
             file,
             project,
@@ -935,16 +950,10 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         config.script_args.push(state);
     }
     let mut app = balaur::standard_app(config)?;
-    // Registered here rather than in the engine: exporting is the CLI's
-    // library, and the editor is the only app with a button for it.
+    // Registered here rather than in the engine: these are the CLI's library,
+    // and the editor is the only app with a button for them.
     #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(game.clone()))?;
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(game.clone()))?;
-    // The start screen's own module: the projects this machine has opened and
-    // the ways to start another.
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut project_api::ProjectPlugin::new())?;
+    balaur_plugin::load_all(&mut app, &mut own_modules(&game))?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it. With no
     // project there is no second root until one is opened.
@@ -1017,7 +1026,10 @@ fn export_game(args: &ExportArgs) -> Result<()> {
     let download = args.download;
     let fetch = move |wanted: &str| templates::obtain(wanted, download);
     #[cfg(not(target_family = "wasm"))]
-    let modules = own_modules(args.path.clone());
+    let modules = {
+        let project = args.path.clone();
+        move || own_modules(&project)
+    };
     #[cfg(not(target_family = "wasm"))]
     let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);
     #[cfg(target_family = "wasm")]
@@ -1043,19 +1055,21 @@ fn export_game(args: &ExportArgs) -> Result<()> {
     })
 }
 
-/// What this binary adds to a project it compiles: the editor's `export` and
-/// `import`, which the editor's own scripts call and the engine does not
-/// carry. A project that compiles without them is a project the editor cannot
-/// open.
+/// What this binary adds to a project it edits, compiles, checks or probes:
+/// `export`, `import` and `project`, which the editor's own scripts call and
+/// the engine does not carry.
+///
+/// One list rather than one per path. A module registered on some paths and
+/// not others is a project the editor cannot open, and the failure lands on
+/// the missing item — `bundle web` reporting "Missing item" — rather than on
+/// the path that forgot it.
 #[cfg(not(target_family = "wasm"))]
-fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plugin>> {
-    move || {
-        vec![
-            Box::new(export_api::ExportPlugin::new(project.clone())),
-            Box::new(import_api::ImportPlugin::new(project.clone())),
-            Box::new(project_api::ProjectPlugin::new()),
-        ]
-    }
+pub(crate) fn own_modules(project: &std::path::Path) -> Vec<Box<dyn balaur_plugin::Plugin>> {
+    vec![
+        Box::new(export_api::ExportPlugin::new(project.to_path_buf())),
+        Box::new(import_api::ImportPlugin::new(project.to_path_buf())),
+        Box::new(project_api::ProjectPlugin::new()),
+    ]
 }
 
 /// The command line, plus the arguments a double-clicked bundle cannot give

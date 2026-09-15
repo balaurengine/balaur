@@ -55,13 +55,13 @@ RESOURCE_DENY_SUFFIXES = ("Manager", "Info", "Data", "Settings", "Server", "Enab
 # lint's job is to make the choice happen, not to make it.
 KNOWN_RESOURCES = {
     "AnimationState", "AppIconConfig", "AssetState", "AssetTypeRegistry",
-    "AudioState", "CameraConfig", "CameraConfig2d", "CameraInputConfig",
-    "ClearColorConfig", "ComponentRegistry", "DebugLineBuffer", "DebugLineBuffer2d",
+    "AudioState", "CameraConfig3d", "CameraConfig2d", "CameraInputConfig",
+    "ClearColorConfig", "ComponentRegistry", "DebugLineBuffer3d", "DebugLineBuffer2d",
     "GamendSnapshot", "GamendState",
-    "GridConfig", "HttpSnapshot", "ImportState", "HttpState", "InputSnapshot", "PhysicsState", "WebsocketSnapshot", "WebsocketState",
+    "GridConfig", "HttpSnapshot", "ImportState", "HttpState", "InputSnapshot", "PhysicsState3d", "WebsocketSnapshot", "WebsocketState",
     "PhysicsState2d", "PostConfig", "ProjectRoot",
     "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "TextGeometry", "UiConfig",
-    "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetInputBuffer",
+    "UiState", "ViewportSnapshot3d", "ViewportSnapshot2d", "WidgetInputBuffer",
     "WidgetInputSnapshot", "WidgetLayerConfig",
     "WindowedBackend",
     # Inserted as `manifest.clone()` (app.rs), so no regex will ever see it.
@@ -240,18 +240,19 @@ def dimension_rules(rel, i, line, ctx) -> list[Finding]:
         if re.fullmatch(r"[A-Z][A-Za-z0-9]*", ident):
             # SCREAMING_SNAKE has no lowercase to be consistent with, and never
             # matches the CamelCase test above (N4 exempts it explicitly).
-            if "2D" in ident:
-                out.append(Finding(rel, i, "dimension-casing",
-                                   f"`{ident}`: the dimension is a lowercase `2d` (N4)", "ERROR"))
-            elif "2d" in ident and not ident.endswith("2d"):
-                out.append(Finding(rel, i, "dimension-casing",
-                                   f"`{ident}`: `2d` goes at the end, so the name sorts next to "
-                                   "its 3D twin (N4)", "ERROR"))
-        elif re.fullmatch(r"[a-z0-9_]+", ident) and "2d" in ident:
+            for dim in ("2d", "3d"):
+                if dim.upper() in ident:
+                    out.append(Finding(rel, i, "dimension-casing",
+                                       f"`{ident}`: the dimension is a lowercase `{dim}` (N4)", "ERROR"))
+                elif dim in ident and not ident.endswith(dim):
+                    out.append(Finding(rel, i, "dimension-casing",
+                                       f"`{ident}`: `{dim}` goes at the end, so the name sorts next "
+                                       "to its twin (N4)", "ERROR"))
+        elif re.fullmatch(r"[a-z0-9_]+", ident) and ("2d" in ident or "3d" in ident):
             for seg in ident.split("_"):
-                if "2d" in seg and seg != "2d" and seg not in ctx.glued:
+                if re.search(r"[23]d", seg) and seg not in ("2d", "3d") and seg not in ctx.glued:
                     out.append(Finding(rel, i, "dimension-snake",
-                                       f"`{ident}`: `_2d` is its own word unless the segment "
+                                       f"`{ident}`: `_2d`/`_3d` is its own word unless the segment "
                                        f"quotes a component key or module name; `{seg}` is "
                                        "neither (N5)", "ERROR"))
     return out

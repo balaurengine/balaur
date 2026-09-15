@@ -17,8 +17,8 @@ use crate::kiss3d_camera::{
     publish_camera_2d,
 };
 use crate::{
-    ClearColorConfig, GridConfig, PostConfig, Renderable, Renderable2d, ScreenshotRequest, Shape,
-    Shape2d, WindowConfig, WindowedBackend,
+    ClearColorConfig, GridConfig, PostConfig, Renderable2d, Renderable3d, ScreenshotRequest,
+    Shape2d, Shape3d, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -414,6 +414,14 @@ pub async fn run_windowed_async(
             crate::hidden_tab::sleep().await;
             continue;
         }
+        let now = Instant::now();
+        let dt = (now - last).as_secs_f32().min(0.1);
+        last = now;
+        // Step before the draw: the pass a step opens is what the draw right
+        // after it presents, and the other way round every frame is one late.
+        if !f.step(&mut app, &mut window, dt) {
+            break;
+        }
         let open = window
             .render_chains(
                 Some(&mut f.scene),
@@ -426,12 +434,6 @@ pub async fn run_windowed_async(
             )
             .await;
         if !open {
-            break;
-        }
-        let now = Instant::now();
-        let dt = (now - last).as_secs_f32().min(0.1);
-        last = now;
-        if !f.step(&mut app, &mut window, dt) {
             break;
         }
         cap_frame_rate(budget, last);
@@ -488,20 +490,25 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         // Nothing can close a target that was never shown, and there is no
         // vsync to block on, so the loop runs until the app asks to stop --
         // which `--frames` arranges by inserting a quit-after-N system.
-        while window
-            .render_chains(
-                Some(&mut f.scene),
-                Some(&mut f.scene_2d),
-                Some(&mut f.camera),
-                Some(&mut f.camera_2d),
-                None,
-                &mut chain_of(&mut f.post.film),
-                &mut chain_of(&mut f.post.screen),
-            )
-            .await
-        {
+        loop {
             let step = balaur_core::fixed_dt();
             if !f.step(&mut app, &mut window, step) {
+                break;
+            }
+            // After the step, as the windowed loop draws: a capture of frame
+            // N is then step N's shell rather than step N-1's.
+            let open = window
+                .render_chains(
+                    Some(&mut f.scene),
+                    Some(&mut f.scene_2d),
+                    Some(&mut f.camera),
+                    Some(&mut f.camera_2d),
+                    None,
+                    &mut chain_of(&mut f.post.film),
+                    &mut chain_of(&mut f.post.screen),
+                )
+                .await;
+            if !open {
                 break;
             }
         }
@@ -610,7 +617,7 @@ fn apply_window_config(app: &App, window: &Window) {
     config.changed = false;
     // A window mode is a window-manager idea: on a phone the app already owns
     // the screen, and kiss3d exposes no toggle there.
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    #[cfg(not(mobile))]
     {
         use balaur_core::project::WindowMode;
         match config.mode {
@@ -654,7 +661,7 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     {
         let world = app.engine.world();
         for (entity, renderable, global) in
-            &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
+            &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
         {
             let _ = renderable;
             tracing::debug!("renderable {entity:?} at {}", global.position);
@@ -679,7 +686,7 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     app.engine.remove_resource::<ScreenshotRequest>();
 }
 
-/// Mirror `Renderable` + `GlobalTransform` into the kiss3d scene graph.
+/// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.
 fn sync(
     app: &App,
     scene: &mut SceneNode3d,
@@ -697,7 +704,7 @@ fn sync(
 
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
-        &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
+        &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
     {
         seen.insert(entity);
         // Read once: the ancestors' tint, visibility and material come off
@@ -735,15 +742,15 @@ fn sync(
                 // Built by the mesher rather than by kiss3d: the triangles a
                 // collider is fitted to and a ray is picked against are the
                 // ones uploaded here.
-                Shape::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None),
+                Shape3d::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None),
                 // A boolean's result, already worked out this tick.
-                Shape::Built => match renderable.built.as_deref() {
+                Shape3d::Built => match renderable.built.as_deref() {
                     Some(mesh) if !mesh.indices.is_empty() => {
                         (upload_geometry(scene, mesh), None, None)
                     }
                     _ => continue,
                 },
-                Shape::Mesh => match upload_mesh(app, scene, renderable) {
+                Shape3d::Mesh => match upload_mesh(app, scene, renderable) {
                     Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
                     None => continue,
@@ -871,7 +878,7 @@ fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) 
 fn upload_mesh(
     app: &App,
     scene: &mut SceneNode3d,
-    renderable: &Renderable,
+    renderable: &Renderable3d,
 ) -> Option<(
     SceneNode3d,
     Option<MeshSkinSlot>,

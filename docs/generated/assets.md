@@ -390,6 +390,7 @@ cannot move a replay or a network session.
 | `mipmaps` | `true`, `false` | `false` | Build the smaller copies a texture drawn small samples, which stops it shimmering. |
 | `mipmap_filter` | `linear`, `nearest` | `linear` | Between mip levels, read only when `mipmaps` is on. |
 | `anisotropy` | `1` to `16` | `1` | Samples per fetch on a surface seen edge-on. Needs every filter `linear`. |
+| `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant; a sprite, a sheet and a tile measure by it. |
 | `srgb` | `true`, `false` | `true` | Off for a normal map or a mask, which carry data rather than colour. |
 | `premultiply` | `true`, `false` | `false` | Scale colour by alpha at upload, so a soft edge blends with no dark fringe. |
 | `recode` | `keep` | unset | Ship this file's own bytes whatever `[export]` says. |

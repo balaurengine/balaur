@@ -22,10 +22,10 @@ pub fn kind_of(path) {
             return "image";
         }
     }
-    for extension in ["glb", "gltf", "aseprite", "ase", "tmx", "ldtk"] {
-        if lower.ends_with("." + extension) {
-            return "import";
-        }
+    // Asked, not listed: a second copy of what the importer reads drifts from
+    // it. A whole `project.godot` makes a project, so it is the manager's.
+    if !lower.ends_with("project.godot") && import::handles(path) {
+        return "import";
     }
     if lower.ends_with(".wesl") {
         return "shader";
@@ -204,26 +204,133 @@ fn drop_scene(S, path) {
     false
 }
 
-/// A model, sprite sheet or level goes through `balaur import`, and the scene
-/// it wrote is instanced.
+/// A model, sprite sheet or level goes through `balaur import`, which runs a
+/// few files a frame and reports to `report` below; the scene it wrote is
+/// instanced when it says it is done.
 fn drop_import(S, path) {
-    let result = util::obj(import::file(path));
-    if let Some(message) = result.get("error") {
-        log::error(format!("import failed: {}", message));
-        return false;
-    }
-    for rel in util::vec(result.get("files").unwrap_or([])) {
-        log::info("wrote " + rel);
-    }
-    model::forget(S, None);
-    let scene = result.get("scene");
-    let scene_some = scene;
-    if let Some(rel) = scene_some {
-        if rel is String {
-            model::instance_scene(S, rel);
-        }
+    if !import::start(path) {
+        // Refused: a recording is playing, and an import writing files into
+        // the project mid-replay is not something to do quietly.
+        log::warn("not importing " + file_name(path) + " while a recording plays");
     }
     false
+}
+
+// How long an import that has ended stays in the list, in seconds.
+const KEPT_FOR = 4.0;
+
+/// Every import of this batch added up, for the bar: what is written of what
+/// the whole batch holds, the ones that have ended included.
+pub fn job_totals(S) {
+    let done = 0;
+    let files = 0;
+    for (_, job) in S.jobs.iter() {
+        done += job.done;
+        files += job.files;
+    }
+    (done, files)
+}
+
+/// How many imports are still running. The rest of `S.jobs` are the ones that
+/// ended and are still being shown.
+pub fn in_flight(S) {
+    let n = 0;
+    for (_, job) in S.jobs.iter() {
+        if job.over == "" {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Take the list down once the last of the batch has been finished a while.
+/// The whole of it goes at once: a line that left while its neighbours ran
+/// would take its files out of the count, and the bar would go backwards.
+pub fn sweep(S) {
+    if S.jobs.is_empty() || in_flight(S) > 0 {
+        return;
+    }
+    let last = 0.0;
+    for (_, job) in S.jobs.iter() {
+        if job.at > last {
+            last = job.at;
+        }
+    }
+    if engine::time() - last > KEPT_FOR {
+        S.jobs = #{};
+    }
+}
+
+/// How many files the import of `source` has written, for the line that says
+/// so when it ends.
+fn written_by(S, source) {
+    match S.jobs.get(source) {
+        Some(job) => job.done,
+        None => 0,
+    }
+}
+
+/// Mark one import as ended, leaving it in the list for a while: a batch of
+/// four files is over in two frames, and a reader who saw nothing at all
+/// cannot tell an import from a freeze.
+fn ended(S, source, over) {
+    // Made here where there is none: a cancel is read at the top of a slice,
+    // so one pressed early ends an import that never said it had started.
+    let job = S.jobs.get(source)
+        .unwrap_or(#{ name: file_name(source), done: 0, files: 0, over: "", at: 0.0 });
+    job.over = over;
+    job.at = engine::time();
+    S.jobs[source] = job;
+}
+
+/// Every import reports here, one call per step: what is coming, each file as
+/// it lands, then the end.
+pub fn report(S, e) {
+    let ev = util::obj(e);
+    let kind = ev.get("kind").unwrap_or("");
+    let source = ev.get("source").unwrap_or("");
+    if kind == "started" {
+        // Keyed by the source, because several can run at once and each
+        // reports its own steps.
+        S.jobs[source] = #{
+            name: file_name(source),
+            done: 0,
+            files: ev.get("files").unwrap_or(0),
+            over: "",
+            at: 0.0,
+        };
+    } else if kind == "wrote" {
+        if let Some(job) = S.jobs.get(source) {
+            job.done = ev.get("done").unwrap_or(0);
+            job.files = ev.get("files").unwrap_or(0);
+            S.jobs[source] = job;
+        }
+    } else if kind == "done" {
+        let written = written_by(S, source);
+        ended(S, source, "imported");
+        model::forget(S, None);
+        log::info(format!("imported {} ({} files)", file_name(source), written));
+        let note = ev.get("note").unwrap_or("");
+        if note != "" {
+            log::info(note);
+        }
+        if let Some(rel) = ev.get("scene") {
+            if rel is String {
+                model::instance_scene(S, rel);
+            }
+        }
+    } else if kind == "cancelled" {
+        let written = ev.get("done").unwrap_or(0);
+        ended(S, source, "stopped");
+        model::forget(S, None);
+        log::info(format!("stopped importing {} after {} files", file_name(source), written));
+    } else if kind == "failed" {
+        ended(S, source, "failed");
+        log::error(format!("importing {} failed: {}", file_name(source),
+            ev.get("message").unwrap_or("")));
+        // A line in a dock nobody has open is not a report, so open it.
+        crate::docks::show(S, "output");
+    }
 }
 
 /// Take every file dropped this frame. Called once per frame from the root's

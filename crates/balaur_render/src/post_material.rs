@@ -324,17 +324,17 @@ fn build(
     // The engine's own finishing passes are materials too; what a project
     // does not supply for them is their name, their shader and their values.
     if words::FINISHES.contains(&reference) {
-        let material = crate::material::Material {
+        let material = crate::material::Material3d {
             features: vec![(reference.to_string(), true)],
             params: finish.params(),
-            ..crate::material::Material::default()
+            ..crate::material::Material3d::default()
         };
         let modules = crate::shaders::plugin_modules(&app.engine);
         let compiled = crate::material::compile_with(&material, crate::shaders::FINISH, &modules)?;
         return Ok(Pass::Material(PostMaterial::new(&compiled, format)));
     }
     let asset =
-        balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
+        balaur_core::assets::load_typed::<crate::material::Material3d>(&app.engine, reference)?;
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;

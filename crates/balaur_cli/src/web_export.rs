@@ -21,7 +21,8 @@ use anyhow::{Context as _, Result, anyhow};
 use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, install_listen, pump};
+use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC};
+use crate::jobs::{install_listen, pump};
 
 /// The file a web bundle keeps its pack under, as the shell page loads it.
 use balaur::standalone::BUNDLED_PACK;
@@ -77,7 +78,7 @@ impl balaur_plugin::Plugin for WebExportPlugin {
             core: ExportCore::new(self.project.clone()),
             template: self.template.clone(),
         });
-        reg.add_system(Stage::First, pump::<ExportState>);
+        reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
         let mut m = reg.script_module("export")?;
         install_export_api(&mut *m);
         Ok(())
@@ -96,7 +97,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         ("running", &[], "()", "How many exports are in flight."),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
-    install_listen::<ExportState>(m);
+    install_listen::<ExportState, ExportEvent>(m, "on_export");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {

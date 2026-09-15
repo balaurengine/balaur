@@ -17,7 +17,7 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose, Real};
 
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
-use crate::{PhysicsState, node_pose};
+use crate::{PhysicsState3d, node_pose};
 
 /// The geometry a mesh-backed collider names, through the same asset the
 /// renderer uses.
@@ -300,7 +300,7 @@ pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> C
     builder
 }
 
-crate::shared::collider::functions!(state = PhysicsState);
+crate::shared::collider::functions!(state = PhysicsState3d);
 
 /// The 32 collision layers, as a `flags` property of layer numbers.
 ///
@@ -354,7 +354,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
     {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         state
             .borrow_mut()
             .collider_params
@@ -362,7 +362,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
     }
     if v::boolean(params, k::ONE_WAY, false) {
         let axis = v::vec3(params, k::ONE_WAY_AXIS, [0.0, 1.0, 0.0]);
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
         for handle in handles {
@@ -432,7 +432,7 @@ pub(crate) fn add_collider_at(
 ) -> Result<()> {
     let handle = if let Some((body_node, body)) = nearest_body(eng, entity) {
         let local = pose_relative_to(eng, entity, body_node)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         warn_if_hollow_and_dynamic(&state, body, &builder);
         state
@@ -441,13 +441,13 @@ pub(crate) fn add_collider_at(
     } else {
         // No body anywhere above: static world geometry at the node's pose.
         let pose = node_pose(eng, entity)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         state
             .world
             .insert_collider(builder.position(pose * offset), None)
     };
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     // The entity behind a handle, in one lookup rather than a scan of every
     // collider the world holds: every query result and every event needs it.
@@ -462,7 +462,7 @@ pub(crate) fn add_collider_at(
 /// for it. The body still simulates, badly; saying so beats leaving someone to
 /// wonder why it tumbles.
 fn warn_if_hollow_and_dynamic(
-    state: &PhysicsState,
+    state: &PhysicsState3d,
     body: RigidBodyHandle,
     builder: &ColliderBuilder,
 ) {
@@ -573,7 +573,7 @@ fn collider_shape_params(
 }
 
 pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
@@ -599,7 +599,7 @@ fn with_first_collider<R>(
     f: impl FnOnce(&Collider) -> Result<R>,
 ) -> Result<R> {
     let entity = balaur_core::entity_of(node)?;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let handle = first_collider(&state, entity)?;
     f(&state.world.colliders[handle])
@@ -617,7 +617,7 @@ fn with_voxels(
     f: impl FnOnce(&mut crate::rapier3d::parry::shape::Voxels),
 ) -> Result<()> {
     let entity = balaur_core::entity_of(node)?;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     let handle = first_collider(&state, entity)?;
     let collider = &mut state.world.colliders[handle];
@@ -634,7 +634,7 @@ fn with_voxels(
 /// tessellation: which every shape has, voxels included.
 fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Value> {
     let entity = balaur_core::entity_of(node)?;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let handle = first_collider(&state, entity)?;
     let (points, indices) = state.world.colliders[handle]
@@ -756,7 +756,7 @@ pub(crate) fn shared_collider_schema() -> String {
 }
 
 /// The `collider3d` key. Not backed by a component type either: it writes
-/// into [`crate::PhysicsState`].
+/// into [`crate::PhysicsState3d`].
 pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     let shapes = v::options(w::SHAPES);
     let default = w::CUBOID;
@@ -824,7 +824,7 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("aabb", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = first_collider(&state, entity)?;
         let aabb = state.world.colliders[handle].compute_aabb();
@@ -864,7 +864,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
         "voxel",
         |eng: &Engine, (node, x, y, z): (NodeId, i32, i32, i32)| {
             let entity = balaur_core::entity_of(node)?;
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
             let handle = first_collider(&state, entity)?;
             let voxels = state.world.colliders[handle]
@@ -880,7 +880,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
         "voxel_at",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             let entity = balaur_core::entity_of(node)?;
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
             let handle = first_collider(&state, entity)?;
             let collider = &state.world.colliders[handle];
@@ -931,7 +931,7 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("handles", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let pair = |index: u32, generation: u32| {
             balaur_script::Value::List(vec![
@@ -967,7 +967,7 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("collider_mass", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = first_collider(&state, entity)?;
         Ok(state.world.colliders[handle].mass())

@@ -21,6 +21,7 @@
 mod bridge;
 mod images;
 mod immediate;
+mod loading;
 mod pacing;
 mod splash;
 mod theme;
@@ -31,6 +32,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
+pub use loading::Loading;
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
 pub use widget::input::{
@@ -320,6 +322,10 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             // A host that reruns the pass (`Context::will_discard`) draws
             // this frame with the fonts bound.
             ctx.request_discard("fonts installed");
+            drop(state);
+            // The one thing this frame can still show: a splash is a picture
+            // and a bar, and neither needs a font bound to paint.
+            splash::draw(eng, ctx);
             return;
         }
         if std::mem::take(&mut state.forget_egui) {

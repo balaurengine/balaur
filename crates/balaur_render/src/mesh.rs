@@ -12,7 +12,7 @@ use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.
 ///
-/// Writes `Shape::Mesh` plus the asset reference, the same split `sprite` and
+/// Writes `Shape3d::Mesh` plus the asset reference, the same split `sprite` and
 /// `shape2d`'s polyline use — the shape enum carries parameters, the
 /// renderable carries the reference. A mesh whose asset carries a skin
 /// deforms with the rig `skeleton` names.
@@ -117,12 +117,12 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
-                let _ = world.remove_one::<crate::Renderable>(entity);
+                let _ = world.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
                 let world = eng.world();
-                let renderable = world.get::<&crate::Renderable>(entity).ok()?;
+                let renderable = world.get::<&crate::Renderable3d>(entity).ok()?;
                 let source = renderable.mesh.clone()?;
                 let mut map = toml::map::Map::new();
                 map.insert(k::SOURCE.into(), toml::Value::String(source));

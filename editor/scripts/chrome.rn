@@ -7,6 +7,7 @@ use crate::history;
 use crate::icons;
 use crate::model;
 use crate::shell;
+use crate::style;
 use crate::theme;
 use crate::util;
 
@@ -355,6 +356,43 @@ fn transport_controls(S) {
 /// that reopens it.
 /// The status strip's controls. The scene owns the row; this says what goes
 /// in it, so the theme dresses the labels rather than the call site.
+// Every import of the batch, top right under the bar: one line each, and one
+// bar for the lot of them. It takes no pointer, because a sized overlay is a
+// layer and one over the viewport would swallow clicks meant for the scene.
+pub fn toast(S, k) {
+    crate::dropin::sweep(S);
+    let lines = [];
+    for (_, job) in S.jobs.iter() {
+        if job.over == "" {
+            let counted = if job.files > 0 { format!(" {}/{}", job.done, job.files) } else { "" };
+            lines.push(format!("{}{}", job.name, counted));
+        } else {
+            lines.push(format!("{} {} · {} {}", job.name, job.over, job.done,
+                plural(job.done, "file")));
+        }
+    }
+    if lines.is_empty() {
+        return;
+    }
+    let (done, files) = crate::dropin::job_totals(S);
+    let (sw, _) = ui::screen_size();
+    ui::overlay("imports", #{
+        role: "sheet", x: sw - 320.0, y: style::row_h(S) + 18.0,
+        padding_x: 12, padding_y: 8, interactive: false,
+    }, || {
+        for line in lines {
+            ui::label(line, style::mono_sm(k.dim));
+        }
+        // What the counts say, drawn, once for the whole batch.
+        if files > 0 {
+            ui::add_space(2.0);
+            ui::bar(util::f(done) / util::f(files), #{
+                width: 180, height: 4, track: k.sunken, fill: k.accent,
+            });
+        }
+    });
+}
+
 pub fn status_bar(S, k, room) {
     crate::pool::strip(S, STATUS_NODE, status_controls(S, k, room));
 }
@@ -366,6 +404,11 @@ fn status_mode(S) {
     if S.playing {
         let recording = if S.session.recording != "" { "recording · " } else { "" };
         return format!("playing · {}{} fps", recording, S.fps as i64);
+    }
+    // An import in flight is the state, and no more than that: which files
+    // and how far along are the toast's, which draws them in one pass.
+    if crate::dropin::in_flight(S) > 0 {
+        return "importing";
     }
     "editing"
 }

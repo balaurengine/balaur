@@ -64,10 +64,11 @@ fn is_toml(path: &str) -> bool {
 }
 
 /// The project a path belongs to: the nearest ancestor holding a
-/// `project.toml`.
+/// `project.toml`. [`crate::document_paths::owner_of`] asks the roots a host
+/// declared first and falls back to this.
 pub fn project_root_of(backend: &dyn FileBackend, path: &Path) -> Result<PathBuf> {
     path.ancestors()
-        .find(|dir| backend.exists(&dir.join("project.toml")))
+        .find(|dir| backend.exists(&dir.join(crate::project::MANIFEST)))
         .map(Path::to_path_buf)
         .ok_or_else(|| {
             anyhow!(
@@ -280,7 +281,7 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
 /// holds content a scene names.
 fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
     let manifest = backend
-        .read(&root.join("project.toml"))
+        .read(&root.join(crate::project::MANIFEST))
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .unwrap_or_default();

@@ -45,6 +45,12 @@ pub(crate) fn size_of(eng: &crate::Engine, path: &str) -> Result<(u32, u32)> {
             return Ok(*size);
         }
     }
+    // A smaller copy shipped in the file's place still measures as the size
+    // it was drawn at; only the upload needs the pixels actually there.
+    if let Some(drawn) = balaur_core::import::drawn_size(eng, path) {
+        cache.borrow_mut().by_path.insert(path.to_string(), drawn);
+        return Ok(drawn);
+    }
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()

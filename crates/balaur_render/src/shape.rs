@@ -10,7 +10,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::{
-    Renderable, Renderable2d, Shape, Shape2d, color_from_params, color_to_toml, set_color,
+    Renderable2d, Renderable3d, Shape2d, Shape3d, color_from_params, color_to_toml, set_color,
     set_polyline, set_shape, set_shape2d,
 };
 
@@ -21,7 +21,7 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
         ("set_rect", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
     ]);
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
-        set_shape(eng, entity_of(node)?, Shape::Solid(Solid::ball(radius)))
+        set_shape(eng, entity_of(node)?, Shape3d::Solid(Solid::ball(radius)))
     });
     m.function(
         "set_cuboid",
@@ -29,7 +29,7 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
             set_shape(
                 eng,
                 entity_of(node)?,
-                Shape::Solid(Solid::cuboid(hx, hy, hz)),
+                Shape3d::Solid(Solid::cuboid(hx, hy, hz)),
             )
         },
     );
@@ -71,8 +71,13 @@ pub(crate) mod words {
     pub(crate) const NGON: &str = p::NGON;
     pub(crate) const POLYLINE: &str = "polyline";
     /// The 2D primitives, and the chain of points that is not one of them.
-    /// A circle is not a ball and a rect is not a cuboid.
-    pub(crate) const SHAPES_2D: &[&str] = &[CIRCLE, RECT, CAPSULE, ELLIPSE, STAR, NGON, POLYLINE];
+    ///
+    /// Taken from the mesher's own list rather than respelled, so a kind core
+    /// learns to build is a kind a scene may name; `polyline` is appended
+    /// because it follows a `mesh` or `path2d` asset instead of params.
+    pub(crate) fn shapes_2d() -> Vec<&'static str> {
+        p::FLATS.iter().copied().chain([POLYLINE]).collect()
+    }
 
     /// Two more an occluder may read off a collider's params. `balaur_render`
     /// does not depend on `balaur_physics`, so the words are spelled here too.
@@ -82,7 +87,6 @@ pub(crate) mod words {
     pub(crate) const PERSPECTIVE: &str = "3d";
     pub(crate) const ORTHOGRAPHIC: &str = "2d";
     /// Which camera a `camera` node drives.
-    pub(crate) const CAMERA_KINDS: &[&str] = &[PERSPECTIVE, ORTHOGRAPHIC];
 
     pub(crate) const BLOOM: &str = "bloom";
     pub(crate) const SSAO: &str = "ssao";
@@ -154,8 +158,6 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("SHAPE_STAR", words::STAR),
     ("SHAPE_NGON", words::NGON),
     ("SHAPE_POLYLINE", words::POLYLINE),
-    ("CAMERA_3D", words::PERSPECTIVE),
-    ("CAMERA_2D", words::ORTHOGRAPHIC),
     ("LIGHT_POINT", words::POINT),
     ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
     ("LIGHT_SPOT", words::SPOT),
@@ -307,15 +309,15 @@ pub(crate) fn options(words: &[&str]) -> String {
         .join(", ")
 }
 
-/// The `Shape` a `shape` component's params describe. The reader is the
+/// The `Shape3d` a `shape` component's params describe. The reader is the
 /// mesher's, so what a scene names is what a mesh can be built from.
-fn shape_from_params(params: &toml::Value) -> Result<Shape> {
-    Ok(Shape::Solid(Solid::from_params(params)?))
+fn shape_from_params(params: &toml::Value) -> Result<Shape3d> {
+    Ok(Shape3d::Solid(Solid::from_params(params)?))
 }
 
 /// A `shape` component's params for `shape`, or `None` when another
 /// component owns it: a mesh is saved by `mesh`, not by this.
-fn shape_to_params(shape: Shape) -> Option<toml::Value> {
+fn shape_to_params(shape: Shape3d) -> Option<toml::Value> {
     Some(shape.solid()?.to_params())
 }
 
@@ -360,12 +362,12 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable>(entity);
+                let _ = world.remove_one::<Renderable3d>(entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
                 let world = eng.world();
-                let renderable = world.get::<&Renderable>(entity).ok()?;
+                let renderable = world.get::<&Renderable3d>(entity).ok()?;
                 let mut params = shape_to_params(renderable.shape)?;
                 if let Some(map) = params.as_table_mut() {
                     map.insert(k::COLOR.into(), color_to_toml(renderable.color));
@@ -436,7 +438,7 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 &balaur_core::components::ComponentDef::schema(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECT, options(words::SHAPES_2D))),
+                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECT, options(&words::shapes_2d()))),
                     (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
                     (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve" }"#),

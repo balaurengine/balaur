@@ -61,7 +61,7 @@ pub fn component(name) {
         || name == "ragdoll" || name == "vehicle" {
         return (persona("phys"), "node_phys");
     }
-    if name == "camera" || name == "camera2d" || name == "light" || name == "environment" {
+    if name.starts_with("camera") || name == "light" || name == "environment" {
         return (ui("viewmode"), "node_plain");
     }
     if name == "animation" || name == "animation_player" {

@@ -4,8 +4,6 @@
 use anyhow::Result;
 use balaur::AppConfig;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::{export_api, import_api};
 
 /// Boot a standard app in a scratch project and print what scripts can reach.
 ///
@@ -24,15 +22,10 @@ pub(crate) fn dump_api() -> Result<()> {
     )?;
 
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
-    // `export` and `import` are the editor's, registered by this binary rather
-    // than by the engine, so the probe loads both or the reference would list
-    // neither.
+    // The editor's own modules are registered by this binary rather than by
+    // the engine, so the probe loads them or the reference would list none.
     #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(dir.clone()))?;
-    #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(&mut app, &mut crate::project_api::ProjectPlugin::new())?;
+    balaur_plugin::load_all(&mut app, &mut crate::own_modules(&dir))?;
     app.load_project()?;
     let host = balaur::rune::rune_of(&app.engine);
     let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;

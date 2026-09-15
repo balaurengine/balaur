@@ -637,7 +637,7 @@ fn build(
     reference: &str,
 ) -> anyhow::Result<Option<(ShaderMaterial3d, Option<std::rc::Rc<Probe>>)>> {
     let asset =
-        balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
+        balaur_core::assets::load_typed::<crate::material::Material3d>(&app.engine, reference)?;
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);

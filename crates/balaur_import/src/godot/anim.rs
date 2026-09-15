@@ -226,7 +226,7 @@ fn value_track<'a>(
         "text" if control => Some("widget/text".to_string()),
         "theme_override_font_sizes/font_size" if control => Some("widget/font_size".to_string()),
         "value" if control => Some("widget/value".to_string()),
-        "zoom" if class == "Camera2D" => Some("camera/zoom".to_string()),
+        "zoom" if class == "Camera2D" => Some("camera2d/zoom".to_string()),
         _ => None,
     };
     let Some(here) = here else {

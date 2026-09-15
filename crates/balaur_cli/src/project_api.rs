@@ -114,6 +114,12 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         ),
         (
+            "in_tab",
+            &[],
+            "",
+            "Whether this editor runs in a browser tab, where the page holds the projects and opening one is its call rather than this screen's.",
+        ),
+        (
             "version",
             &[],
             "",
@@ -141,12 +147,7 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
 }
 
 fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
-    m.function("recent", |eng: &Engine, ()| {
-        let home = home_of(eng);
-        Ok(Value::List(
-            read_list(&home).into_iter().map(row_value).collect(),
-        ))
-    });
+    m.function("recent", |eng: &Engine, ()| Ok(Value::List(recent_rows(eng))));
     m.function("templates", |_: &Engine, ()| Ok(Value::List(templates())));
     m.function(
         "create",
@@ -160,10 +161,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
         Ok(open(eng, &home, Path::new(&path)))
     });
     m.function("forget", |eng: &Engine, path: String| {
-        let home = home_of(eng);
-        let mut rows = read_list(&home);
-        rows.retain(|row| row.path != path);
-        write_list(&home, &rows);
+        forget(eng, Path::new(&path));
         Ok(Value::Nil)
     });
     m.function("examples", |_: &Engine, ()| Ok(Value::List(examples())));
@@ -176,11 +174,14 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
     );
     m.function("home", |eng: &Engine, ()| {
         Ok(Value::Str(
-            dirs::home_dir()
+            user_home()
                 .unwrap_or_else(|| home_of(eng))
                 .to_string_lossy()
                 .into_owned(),
         ))
+    });
+    m.function("in_tab", |_: &Engine, ()| {
+        Ok(Value::Bool(cfg!(target_family = "wasm")))
     });
     m.function("version", |_: &Engine, ()| {
         Ok(Value::Str(crate::version::long().to_string()))
@@ -313,7 +314,7 @@ fn ago(published: &str) -> String {
 }
 
 /// The same words for a time this machine wrote down itself.
-fn said_ago(seconds: i64) -> String {
+pub(crate) fn said_ago(seconds: i64) -> String {
     let minutes = seconds / 60;
     let hours = minutes / 60;
     let days = hours / 24;
@@ -359,21 +360,14 @@ fn unix_of(stamp: &str) -> Option<i64> {
     Some(days * 86_400 + hour * 3_600 + minute * 60 + second)
 }
 
-/// Where the example projects are: beside the binary in an install, and at
-/// the repository root in a checkout, the way the library is found.
+/// Where the example projects are, looked for the way the library is: an
+/// install ships them beside the binary, a macOS bundle under `Resources`, and
+/// a checkout holds them at the repository root.
 fn examples_dir() -> Option<PathBuf> {
-    let here = std::env::current_exe().ok()?;
-    for base in [here.parent()?.to_path_buf(), std::env::current_dir().ok()?] {
-        let mut dir = Some(base);
-        while let Some(at) = dir {
-            let examples = at.join("examples");
-            if examples.join("hello/project.toml").is_file() {
-                return Some(examples);
-            }
-            dir = at.parent().map(Path::to_path_buf);
-        }
-    }
-    None
+    crate::new_project::data_dirs()
+        .into_iter()
+        .map(|dir| dir.join("examples"))
+        .find(|examples| examples.join("hello/project.toml").is_file())
 }
 
 /// The line under each example's name, from the editor's own library rather
@@ -509,6 +503,18 @@ struct Row {
     opened: i64,
     /// The engine that last opened it, so a row says what it was edited with.
     version: String,
+}
+
+/// The reader's own home directory, where a new project goes by default.
+#[cfg(not(target_family = "wasm"))]
+fn user_home() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
+/// A tab has no home directory, so the editor's writable root stands in.
+#[cfg(target_family = "wasm")]
+fn user_home() -> Option<PathBuf> {
+    None
 }
 
 fn home_of(eng: &Engine) -> PathBuf {
@@ -699,6 +705,42 @@ fn create(home: &Path, path: &Path, template: &str) -> Value {
     ])
 }
 
+/// The projects to offer, newest first: a desktop reads the list it wrote,
+/// and a tab the stores this browser keeps.
+#[cfg(not(target_family = "wasm"))]
+fn recent_rows(eng: &Engine) -> Vec<Value> {
+    read_list(&home_of(eng)).into_iter().map(row_value).collect()
+}
+
+#[cfg(target_family = "wasm")]
+fn recent_rows(_: &Engine) -> Vec<Value> {
+    crate::project_web::recent()
+}
+
+/// Drop a project from the list, leaving its files alone. In a tab the store
+/// *is* the project, so forgetting one is deleting it.
+#[cfg(not(target_family = "wasm"))]
+fn forget(eng: &Engine, path: &Path) {
+    let home = home_of(eng);
+    let gone = path.to_string_lossy();
+    let mut rows = read_list(&home);
+    rows.retain(|row| row.path != gone);
+    write_list(&home, &rows);
+}
+
+#[cfg(target_family = "wasm")]
+fn forget(_: &Engine, path: &Path) {
+    crate::project_web::forget(path);
+}
+
+/// Open a project in a tab: a request to the page, since one editor run is
+/// one project and a tab cannot start a second.
+#[cfg(target_family = "wasm")]
+fn open(_: &Engine, _home: &Path, path: &Path) -> Value {
+    crate::project_web::open(path)
+}
+
+#[cfg(not(target_family = "wasm"))]
 fn open(eng: &Engine, home: &Path, path: &Path) -> Value {
     if !path.join("project.toml").is_file() {
         return Value::Map(vec![(
@@ -734,17 +776,17 @@ fn relaunch(_path: &Path) -> Result<()> {
     anyhow::bail!("a tab opens a project through the page, not by starting a second editor")
 }
 
-/// The OS picker, where there is one. Blocking on purpose: a native dialog
-/// owns the screen while it is up, and the editor has nothing to draw behind
-/// it that a reader could act on.
-#[cfg(all(not(target_family = "wasm"), feature = "window"))]
+/// The OS picker, where there is one: a desktop with a window. Blocking on
+/// purpose: a native dialog owns the screen while it is up, and the editor
+/// has nothing to draw behind it that a reader could act on.
+#[cfg(all(desktop, feature = "window"))]
 fn pick_folder() -> Option<String> {
     rfd::FileDialog::new()
         .pick_folder()
         .map(|p| p.to_string_lossy().into_owned())
 }
 
-#[cfg(not(all(not(target_family = "wasm"), feature = "window")))]
+#[cfg(not(all(desktop, feature = "window")))]
 fn pick_folder() -> Option<String> {
     None
 }

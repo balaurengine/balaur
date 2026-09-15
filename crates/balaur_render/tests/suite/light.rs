@@ -312,7 +312,7 @@ fn an_edge_through_the_light_casts_no_infinity() {
 fn the_cameras_ambient_reaches_the_2d_config() {
     let mut app = app();
     let cam = node(&app);
-    add(&app, cam, "camera", "kind = \"2d\"\nambient = \"#402010\"");
+    add(&app, cam, "camera2d", "ambient = \"#402010\"");
     let before = app.engine.resource::<CameraConfig2d>().borrow().ambient;
     assert!(
         before.iter().all(|c| c.abs() < 1e-6),
@@ -348,13 +348,8 @@ fn the_components_round_trip() {
     assert_eq!(table["mesh"].as_str().unwrap(), "");
 
     let cam = node(&app);
-    add(
-        &app,
-        cam,
-        "camera",
-        "kind = \"2d\"\nambient = [0.1, 0.2, 0.3, 1.0]",
-    );
-    let saved = components::get(&app.engine, cam, "camera").unwrap();
+    add(&app, cam, "camera2d", "ambient = [0.1, 0.2, 0.3, 1.0]");
+    let saved = components::get(&app.engine, cam, "camera2d").unwrap();
     let ambient = saved.as_table().unwrap()["ambient"].as_array().unwrap();
     assert!((ambient[1].as_float().unwrap() - 0.2).abs() < 1e-6);
 }

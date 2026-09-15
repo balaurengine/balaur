@@ -59,7 +59,7 @@ fn commands(S) {
         command("Interface persona", "▤", "⌥5", || shell::set_persona(S, "ui")),
         command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
         command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
-        command("Add child node…", icons::ui("add"), "⇧A", || model::add_child(S, None)),
+        command("Add child node…", icons::ui("add"), "⇧A", || crate::newnode::open(S)),
         command("Attach Rune script to selection", "‹›", "⌥S", || shell::attach_script(S)),
         command("Run scene", "▶", "F5", || shell::toggle_play(S)),
         // One save behind one label: ⌘S writes whichever of the scene, the
@@ -68,11 +68,6 @@ fn commands(S) {
         command("Reload scripts", "⟳", "⇧R", || shell::reload_scripts(S)),
         command("Export game…", "⇧", "⌘E", || crate::exporter::open(S)),
         command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
-        // The start screen, from inside a project: the same module, so what
-        // opens from here is what opens on a bare launch.
-        command("Open project…", icons::panel("assets"), "", || crate::manager::pick(S)),
-        command("New project…", icons::ui("add"), "", || crate::manager::open(S)),
-        command("Recent projects…", icons::panel("library"), "", || crate::manager::open(S)),
         command("Toggle dark chrome", icons::ui("dark"), "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
@@ -119,6 +114,14 @@ fn commands(S) {
         command("UI scale +", icons::ui("add"), "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
     ];
+    // The start screen, from inside a project: the same module, so what opens
+    // from here is what opens on a bare launch. A tab has no folder picker and
+    // nowhere to write a template, but it reopens what the browser keeps.
+    if !crate::manager::in_tab() {
+        list.push(command("Open project…", icons::panel("assets"), "", || crate::manager::pick(S)));
+        list.push(command("New project…", icons::ui("add"), "", || crate::manager::open(S)));
+    }
+    list.push(command("Recent projects…", icons::panel("library"), "", || crate::manager::open(S)));
     // One command per scene file, the way the channel views are one per
     // channel: a prefab is placed by name rather than through a picker.
     for rel in model::scene_files(S) {

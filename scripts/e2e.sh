@@ -84,6 +84,18 @@ edit_step() { # edit_step <label> <project> [state]
   fi
 }
 
+# A demo that writes into the project it edits runs on a copy. The import drops
+# files into the example, and a run that ends before the teardown -- a slow
+# machine, an interrupt -- would leave them in the tree.
+edit_copy() { # edit_copy <label> <project> <state>
+  local copy="$out_dir/edited/$(basename "${2%/}")"
+  rm -rf "$copy"
+  mkdir -p "$(dirname "$copy")"
+  cp -R "${2%/}" "$copy"
+  edit_step "$1" "$copy" "$3"
+  rm -rf "$copy"
+}
+
 # The editor is a Balaur project, and so are the library it copies from and
 # each template: a manifest each, so each is checked from its own root.
 printf '== editor\n'
@@ -153,6 +165,22 @@ for ex in examples/*/; do
   # The centre's layout: with no document open the viewport must fill it.
   printf '  layout ... '
   edit_step "$name: layout" "$ex" layoutdemo
+  printf 'ok\n'
+
+  # The node picker: what it groups a type under, and that a pick builds one.
+  printf '  picker ... '
+  edit_step "$name: picker" "$ex" pickerdemo
+  printf 'ok\n'
+
+  # Renaming, which nothing in the shell could do before.
+  printf '  rename ... '
+  edit_step "$name: rename" "$ex" renamedemo
+  printf 'ok\n'
+
+  # Import: a dropped model's files, the scene it writes, and that the mesh
+  # inside that scene names a file in this project rather than the editor's.
+  printf '  import ... '
+  edit_copy "$name: import" "$ex" jobdemo
   printf 'ok\n'
 
   # Focus: the shell folds round the code and comes back to what it was.

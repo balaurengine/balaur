@@ -4,7 +4,7 @@
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Appearance, Transform};
 use balaur_core::{App, AppConfig, components};
-use balaur_render::{RenderPlugin, Renderable, Renderable2d, Shape, Shape2d};
+use balaur_render::{RenderPlugin, Renderable2d, Renderable3d, Shape2d, Shape3d};
 use glamx::Vec3;
 
 fn app() -> (tempfile::TempDir, App) {
@@ -34,7 +34,7 @@ fn place(app: &App, entity: Entity, at: Vec3) {
 fn volume(app: &App, entity: Entity) -> f64 {
     let world = app.engine.world();
     let renderable = world
-        .get::<&Renderable>(entity)
+        .get::<&Renderable3d>(entity)
         .expect("a built renderable");
     let mesh = renderable.built.as_deref().expect("built geometry");
     let at = |i: u32| mesh.positions[i as usize].map(f64::from);
@@ -85,8 +85,8 @@ fn a_union_draws_both_children_as_one_solid() {
     let got = volume(&app, owner);
     assert!((got - (2.0 - 0.125)).abs() < 0.02, "union came to {got}");
     let world = app.engine.world();
-    let renderable = world.get::<&Renderable>(owner).unwrap();
-    assert!(matches!(renderable.shape, Shape::Built));
+    let renderable = world.get::<&Renderable3d>(owner).unwrap();
+    assert!(matches!(renderable.shape, Shape3d::Built));
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn the_operands_stay_in_the_tree_and_stop_drawing() {
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     for child in [a, b] {
-        assert!(world.get::<&Renderable>(child).is_ok(), "still a node");
+        assert!(world.get::<&Renderable3d>(child).is_ok(), "still a node");
         let appearance = world.get::<&Appearance>(child).expect("an appearance");
         assert!(!appearance.visible, "an operand should not draw itself");
     }
@@ -152,7 +152,7 @@ fn a_boolean_that_did_not_change_is_not_rebuilt() {
     let first = app
         .engine
         .world()
-        .get::<&Renderable>(owner)
+        .get::<&Renderable3d>(owner)
         .unwrap()
         .version;
     app.tick(1.0 / 60.0);
@@ -160,7 +160,7 @@ fn a_boolean_that_did_not_change_is_not_rebuilt() {
     let later = app
         .engine
         .world()
-        .get::<&Renderable>(owner)
+        .get::<&Renderable3d>(owner)
         .unwrap()
         .version;
     assert_eq!(first, later, "nothing moved, so nothing was rebuilt");

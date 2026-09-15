@@ -864,8 +864,10 @@ tick.
   `advance_parked_system` at `Stage::First` and `step` is `park` there. A job
   moves to a thread natively, so it is `Send` there and not on the web, and it
   reads the file backend where it runs rather than carrying an `Rc` across.
-  Work that waits on a socket or a fetch is not this shape and still spawns its
-  own, once per target.
+  Work that waits on a socket or a fetch is not this shape: its two halves are
+  different code -- a thread blocking in `ureq` against a task awaiting Fetch
+  -- so each subsystem keeps a `mod backend` per target, and only the event
+  and the pump are shared.
 - **Capture and restore are symmetric only for passive sources.** Input and the
   gamepad only receive, so `add_replay_resource::<T>` is one line. A socket is
   not: those subsystems hold a `replay::ExternalIo<E>`, which hands out the
@@ -1192,7 +1194,7 @@ like the rest of rendering.
 
 ## Camera and screenshots
 
-`render.set_camera(ex, ey, ez, tx, ty, tz)` writes a `CameraConfig`; the backend
+`render.set_camera(ex, ey, ez, tx, ty, tz)` writes a `CameraConfig3d`; the backend
 applies it and keeps its orbit controls in between. `render.screenshot(path)`
 saves a frame to PNG.
 

@@ -749,7 +749,7 @@ fn a_texture_keeps_the_sampler_the_file_gave_it() {
     let sidecar: Vec<&(String, glb::Beside)> = imported
         .files
         .iter()
-        .filter(|(name, _)| name.ends_with(".toml"))
+        .filter(|(name, _)| std::path::Path::new(name).extension().is_some_and(|e| e == "toml"))
         .collect();
     assert_eq!(sidecar.len(), 2, "one sidecar beside each image");
     assert_eq!(sidecar[0].0, "hall_0.png.toml");

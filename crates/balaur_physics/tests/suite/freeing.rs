@@ -7,7 +7,7 @@ use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, components, snapshot};
-use balaur_physics::{PhysicsPlugin, PhysicsState};
+use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 use crate::LOG;
 
@@ -53,7 +53,7 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
 }
 
 fn colliders_in_world(app: &App) -> usize {
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
 
     state.borrow().world.colliders.len()
 }
@@ -76,7 +76,7 @@ fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
         1,
         "the freed node's collider is still in the world"
     );
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     assert!(!state.colliders.contains_key(&doomed));
     assert!(!state.collider_params.contains_key(&doomed));
@@ -90,14 +90,14 @@ fn a_freed_node_is_pruned_while_the_simulation_is_paused() {
     let doomed = spawn(&app, "Doomed", "n_doomed", 4.0, true);
     app.tick(1.0 / 60.0);
     {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         state.borrow_mut().paused = true;
     }
 
     scene::free_subtree(&mut app.engine.world_mut(), doomed);
     app.tick(1.0 / 60.0);
 
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     assert_eq!(state.world.colliders.len(), 0, "paused, so nothing pruned");
     assert!(state.bodies.is_empty());
@@ -120,14 +120,14 @@ fn freeing_one_end_of_a_joint_drops_the_joint_too() {
     .unwrap();
     app.tick(1.0 / 60.0);
     {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         assert_eq!(state.borrow().joints.len(), 1, "the joint was never made");
     }
 
     scene::free_subtree(&mut app.engine.world_mut(), anchor);
     app.tick(1.0 / 60.0);
 
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     assert!(
         state.joints.is_empty(),
@@ -159,7 +159,7 @@ fn a_body_whose_node_was_freed_and_restored_falls_again() {
         .expect("the nodes source put the node back");
     assert_ne!(back, doomed, "the respawn should mint a new entity");
     let start = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = *state
             .bodies
@@ -171,7 +171,7 @@ fn a_body_whose_node_was_freed_and_restored_falls_again() {
         app.tick(1.0 / 60.0);
     }
     let now = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = state.bodies[&back];
         state.world.bodies[handle].translation().y
@@ -199,7 +199,7 @@ fn a_wheels_inputs_survive_a_snapshot() {
         .unwrap();
     components::add(&app.engine, wheel, "wheel3d", None).unwrap();
     {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let input = state.wheel_inputs.entry(wheel).or_default();
         input.engine_force = 250.0;
@@ -208,7 +208,7 @@ fn a_wheels_inputs_survive_a_snapshot() {
     }
     let taken = snapshot::capture(&app.engine);
     {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let input = state.wheel_inputs.entry(wheel).or_default();
         input.engine_force = 0.0;
@@ -217,7 +217,7 @@ fn a_wheels_inputs_survive_a_snapshot() {
     }
     snapshot::restore(&app.engine, &taken);
 
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let input = state.wheel_inputs[&wheel];
     assert!(

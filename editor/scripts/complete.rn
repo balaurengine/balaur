@@ -47,7 +47,7 @@ pub fn line_col(source, index) {
 
 // The word being typed, so an empty prefix after a space does not open a list
 // of every module in the engine.
-fn prefix_at(source, index) {
+pub fn prefix_at(source, index) {
     let out = "";
     let seen = 0;
     for c in source.chars() {

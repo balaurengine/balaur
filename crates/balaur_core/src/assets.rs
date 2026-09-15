@@ -427,8 +427,14 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         .try_resource::<ProjectRoot>()
         .ok_or_else(|| anyhow!("no project directory, so '{reference}' cannot be written"))?;
     let full = root.borrow().0.join(&path);
+    // What the read made absolute goes back the way the owning project spells
+    // it: an absolute path written into a game does not survive another machine.
+    let mut definition = definition.clone();
+    if let Some(owner) = crate::document_paths::owner_of(eng, &full) {
+        crate::document_paths::relative_in(&owner, &mut definition);
+    }
     let text =
-        toml::to_string_pretty(definition).with_context(|| format!("encoding '{reference}'"))?;
+        toml::to_string_pretty(&definition).with_context(|| format!("encoding '{reference}'"))?;
     crate::files::backend(eng)
         .write(&full, text.as_bytes())
         .with_context(|| format!("writing {}", full.display()))?;
@@ -586,8 +592,20 @@ fn entry_of<'a>(document: &'a toml::Value, entry: &str) -> Option<&'a toml::Valu
 /// otherwise, which is `project::scene_text`: an asset document and a scene
 /// file resolve the same way and always have.
 fn read_document(eng: &Engine, path: &str) -> Result<toml::Value> {
-    let source = crate::project::scene_text(eng, path)?;
-    toml::from_str(&source).with_context(|| format!("parsing asset file '{path}'"))
+    let (source, foreign) = crate::project::scene_from_file(eng, path)?;
+    let mut document: toml::Value =
+        toml::from_str(&source).with_context(|| format!("parsing asset file '{path}'"))?;
+    // `Keep`, unlike a scene: [`save`] writes this document back, and an
+    // `id://` resolved here would be saved as a path, losing the id.
+    if let Some(root) = foreign {
+        crate::document_paths::absolute_in(
+            eng,
+            &root,
+            &mut document,
+            crate::document_paths::Ids::Keep,
+        );
+    }
+    Ok(document)
 }
 
 fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {

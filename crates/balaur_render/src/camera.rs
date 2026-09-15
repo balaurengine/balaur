@@ -6,22 +6,14 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
-use crate::shape::{keys as k, options, words};
-use crate::{CameraConfig, CameraConfig2d, PostConfig, color_to_toml};
+use crate::shape::{keys as k, words};
+use crate::{CameraConfig2d, CameraConfig3d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera` schema below states, which `render.set_camera_2d` also takes.
 /// A hundredth, not one: a pixel-scale level is thousands of units across,
 /// and a camera that cannot show it whole is a camera that cannot frame it.
 pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
-
-/// Which view a `camera` component drives: `"3d"` in a scene file is the
-/// perspective camera, `"2d"` the orthographic one.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CameraKind {
-    Perspective,
-    Orthographic,
-}
 
 /// A colour property read by name, defaulting to black — `color_from_params`
 /// reads the property called `color` and defaults to the renderable grey.
@@ -42,22 +34,30 @@ fn color_from_params_named(params: &toml::Value, key: &str) -> [f32; 4] {
     ]
 }
 
-/// The `camera` component's authored state. `drive_camera_system` copies
-/// the current one into [`CameraConfig`] / [`CameraConfig2d`].
-pub struct Camera {
-    pub kind: CameraKind,
+/// The `camera3d` component's authored state. `drive_camera_system` copies
+/// the current one into [`CameraConfig3d`].
+pub struct Camera3d {
     /// The last current camera in tree-traversal order drives the view.
     pub current: bool,
-    /// World point the 3D camera looks at.
+    /// World point the camera looks at.
     pub look_at: glamx::Vec3,
-    /// 2D zoom in logical pixels per world unit.
+    /// Screen-space effects the frame resolves through. Not per-dimension:
+    /// the effects run over the whole film, so the last current camera of
+    /// either dimension sets them.
+    pub post: Post,
+}
+
+/// The `camera2d` component's authored state, mirrored into
+/// [`CameraConfig2d`].
+pub struct Camera2d {
+    /// As in 3D: the last current one in the walk drives the view.
+    pub current: bool,
+    /// Zoom in logical pixels per world unit.
     pub zoom: f32,
-    /// Light every 2D surface gets before any `light2d`. Read from the
-    /// current 2D camera only; the light map is a 2D pass.
+    /// Light every 2D surface gets before any `light2d`. The light map is a
+    /// 2D pass, so only this dimension carries it.
     pub ambient: [f32; 4],
-    /// Screen-space effects the frame resolves through. Unlike `ambient` this
-    /// is not per-dimension: the effects run over the whole film, so the last
-    /// current camera of either kind sets them.
+    /// As on [`Camera3d`], and read from whichever came last.
     pub post: Post,
 }
 
@@ -322,26 +322,28 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         let mut spatial = None;
         let mut flat = None;
         let mut post = None;
+        // One walk over the tree, both components read at each node: which
+        // current camera came last has to be answered across the two, and a
+        // query apiece would answer it within one.
         for entity in balaur_core::scene::collect_subtree(&world, eng.root()) {
-            let Ok(cam) = world.get::<&Camera>(entity) else {
-                continue;
-            };
-            if !cam.current {
-                continue;
-            }
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
             };
-            post = Some(cam.post.clone());
-            match cam.kind {
-                CameraKind::Perspective => spatial = Some((global.position, cam.look_at)),
-                CameraKind::Orthographic => {
-                    flat = Some((
-                        [global.position.x, global.position.y],
-                        cam.zoom,
-                        cam.ambient,
-                    ));
-                }
+            if let Ok(cam) = world.get::<&Camera3d>(entity)
+                && cam.current
+            {
+                post = Some(cam.post.clone());
+                spatial = Some((global.position, cam.look_at));
+            }
+            if let Ok(cam) = world.get::<&Camera2d>(entity)
+                && cam.current
+            {
+                post = Some(cam.post.clone());
+                flat = Some((
+                    [global.position.x, global.position.y],
+                    cam.zoom,
+                    cam.ambient,
+                ));
             }
         }
         (spatial, flat, post)
@@ -350,7 +352,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         drive_post(eng, &post);
     }
     if let Some((eye, target)) = spatial {
-        let config = eng.resource::<CameraConfig>();
+        let config = eng.resource::<CameraConfig3d>();
         let mut config = config.borrow_mut();
         if config.eye != eye || config.target != target {
             config.eye = eye;
@@ -411,26 +413,14 @@ fn drive_post(eng: &Engine, post: &Post) {
     config.changed = true;
 }
 
-/// The authored camera a full property table describes.
-fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
-    let kind = match balaur_core::components::prop_str(params, k::KIND) {
-        words::PERSPECTIVE => CameraKind::Perspective,
-        words::ORTHOGRAPHIC => CameraKind::Orthographic,
-        other => return Err(anyhow!("unknown camera kind '{other}'")),
-    };
+/// The post chain both cameras carry, read once so the two readers below
+/// differ only by the properties their own view has.
+fn post_from_params(params: &toml::Value) -> Post {
     let num = |key: &str, default: f64| {
         params
             .get(key)
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(default) as f32
-    };
-    let la = |i: usize| {
-        params
-            .get("look_at")
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.0) as f32
     };
     let passes = params
         .get(k::POST)
@@ -444,68 +434,173 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
         .unwrap_or_default();
     let base = Finish::default();
     let occlusion = Occlusion::default();
-    Ok(Camera {
-        kind,
-        ambient: color_from_params_named(params, "ambient"),
-        post: Post {
-            occlusion: Occlusion {
-                radius: num(k::SSAO_RADIUS, f64::from(occlusion.radius)).max(1e-3),
-                bias: num(k::SSAO_BIAS, f64::from(occlusion.bias)).max(0.0),
-                intensity: num(k::SSAO_INTENSITY, f64::from(occlusion.intensity)).max(0.0),
-                power: num(k::SSAO_POWER, f64::from(occlusion.power)).max(1e-3),
-            },
-            finish: Finish {
-                vignette_amount: num(k::VIGNETTE_AMOUNT, f64::from(base.vignette_amount)),
-                vignette_roundness: num(k::VIGNETTE_ROUNDNESS, f64::from(base.vignette_roundness)),
-                aberration_amount: num(k::ABERRATION_AMOUNT, f64::from(base.aberration_amount)),
-                grain_amount: num(k::GRAIN_AMOUNT, f64::from(base.grain_amount)),
-                pixelate_size: num(k::PIXELATE_SIZE, f64::from(base.pixelate_size)),
-            },
-            passes,
-            bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
-            bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
+    Post {
+        occlusion: Occlusion {
+            radius: num(k::SSAO_RADIUS, f64::from(occlusion.radius)).max(1e-3),
+            bias: num(k::SSAO_BIAS, f64::from(occlusion.bias)).max(0.0),
+            intensity: num(k::SSAO_INTENSITY, f64::from(occlusion.intensity)).max(0.0),
+            power: num(k::SSAO_POWER, f64::from(occlusion.power)).max(1e-3),
         },
-        current: balaur_core::components::prop_bool(params, "current"),
-        look_at: glamx::Vec3::new(la(0), la(1), la(2)),
-        zoom: num(k::ZOOM, 60.0).max(MIN_ZOOM_2D),
-    })
+        finish: Finish {
+            vignette_amount: num(k::VIGNETTE_AMOUNT, f64::from(base.vignette_amount)),
+            vignette_roundness: num(k::VIGNETTE_ROUNDNESS, f64::from(base.vignette_roundness)),
+            aberration_amount: num(k::ABERRATION_AMOUNT, f64::from(base.aberration_amount)),
+            grain_amount: num(k::GRAIN_AMOUNT, f64::from(base.grain_amount)),
+            pixelate_size: num(k::PIXELATE_SIZE, f64::from(base.pixelate_size)),
+        },
+        passes,
+        bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
+        bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
+    }
 }
 
-/// The `camera` component. Writes a [`Camera`] on the node;
-/// [`drive_camera_system`] mirrors the current one into the camera resources.
-pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "camera",
-        ComponentDef {
-            doc: "The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.",
-            schema: ComponentDef::parse_schema(
-                "camera",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which camera this node drives" }}"#, words::PERSPECTIVE, options(words::CAMERA_KINDS))),
-                    (k::CURRENT, r#"{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }"#),
-                    (k::LOOK_AT, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }"#),
-                    (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "2D zoom in logical pixels per world unit" }"#),
-                    (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }"#),
-                    (k::POST, &format!(r#"{{ type = "strings", default = [], description = "The frame's passes, in order. {} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}"#, words::POST_EFFECTS.join(", "))),
-                    (k::BLOOM_THRESHOLD, r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#),
-                    (k::BLOOM_INTENSITY, r#"{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#),
-                    (k::VIGNETTE_AMOUNT, r#"{ type = "float", default = 0.35, min = 0.0, max = 1.0, description = "How dark the corners go under the `vignette` pass" }"#),
-                    (k::VIGNETTE_ROUNDNESS, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "1 darkens in a circle whatever shape the frame is; 0 follows the frame" }"#),
-                    (k::ABERRATION_AMOUNT, r#"{ type = "float", default = 0.004, min = 0.0, description = "How far `aberration` slides red from blue at the frame's edge, as a fraction of it" }"#),
-                    (k::GRAIN_AMOUNT, r#"{ type = "float", default = 0.06, min = 0.0, description = "How much the `grain` pass lightens and darkens a pixel" }"#),
-                    (k::PIXELATE_SIZE, r#"{ type = "float", default = 4.0, min = 1.0, description = "The side of one block the `pixelate` pass reads the frame back in, in pixels" }"#),
-                    (k::SSAO_RADIUS, r#"{ type = "float", default = 0.5, min = 0.001, description = "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene" }"#),
-                    (k::SSAO_BIAS, r#"{ type = "float", default = 0.025, min = 0.0, description = "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black" }"#),
-                    (k::SSAO_INTENSITY, r#"{ type = "float", default = 1.2, min = 0.0, description = "How strongly the `ssao` pass darkens" }"#),
-                    (k::SSAO_POWER, r#"{ type = "float", default = 1.5, min = 0.001, description = "The contrast the occlusion is raised to" }"#),
-                ]),
+/// The authored 3D camera a full property table describes.
+fn camera3d_from_params(params: &toml::Value) -> Camera3d {
+    let la = |i: usize| {
+        params
+            .get(k::LOOK_AT)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(0.0) as f32
+    };
+    Camera3d {
+        post: post_from_params(params),
+        current: balaur_core::components::prop_bool(params, k::CURRENT),
+        look_at: glamx::Vec3::new(la(0), la(1), la(2)),
+    }
+}
+
+/// The authored 2D camera a full property table describes.
+fn camera2d_from_params(params: &toml::Value) -> Camera2d {
+    let zoom = params
+        .get(k::ZOOM)
+        .and_then(balaur_core::components::as_f64)
+        .unwrap_or(60.0) as f32;
+    Camera2d {
+        post: post_from_params(params),
+        current: balaur_core::components::prop_bool(params, k::CURRENT),
+        ambient: color_from_params_named(params, k::AMBIENT),
+        zoom: zoom.max(MIN_ZOOM_2D),
+    }
+}
+
+/// The post-chain properties both cameras carry, spelled once: the two
+/// schemas below differ only where the two views actually differ.
+fn post_schema() -> String {
+    balaur_core::components::ComponentDef::schema(&[
+        (
+            k::CURRENT,
+            r#"{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }"#,
+        ),
+        (
+            k::POST,
+            &format!(
+                r#"{{ type = "strings", default = [], description = "The frame's passes, in order. {} name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head" }}"#,
+                words::POST_EFFECTS.join(", ")
             ),
-            tags: &[words::PERSPECTIVE, "render"],
+        ),
+        (
+            k::BLOOM_THRESHOLD,
+            r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#,
+        ),
+        (
+            k::BLOOM_INTENSITY,
+            r#"{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#,
+        ),
+        (
+            k::VIGNETTE_AMOUNT,
+            r#"{ type = "float", default = 0.35, min = 0.0, max = 1.0, description = "How dark the corners go under the `vignette` pass" }"#,
+        ),
+        (
+            k::VIGNETTE_ROUNDNESS,
+            r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "1 darkens in a circle whatever shape the frame is; 0 follows the frame" }"#,
+        ),
+        (
+            k::ABERRATION_AMOUNT,
+            r#"{ type = "float", default = 0.004, min = 0.0, description = "How far `aberration` slides red from blue at the frame's edge, as a fraction of it" }"#,
+        ),
+        (
+            k::GRAIN_AMOUNT,
+            r#"{ type = "float", default = 0.06, min = 0.0, description = "How much the `grain` pass lightens and darkens a pixel" }"#,
+        ),
+        (
+            k::PIXELATE_SIZE,
+            r#"{ type = "float", default = 4.0, min = 1.0, description = "The side of one block the `pixelate` pass reads the frame back in, in pixels" }"#,
+        ),
+        (
+            k::SSAO_RADIUS,
+            r#"{ type = "float", default = 0.5, min = 0.001, description = "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene" }"#,
+        ),
+        (
+            k::SSAO_BIAS,
+            r#"{ type = "float", default = 0.025, min = 0.0, description = "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black" }"#,
+        ),
+        (
+            k::SSAO_INTENSITY,
+            r#"{ type = "float", default = 1.2, min = 0.0, description = "How strongly the `ssao` pass darkens" }"#,
+        ),
+        (
+            k::SSAO_POWER,
+            r#"{ type = "float", default = 1.5, min = 0.001, description = "The contrast the occlusion is raised to" }"#,
+        ),
+    ])
+}
+
+/// The post chain read back, which both `get` closures end with.
+fn post_to_map(post: &Post, map: &mut toml::map::Map<String, toml::Value>) {
+    map.insert(
+        k::POST.into(),
+        toml::Value::Array(
+            post.passes
+                .iter()
+                .map(|pass| toml::Value::String(pass.name().into()))
+                .collect(),
+        ),
+    );
+    map.insert(
+        k::BLOOM_THRESHOLD.into(),
+        toml::Value::Float(f64::from(post.bloom_threshold)),
+    );
+    map.insert(
+        k::BLOOM_INTENSITY.into(),
+        toml::Value::Float(f64::from(post.bloom_intensity)),
+    );
+    // The inspector reads this, so the knobs beside `post` are here too
+    // rather than only in the table the scene handed over.
+    for (key, value) in post.knobs() {
+        map.insert(key.into(), toml::Value::Float(f64::from(value)));
+    }
+}
+
+/// The `camera3d` and `camera2d` components. Two rather than one with a
+/// `kind`: a component's tags are what the editor files a node under, and a
+/// tag is per type while a kind would be per node -- so one component could
+/// only ever claim one dimension for both. Splitting also drops the property
+/// that was inert either way (`look_at` on a flat camera, `zoom` on a
+/// spatial one).
+pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
+    reg.register_component(
+        "camera3d",
+        ComponentDef {
+            doc: "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
+            schema: ComponentDef::parse_schema(
+                "camera3d",
+                &[
+                    balaur_core::components::ComponentDef::schema(&[(
+                        k::LOOK_AT,
+                        r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the camera looks at" }"#,
+                    )]),
+                    post_schema(),
+                ]
+                .join("\n"),
+            ),
+            tags: &[balaur_core::components::tag::DIM_3D, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let camera = camera_from_params(params)?;
+                let camera = camera3d_from_params(params);
                 let mut world = eng.world_mut();
-                if let Ok(mut c) = world.get::<&mut Camera>(entity) {
+                if let Ok(mut c) = world.get::<&mut Camera3d>(entity) {
                     *c = camera;
                     return Ok(());
                 }
@@ -515,21 +610,16 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
-                let _ = world.remove_one::<Camera>(entity);
+                let _ = world.remove_one::<Camera3d>(entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
                 let world = eng.world();
-                let camera = world.get::<&Camera>(entity).ok()?;
+                let camera = world.get::<&Camera3d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
-                let kind = match camera.kind {
-                    CameraKind::Perspective => words::PERSPECTIVE,
-                    CameraKind::Orthographic => words::ORTHOGRAPHIC,
-                };
-                map.insert(k::KIND.into(), toml::Value::String(kind.into()));
-                map.insert("current".into(), toml::Value::Boolean(camera.current));
+                map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
                 map.insert(
-                    "look_at".into(),
+                    k::LOOK_AT.into(),
                     toml::Value::Array(
                         [camera.look_at.x, camera.look_at.y, camera.look_at.z]
                             .iter()
@@ -537,32 +627,52 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                             .collect(),
                     ),
                 );
-                map.insert(k::ZOOM.into(), toml::Value::Float(f64::from(camera.zoom)));
-                map.insert("ambient".into(), color_to_toml(camera.ambient));
-                map.insert(
-                    k::POST.into(),
-                    toml::Value::Array(
-                        camera
-                            .post
-                            .passes
-                            .iter()
-                            .map(|pass| toml::Value::String(pass.name().into()))
-                            .collect(),
-                    ),
-                );
-                map.insert(
-                    k::BLOOM_THRESHOLD.into(),
-                    toml::Value::Float(f64::from(camera.post.bloom_threshold)),
-                );
-                map.insert(
-                    k::BLOOM_INTENSITY.into(),
-                    toml::Value::Float(f64::from(camera.post.bloom_intensity)),
-                );
-                // The inspector reads this, so the knobs beside `post` are
-                // here too rather than only in the table the scene handed over.
-                for (key, value) in camera.post.knobs() {
-                    map.insert(key.into(), toml::Value::Float(f64::from(value)));
+                post_to_map(&camera.post, &mut map);
+                Some(toml::Value::Table(map))
+            }),
+        },
+    );
+    reg.register_component(
+        "camera2d",
+        ComponentDef {
+            doc: "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
+            schema: ComponentDef::parse_schema(
+                "camera2d",
+                &[
+                    balaur_core::components::ComponentDef::schema(&[
+                        (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
+                        (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
+                    ]),
+                    post_schema(),
+                ]
+                .join("\n"),
+            ),
+            tags: &[balaur_core::components::tag::DIM_2D, "render"],
+            expects: &[],
+            apply: Box::new(|eng, entity, params| {
+                let camera = camera2d_from_params(params);
+                let mut world = eng.world_mut();
+                if let Ok(mut c) = world.get::<&mut Camera2d>(entity) {
+                    *c = camera;
+                    return Ok(());
                 }
+                world
+                    .insert_one(entity, camera)
+                    .map_err(|_| anyhow!("node is dead"))
+            }),
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Camera2d>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng, entity| {
+                let world = eng.world();
+                let camera = world.get::<&Camera2d>(entity).ok()?;
+                let mut map = toml::map::Map::new();
+                map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
+                map.insert(k::ZOOM.into(), toml::Value::Float(f64::from(camera.zoom)));
+                map.insert(k::AMBIENT.into(), color_to_toml(camera.ambient));
+                post_to_map(&camera.post, &mut map);
                 Some(toml::Value::Table(map))
             }),
         },

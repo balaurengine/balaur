@@ -66,6 +66,28 @@ shot() { # shot <name> <project> <state>
   echo ok
 }
 
+# A shot of an import, which leaves the files it wrote in the project it
+# landed in: `reset_examples` puts scenes back, not those.
+import_shot() { # import_shot <name> <project> <state> <file>...
+  local name=$1 project=$2 state=$3 list=""
+  shift 3
+  local file stem
+  # One a frame, so the picture catches them at different stages.
+  for file in "$@"; do list="$list$file;"; done
+  shot "$name" "$project" "imports:${list%;},$state"
+  for file in "$@"; do
+    stem=$(basename "$file"); stem=${stem%.*}
+    # The page and its import settings, the sheet, the clips, the model and
+    # its scene: everything `balaur import` writes for a sprite or a model.
+    rm -f "$project/art/$stem.webp" "$project/art/$stem.webp.toml" \
+      "$project/sheets/$stem.toml" "$project/animations/$stem.toml" \
+      "$project/models/$stem.glb" "$project/models/$stem.gltf" \
+      "$project/scenes/$stem.toml"
+  done
+  rmdir "$project/art" "$project/sheets" "$project/animations" \
+    "$project/models" 2>/dev/null || true
+}
+
 # A running project's own window, for an example whose subject is its screen
 # rather than the editor around it.
 screen() { # screen <name> <project> [frames]
@@ -251,6 +273,10 @@ shot networking_faults examples/angrynerds "scene,settings:netcode"
 shot save_settings     examples/angrynerds "scene,settings:save"
 shot locale_settings   examples/angrynerds "scene,settings:locale"
 shot editor_assets     examples/angrynerds "scene,select:Bird,dock:assets"
+# Two imports at once: what each is writing, what the pair of them adds up
+# to, and the Import button they came through.
+import_shot editor_import examples/angrynerds "scene,select:Bird,dock:assets" \
+  crates/balaur_render/tests/fixtures/walk.aseprite examples/rig3d/models/column.glb
 shot sprite_inspector  examples/shaders    "scene,select:Logo"
 shot export_sheet      examples/angrynerds "scene,export"
 shot extensions_greeter examples/extension_greeter "scene"

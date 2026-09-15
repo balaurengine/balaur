@@ -13,7 +13,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::vocabulary::{Opts, keys as k, map};
-use crate::{PhysicsState, PhysicsState2d};
+use crate::{PhysicsState2d, PhysicsState3d};
 
 /// One writer, two dimensions.
 ///
@@ -148,7 +148,7 @@ fn write_tuning_from_settings(eng: &Engine) {
             .unwrap_or(default)
     };
     {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         write_parameters!(&mut state.world.integration_parameters, &f, &boolean);
     }
@@ -232,7 +232,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         let f = |key: &str, default: f32| opts.f32(key, default);
         let boolean = |key: &str, default: bool| opts.boolean(key, default);
         {
-            let state = eng.resource::<PhysicsState>();
+            let state = eng.resource::<PhysicsState3d>();
             let mut state = state.borrow_mut();
             write_parameters!(&mut state.world.integration_parameters, &f, &boolean);
         }
@@ -242,7 +242,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         Ok(())
     });
     m.function("tuning", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         Ok(tuning_value(&state.world.integration_parameters))
     });
@@ -250,7 +250,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     // than letting the whole world become NaN. Saying which node it was is the
     // difference between a bug report and a mystery.
     m.function("quarantined", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let quarantine = state.world.quarantine();
         let mut nodes: Vec<Entity> = quarantine
@@ -282,7 +282,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     // Rapier's profiler is off until something asks for it, so the first call
     // turns it on and the numbers arrive from the step after this one.
     m.function("counters", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         state.world.physics_pipeline.counters.enable();
         let counters = &state.world.physics_pipeline.counters;
@@ -307,7 +307,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
 /// Report anything rapier had to quarantine, once per step, so a game that
 /// never calls `physics.quarantined()` still learns about it.
 pub(crate) fn warn_about_quarantine(eng: &Engine) {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let quarantine = state.world.quarantine();
     if quarantine.is_empty() {

@@ -9,13 +9,13 @@
 use crate::rapier3d::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
 };
-use balaur_core::debug_lines::{DebugLineBuffer, DebugLineBuffer2d};
+use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::vocabulary::Opts;
-use crate::{PhysicsState, PhysicsState2d};
+use crate::{PhysicsState2d, PhysicsState3d};
 
 /// What the physics debug draw shows. Written by scripts and the editor, read
 /// by this module's `draw_system` every frame.
@@ -64,9 +64,9 @@ pub(crate) fn build(reg: &mut Registry<'_>) {
     reg.add_system(Stage::SceneSync, draw_system);
 }
 
-/// Collects rapier's lines into a `DebugLineBuffer`.
+/// Collects rapier's lines into a `DebugLineBuffer3d`.
 struct Lines3d<'a> {
-    out: &'a mut DebugLineBuffer,
+    out: &'a mut DebugLineBuffer3d,
 }
 
 impl DebugRenderBackend for Lines3d<'_> {
@@ -130,8 +130,8 @@ fn draw_system(eng: &Engine, _dt: f32) {
     debug.pipeline.mode = config.mode;
     debug.pipeline_2d.mode =
         crate::rapier2d::pipeline::DebugRenderMode::from_bits_truncate(config.mode.bits());
-    if let Some(buffer) = eng.try_resource::<DebugLineBuffer>() {
-        let state = eng.resource::<PhysicsState>();
+    if let Some(buffer) = eng.try_resource::<DebugLineBuffer3d>() {
+        let state = eng.resource::<PhysicsState3d>();
         state.borrow().world.debug_render(
             &mut debug.pipeline,
             &mut Lines3d {

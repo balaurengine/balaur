@@ -20,7 +20,7 @@ all with the same schema line and the same words:
 
 Every one of them calls `set_material_2d` or `set_material_3d`
 (`crates/balaur_render/src/material.rs`), which writes
-`Renderable::material` or `Renderable2d::material` and bumps `version`. The
+`Renderable3d::material` or `Renderable2d::material` and bumps `version`. The
 version bump is what rebuilds the backend node, because a material owns its
 pipeline and cannot be swapped onto a node built against another one.
 
@@ -126,7 +126,7 @@ long-lived, so it never shrinks.
 - `node.material()`, `node.set_material(ref)` and `node.global_material()`,
   the same three verbs the tint has.
 - **A renderable's own `material` stays its own.** `shape3d`, `shape2d`,
-  `mesh`, `sprite` and `tilemap` keep `Renderable::material` and friends. A
+  `mesh`, `sprite` and `tilemap` keep `Renderable3d::material` and friends. A
   renderable draws with its own when it names one and with
   `GlobalAppearance::material` when not. This is the `color` and `tint`
   split, and Godot's `self_modulate` and `modulate`.
@@ -241,7 +241,7 @@ break.
 - Typing a reference into the row sets the node's own, which takes over.
   Clearing it returns the node to what it inherits.
 
-**The mirror keeps a material as a path.** D24's fix inlined every typed
+**The mirror keeps a material as a path.** Inlining every typed
 `.toml` asset into the editor's mirror, so from 2026-09-07 every material
 field read "inline", and an edit to a material's values was saved to a `#!`
 digest that `assets::save` refuses. A material resolves its own files against

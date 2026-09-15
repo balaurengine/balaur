@@ -4,7 +4,7 @@
 use anyhow::{Result, anyhow, bail};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};
 
-use crate::material::{Material, Param};
+use crate::material::{Material3d, Param};
 
 /// The struct a shader declares to take a material's values.
 const PARAMS_STRUCT: &str = "Params";
@@ -170,14 +170,14 @@ pub struct Compiled {
 /// `source` is the shader file's text. Reading it stays the caller's job:
 /// where a project's bytes come from — the pack, the directory, an unsaved
 /// editor buffer — is not this module's business.
-pub fn compile(material: &Material, source: &str) -> Result<Compiled> {
+pub fn compile(material: &Material3d, source: &str) -> Result<Compiled> {
     compile_with(material, source, &[])
 }
 
 /// [`compile`], with modules a plugin registered mounted alongside the
 /// engine's own, so a project's shader can import them.
 pub fn compile_with(
-    material: &Material,
+    material: &Material3d,
     source: &str,
     plugin_modules: &[(String, String)],
 ) -> Result<Compiled> {

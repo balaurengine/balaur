@@ -191,8 +191,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
     let folded = variants::apply(&mut pack, &tags, &declared);
     bake_tags(&mut pack, &config.tags)?;
-    if !folded.is_empty() {
-        tracing::info!("variants for {}: {}", tags.0.join(", "), folded.join(", "));
+    for why in &folded.warnings {
+        tracing::warn!("{why}");
+    }
+    if !folded.names.is_empty() {
+        tracing::info!("variants for {}: {}", tags.0.join(", "), folded.names.join(", "));
     }
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));

@@ -1,0 +1,183 @@
+// The node picker: every preset and every component a node can be made of,
+// grouped by the dimension tag each already carries. Opened by the tree's `+`
+// and by "Add child node…"; Esc, a scrim click or a pick closes it.
+
+use crate::icons;
+use crate::model;
+use crate::style;
+use crate::util;
+
+// Group order, each a tag the engine already carries. A row is filed under
+// the first group whose tag it has, so a `2d` `physics` preset lands in 2D
+// rather than twice.
+fn groups() {
+    [["3d", "3D"], ["2d", "2D"], ["ui", "Interface"], ["physics", "Physics"], ["", "Other"]]
+}
+
+/// Which group a tag list belongs to: the first that matches, `Other` if none.
+fn group_of(tags) {
+    for group in groups() {
+        if group[0] == "" || util::contains(tags, group[0]) {
+            return group[1];
+        }
+    }
+    "Other"
+}
+
+fn entry(name, note, tags, preset) {
+    #{ name: name, note: note, tags: util::join(tags, " "), group: group_of(tags), preset: preset }
+}
+
+// Asked once per opening rather than once per frame: both registries are
+// walked whole, and doing that on every keystroke is a list rebuild.
+pub fn catalogue(S) {
+    let found = S.newnode_cache;
+    if found is Vec {
+        return found;
+    }
+    let rows = [];
+    for name in scene::presets() {
+        let info = scene::preset_info(name);
+        let note = if info is Object { info.get("description").unwrap_or("") } else { "" };
+        let tags = if info is Object { util::vec(info.tags) } else { [] };
+        rows.push(entry(name, note, tags, true));
+    }
+    // Components too, so a node can be made of one thing the presets do not
+    // cover; `camera3d` has no preset and is still a node someone adds.
+    for name in scene::component_types() {
+        // `transform` is not a node to add: `add_child` has already given the
+        // new node one, and every node in the tree carries it.
+        if name == "transform" {
+            continue;
+        }
+        let tags = util::vec(scene::component_tags(name));
+        rows.push(entry(name, "", tags, false));
+    }
+    S.newnode_cache = rows;
+    rows
+}
+
+pub fn open(S) {
+    S.newnode = true;
+    S.newnode_query = "";
+    S.newnode_cache = ();
+    ui::set_text("newnode-query", "");
+}
+
+pub fn close(S) {
+    S.newnode = false;
+}
+
+pub fn place(S, row) {
+    if row.preset {
+        model::add_child(S, Some(row.name));
+    } else {
+        // A child first, then the one component: `add_component` acts on the
+        // selection, and `add_child` has just made this the selection.
+        model::add_child(S, None);
+        model::add_component(S, row.name);
+    }
+    close(S);
+}
+
+pub fn draw(S) {
+    if !S.newnode {
+        return;
+    }
+    let k = S.theme;
+    let screen = ui::screen_size();
+    let width = util::min(520.0, util::max(screen[0] - 32.0, 240.0));
+    let inner = width - 32.0;
+    let row_h = style::row_h(S);
+    let scrim_clicked = ui::modal("newnode", #{
+        width: width, top: 0.11, fill: k.panel, stroke: k.line,
+        scrim: "#0b0e126b",
+    }, || {
+        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
+            ui::horizontal(#{ height: row_h }, || {
+                ui::label(icons::ui("add"), #{ size: style::XL, color: k.accent });
+                ui::add_space(4);
+                let (text, _, _) = ui::text_field("newnode-query", "Nodes, components, 2d, physics…", #{
+                    size: style::XL, width: inner - 90.0, autofocus: true, color: k.text,
+                });
+                S.newnode_query = text;
+                ui::right(|| {
+                    ui::pill("esc", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.faint });
+                });
+            });
+        });
+        ui::separator(k.line);
+        ui::scroll("newnode-results", #{ max_height: util::max(screen[1] * 0.5, 160.0) }, || {
+            ui::spacing(4, 4);
+            ui::add_space(8);
+            let query = S.newnode_query.to_lowercase();
+            let rows = catalogue(S);
+            let matched = 0;
+            // Ahead of the groups and in none of them: a node with no
+            // components has no dimension to be filed under.
+            if query == "" || "empty node".contains(query) {
+                matched += 1;
+                ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
+                    ui::add_space(8);
+                    if ui::pill("Empty node  ·  a transform and nothing else", #{
+                        height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
+                        min_width: inner - 24.0,
+                        icon: icons::node("world"), icon_size: style::LG, icon_color: k.faint,
+                        fill: "#00000000", hover_fill: k.sunken, color: k.text,
+                    }) {
+                        model::add_child(S, None);
+                        close(S);
+                    }
+                });
+            }
+            for group in groups() {
+                let title = group[1];
+                let shown = [];
+                for row in rows {
+                    // The tags join the haystack, so "physics" or "2d"
+                    // narrows the list even where the name does not say it.
+                    let haystack = (row.name + " " + row.note + " " + row.tags).to_lowercase();
+                    if row.group == title && (query == "" || haystack.contains(query)) {
+                        shown.push(row);
+                    }
+                }
+                if shown.len() == 0 {
+                    continue;
+                }
+                matched += shown.len();
+                ui::add_space(4);
+                ui::horizontal(#{ height: 18 }, || {
+                    ui::add_space(12);
+                    ui::label(title, style::mono_sm(k.faint));
+                });
+                for row in shown {
+                    ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
+                        ui::add_space(8);
+                        let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
+                        // The type's own mark and colour, the same pair the
+                        // inspector and the tree draw a component with.
+                        let (mark, tint) = icons::component(row.name);
+                        if ui::pill(caption, #{
+                            height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
+                            min_width: inner - 24.0,
+                            icon: mark, icon_size: style::LG,
+                            icon_color: k.get(tint).unwrap_or(k.accent),
+                            fill: "#00000000", hover_fill: k.sunken, color: k.text,
+                        }) {
+                            place(S, row);
+                        }
+                    });
+                }
+            }
+            if matched == 0 {
+                ui::add_space(8);
+                crate::search::nothing(k, S.newnode_query);
+            }
+        });
+        ui::add_space(8);
+    });
+    // Esc as well as the scrim, the way the palette closes.
+    if scrim_clicked || ui::shortcut("escape") {
+        close(S);
+    }
+}

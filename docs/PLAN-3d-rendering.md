@@ -34,7 +34,7 @@ Built, and not built for this:
 | `environment`: sky, ambient, fog, exposure, tonemap, grading, the shadow budget | `light3d.rs::Environment`, `sync_environment` |
 | A physically based surface over the frame's lights: GGX, Smith, Schlick, with a normal map over a tangent frame solved from screen-space derivatives, so a mirrored UV shell lights as its twin does | `shaders/pbr.wesl`, mounted as `package::pbr`, `mesh::tangent_frame` |
 | Six texture slots on group 2, each with the fork's one-pixel neutral | `material::TEXTURE_SLOTS`, `Param::Texture` |
-| `shadows` and `layers` on `mesh` and `shape3d` | `Renderable`, `lighting_from_params` |
+| `shadows` and `layers` on `mesh` and `shape3d` | `Renderable3d`, `lighting_from_params` |
 | A 3D material contract with sixteen lights of three kinds, ambient and fog in its frame uniforms | `shaders/mesh.wesl`, `shader_material_3d.rs` (`MAX_LIGHTS`) |
 | `camera.post` flags applied to the fork's passes: bloom, SSAO, SSR, depth of field | `kiss3d_backend.rs::apply_post`, `window.set_bloom_enabled` and friends |
 | Image-based lighting, screen occlusion, reflection probes and the refraction background, bound for every 3D material | `frame_group.rs`, group 0 of `shaders/mesh.wesl` |

@@ -434,18 +434,6 @@ impl TileGrid {
         self.rows.len()
     }
 
-    /// The half-open range of columns the grid stores.
-    #[must_use]
-    pub fn column_range(&self) -> (i32, i32) {
-        (self.origin[0], self.origin[0] + span(self.columns()))
-    }
-
-    /// The half-open range of rows the grid stores.
-    #[must_use]
-    pub fn row_range(&self) -> (i32, i32) {
-        (self.origin[1], self.origin[1] + span(self.row_count()))
-    }
-
     /// Where a coordinate sits in `rows`, or `None` for one outside it.
     ///
     /// Bounded by the row's own length rather than by the widest of them: the

@@ -135,16 +135,6 @@ pub struct Pause {
 }
 
 impl Pause {
-    /// A pause over the whole tree, for a caller with no engine to ask.
-    #[must_use]
-    pub const fn whole_tree(on: bool) -> Self {
-        Self {
-            on,
-            scope: None,
-            modes: true,
-        }
-    }
-
     #[must_use]
     fn covers(self, world: &World, entity: Entity) -> bool {
         self.on

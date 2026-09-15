@@ -96,7 +96,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
     }
     // Dragging a file onto the window needs a desktop with a file manager;
     // kiss3d has no such event on mobile.
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    #[cfg(not(mobile))]
     for path in window.dropped_files() {
         seen.any = true;
         seen.beyond_motion = true;

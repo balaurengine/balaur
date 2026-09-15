@@ -148,6 +148,7 @@ pub(crate) mod keys {
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const GROUP: &str = "group";
     pub(crate) const TOGGLE: &str = "toggle";
+    pub(crate) const TRACK: &str = "track";
     pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";
@@ -236,6 +237,9 @@ pub(crate) mod keys {
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
     pub(crate) const PROBLEMS: &str = "problems";
     pub(crate) const RADIUS: &str = "radius";
+    /// Whether an overlay answers the pointer. Off for one that is read over
+    /// what is behind it, which must keep its clicks.
+    pub(crate) const INTERACTIVE: &str = "interactive";
     pub(crate) const RAIL: &str = "rail";
     pub(crate) const REGION: &str = "region";
     pub(crate) const RESIZABLE: &str = "resizable";

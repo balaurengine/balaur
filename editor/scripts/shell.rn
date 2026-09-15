@@ -679,6 +679,9 @@ fn select_named(S, name) {
 fn states() {
     #{
         "palette": state_palette,
+        "newnode": crate::newnode::open,
+        "pickerdemo": crate::selftest::node_picker,
+        "renamedemo": crate::selftest::rename,
         "light": state_light,
         "play": state_play,
         "input": state_input,
@@ -723,6 +726,7 @@ fn states() {
         "eventsdemo": crate::selftest::eventviews,
         "librarydemo": crate::selftest::librarydemo,
         "rowsdemo": crate::selftest::row_views,
+        "jobdemo": crate::selftest::importing,
         "pendemo": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
@@ -746,6 +750,8 @@ fn prefixed_states() {
         ("dock:", state_dock),
         ("view:", state_view),
         ("asset:", state_asset),
+        ("import:", state_import),
+        ("imports:", state_imports),
         ("tab:", state_tab),
         ("shut:", state_shut),
         ("scale:", state_scale),
@@ -830,10 +836,16 @@ fn state_view(S, id) {
 }
 // Every other frame from frame 30, so a clip is 30 fps and skips the frames
 // the layout takes to settle.
-fn state_frames(S, dir) {
+fn state_frames(S, spec) {
+    // `dir` or `dir:from:every`; the default skips the start-up frames a
+    // showcase clip does not want, and `0:1` is how the start-up is watched.
+    let parts = spec.split(':').collect::<Vec>();
+    let dir = parts[0];
+    let from = if parts.len() > 1 { parts[1].parse::<i64>().unwrap_or(30) } else { 30 };
+    let every = if parts.len() > 2 { util::max(parts[2].parse::<i64>().unwrap_or(2), 1) } else { 2 };
     // No `fs::mkdir` here: the directory is the caller's, outside every root
     // `fs` may reach, and the screenshot makes it on the way past.
-    S.capture = #{ dir: dir, from: 30, every: 2, n: 0 };
+    S.capture = #{ dir: dir, from: from, every: every, n: 0 };
 }
 fn state_input(S) {
     S.show_input = true;
@@ -922,6 +934,22 @@ fn state_asset(S, rel) {
     }
     S.assets.dir = dir;
     S.assets.sel = rel;
+}
+
+// `import:<path>`: the Assets dock, and that file imported into it.
+fn state_import(S, path) {
+    crate::docks::show(S, "assets");
+    crate::dropin::take(S, path);
+}
+
+// `imports:<path>;<path>`: several imports, one a frame from `IMPORTS_FROM`,
+// so a picture taken at frame 60 catches them at different stages.
+const IMPORTS_FROM = 57;
+
+fn state_imports(S, list) {
+    crate::docks::show(S, "assets");
+    S.import_queue = list.split(';').collect::<Vec>();
+    S.import_from = IMPORTS_FROM;
 }
 
 fn state_mode(S, mode) {

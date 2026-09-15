@@ -17,7 +17,7 @@ use anyhow::{Result, bail};
 /// The desktop shell: an opener process and a file manager. Gated once here
 /// rather than on each of the five items inside, which a phone and a tab both
 /// lack.
-#[cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))]
+#[cfg(desktop)]
 mod shell {
     use std::path::Path;
     use std::process::Command;
@@ -74,11 +74,11 @@ mod shell {
     }
 }
 
-#[cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))]
+#[cfg(desktop)]
 use shell::hand_over;
 /// Revealing a file needs a file manager, which only a desktop has, so this
 /// exists on a desktop alone.
-#[cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))]
+#[cfg(desktop)]
 pub use shell::reveal;
 
 /// Schemes a game may hand the OS. A URL becomes whatever the system has
@@ -106,7 +106,7 @@ pub fn open_url(url: &str) -> Result<()> {
 /// and Android an `ACTION_VIEW` intent, each through that platform's own
 /// crate. Saying so beats spawning `xdg-open`, which no phone has, and
 /// reporting that it is missing.
-#[cfg(any(target_os = "ios", target_os = "android"))]
+#[cfg(mobile)]
 fn hand_over(url: &str) -> Result<()> {
     bail!("open_url has no opener on this platform yet, so {url:?} stays closed")
 }

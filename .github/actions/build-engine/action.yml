@@ -161,6 +161,7 @@ runs:
         BALAUR_FEATURES: ${{ inputs.features }}
         WEB_FEATURES: ${{ inputs.web-features }}
         WEB_THREADS: ${{ inputs.threads == 'true' && '1' || '' }}
+        WEB_VARIANT: ${{ inputs.variant }}
       run: |
         set -euo pipefail
         if [ -n '${{ inputs.target }}' ]; then

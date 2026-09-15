@@ -15,7 +15,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use glamx::{Mat4, Vec3};
 
-use crate::{Renderable, Renderable2d};
+use crate::{Renderable2d, Renderable3d};
 
 /// Where a node draws its copies: one world matrix each, the first being
 /// where the node already is.
@@ -174,7 +174,7 @@ pub(crate) fn resolve_cloners_system(eng: &Engine, _dt: f32) {
             })
             .collect();
         for entity in collect_subtree(&world, owner) {
-            let drawn = world.get::<&Renderable>(entity).is_ok()
+            let drawn = world.get::<&Renderable3d>(entity).is_ok()
                 || world.get::<&Renderable2d>(entity).is_ok();
             if !drawn {
                 continue;

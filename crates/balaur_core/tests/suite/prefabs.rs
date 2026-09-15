@@ -407,3 +407,105 @@ label = "left arm"
         "the prefab's size survived an override of its label"
     );
 }
+
+/// A prefab naming a file, a node path, a sibling scene and an `id://`: one of
+/// each thing the rewrite has to tell apart.
+const PROP: &str = r#"
+[[nodes]]
+id = "n_prop"
+name = "Prop"
+
+[nodes.marker]
+label = "models/column.glb"
+
+[[nodes]]
+id = "n_skin"
+name = "Skin"
+parent = "n_prop"
+
+[nodes.marker]
+label = "../Prop"
+
+[[nodes]]
+id = "n_inner"
+name = "Inner"
+parent = "n_prop"
+instance = "scenes/inner.toml"
+
+[[nodes]]
+id = "n_by_id"
+name = "ById"
+parent = "n_prop"
+
+[nodes.marker]
+label = "id://blade"
+"#;
+
+/// Both projects hold this under one name, so a read from the wrong root is a
+/// wrong label rather than a missing file.
+const INNER: &str = r#"
+[[nodes]]
+id = "n_inner"
+name = "Inner"
+
+[nodes.marker]
+label = "WHOSE"
+"#;
+
+fn inner(whose: &str) -> String {
+    INNER.replace("WHOSE", whose)
+}
+
+/// `balaur edit <game>` runs with the editor as the project root and the game
+/// as a second one, so a prefab from the game names its files from the game.
+#[test]
+fn a_prefab_from_another_root_names_its_files_from_that_root() {
+    let editor = project(&[
+        ("scenes/enemy.toml", ENEMY),
+        ("scenes/inner.toml", &inner("the editor's inner")),
+        ("models/column.glb", "the editor's"),
+    ]);
+    let game = project(&[
+        ("scenes/prop.toml", PROP),
+        ("scenes/inner.toml", &inner("the game's inner")),
+        ("models/column.glb", "the game's"),
+        ("models/blade.glb", "the game's blade"),
+        ("assets/index.toml", "blade = \"models/blade.glb\""),
+    ]);
+    let app = app_in(editor.path());
+    balaur_core::file_api::add_root(&app.engine, game.path());
+    let prefab = game.path().join("scenes/prop.toml");
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        &format!(
+            "[[nodes]]\nid = \"n_prop\"\nname = \"Prop\"\ninstance = \"{}\"\n",
+            prefab.to_string_lossy()
+        ),
+        app.engine.root(),
+        false,
+    )
+    .unwrap();
+    let named = label(&app, "Prop").expect("the prefab's root merged into the node");
+    assert_eq!(
+        std::fs::read_to_string(&named).ok().as_deref(),
+        Some("the game's"),
+        "read under the editor's root instead: {named}"
+    );
+    assert_eq!(
+        label(&app, "Prop/Skin"),
+        Some(String::from("../Prop")),
+        "a node path is not a file name"
+    );
+    // Both roots hold `scenes/inner.toml`, and the editor's is searched first.
+    assert_eq!(
+        label(&app, "Prop/Inner"),
+        Some(String::from("the game's inner")),
+        "a scene inside a scene came from the wrong root"
+    );
+    let by_id = label(&app, "Prop/ById").expect("the id node");
+    assert_eq!(
+        std::fs::read_to_string(&by_id).ok().as_deref(),
+        Some("the game's blade"),
+        "an `id://` read the editor's index instead: {by_id}"
+    );
+}

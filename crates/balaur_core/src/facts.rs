@@ -37,7 +37,7 @@ impl PlatformFacts {
         Self {
             os: os.to_string(),
             web: cfg!(target_family = "wasm"),
-            mobile: cfg!(any(target_os = "ios", target_os = "android")),
+            mobile: cfg!(mobile),
             touchscreen: touchscreen(),
             editor: eng.debug_scope().is_some(),
             system_locale: sys_locale::get_locale(),
@@ -60,7 +60,7 @@ pub(crate) fn touchscreen() -> bool {
 
 #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
 pub(crate) const fn touchscreen() -> bool {
-    cfg!(any(target_os = "ios", target_os = "android"))
+    cfg!(mobile)
 }
 
 /// The facts once read, or restored from a recording's header. Read lazily,

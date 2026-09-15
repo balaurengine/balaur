@@ -119,28 +119,10 @@ pub fn rig_root(S) {
 
 // The polygon's world frame: how a local vertex lands on screen.
 fn frame(S) {
-    let found = match model::live(S, S.sel) {
-        Some(found) => found,
-        None => return None,
-    };
-    let p = found.transform.global_position();
-    let angle = found.transform.global_rotation_euler().z;
-    let s = found.transform.global_scale();
-    Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
-}
-
-fn to_world(f, lx, ly) {
-    let px = lx * f.sx;
-    let py = ly * f.sy;
-    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
-}
-
-fn to_local(f, wx, wy) {
-    let dx = wx - f.x;
-    let dy = wy - f.y;
-    let px = f.c * dx + f.s * dy;
-    let py = -f.s * dx + f.c * dy;
-    (px / (if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 }), py / (if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 }))
+    match model::live(S, S.sel) {
+        Some(found) => Some(util::frame_of(found)),
+        None => None,
+    }
 }
 
 pub fn internal_count(mesh) {
@@ -333,7 +315,7 @@ pub fn add_vertex(S, wx, wy, internal) {
         Some(mesh) => mesh,
         None => return None,
     };
-    let (lx, ly) = to_local(f, wx, wy);
+    let (lx, ly) = util::to_local(f, wx, wy);
     let at = if internal {
         let at = mesh.positions.len();
         insert_vertex(S, mesh, at, lx, ly);
@@ -383,7 +365,7 @@ pub fn move_vertex(S, at, wx, wy) {
         Some(target) => target,
         None => return,
     };
-    let (lx, ly) = to_local(f, wx, wy);
+    let (lx, ly) = util::to_local(f, wx, wy);
     // Armed, a drag is a deformation of the shape rather than a change to it:
     // the offset moves and the mesh the clip deforms stays where it was.
     if deforming(S) {
@@ -453,7 +435,7 @@ pub fn move_uv(S, at, wx, wy) {
     };
     begin(S, "move uv", Some(format!("poly:uv:{}:{}", S.sel, at)));
     let uvs = ensure_uvs(S, mesh);
-    let (lx, ly) = to_local(f, wx, wy);
+    let (lx, ly) = util::to_local(f, wx, wy);
     uvs[at] = default_uv(S, lx, ly);
     apply(S);
 }
@@ -869,7 +851,7 @@ fn world_points(S, mesh, f, in_uv) {
             lx = ux;
             ly = uy;
         }
-        let (wx, wy) = to_world(f, lx, ly);
+        let (wx, wy) = util::to_world(f, lx, ly);
         out.push([wx, wy]);
     }
     out

@@ -6,7 +6,7 @@
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components};
-use balaur_physics::{PhysicsPlugin, PhysicsState, PhysicsState2d};
+use balaur_physics::{PhysicsPlugin, PhysicsState2d, PhysicsState3d};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -165,7 +165,7 @@ fn re_applying_a_body_keeps_its_velocity() {
         app.tick(1.0 / 60.0);
     }
     let before = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         state.world.bodies[state.bodies[&e]].linvel().y
     };
@@ -173,7 +173,7 @@ fn re_applying_a_body_keeps_its_velocity() {
     let params: toml::Value = toml::from_str("kind = \"dynamic\"\nlinear_damping = 0.1").unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
     let after = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         state.world.bodies[state.bodies[&e]].linvel().y
     };
@@ -188,13 +188,13 @@ fn changing_kind_keeps_the_body() {
     let app = app();
     let e = body_with(&app, "Switch", "kind = \"dynamic\"");
     let handle = {
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         state.bodies[&e]
     };
     let params: toml::Value = toml::from_str("kind = \"kinematic_velocity\"").unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     assert_eq!(
         state.bodies[&e], handle,
@@ -209,7 +209,7 @@ fn mass_is_additional() {
     let app = app();
     let light = body_with(&app, "Light", "kind = \"dynamic\"");
     let heavy = body_with(&app, "Heavy", "kind = \"dynamic\"\nmass = 100.0");
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let mass_of = |e: Entity| state.world.bodies[state.bodies[&e]].mass();
     assert!(
@@ -246,7 +246,7 @@ fn can_sleep_false_keeps_a_body_awake() {
     for _ in 0..400 {
         app.tick(1.0 / 60.0);
     }
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     assert!(
         state.world.bodies[state.bodies[&sleeper]].is_sleeping(),

@@ -107,7 +107,7 @@ pub fn measure_system(eng: &Engine, _dt: f32) {
                 copies,
                 ..NodeCost::default()
             };
-            if let Ok(renderable) = world.get::<&crate::Renderable>(entity) {
+            if let Ok(renderable) = world.get::<&crate::Renderable3d>(entity) {
                 cost.draws += 1;
                 cost.triangles += triangles_3d(eng, &renderable, &mut cache) * copies;
                 if !renderable.texture.is_empty() {
@@ -150,7 +150,7 @@ fn count_image(eng: &Engine, seen: &mut BTreeMap<String, u64>, cost: &mut NodeCo
 ///
 /// `MeshData::indices` is already one entry per triangle, so the count is its
 /// length: dividing it by three, as this did, reported a third of the frame.
-fn triangles_3d(eng: &Engine, renderable: &crate::Renderable, cache: &mut Measured) -> u32 {
+fn triangles_3d(eng: &Engine, renderable: &crate::Renderable3d, cache: &mut Measured) -> u32 {
     if let Some(built) = &renderable.built {
         return u32::try_from(built.triangle_count()).unwrap_or(u32::MAX);
     }

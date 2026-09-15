@@ -64,8 +64,7 @@ fn switch_now(eng: &Engine, scene: &str) -> Result<()> {
     // Freeing is deferred to the end of the frame; the new tree is built
     // beside the old one and the old one goes, which is what keeps a node
     // being ticked from being freed under itself.
-    let source = crate::project::scene_text(eng, scene)?;
-    crate::project::instantiate_scene(eng, &source, root, true)?;
+    crate::project::instantiate_scene_file(eng, scene, root, true)?;
     tracing::info!("switched to {scene}");
     Ok(())
 }

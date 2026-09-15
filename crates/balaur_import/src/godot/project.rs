@@ -412,7 +412,7 @@ fn quote(text: &str) -> String {
 ///
 /// A `.tscn` states its own in `[gd_scene uid=…]`, a `.tres` in
 /// `[gd_resource uid=…]`, and a script's sits in the `.uid` file beside it.
-pub(crate) fn uid_index(root: &std::path::Path) -> Result<BTreeMap<String, String>> {
+pub(crate) fn uid_index(root: &std::path::Path) -> BTreeMap<String, String> {
     let mut index = BTreeMap::new();
     let mut dirs = vec![root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
@@ -440,7 +440,7 @@ pub(crate) fn uid_index(root: &std::path::Path) -> Result<BTreeMap<String, Strin
             index.insert(uid, owner.to_string());
         }
     }
-    Ok(index)
+    index
 }
 
 /// The `uid://…` one file declares, from its `.uid` body or its own header.

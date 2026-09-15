@@ -23,14 +23,14 @@ use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::PhysicsState;
+use crate::PhysicsState3d;
 use crate::rapier3d::pipeline::PhysicsWorld;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 /// Which handle a node's joint has, because rapier keeps the two solvers in
 /// two sets and a joint is one or the other for its whole life.
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum JointHandle {
+pub enum JointHandle3d {
     Impulse(ImpulseJointHandle),
     Multibody(MultibodyJointHandle),
 }
@@ -41,8 +41,8 @@ pub enum JointHandle {
 /// each step: the step checks every breakable joint every tick, and a
 /// component read is a registry lookup and a `toml::Value` per joint.
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub struct JointRef {
-    pub handle: JointHandle,
+pub struct JointRef3d {
+    pub handle: JointHandle3d,
     pub break_force: Real,
 }
 
@@ -191,10 +191,10 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
 }
 
 crate::shared::joint::functions!(
-    state = PhysicsState,
+    state = PhysicsState3d,
     world = PhysicsWorld,
-    reference = JointRef,
-    handle = JointHandle,
+    reference = JointRef3d,
+    handle = JointHandle3d,
     component = c::JOINT_3D,
     body = c::BODY_3D,
     impulse_magnitude = impulse_magnitude
@@ -203,7 +203,7 @@ crate::shared::joint::functions!(
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
     {
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         state
             .borrow_mut()
             .joint_params
@@ -219,23 +219,23 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
     };
     let joint = joint_of(params)?;
     let reduced = v::text(params, k::SOLVER, w::IMPULSE) == w::REDUCED;
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     let (first, second) = handles(&state, a, b)?;
     let handle = if reduced {
         state
             .world
             .insert_multibody_joint(first, second, joint)
-            .map(JointHandle::Multibody)
+            .map(JointHandle3d::Multibody)
             .ok_or_else(|| {
                 anyhow!("a reduced-coordinates joint cannot close a loop; use solver = \"impulse\"")
             })?
     } else {
-        JointHandle::Impulse(state.world.insert_impulse_joint(first, second, joint))
+        JointHandle3d::Impulse(state.world.insert_impulse_joint(first, second, joint))
     };
     state.joints.insert(
         entity,
-        JointRef {
+        JointRef3d {
             handle,
             break_force: scalar::real(v::f(params, k::BREAK_FORCE, 0.0)),
         },
@@ -245,7 +245,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
 
 /// What `apply` wrote, read back off the joint.
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     // Authored values first, so a joint waiting for its other end still
     // reports what it is waiting to be.
@@ -257,8 +257,8 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
         return Some(toml::Value::Table(authored));
     };
     let data = match &reference.handle {
-        JointHandle::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
-        JointHandle::Multibody(handle) => {
+        JointHandle3d::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
+        JointHandle3d::Multibody(handle) => {
             let (multibody, link) = state.world.multibody_joints.get(*handle)?;
             multibody.link(link)?.joint.data
         }
@@ -273,8 +273,8 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
         k::SOLVER.into(),
         toml::Value::String(
             match reference.handle {
-                JointHandle::Impulse(_) => w::IMPULSE,
-                JointHandle::Multibody(_) => w::REDUCED,
+                JointHandle3d::Impulse(_) => w::IMPULSE,
+                JointHandle3d::Multibody(_) => w::REDUCED,
             }
             .into(),
         ),
@@ -352,9 +352,10 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("joint_impulse", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
-        let state = eng.resource::<PhysicsState>();
+        let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
-        let Some(JointHandle::Impulse(handle)) = state.joints.get(&entity).map(|j| j.handle) else {
+        let Some(JointHandle3d::Impulse(handle)) = state.joints.get(&entity).map(|j| j.handle)
+        else {
             return Ok(0.0);
         };
         Ok(state
@@ -377,10 +378,10 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
 /// Impulse joints have no such thing — there are no generalised coordinates to
 /// solve for — so this is `solver = "reduced"` only, and says so.
 fn solve_ik(eng: &Engine, entity: Entity, target: Vector) -> Result<()> {
-    let state = eng.resource::<PhysicsState>();
+    let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
-    let Some(JointHandle::Multibody(handle)) = state.joints.get(&entity).map(|j| j.handle) else {
+    let Some(JointHandle3d::Multibody(handle)) = state.joints.get(&entity).map(|j| j.handle) else {
         return Err(anyhow!(
             "inverse kinematics needs a chain of reduced-coordinates joints (solver = \"reduced\")"
         ));

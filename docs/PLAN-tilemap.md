@@ -9,7 +9,7 @@
 > draw four sub-quads per cell from the five tiles an RPG-Maker-A2 sheet
 > ships. What is left is the open questions in §8. The
 > tileset editor is a panel in the Tiles dock rather than a document tab, and
-> D24 is fixed: the mirror inlines an asset file's definition, so a tileset
+> an asset file's definition is inlined into the mirror, so a tileset
 > kept in a file draws in the editor.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
@@ -297,13 +297,11 @@ through a `tiles::` script module — pure functions over a tileset definition
 and rows of values — so the editor and the game cannot disagree about a
 level.
 
-**D24 blocks this.** A tileset that is a *file* does not draw in the editor's
-mirror, because the mirror engine's root is the editor's and the texture path
-inside the asset resolves under `editor/` (`docs/EDITOR-SCREENS.md` D24). The
-Tiles tool papers over it by reading the asset itself; a tileset document
-cannot. Either the mirror gets the game as a second root or an asset file is
-mirrored inline with its references resolved — which fixes meshes and
-materials too.
+**A tileset that is a file draws.** The mirror inlines a typed `.toml` asset,
+and what a document read from the game's root names is resolved against that
+root rather than the editor's (`balaur_core::document_paths`). The Tiles tool
+used to paper over this by reading the asset itself; a tileset document tab no
+longer has to.
 
 ## 5. Import
 
@@ -362,7 +360,7 @@ Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 4. Custom data, animated tiles, occluding tiles.
 5. The Tiles dock's remaining brushes and the terrain brush, each asserted by
    `tilesdemo`.
-6. The tileset document tab, behind D24.
+6. The tileset document tab.
 7. Quarter-tile sheets. *Built 2026-09-07.*
 8. Isometric and hexagonal layouts, and the hex rule widget.
 9. Tiled and LDtk import. *Built 2026-09-11.*

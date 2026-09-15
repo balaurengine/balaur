@@ -251,7 +251,7 @@ fn is_resource(class: &str) -> bool {
         "Shape2D",
         "Shape3D",
         "Mesh",
-        "Material",
+        "Material3d",
         "Stream",
         "Font",
         "FontFile",

@@ -9,9 +9,9 @@ use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::{
-    AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
-    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, GridConfig,
-    ScreenshotRequest, ViewportSnapshot, ViewportSnapshot2d, WindowConfig,
+    AppIconConfig, CameraConfig2d, CameraConfig3d, CameraInputConfig, ClearColorConfig,
+    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d, DrawLineArgs, GridConfig,
+    ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
 };
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
@@ -57,12 +57,12 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
     ]);
-    // Writes `CameraConfig`; not an accessor pair with `render.camera_pose`,
+    // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
     m.function(
         "set_camera",
         |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig>();
+            let config = eng.resource::<CameraConfig3d>();
             let mut config = config.borrow_mut();
             config.eye = glamx::Vec3::new(ex, ey, ez);
             config.target = glamx::Vec3::new(tx, ty, tz);
@@ -81,13 +81,13 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
     m.function("camera_matrix", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportSnapshot>();
+        let cam = eng.resource::<ViewportSnapshot3d>();
         let view_proj = cam.borrow().view_proj;
         Ok(view_proj.to_vec())
     });
     // Picking ray through the mouse: origin xyz, direction xyz.
     m.function("mouse_ray", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportSnapshot>();
+        let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
         Ok((
             cam.ray_origin[0],
@@ -113,7 +113,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     // Eye xyz, target xyz, fov (rad), HiDPI scale; all zeros with no windowed
     // backend. Reads the published snapshot, not what `set_camera` wrote.
     m.function("camera_pose", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportSnapshot>();
+        let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
         Ok((
             cam.eye[0],
@@ -296,7 +296,7 @@ fn line_rgb(color: Option<&Value>) -> anyhow::Result<[f32; 3]> {
 /// Segments into the frame's debug lines, one pixel wide and not on top, so
 /// an immediate shape sits in the scene as a mesh would.
 fn push_segments(eng: &Engine, segments: &[([f32; 3], [f32; 3])], rgb: [f32; 3]) {
-    let lines = eng.resource::<DebugLineBuffer>();
+    let lines = eng.resource::<DebugLineBuffer3d>();
     let mut lines = lines.borrow_mut();
     for (from, to) in segments {
         lines.lines.push((*from, *to, rgb, 1.0, false, false));
@@ -418,7 +418,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         "draw_line",
         |eng: &Engine,
          (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
-            let lines = eng.resource::<DebugLineBuffer>();
+            let lines = eng.resource::<DebugLineBuffer3d>();
             lines.borrow_mut().lines.push((
                 [x1, y1, z1],
                 [x2, y2, z2],
@@ -524,7 +524,7 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
     // the only key the shaper does not read, so it is taken out separately.
 }
 
-/// Shape and colour on a node, 3D and 2D.
+/// Shape3d and colour on a node, 3D and 2D.
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
 pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
@@ -612,6 +612,11 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
                 .with_context(|| format!("decoding the image {path}"))?
                 .to_rgba8();
             let (w, h) = (image.width() as usize, image.height() as usize);
+            // The file may be a smaller copy of what was drawn; the outline is
+            // in the pixels the artist counted, like a sprite over it.
+            let (dw, dh) = crate::texture::size_of(eng, &path)
+                .map_or((w as f32, h as f32), |(a, b)| (a as f32, b as f32));
+            let (sx, sy) = (dw / w.max(1) as f32, dh / h.max(1) as f32);
             let cut = opts.threshold * 255.0;
             let mask: Vec<bool> = image.pixels().map(|p| f32::from(p.0[3]) >= cut).collect();
             let ppu = opts.pixels_per_unit;
@@ -621,7 +626,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             // polygon's points are y-up and centred, the same frame
             // `default_uv` maps a texture in.
             let local = |p: glamx::Vec2| {
-                Value::Vec2([(p.x - w as f32 / 2.0) / ppu, (h as f32 / 2.0 - p.y) / ppu])
+                Value::Vec2([(p.x * sx - dw / 2.0) / ppu, (dh / 2.0 - p.y * sy) / ppu])
             };
             Ok(Value::List(
                 loops
@@ -663,7 +668,7 @@ fn push_lines(eng: &Engine, flat: Value) -> anyhow::Result<()> {
             _ => 0.0,
         }
     };
-    let lines = eng.resource::<DebugLineBuffer>();
+    let lines = eng.resource::<DebugLineBuffer3d>();
     let mut buffer = lines.borrow_mut();
     for segment in items.as_chunks::<STRIDE>().0 {
         let n: Vec<f32> = segment.iter().map(number).collect();

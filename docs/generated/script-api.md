@@ -23,7 +23,7 @@ cannot drift from what scripts actually see.
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
-| [`import`](#import) | 2 | 0 | the engine |
+| [`import`](#import) | 8 | 0 | the engine |
 | [`input`](#input) | 46 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
@@ -33,9 +33,9 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 48 | 49 | the engine |
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`project`](#project) | 10 | 0 | the engine |
+| [`project`](#project) | 11 | 0 | the engine |
 | [`release`](#release) | 4 | 0 | the engine |
-| [`render`](#render) | 58 | 33 | the engine |
+| [`render`](#render) | 58 | 31 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
@@ -47,7 +47,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 61 | 65 | the engine |
+| [`ui`](#ui) | 64 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -122,7 +122,7 @@ cannot drift from what scripts actually see.
 
 ## `import`
 
-**Functions:** `file`, `handles`
+**Functions:** `cancel`, `choose`, `file`, `handles`, `into`, `listen`, `running`, `start`
 
 ## `input`
 
@@ -263,7 +263,7 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `open`, `pick_folder`, `recent`, `templates`, `version`
+**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `version`
 
 ## `release`
 
@@ -273,15 +273,13 @@ cannot drift from what scripts actually see.
 
 **Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `set_window_mode`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
-**Constants** (33):
+**Constants** (31):
 
 | Name | Value |
 | --- | --- |
 | `ALPHA_BLEND` | `blend` |
 | `ALPHA_MASK` | `mask` |
 | `ALPHA_OPAQUE` | `opaque` |
-| `CAMERA_2D` | `2d` |
-| `CAMERA_3D` | `3d` |
 | `FOG_EXPONENTIAL` | `exponential` |
 | `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
 | `FOG_LINEAR` | `linear` |
@@ -301,8 +299,10 @@ cannot drift from what scripts actually see.
 | `SHAPE_POLYLINE` | `polyline` |
 | `SHAPE_PRISM` | `prism` |
 | `SHAPE_PYRAMID` | `pyramid` |
+| `SHAPE_RECT` | `rect` |
+| `SHAPE_STAR` | `star` |
 
-…and 9 more.
+…and 7 more.
 
 ## `replay`
 
@@ -359,7 +359,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bar`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `loaded`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_loading`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
 
 **Constants** (65):
 

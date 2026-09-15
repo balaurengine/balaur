@@ -237,6 +237,17 @@ width = 170
 height = 24
 
 [[nodes]]
+id = "tree_rename"
+name = "TreeRename"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+text = "Rename"
+on_click = "tree_rename"
+width = 170
+height = 24
+
+[[nodes]]
 id = "tree_script"
 name = "TreeScript"
 parent = "tree_menu"

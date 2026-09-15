@@ -5,7 +5,7 @@
 //! that file stays about the order of a frame.
 
 use balaur_core::App;
-use balaur_core::debug_lines::{DebugLineBuffer, DebugLineBuffer2d};
+use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 use glamx::{Vec2, Vec3};
 use kiss3d::color::Color;
 use kiss3d::window::Window;
@@ -25,7 +25,7 @@ pub(crate) fn flush_debug_lines_2d(app: &App, window: &mut Window) {
 }
 
 pub(crate) fn flush_debug_lines(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLineBuffer>() else {
+    let Some(lines) = app.engine.try_resource::<DebugLineBuffer3d>() else {
         return;
     };
     for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {

@@ -52,6 +52,7 @@ const STATE_KEYS: &[&str] = &[
 const KNOWN_KEYS: &[&str] = &[
     k::ALIGN,
     k::AUTOFOCUS,
+    k::AXIS,
     k::BG,
     k::BREAKPOINT_COLOR,
     k::BREAKPOINTS,
@@ -552,6 +553,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::immediate::bindings::install_scale(m);
     crate::immediate::bindings::install_classes(m);
     crate::pacing::install(m);
+    crate::loading::install(m);
     crate::immediate::bindings::install_code_editor(m);
     crate::immediate::bindings::install_dropdown_select(m);
     crate::immediate::bindings::install_images(m);

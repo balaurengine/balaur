@@ -4,8 +4,9 @@
 use balaur_core::scene;
 use balaur_core::{App, AppConfig, components};
 use balaur_render::{
-    CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig, DebugLineBuffer,
-    DebugLineBuffer2d, GridConfig, RenderPlugin, Renderable, Renderable2d, Shape, ViewportSnapshot,
+    CameraConfig2d, CameraConfig3d, CameraInputConfig, ClearColorConfig, DebugLineBuffer2d,
+    DebugLineBuffer3d, GridConfig, RenderPlugin, Renderable2d, Renderable3d, Shape3d,
+    ViewportSnapshot3d,
 };
 
 fn app() -> App {
@@ -27,7 +28,8 @@ fn the_plugin_registers_its_components() {
         "shape3d",
         "shape2d",
         "shape2d",
-        "camera",
+        "camera3d",
+        "camera2d",
         "tilemap",
         "particles",
     ] {
@@ -43,12 +45,12 @@ fn the_plugin_inserts_the_resources_a_frame_reads() {
     let app = app();
     assert!(app.engine.try_resource::<ClearColorConfig>().is_some());
     assert!(app.engine.try_resource::<GridConfig>().is_some());
-    assert!(app.engine.try_resource::<CameraConfig>().is_some());
+    assert!(app.engine.try_resource::<CameraConfig3d>().is_some());
     assert!(app.engine.try_resource::<CameraConfig2d>().is_some());
     assert!(app.engine.try_resource::<CameraInputConfig>().is_some());
-    assert!(app.engine.try_resource::<DebugLineBuffer>().is_some());
+    assert!(app.engine.try_resource::<DebugLineBuffer3d>().is_some());
     assert!(app.engine.try_resource::<DebugLineBuffer2d>().is_some());
-    assert!(app.engine.try_resource::<ViewportSnapshot>().is_some());
+    assert!(app.engine.try_resource::<ViewportSnapshot3d>().is_some());
 }
 
 #[test]
@@ -60,10 +62,10 @@ fn a_shape_component_puts_a_renderable_on_the_node() {
 
     let world = app.engine.world();
     let r = world
-        .get::<&Renderable>(e)
-        .expect("no Renderable was added");
+        .get::<&Renderable3d>(e)
+        .expect("no Renderable3d was added");
     assert!(
-        matches!(r.shape, Shape::Solid(balaur_render::Solid::Ball { .. })),
+        matches!(r.shape, Shape3d::Solid(balaur_render::Solid::Ball { .. })),
         "a ball shape produced something else"
     );
 }
@@ -117,13 +119,13 @@ fn removing_a_shape_takes_the_renderable_with_it() {
     let params: toml::Value = toml::from_str("kind = \"ball\"").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     components::remove(&app.engine, e, "shape3d").unwrap();
-    assert!(app.engine.world().get::<&Renderable>(e).is_err());
+    assert!(app.engine.world().get::<&Renderable3d>(e).is_err());
 }
 
 #[test]
 fn debug_lines_accumulate_and_can_be_cleared() {
     let app = app();
-    let lines = app.engine.resource::<DebugLineBuffer>();
+    let lines = app.engine.resource::<DebugLineBuffer3d>();
     assert!(lines.borrow().lines.is_empty(), "the buffer starts empty");
     lines.borrow_mut().lines.push(Default::default());
     assert_eq!(lines.borrow().lines.len(), 1);
@@ -142,7 +144,7 @@ fn a_headless_frame_empties_the_debug_line_buffers() {
     let mut app = app();
     for _ in 0..3 {
         app.engine
-            .resource::<DebugLineBuffer>()
+            .resource::<DebugLineBuffer3d>()
             .borrow_mut()
             .lines
             .push(Default::default());
@@ -155,7 +157,7 @@ fn a_headless_frame_empties_the_debug_line_buffers() {
     }
     assert!(
         app.engine
-            .resource::<DebugLineBuffer>()
+            .resource::<DebugLineBuffer3d>()
             .borrow()
             .lines
             .is_empty(),
@@ -178,14 +180,14 @@ fn a_windowed_backend_keeps_the_fallback_off_its_buffers() {
     let mut app = app();
     app.engine.insert_resource(balaur_render::WindowedBackend);
     app.engine
-        .resource::<DebugLineBuffer>()
+        .resource::<DebugLineBuffer3d>()
         .borrow_mut()
         .lines
         .push(Default::default());
     app.tick(1.0 / 60.0);
     assert_eq!(
         app.engine
-            .resource::<DebugLineBuffer>()
+            .resource::<DebugLineBuffer3d>()
             .borrow()
             .lines
             .len(),

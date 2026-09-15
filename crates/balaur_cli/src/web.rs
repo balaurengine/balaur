@@ -60,6 +60,37 @@ const PROJECT_ROOT: &str = "/project";
 /// scenes come from the pack.
 const EDITOR_ROOT: &str = "/editor";
 
+/// Open the editor on no project at all: the start screen, where a reader
+/// says which of the projects this browser keeps to open.
+///
+/// Resolves when the screen picks one, which it does by quitting: the page
+/// then reads [`crate::project_web::next_project`] and boots the editor
+/// again through [`open_project`].
+#[wasm_bindgen]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub async fn start_manager(canvas_id: String, editor_pack_url: String) -> Result<(), JsValue> {
+    let editor = fetch_bytes(&editor_pack_url).await?;
+    let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
+    // The screen writes nothing that outlives the tab, so the editor's own
+    // root is memory rather than a store: what it edits comes later.
+    let fs = balaur::files::MemoryFs::new();
+    fs.seed(Path::new(EDITOR_ROOT), editor_pack.entries());
+    balaur::files::set_default(std::rc::Rc::new(fs));
+    crate::project_web::set_kept(&crate::web_store::list().await?);
+    balaur::boot_editor_on_canvas(
+        &editor,
+        EDITOR_ROOT,
+        "",
+        &canvas_id,
+        &mut editor_plugins(&editor_pack_url),
+    )
+    .await
+    .map_err(err)
+}
+
 /// Open the editor on `project_pack_url`, drawing on the canvas with id
 /// `canvas_id`.
 ///
@@ -115,6 +146,9 @@ pub async fn open_project(
     }
     fs.seed_at(Path::new(EDITOR_ROOT), editor_pack.entries());
     balaur::files::set_default(fs);
+    // What the start screen lists, read here because the store is
+    // asynchronous and the verb the screen calls is not.
+    crate::project_web::set_kept(&crate::web_store::list().await?);
     balaur::boot_editor_on_canvas(
         &editor,
         EDITOR_ROOT,
@@ -129,8 +163,10 @@ pub async fn open_project(
 /// The editor's own verbs. `export` is told where the module a web bundle
 /// ships is served from: beside the editor's own pack, which is how a page
 /// serves the set. `import` is here so a drop answers the same way it does on
-/// a desktop, with the error a tab has to give.
-fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 2] {
+/// a desktop, with the error a tab has to give. `project` is the start
+/// screen's: the editor's scripts name it on every platform, and the page
+/// rather than the screen is what opens a project in a tab.
+fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 3] {
     [
         Box::new(crate::web_export::WebExportPlugin::new(
             std::path::PathBuf::from(PROJECT_ROOT),
@@ -139,6 +175,7 @@ fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 2] 
         Box::new(crate::import_api::ImportPlugin::new(
             std::path::PathBuf::from(PROJECT_ROOT),
         )),
+        Box::new(crate::project_api::ProjectPlugin::new()),
     ]
 }
 

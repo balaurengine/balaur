@@ -46,12 +46,7 @@ pub(crate) fn table(
     // The order the rows are drawn in, which is the order given unless a
     // column was named to sort by, or the whole of it was turned round.
     let walk = ordered(&widget, &items, &heads, first);
-    let text_h = ui.fonts_mut(|f| f.row_height(font));
-    let row_h = if widget.row_height > 0.0 {
-        widget.row_height.max(text_h)
-    } else {
-        text_h
-    };
+    let row_h = row_pitch(ui, &widget, font);
     let id = egui::Id::new(("balaur-table", entity));
     let style = at.style_of(&widget);
     let look = Look {
@@ -71,20 +66,7 @@ pub(crate) fn table(
     ui.spacing_mut().item_spacing.y = 0.0;
     let mut sorted = None;
     if widget.header {
-        let head = Head {
-            heads: &heads,
-            look: &look,
-            room: want.x,
-            grab: if widget.handle > 0.0 {
-                widget.handle
-            } else {
-                SEAM
-            },
-            sort: widget.sort.as_str(),
-            reverse: widget.reverse,
-            sortable: widget.sortable,
-        };
-        let asked = head_row(ui, &head, &mut widths);
+        let asked = head_row(ui, &head_of(&widget, &heads, &look, want.x), &mut widths);
         if asked.moved {
             at.edits.push((entity, Edit::Widths(widths.clone())));
         }
@@ -149,6 +131,35 @@ pub(crate) fn table(
         }
         at.edits
             .push((entity, Edit::Picked(items[hit].clone(), next)));
+    }
+}
+
+/// The pitch of a row: what the table asked for, never less than the line of
+/// text it has to hold.
+fn row_pitch(ui: &mut egui::Ui, widget: &Widget, font: &egui::FontId) -> f32 {
+    let text_h = ui.fonts_mut(|f| f.row_height(font));
+    if widget.row_height > 0.0 {
+        widget.row_height.max(text_h)
+    } else {
+        text_h
+    }
+}
+
+/// The header strip as `head_row` wants it: the names, the face they are
+/// drawn with, and how wide a seam answers to the pointer.
+fn head_of<'a>(widget: &'a Widget, heads: &'a [String], look: &'a Look<'a>, room: f32) -> Head<'a> {
+    Head {
+        heads,
+        look,
+        room,
+        grab: if widget.handle > 0.0 {
+            widget.handle
+        } else {
+            SEAM
+        },
+        sort: widget.sort.as_str(),
+        reverse: widget.reverse,
+        sortable: widget.sortable,
     }
 }
 

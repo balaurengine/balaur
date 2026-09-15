@@ -5,7 +5,7 @@ use anyhow::Result;
 use balaur_script::{Bindings, BindingsExt};
 
 use crate::material::{
-    FieldType, Material, Param, TEXTURE_SLOTS, compile_with, parse, shader_text,
+    FieldType, Material3d, Param, TEXTURE_SLOTS, compile_with, parse, shader_text,
 };
 
 /// `render::check_material(path)` — what is wrong with a material asset, as
@@ -91,7 +91,7 @@ fn row_value(ty: FieldType, param: Option<Param>) -> balaur_script::Value {
 /// `id://`, or the `#id` of a scene's own `[[assets]]` block. Read through
 /// `assets::definition` rather than as a file, so an inline material reaches
 /// the same panel a file one does.
-fn material_at(eng: &balaur_core::Engine, reference: &str) -> Result<Material> {
+fn material_at(eng: &balaur_core::Engine, reference: &str) -> Result<Material3d> {
     parse(&balaur_core::assets::definition(eng, reference)?)
 }
 

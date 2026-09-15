@@ -144,7 +144,11 @@ web)
   # the module, not a runtime switch, and a browser refuses a shared one off a
   # page that is not cross-origin isolated. So it is a second template.
   threads=${WEB_THREADS:-}
-  name=balaur-template-web${threads:+-threads}
+  # A variant ships beside the plain module rather than replacing it, so it
+  # carries its own name: `-threads` for the shared-memory build, `-editor`
+  # for the module the web editor runs.
+  variant=${WEB_VARIANT:-${threads:+threads}}
+  name=balaur-template-web${variant:+-$variant}
   step "build ($target, windowed${threads:+, threads})"
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says

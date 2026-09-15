@@ -60,7 +60,7 @@ pub struct PhysicsState2d {
     /// in 3D, so `is_grounded` reads rather than moves.
     pub grounded: DetHashMap<Entity, bool>,
     pub paused: bool,
-    /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
+    /// Mirrors `PhysicsState3d::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
     pub sleeping_allowed: bool,
     /// Bumped by every shape edit a script makes, as in 3D, so a dug voxel

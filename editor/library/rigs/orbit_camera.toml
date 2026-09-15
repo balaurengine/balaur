@@ -20,6 +20,5 @@ script = { source = "scripts/orbit_camera.rn" }
 [nodes.transform]
 position = [0, 2, 8]
 
-[nodes.camera]
-kind = "3d"
+[nodes.camera3d]
 current = true

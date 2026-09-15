@@ -242,8 +242,7 @@ fn fill_action_runners(app: &balaur_core::App) {
         eng,
         Action::Spawn,
         Rc::new(|eng: &Engine, entity, value: &Value| {
-            let source = balaur_core::project::scene_text(eng, &text_of(value))?;
-            balaur_core::project::instantiate_scene(eng, &source, entity, true)
+            balaur_core::project::instantiate_scene_file(eng, &text_of(value), entity, true)
         }),
     );
     set_runner(

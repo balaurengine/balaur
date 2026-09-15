@@ -79,6 +79,10 @@ fn a_job_handed_a_thread_runs_to_completion() {
     task::step(Ticker { left: 5, ran: &RAN });
     // Waited on the job's own count rather than on `running()`, which is
     // every job in the process and so is not this test's to assert.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a timeout on a thread this test waits for, outside any simulation"
+    )]
     let start = std::time::Instant::now();
     while RAN.load(Ordering::Relaxed) < 5 && start.elapsed().as_secs() < 5 {
         std::thread::yield_now();

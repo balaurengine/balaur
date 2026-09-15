@@ -1,4 +1,4 @@
-//! What a ray hits, tested against `Renderable` and `GlobalTransform`.
+//! What a ray hits, tested against `Renderable3d` and `GlobalTransform`.
 //!
 //! The renderer is not asked. Picking reads the same components a backend
 //! draws from, so it answers identically in a windowed run and a headless
@@ -13,14 +13,14 @@ use balaur_core::mesh::MeshData;
 use balaur_core::scene::GlobalTransform;
 use glamx::Vec3;
 
-use crate::{Renderable, Shape, Solid};
+use crate::{Renderable3d, Shape3d, Solid};
 
 /// The box a renderable fills in its own space, as centre and half-extents.
 ///
 /// Every shape carries its size, and a mesh carries the box measured from its
 /// vertices when the asset resolved. `None` is a mesh whose asset would not
 /// load, which is also a mesh that draws nothing.
-fn local_box(renderable: &Renderable) -> Option<(Vec3, Vec3)> {
+fn local_box(renderable: &Renderable3d) -> Option<(Vec3, Vec3)> {
     let Some(solid) = renderable.shape.solid() else {
         // A mesh and a built shape are the two not centred on their own
         // origin: both carry the box measured from their vertices.
@@ -172,7 +172,7 @@ fn loaded(eng: &Engine, reference: &str) -> Option<std::rc::Rc<MeshData>> {
     balaur_core::mesh::resolved(eng, reference).ok()
 }
 
-/// The nearest `Renderable` the ray meets, and how far along it that is.
+/// The nearest `Renderable3d` the ray meets, and how far along it that is.
 ///
 /// `dir` need not be a unit vector; the distance is in multiples of it, so
 /// only the ordering matters to a caller choosing what was clicked.
@@ -182,11 +182,11 @@ fn loaded(eng: &Engine, reference: &str) -> Option<std::rc::Rc<MeshData>> {
 fn candidates(world: &hecs::World, origin: Vec3, dir: Vec3) -> Vec<Candidate> {
     let mut out: Vec<Candidate> = Vec::new();
     for (entity, renderable, at) in
-        &mut world.query::<(hecs::Entity, &Renderable, &GlobalTransform)>()
+        &mut world.query::<(hecs::Entity, &Renderable3d, &GlobalTransform)>()
     {
-        let ball = matches!(renderable.shape, Shape::Solid(Solid::Ball { .. }));
+        let ball = matches!(renderable.shape, Shape3d::Solid(Solid::Ball { .. }));
         let hit = match renderable.shape {
-            Shape::Solid(Solid::Ball { radius, .. }) => hit_sphere(at, radius, origin, dir),
+            Shape3d::Solid(Solid::Ball { radius, .. }) => hit_sphere(at, radius, origin, dir),
             _ => local_box(renderable)
                 .and_then(|(centre, half)| hit_box(at, centre, half, origin, dir)),
         };
@@ -248,7 +248,7 @@ pub(crate) fn along_ray(eng: &Engine, origin: Vec3, dir: Vec3) -> Option<(hecs::
 /// pointer and no hook fires, which is what a test with no window wants.
 pub fn under_pointer(eng: &Engine) -> Option<hecs::Entity> {
     let (origin, dir) = {
-        let vp = eng.resource::<crate::ViewportSnapshot>();
+        let vp = eng.resource::<crate::ViewportSnapshot3d>();
         let vp = vp.borrow();
         (
             Vec3::from_array(vp.ray_origin),
@@ -340,12 +340,12 @@ mod tests {
 
     /// A cuboid, spelled once: the tests care about the box a shape covers,
     /// not about how finely it is cut.
-    fn cuboid(hx: f32, hy: f32, hz: f32) -> Shape {
-        Shape::Solid(Solid::cuboid(hx, hy, hz))
+    fn cuboid(hx: f32, hy: f32, hz: f32) -> Shape3d {
+        Shape3d::Solid(Solid::cuboid(hx, hy, hz))
     }
 
-    fn renderable(shape: Shape) -> Renderable {
-        Renderable {
+    fn renderable(shape: Shape3d) -> Renderable3d {
+        Renderable3d {
             shape,
             bounds: None,
             color: [1.0; 4],
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn a_plane_is_pickable_from_above() {
         let place = at(Vec3::ZERO);
-        let flat = Shape::Solid(Solid::Plane {
+        let flat = Shape3d::Solid(Solid::Plane {
             hx: 5.0,
             hz: 5.0,
             segments: 1,
@@ -489,9 +489,9 @@ mod tests {
 
     #[test]
     fn a_mesh_is_picked_over_the_box_its_vertices_filled() {
-        let mut r = renderable(Shape::Mesh);
+        let mut r = renderable(Shape3d::Mesh);
         // A metre cube sitting two to the right of the node's origin.
-        r.bounds = Some(crate::Bounds {
+        r.bounds = Some(crate::Bounds3d {
             centre: Vec3::new(2.0, 0.0, 0.0),
             half: Vec3::splat(0.5),
         });
@@ -506,7 +506,7 @@ mod tests {
     /// A mesh whose asset would not load draws nothing, and picks nothing.
     #[test]
     fn a_mesh_with_no_bounds_is_not_pickable() {
-        assert!(local_box(&renderable(Shape::Mesh)).is_none());
+        assert!(local_box(&renderable(Shape3d::Mesh)).is_none());
     }
 
     #[test]

@@ -6,7 +6,7 @@
 
 use balaur_core::tags::Tags;
 use balaur_core::{App, AppConfig};
-use balaur_physics::{PhysicsPlugin, PhysicsState};
+use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 fn write_project(root: &std::path::Path) {
     std::fs::create_dir_all(root.join("scenes")).unwrap();
@@ -30,7 +30,7 @@ fn length_unit_for(tags: Tags) -> f32 {
     app.load_project().unwrap();
     app.engine.insert_resource(tags);
     app.tick(balaur_core::FIXED_DT);
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     state.borrow().world.integration_parameters.length_unit
 }
 

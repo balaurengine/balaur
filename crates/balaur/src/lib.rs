@@ -491,7 +491,11 @@ pub async fn boot_editor_on_canvas(
     // registers rather than the engine: on the web they are what a tab can do
     // rather than what a machine with a linker can.
     balaur_plugin::load_all(&mut app, extra)?;
-    file_api::add_root(&app.engine, game_root);
+    // No game root is the start screen: there is no second root until the
+    // reader says which project, as on a desktop launched without one.
+    if !game_root.is_empty() {
+        file_api::add_root(&app.engine, game_root);
+    }
     app.load_project()?;
     balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await
 }

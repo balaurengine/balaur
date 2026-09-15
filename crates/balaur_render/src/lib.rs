@@ -1,8 +1,8 @@
 //! Rendering as a Balaur plugin.
 //!
-//! The plugin itself is backend-agnostic: it owns the `Renderable` component,
+//! The plugin itself is backend-agnostic: it owns the `Renderable3d` component,
 //! the `render` script module, and its scene-file component keys. Backends
-//! consume `Renderable` + `GlobalTransform`. The kiss3d/wgpu backend (feature
+//! consume `Renderable3d` + `GlobalTransform`. The kiss3d/wgpu backend (feature
 //! `kiss3d`) owns the OS event loop; headless runs just never draw, which
 //! keeps the simulation byte-for-byte identical with and without a window.
 
@@ -70,7 +70,7 @@ mod tilemap;
 #[cfg(feature = "kiss3d")]
 mod tilemap_mesh;
 pub mod world_text;
-pub use camera::{Camera, CameraKind, Finish, Occlusion, Post, PostPass};
+pub use camera::{Camera2d, Camera3d, Finish, Occlusion, Post, PostPass};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
@@ -80,7 +80,7 @@ pub use pick::under_pointer as pick_under_pointer;
 /// window, which is what keeps a headless run from reporting a resize.
 #[must_use]
 pub fn viewport_size(eng: &Engine) -> (u32, u32) {
-    let vp = eng.resource::<ViewportSnapshot>();
+    let vp = eng.resource::<ViewportSnapshot3d>();
     let vp = vp.borrow();
     (vp.width, vp.height)
 }
@@ -306,10 +306,10 @@ type DrawLineArgs = (
     Option<bool>,
 );
 
-/// The debug-line buffers, which live in `balaur_core` because physics and the
-/// editor fill them too and a producer must not depend on the renderer to draw
-/// a line. Re-exported: `balaur::render::DebugLineBuffer` is published API.
-pub use balaur_core::debug_lines::{DebugLine, DebugLine2d, DebugLineBuffer, DebugLineBuffer2d};
+/// The debug-line buffers, in `balaur_core` because physics and the editor fill
+/// them too and a producer must not depend on the renderer. Published API.
+pub use balaur_core::debug_lines::{DebugLine2d, DebugLine3d};
+pub use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 pub use draw_2d::{Draw2d, DrawBuffer2d};
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
@@ -331,7 +331,7 @@ impl Default for CameraConfig2d {
             center: [0.0, 0.0],
             zoom: 60.0,
             ambient: [0.0, 0.0, 0.0],
-            // Asserted at boot, as [`CameraConfig`] is: a scene writing the
+            // Asserted at boot, as [`CameraConfig3d`] is: a scene writing the
             // schema's own default of 60 raises no change and is never applied.
             changed: true,
         }
@@ -356,14 +356,14 @@ pub struct ViewportSnapshot2d {
 
 /// The actual camera pose this frame, published by windowed backends so
 /// tools (editor gizmos, pickers) can do screen-space math in scripts.
-/// Read-only: write [`CameraConfig`] instead.
+/// Read-only: write [`CameraConfig3d`] instead.
 ///
 /// With no windowed backend running it keeps its `Default` — an all-zero
 /// pose, a zero `fov`, a zero `scale_factor` and an all-zero `view_proj`,
 /// which is not invertible. Headless screen-space math gets zeros, not the
 /// camera the scene would have had.
 #[derive(Default)]
-pub struct ViewportSnapshot {
+pub struct ViewportSnapshot3d {
     pub eye: [f32; 3],
     pub target: [f32; 3],
     /// Vertical field of view, radians.
@@ -390,13 +390,13 @@ pub struct CameraInputConfig {
 /// `render.set_camera`; windowed backends apply it whenever it changes (and
 /// keep their own interactive controls, e.g. kiss3d's orbit drag, in
 /// between).
-pub struct CameraConfig {
+pub struct CameraConfig3d {
     pub eye: glamx::Vec3,
     pub target: glamx::Vec3,
     pub changed: bool,
 }
 
-impl Default for CameraConfig {
+impl Default for CameraConfig3d {
     fn default() -> Self {
         Self {
             eye: glamx::Vec3::new(8.0, 5.0, 12.0),
@@ -413,18 +413,18 @@ impl Default for CameraConfig {
 /// triangles a backend uploads are the ones a collider is fitted to and a
 /// ray is tested against, rather than a lookalike the renderer built.
 #[derive(Clone, Copy, PartialEq)]
-pub enum Shape {
+pub enum Shape3d {
     Solid(Solid),
-    /// Authored geometry. The vertices live in `Renderable::mesh`, the way a
+    /// Authored geometry. The vertices live in `Renderable3d::mesh`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
     Mesh,
     /// Geometry the engine worked out rather than an author wrote: a
-    /// boolean's result. It lives in `Renderable::built`, the way a filled
+    /// boolean's result. It lives in `Renderable3d::built`, the way a filled
     /// polygon's does in 2D.
     Built,
 }
 
-impl Shape {
+impl Shape3d {
     /// The primitive this draws, or `None` for authored geometry.
     #[must_use]
     pub const fn solid(self) -> Option<Solid> {
@@ -438,16 +438,16 @@ impl Shape {
 /// A local axis-aligned box. A mesh is not centred on its origin, so the
 /// centre is part of it.
 #[derive(Clone, Copy)]
-pub struct Bounds {
+pub struct Bounds3d {
     pub centre: glamx::Vec3,
     pub half: glamx::Vec3,
 }
 
-pub struct Renderable {
-    pub shape: Shape,
+pub struct Renderable3d {
+    pub shape: Shape3d,
     /// The mesh's own box, measured when the asset resolves. Every other
     /// shape carries its size in `shape`, so this is `None` for those.
-    pub bounds: Option<Bounds>,
+    pub bounds: Option<Bounds3d>,
     pub color: [f32; 4],
     /// The `mesh` asset this draws, present exactly when `shape` is a mesh.
     pub mesh: Option<String>,
@@ -672,7 +672,7 @@ pub(crate) fn set_polygon(
 ///
 /// Measured here rather than in the picker: the definition is already being
 /// resolved, and a click should not read a file.
-fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds> {
+fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds3d> {
     if source.is_empty() {
         return None;
     }
@@ -688,7 +688,7 @@ fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds> {
     if !low.is_finite() || !high.is_finite() {
         return None;
     }
-    Some(Bounds {
+    Some(Bounds3d {
         centre: (low + high) / 2.0,
         // A flat mesh has no thickness on one axis, and a slab test on zero
         // misses everything.
@@ -706,12 +706,12 @@ pub(crate) fn set_mesh(
 ) -> Result<()> {
     let bounds = mesh_bounds(eng, &source);
     let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
-        let rebuild = r.shape != Shape::Mesh
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+        let rebuild = r.shape != Shape3d::Mesh
             || r.mesh.as_deref() != Some(source.as_str())
             || r.skeleton != skeleton
             || r.texture != texture;
-        r.shape = Shape::Mesh;
+        r.shape = Shape3d::Mesh;
         r.bounds = bounds;
         r.mesh = Some(source);
         r.skeleton = skeleton;
@@ -724,8 +724,8 @@ pub(crate) fn set_mesh(
     world
         .insert_one(
             entity,
-            Renderable {
-                shape: Shape::Mesh,
+            Renderable3d {
+                shape: Shape3d::Mesh,
                 bounds,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: Some(source),
@@ -746,7 +746,7 @@ pub(crate) fn set_mesh(
 /// keeps the defaults: it casts, and every light finds it.
 pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: u32) {
     let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.shadows = shadows;
         r.layers = layers;
     }
@@ -766,9 +766,9 @@ pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::
     set_lighting(eng, entity, shadows, layers);
 }
 
-pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
+pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
     let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         // A shape carries its own tessellation now, so a rebuild re-runs the
         // mesher: only a shape that actually changed asks for one.
         if r.shape != shape {
@@ -780,7 +780,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
     world
         .insert_one(
             entity,
-            Renderable {
+            Renderable3d {
                 shape,
                 bounds: None,
                 color: [0.8, 0.8, 0.8, 1.0],
@@ -978,7 +978,7 @@ pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
 pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
     let world = eng.world_mut();
     let mut any = false;
-    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.color = color;
         any = true;
     }
@@ -1014,21 +1014,21 @@ impl balaur_plugin::Plugin for RenderPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        reg.insert_resource(CameraConfig::default());
+        reg.insert_resource(CameraConfig3d::default());
         reg.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],
             changed: true,
         });
         reg.insert_resource(WindowConfig::default());
         reg.insert_resource(GridConfig::default());
-        reg.insert_resource(DebugLineBuffer::default());
+        reg.insert_resource(DebugLineBuffer3d::default());
         reg.insert_resource(DebugLineBuffer2d::default());
         reg.insert_resource(DrawBuffer2d::default());
         reg.insert_resource(world_text::TextDrawBuffer::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
-        reg.insert_resource(ViewportSnapshot::default());
+        reg.insert_resource(ViewportSnapshot3d::default());
         reg.insert_resource(stats::Stats::default());
         reg.insert_resource(stats::Measured::default());
         reg.insert_resource(CameraInputConfig { enabled: true });
@@ -1063,7 +1063,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         register_render_presets(reg)?;
         sprite::register_sprite_component(reg);
         polygon::register_polygon_component(reg);
-        camera::register_camera_component(reg);
+        camera::register_camera_components(reg);
         light::register_light2d_component(reg);
         light3d::register_light3d_component(reg);
         light3d::register_environment_component(reg);
@@ -1112,7 +1112,7 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
     if eng.try_resource::<WindowedBackend>().is_some() {
         return;
     }
-    if let Some(lines) = eng.try_resource::<DebugLineBuffer>() {
+    if let Some(lines) = eng.try_resource::<DebugLineBuffer3d>() {
         lines.borrow_mut().lines.clear();
     }
     if let Some(lines) = eng.try_resource::<DebugLineBuffer2d>() {

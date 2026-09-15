@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# The web build as one download for a page: the glue and module from
-# package_template.sh web, plus the editor's project and the example games
-# packed with the editor binary, which is what balaur-website's /editor and
-# /examples open. One archive, so a site refreshes them as a unit.
+# The web build as one download for a page: the editor's own module, its
+# project and the example games, packed with the editor binary. One archive,
+# so balaur-website's /editor and /examples refresh as a unit.
 #
 # Usage: package_play.sh [balaur-binary]
-#   The binary defaults to BALAUR, then target/release/balaur, then the one
-#   inside dist/balaur-editor-*.tar.gz (CI's editor artifact).
+#   The binary defaults to BALAUR, then target/release/balaur, then CI's
+#   editor artifact; it must be current, since exporting compiles the
+#   editor's scripts. EDITOR_MODULE holds a built module; without one, built.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
+
+# The game template's features plus the importers, which is the difference.
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,gamend,web,window,import}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
@@ -33,9 +36,16 @@ fi
 [ -x "$balaur" ] || fail "$balaur is not executable"
 "$balaur" --version
 
-step "the web template"
+# Its own module, not the game template's: the editor imports, a game does not.
+step "the editor's web module"
+module=${EDITOR_MODULE:-}
+if [ -z "$module" ]; then
+  module="$dist/editor-module"
+  DIST="$module" WEB_FEATURES="$EDITOR_WEB_FEATURES" WEB_VARIANT=editor \
+    ./scripts/package_template.sh web
+fi
 for f in balaur.js balaur_bg.wasm; do
-  [ -s "$dist/$f" ] || fail "no $dist/$f — run package_template.sh web first"
+  [ -s "$module/$f" ] || fail "no $module/$f — set EDITOR_MODULE to a directory holding one, or let this build it"
 done
 
 step "export the packs"
@@ -55,7 +65,7 @@ for project in editor examples/*/; do
   packs+=("$name.bpak")
 done
 [ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
-cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$out/"
+cp "$module/balaur.js" "$module/balaur_bg.wasm" "$out/"
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \

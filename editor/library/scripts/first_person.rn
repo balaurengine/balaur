@@ -1,6 +1,6 @@
 // Walk with WASD, look with the mouse, space jumps.
 
-// Two nodes: `character3d` and `collider3d` here, `camera` on a child put at
+// Two nodes: `character3d` and `collider3d` here, `camera3d` on a child put at
 // eye height. With no such child it drives a camera on this node instead, and
 // cannot keep the body's wobble out of the view.
 
@@ -28,7 +28,7 @@ pub fn init(this) {
     this.rise = 0.0;
     this.apart = false;
     for child in this.node.children() {
-        if child.has_component("camera") {
+        if child.has_component("camera3d") {
             this.eye = child;
             this.rise = child.transform.position.y;
             this.apart = true;
@@ -54,7 +54,7 @@ pub fn update(this, dt) {
         eye.y + math::sin(pitch) * FAR,
         eye.z - math::cos(yaw) * flat,
     ];
-    this.eye.patch_component("camera", #{ look_at: ahead });
+    this.eye.patch_component("camera3d", #{ look_at: ahead });
     this.node.transform.rotation_euler = [0.0, yaw, 0.0];
 }
 

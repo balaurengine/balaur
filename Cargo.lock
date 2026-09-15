@@ -520,11 +520,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "balaur_cfg"
+version = "0.2.0"
+
+[[package]]
 name = "balaur_cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_cfg",
  "balaur_core",
  "balaur_export",
  "balaur_import",
@@ -556,6 +561,7 @@ name = "balaur_core"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "balaur_cfg",
  "balaur_script",
  "base64 0.23.1",
  "dirs",
@@ -746,6 +752,7 @@ dependencies = [
  "anyhow",
  "aseprite-loader",
  "balaur",
+ "balaur_cfg",
  "balaur_core",
  "balaur_input",
  "balaur_plugin",

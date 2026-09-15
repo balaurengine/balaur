@@ -14,6 +14,24 @@ pub(crate) fn run(_opts: &crate::UpdateOpts) -> anyhow::Result<()> {
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use imp::{install, releases, run};
 
+/// One published release, as the feed lists it.
+pub(crate) struct Release {
+    /// The tag the release was cut under, `v0.2.0` or `nightly`.
+    pub(crate) tag: String,
+    /// The build id its assets carry, which for a rolling tag is not the tag
+    /// itself.
+    pub(crate) id: String,
+    /// When it was published, as the feed's own ISO 8601 string.
+    pub(crate) published: String,
+    /// Which line it belongs to, from the id's own prerelease name.
+    pub(crate) channel: String,
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) fn releases() -> anyhow::Result<Vec<Release>> {
+    anyhow::bail!("a tab runs the build the page served it")
+}
+
 #[cfg(target_family = "wasm")]
 pub(crate) fn install(
     _tag: Option<&str>,
@@ -26,6 +44,8 @@ pub(crate) fn install(
 #[cfg(not(target_family = "wasm"))]
 mod imp {
     use std::path::{Path, PathBuf};
+
+    use super::Release;
 
     use anyhow::{Context, Result, bail};
 
@@ -114,6 +134,11 @@ mod imp {
         }
     }
 
+    /// Whether a directory is cargo's own output rather than an install.
+    fn build_tree(dir: &Path) -> bool {
+        dir.join(".fingerprint").is_dir() || dir.join("incremental").is_dir()
+    }
+
     /// Only for a failure message, so the cost lands on a path that has
     /// already failed.
     fn has_a_release(channel: &str) -> bool {
@@ -151,19 +176,6 @@ mod imp {
         } else {
             format!("{RELEASE_BASE}/download/{published}")
         }
-    }
-
-    /// One published release, as the feed lists it.
-    pub(crate) struct Release {
-        /// The tag the release was cut under, `v0.2.0` or `nightly`.
-        pub(crate) tag: String,
-        /// The build id its assets carry, which for a rolling tag is not the
-        /// tag itself.
-        pub(crate) id: String,
-        /// When it was published, as the feed's own ISO 8601 string.
-        pub(crate) published: String,
-        /// Which line it belongs to, from the id's own prerelease name.
-        pub(crate) channel: String,
     }
 
     /// Every release the project has published, newest first. The feed is
@@ -280,6 +292,15 @@ mod imp {
         // bundle's, and the ticket stapled to the .dmg covers what it replaces.
         if install.ends_with("Contents/MacOS") {
             bail!("Balaur.app updates by downloading the new .dmg, not in place");
+        }
+        // A cargo target directory is a build tree rather than an install:
+        // a release unpacked over it buries what the build wrote, and the
+        // editor's Engine tab is one press away from asking for that.
+        if build_tree(&install) {
+            bail!(
+                "{} is a build tree, not an install; update a source build with git",
+                install.display()
+            );
         }
         let staged = download_and_unpack(&assets_base(&base, published), &install)?;
         swap_install(&staged, &install, &exe)?;

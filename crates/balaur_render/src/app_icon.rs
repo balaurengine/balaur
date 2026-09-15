@@ -9,25 +9,63 @@ use balaur_core::App;
 
 use crate::AppIconConfig;
 
+/// The icon a worker thread is still compositing, if one is.
+#[cfg(target_os = "macos")]
+static PENDING: std::sync::Mutex<Option<std::sync::mpsc::Receiver<(Option<Vec<u8>>, String)>>> =
+    std::sync::Mutex::new(None);
+
 /// Apply a requested dock/application icon (macOS only for now).
+///
+/// The compositing runs on its own thread: decoding the picture, resizing it
+/// and encoding a 1024-square plate took the whole of the first frame, which
+/// is the frame a window has nothing else to show. Only the hand-over to
+/// AppKit stays here, on the main thread it insists on.
 pub(crate) fn apply_app_icon(app: &App) {
     let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
         return;
     };
-    let (source, name) = {
+    let asked = {
         let mut icon = icon.borrow_mut();
-        if !icon.changed {
-            return;
+        if icon.changed {
+            icon.changed = false;
+            Some((icon.bytes.clone(), icon.name.clone()))
+        } else {
+            None
         }
-        icon.changed = false;
-        (icon.bytes.clone(), icon.name.clone())
     };
     #[cfg(target_os = "macos")]
     {
         use objc2::AnyThread;
         use objc2_app_kit::{NSApplication, NSImage};
         use objc2_foundation::{MainThreadMarker, NSData};
-        let Some(bytes) = dock_icon_png(&source) else {
+        let mut pending = PENDING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((source, name)) = asked {
+            // In-process and one-way: PNG bytes from a thread that only
+            // resizes an image already in memory, read by nothing simulated.
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send((dock_icon_png(&source), name));
+            });
+            *pending = Some(rx);
+        }
+        let ready = match pending.as_ref().map(std::sync::mpsc::Receiver::try_recv) {
+            Some(Ok(done)) => {
+                *pending = None;
+                Some(done)
+            }
+            Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
+                *pending = None;
+                None
+            }
+            _ => None,
+        };
+        drop(pending);
+        let Some((bytes, name)) = ready else {
+            return;
+        };
+        let Some(bytes) = bytes else {
             tracing::warn!("app icon not usable: {name}");
             return;
         };
@@ -44,7 +82,7 @@ pub(crate) fn apply_app_icon(app: &App) {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (&source, &name);
+        let _ = asked;
     }
 }
 

@@ -37,8 +37,7 @@ parent = "rig_platformer"
 [nodes.transform]
 position = [0, 0, 10]
 
-[nodes.camera]
-kind = "2d"
+[nodes.camera2d]
 current = true
 zoom = 48
 

@@ -359,3 +359,20 @@ fn a_sprite_sits_off_its_node_by_its_offset_or_by_its_corner() {
     assert_close(x, 100.0 / DEFAULT_PIXELS_PER_UNIT);
     assert_close(y, -50.0 / DEFAULT_PIXELS_PER_UNIT);
 }
+
+/// The file is 200x100 and its sidecar says it was drawn at 400x200 — what an
+/// export leaves beside a smaller copy — so the quad is the drawn size.
+#[test]
+fn a_sprite_over_a_smaller_copy_keeps_the_size_it_was_drawn_at() {
+    let app = app();
+    let plain = node(&app);
+    apply(&app, plain, "");
+    let shrunk = node(&app);
+    let table: toml::Value =
+        toml::from_str("texture = \"tests/fixtures/sprite_drawn.png\"").unwrap();
+    components::add(&app.engine, shrunk, "sprite", Some(&table)).unwrap();
+    let (px, py) = half_extents(&app, plain);
+    let (sx, sy) = half_extents(&app, shrunk);
+    assert_close(sx, px * 2.0);
+    assert_close(sy, py * 2.0);
+}

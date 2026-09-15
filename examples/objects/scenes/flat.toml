@@ -9,8 +9,7 @@ id = "n_camera2d"
 name = "Camera2D"
 parent = "n_layer2d"
 
-[nodes.camera]
-kind = "2d"
+[nodes.camera2d]
 zoom = 60.0
 
 [[nodes]]

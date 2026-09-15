@@ -255,7 +255,12 @@ pub(crate) fn sync_2d(
         if let Some(sprite) = &renderable.sprite {
             let flip = (sprite.flip_x, sprite.flip_y);
             if sprite.sheet.is_some() || sprite.region.is_some() || flip != slot.flip {
-                sync_sprite_uvs(&mut slot.node, sprite);
+                // The rectangle is in the pixels the image was drawn at, which
+                // a shrunk copy no longer has: `size_of` answers those.
+                let drawn = sprite
+                    .region
+                    .and_then(|_| crate::texture::size_of(&app.engine, &sprite.path).ok());
+                sync_sprite_uvs(&mut slot.node, sprite, drawn);
             }
             slot.flip = flip;
         }
@@ -337,14 +342,18 @@ pub(crate) fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d, inherite
 
 /// Remap the node's UVs to the sprite's sheet frame, with the U or V extents
 /// swapped for flips.
-pub(crate) fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
+pub(crate) fn sync_sprite_uvs(
+    node: &mut SceneNode2d,
+    sprite: &SpriteTexture,
+    drawn: Option<(u32, u32)>,
+) {
     let sheet = sprite
         .sheet
         .map(|s| kiss3d::scene::SpriteSheet::new(s.columns, s.rows));
     let (mut min, mut max) = sheet.map_or((Vec2::ZERO, Vec2::ONE), |s| s.frame_uv(sprite.frame));
     // A region is a rectangle of the image in pixels; it wins over a sheet.
     if let Some([x, y, w, h]) = sprite.region {
-        let size = node.data().object().map(|o| o.data().texture().size);
+        let size = drawn.or_else(|| node.data().object().map(|o| o.data().texture().size));
         if let Some((tw, th)) = size.filter(|(tw, th)| *tw > 0 && *th > 0) {
             let (tw, th) = (tw as f32, th as f32);
             min = Vec2::new(x as f32 / tw, y as f32 / th);

@@ -13,6 +13,7 @@ graph TD
   balaur_apple[balaur_apple]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
+  balaur_cfg[balaur_cfg]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
   balaur_export[balaur_export]

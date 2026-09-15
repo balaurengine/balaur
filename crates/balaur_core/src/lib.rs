@@ -25,6 +25,7 @@ pub mod debugger_api;
 pub mod desktop;
 pub mod desktop_api;
 pub mod digest;
+pub mod document_paths;
 pub mod engine;
 pub mod engine_api;
 mod engine_docs;

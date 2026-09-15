@@ -79,7 +79,7 @@ Four components claim one slot and none of them says so.
 
 `Renderable2d` is written by `sprite` (`sprite.rs`), `polygon`
 (`polygon.rs`), `shape2d` (`shape.rs`) and, through its resolve system,
-`boolean2d` (`boolean.rs`). `Renderable` is written by `mesh`, `shape3d` and
+`boolean2d` (`boolean.rs`). `Renderable3d` is written by `mesh`, `shape3d` and
 `boolean3d`. Every one of their `remove` hooks is an unconditional
 `world.remove_one::<Renderable2d>(entity)` — `sprite.rs:175`,
 `polygon.rs:95`, `shape.rs:398`, `boolean.rs:125`, and `mesh.rs:117`,

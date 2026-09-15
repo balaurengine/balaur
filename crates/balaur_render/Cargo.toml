@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[build-dependencies]
+balaur_cfg.workspace = true
+
 [features]
 default = []
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,

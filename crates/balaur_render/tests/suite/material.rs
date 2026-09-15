@@ -5,7 +5,7 @@
 //! output — runs wherever CI does. What a GPU would add is the pipeline.
 
 use balaur_core::{App, AppConfig, components, scene};
-use balaur_render::material::{Material, compile};
+use balaur_render::material::{Material3d, compile};
 use balaur_render::{RenderPlugin, Renderable2d};
 
 const SHADER: &str = r"
@@ -111,7 +111,7 @@ fn the_material_asset_loads_and_its_shader_links() {
     let dir = project();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/wave.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/wave.toml").unwrap();
     assert_eq!(asset.shader, "shaders/wave.wesl");
 
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
@@ -137,7 +137,7 @@ fn a_material_naming_a_missing_shader_says_which_file() {
     .unwrap();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/gone.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/gone.toml").unwrap();
     let err = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap_err();
     assert!(format!("{err:#}").contains("shaders/gone.wesl"), "{err:#}");
 }
@@ -175,8 +175,8 @@ fn a_shape3d_remembers_the_material_it_names() {
 
     let world = app.engine.world();
     let renderable = world
-        .get::<&balaur_render::Renderable>(entity)
-        .expect("a shape3d writes a Renderable");
+        .get::<&balaur_render::Renderable3d>(entity)
+        .expect("a shape3d writes a Renderable3d");
     assert_eq!(renderable.material, "materials/lit.toml");
 }
 
@@ -200,7 +200,7 @@ fn a_3d_material_links_against_the_mesh_contract() {
     let dir = project();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/lit.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
     let compiled = compile(&asset, &source).unwrap();
     assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
@@ -219,7 +219,7 @@ fn a_3d_material_carries_the_per_copy_inputs_it_never_asked_for() {
     let dir = project();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/lit.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
     let compiled = compile(&asset, &source).unwrap();
     for location in 3..=7 {
@@ -267,7 +267,8 @@ struct Stripe { color: vec4<f32> }
     .unwrap();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/striped.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/striped.toml")
+            .unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
     let compiled = compile(&asset, &source).expect("a shader that reads its copy links");
     assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
@@ -300,7 +301,8 @@ import package::mesh::{VertexInput, VertexOutput, vertex, vertex_color, shade};
     .unwrap();
     let app = app(dir.path());
     let asset =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/painted.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/painted.toml")
+            .unwrap();
     assert!(
         asset.reads_vertex_color(),
         "the feature is read off the asset"
@@ -316,7 +318,7 @@ import package::mesh::{VertexInput, VertexOutput, vertex, vertex_color, shade};
 
     // The lit material never mentions it, so its pipeline has no such slot.
     let plain =
-        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/lit.toml").unwrap();
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let plain_source = balaur_core::project::scene_text(&app.engine, &plain.shader).unwrap();
     let plain = compile(&plain, &plain_source).unwrap();
     assert!(!plain.vertex_color);
@@ -367,8 +369,9 @@ fn the_2d_contract_covers_the_builtins_a_canvas_shader_uses() {
     .unwrap();
     let app = app(dir.path());
 
-    let asset = balaur_core::assets::load_typed::<Material>(&app.engine, "materials/builtins.toml")
-        .unwrap();
+    let asset =
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/builtins.toml")
+            .unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
     let compiled = compile(&asset, &source).unwrap();
 
@@ -527,7 +530,7 @@ fn a_material_named_by_absolute_path_belongs_to_its_own_project() {
     balaur_core::assets::save(&app.engine, &reference, &definition).unwrap();
     let written = std::fs::read_to_string(game.path().join("materials/wave.toml")).unwrap();
     assert!(written.contains("speed = 9.0"), "{written}");
-    let reread = balaur_core::assets::load_typed::<Material>(&app.engine, &reference).unwrap();
+    let reread = balaur_core::assets::load_typed::<Material3d>(&app.engine, &reference).unwrap();
     let speed = reread.params.iter().find(|(name, _)| name == "speed");
     assert_eq!(
         speed.map(|(_, value)| value.clone()),

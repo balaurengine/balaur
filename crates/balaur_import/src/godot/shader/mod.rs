@@ -757,7 +757,7 @@ pub(crate) fn field_name(uniform: &str) -> String {
 /// Link a translation against the sprite contract and type-check the WGSL
 /// it links to: what `create_shader_module` would otherwise find on a GPU.
 pub(crate) fn check(translated: &Translated) -> Result<()> {
-    let material = balaur_render::material::Material {
+    let material = balaur_render::material::Material3d {
         shader: "shader.wesl".into(),
         features: vec![("screen".into(), translated.screen)],
         ..Default::default()

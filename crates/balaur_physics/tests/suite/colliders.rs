@@ -4,7 +4,7 @@
 use balaur_core::hecs::Entity;
 use balaur_core::scene;
 use balaur_core::{App, AppConfig, components};
-use balaur_physics::{PhysicsPlugin, PhysicsState};
+use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -100,7 +100,7 @@ fn a_density_a_patch_writes_reaches_the_collider() {
         read("density")
     );
 
-    let state = app.engine.resource::<balaur_physics::PhysicsState>();
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
     let state = state.borrow();
     let handle = state.colliders[&e][0];
     let mass = state.world.colliders[handle].mass();
@@ -136,7 +136,7 @@ fn a_child_collider_joins_the_body_above_it() {
         Some(&toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap()),
     )
     .unwrap();
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let handle = state.colliders[&feet][0];
     let collider = &state.world.colliders[handle];
@@ -173,7 +173,7 @@ fn an_offset_moves_the_shape_and_not_the_node() {
         Some(&toml::from_str("kind = \"ball\"\noffset = [0.0, 1.0, 0.0]").unwrap()),
     )
     .unwrap();
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let collider = &state.world.colliders[state.colliders[&e][0]];
     assert!((collider.position().translation.y - 1.0).abs() < 1e-5);
@@ -199,7 +199,7 @@ fn every_declared_shape_builds() {
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
         components::add(&app.engine, e, "collider3d", Some(&params))
             .unwrap_or_else(|e| panic!("collider3d kind '{kind}' did not build: {e:#}"));
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         assert!(
             state.borrow().colliders.contains_key(&e),
             "collider3d kind '{kind}' built nothing"

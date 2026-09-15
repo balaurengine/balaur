@@ -330,7 +330,7 @@ pub fn lights3d(S) {
                 light3d_gizmo(found, light, crate::selection::contains(S, i), k);
             }
         }
-        if node.get("camera").is_some() {
+        if node.get("camera3d").is_some() {
             camera_gizmo(S, found, crate::selection::contains(S, i), k);
         }
     }
@@ -396,7 +396,7 @@ fn camera_gizmo(S, found, selected, k) {
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
     let (u, v) = across(dir);
-    let camera = util::obj(found.get_component("camera"));
+    let camera = util::obj(found.get_component("camera3d"));
     let fov = util::f(camera.get("fov").unwrap_or(60.0)) * math::PI / 180.0;
     let half = FRUSTUM_REACH * math::tan(fov / 2.0);
     let centre = util::vadd(p, util::vscale(dir, FRUSTUM_REACH));

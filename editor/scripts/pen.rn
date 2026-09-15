@@ -119,30 +119,10 @@ fn point_at(path, at) {
 /// Where the pen's points live in the world. A path is authored in the node's
 /// own space, so the node's pose places it, the way a polygon's is.
 fn frame(S) {
-    let found = match model::live(S, S.sel) {
-        Some(found) => found,
-        None => return None,
-    };
-    let p = found.transform.global_position();
-    let angle = found.transform.global_rotation_euler().z;
-    let s = found.transform.global_scale();
-    Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
-}
-
-fn to_world(f, lx, ly) {
-    let px = lx * f.sx;
-    let py = ly * f.sy;
-    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
-}
-
-fn to_local(f, wx, wy) {
-    let dx = wx - f.x;
-    let dy = wy - f.y;
-    let px = f.c * dx + f.s * dy;
-    let py = -f.s * dx + f.c * dy;
-    let sx = if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 };
-    let sy = if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
-    (px / sx, py / sy)
+    match model::live(S, S.sel) {
+        Some(found) => Some(util::frame_of(found)),
+        None => None,
+    }
 }
 
 /// Append an anchor at the end, with handles level with the segment it makes,
@@ -315,7 +295,7 @@ fn pick(S, path, f, mx, my) {
     let best_d = reach;
     for i in 0..path.points.len() {
         let p = point_at(path, i);
-        let (wx, wy) = to_world(f, p[0], p[1]);
+        let (wx, wy) = util::to_world(f, p[0], p[1]);
         let d = math::sqrt((wx - mx) * (wx - mx) + (wy - my) * (wy - my));
         // Anchors win ties: a handle sits on top of one when it is not pulled.
         // Indexing the Option reaches the pair inside it, so it is unwrapped.
@@ -360,7 +340,7 @@ pub fn update(S, over_viewport, mx, my) {
                 }
             }
             None => {
-                let (lx, ly) = to_local(f, mx, my);
+                let (lx, ly) = util::to_local(f, mx, my);
                 add_anchor(S, lx, ly);
                 // The new anchor is the one a drag now pulls a handle from.
                 let made = S.pen.path.points.len() - 1;
@@ -385,7 +365,7 @@ pub fn update(S, over_viewport, mx, my) {
     }
     let pulling = S.pen.drag;
     if let Some(pull) = pulling {
-        let (lx, ly) = to_local(f, mx, my);
+        let (lx, ly) = util::to_local(f, mx, my);
         move_point(S, pull.at, lx, ly, pull.broken);
     }
 }
@@ -416,7 +396,7 @@ pub fn draw(S) {
     let hover = S.pen.hover;
     for i in 0..path.points.len() {
         let p = point_at(path, i);
-        let (wx, wy) = to_world(f, p[0], p[1]);
+        let (wx, wy) = util::to_world(f, p[0], p[1]);
         let is_anchor = path.points.len() < 3 || i % 3 == 0;
         let hot = match hover {
             Some(hit) => hit[0] == i,
@@ -434,7 +414,7 @@ pub fn draw(S) {
             let anchor = if i % 3 == 1 { i - 1 } else { i + 1 };
             if anchor < path.points.len() {
                 let a = point_at(path, anchor);
-                let (ax, ay) = to_world(f, a[0], a[1]);
+                let (ax, ay) = util::to_world(f, a[0], a[1]);
                 render::draw_line_2d(ax, ay, wx, wy, dim[0], dim[1], dim[2], 1.0);
             }
             let r = mark * 0.7;

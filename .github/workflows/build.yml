@@ -136,6 +136,14 @@ jobs:
             variant: threads
             label: threads
             threads: "true"
+          # The module the web editor runs: the plain template's features plus
+          # the importers, because the editor imports and a game does not.
+          # Built here rather than in `bundle web`, which has no toolchain.
+          - platform: web
+            host: ubuntu-latest
+            variant: editor
+            label: editor
+            web-features: audio,http,websocket,gamend,web,window,import
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -269,9 +277,20 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v8
         with:
-          name: balaur-template-web
-          path: dist
+          name: balaur-template-web-editor
+          path: dist/editor-module
+      # The editor's module is unpacked from its template archive: the bundle
+      # ships the glue and the wasm beside the packs, not the tarball.
+      - name: Unpack the editor's module
+        run: |
+          set -euo pipefail
+          tar -xzf dist/editor-module/balaur-template-web-editor.tar.gz \
+            -C dist/editor-module
+          mv dist/editor-module/balaur-template-web-editor/* dist/editor-module/
+          ls dist/editor-module/balaur.js dist/editor-module/balaur_bg.wasm
       - name: Pack the web bundle
+        env:
+          EDITOR_MODULE: dist/editor-module
         run: ./scripts/package_play.sh
       - uses: actions/upload-artifact@v7
         with:

@@ -149,7 +149,7 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
     app.add_snapshot_source("appearance", save_appearance, load_appearance);
     app.add_snapshot_source("tags", save_tags, load_tags);
-    app.add_snapshot_source("process", save_process, load_process);
+    app.add_snapshot_source(crate::process::KEY, save_process, load_process);
     // The clock, so restoring a tick puts the tick number back too: a
     // rollback that re-ran tick 40 while the engine still counted 47 would
     // hand scripts a number the first run never saw.

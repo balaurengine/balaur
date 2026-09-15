@@ -14,8 +14,7 @@ parent = "n_main"
 [nodes.transform]
 position = [0, 0, 0]
 
-[nodes.camera]
-kind = "2d"
+[nodes.camera2d]
 zoom = 110
 
 [[nodes]]

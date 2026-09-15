@@ -4,18 +4,8 @@
 //! cannot spell a hook three ways. A plugin's own hooks stay in its crate;
 //! these are the ones core, input and rendering dispatch.
 
-pub const ON_POINTER_ENTER: &str = "on_pointer_enter";
-pub const ON_POINTER_EXIT: &str = "on_pointer_exit";
-pub const ON_POINTER_DOWN: &str = "on_pointer_down";
-pub const ON_POINTER_UP: &str = "on_pointer_up";
-pub const ON_POINTER_CLICK: &str = "on_pointer_click";
-pub const ON_POINTER_DRAG: &str = "on_pointer_drag";
-pub const ON_POINTER_DROP: &str = "on_pointer_drop";
-pub const ON_KEY_DOWN: &str = "on_key_down";
-pub const ON_KEY_UP: &str = "on_key_up";
-pub const ON_ACTION: &str = "on_action";
-pub const ON_SCROLL: &str = "on_scroll";
-pub const ON_RESIZE: &str = "on_resize";
+/// The two hooks the engine calls by name rather than through a binding, so
+/// each is spelled here as well as in [`BINDABLE`] without its prefix.
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the

@@ -9,7 +9,7 @@ use balaur_input::InputSnapshot;
 use kiss3d::prelude::*;
 
 use crate::{
-    CameraConfig, CameraConfig2d, CameraInputConfig, ViewportSnapshot, ViewportSnapshot2d,
+    CameraConfig2d, CameraConfig3d, CameraInputConfig, ViewportSnapshot2d, ViewportSnapshot3d,
 };
 
 /// The mouse buttons the two cameras drag with, captured once so
@@ -23,7 +23,7 @@ pub(crate) struct CameraButtons {
 /// Apply script-driven camera changes (interactive orbit controls keep
 /// working in between).
 pub(crate) fn apply_camera(app: &App, camera: &mut OrbitCamera3d) {
-    let Some(config) = app.engine.try_resource::<CameraConfig>() else {
+    let Some(config) = app.engine.try_resource::<CameraConfig3d>() else {
         return;
     };
     let mut config = config.borrow_mut();
@@ -100,7 +100,7 @@ pub(crate) fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Wi
 pub(crate) fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
     use kiss3d::camera::Camera3d;
 
-    let Some(vp) = app.engine.try_resource::<ViewportSnapshot>() else {
+    let Some(vp) = app.engine.try_resource::<ViewportSnapshot3d>() else {
         return;
     };
     let mut vp = vp.borrow_mut();

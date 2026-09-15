@@ -6,22 +6,13 @@
 
 use anyhow::Result;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::{export_api, import_api};
 
 pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
     // A project that means to stay clean says so in its own manifest; the
     // flag is for the run that wants it anyway.
     let strict = strict || project_is_strict(path);
     #[cfg(not(target_family = "wasm"))]
-    let found = balaur::check_project_using(
-        path,
-        &mut [
-            Box::new(export_api::ExportPlugin::new(path.to_path_buf())),
-            Box::new(import_api::ImportPlugin::new(path.to_path_buf())),
-            Box::new(crate::project_api::ProjectPlugin::new()),
-        ],
-    )?;
+    let found = balaur::check_project_using(path, &mut crate::own_modules(path))?;
     #[cfg(target_family = "wasm")]
     let found = balaur::check_project(path)?;
     let mut errors = 0;

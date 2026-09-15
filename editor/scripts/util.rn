@@ -378,3 +378,32 @@ pub fn rotate_about(p, center, axis, angle) {
     out[j] = d[i] * s + d[j] * c;
     vadd(center, out)
 }
+
+/// The 2D world frame of a node's own space: where its origin sits, and the
+/// rotation and scale a local point is placed through. A `path2d`'s control
+/// points and a polygon's vertices are both authored in it.
+pub fn frame_of(found) {
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let s = found.transform.global_scale();
+    #{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y }
+}
+
+/// A point in that frame, in the world.
+pub fn to_world(f, lx, ly) {
+    let px = lx * f.sx;
+    let py = ly * f.sy;
+    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
+}
+
+/// A world point back in that frame. A zero scale places everything at the
+/// origin, so it is read as one rather than dividing by it.
+pub fn to_local(f, wx, wy) {
+    let dx = wx - f.x;
+    let dy = wy - f.y;
+    let px = f.c * dx + f.s * dy;
+    let py = -f.s * dx + f.c * dy;
+    let sx = if abs(f.sx) > 1e-6 { f.sx } else { 1.0 };
+    let sy = if abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
+    (px / sx, py / sy)
+}

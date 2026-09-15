@@ -304,7 +304,7 @@ mod backend {
         Some(texture)
     }
 
-    /// Shape `text`, or report that the fonts are not installed yet.
+    /// Shape3d `text`, or report that the fonts are not installed yet.
     ///
     /// The engine holds one shaper, made when the theme's faces load; a run
     /// without the UI plugin has none, and nothing can draw text.
@@ -671,7 +671,7 @@ pub(crate) fn flush(
     if items.is_empty() {
         return;
     }
-    // Shape every block first: each may grow the atlas, and the texture is
+    // Shape3d every block first: each may grow the atlas, and the texture is
     // uploaded once for the lot rather than once per block.
     let mut shaped = Vec::with_capacity(items.len());
     for item in &items {

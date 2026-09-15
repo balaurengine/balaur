@@ -47,7 +47,7 @@ it also own it?
 | `*State` | Owned and mutated by exactly one subsystem, across frames; every writer goes through that subsystem's API |
 | *(none)* | Immutable after insertion (`ProjectRoot`, `ScriptArgs`, `ProjectManifest`) |
 
-The suffix does work, not decoration: `DebugLineBuffer` names the owner that
+The suffix does work, not decoration: `DebugLineBuffer3d` names the owner that
 must drain it (as `DebugLines`, a headless run grew a `Vec` nothing emptied),
 and `*Snapshot`'s headless clause is why a script reading `render.camera_2d()`
 headless gets zeros rather than the config's defaults. A type spanning two
@@ -61,14 +61,21 @@ what already dominates: `eng: &Engine`, `m` for a binding module. `Det` is a
 contrast rule, not an abbreviation rule — see N3.
 
 **D5 — Dimension: lowercase, terminal, and on both sides.** `body2d`, not
-`Body2D` or `Physics2DState`: a terminal `2d` sorts next to its 3D twin, and one
-grep finds both. Every user-facing key with a sibling carries its dimension
-(`shape3d`/`shape2d`, `physics3d`/`physics2d`), because a reader should not have
-to know that bare means 3D; a key with no sibling stays plain (`camera`, `mesh`,
-`sprite`). `physics` keeps only what spans both worlds — `set_paused`,
-`is_paused`, `set_sleeping_allowed`, `sleeping_allowed`, `clear` — so a module
-name is not a lie about what is in it. In snake_case `_2d` is its own word
-unless the segment quotes a key or module name (`register_shape2d_component`).
+`Body2D` or `Physics2DState`: a terminal `2d` sorts next to its `3d` twin, and
+one grep finds both. Every name with a sibling carries its dimension
+(`shape3d`/`shape2d`, `Renderable3d`/`Renderable2d`), because a reader should
+not have to know that bare means 3D — Rust type names included, so
+`PhysicsState3d` rather than a bare `PhysicsState` beside `PhysicsState2d`.
+A name with no sibling stays plain (`sprite`, `Environment`, `Tonemap`), and so
+does one that genuinely spans both dimensions: `MeshSkin` deforms a
+`Shape2d::Polygon` as well as a mesh, and suffixing it would be a lie. Splitting
+is the other way out, and usually the better one: a component's tags are what
+the editor files a node under, and a tag is per type while a `kind` property is
+per node, so a single component can only ever claim one dimension for both. `physics` keeps only what spans
+both worlds — `set_paused`, `is_paused`, `set_sleeping_allowed`,
+`sleeping_allowed`, `clear` — so a module name is not a lie about what is in it.
+In snake_case `_2d`/`_3d` is its own word unless the segment quotes a key or
+module name (`register_shape2d_component`).
 
 ## Rules
 
@@ -77,8 +84,8 @@ unless the segment quotes a key or module name (`register_shape2d_component`).
 | N1 | One word, one meaning **within a scope**. `resource` = typemap entry; `asset` = game content; `load` = a live object from a path (raw text is `source`). Synonyms across the Rust/script boundary are fine; homonyms are not | all | REPORT |
 | N2 | Every typemap type ends in a D3 suffix or none. A type spanning two categories is split. A `*Config`'s pending flag is `changed`. A `*Snapshot` documents its headless value | rust-internal | REPORT + denylist ERROR |
 | N3 | `Det` marks exactly one thing: a collection with fixed iteration order standing in for a std type the house lint forbids. Determinism is otherwise carried by the module and its doc comment | rust-internal | ERROR |
-| N4 | In CamelCase the dimension is a lowercase `2d`/`3d` at the **end**. SCREAMING_SNAKE is exempt | rust-internal | ERROR |
-| N5 | In snake_case `_2d` is its own word, unless the segment quotes a component key or module name | all | ERROR |
+| N4 | In CamelCase the dimension is a lowercase `2d`/`3d` at the **end**, and a type with a sibling in the other dimension carries one. SCREAMING_SNAKE is exempt | rust-internal | ERROR |
+| N5 | In snake_case `_2d`/`_3d` is its own word, unless the segment quotes a component key or module name | all | ERROR |
 | N6 | Component schema vocabulary is fixed: the tagged-union discriminant is always `kind`; the meta key declaring a datatype is always `type`; type names come from the closed set `parse_schema` rejects departures from. A property never repeats its component's name or reuses another component's name for a different type | scene-file | ERROR |
 | N7 | A reader is named for what it returns: no `get_` prefix, and `is_` only for a boolean | script-api | ERROR |
 | N8 | Every `set_x` on a `*Config` or `*State` has a reader, or a justification comment. `*Snapshot` and `*Buffer` readers take no setter. Where a setter writes a Config and the reader reads a Snapshot, both say so — command in, truth out, not a round trip | script-api | REPORT |
@@ -101,7 +108,7 @@ Recorded so each stops being cited as precedent for the next.
 | `DetHashMap` / `DetHashSet` | The prefix is the whole job: it says which one the house lint wants you to use |
 | `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node:component(name)` beside `node:components()` — two functions one character apart with unrelated return types, and `node:node(path)` |
 | `input.is_mouse_down` | `is_down(key)` and `is_mouse_down(button)` are one question about a held button and must agree |
-| `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig`, the reader reads the published `ViewportSnapshot`. Command in, truth out — fixed by a doc line under N8 |
+| `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `render` as one large module | Fixable by moving functions between `install_*` fns at zero user cost; a `render2d` split costs ~23 breaking call sites for a boundary `ui` manages without. Revisit past ~30 functions |
 | `"ball"` / `"cuboid"` | parry's words, but nothing in the tree translates them and no bug traces to them. 2D's `circle`/`rect` are already design words |
@@ -109,9 +116,11 @@ Recorded so each stops being cited as precedent for the next.
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
+| `Flat` / `Solid` | A word-pair that already says which dimension it is, in one file. Suffixing `Solid` alone would orphan `Flat` and make the pair read less consistently, not more |
+| `PostPass::Material` beside `Material3d` | A screen-space post pass is not a surface material and carries no dimension; the 3D asset took the suffix, which is what separates them (N1) |
 | The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.rn` instead |
 | The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | A deliberate affordance for Godot refugees; renaming five of nine would mix vocabularies in one inspector header |
-| `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
+| `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
 | `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
 
 ## Glossary

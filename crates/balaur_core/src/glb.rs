@@ -901,9 +901,16 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
         entry.insert("id".into(), toml::Value::String(id));
         entry.insert("name".into(), toml::Value::String(name));
         entry.insert("parent".into(), toml::Value::String(parent_id));
-        entry.insert("position".into(), floats(t));
-        entry.insert("rotation_euler".into(), floats(euler.to_array()));
-        entry.insert("scale".into(), floats(s));
+        // In the component, not beside it: a bare `position` on a node is a
+        // scene key nothing handles, and every bone sits at the origin.
+        let mut placed = toml::map::Map::new();
+        placed.insert("position".into(), floats(t));
+        placed.insert("rotation_euler".into(), floats(euler.to_array()));
+        placed.insert("scale".into(), floats(s));
+        entry.insert(
+            crate::transform::COMPONENT.into(),
+            toml::Value::Table(placed),
+        );
         if joints.contains_key(&node_index) {
             let mut bone = toml::map::Map::new();
             bone.insert("rest_position".into(), floats(t));

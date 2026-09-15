@@ -7,7 +7,7 @@ use balaur_core::scene::{Transform, find_node};
 use balaur_physics::rapier2d::parry::shape::PolylineFlags;
 use balaur_physics::rapier2d::prelude::TriMeshFlags as TriMeshFlags2;
 use balaur_physics::rapier3d::parry::shape::HeightFieldFlags;
-use balaur_physics::{PhysicsState, PhysicsState2d};
+use balaur_physics::{PhysicsState2d, PhysicsState3d};
 
 /// The log buffer is global and tests run in parallel.
 use crate::LOG;
@@ -79,7 +79,7 @@ mesh = "#floor"
 
 /// The first collider's handle, for a scene that declares exactly one.
 fn only_collider_3d(app: &App) -> balaur_physics::rapier3d::prelude::ColliderHandle {
-    let state = app.engine.resource::<PhysicsState>();
+    let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
     let handles = state
         .colliders
@@ -105,7 +105,7 @@ fn a_heightfield_fixes_its_internal_edges_unless_it_is_told_not_to() {
     let flags = |scene: String| {
         let app = run(&scene, "", 1);
         let handle = only_collider_3d(&app);
-        let state = app.engine.resource::<PhysicsState>();
+        let state = app.engine.resource::<PhysicsState3d>();
         let state = state.borrow();
         state.world.colliders[handle]
             .shape()

@@ -634,7 +634,6 @@ fn bone(section: &Section, out: &mut Mapped) {
 }
 
 fn camera(section: &Section, out: &mut Mapped) {
-    out.set("camera", "kind", Toml::String("2d".into()));
     // Godot's zoom is a multiplier on its pixels; here it is pixels a unit,
     // so the same view is that multiplier times what a unit is worth. Always
     // written: leaving it out would take the engine's own default instead.
@@ -642,9 +641,9 @@ fn camera(section: &Section, out: &mut Mapped) {
         .field("zoom")
         .and_then(pair)
         .map_or(1.0, |[zoom, _]| zoom);
-    out.set("camera", "zoom", Toml::Float(zoom * PIXELS_PER_UNIT));
+    out.set("camera2d", "zoom", Toml::Float(zoom * PIXELS_PER_UNIT));
     if section.field("enabled") == Some(&Value::Bool(false)) {
-        out.set("camera", "current", Toml::Boolean(false));
+        out.set("camera2d", "current", Toml::Boolean(false));
     }
 }
 

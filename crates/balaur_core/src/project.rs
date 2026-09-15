@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
 use crate::components::StableId;
+use crate::document_paths::Ids;
 use anyhow::{Context, Result, anyhow, bail};
 use balaur_script::Value;
 use hecs::Entity;
@@ -26,6 +27,9 @@ use crate::engine::Engine;
 use crate::scene::{self, Appearance, Tags};
 
 pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
+
+/// The file that makes a directory a project.
+pub const MANIFEST: &str = "project.toml";
 
 /// A project's manifest, `project.toml`.
 ///
@@ -514,6 +518,33 @@ pub fn instantiate_scene(
     base: Entity,
     attach_scripts: bool,
 ) -> Result<()> {
+    instantiate_from(eng, source, base, attach_scripts, None)
+}
+
+/// Instantiate the scene file at `path`, read the way a prefab is. Use this
+/// rather than [`scene_text`] and [`instantiate_scene`]: a scene from a root
+/// other than the project's names its files from that root, and only the read
+/// knows which root that was.
+///
+/// # Errors
+/// If the file does not read, or the scene does not build.
+pub fn instantiate_scene_file(
+    eng: &Engine,
+    path: &str,
+    base: Entity,
+    attach_scripts: bool,
+) -> Result<()> {
+    let (source, root) = scene_from_file(eng, path)?;
+    instantiate_from(eng, &source, base, attach_scripts, root.as_deref())
+}
+
+fn instantiate_from(
+    eng: &Engine,
+    source: &str,
+    base: Entity,
+    attach_scripts: bool,
+    foreign: Option<&std::path::Path>,
+) -> Result<()> {
     let mut build = Build {
         prefix: String::new(),
         open: Vec::new(),
@@ -521,7 +552,7 @@ pub fn instantiate_scene(
         attach_scripts,
         merge_into: None,
     };
-    build_scene(eng, source, base, &mut build)?;
+    build_scene(eng, source, base, &mut build, foreign)?;
     children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)
 }
@@ -565,9 +596,26 @@ struct Build {
     merge_into: Option<Entity>,
 }
 
-/// Parse and build one scene document under `base`.
-fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> Result<()> {
-    let doc: SceneDoc = toml::from_str(source).context("parsing scene")?;
+/// Parse and build one scene document under `base`. `foreign` is the root the
+/// document came from when that is not the project's, and every path it names
+/// is made absolute against it before anything reads one.
+fn build_scene(
+    eng: &Engine,
+    source: &str,
+    base: Entity,
+    build: &mut Build,
+    foreign: Option<&std::path::Path>,
+) -> Result<()> {
+    let doc: SceneDoc = match foreign {
+        Some(root) => {
+            let mut value: toml::Value = toml::from_str(source).context("parsing scene")?;
+            // A scene is never written back through the engine, so an `id://`
+            // may be resolved here: the id spelling is lost, not translated.
+            crate::document_paths::absolute_in(eng, root, &mut value, Ids::Resolve);
+            value.try_into().context("parsing scene")?
+        }
+        None => toml::from_str(source).context("parsing scene")?,
+    };
     // A scene's `[[assets]]` are in scope only while it is being built, so
     // `#id` never resolves against a sibling scene; a prefab's own blocks nest
     // inside that rather than accumulating.
@@ -580,11 +628,21 @@ fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> R
 
 /// A scene file's text: from the pack in a packed run, from disk otherwise —
 /// the same resolution an asset document gets.
+///
+/// # Errors
+/// If no root has the file, or it is not UTF-8.
 pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
+    Ok(scene_from_file(eng, path)?.0)
+}
+
+/// A scene file's text and the root that owns the paths inside it, or `None`
+/// for the project's own. Reading is what knows: by the time a node's `mesh`
+/// is drawn the scene it came from is long built.
+pub(crate) fn scene_from_file(
+    eng: &Engine,
+    path: &str,
+) -> Result<(String, Option<std::path::PathBuf>)> {
     let path = &path_of(eng, path)?;
-    if let Some(source) = eng.script_host().and_then(|host| host.scene_source(path)) {
-        return Ok(source);
-    }
     // The project's own root, then any a host added. `balaur edit <game>`
     // runs with the editor as the project root, so a scene the game names
     // relative to itself is only found under the game's.
@@ -593,12 +651,22 @@ pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
     if roots.is_empty() {
         roots.push(std::path::PathBuf::new());
     }
+    // The script host reads under the project's root, so a relative path it
+    // answers is the project's; an absolute one still names the root it is in.
+    if let Some(source) = eng.script_host().and_then(|host| host.scene_source(path)) {
+        let project = roots.first().cloned().unwrap_or_default();
+        return Ok((
+            source,
+            crate::document_paths::foreign_root(eng, path, &project),
+        ));
+    }
     let mut last = None;
     for root in &roots {
         match backend.read(&root.join(path)) {
             Ok(bytes) => {
-                return String::from_utf8(bytes)
-                    .with_context(|| format!("scene file '{path}' is not UTF-8"));
+                let text = String::from_utf8(bytes)
+                    .with_context(|| format!("scene file '{path}' is not UTF-8"))?;
+                return Ok((text, crate::document_paths::foreign_root(eng, path, root)));
             }
             Err(why) => last = Some(why),
         }
@@ -782,11 +850,11 @@ fn build_instance(
         chain.push(prefab.to_string());
         bail!("a prefab cannot contain itself: {}", chain.join(" -> "));
     }
-    let source = scene_text(eng, prefab)?;
+    let (source, root) = scene_from_file(eng, prefab)?;
     let inner = format!("{}{}/", build.prefix, id);
     let outer = std::mem::replace(&mut build.prefix, inner);
     build.open.push(prefab.to_string());
-    let outcome = build_scene(eng, &source, entity, build);
+    let outcome = build_scene(eng, &source, entity, build, root.as_deref());
     build.open.pop();
     build.prefix = outer;
     outcome
@@ -901,8 +969,8 @@ const NODE_KEYS: [&str; 7] = [
     "tint",
     "z_index",
     "z_relative",
-    "process",
-    "interpolate",
+    crate::process::KEY,
+    crate::interpolate::KEY,
     "tags",
 ];
 
@@ -926,13 +994,16 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     drop(appearance);
     drop(world);
     if let Some(mode) = table
-        .get("process")
+        .get(crate::process::KEY)
         .and_then(toml::Value::as_str)
         .and_then(crate::process::ProcessMode::parse)
     {
         crate::process::set(&mut eng.world_mut(), entity, mode);
     }
-    if let Some(on) = table.get("interpolate").and_then(toml::Value::as_bool) {
+    if let Some(on) = table
+        .get(crate::interpolate::KEY)
+        .and_then(toml::Value::as_bool)
+    {
         crate::interpolate::set(eng, entity, Some(on));
     }
     let world = eng.world();

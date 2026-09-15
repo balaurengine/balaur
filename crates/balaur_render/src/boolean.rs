@@ -18,7 +18,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
 use crate::shape::keys as k;
-use crate::{PolygonMesh, Renderable, Renderable2d, Shape, Shape2d};
+use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
 
 /// The `boolean3d` component: which operation, and what the operands looked
 /// like when it last ran.
@@ -67,7 +67,7 @@ fn op_from_params(params: &toml::Value) -> Result<Op> {
     Op::from_word(word).ok_or_else(|| anyhow!("unknown boolean op '{word}'"))
 }
 
-/// The `boolean3d` component: writes [`Boolean3d`], and a `Renderable` whose
+/// The `boolean3d` component: writes [`Boolean3d`], and a `Renderable3d` whose
 /// shape is built rather than authored.
 pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
     let mut def = schema("boolean3d");
@@ -89,7 +89,7 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
     def.remove = Box::new(|eng, entity| {
         let mut world = eng.world_mut();
         let _ = world.remove_one::<Boolean3d>(entity);
-        let _ = world.remove_one::<Renderable>(entity);
+        let _ = world.remove_one::<Renderable3d>(entity);
         Ok(())
     });
     def.get = Box::new(|eng, entity| {
@@ -152,7 +152,7 @@ fn signature_of(eng: &Engine, operands: &[Entity], flat: bool) -> u64 {
             if let Ok(r) = world.get::<&Renderable2d>(*entity) {
                 fold(&mut state, r.version);
             }
-        } else if let Ok(r) = world.get::<&Renderable>(*entity) {
+        } else if let Ok(r) = world.get::<&Renderable3d>(*entity) {
             fold(&mut state, r.version);
         }
         if let Ok(at) = world.get::<&GlobalTransform>(*entity) {
@@ -177,13 +177,13 @@ fn signature_of(eng: &Engine, operands: &[Entity], flat: bool) -> u64 {
 fn operand_mesh(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Option<MeshData> {
     let (shape, reference, built) = {
         let world = eng.world();
-        let r = world.get::<&Renderable>(entity).ok()?;
+        let r = world.get::<&Renderable3d>(entity).ok()?;
         (r.shape, r.mesh.clone(), r.built.clone())
     };
     let mut mesh = match shape {
-        Shape::Solid(solid) => solid.build(),
-        Shape::Built => built.as_deref()?.clone(),
-        Shape::Mesh => {
+        Shape3d::Solid(solid) => solid.build(),
+        Shape3d::Built => built.as_deref()?.clone(),
+        Shape3d::Mesh => {
             let reference = reference?;
             let definition = balaur_core::assets::load_typed::<MeshData>(eng, &reference).ok()?;
             balaur_core::mesh::load_from(eng, &definition).ok()?
@@ -248,7 +248,7 @@ pub(crate) fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
     )]);
     m.function("built_mesh", |eng: &Engine, node: NodeId| {
         let world = eng.world();
-        let Ok(renderable) = world.get::<&Renderable>(entity_of(node)?) else {
+        let Ok(renderable) = world.get::<&Renderable3d>(entity_of(node)?) else {
             return Ok(balaur_script::Value::Nil);
         };
         let Some(mesh) = renderable.built.as_deref() else {
@@ -338,7 +338,7 @@ fn resolve_3d(eng: &Engine) {
             .unwrap_or_default();
         let bounds = result.bounds().map(|(min, max)| {
             let (min, max) = (Vec3::from_array(min), Vec3::from_array(max));
-            crate::Bounds {
+            crate::Bounds3d {
                 centre: (min + max) / 2.0,
                 half: (max - min) / 2.0,
             }
@@ -347,16 +347,16 @@ fn resolve_3d(eng: &Engine) {
         if let Ok(mut boolean) = world.get::<&mut Boolean3d>(entity) {
             boolean.signature = signature;
         }
-        if let Ok(mut renderable) = world.get::<&mut Renderable>(entity) {
-            renderable.shape = Shape::Built;
+        if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+            renderable.shape = Shape3d::Built;
             renderable.built = Some(std::sync::Arc::new(result));
             renderable.bounds = bounds;
             renderable.version += 1;
         } else {
             let _ = world.insert_one(
                 entity,
-                Renderable {
-                    shape: Shape::Built,
+                Renderable3d {
+                    shape: Shape3d::Built,
                     bounds,
                     color: [0.8, 0.8, 0.8, 1.0],
                     mesh: None,

@@ -167,7 +167,7 @@ pub fn tree_tools(S, k) {
         fill: k.accent_soft, color: k.accent,
         tooltip: "Add child node",
     }) {
-        model::add_child(S, None);
+        crate::newnode::open(S);
     }
 }
 
@@ -384,4 +384,54 @@ pub fn hide_outline() {
     let params = util::obj(found.get_component("widget"));
     params["visible"] = false;
     found.set_component("widget", params);
+}
+
+/// Open the rename sheet on the selected node, with its name ready to replace.
+pub fn rename_open(S) {
+    S.renaming = true;
+    S.rename_text = S.doc[S.sel].name;
+    ui::set_text("rename-field", S.rename_text);
+}
+
+pub fn rename_close(S) {
+    S.renaming = false;
+}
+
+/// One field and one button: the tree is a widget-layer list, which has no
+/// cell to edit in place, so the rename happens over it.
+pub fn rename_draw(S) {
+    if !S.renaming {
+        return;
+    }
+    let k = S.theme;
+    let screen = ui::screen_size();
+    let width = util::min(420.0, util::max(screen[0] - 32.0, 240.0));
+    let row_h = crate::style::row_h(S);
+    let scrim_clicked = ui::modal("rename", #{
+        width: width, top: 0.2, fill: k.panel, stroke: k.line,
+        scrim: "#0b0e126b",
+    }, || {
+        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
+            ui::label("Rename node", crate::style::mono_sm(k.faint));
+            ui::add_space(6);
+            ui::horizontal(#{ height: row_h }, || {
+                let (text, _, submitted) = ui::text_field("rename-field", "Name", #{
+                    size: crate::style::XL, width: width - 110.0, autofocus: true, color: k.text,
+                });
+                S.rename_text = text;
+                ui::add_space(6);
+                let apply = ui::pill("Rename", #{
+                    height: util::max(row_h, 28.0), size: crate::style::MD,
+                    fill: k.accent_soft, color: k.accent,
+                });
+                if apply || submitted {
+                    model::rename_selected(S, S.rename_text);
+                    rename_close(S);
+                }
+            });
+        });
+    });
+    if scrim_clicked || ui::shortcut("escape") {
+        rename_close(S);
+    }
 }

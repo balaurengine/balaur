@@ -12,7 +12,7 @@
 - kiss3d's fork has `RenderTarget`s for its post chain and the offscreen
   output, and no way to render the graph a second time with another camera
   or into a texture a material can read.
-- `Renderable` and `GlobalTransform` are where a visibility pass would sit;
+- `Renderable3d` and `GlobalTransform` are where a visibility pass would sit;
   `visible` propagates in `SceneSync`; nothing computes bounds.
 - The 3D material pipelines are Balaur's own (`shader_material_3d.rs`);
   every mesh is one draw. The fork's `set_instances` on a node is unused.

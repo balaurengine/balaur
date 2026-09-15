@@ -153,9 +153,17 @@ engine opens a project is the same decision as which project to open.
 
 ## 8. What is left
 
-- **The web half.** `project::open` starts a second process, which a tab
-  cannot do. On the web the same screen should call `web_store`'s
-  `open_project`, and the page's own list in `editor.tsx` becomes redundant.
+- **The web half, the rest of it.** The screen lists and opens in a tab now:
+  `start_manager` boots the editor on no project at all, `web_store::list` is
+  read before the editor starts because a store is asynchronous and a verb is
+  not, and opening one is a handshake rather than a launch — the screen names
+  a project and quits, `next_project` hands the page the name, and the page
+  boots the editor again on it. `project::in_tab` is the fact behind what the
+  screen offers there: the Examples and Engine pages and the two verbs that
+  want a folder picker are a desktop's. What is left is starting a project in
+  a tab: a template copied into a store needs `new_project` reading through
+  `fs` rather than `std::fs`, and an example needs its pack fetched, which is
+  the page's half. Until then the page keeps the two buttons that start one.
 - **A dirty document asks first.** Opening another project from inside one
   quits this process; a scene with unsaved edits should say so. The editor
   already knows it is dirty.

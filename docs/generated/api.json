@@ -62,7 +62,8 @@
     "bone3d": "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
     "boolean2d": "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
     "boolean3d": "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
-    "camera": "The camera the scene is drawn from. `kind` is `3d` or `2d`; `look_at` aims the 3D one, `zoom` scales the 2D one, the last `current` camera wins.",
+    "camera2d": "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
+    "camera3d": "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
     "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.",
@@ -133,7 +134,11 @@
       "3d",
       "render"
     ],
-    "camera": [
+    "camera2d": [
+      "2d",
+      "render"
+    ],
+    "camera3d": [
       "3d",
       "render"
     ],
@@ -658,7 +663,7 @@
         "type": "enum"
       }
     },
-    "camera": {
+    "camera2d": {
       "aberration_amount": {
         "default": 0.004,
         "description": "How far `aberration` slides red from blue at the frame's edge, as a fraction of it",
@@ -672,7 +677,7 @@
           0.0,
           1.0
         ],
-        "description": "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read",
+        "description": "Light every 2D surface gets before any `light2d`",
         "type": "color"
       },
       "bloom_intensity": {
@@ -697,24 +702,6 @@
         "description": "How much the `grain` pass lightens and darkens a pixel",
         "min": 0.0,
         "type": "float"
-      },
-      "kind": {
-        "default": "3d",
-        "description": "Which camera this node drives",
-        "options": [
-          "3d",
-          "2d"
-        ],
-        "type": "enum"
-      },
-      "look_at": {
-        "default": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "World point the 3D camera looks at",
-        "type": "vec3"
       },
       "pixelate_size": {
         "default": 4.0,
@@ -767,8 +754,97 @@
       },
       "zoom": {
         "default": 60.0,
-        "description": "2D zoom in logical pixels per world unit",
+        "description": "Zoom in logical pixels per world unit",
         "min": 0.01,
+        "type": "float"
+      }
+    },
+    "camera3d": {
+      "aberration_amount": {
+        "default": 0.004,
+        "description": "How far `aberration` slides red from blue at the frame's edge, as a fraction of it",
+        "min": 0.0,
+        "type": "float"
+      },
+      "bloom_intensity": {
+        "default": 0.6,
+        "description": "How much of the bloom is added back over the frame",
+        "min": 0.0,
+        "type": "float"
+      },
+      "bloom_threshold": {
+        "default": 1.0,
+        "description": "Brightness a pixel has to pass to bloom",
+        "min": 0.0,
+        "type": "float"
+      },
+      "current": {
+        "default": true,
+        "description": "Whether this camera drives the view; the last current one wins",
+        "type": "bool"
+      },
+      "grain_amount": {
+        "default": 0.06,
+        "description": "How much the `grain` pass lightens and darkens a pixel",
+        "min": 0.0,
+        "type": "float"
+      },
+      "look_at": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "World point the camera looks at",
+        "type": "vec3"
+      },
+      "pixelate_size": {
+        "default": 4.0,
+        "description": "The side of one block the `pixelate` pass reads the frame back in, in pixels",
+        "min": 1.0,
+        "type": "float"
+      },
+      "post": {
+        "default": [],
+        "description": "The frame's passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
+        "type": "strings"
+      },
+      "ssao_bias": {
+        "default": 0.025,
+        "description": "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black",
+        "min": 0.0,
+        "type": "float"
+      },
+      "ssao_intensity": {
+        "default": 1.2,
+        "description": "How strongly the `ssao` pass darkens",
+        "min": 0.0,
+        "type": "float"
+      },
+      "ssao_power": {
+        "default": 1.5,
+        "description": "The contrast the occlusion is raised to",
+        "min": 0.001,
+        "type": "float"
+      },
+      "ssao_radius": {
+        "default": 0.5,
+        "description": "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene",
+        "min": 0.001,
+        "type": "float"
+      },
+      "vignette_amount": {
+        "default": 0.35,
+        "description": "How dark the corners go under the `vignette` pass",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "vignette_roundness": {
+        "default": 1.0,
+        "description": "1 darkens in a circle whatever shape the frame is; 0 follows the frame",
+        "max": 1.0,
+        "min": 0.0,
         "type": "float"
       }
     },
@@ -5675,17 +5751,35 @@
       "constants": [],
       "doc": "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
       "docs": {
-        "file": "Import one file into the edited project. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed.",
-        "handles": "Whether an importer claims this file, by extension."
+        "cancel": "Stop the imports in flight at the end of the file each is writing. What they had written stays where it landed; each reports `cancelled` with the count it reached.",
+        "choose": "Ask the reader for a file and import what they pick, reporting as `start` does. On a desktop that is the OS dialog; in a tab it is the page's own chooser, which takes several files at once so a `.gltf` can be picked with the images it names. Answers whether the asking began.",
+        "file": "Import one file into the edited project, in one call. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
+        "handles": "Whether an importer claims this file, by extension.",
+        "into": "Import one file into a project that is not the one being edited, in one call. What the start screen converts a Godot project with, before it opens the project it wrote. Answers what `file` answers.",
+        "listen": "Have the node's `on_import(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.",
+        "running": "How many imports are in flight.",
+        "start": "Import one file, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`."
       },
       "functions": [
+        "cancel",
+        "choose",
         "file",
-        "handles"
+        "handles",
+        "into",
+        "listen",
+        "running",
+        "start"
       ],
       "name": "import",
       "signatures": {
+        "cancel": "() -> Value",
+        "choose": "() -> Value",
         "file": "String -> Value",
-        "handles": "String -> Value"
+        "handles": "String -> Value",
+        "into": "(String, String) -> Value",
+        "listen": "(NodeId, Option<Value>) -> ()",
+        "running": "() -> Value",
+        "start": "String -> Value"
       }
     },
     {
@@ -8167,6 +8261,7 @@
         "examples": "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
         "forget": "Drop one project from the list. The folder is not touched.",
         "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
+        "in_tab": "Whether this editor runs in a browser tab, where the page holds the projects and opening one is its call rather than this screen's.",
         "open": "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
         "pick_folder": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
@@ -8179,6 +8274,7 @@
         "examples",
         "forget",
         "home",
+        "in_tab",
         "open",
         "pick_folder",
         "recent",
@@ -8192,6 +8288,7 @@
         "examples": "() -> Value",
         "forget": "String -> Value",
         "home": "() -> Value",
+        "in_tab": "() -> Value",
         "open": "String -> Value",
         "pick_folder": "() -> Value",
         "recent": "() -> Value",
@@ -8280,14 +8377,6 @@
         {
           "name": "ALPHA_OPAQUE",
           "value": "opaque"
-        },
-        {
-          "name": "CAMERA_2D",
-          "value": "2d"
-        },
-        {
-          "name": "CAMERA_3D",
-          "value": "3d"
         },
         {
           "name": "FOG_EXPONENTIAL",
@@ -9298,6 +9387,7 @@
         "add_space": "Insert blank space along the current layout, in design pixels.",
         "available_height": "The height left in the current container, in design pixels.",
         "available_width": "The width left in the current container, in design pixels.",
+        "bar": "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
         "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
@@ -9322,9 +9412,10 @@
         "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "list": "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels.",
+        "loaded": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "menu_item": "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu unless `keep_open` says otherwise.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
-        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
+        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it.",
         "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "request_repaint": "Run the UI pass this frame even when lazy; call it every frame something on screen moves without input, such as while the scene plays.",
@@ -9338,6 +9429,7 @@
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_keyboard_focus": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
         "set_lazy": "Run the UI pass only when something asks for it (input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms, which waits out a drag the UI is no part of) and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
+        "set_loading": "Report how far a load is, zero to one, for the splash's bar. Only read while `[application] splash_until_ready` holds the splash.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
@@ -9361,6 +9453,7 @@
         "add_space",
         "available_height",
         "available_width",
+        "bar",
         "bottom_panel",
         "central_panel",
         "central_rect",
@@ -9385,6 +9478,7 @@
         "label",
         "left_panel",
         "list",
+        "loaded",
         "menu_item",
         "modal",
         "overlay",
@@ -9401,6 +9495,7 @@
         "set_focus",
         "set_keyboard_focus",
         "set_lazy",
+        "set_loading",
         "set_scale",
         "set_text",
         "set_theme",
@@ -9425,6 +9520,7 @@
         "add_space": "f32 -> ()",
         "available_height": "() -> f32",
         "available_width": "() -> f32",
+        "bar": "(f32, Option<Value>) -> ()",
         "bottom_panel": "(String, Option<Value>, CallbackId) -> f64",
         "central_panel": "(Option<Value>, CallbackId) -> ()",
         "central_rect": "() -> (f32, f32, f32, f32)",
@@ -9449,6 +9545,7 @@
         "label": "(String, Option<Value>) -> ()",
         "left_panel": "(String, Option<Value>, CallbackId) -> f64",
         "list": "(String, Option<Value>, i64, CallbackId) -> ()",
+        "loaded": "() -> ()",
         "menu_item": "(String, Option<Value>) -> bool",
         "modal": "(String, Option<Value>, CallbackId) -> bool",
         "overlay": "(String, Option<Value>, CallbackId) -> ()",
@@ -9465,6 +9562,7 @@
         "set_focus": "NodeId -> ()",
         "set_keyboard_focus": "bool -> ()",
         "set_lazy": "bool -> ()",
+        "set_loading": "(f32, Option<String>) -> ()",
         "set_scale": "f32 -> ()",
         "set_text": "(String, String) -> ()",
         "set_theme": "Value -> ()",
