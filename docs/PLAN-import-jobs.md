@@ -245,9 +245,17 @@ importer's own code.
    225 MiB across the same change, because writing the files dominates it and
    drowns what is held. The counting allocator in that test is the instrument;
    a footprint number will tell you nothing here.
-4. **The task type.** `task::spawn` and `task::step` in `balaur_core`, and the
-   four subsystems that hand-roll a backend module moved onto them. A lint
-   keeps the fifth from being written.
+4. **The task type.** `task::step` and `task::park` in `balaur_core`, with
+   `Stepped` and `Progress`, built 2026-09-15: `step` takes a thread natively
+   and is `park` on the web, `park` advances a job from the tick on either, and
+   `advance_parked_system` at `Stage::First` is what advances it. `running()`
+   counts what has not finished, on both.
+
+   What is left of this step is the cleanup: the four subsystems that
+   hand-roll a backend module per target still do, and each waits on a socket
+   or a fetch rather than stepping, so they want the async twin -- `task::spawn`
+   -- before they can move. The lint on `thread::spawn` and `spawn_local`
+   outside core waits on that too.
 5. **The job.** `ImportCore` over `ExternalIo<ImportEvent>`, `pump` at
    `Stage::First`, and `start`, `running` and `listen` beside the call that
    stays. The importer sends `wrote` from the sink.

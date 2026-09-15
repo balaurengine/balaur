@@ -74,6 +74,7 @@ pub mod standalone;
 pub mod states;
 pub mod strings;
 pub mod tags;
+pub mod task;
 pub mod tiles;
 pub mod time;
 pub mod timer;

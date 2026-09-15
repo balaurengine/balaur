@@ -375,6 +375,9 @@ impl App {
                 crate::replay::restore(eng, &frame);
             }
         });
+        // A browser has no threads, so a stepped job is advanced here; a
+        // desktop parks nothing and this is an empty borrow.
+        app.add_system(Stage::First, crate::task::advance_parked_system);
         app.add_system(Stage::First, crate::facts::read_clock_system);
         app.add_system(Stage::First, crate::facts::announce_device_system);
         app.add_system(Stage::First, crate::process::announce_pause_system);

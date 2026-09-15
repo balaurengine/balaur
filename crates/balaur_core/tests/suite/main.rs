@@ -41,4 +41,5 @@ mod skeleton;
 mod snapshot;
 mod standalone;
 mod strings;
+mod task;
 mod timings;

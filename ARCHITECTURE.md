@@ -857,6 +857,15 @@ tick.
 - **Restore re-enters the real path**: a recorded `NetEvent` goes down the same
   channel the workers use, so dispatch, handler lookup, await-wake and arrival
   order are the originals.
+- **How work leaves a tick is `core::task`.** `ExternalIo` is how it reports
+  back; the other half is getting off the tick, and `task::step` is that for
+  work that can be cut into slices. A desktop hands the job a thread, a browser
+  has none, so `task::park` advances one slice per frame from
+  `advance_parked_system` at `Stage::First` and `step` is `park` there. A job
+  moves to a thread natively, so it is `Send` there and not on the web, and it
+  reads the file backend where it runs rather than carrying an `Rc` across.
+  Work that waits on a socket or a fetch is not this shape and still spawns its
+  own, once per target.
 - **Capture and restore are symmetric only for passive sources.** Input and the
   gamepad only receive, so `add_replay_resource::<T>` is one line. A socket is
   not: those subsystems hold a `replay::ExternalIo<E>`, which hands out the

@@ -598,7 +598,8 @@ pub struct Authored(pub crate::collections::DetHashMap<(Entity, usize), toml::Va
 
 /// Merge what is being asked for into what was asked before.
 fn record(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>, over: bool) {
-    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name)) else {
+    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name))
+    else {
         return;
     };
     let mut authored = authored.borrow_mut();
@@ -629,7 +630,8 @@ fn asked_for(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
 
 /// Forget what was asked of one component on one node.
 fn forget(eng: &Engine, entity: Entity, name: &str) {
-    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name)) else {
+    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name))
+    else {
         return;
     };
     authored.borrow_mut().0.swap_remove(&(entity, index));
