@@ -49,7 +49,7 @@ pub(crate) fn convert(root: &Path, files: &[String]) -> Strings {
         let Some(settings) = translation_settings(&root.join(format!("{relative}.import"))) else {
             continue;
         };
-        let Ok(text) = std::fs::read_to_string(root.join(relative)) else {
+        let Ok(text) = crate::godot::io::text(&root.join(relative)) else {
             strings.notes.push(format!("{relative}: would not read"));
             continue;
         };
@@ -68,7 +68,7 @@ struct Settings {
 
 /// The import settings, when the file is a translation table at all.
 fn translation_settings(import: &Path) -> Option<Settings> {
-    let text = std::fs::read_to_string(import).ok()?;
+    let text = crate::godot::io::text(import).ok()?;
     let document = crate::godot::parse(&text).ok()?;
     let remap = document.first("remap")?;
     if remap.field("importer")?.as_str()? != "csv_translation" {

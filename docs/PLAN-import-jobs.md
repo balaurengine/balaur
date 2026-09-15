@@ -1,8 +1,9 @@
-> **Status:** steps 1 to 3 built 2026-09-15 for a model and a sprite, which is
-> what a drop carries. `import_bytes` takes a name and bytes, `Sink` takes one
-> file at a time, and `ProjectSink` writes through the file backend. A level
-> writes through the sink and still reads from its own directory; the Godot
-> importer still calls `std::fs` in forty places, which is step 2's remainder.
+> **Status:** steps 1 to 3 built 2026-09-15. `import_bytes` takes a name and
+> bytes, `Sink` takes one file at a time, and `ProjectSink` writes through the
+> file backend. The Godot importer reads and writes through it too, over
+> `godot::io`, so a whole project converts inside a `MemoryFs` with no disk in
+> reach. A level writes through the sink and still reads its tilesets from its
+> own directory, which is step 2's remainder.
 > Written from three questions about the Sponza import: why the editor freezes
 > while one runs, why nothing says an import failed, and why a browser tab has
 > no importers at all. The answers are one change each, and the first two share
@@ -43,10 +44,13 @@ verb is absent from a browser build.
   `cfg(not(target_family = "wasm"))`, so a browser build has no importers to
   call. Its own crates are pure Rust and `naga` and `image` are already linked
   through `window`, so the exclusion is a choice rather than a limit.
-- **The files.** `balaur_import` calls `std::fs` directly, fifteen times in
-  `lib.rs` alone, rather than the `balaur::files::FileBackend` the engine reads
-  through. On the web that backend is a `MemoryFs` mirrored into IndexedDB
+- **The files.** `balaur_import` called `std::fs` directly, fifteen times in
+  `lib.rs` and thirty in the Godot importer, rather than the
+  `balaur::files::FileBackend` the engine reads through. On the web that backend
+  is a `MemoryFs` mirrored into IndexedDB
   (`crates/balaur_cli/src/web_store.rs`), and its contract is the desktop's.
+  `Path::exists`, `is_file` and `canonicalize` are the same hole and were the
+  last two sites in the Godot path.
 
 ## 1. The seam this stands on
 
@@ -223,7 +227,13 @@ importer's own code.
    it. No behaviour changes and the tests stay as they are.
 2. **The backend.** Every read and write in `balaur_import` through
    `files::backend`. A test imports out of a `MemoryFs` and asserts the files
-   without a temporary directory.
+   without a temporary directory. Built for the models, sprites and the whole
+   Godot importer; the `tiled` crate reads a `.tmx` from a path of its own, so a
+   level waits on its `ResourceReader`.
+
+   The Godot conversion is equivalence-checked rather than trusted: importing
+   `../polyglot-pirates-game` before and after wrote the same 9,695 files, byte
+   for byte, at 181 scenes and 769 scripts.
 3. **The sink.** `Imported.files` becomes a sink taking one `(path, bytes)` at
    a time, so nothing collects what it is about to write. Built, and measured
    by `crates/balaur_import/tests/memory.rs`: importing a model naming 12.6 MB

@@ -65,7 +65,7 @@ impl Resources<'_> {
     /// An image's pixel size, read from a PNG's header. Other formats answer
     /// `None`, and a caller that needs a size reports it.
     pub(crate) fn image_size(&self, path: &str) -> Option<(u32, u32)> {
-        let bytes = std::fs::read(self.root.join(path)).ok()?;
+        let bytes = crate::godot::io::bytes(&self.root.join(path)).ok()?;
         let header = bytes.get(..24)?;
         if &header[..8] != b"\x89PNG\r\n\x1a\n" {
             return None;
@@ -122,7 +122,7 @@ pub(crate) fn load<'a>(
     value: &Value,
 ) -> Option<(crate::godot::Document, Resources<'a>)> {
     let path = res.path(value)?;
-    let text = std::fs::read_to_string(res.root.join(path)).ok()?;
+    let text = crate::godot::io::text(&res.root.join(path)).ok()?;
     let document = crate::godot::parse(&text).ok()?;
     let nested = resources_of(&document, res.root, res.project);
     Some((document, nested))
