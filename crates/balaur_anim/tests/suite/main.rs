@@ -12,6 +12,7 @@ mod clip;
 mod ease;
 mod machine;
 mod modifier;
+mod paused;
 mod retarget;
 mod rollback;
 mod script;

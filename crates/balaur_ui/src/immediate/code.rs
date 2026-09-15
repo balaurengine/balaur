@@ -285,8 +285,6 @@ pub(crate) fn highlight(
     job
 }
 
-/// An editable, syntax-highlighted code editor with a line-number gutter.
-/// The buffer persists per `id` in `UiState`; returns (text, changed).
 /// The column beside the code: line numbers, breakpoint dots, and the row
 /// the debugger is stopped on.
 struct Gutter {
@@ -378,23 +376,82 @@ pub(crate) struct Caret {
     pub(crate) index: usize,
 }
 
-/// Returns the buffer, whether it changed, the gutter line clicked this frame
-/// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
-/// one.
+/// Every colour a `code` node takes from its theme's `[colors]`, under the
+/// names the options table already spells them with: a `widget_theme` that
+/// names one dresses the editor a scene holds, and one that names none leaves
+/// the built-in look.
+const THEME_COLORS: [&str; 12] = [
+    k::GUTTER_COLOR,
+    k::BREAKPOINT_COLOR,
+    k::CURRENT_FILL,
+    k::PROBLEM_COLOR,
+    k::WARNING_COLOR,
+    k::K_KEY,
+    k::K_STR,
+    k::K_NUM,
+    k::K_COM,
+    k::K_FN,
+    k::K_TYPE,
+    k::K_PUNC,
+];
+
 /// A `code` widget's values as the options `code_editor` reads, so the node
 /// and the script call reach the same editor.
-pub(crate) fn code_opts(widget: &crate::widget::node::Widget) -> Opts {
+pub(crate) fn code_opts(
+    widget: &crate::widget::node::Widget,
+    theme: &crate::widget::theme::WidgetTheme,
+) -> Opts {
     let size = if widget.font_size > 0.0 {
         widget.font_size
     } else {
         12.5
     };
-    Opts::plain(Some(Value::Map(vec![
+    let mut given = vec![
         (k::SIZE.into(), Value::Num(f64::from(size))),
         (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
-    ])))
+        (
+            k::CURRENT_LINE.into(),
+            Value::Int(i64::from(widget.current_line)),
+        ),
+    ];
+    for (key, lines) in [
+        (k::BREAKPOINTS, &widget.breakpoints),
+        (k::PROBLEMS, &widget.problems),
+        (k::WARNINGS, &widget.warnings),
+    ] {
+        let rows = lines
+            .iter()
+            .map(|line| Value::Int(i64::from(*line)))
+            .collect();
+        given.push((key.into(), Value::List(rows)));
+    }
+    if widget.gutter_width > 0.0 {
+        given.push((
+            k::GUTTER_WIDTH.into(),
+            Value::Num(f64::from(widget.gutter_width)),
+        ));
+    }
+    for name in THEME_COLORS {
+        if let Some(color) = theme.token(name) {
+            given.push((name.into(), Value::Str(hex(color))));
+        }
+    }
+    Opts::plain(Some(Value::Map(given)))
 }
 
+/// A theme's colour as the `#rrggbbaa` an options table carries, since that is
+/// the one spelling a call site and a theme both write.
+fn hex(color: Color32) -> String {
+    let [r, g, b, a] = color.to_srgba_unmultiplied();
+    format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+}
+
+/// An editable, syntax-highlighted code editor with a line-number gutter. The
+/// buffer persists per `id` in `UiState`.
+///
+/// Returns the buffer, whether it changed, the gutter line clicked this frame
+/// if any, and the caret: `breakpoints` marks lines, `current_line` highlights
+/// one.
 pub(crate) fn code_editor(
     eng: &Engine,
     id: &str,

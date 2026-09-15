@@ -374,7 +374,7 @@ fn chain(source: &str, classes: &Classes) -> Vec<String> {
     let mut base = extended(source, classes);
     for _ in 0..16 {
         let Some(file) = base else { break };
-        let Ok(text) = std::fs::read_to_string(classes.root.join(&file)) else {
+        let Ok(text) = crate::godot::io::text(&classes.root.join(&file)) else {
             break;
         };
         base = extended(&text, classes);

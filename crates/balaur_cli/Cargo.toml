@@ -16,7 +16,7 @@ default = ["audio", "http", "websocket", "webtransport", "gamend", "web", "paral
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
-window = ["balaur/window"]
+window = ["balaur/window", "dep:rfd"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
 audio = ["balaur/audio"]
 # Load extensions from a project's extensions/ directory.
@@ -59,6 +59,12 @@ balaur_import.workspace = true
 ureq.workspace = true
 sha2.workspace = true
 dirs = "7"
+
+# The OS folder picker the start screen offers. Already in the tree as one of
+# kiss3d's own dependencies, so the windowed build downloads nothing new.
+[target.'cfg(not(target_family = "wasm"))'.dependencies.rfd]
+version = "0.17"
+optional = true
 
 [target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]
 flate2 = "1"

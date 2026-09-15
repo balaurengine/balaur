@@ -171,6 +171,13 @@ impl WindowSettings {
     }
 }
 
+/// `[window] max_fps`: the shortest a frame may be, as frames per second.
+/// Zero is no cap, and the loop paces itself against the tick instead.
+#[must_use]
+pub fn max_fps(eng: &Engine) -> u32 {
+    setting_u32(eng, "window/max_fps", 0)
+}
+
 /// The settings registry answers in `toml::Value`; these are the three shapes
 /// a manifest key comes back as, each falling back to the schema's own.
 fn setting_u32(eng: &Engine, path: &str, fallback: u32) -> u32 {
@@ -402,6 +409,12 @@ pub(crate) struct SceneNode {
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
     z_relative: Option<bool>,
+    /// When this node and its subtree tick: `pausable`, `always`,
+    /// `when_paused`, `disabled`, or `inherit` to take the parent's.
+    process: Option<String>,
+    /// Draw this node between fixed steps, whatever it is made of. Unset
+    /// leaves it to the body or the `fixed_update` on it.
+    interpolate: Option<bool>,
     /// Names the node is filed under, for `scene.tagged`.
     #[serde(default)]
     tags: Vec<String>,
@@ -710,6 +723,10 @@ fn apply_own_keys(
             appearance.z_relative = on;
         }
     }
+    apply_process(eng, entity, node.process.as_deref(), &node.name)?;
+    if let Some(on) = node.interpolate {
+        crate::interpolate::set(eng, entity, Some(on));
+    }
     if !node.tags.is_empty() {
         let mut tags = eng
             .world()
@@ -865,8 +882,29 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
     Ok(())
 }
 
+/// A node's `process` key, refusing a word that is not a mode rather than
+/// silently ticking it the default way.
+fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) -> Result<()> {
+    let Some(named) = named else {
+        return Ok(());
+    };
+    let mode = crate::process::ProcessMode::parse(named).ok_or_else(|| {
+        anyhow::anyhow!("node '{node}' sets process = '{named}', which is not a process mode")
+    })?;
+    crate::process::set(&mut eng.world_mut(), entity, mode);
+    Ok(())
+}
+
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 5] = ["visible", "tint", "z_index", "z_relative", "tags"];
+const NODE_KEYS: [&str; 7] = [
+    "visible",
+    "tint",
+    "z_index",
+    "z_relative",
+    "process",
+    "interpolate",
+    "tags",
+];
 
 fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
@@ -886,6 +924,18 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
         appearance.z_relative = on;
     }
     drop(appearance);
+    drop(world);
+    if let Some(mode) = table
+        .get("process")
+        .and_then(toml::Value::as_str)
+        .and_then(crate::process::ProcessMode::parse)
+    {
+        crate::process::set(&mut eng.world_mut(), entity, mode);
+    }
+    if let Some(on) = table.get("interpolate").and_then(toml::Value::as_bool) {
+        crate::interpolate::set(eng, entity, Some(on));
+    }
+    let world = eng.world();
     if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
         let mut tags = Tags::default();
         for tag in list.iter().filter_map(toml::Value::as_str) {

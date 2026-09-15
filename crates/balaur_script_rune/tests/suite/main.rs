@@ -10,6 +10,7 @@ mod debugger;
 mod engine_api;
 mod modules;
 mod packed;
+mod pause;
 mod pow;
 mod props;
 mod replay_api;

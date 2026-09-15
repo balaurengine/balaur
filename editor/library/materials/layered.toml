@@ -1,0 +1,20 @@
+# The layer stack with nothing switched on: a flat tint over the physically
+# based surface. Turn a layer on in `[features]` and its knobs start reading.
+type = "material"
+shader = "shaders/layers.wesl"
+
+[features]
+image = false
+gradient = false
+noise = false
+matcap = false
+fresnel = false
+toon = false
+outline = false
+
+[params]
+tint = "#d8d2c8"
+metallic = 0.0
+roughness = 0.45
+reflectance = 0.5
+emissive = 0.0

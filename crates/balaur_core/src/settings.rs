@@ -595,6 +595,7 @@ ignore = { type = "strings", default = [], order = 7, applies = "restart", help 
         ),
     );
     build_window_settings(eng, &parse);
+    build_time_settings(eng, &parse);
     define_group(
         eng,
         "save",
@@ -681,6 +682,23 @@ verify = { type = "bool", default = false, order = 11, help = "Hash the world ev
     );
 }
 
+/// `[time]`: how fast the simulation ticks, and whether the frames between
+/// two ticks are drawn.
+fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+    define_group(
+        eng,
+        "time",
+        Scope::Project,
+        &parse(
+            "settings.time",
+            r#"
+tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", help = "How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used." }
+interpolate = { type = "bool", default = false, order = 2, applies = "restart", help = "Draw bodies and fixed_update nodes between steps, so they move every frame on a display faster than the tick. Costs one tick of latency, which is why a project asks for it." }
+"#,
+        ),
+    );
+}
+
 /// `[window]` and `[ui]`: what a windowed build opens and draws with, which
 /// is the table a platform most often answers differently.
 fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
@@ -697,6 +715,7 @@ mode = { type = "enum", default = "windowed", options = ["windowed", "maximized"
 orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
 vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
 msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+max_fps = { type = "int", default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
 "#,
         ),
     );

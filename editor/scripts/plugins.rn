@@ -39,7 +39,13 @@ fn arity(kind) {
 /// The two places a plugin lives: the editor's own, on for every project, and
 /// the game's, on only there.
 fn roots(S) {
-    ["plugins", S.game_root + "/editor"]
+    // With no project open there is only the editor's own directory: a
+    // relative path off an empty root is a path outside every root there is.
+    if S.game_root == "" {
+        return ["plugins"];
+    }
+    // An explicit return: a block followed by `[` is an index in Rune.
+    return ["plugins", S.game_root + "/editor"];
 }
 
 /// Load every plugin in both directories, in name order so registration order

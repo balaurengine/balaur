@@ -173,11 +173,11 @@ fn fixture() -> Vec<u8> {
 }
 
 fn import(layers: &[String]) -> aseprite::AsepriteImport {
-    aseprite::import(&fixture(), "walk", "art/walk.png", layers).unwrap()
+    aseprite::import(&fixture(), "walk", "art/walk.webp", layers).unwrap()
 }
 
-fn pixel(png: &[u8], x: u32, y: u32) -> [u8; 4] {
-    let image = image::load_from_memory(png).unwrap().to_rgba8();
+fn pixel(page: &[u8], x: u32, y: u32) -> [u8; 4] {
+    let image = image::load_from_memory(page).unwrap().to_rgba8();
     image.get_pixel(x, y).0
 }
 
@@ -200,13 +200,13 @@ fn the_page_packs_every_frame_at_canvas_size() {
         (imported.width, imported.height, imported.frames),
         (8, 4, 3)
     );
-    let image = image::load_from_memory(&imported.png).unwrap();
+    let image = image::load_from_memory(&imported.page).unwrap();
     assert_eq!((image.width(), image.height()), (8, 4));
-    assert_eq!(pixel(&imported.png, 0, 0), RED);
-    assert_eq!(pixel(&imported.png, 4, 0), GREEN);
-    assert_eq!(pixel(&imported.png, 0, 2), BLUE);
+    assert_eq!(pixel(&imported.page, 0, 0), RED);
+    assert_eq!(pixel(&imported.page, 4, 0), GREEN);
+    assert_eq!(pixel(&imported.page, 0, 2), BLUE);
     assert_eq!(
-        pixel(&imported.png, 4, 2),
+        pixel(&imported.page, 4, 2),
         [0, 0, 0, 0],
         "an empty cell is clear"
     );
@@ -214,9 +214,9 @@ fn the_page_packs_every_frame_at_canvas_size() {
 
 #[test]
 fn a_hidden_layer_is_left_out_unless_named() {
-    assert_eq!(pixel(&import(&[]).png, 0, 0), RED);
-    assert_eq!(pixel(&import(&["mask".to_string()]).png, 0, 0), WHITE);
-    let error = aseprite::import(&fixture(), "walk", "art/walk.png", &["hat".to_string()])
+    assert_eq!(pixel(&import(&[]).page, 0, 0), RED);
+    assert_eq!(pixel(&import(&["mask".to_string()]).page, 0, 0), WHITE);
+    let error = aseprite::import(&fixture(), "walk", "art/walk.webp", &["hat".to_string()])
         .unwrap_err()
         .to_string();
     assert!(
@@ -229,7 +229,7 @@ fn a_hidden_layer_is_left_out_unless_named() {
 fn the_sheet_names_every_frame_tag_and_slice() {
     let imported = import(&[]);
     let sheet = SpriteSheet::parse(&toml::from_str(&imported.sheet).unwrap()).unwrap();
-    assert_eq!(sheet.texture, "art/walk.png");
+    assert_eq!(sheet.texture, "art/walk.webp");
     assert_eq!(sheet.frames.len(), 3);
     assert_eq!(sheet.frames[1].rect, [4, 0, 4, 2]);
     assert!((sheet.frames[1].duration - 0.2).abs() < 1e-6);

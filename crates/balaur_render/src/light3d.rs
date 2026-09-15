@@ -234,7 +234,8 @@ pub struct Environment {
     pub sky_intensity: f32,
     /// Degrees about y.
     pub sky_rotation: f32,
-    /// False lights the scene from the sky without drawing it.
+    /// False turns the sky off: it stops drawing and stops lighting, because
+    /// the backend has one intensity for both.
     pub show_sky: bool,
     pub ambient: [f32; 4],
     pub fog: FogKind,
@@ -305,7 +306,7 @@ fn environment_schema() -> String {
 sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
 sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts" }}
 sky_rotation = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees" }}
-show_sky = {{ type = "bool", default = true, description = "False lights the scene from the sky without drawing it, leaving the background colour" }}
+show_sky = {{ type = "bool", default = true, description = "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both" }}
 ambient = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do" }}
 fog = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance" }}
 fog_color = {{ type = "color", default = [0.624, 0.706, 0.784, 1.0], description = "What distance fades toward" }}
@@ -634,6 +635,8 @@ fn sync_sky(
         }
     }
     if window.has_skybox() {
+        // One dial drives the drawn sky and the light it casts, so this
+        // cannot yet light a scene from a sky it does not draw.
         let intensity = if env.show_sky { env.sky_intensity } else { 0.0 };
         window.set_skybox_orientation(env.sky_rotation.to_radians(), intensity);
     }

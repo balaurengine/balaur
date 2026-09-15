@@ -52,9 +52,9 @@ pub struct ExportConfig {
     /// Globs an export keeps whatever else it decides, for the paths a
     /// script builds at run time.
     pub keep: Vec<String>,
-    /// `keep`, `png`, `webp`, `smallest` or `quantised`: how an image is
-    /// re-encoded on the way into the pack. Every mode keeps the size;
-    /// `quantised` is the one that does not keep the pixels.
+    /// `keep`, `webp` or `quantised`: how an image is re-encoded on the way
+    /// into the pack. Every mode keeps the size; `quantised` is the one that
+    /// does not keep the pixels.
     pub images: crate::recode::ImageMode,
     /// imagequant's 0-100 quality target, which `images = "quantised"` reads
     /// and every other mode ignores.
@@ -228,6 +228,29 @@ pub(crate) fn secret_or(name: &str, fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{ExportConfig, orientation_of};
+    use std::path::Path;
+
+    /// The editor draws these keys from `settings.rs`, and a mode it offers
+    /// that this file cannot parse is a dropdown entry that fails an export.
+    #[test]
+    fn every_mode_the_editor_offers_can_be_read_back() {
+        let schema: toml::Value =
+            toml::from_str(crate::settings::EXPORT_SCHEMA).expect("the schema is TOML");
+        for key in ["images", "fonts", "audio"] {
+            let options = schema[key]["options"]
+                .as_array()
+                .expect("an enum lists its options");
+            for option in options {
+                let word = option.as_str().expect("an option is a word");
+                let manifest: toml::Table =
+                    toml::from_str(&format!("[export]\n{key} = \"{word}\"\n")).unwrap();
+                assert!(
+                    ExportConfig::from_manifest(&manifest, Path::new(".")).is_ok(),
+                    "the editor offers {key} = \"{word}\", which the exporter rejects"
+                );
+            }
+        }
+    }
 
     /// A target's own tags are the ones its resolved `[export] tags` names,
     /// including the ones only its override names.

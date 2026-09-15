@@ -61,6 +61,7 @@ fn fits(widget: &Widget, width: f32, height: f32) -> bool {
     (widget.hide_narrower <= 0.0 || width >= widget.hide_narrower)
         && (widget.hide_wider <= 0.0 || width < widget.hide_wider)
         && (widget.hide_shorter <= 0.0 || height >= widget.hide_shorter)
+        && (widget.hide_taller <= 0.0 || height < widget.hide_taller)
 }
 
 /// One widget as this pass sees it: what the scene authored, with any class
@@ -443,7 +444,10 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
 }
 
 fn has_lines(widget: &Widget) -> bool {
-    widget.hide_narrower > 0.0 || widget.hide_wider > 0.0 || widget.hide_shorter > 0.0
+    widget.hide_narrower > 0.0
+        || widget.hide_wider > 0.0
+        || widget.hide_shorter > 0.0
+        || widget.hide_taller > 0.0
 }
 
 /// The room a widget's lines are read against, in design pixels.

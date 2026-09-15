@@ -14,6 +14,10 @@ use crate::widget::node::Widget;
 /// `clicked` is declared `readonly`: [`crate::widget::input`] writes it every
 /// tick and `apply` always clears it, but it is in the schema so that `get`'s
 /// output round-trips and the inspector can see it.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one line per property a scene may state; the list is the schema"
+)]
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "widget",
@@ -47,15 +51,22 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
                     (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
                     (k::SELECTABLE, r#"{ type = "bool", default = false, description = "Let a drag over this label select its text, and the platform's copy key take it", group = "type" }"#),
+                    (k::BREAKPOINTS, r#"{ type = "strings", default = [], description = "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means", group = "value" }"#),
+                    (k::PROBLEMS, r#"{ type = "strings", default = [], description = "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter", group = "value" }"#),
+                    (k::WARNINGS, r#"{ type = "strings", default = [], description = "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it", group = "value" }"#),
+                    (k::CURRENT_LINE, r#"{ type = "int", default = 0, min = 0, description = "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none", group = "value" }"#),
+                    (k::GUTTER_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits", group = "layout" }"#),
+                    (k::ON_GUTTER, r#"{ type = "string", default = "", description = "Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::CONTEXT, r#"{ type = "string", default = "", description = "Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own", group = "events" }"#),
                     (k::GROW, r#"{ type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for", group = "placement" }"#),
                     (k::HIDE_NARROWER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line", group = "placement" }"#),
                     (k::HIDE_WIDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line", group = "placement" }"#),
                     (k::HIDE_SHORTER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is shorter than this many design pixels. Zero is no line", group = "placement" }"#),
+                    (k::HIDE_TALLER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Not drawn while the room is this tall or taller, in design pixels. Zero is no line", group = "placement" }"#),
                     (k::MIN_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::MIN_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::DRAW, r#"{ type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function", group = "paint" }"#),
-                    (k::HANDLE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one", group = "value" }"#),
+                    (k::HANDLE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing", group = "value" }"#),
                     (k::ACTIVE, r#"{ type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
                     (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line", group = "type" }"#),
@@ -65,13 +76,13 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::DURATION, r#"{ type = "float", default = 3.0, min = 0.0, description = "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away", group = "type" }"#),
                     (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
                     (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
-                    (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
+                    (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given, and where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
                     (k::SOURCE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights" }"#),
                     (k::FIT, &format!(r#"{{ type = "enum", default = "", options = [{}], description = "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead", group = "value" }}"#, v::options(w::FITS))),
                     (k::MARKUP, r#"{ type = "bool", default = false, description = "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text", group = "type" }"#),
                     (k::FONT_WEIGHT, r#"{ type = "float", default = 400.0, min = 100.0, max = 900.0, description = "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold", group = "type" }"#),
                     (k::FONT_STYLE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Slant, from an italic face the project ships", group = "type" }}"#, w::NORMAL, v::options(w::FONT_STYLES))),
-                    (k::PLACEHOLDER, r#"{ type = "string", default = "", description = "What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`'s column names split on U+001F", group = "value" }"#),
+                    (k::PLACEHOLDER, r#"{ type = "string", default = "", description = "What a `field` shows while it is empty, and the letter a `drag_value` puts before its number", group = "value" }"#),
                     (k::MAX_LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most characters a `field` takes; 0 is no limit", group = "value" }"#),
                     (k::SECRET, r#"{ type = "bool", default = false, description = "Draw a `field`'s text as dots, for a password", group = "value" }"#),
                     (k::NUMERIC, r#"{ type = "bool", default = false, description = "Keep a `field` to digits, a sign and a point", group = "value" }"#),
@@ -88,7 +99,17 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height", group = "layout" }"#),
                     (k::FONT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in", group = "type" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
                     (k::OPTIONS, r#"{ type = "strings", default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
-                    (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list", group = "layout" }"#),
+                    (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list. A `table`'s columns are its `titles`", group = "layout" }"#),
+                    (k::SELECTION, r#"{ type = "strings", default = [], description = "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one", group = "value" }"#),
+                    (k::MULTI, r#"{ type = "bool", default = false, description = "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked", group = "value" }"#),
+                    (k::TITLES, r#"{ type = "strings", default = [], description = "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names", group = "value" }"#),
+                    (k::WIDTHS, r#"{ type = "strings", default = [], description = "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back", group = "layout" }"#),
+                    (k::HEADER, r#"{ type = "bool", default = true, description = "Draw the strip that names a `table`'s columns. Off, the columns are still `titles`', and a table that names none keeps its first row as a row", group = "layout" }"#),
+                    (k::SORT, r#"{ type = "string", default = "", description = "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`", group = "value" }"#),
+                    (k::SORTABLE, r#"{ type = "bool", default = false, description = "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret", group = "events" }"#),
+                    (k::REVERSE, r#"{ type = "bool", default = false, description = "Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named", group = "value" }"#),
+                    (k::REORDERABLE, r#"{ type = "bool", default = false, description = "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder", group = "events" }"#),
+                    (k::ON_MOVE, r#"{ type = "string", default = "", description = "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state", group = "events" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels", group = "placement" }"#),
                     (k::AVOID_KEYBOARD, r#"{ type = "bool", default = false, description = "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop", group = "placement" }"#),
@@ -198,6 +219,7 @@ fn write_room(map: &mut toml::map::Map<String, toml::Value>, widget: &Widget) {
         (k::HIDE_NARROWER, widget.hide_narrower),
         (k::HIDE_WIDER, widget.hide_wider),
         (k::HIDE_SHORTER, widget.hide_shorter),
+        (k::HIDE_TALLER, widget.hide_taller),
     ] {
         map.insert(key.into(), toml::Value::Float(f64::from(value)));
     }
@@ -301,6 +323,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     text_to_toml(widget, &mut map);
     look_to_toml(widget, &mut map);
     controls_to_toml(widget, &mut map);
+    code_to_toml(widget, &mut map);
     toml::Value::Table(map)
 }
 
@@ -324,6 +347,36 @@ fn reach_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>)
         toml::Value::String(widget.suffix.to_string()),
     );
     map.insert(k::ARROWS.into(), toml::Value::Boolean(widget.arrows));
+}
+
+/// What a `code` widget marks in its gutter and how wide that gutter is.
+///
+/// The lines go back as text: the property is declared `strings`, which is the
+/// closest list the schema has, and a reader takes either spelling.
+fn code_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
+    map.insert(
+        k::ON_GUTTER.into(),
+        toml::Value::String(widget.on_gutter.to_string()),
+    );
+    for (key, lines) in [
+        (k::BREAKPOINTS, &widget.breakpoints),
+        (k::PROBLEMS, &widget.problems),
+        (k::WARNINGS, &widget.warnings),
+    ] {
+        let rows = lines
+            .iter()
+            .map(|line| toml::Value::String(line.to_string()))
+            .collect();
+        map.insert(key.into(), toml::Value::Array(rows));
+    }
+    map.insert(
+        k::CURRENT_LINE.into(),
+        toml::Value::Integer(i64::from(widget.current_line)),
+    );
+    map.insert(
+        k::GUTTER_WIDTH.into(),
+        toml::Value::Float(f64::from(widget.gutter_width)),
+    );
 }
 
 /// The keys a widget's text carries: where it sits, the face it is drawn in,
@@ -428,6 +481,49 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
     map.insert(
         k::COLUMNS.into(),
         toml::Value::Integer(i64::from(widget.columns)),
+    );
+    map.insert(
+        k::SELECTION.into(),
+        toml::Value::Array(
+            widget
+                .selection
+                .iter()
+                .map(|row| toml::Value::String(row.to_string()))
+                .collect(),
+        ),
+    );
+    map.insert(k::MULTI.into(), toml::Value::Boolean(widget.multi));
+    map.insert(
+        k::TITLES.into(),
+        toml::Value::Array(
+            widget
+                .titles
+                .iter()
+                .map(|title| toml::Value::String(title.to_string()))
+                .collect(),
+        ),
+    );
+    map.insert(
+        k::WIDTHS.into(),
+        toml::Value::Array(
+            widget
+                .widths
+                .iter()
+                .map(|share| toml::Value::String(format!("{share}")))
+                .collect(),
+        ),
+    );
+    map.insert(k::HEADER.into(), toml::Value::Boolean(widget.header));
+    map.insert(k::SORT.into(), toml::Value::String(widget.sort.to_string()));
+    map.insert(k::SORTABLE.into(), toml::Value::Boolean(widget.sortable));
+    map.insert(k::REVERSE.into(), toml::Value::Boolean(widget.reverse));
+    map.insert(
+        k::REORDERABLE.into(),
+        toml::Value::Boolean(widget.reorderable),
+    );
+    map.insert(
+        k::ON_MOVE.into(),
+        toml::Value::String(widget.on_move.to_string()),
     );
     map.insert(k::OPEN.into(), toml::Value::Boolean(widget.open));
     map.insert(k::INSET.into(), four(widget.inset));
@@ -571,6 +667,10 @@ fn sides(params: &toml::Value, key: &str) -> [f32; 4] {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one line per property a scene may state; the literal is the list"
+)]
 fn widget_from(params: &toml::Value) -> Widget {
     let r = Read(params);
     let (s, f) = (|k: &str| r.str(k), |k: &str| r.num(k));
@@ -595,6 +695,12 @@ fn widget_from(params: &toml::Value) -> Widget {
         selectable: r.flag(k::SELECTABLE),
         suffix: s(k::SUFFIX),
         arrows: r.flag(k::ARROWS),
+        on_gutter: s(k::ON_GUTTER),
+        breakpoints: Vec::new(),
+        problems: Vec::new(),
+        warnings: Vec::new(),
+        current_line: 0,
+        gutter_width: 0.0,
         clicked: false,
         padding: sides(params, k::PADDING),
         gap: f(k::GAP),
@@ -646,6 +752,16 @@ fn widget_from(params: &toml::Value) -> Widget {
         max: 1.0,
         step: 0.0,
         options: Vec::new(),
+        selection: Vec::new(),
+        multi: false,
+        titles: Vec::new(),
+        widths: Vec::new(),
+        header: true,
+        sort: smol_str::SmolStr::default(),
+        sortable: false,
+        reverse: false,
+        reorderable: false,
+        on_move: smol_str::SmolStr::default(),
         columns: 2,
         open: true,
         inset: [0.0; 4],
@@ -656,6 +772,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         hide_narrower: 0.0,
         hide_wider: 0.0,
         hide_shorter: 0.0,
+        hide_taller: 0.0,
         authored: None,
     };
     read_controls(&mut widget, params);
@@ -721,17 +838,17 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.min = f(k::MIN);
     widget.max = f(k::MAX);
     widget.step = f(k::STEP);
-    widget.options = params
-        .get(k::OPTIONS)
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(toml::Value::as_str)
-                .map(smol_str::SmolStr::new)
-                .collect()
-        })
-        .unwrap_or_default();
+    widget.options = strings(params, k::OPTIONS);
+    widget.selection = strings(params, k::SELECTION);
+    widget.multi = b(k::MULTI);
+    widget.titles = strings(params, k::TITLES);
+    widget.widths = shares(params, k::WIDTHS);
+    widget.header = b(k::HEADER);
+    widget.sort = r.str(k::SORT);
+    widget.sortable = b(k::SORTABLE);
+    widget.reverse = b(k::REVERSE);
+    widget.reorderable = b(k::REORDERABLE);
+    widget.on_move = r.str(k::ON_MOVE);
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
@@ -740,8 +857,72 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.hide_narrower = f(k::HIDE_NARROWER);
     widget.hide_wider = f(k::HIDE_WIDER);
     widget.hide_shorter = f(k::HIDE_SHORTER);
+    widget.hide_taller = f(k::HIDE_TALLER);
     widget.slice = crate::widget::theme::four_of(params.get(k::SLICE));
     widget.deadzone = f(k::DEADZONE);
+    widget.breakpoints = lines(params, k::BREAKPOINTS);
+    widget.problems = lines(params, k::PROBLEMS);
+    widget.warnings = lines(params, k::WARNINGS);
+    widget.current_line = f(k::CURRENT_LINE).max(0.0) as u32;
+    widget.gutter_width = f(k::GUTTER_WIDTH);
+}
+
+/// The 1-based lines a code widget's gutter property names.
+///
+/// Numbers and the text of them both: a scene writes `["12", "40"]` under the
+/// `strings` type the schema declares, and a script handed a list of line
+/// numbers writes those.
+fn lines(params: &toml::Value, key: &str) -> Vec<u32> {
+    params
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| match item {
+                    toml::Value::String(text) => text.trim().parse().ok(),
+                    other => balaur_core::components::as_f64(other)
+                        .filter(|line| *line >= 1.0)
+                        .map(|line| line as u32),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The numbers a `strings` property holds, the way `lines` reads them: a
+/// scene writes `["2", "1"]` under the type the schema declares, and a script
+/// handed a list of shares writes those.
+fn shares(params: &toml::Value, key: &str) -> Vec<f32> {
+    params
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| match item {
+                    toml::Value::String(text) => text.trim().parse().ok(),
+                    other => balaur_core::components::as_f64(other).map(|share| share as f32),
+                })
+                .filter(|share: &f32| *share > 0.0)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The strings a `strings` property holds, and none where it says nothing.
+fn strings(params: &toml::Value, key: &str) -> Vec<smol_str::SmolStr> {
+    params
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(smol_str::SmolStr::new)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Four numbers as the array a `vec4` property holds.

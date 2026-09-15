@@ -1,0 +1,19 @@
+# Cel shading: the light cut into four bands, with a dark silhouette around
+# the edge.
+type = "material"
+shader = "shaders/layers.wesl"
+
+[features]
+toon = true
+outline = true
+
+[params]
+tint = "#e8b45c"
+toon_shadow = "#3a2a18"
+toon_steps = 4.0
+outline_color = "#1a1410"
+outline_width = 0.35
+metallic = 0.0
+roughness = 0.8
+reflectance = 0.35
+emissive = 0.0

@@ -1,0 +1,80 @@
+// The three row views over one set of entries. The rows are `screen.rn`'s,
+// reached with `script::require`, so the gallery and this screen say the same
+// thing about the same data.
+
+/// Where a picture of the screen goes, for the manual's shot. `--shot=<path>`
+/// after `--` says where; without it the screen is a screen, as `shot.rn` has
+/// it for the other two scenes here.
+pub fn exports() {
+    #{ shot: "" }
+}
+
+fn asked() {
+    for arg in engine::args() {
+        let parts = arg.split("=").collect::<Vec>();
+        if parts[0] == "--shot" && parts.len() > 1 {
+            return parts[1];
+        }
+    }
+    ""
+}
+
+fn fill(this, name, params) {
+    let found = this.node.get_node(name);
+    if found is balaur::Node {
+        found.patch_component("widget", params);
+    }
+}
+
+const LIST = "Sheet/Views/ListBox/List";
+
+pub fn init(this) {
+    this.frame = 0;
+    this.shot = asked();
+    let screen = script::require("scripts/screen.rn");
+    this.cards = screen["cards_in_order"]();
+    // Two rows held at once, which is what `multi` is for; a script reads
+    // `selection` back rather than the one row `text` carries.
+    fill(this, LIST, #{
+        options: this.cards,
+        selection: [this.cards[1], this.cards[2]],
+        text: this.cards[2],
+    });
+    fill(this, "Sheet/Views/TreeBox/Outline", #{ options: screen["outline"]() });
+    fill(this, "Sheet/Views/TableBox/Table", #{ options: screen["table"]() });
+}
+
+/// A row dropped somewhere else in the list, which the kind reports and this
+/// acts on: the view draws the rows a script hands it, so moving one is
+/// moving it here.
+pub fn on_move(this, what) {
+    let moved = what[0];
+    let onto = what[1];
+    let side = what[2];
+    let rest = [];
+    for row in this.cards {
+        if row != moved {
+            rest.push(row);
+        }
+    }
+    let out = [];
+    for row in rest {
+        if row == onto && side == "before" {
+            out.push(moved);
+        }
+        out.push(row);
+        if row == onto && side != "before" {
+            out.push(moved);
+        }
+    }
+    this.cards = out;
+    fill(this, LIST, #{ options: out, text: moved, selection: [moved] });
+}
+
+// Late enough that the layout has settled and the rows are in.
+pub fn update(this, dt) {
+    this.frame += 1;
+    if this.frame == 30 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+}

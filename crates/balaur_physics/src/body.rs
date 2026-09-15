@@ -565,7 +565,7 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
             state.borrow().world.gravity
         };
         read_body(eng, entity_of(node)?, |body| {
-            body.gravitational_potential_energy(scalar::real(crate::FIXED_DT), gravity)
+            body.gravitational_potential_energy(scalar::real(balaur_core::fixed_dt()), gravity)
         })
     });
     m.function("is_moving", |eng: &Engine, node: NodeId| {
@@ -595,14 +595,19 @@ pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "teleport",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
-            with_body(eng, entity_of(node)?, |state, handle| {
+            let entity = entity_of(node)?;
+            with_body(eng, entity, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.set_translation(scalar::v3(x, y, z), true);
                 body.set_linvel(scalar::Vector::ZERO, true);
                 body.set_angvel(scalar::Vector::ZERO, true);
                 // A query before the next step must see the new place.
                 state.queries_ready = false;
-            })
+            })?;
+            // Otherwise the frames after a respawn draw the character
+            // streaking from where it was to where it now is.
+            balaur_core::interpolate::reset(eng, entity);
+            Ok(())
         },
     );
 }

@@ -29,7 +29,7 @@ use crate::modifier_solve::{
     aim_local_3d, angle_of, chain_points, clamp_angle_2d, clamp_angle_3d, rotation_3d, scene_order,
     segment_lengths, tip_of, two_bone_ik_2d, two_bone_ik_3d,
 };
-use crate::player::{AnimationState, FIXED_DT, MAX_SUBSTEPS};
+use crate::player::{AnimationState, fixed_dt, max_substeps};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::{ComponentDef, as_f64};
@@ -560,8 +560,9 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
         if p.use_gravity {
             force += p.gravity * p.mass;
         }
-        velocity = (velocity + force * FIXED_DT) * keep;
-        point += velocity * FIXED_DT;
+        let step = fixed_dt();
+        velocity = (velocity + force * step) * keep;
+        point += velocity * step;
         // A direction to aim along, not a joint position: held to the bone's
         // own circle, a point flung past the origin would stay upside down.
         let _ = origin;
@@ -654,10 +655,11 @@ fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, b
     let mut state = state.borrow_mut();
     // The same clamp the playhead takes: a frame that hitched must not be
     // paid back in a hundred ticks of spring at once.
-    state.jiggle_accumulator = (state.jiggle_accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
+    state.jiggle_accumulator =
+        (state.jiggle_accumulator + dt).min(fixed_dt() * max_substeps() as f32);
     let mut steps = 0;
-    while state.jiggle_accumulator >= FIXED_DT {
-        state.jiggle_accumulator -= FIXED_DT;
+    while state.jiggle_accumulator >= fixed_dt() {
+        state.jiggle_accumulator -= fixed_dt();
         steps += 1;
     }
     steps
@@ -749,7 +751,7 @@ fn follow_point(world: &World, node: Entity, goal: Vec3, lag: f32, dim3: bool, s
     let share = if lag <= 0.0 {
         1.0
     } else {
-        1.0 - libm::expf(-(steps as f32) * FIXED_DT / lag)
+        1.0 - libm::expf(-(steps as f32) * fixed_dt() / lag)
     };
     let want = here + (goal - here) * share;
     // A world point is written as a local one, because a follower may hang

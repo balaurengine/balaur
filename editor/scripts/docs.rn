@@ -88,10 +88,12 @@ pub fn draw(S, k) {
     if m.doc != "" {
         items.push("\u{1f}" + m.doc + "\u{1f}\u{1f}" + k.dim);
     }
+    let shown = 0;
     for name in m.functions {
         if !search::matches(query, name) {
             continue;
         }
+        shown += 1;
         let picked = name == S.docs.fn_pick;
         let sig = signatures.get(name).unwrap_or("");
         items.push("\u{1f}" + name + sig + "\u{1f}\u{1f}" + if picked { k.accent } else { k.text });
@@ -105,51 +107,8 @@ pub fn draw(S, k) {
             items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.faint);
         }
     }
-    if crate::dock::show_log(items) {
-        return;
+    crate::dock::show_log(items);
+    if shown == 0 && query != "" {
+        search::nothing(k, query);
     }
-    ui::scroll("docs", #{ max_height: S.layout.body_h - 34.0 }, || {
-        if m.doc != "" {
-            ui::horizontal(#{ height: 30 }, || {
-                ui::add_space(6);
-                ui::label(m.doc, style::mono_sm(k.dim));
-            });
-        }
-        let signatures = util::obj(m.signatures);
-        let docs = util::obj(m.docs);
-        let shown = 0;
-        for name in m.functions {
-            if !search::matches(query, name) {
-                continue;
-            }
-            shown += 1;
-            let picked = name == S.docs.fn_pick;
-            let sig = signatures.get(name).unwrap_or("");
-            ui::horizontal(#{ height: 20 }, || {
-                ui::add_space(6);
-                ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
-            });
-            let doc = docs.get(name).unwrap_or("");
-            if doc != "" {
-                ui::horizontal(#{ height: 20 }, || {
-                    ui::add_space(16);
-                    ui::label(doc, style::mono_sm(k.faint));
-                });
-            }
-        }
-        if m.constants.len() > 0 && query == "" {
-            style::section_label(k, "constants");
-            for c in m.constants {
-                ui::horizontal(#{ height: 20 }, || {
-                    ui::add_space(6);
-                    ui::label(c.name, style::mono(k.text));
-                    ui::add_space(8);
-                    ui::label(c.value, style::mono_sm(k.faint));
-                });
-            }
-        }
-        if shown == 0 && query != "" {
-            search::nothing(k, query);
-        }
-    });
 }

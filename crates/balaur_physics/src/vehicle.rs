@@ -19,8 +19,9 @@ use balaur_core::{Engine, Stage, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
+use crate::PhysicsState;
 use crate::vocabulary::{self as v, component as c, keys as k, map};
-use crate::{FIXED_DT, PhysicsState};
+use balaur_core::fixed_dt;
 
 /// The chassis settings, held on the node like a character's.
 pub struct Vehicle3d(pub toml::Value);
@@ -41,6 +42,11 @@ pub(crate) fn build(reg: &mut Registry<'_>) {
 /// `Vec<Wheel>` and a handle — cheap enough that the alternative would be
 /// caching for its own sake.
 fn drive_system(eng: &Engine, _dt: f32) {
+    // Held with the step it feeds: forces applied into a world that is not
+    // stepping would all land on the frame the pause lifts.
+    if eng.paused() {
+        return;
+    }
     let vehicles: Vec<Entity> = {
         let world = eng.world();
         let mut query = world.query::<(Entity, &Vehicle3d)>();
@@ -126,7 +132,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         &mut state.world.colliders,
         QueryFilter::default().exclude_rigid_body(handle),
     );
-    controller.update_vehicle(scalar::real(FIXED_DT), queries);
+    controller.update_vehicle(scalar::real(fixed_dt()), queries);
     // Keep what the step worked out, so the wheel's rotation and its ground
     // contact are readable and survive into the next rebuild.
     for ((entity, _, _), wheel) in wheels.iter().zip(controller.wheels()) {

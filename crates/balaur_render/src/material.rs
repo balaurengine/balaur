@@ -137,6 +137,8 @@ pub struct Material {
     pub features: Vec<(String, bool)>,
     /// Values for the shader's `Params` fields, by name.
     pub params: Vec<(String, Param)>,
+    /// How a node drawing this rasterizes, from the `[surface]` table.
+    pub surface: Surface,
 }
 
 /// The feature a material names to be handed a colour per vertex.
@@ -197,6 +199,21 @@ shader = "shaders/water.wesl"
 features = { lit = true }
 # a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or "#rrggbb"/"#rrggbbaa" a vec4
 params = { speed = 0.4, tint = "#3aa0ff" }
+
+# How a node drawing it rasterizes, rather than what colour it comes out.
+[surface]
+alpha = "blend"              # opaque, mask (a cutout), or blend
+alpha_cutoff = 0.5           # what a mask drops a fragment below
+double_sided = true
+transmission = 0.9           # above zero is glass: it refracts the scene behind it
+ior = 1.5                    # how sharply it bends light
+thickness = 0.2              # how far light travels inside it, in world units
+attenuation_color = "#dff0ea"
+attenuation_distance = 2.0
+mirror = true                # show the scene reflected in this surface's own plane
+mirror_intensity = 1.0
+mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
+mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
 ```"##;
 
 /// `#rrggbb` or `#rrggbbaa` as four channels in 0..=1.
@@ -254,6 +271,181 @@ fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
     }
 }
 
+/// How a surface's alpha is read.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AlphaMode {
+    /// Alpha is ignored and the surface is solid.
+    #[default]
+    Opaque,
+    /// A fragment fainter than `alpha_cutoff` is dropped rather than drawn:
+    /// a leaf's outline, cut from the rectangle it was painted on.
+    Mask,
+    /// The surface is drawn over what is behind it, in the pass that resolves
+    /// overlapping translucent surfaces without sorting them.
+    Blend,
+}
+
+/// What a material says about how its node draws, rather than what colour it
+/// comes out.
+///
+/// These decide which pass a node joins and how it is rasterized, so the
+/// backend reads them off the material and sets them on the node, while the
+/// shader reads the same numbers through its own `Params`. Everything here
+/// defaults to the surface a material that says nothing already had.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Surface {
+    pub alpha: AlphaMode,
+    /// The alpha a `mask` surface drops a fragment below.
+    pub alpha_cutoff: f32,
+    /// Whether the back of a triangle draws as well as the front.
+    pub double_sided: bool,
+    /// How much of the scene behind this surface comes through it. Above zero
+    /// makes it glass: it draws after the opaque scene is resolved, refracting
+    /// what that pass left.
+    pub transmission: f32,
+    /// How sharply light bends entering it. 1.0 does not bend at all; window
+    /// glass is 1.5, water 1.33, diamond 2.42.
+    pub ior: f32,
+    /// How far light travels inside it, in world units. Zero refracts without
+    /// tinting, which is what a single pane wants.
+    pub thickness: f32,
+    /// What is left of white light after `attenuation_distance` inside it.
+    pub attenuation_color: [f32; 4],
+    /// Zero takes nothing out however thick the glass.
+    pub attenuation_distance: f32,
+    /// Whether this surface shows the scene reflected in its own plane. The
+    /// reflection is rendered from a mirrored camera, so it is sharp where a
+    /// probe or the sky would only be approximate.
+    pub mirror: bool,
+    /// How much of the reflection shows, from nothing to all of it.
+    pub mirror_intensity: f32,
+    /// How fast the reflection fades as the surface turns away from its own
+    /// plane. Zero keeps it even, which is what a flat mirror wants; above
+    /// zero keeps a curved one reflecting only on the face that looks along
+    /// the plane's normal.
+    pub mirror_falloff: f32,
+    /// Which way the mirror's plane faces in the node's own space. A Balaur
+    /// `plane` lies in xz, so its face looks up.
+    pub mirror_normal: [f32; 3],
+}
+
+impl Default for Surface {
+    fn default() -> Self {
+        Self {
+            alpha: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            transmission: 0.0,
+            ior: 1.5,
+            thickness: 0.0,
+            attenuation_color: [1.0, 1.0, 1.0, 1.0],
+            attenuation_distance: 0.0,
+            mirror: false,
+            mirror_intensity: 1.0,
+            mirror_falloff: 0.0,
+            mirror_normal: [0.0, 1.0, 0.0],
+        }
+    }
+}
+
+impl Surface {
+    /// Whether a node drawing this joins the refraction pass rather than the
+    /// opaque one.
+    #[must_use]
+    pub const fn refracts(&self) -> bool {
+        self.transmission > 0.0
+    }
+}
+
+/// Every key a `[surface]` table may set, for the error a typo gets. A
+/// `[params]` key the shader does not read is refused, and this is the one
+/// table that would otherwise swallow one.
+const SURFACE_KEYS: &[&str] = &[
+    "alpha",
+    "alpha_cutoff",
+    "double_sided",
+    "transmission",
+    "ior",
+    "thickness",
+    "attenuation_color",
+    "attenuation_distance",
+    "mirror",
+    "mirror_intensity",
+    "mirror_falloff",
+    "mirror_normal",
+];
+
+/// Read a material's `[surface]` table.
+fn parse_surface(value: &toml::Value) -> Result<Surface> {
+    let base = Surface::default();
+    let Some(table) = value.get("surface") else {
+        return Ok(base);
+    };
+    if let Some(table) = table.as_table() {
+        for name in table.keys() {
+            if !SURFACE_KEYS.contains(&name.as_str()) {
+                bail!(
+                    "a material's `[surface]` has no `{name}`; it takes {}",
+                    SURFACE_KEYS.join(", ")
+                );
+            }
+        }
+    }
+    let num = |key: &str, default: f32| {
+        table
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(f64::from(default)) as f32
+    };
+    Ok(Surface {
+        alpha: match table
+            .get("alpha")
+            .and_then(toml::Value::as_str)
+            .unwrap_or(crate::shape::words::OPAQUE)
+        {
+            crate::shape::words::OPAQUE => AlphaMode::Opaque,
+            crate::shape::words::MASK => AlphaMode::Mask,
+            crate::shape::words::BLEND => AlphaMode::Blend,
+            other => bail!(
+                "a material's `surface.alpha` is {}, not '{other}'",
+                crate::shape::words::ALPHA_MODES.join(", ")
+            ),
+        },
+        alpha_cutoff: num("alpha_cutoff", base.alpha_cutoff).clamp(0.0, 1.0),
+        double_sided: table
+            .get("double_sided")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(base.double_sided),
+        transmission: num("transmission", 0.0).clamp(0.0, 1.0),
+        ior: num("ior", base.ior).max(1.0),
+        thickness: num("thickness", 0.0).max(0.0),
+        attenuation_color: table
+            .get("attenuation_color")
+            .and_then(toml::Value::as_str)
+            .and_then(hex_rgba)
+            .unwrap_or(base.attenuation_color),
+        attenuation_distance: num("attenuation_distance", 0.0).max(0.0),
+        mirror: table
+            .get(crate::shape::keys::MIRROR)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(base.mirror),
+        mirror_intensity: num("mirror_intensity", base.mirror_intensity).clamp(0.0, 1.0),
+        mirror_falloff: num("mirror_falloff", 0.0).max(0.0),
+        mirror_normal: {
+            let axis = |i: usize, default: f32| {
+                table
+                    .get("mirror_normal")
+                    .and_then(toml::Value::as_array)
+                    .and_then(|a| a.get(i))
+                    .and_then(balaur_core::components::as_f64)
+                    .unwrap_or(f64::from(default)) as f32
+            };
+            let normal = base.mirror_normal;
+            [axis(0, normal[0]), axis(1, normal[1]), axis(2, normal[2])]
+        },
+    })
+}
+
 /// Parse a `material` definition table.
 pub fn parse(value: &toml::Value) -> Result<Material> {
     let shader = value
@@ -280,7 +472,22 @@ pub fn parse(value: &toml::Value) -> Result<Material> {
         shader,
         features,
         params,
+        surface: parse_surface(value)?,
     })
+}
+
+/// The `[surface]` a material reference declares, or the default for a node
+/// that names none or whose material does not load.
+///
+/// Read every frame rather than cached on the node: the asset itself is
+/// cached, and a material a reload changed must reach the node it is on.
+#[must_use]
+pub fn surface_of(eng: &Engine, reference: &str) -> Surface {
+    if reference.is_empty() {
+        return Surface::default();
+    }
+    balaur_core::assets::load_typed::<Material>(eng, reference)
+        .map_or_else(|_| Surface::default(), |material| material.surface)
 }
 
 /// Point `entity` at the `material` asset it draws with; empty is the

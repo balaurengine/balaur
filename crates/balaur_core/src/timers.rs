@@ -7,7 +7,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::FIXED_DT;
 use crate::engine::Engine;
 
 /// Every wait in flight, in the order it was asked for.
@@ -49,12 +48,20 @@ pub fn after_seconds(eng: &Engine, seconds: f32) -> u64 {
     token
 }
 
-pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
+pub(crate) fn step_timers_system(eng: &Engine, dt: f32) {
+    // An awaited call's result is owed to its caller, not timed: it is
+    // delivered through a pause, or a script that awaited one inside an
+    // `always` subtree never gets its answer.
     let results = std::mem::take(&mut eng.resource::<Timers>().borrow_mut().results);
     if let Some(host) = eng.script_host() {
         for (token, payload) in &results {
             host.wake(*token, payload);
         }
+    }
+    // A wait counts simulation time, and a paused game takes none. Every wait
+    // is held, `always` subtrees included: a token carries no node to ask.
+    if eng.paused() {
+        return;
     }
     let due: Vec<u64> = {
         let timers = eng.resource::<Timers>();
@@ -68,7 +75,7 @@ pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
         }
         timers.frames.retain(|(_, left)| *left > 0);
         for (token, left) in &mut timers.seconds {
-            *left -= FIXED_DT;
+            *left -= dt;
             if *left <= 0.0 {
                 due.push(*token);
             }

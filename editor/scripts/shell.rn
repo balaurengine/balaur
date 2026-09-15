@@ -221,7 +221,7 @@ pub fn set_ui_scale(S, f) {
 
 // What a finger needs, and the box the theme's `touch` tables state for a
 // control. The scale is what makes the one the other, rounded up to 0.05.
-const TOUCH_TARGET = 44.0;
+pub const TOUCH_TARGET = 44.0;
 pub const TOUCH_CONTROL = 33.0;
 
 fn touch_scale() {
@@ -684,6 +684,13 @@ fn states() {
         "input": state_input,
         "animdemo": state_animdemo,
         "layoutdemo": crate::selftest::layout,
+        "manager": crate::manager::open,
+        "examples": crate::manager::open_examples,
+        "engine": crate::manager::open_versions,
+        "newproject": crate::manager::open_new,
+        "versions": crate::manager::open_versions,
+        "managerdemo": crate::selftest::manager_screen,
+        "gesturedemo": crate::selftest::gestures,
         "fontdemo": state_fontdemo,
         "menudemo": state_menudemo,
         "undodemo": crate::selftest::undo,
@@ -715,6 +722,7 @@ fn states() {
         "dropdemo": crate::selftest::dropping,
         "eventsdemo": crate::selftest::eventviews,
         "librarydemo": crate::selftest::librarydemo,
+        "rowsdemo": crate::selftest::row_views,
         "pendemo": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
@@ -877,6 +885,12 @@ fn state_scale(S, arg) {
 fn state_shut(S, side) {
     if side == "rail" {
         S.rail_shut = true;
+        return;
+    }
+    // Everything the shell draws over the scene: the chip strip and the
+    // reading at its foot. What a picture of the scene itself wants.
+    if side == "chrome" {
+        S.chrome_off = true;
         return;
     }
     S.docks[side].shut = true;

@@ -750,6 +750,19 @@ fn must_read(path) {
 pub fn load(S) {
     let root = engine::args()[0];
     S.game_root = root;
+    // No project named: the start screen is what this run is for, and there is
+    // no manifest to read.
+    if root == "" {
+        S.game_name = "";
+        S.scene_rel = "";
+        S.scene_path = "";
+        S.scene_doc = #{};
+        S.doc = [];
+        S.doc_rev += 1;
+        S.refs = [];
+        crate::history::reset(S);
+        return;
+    }
     let manifest = toml::parse(must_read(root + "/project.toml"));
     let application = manifest.application;
     S.game_name = application.name;

@@ -76,7 +76,7 @@ impl Timings {
     /// budget. The number a profiler colours and a budget table compares.
     #[must_use]
     pub fn share(duration: Duration) -> f64 {
-        duration.as_secs_f64() / f64::from(crate::app::FIXED_DT)
+        duration.as_secs_f64() / f64::from(crate::fixed_dt())
     }
 }
 

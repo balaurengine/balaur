@@ -56,6 +56,31 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
+        name: "set_paused",
+        call: set_paused,
+    },
+    EngineOp {
+        module: "engine",
+        name: "paused",
+        call: paused,
+    },
+    EngineOp {
+        module: "engine",
+        name: "set_time_scale",
+        call: set_time_scale,
+    },
+    EngineOp {
+        module: "engine",
+        name: "time_scale",
+        call: time_scale,
+    },
+    EngineOp {
+        module: "engine",
+        name: "tick_hz",
+        call: tick_hz,
+    },
+    EngineOp {
+        module: "engine",
         name: "quit",
         call: quit,
     },
@@ -625,6 +650,39 @@ fn delta(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// Rune never mixes the two, and a float here made every such test an error.
 fn tick(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Int(i64::try_from(eng.tick()).unwrap_or(i64::MAX)))
+}
+
+fn set_paused(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let Some(Value::Bool(on)) = args.first() else {
+        return Err(anyhow!("set_paused takes true or false"));
+    };
+    eng.set_paused(*on);
+    Ok(Value::Nil)
+}
+
+fn paused(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(eng.paused()))
+}
+
+fn set_time_scale(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let scale = match args.first() {
+        Some(Value::Num(n)) => *n as f32,
+        Some(Value::Int(n)) => *n as f32,
+        _ => return Err(anyhow!("set_time_scale takes a number")),
+    };
+    if scale < 0.0 {
+        return Err(anyhow!("a time scale runs forwards; {scale} is negative"));
+    }
+    eng.set_time_scale(scale);
+    Ok(Value::Nil)
+}
+
+fn time_scale(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Num(f64::from(eng.time_scale())))
+}
+
+fn tick_hz(_: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Int(i64::from(crate::tick_hz())))
 }
 
 fn quit(eng: &Engine, args: &[Value]) -> Result<Value> {

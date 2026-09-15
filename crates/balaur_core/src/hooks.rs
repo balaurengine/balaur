@@ -18,6 +18,9 @@ pub const ON_SCROLL: &str = "on_scroll";
 pub const ON_RESIZE: &str = "on_resize";
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
+/// Called on every script when the game pauses or resumes, the nodes the
+/// pause just stopped included.
+pub const ON_PAUSED: &str = "on_paused";
 
 /// The event a click on a node, or on a widget, answers to.
 pub const POINTER_CLICK: &str = "pointer_click";

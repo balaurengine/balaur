@@ -24,12 +24,16 @@ use kiss3d::camera::Camera3d;
 use kiss3d::context::Context;
 use kiss3d::light::LightCollection;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
-use kiss3d::resource::{GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture};
+use kiss3d::resource::{
+    EnvLight, GpuData, GpuMesh3d, Material3d, PipelineCache, ProbeLighting, RenderContext,
+    RenderPhase, Texture,
+};
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
 use kiss3d::wgpu;
 
 use crate::bind_layout::uniform_entry;
-use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms};
+use crate::frame_group::FrameGroup;
+use crate::shader_material_3d::bind_group_layouts;
 use crate::shaders;
 
 /// The most bones one mesh may name. 128 `mat4` is 8 KB, which keeps the
@@ -47,13 +51,17 @@ impl SkinHandle3d {
     }
 }
 
-/// Matches `ObjectUniforms` in `shaders/mesh.wesl`.
+/// Matches `ObjectUniforms` in `shaders/mesh.wesl`. The mirror rows are
+/// there because the contract declares them; a skinned mesh never is one.
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 struct ObjectUniforms {
     model: [[f32; 4]; 4],
     normal_matrix: [[f32; 4]; 4],
     color: [f32; 4],
+    mirror_view_proj: [[f32; 4]; 4],
+    mirror: [f32; 4],
+    mirror_normal: [f32; 4],
 }
 
 /// Matches `SkinUniforms` in `shaders/skinned_3d.wesl`.
@@ -180,8 +188,7 @@ impl GpuData for SkinnedGpuData3d {
 
 struct SkinnedMaterial3d {
     pipeline: PipelineCache,
-    frame_uniform: wgpu::Buffer,
-    frame_bind_group: wgpu::BindGroup,
+    frame: FrameGroup,
     object_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     skin_bind_group: wgpu::BindGroup,
@@ -258,31 +265,17 @@ impl SkinnedMaterial3d {
         let shader = ctxt.create_shader_module(Some("skinned3d_shader"), &linked_shader());
         let pipeline = build_pipeline(pipeline_layout, shader);
         let buffers = buffers(mesh);
-        let frame_uniform = ctxt.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("skinned3d_frame_uniform"),
-            size: std::mem::size_of::<FrameUniforms>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let bind = |label: &str, layout, buffer: &wgpu::Buffer| {
-            ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(label),
-                layout,
+        Self {
+            skin_bind_group: ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("skinned3d_skin_bind_group"),
+                layout: &skin_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: buffer.as_entire_binding(),
+                    resource: buffers.skin_uniform.as_entire_binding(),
                 }],
-            })
-        };
-        Self {
-            frame_bind_group: bind("skinned3d_frame_bind_group", &frame_layout, &frame_uniform),
-            skin_bind_group: bind(
-                "skinned3d_skin_bind_group",
-                &skin_layout,
-                &buffers.skin_uniform,
-            ),
+            }),
             pipeline,
-            frame_uniform,
+            frame: FrameGroup::new(),
             object_layout,
             texture_layout,
             buffers,
@@ -322,6 +315,30 @@ impl SkinnedMaterial3d {
 }
 
 impl Material3d for SkinnedMaterial3d {
+    fn set_environment_lighting(&mut self, env: Option<EnvLight<'_>>) {
+        self.frame.set_environment(env);
+    }
+
+    fn set_ssao(&mut self, ao: Option<&wgpu::TextureView>) {
+        self.frame.set_occlusion(ao);
+    }
+
+    fn set_reflection_probes(&mut self, probes: Option<ProbeLighting<'_>>) {
+        self.frame.set_probes(probes);
+    }
+
+    fn set_transmission_background(&mut self, behind: Option<&wgpu::TextureView>) {
+        self.frame.set_behind(behind);
+    }
+
+    fn set_capture_mode(&mut self, on: bool) {
+        self.frame.set_capturing(on);
+    }
+
+    fn set_clip_plane(&mut self, plane: Option<[f32; 4]>) {
+        self.frame.set_clip_plane(plane);
+    }
+
     fn create_gpu_data(&self) -> Box<dyn GpuData> {
         Box::new(SkinnedGpuData3d {
             object_bind_group: None,
@@ -339,15 +356,21 @@ impl Material3d for SkinnedMaterial3d {
         lights: &LightCollection,
         data: &ObjectData3d,
         gpu_data: &mut dyn GpuData,
-        _viewport_width: u32,
-        _viewport_height: u32,
+        viewport_width: u32,
+        viewport_height: u32,
     ) {
         let ctxt = Context::get();
         let (view, proj) = camera.view_transform_pair(pass);
         // Clock 0: nothing in this shader reads `time()`, and a skinned mesh
         // is posed by the rig rather than by the render clock.
-        let frame = frame_uniforms(&view, &proj, camera.eye(), 0.0, lights);
-        ctxt.write_buffer(&self.frame_uniform, 0, bytemuck::bytes_of(&frame));
+        self.frame.write(
+            &view,
+            &proj,
+            camera.eye(),
+            0.0,
+            lights,
+            (viewport_width, viewport_height),
+        );
         self.write_skin();
         let model = transform.to_mat4() * Mat4::from_scale(scale);
         let color = data.color();
@@ -358,6 +381,9 @@ impl Material3d for SkinnedMaterial3d {
                 model: model.to_cols_array_2d(),
                 normal_matrix: model.inverse().transpose().to_cols_array_2d(),
                 color: [color.r, color.g, color.b, color.a],
+                mirror_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                mirror: [0.0; 4],
+                mirror_normal: [0.0, 1.0, 0.0, 0.0],
             }),
         );
         let gpu_data = gpu_data
@@ -365,14 +391,13 @@ impl Material3d for SkinnedMaterial3d {
             .downcast_mut::<SkinnedGpuData3d>()
             .expect("the skinning material only ever meets its own gpu data");
         if gpu_data.object_bind_group.is_none() {
-            gpu_data.object_bind_group = Some(ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("skinned3d_object_bind_group"),
-                layout: &self.object_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.buffers.object_uniform.as_entire_binding(),
-                }],
-            }));
+            // No mirror: a skinned mesh reflects nothing, so the group takes
+            // the stand-in the contract's own group does.
+            gpu_data.object_bind_group = Some(crate::bind_layout::object_group(
+                &self.object_layout,
+                &self.buffers.object_uniform,
+                None,
+            ));
         }
         let texture = data.texture();
         let ptr = Arc::as_ptr(texture) as usize;
@@ -406,9 +431,14 @@ impl Material3d for SkinnedMaterial3d {
         ) else {
             return;
         };
+        // No prepass or refraction pipeline here: a skinned mesh shows in the
+        // picture, and contributes no geometry to the screen-space passes.
+        if context.phase != RenderPhase::Opaque {
+            return;
+        }
         let pipeline = self.pipeline.get(context.sample_count);
         render_pass.set_pipeline(&pipeline);
-        render_pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        render_pass.set_bind_group(0, self.frame.group(), &[]);
         render_pass.set_bind_group(1, object, &[]);
         render_pass.set_bind_group(2, texture, &[]);
         render_pass.set_bind_group(3, &self.skin_bind_group, &[]);

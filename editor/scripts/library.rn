@@ -225,6 +225,7 @@ pub fn panel(S, k) {
         templates(S, k, known);
         return;
     }
+    dock::hide_table();
     let shown = [];
     for entry in known.entries {
         if util::obj(entry).get("kind").unwrap_or("") == S.library.kind {
@@ -263,33 +264,40 @@ fn show_cards(S, k, shown) {
     }
 }
 
-/// The templates a new project starts from. Listed rather than placed: a
-/// template makes a project, and the editor is already in one.
+/// The templates a new project starts from, on the dock's `table` node: a
+/// name, what it makes, and the command a click copies.
+///
+/// Listed rather than placed, because a template makes a project and the
+/// editor is already in one.
 fn templates(S, k, known) {
     if known.templates.len() == 0 {
+        dock::hide_table();
         style::empty(k, "no templates in the library");
         return;
     }
-    ui::scroll("library-templates", (), || {
-        for row in known.templates {
-            let entry = util::obj(row);
-            ui::horizontal(#{ height: 24 }, || {
-                ui::add_space(8);
-                ui::horizontal(#{ height: 24, width: 130 }, || {
-                    ui::label(entry.name, style::mono(k.text));
-                });
-                ui::label(entry.get("note").unwrap_or(""), style::mono_sm(k.faint));
-                ui::right(|| {
-                    ui::add_space(8);
-                    if ui::pill(icons::ui("copy") + "  copy command", #{
-                        height: 20, size: style::SM, fill: k.sunken, color: k.sage,
-                    }) {
-                        let command = format!("balaur new my-game --template {}", entry.id);
-                        ui::set_clipboard(command);
-                        log::info("copied: " + command);
-                    }
-                });
-            });
-        }
+    ui::add_space(2);
+    ui::horizontal(#{ height: 18 }, || {
+        ui::add_space(8);
+        ui::label("a row is copied as the command that makes it", style::mono_sm(k.faint));
     });
+    let items = [];
+    let commands = [];
+    for row in known.templates {
+        let entry = util::obj(row);
+        let command = format!("balaur new my-game --template {}", entry.id);
+        items.push(util::cells([entry.name, entry.get("note").unwrap_or(""), command]));
+        commands.push(command);
+    }
+    dock::show_table(
+        ["template", "what it makes", "the command it is made with"],
+        ["1", "1.6", "2"],
+        items,
+    );
+    let picked = dock::taken_table();
+    for (n, item) in items.iter().enumerate() {
+        if item == picked {
+            ui::set_clipboard(commands[n]);
+            log::info("copied: " + commands[n]);
+        }
+    }
 }

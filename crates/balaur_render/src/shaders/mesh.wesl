@@ -1,8 +1,9 @@
 // The contract a `material` shader draws 3D against: the uniforms Balaur's
 // mesh pipeline binds, and the shading every such shader would repeat.
-// `MAX_LIGHTS` must match `shader_material_3d.rs`.
+// `MAX_LIGHTS` and `MAX_PROBES` must match `frame_group.rs`.
 
 const MAX_LIGHTS: u32 = 16u;
+const MAX_PROBES: u32 = 8u;
 
 // Lambert's normalisation. A light's intensity is radiance, and the engine's
 // own default is 3.0, which reads as white without this.
@@ -19,6 +20,19 @@ struct Light {
     cone: vec4<f32>,
 }
 
+// One reflection probe: a box the scene was captured inside, which a
+// reflective surface within it samples instead of the sky.
+struct Probe {
+    // xyz where it was captured from, w whether this slot is live.
+    center_live: vec4<f32>,
+    // xyz the influence box's low corner, w its layer in the array.
+    low_layer: vec4<f32>,
+    // xyz the box's high corner, w the brightness multiplier.
+    high_intensity: vec4<f32>,
+    // Turn about y, the soft edge's width, the coarsest mip, spare.
+    params: vec4<f32>,
+}
+
 struct FrameUniforms {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
@@ -30,7 +44,16 @@ struct FrameUniforms {
     // mode (0 off, 1 linear, 2 exponential, 3 exponential squared), then
     // start/density, end, and the height falloff.
     fog: vec4<f32>,
+    // Whether a sky is bound, its coarsest mip, its brightness, its turn.
+    environment: vec4<f32>,
+    // The viewport in pixels, how many probes are live, and whether the
+    // resolved scene behind glass is bound.
+    screen_probes: vec4<f32>,
+    // xyz a world plane's normal, w its offset; a point behind it is dropped.
+    // All zero draws everything, which is every pass but a mirror's own.
+    clip_plane: vec4<f32>,
     lights: array<Light, 16>,
+    probes: array<Probe, 8>,
 }
 
 struct ObjectUniforms {
@@ -38,10 +61,36 @@ struct ObjectUniforms {
     // The model's inverse transpose, so a scaled node's normals stay normal.
     normal_matrix: mat4x4<f32>,
     color: vec4<f32>,
+    // World to the mirror's own picture, for a surface that is one.
+    mirror_view_proj: mat4x4<f32>,
+    // How much of the mirror shows, whether there is one, how fast it fades
+    // as the surface turns off its plane, and a spare.
+    mirror: vec4<f32>,
+    // xyz the mirror's plane normal in world space.
+    mirror_normal: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> frame: FrameUniforms;
+// What the scene lends every 3D material for a frame. Each is bound whether
+// or not the scene has one -- a one-pixel stand-in takes its place -- so no
+// shader here branches on absence and no pipeline is rebuilt when a sky loads.
+// The equirectangular sky, mip-chained: the coarsest mip is its irradiance
+// and a mip by roughness is its reflection.
+@group(0) @binding(1) var environment_texture: texture_2d<f32>;
+@group(0) @binding(2) var environment_sampler: sampler;
+// What the geometry prepass measured, one value per pixel of the frame.
+@group(0) @binding(3) var occlusion_screen_texture: texture_2d<f32>;
+// One layer per reflection probe, laid out as the sky is.
+@group(0) @binding(4) var probe_textures: texture_2d_array<f32>;
+// The resolved opaque scene with a blurred mip chain, which glass refracts.
+@group(0) @binding(5) var behind_texture: texture_2d<f32>;
+@group(0) @binding(6) var behind_sampler: sampler;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
+// The scene as this surface's own plane sees it, rendered from a mirrored
+// camera before the frame. One pixel of black on a surface that is not a
+// mirror, which `mirror_at` reports as nothing rather than as black.
+@group(1) @binding(1) var mirror_texture: texture_2d<f32>;
+@group(1) @binding(2) var mirror_sampler: sampler;
 // The six texture slots the contract declares, in the order `TEXTURE_SLOTS`
 // names them. Every slot a material leaves out is bound to a one-pixel
 // neutral stand-in, so nothing here branches on absence.
@@ -124,6 +173,199 @@ fn sample_height(uv: vec2<f32>) -> f32 {
     return textureSample(height_texture, height_sampler, uv).r;
 }
 
+// Drop this fragment when it falls behind the frame's clip plane.
+//
+// A mirror renders the scene from behind its own surface, so everything on
+// the far side of that surface has to go: without this a room's back wall
+// lands in the reflection of its floor. `shade` and `shade_pbr` call it, so a
+// material drawing through either clips for free.
+fn clip(in: VertexOutput) {
+    let plane = frame.clip_plane;
+    if dot(plane.xyz, plane.xyz) > 0.0 && dot(plane.xyz, in.world) + plane.w < 0.0 {
+        discard;
+    }
+}
+
+// A direction as a coordinate into an equirectangular map: u wraps the
+// horizon, v runs from straight up to straight down. The convention the fork
+// builds its skies and its probes in, so nothing here may drift from it.
+@const fn equirect_uv(d: vec3<f32>) -> vec2<f32> {
+    return vec2<f32>(
+        atan2(d.z, d.x) / (2.0 * 3.14159265) + 0.5,
+        acos(clamp(d.y, -1.0, 1.0)) / 3.14159265,
+    );
+}
+
+// Whether a sky is bound. Without one the environment reads black, and a
+// surface is lit by `ambient` and the placed lights alone.
+fn environment_lit() -> bool {
+    return frame.environment.x > 0.5;
+}
+
+// The coarsest mip of the sky, which is the roughest prefilter it carries.
+fn environment_max_lod() -> f32 {
+    return frame.environment.y;
+}
+
+// Turn a direction by the sky's own rotation, so a turned sky reflects turned.
+fn environment_aim(d: vec3<f32>) -> vec3<f32> {
+    let turn = frame.environment.w;
+    let c = cos(turn);
+    let s = sin(turn);
+    return vec3<f32>(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);
+}
+
+// The sky in one direction, at one mip. Rough surfaces ask for a coarse mip,
+// which is what makes a blurred reflection.
+fn environment_sample(d: vec3<f32>, lod: f32) -> vec3<f32> {
+    let uv = equirect_uv(environment_aim(d));
+    let sky = textureSampleLevel(environment_texture, environment_sampler, uv, lod).rgb;
+    return sky * frame.environment.z;
+}
+
+// Where this fragment falls on the screen, in pixels.
+fn screen_pixel(in: VertexOutput) -> vec2<i32> {
+    return vec2<i32>(in.clip_position.xy);
+}
+
+// Where this fragment falls on the screen, from zero to one.
+fn screen_uv(in: VertexOutput) -> vec2<f32> {
+    return in.clip_position.xy / max(frame.screen_probes.xy, vec2<f32>(1.0, 1.0));
+}
+
+// How much of the scene's own light reaches this pixel, as the prepass
+// measured it. One where the camera has no occlusion pass running.
+fn screen_occlusion(in: VertexOutput) -> f32 {
+    return textureLoad(occlusion_screen_texture, screen_pixel(in), 0).r;
+}
+
+// How much probe `i` speaks for a point: one well inside its box, ramping to
+// nothing over the soft edge, and nothing outside.
+fn probe_weight(i: u32, world: vec3<f32>) -> f32 {
+    let low = frame.probes[i].low_layer.xyz;
+    let high = frame.probes[i].high_intensity.xyz;
+    let to_face = min(world - low, high - world);
+    let edge = min(to_face.x, min(to_face.y, to_face.z));
+    return clamp(edge / frame.probes[i].params.y, 0.0, 1.0);
+}
+
+// Which probe speaks loudest for a point: its index in x and its weight in y,
+// with -1 where none reaches.
+fn probe_at(world: vec3<f32>) -> vec2<f32> {
+    var found = -1.0;
+    var weight = 0.0;
+    let count = min(u32(frame.screen_probes.z), MAX_PROBES);
+    for (var i = 0u; i < count; i = i + 1u) {
+        if frame.probes[i].center_live.w < 0.5 {
+            continue;
+        }
+        let w = probe_weight(i, world);
+        if w > weight {
+            weight = w;
+            found = f32(i);
+        }
+    }
+    return vec2<f32>(found, weight);
+}
+
+// Probe `i` in one direction, aimed at where the ray actually meets its box
+// rather than at infinity: what makes a reflection track the room it was
+// captured in instead of sliding as the camera moves.
+fn probe_sample(i: u32, world: vec3<f32>, d: vec3<f32>, lod: f32) -> vec3<f32> {
+    let low = frame.probes[i].low_layer.xyz;
+    let high = frame.probes[i].high_intensity.xyz;
+    let center = frame.probes[i].center_live.xyz;
+    let inverse = 1.0 / d;
+    let far = max((low - world) * inverse, (high - world) * inverse);
+    let hit = world + d * max(min(far.x, min(far.y, far.z)), 0.0);
+    let aimed = normalize(hit - center);
+    let turn = frame.probes[i].params.x;
+    let c = cos(turn);
+    let s = sin(turn);
+    let turned = vec3<f32>(c * aimed.x + s * aimed.z, aimed.y, -s * aimed.x + c * aimed.z);
+    let layer = i32(frame.probes[i].low_layer.w + 0.5);
+    let map = textureSampleLevel(probe_textures, environment_sampler, equirect_uv(turned), layer, lod);
+    return map.rgb * frame.probes[i].high_intensity.w;
+}
+
+// The coarsest mip a probe carries.
+fn probe_max_lod() -> f32 {
+    return frame.probes[0].params.z;
+}
+
+// Whether the resolved scene behind this surface is bound, which it is only
+// while something in the frame refracts.
+fn behind_lit() -> bool {
+    return frame.screen_probes.w > 0.5;
+}
+
+// What a mirror shows at this point: rgb the reflection, a how much of it
+// applies -- nothing on a surface that is not a mirror, on one whose plane
+// does not see this point, and fading as the surface turns off that plane.
+fn mirror_at(in: VertexOutput, normal: vec3<f32>) -> vec4<f32> {
+    if object.mirror.y < 0.5 {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+    let clip = object.mirror_view_proj * vec4<f32>(in.world, 1.0);
+    if clip.w <= 0.0 {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+    let ndc = clip.xy / clip.w;
+    // Clip space runs up the screen and a texture runs down it, so y flips.
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    if any(uv < vec2<f32>(0.0, 0.0)) || any(uv > vec2<f32>(1.0, 1.0)) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+    var shown = object.mirror.x;
+    let falloff = object.mirror.z;
+    if falloff > 0.0 {
+        let aligned = max(dot(normal, normalize(object.mirror_normal.xyz)), 0.0);
+        shown = shown * pow(aligned, falloff);
+    }
+    let seen = textureSampleLevel(mirror_texture, mirror_sampler, uv, 0.0);
+    return vec4<f32>(seen.rgb, shown);
+}
+
+// The coarsest mip of the scene behind glass, which the roughest surface
+// reads.
+fn behind_max_lod() -> f32 {
+    return f32(textureNumLevels(behind_texture) - 1u);
+}
+
+// The scene behind a point on the screen, at one mip: a coarse mip is what
+// frosted glass reads.
+fn behind(uv: vec2<f32>, lod: f32) -> vec3<f32> {
+    return textureSampleLevel(behind_texture, behind_sampler, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), lod).rgb;
+}
+
+// The tangent frame a surface's own derivatives imply: its columns are the
+// directions u and v run in, and the normal.
+//
+// Both are solved for. Taking the bitangent as `cross(n, t)` instead assumes
+// one handedness, and a model that mirrors a UV shell -- which is most of
+// them, because it halves the texture -- has the other on one side. The two
+// halves of a mirrored wall then light differently, with a seam down the
+// join.
+@const fn tangent_frame(
+    n: vec3<f32>,
+    dp1: vec3<f32>,
+    dp2: vec3<f32>,
+    duv1: vec2<f32>,
+    duv2: vec2<f32>,
+) -> mat3x3<f32> {
+    let across = cross(dp2, n);
+    let down = cross(n, dp1);
+    let t = across * duv1.x + down * duv2.x;
+    let b = across * duv1.y + down * duv2.y;
+    let longest = max(dot(t, t), dot(b, b));
+    if longest < 1e-20 {
+        // A surface with no UVs to speak of: nothing for a map to tilt.
+        return mat3x3<f32>(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 0.0), n);
+    }
+    let scale = inverseSqrt(longest);
+    return mat3x3<f32>(t * scale, b * scale, n);
+}
+
 // A world-space normal with the normal map folded in, using screen-space
 // derivatives for the tangent frame: a mesh asset carries no tangents, and
 // deriving one costs nothing a material that does not ask for it.
@@ -133,17 +375,8 @@ fn shaded_normal(in: VertexOutput) -> vec3<f32> {
     if abs(mapped.x) + abs(mapped.y) < 1e-4 {
         return n;
     }
-    let dp1 = dpdx(in.world);
-    let dp2 = dpdy(in.world);
-    let duv1 = dpdx(in.uv);
-    let duv2 = dpdy(in.uv);
-    let denom = duv1.x * duv2.y - duv2.x * duv1.y;
-    if abs(denom) < 1e-8 {
-        return n;
-    }
-    let t = normalize((dp1 * duv2.y - dp2 * duv1.y) / denom);
-    let b = normalize(cross(n, t));
-    return normalize(mapped.x * t + mapped.y * b + mapped.z * n);
+    let frame = tangent_frame(n, dpdx(in.world), dpdy(in.world), dpdx(in.uv), dpdy(in.uv));
+    return normalize(frame * mapped);
 }
 
 fn tint() -> vec4<f32> {
@@ -272,6 +505,7 @@ fn apply_fog(color: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
 
 // The whole default look: texture, tint, lights and fog.
 fn shade(in: VertexOutput) -> vec4<f32> {
+    clip(in);
     let albedo = sample_albedo(in.uv) * tint() * in.tint;
     return vec4<f32>(apply_fog(albedo.rgb * diffuse(in), in.world), albedo.a);
 }

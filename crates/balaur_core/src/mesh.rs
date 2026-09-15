@@ -35,6 +35,11 @@ pub struct MeshData {
     /// Set when the definition named a file instead of carrying vertices.
     /// Resolved by [`load_from`], which has the project reader to do it with.
     pub source: Option<String>,
+    /// Which of a model's materials this mesh takes the triangles of, by the
+    /// name the file gives it. `None` takes the whole file, which is what a
+    /// model with one material wants and what every mesh did before glTF
+    /// import began splitting them.
+    pub part: Option<String>,
     /// Set when the definition asked for a word rather than a file or
     /// vertices. Resolved by [`load_from`] through [`TextGeometry`].
     pub text: Option<TextShape>,
@@ -209,14 +214,35 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<MeshData> {
 /// # Errors
 /// As [`parse`], and if a side file the model names cannot be read.
 pub fn parse_with(bytes: &[u8], name: &str, side: crate::glb::SideReader<'_>) -> Result<MeshData> {
+    parse_part(bytes, name, side, None)
+}
+
+/// [`parse_with`], taking only the triangles a model's `part` material draws.
+///
+/// A model with one material per surface — anything exported from a scene
+/// rather than sculpted as one object — becomes one mesh per material, so
+/// each can carry its own. Only glTF names its materials; `part` on any other
+/// format is an error rather than silently the whole file.
+///
+/// # Errors
+/// As [`parse_with`], and if the model names no such material.
+pub fn parse_part(
+    bytes: &[u8],
+    name: &str,
+    side: crate::glb::SideReader<'_>,
+    part: Option<&str>,
+) -> Result<MeshData> {
     let ext = std::path::Path::new(name)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
     match ext.as_str() {
+        "obj" if part.is_some() => {
+            bail!("a mesh names a `part` of '{name}', and only glTF names its materials")
+        }
         "obj" => parse_obj(bytes, name),
-        "glb" | "gltf" => crate::glb::parse_gltf(bytes, name, side),
+        "glb" | "gltf" => crate::glb::parse_gltf_part(bytes, name, side, part),
         other => bail!("no mesh parser for '.{other}' ({name}); balaur reads .obj, .glb and .gltf"),
     }
 }
@@ -378,6 +404,7 @@ const MESH_ASSET_DOC: &str = r#"Geometry for `mesh` properties: a `source` file,
 id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
+part = "stone"                   # glTF only: just this material's triangles
 # ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
 # torus, pyramid, prism, tube:
 kind = "torus"
@@ -454,6 +481,10 @@ pub fn parse_definition(value: &toml::Value) -> Result<MeshData> {
             // and resolved at load. See `load_from`.
             Ok(MeshData {
                 source: Some(source.to_string()),
+                part: value
+                    .get("part")
+                    .and_then(toml::Value::as_str)
+                    .map(str::to_string),
                 ..MeshData::default()
             })
         }
@@ -951,8 +982,9 @@ pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData>
             format!("{directory}/{uri}")
         })
     };
-    let mut mesh = parse_with(&bytes, source, &side)?;
+    let mut mesh = parse_part(&bytes, source, &side, definition.part.as_deref())?;
     mesh.source = Some(source.to_string());
+    mesh.part.clone_from(&definition.part);
     Ok(mesh)
 }
 

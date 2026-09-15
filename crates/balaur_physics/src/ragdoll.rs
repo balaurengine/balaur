@@ -462,7 +462,7 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
 /// exactly the other end of the blend. A weight of zero writes nothing at
 /// all, so an armed but unused ragdoll costs one compare per rig.
 pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
-    if eng.frozen_root().is_some() {
+    if eng.frozen_root().is_some() || eng.paused() {
         return;
     }
     let world = eng.world();

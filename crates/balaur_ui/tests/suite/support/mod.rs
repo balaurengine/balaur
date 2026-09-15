@@ -66,15 +66,44 @@ pub fn press(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
 }
 
 pub fn press_with(pos: egui::Pos2, button: PointerButton, pressed: bool) -> Vec<egui::Event> {
+    press_mod(pos, pressed, Modifiers::NONE, button)
+}
+
+/// A press with modifiers held down.
+pub fn press_mod(
+    pos: egui::Pos2,
+    pressed: bool,
+    modifiers: Modifiers,
+    button: PointerButton,
+) -> Vec<egui::Event> {
     vec![
         egui::Event::PointerMoved(pos),
         egui::Event::PointerButton {
             pos,
             button,
             pressed,
-            modifiers: Modifiers::NONE,
+            modifiers,
         },
     ]
+}
+
+/// A click with modifiers held, over two passes: egui reports a click on the
+/// release, and a row reads the modifiers of that frame.
+///
+/// They ride on an event of their own rather than on the press, which is how
+/// egui tracks them, and are put down again after: the input state carries
+/// them from pass to pass until something says otherwise.
+pub fn click_held(app: &App, ctx: &egui::Context, at: egui::Pos2, modifiers: Modifiers) {
+    for pressed in [true, false] {
+        let mut events = vec![egui::Event::ModifiersChanged(modifiers)];
+        events.extend(press_mod(at, pressed, modifiers, PointerButton::Primary));
+        pass(app, ctx, events);
+    }
+    pass(
+        app,
+        ctx,
+        vec![egui::Event::ModifiersChanged(Modifiers::NONE)],
+    );
 }
 
 /// Draw at a UI scale, the way the windowed backend does it: egui's zoom is

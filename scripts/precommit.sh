@@ -153,6 +153,9 @@ shapes_stream() {
   local bad=0
   step 'dylib plugin tests' shape exttest test -p balaur_plugin --features dylib || bad=1
   step 'extension tests' shape exttest test -p balaur --features extensions || bad=1
+  # `balaur import file.aseprite` is behind a feature, so its tests are not in
+  # the default run: without this the whole module compiles for nobody.
+  step 'aseprite tests' shape exttest test -p balaur_render --features aseprite || bad=1
   step 'no-default build' shape nodefault build -p balaur_cli --no-default-features || bad=1
   step 'no-default tests' shape nodefault test -p balaur_core -p balaur_physics --no-default-features || bad=1
   return $bad

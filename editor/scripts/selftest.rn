@@ -896,8 +896,8 @@ pub fn tooling(S) {
         for one in found {
             names.push(one.label);
         }
-        check(util::contains(names, "add_body"),
-            format!("physics2d::a offers add_body (got {})", util::join(names, ", ")));
+        check(util::contains(names, "apply_impulse"),
+            format!("physics2d::a offers apply_impulse (got {})", util::join(names, ", ")));
         check(found[0].doc != "", "the first completion carries its doc line");
     }
 
@@ -1081,6 +1081,144 @@ const REC_UNTIL = 9;
 const OPEN_AT = 10;
 const CHECK_AT = 28;
 
+/// The start screen's own module: a project made from a template, the row it
+/// leaves in the list, and the row forgotten again. Writes under the editor's
+/// own data directory, which is the one place it owns on every machine.
+pub fn manager_screen(S) {
+    let home = engine::user_data_dir() + "/selftest-project";
+    let made = util::obj(project::create(home, "empty"));
+    let failed = made.get("error");
+    if let Some(why) = failed {
+        check(false, format!("a new project from the empty template ({})", why));
+        return;
+    }
+    check(made.name != "", format!("a new project from the empty template ({})", made.name));
+    let listed = util::vec(project::recent());
+    let found = listed.iter().any(|row| util::obj(row).path == home);
+    check(found, format!("it is the newest of {} remembered", listed.len()));
+    let first = util::obj(listed[0]);
+    check(first.get("exists").unwrap_or(false) == true, "and its folder is there");
+    project::forget(home);
+    let after = util::vec(project::recent());
+    let still = after.iter().any(|row| util::obj(row).path == home);
+    check(!still, "forgetting it drops the row and leaves the folder");
+    check(util::vec(project::templates()).len() > 0, "the library offers templates to start from");
+    check(project::home() != "", "and a folder to put a new project in");
+    example_projects(S);
+    versions_half(S);
+}
+
+// The screen's other half: which build this is and what lines it may follow.
+// No network here: what a channel holds is a press, and CI has no releases.
+fn versions_half(S) {
+    let mine = util::obj(release::installed());
+    check(mine.version != "", format!("the build says which version it is ({})", mine.version));
+    let lines = util::vec(release::channels());
+    check(lines.len() == 5, format!("and names {} release lines to follow", lines.len()));
+    let named = lines.iter().any(|name| name == "nightly")
+        && lines.iter().any(|name| name == "stable");
+    check(named, "the rolling one and the settled one among them");
+    // A source build has no id and no tag, and says so rather than guessing.
+    let source = mine.get("source").unwrap_or(false) == true;
+    let told = if source { mine.id == "" } else { mine.id != "" };
+    check(told, "a build with no release id says so instead of inventing one");
+    // The feed, which is a network read: offline it answers one error row,
+    // and either way every row says which line it belongs to.
+    let rows = util::vec(release::releases());
+    let named = rows.iter().all(|row| {
+        let seen = util::obj(row);
+        seen.get("channel").unwrap_or("") != "" || seen.get("error").unwrap_or("") != ""
+    });
+    check(named, format!("every one of {} published releases names its line", rows.len()));
+}
+
+// The examples that ship beside the editor, and a copy of one. The copy is
+// what the screen opens, so the shipped example stays as it was.
+fn example_projects(S) {
+    let rows = util::vec(project::examples());
+    check(rows.len() > 0, format!("{} examples ship beside this build", rows.len()));
+    let hello = rows.iter().find(|row| util::obj(row).id == "hello");
+    let found = hello;
+    let one = match found {
+        Some(row) => util::obj(row),
+        None => {
+            check(false, "one of them is hello");
+            return;
+        }
+    };
+    check(one.get("note").unwrap_or("") != "", format!("and each says what it is ({})", one.note));
+    let into = engine::user_data_dir() + "/selftest-copies";
+    let made = util::obj(project::copy_example("hello", into));
+    let failed = made.get("error");
+    if let Some(why) = failed {
+        check(false, format!("a copy of an example is a project of its own ({})", why));
+        return;
+    }
+    check(fs::exists(made.path + "/project.toml"),
+        "a copy of an example is a project of its own");
+    check(made.path != one.path, "written beside the reader's projects, not over the example");
+    project::forget(made.path);
+}
+
+/// Two fingers on the stage drive the camera: a pinch dollies, a drag slides.
+/// Fed rather than felt, so CI answers for the half a phone would.
+pub fn gestures(S) {
+    S.gesture_demo = 0;
+}
+
+pub fn gesture_step(S) {
+    let n = S.gesture_demo;
+    S.gesture_demo = n + 1;
+    // A fed finger is read by the next tick and acted on later in that frame,
+    // so every act takes a frame and every reading the frame after.
+    let vp = S.layout.stage;
+    let mid = ((vp.x + vp.w / 2.0) * S.ui_scale, (vp.y + vp.h / 2.0) * S.ui_scale);
+    let (cx, cy) = mid;
+    let step = 40.0 * S.ui_scale;
+    if n == 0 {
+        let (_, _, _, tx, ty, tz, _, _) = render::camera_pose();
+        let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
+        S.gesture_from = [ex, ey, ez, tx, ty, tz];
+        input::feed_touch(1, cx - step, cy, "start");
+        input::feed_touch(2, cx + step, cy, "start");
+        return;
+    }
+    if n == 1 {
+        // Apart: a pinch out, which walks the eye towards what it looks at.
+        input::feed_touch(1, cx - step * 2.0, cy, "move");
+        input::feed_touch(2, cx + step * 2.0, cy, "move");
+        return;
+    }
+    if n == 3 {
+        let before = S.gesture_from;
+        let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+        let was = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
+        let now = span(ex - tx, ey - ty, ez - tz);
+        check(now < was - 0.001, format!("a pinch out walks the camera in ({} to {})", was, now));
+        S.gesture_from = [ex, ey, ez, tx, ty, tz];
+        // Both fingers the same way: a two-finger drag, which slides the pair.
+        input::feed_touch(1, cx - step, cy, "move");
+        input::feed_touch(2, cx + step * 3.0, cy, "move");
+        return;
+    }
+    if n == 5 {
+        let before = S.gesture_from;
+        let (_, _, _, tx, ty, tz, _, _) = render::camera_pose();
+        let moved = span(tx - before[3], ty - before[4], tz - before[5]);
+        let want = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
+        // A finger's own travel, near enough: the world under it moved with
+        // it rather than by a constant nobody picked.
+        check(moved > 0.05 && moved < want, format!("a two-finger drag slides what it looks at ({})", moved));
+        input::feed_touch(1, cx, cy, "end");
+        input::feed_touch(2, cx, cy, "end");
+        S.gesture_demo = -1;
+    }
+}
+
+fn span(x, y, z) {
+    math::sqrt(x * x + y * y + z * z)
+}
+
 // The centre must be showing the viewport when no document is open: a stray
 // split used to leave a collapsed code pane over it in every persona.
 pub fn layout(S) {
@@ -1117,6 +1255,7 @@ pub fn layout_step(S) {
     // under `touch` and the shell drawing larger, not by a floor on each
     // control: a floor grew the box and left the glyph and its bar behind.
     check_touch_targets(S);
+    check_dock_tools(S);
     check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
     // The gutter is a `padding`, which the component keeps as four sides
     // whatever the scene spelled; reading all four back placed the shell at 0.
@@ -1208,6 +1347,27 @@ fn check_touch_targets(S) {
     check(smallest >= 44.0,
         format!("every control a finger picks clears 44 points (smallest {} in {})",
             smallest as i64, where));
+}
+
+// The panel's own tools sit at the end of the tab row, in a box of their own.
+// A hatch that only grows is one pixel wide in a row that hugs, and what it
+// draws is clipped: the filter, the hints and the add button all went that way.
+fn check_dock_tools(S) {
+    for side in ["left", "bottom", "right"] {
+        if crate::docks::folded(S, side) {
+            continue;
+        }
+        let box = match crate::docks::tools_box(side) {
+            Some(box) => box,
+            None => {
+                check(false, format!("the {} dock's tools have a box", side));
+                continue;
+            }
+        };
+        check(box.w > 20.0 && box.h > 12.0,
+            format!("the {} dock's tools have room to draw ({} × {})",
+                side, box.w as i64, box.h as i64));
+    }
 }
 
 fn overlapping(rects) {
@@ -1841,6 +2001,140 @@ fn named_under(S, dir) {
 
 /// The library: what the manifest lists, what placing an entry copies, and
 /// that a material lands on the selected node.
+/// The row views, read off the nodes they fill rather than off the scripts
+/// that fill them: what a view puts on a node is what the reader sees.
+///
+/// One stage a frame, because a node holds nothing until the shell has drawn
+/// it once and a pick is only answered by the pass after the one that made it.
+const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
+
+pub fn row_views(S) {
+    S.rows_demo = 0;
+    S.rows_want = 0;
+    S.rows_waited = 0;
+}
+
+pub fn rows_step(S) {
+    let tree = scene::get_node(TREE_NODE);
+    if util::is_nil(tree) {
+        S.rows_demo = -1;
+        log::info("selftest rowsdemo: no shell in this run, skipped");
+        return;
+    }
+    let widget = util::obj(tree.get_component("widget"));
+    let rows = util::vec(widget.get("options").unwrap_or([]));
+    if rows.len() == 0 {
+        S.rows_waited = S.rows_waited + 1;
+        if S.rows_waited > 60 {
+            S.rows_demo = -1;
+            log::info("selftest rowsdemo: the outliner drew no rows this run, skipped");
+        }
+        return;
+    }
+    let stage = S.rows_demo;
+    S.rows_demo = stage + 1;
+    if stage == 0 {
+        rows_drawn(S, widget, rows);
+        rows_menu(widget);
+        rows_picked(S, tree, rows);
+    } else if stage == 1 {
+        rows_answered(S, rows);
+        S.search["tree"] = name_at(S, S.rows_want);
+    } else if stage == 2 {
+        rows_narrowed(S, rows);
+        S.search["tree"] = "zzqq-nothing-matches-this";
+    } else if stage == 3 {
+        check(widget["visible"] == false, "a query matching nothing hides the tree");
+        S.search["tree"] = "";
+    } else if stage == 4 {
+        check(rows.len() == S.doc.len(), "and clearing the query brings every row back");
+        // A second node, to see the set drawn rather than the active node.
+        if S.doc.len() > 1 {
+            selection::toggle(S, if S.sel == 0 { 1 } else { 0 });
+        }
+    } else {
+        S.rows_demo = -1;
+        let lit = util::vec(widget.get("selection").unwrap_or([]));
+        check(lit.len() == selection::count(S) && lit.len() > 1,
+            format!("a second selected node lights a second row ({} lit)", lit.len()));
+        log::info("selftest rowsdemo: done");
+    }
+}
+
+// The menu a right click on a row opens: a node beside the tree, every row of
+// it naming a method the Editor's script declares. A typo in a scene is a row
+// that does nothing, and nothing else says so.
+fn rows_menu(widget) {
+    let named = widget.get("context").unwrap_or("");
+    check(named != "", "the outliner's tree names a context menu");
+    let menu = scene::get_node("Editor/Shell/Body/Left/LeftSheet/" + named);
+    if util::is_nil(menu) {
+        check(false, format!("and the scene holds it ({})", named));
+        return;
+    }
+    let rows = util::vec(menu.children());
+    check(rows.len() > 0, format!("with rows on it ({} of them)", rows.len()));
+    let editor = scene::get_node("Editor");
+    let missing = 0;
+    for row in rows {
+        let handler = util::obj(row.get_component("widget")).get("on_click").unwrap_or("");
+        if handler == "" || !editor.has_method(handler) {
+            missing += 1;
+            log::warn(format!("tree menu row {} calls nothing", row.name));
+        }
+    }
+    check(missing == 0, "and every row calls a method the editor declares");
+}
+
+
+// One row a node, the active one named and every selected one lit.
+fn rows_drawn(S, widget, rows) {
+    check(rows.len() == S.doc.len(),
+        format!("the outliner draws one row a node ({} of {})", rows.len(), S.doc.len()));
+    check(widget["multi"] == true, "its tree holds many rows at once");
+    let lit = util::vec(widget.get("selection").unwrap_or([]));
+    check(lit.len() == selection::count(S),
+        format!("every selected node is lit ({} of {})", lit.len(), selection::count(S)));
+    check(widget["text"] == "",
+        "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
+}
+
+// A row the node reports as picked is the node the document selects. Written
+// onto the node the way a click writes it, so this asks about the read-back
+// rather than about the drawing.
+fn rows_picked(S, tree, rows) {
+    let want = if S.sel == 0 && S.doc.len() > 1 { 1 } else { 0 };
+    S.rows_want = want;
+    tree.patch_component("widget", #{ text: rows[want] });
+}
+
+fn rows_answered(S, rows) {
+    let want = S.rows_want;
+    check(S.sel == want,
+        format!("a picked row selects its node ({} wanted, {} selected)", want, S.sel));
+    check(rows.len() == S.doc.len(), "and the walk is the document's still");
+}
+
+// The search draws on the same node: fewer rows, every one of them a match.
+fn rows_narrowed(S, rows) {
+    let query = S.search["tree"];
+    let want = 0;
+    for node in S.doc {
+        if crate::search::matches(query, format!("{} {}", node.name, model::node_type(node))) {
+            want += 1;
+        }
+    }
+    check(rows.len() == want && want < S.doc.len(),
+        format!("a query narrows the same tree node ({} of {})", rows.len(), S.doc.len()));
+    let named = 0;
+    for row in rows {
+        if row.contains(query) {
+            named += 1;
+        }
+    }
+    check(named == rows.len(), "and every row it leaves is a match");
+}
+
 pub fn librarydemo(S) {
     let root = S.game_root + "/";
     let metal = #{

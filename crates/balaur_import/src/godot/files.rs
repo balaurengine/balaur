@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-use crate::Imported;
 use crate::godot::nodes::Project;
+use crate::{Imported, ProjectSink, Sink};
 
 /// File kinds copied across as they are: the engine reads each directly.
 const COPIED: &[&str] = &[
@@ -22,8 +22,7 @@ const COPIED: &[&str] = &[
 /// `project.godot`: the settings, every scene, and the files they name.
 pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
     let root = file.parent().unwrap_or(Path::new("."));
-    let text =
-        std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
+    let text = crate::godot::io::text(file)?;
     let document =
         crate::godot::parse(&text).with_context(|| format!("reading {}", file.display()))?;
     let uids = crate::godot::project::uid_index(root)?;
@@ -31,15 +30,16 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
 
     let mut out = Imported::default();
     let mut report = Report::default();
-    write(project, "project.toml", &converted.project_toml, &mut out)?;
+    let sink = &mut ProjectSink::new(project);
+    sink.put("project.toml", converted.project_toml.as_bytes())?;
     report.section("project.godot", converted.notes);
     // A project's own faces come first in every font chain, from `fonts/`.
     if let Some(font) = crate::godot::project::custom_font(&document, &uids, root) {
-        copy_font(root, project, &font, &mut out)?;
+        copy_font(root, sink, &font)?;
     }
 
     let files = walk(root)?;
-    let lookups = lookups(root, &files, uids, project, &mut out, &mut report)?;
+    let lookups = lookups(root, &files, uids, sink, &mut report)?;
 
     let mut scenes = 0;
     let mut scripts = 0;
@@ -51,7 +51,7 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
             .unwrap_or_default()
             .to_ascii_lowercase();
         if extension == "tscn" {
-            match scene(root, &relative, project, &lookups, &mut out) {
+            match scene(root, &relative, sink, &lookups) {
                 Ok(notes) => {
                     scenes += 1;
                     report.section(&relative, notes);
@@ -62,32 +62,29 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
                 }
             }
         } else if extension == "gd" {
-            let source = std::fs::read_to_string(root.join(&relative))
-                .with_context(|| format!("reading {relative}"))?;
+            let source = crate::godot::io::text(&root.join(&relative))?;
             let converted = crate::godot::script::convert(&source, &relative, &lookups.classes);
             let target = format!("{}.rn", relative.trim_end_matches(".gd"));
-            write(project, &target, &converted.rune, &mut out)?;
+            sink.put(&target, converted.rune.as_bytes())?;
             scripts += 1;
             report.section(&relative, converted.notes);
         } else if extension == "tres" {
-            if let Some(notes) = theme(root, &relative, project, &lookups, &mut out)? {
+            if let Some(notes) = theme(root, &relative, sink, &lookups)? {
                 report.section(&relative, notes);
             }
         } else if COPIED.contains(&extension.as_str()) && !is_translation(root, &relative) {
-            let target = project.join(&relative);
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::copy(root.join(&relative), &target)
-                .with_context(|| format!("copying {relative}"))?;
-            out.files.push(relative);
+            // Read and written one at a time, so a project's art never
+            // gathers in memory on its way across.
+            let bytes = crate::godot::io::bytes(&root.join(&relative))?;
+            sink.put(&relative, &bytes)?;
         }
     }
     if scripts > 0 {
         // Every converted body calls into the shim, so it ships with them.
-        write(project, "gd.rn", crate::godot::gdscript::SHIM, &mut out)?;
+        sink.put("gd.rn", crate::godot::gdscript::SHIM.as_bytes())?;
     }
-    let lines = report.write(project, &mut out)?;
+    let lines = report.write(sink)?;
+    out.files = sink.written().to_vec();
     out.note = format!(
         "{scenes} scene{} and {scripts} script{} converted{}; {lines} note{} in import-report.md",
         if scenes == 1 { "" } else { "s" },
@@ -104,9 +101,10 @@ pub(crate) fn import_project(file: &Path, project: &Path) -> Result<Imported> {
 
 /// One `.tscn`, and the clip files it writes beside itself.
 pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
-    let file = file
-        .canonicalize()
-        .with_context(|| format!("reading {}", file.display()))?;
+    if !crate::godot::io::is_file(file) {
+        bail!("reading {}: no such file", file.display());
+    }
+    let file = crate::godot::io::real(file);
     let root = godot_root(&file)?;
     let relative = file
         .strip_prefix(&root)
@@ -115,11 +113,13 @@ pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
         .replace('\\', "/");
     let mut out = Imported::default();
     let mut report = Report::default();
+    let sink = &mut ProjectSink::new(project);
     let uids = crate::godot::project::uid_index(&root)?;
-    let lookups = lookups(&root, &walk(&root)?, uids, project, &mut out, &mut report)?;
-    let notes = scene(&root, &relative, project, &lookups, &mut out)?;
+    let lookups = lookups(&root, &walk(&root)?, uids, sink, &mut report)?;
+    let notes = scene(&root, &relative, sink, &lookups)?;
     report.section(&relative, notes);
-    let lines = report.write(project, &mut out)?;
+    let lines = report.write(sink)?;
+    out.files = sink.written().to_vec();
     out.scene = Some(crate::godot::scene::scene_path(&relative));
     out.note = if lines == 0 {
         "everything in the scene carried across".to_string()
@@ -136,17 +136,16 @@ pub(crate) fn import_scene(file: &Path, project: &Path) -> Result<Imported> {
 fn scene(
     root: &Path,
     relative: &str,
-    project: &Path,
+    sink: &mut dyn Sink,
     lookups: &Project,
-    out: &mut Imported,
 ) -> Result<Vec<String>> {
-    let text = std::fs::read_to_string(root.join(relative))?;
+    let text = crate::godot::io::text(&root.join(relative))?;
     let document = crate::godot::parse(&text)?;
     let converted = crate::godot::scene::convert(&document, relative, root, lookups)?;
     let path = crate::godot::scene::scene_path(relative);
-    write(project, &path, &converted.scene_toml, out)?;
+    sink.put(&path, converted.scene_toml.as_bytes())?;
     for (file, text) in &converted.files {
-        write(project, file, text, out)?;
+        sink.put(file, text.as_bytes())?;
     }
     Ok(converted.notes)
 }
@@ -156,11 +155,10 @@ fn scene(
 fn theme(
     root: &Path,
     relative: &str,
-    project: &Path,
+    sink: &mut dyn Sink,
     lookups: &Project,
-    out: &mut Imported,
 ) -> Result<Option<Vec<String>>> {
-    let text = std::fs::read_to_string(root.join(relative))?;
+    let text = crate::godot::io::text(&root.join(relative))?;
     if !text.starts_with("[gd_resource type=\"Theme\"") {
         return Ok(None);
     }
@@ -169,32 +167,29 @@ fn theme(
     let Some(converted) = crate::godot::theme::convert(&document, &res) else {
         return Ok(None);
     };
-    write(
-        project,
+    sink.put(
         &crate::godot::theme::theme_path(relative),
-        &converted.toml,
-        out,
+        converted.toml.as_bytes(),
     )?;
     for font in &converted.fonts {
-        copy_font(root, project, font, out)?;
+        copy_font(root, sink, font)?;
     }
     Ok(Some(converted.notes))
 }
 
 /// One face into the project's `fonts/`, where every chain reads it.
-fn copy_font(root: &Path, project: &Path, font: &str, out: &mut Imported) -> Result<()> {
+fn copy_font(root: &Path, sink: &mut dyn Sink, font: &str) -> Result<()> {
     let Some(name) = Path::new(font).file_name() else {
         return Ok(());
     };
-    let target = Path::new("fonts").join(name);
-    if project.join(&target).exists() {
+    let target = format!("fonts/{}", name.to_string_lossy());
+    // Two scenes may name the same face, and the first copy is the one.
+    if sink.written().iter().any(|written| written == &target) {
         return Ok(());
     }
-    std::fs::create_dir_all(project.join("fonts"))?;
-    std::fs::copy(root.join(font), project.join(&target))
+    let bytes = crate::godot::io::bytes(&root.join(font))
         .with_context(|| format!("copying the font {font}"))?;
-    out.files.push(target.to_string_lossy().replace('\\', "/"));
-    Ok(())
+    sink.put(&target, &bytes)
 }
 
 /// The project-wide lookups every scene reads: translation keys, which are
@@ -203,13 +198,12 @@ fn lookups(
     root: &Path,
     files: &[String],
     uids: std::collections::BTreeMap<String, String>,
-    project: &Path,
-    out: &mut Imported,
+    sink: &mut dyn Sink,
     report: &mut Report,
 ) -> Result<Project> {
     let strings = crate::godot::strings::convert(root, files);
     for (path, text) in strings.files()? {
-        write(project, &path, &text, out)?;
+        sink.put(&path, text.as_bytes())?;
     }
     report.section("translations", strings.notes);
     let mut rasters = std::collections::BTreeMap::new();
@@ -218,15 +212,10 @@ fn lookups(
             continue;
         };
         let target = format!("{}.{extension}", svg.trim_end_matches(".svg"));
-        let path = project.join(&target);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(&path, bytes).with_context(|| format!("writing {target}"))?;
-        out.files.push(target.clone());
+        sink.put(&target, &bytes)?;
         rasters.insert(svg.clone(), target);
     }
-    let shaders = shaders(root, files, project, out, report)?;
+    let shaders = shaders(root, files, sink, report)?;
     Ok(Project {
         keys: strings.keys,
         uids,
@@ -242,14 +231,12 @@ fn lookups(
 fn shaders(
     root: &Path,
     files: &[String],
-    project: &Path,
-    out: &mut Imported,
+    sink: &mut dyn Sink,
     report: &mut Report,
 ) -> Result<std::collections::BTreeMap<String, std::rc::Rc<crate::godot::material::Shader>>> {
     let mut shaders = std::collections::BTreeMap::new();
     for godot in files.iter().filter(|f| has_extension(f, "gdshader")) {
-        let source = std::fs::read_to_string(root.join(godot))
-            .with_context(|| format!("reading {godot}"))?;
+        let source = crate::godot::io::text(&root.join(godot))?;
         let translated = match crate::godot::shader::translate(&source) {
             Ok(translated) => translated,
             Err(why) => {
@@ -258,7 +245,7 @@ fn shaders(
             }
         };
         let path = crate::godot::material::shader_path(godot);
-        write(project, &path, &translated.wesl, out)?;
+        sink.put(&path, translated.wesl.as_bytes())?;
         let mut notes = translated.notes.clone();
         match crate::godot::shader::check(&translated) {
             Ok(()) => {
@@ -287,7 +274,7 @@ pub(crate) fn has_extension(path: &str, extension: &str) -> bool {
 /// than a copy.
 fn is_translation(root: &Path, relative: &str) -> bool {
     has_extension(relative, "csv")
-        && std::fs::read_to_string(root.join(format!("{relative}.import")))
+        && crate::godot::io::text(&root.join(format!("{relative}.import")))
             .is_ok_and(|text| text.contains("importer=\"csv_translation\""))
 }
 
@@ -295,7 +282,7 @@ fn is_translation(root: &Path, relative: &str) -> bool {
 fn godot_root(file: &Path) -> Result<PathBuf> {
     let mut dir = file.parent();
     while let Some(here) = dir {
-        if here.join("project.godot").is_file() {
+        if crate::godot::io::is_file(&here.join("project.godot")) {
             return Ok(here.to_path_buf());
         }
         dir = here.parent();
@@ -313,18 +300,14 @@ fn walk(root: &Path) -> Result<Vec<String>> {
     let mut files = Vec::new();
     let mut dirs = vec![root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
-        for entry in std::fs::read_dir(&dir)
-            .with_context(|| format!("reading {}", dir.display()))?
-            .flatten()
-        {
-            let name = entry.file_name();
-            if name.to_string_lossy().starts_with('.') {
+        for (name, is_dir) in crate::godot::io::list(&dir) {
+            if name.starts_with('.') {
                 continue;
             }
-            let path = entry.path();
-            if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            let path = dir.join(&name);
+            if is_dir {
                 // Godot's own rule: a folder holding `.gdignore` is not the game's.
-                if !path.join(".gdignore").exists() {
+                if !crate::godot::io::exists(&path.join(".gdignore")) {
                     dirs.push(path);
                 }
             } else if let Ok(relative) = path.strip_prefix(root) {
@@ -334,16 +317,6 @@ fn walk(root: &Path) -> Result<Vec<String>> {
     }
     files.sort();
     Ok(files)
-}
-
-fn write(project: &Path, relative: &str, text: &str, out: &mut Imported) -> Result<()> {
-    let path = project.join(relative);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
-    out.files.push(relative.to_string());
-    Ok(())
 }
 
 /// What did not carry, one heading per file.
@@ -361,7 +334,7 @@ impl Report {
 
     /// Write `import-report.md` when there is anything in it, and say how
     /// many notes it holds.
-    fn write(self, project: &Path, out: &mut Imported) -> Result<usize> {
+    fn write(self, sink: &mut dyn Sink) -> Result<usize> {
         let count = self.sections.iter().map(|(_, notes)| notes.len()).sum();
         if count == 0 {
             return Ok(0);
@@ -377,7 +350,7 @@ impl Report {
                 let _ = writeln!(text, "- {note}");
             }
         }
-        write(project, "import-report.md", &text, out)?;
+        sink.put("import-report.md", text.as_bytes())?;
         Ok(count)
     }
 }
@@ -680,6 +653,59 @@ PanelContainer/styles/panel = SubResource("Plain")
         std::fs::create_dir_all(dir.path().join("art")).unwrap();
         std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
         dir
+    }
+
+    /// The whole conversion through the engine's file backend: a project read
+    /// out of memory and written back into it, with no disk in reach. This is
+    /// what a browser tab does, where there is no project directory at all.
+    #[test]
+    fn a_godot_project_converts_inside_the_file_backend() {
+        let source = godot();
+        // Enumerated here rather than through `walk`, which is what is under
+        // test: the backend is seeded with every file the fixture wrote.
+        let mut seed: Vec<(String, Vec<u8>)> = Vec::new();
+        let mut dirs = vec![source.path().to_path_buf()];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else {
+                    let rel = path.strip_prefix(source.path()).unwrap();
+                    let rel = rel.to_string_lossy().replace('\\', "/");
+                    seed.push((rel, std::fs::read(&path).unwrap()));
+                }
+            }
+        }
+
+        let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
+        fs.seed(Path::new("/godot"), seed);
+        balaur_core::files::set_default(fs.clone());
+
+        let imported =
+            import_project(Path::new("/godot/project.godot"), Path::new("/game")).unwrap();
+
+        let held = fs.snapshot();
+        assert!(
+            imported.files.iter().any(|f| f == "project.toml"),
+            "the settings were not converted: {:?}",
+            imported.files
+        );
+        assert!(
+            imported.files.iter().any(|f| f.starts_with("scenes/")),
+            "no scene was written: {:?}",
+            imported.files
+        );
+        for rel in &imported.files {
+            assert!(
+                held.contains_key(&format!("/game/{rel}")),
+                "{rel} is not in the backend"
+            );
+            assert!(
+                !Path::new("/game").join(rel).exists(),
+                "{rel} reached the disk"
+            );
+        }
     }
 
     fn read(dir: &Path, path: &str) -> toml::Value {

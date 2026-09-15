@@ -4,7 +4,10 @@
 //!
 //! Frames are packed at the canvas size, row by row, so a rectangle never
 //! crosses a page and a slice drawn on the canvas is a slice on the frame.
-//! The three files are plain TOML and PNG the editor edits like any other.
+//! The three files are plain TOML and WebP the editor edits like any other.
+//!
+//! The page is written as lossless WebP: the pixels are the ones composited
+//! here either way, and it is about a third smaller than the same PNG.
 
 use std::fmt::Write as _;
 use std::io::Cursor;
@@ -17,8 +20,8 @@ use aseprite_loader::loader::{AsepriteFile, LayerSelection};
 /// What one `.aseprite` becomes.
 #[derive(Debug)]
 pub struct AsepriteImport {
-    /// The atlas page, PNG-encoded.
-    pub png: Vec<u8>,
+    /// The atlas page, lossless WebP.
+    pub page: Vec<u8>,
     pub width: u32,
     pub height: u32,
     pub frames: usize,
@@ -36,7 +39,7 @@ struct Packed {
 }
 
 /// Import `bytes` as the sheet `stem`, drawing from `texture` — the
-/// project-relative path the PNG will be written to. `layers` names the
+/// project-relative path the page will be written to. `layers` names the
 /// layers to composite; empty means the ones visible in the editor.
 pub fn import(
     bytes: &[u8],
@@ -77,14 +80,14 @@ pub fn import(
     }
     let image = image::RgbaImage::from_raw(page_w, page_h, page)
         .ok_or_else(|| anyhow!("the atlas page does not fit its pixels"))?;
-    let mut png = Vec::new();
+    let mut page_bytes = Vec::new();
     image::DynamicImage::ImageRgba8(image)
-        .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+        .write_to(&mut Cursor::new(&mut page_bytes), image::ImageFormat::WebP)
         .context("encoding the atlas")?;
     let sheet = sheet_toml(&file, stem, texture, &packed);
     let clips = clips_toml(&file, stem, &packed);
     Ok(AsepriteImport {
-        png,
+        page: page_bytes,
         width: page_w,
         height: page_h,
         frames: count,

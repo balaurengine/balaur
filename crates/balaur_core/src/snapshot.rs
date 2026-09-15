@@ -149,6 +149,7 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
     app.add_snapshot_source("appearance", save_appearance, load_appearance);
     app.add_snapshot_source("tags", save_tags, load_tags);
+    app.add_snapshot_source("process", save_process, load_process);
     // The clock, so restoring a tick puts the tick number back too: a
     // rollback that re-ran tick 40 while the engine still counted 47 would
     // hand scripts a number the first run never saw.
@@ -255,6 +256,7 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
     };
     let world = eng.world();
     let root = eng.root();
+    let mut restored = Vec::new();
     for frame in frames {
         let Some(entity) = resolve(&world, root, frame.id.as_deref(), frame.entity) else {
             continue;
@@ -267,6 +269,70 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
         t.rotation = glamx::Quat::from_xyzw(v[3], v[4], v[5], v[6]);
         t.scale = glamx::Vec3::new(v[7], v[8], v[9]);
         t.skew = frame.skew;
+        restored.push(entity);
+    }
+    drop(world);
+    // The pair of poses a node was being drawn between is render-side state
+    // the restored tick knows nothing about; keeping it would streak a
+    // rolled-back node from where it was predicted to where it really is.
+    for entity in restored {
+        crate::interpolate::reset(eng, entity);
+    }
+}
+
+/// Keyed the way `TransformFrame` is. Written by `set_process`, so a
+/// re-simulated tick has to put it back the way it found it.
+#[derive(Serialize, Deserialize)]
+struct ProcessFrame {
+    id: Option<String>,
+    entity: u64,
+    mode: String,
+}
+
+fn save_process(eng: &Engine) -> serde_json::Value {
+    let world = eng.world();
+    let frames: Vec<ProcessFrame> = crate::scene::collect_subtree(&world, eng.root())
+        .into_iter()
+        .filter_map(|entity| {
+            let mode = crate::process::own(&world, entity);
+            (mode != crate::process::ProcessMode::Inherit).then(|| ProcessFrame {
+                id: crate::ids::of(&world, entity),
+                entity: entity.to_bits().get(),
+                mode: mode.name().to_string(),
+            })
+        })
+        .collect();
+    serde_json::to_value(frames).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_process(eng: &Engine, value: &serde_json::Value) {
+    let frames: Vec<ProcessFrame> = match Vec::<ProcessFrame>::deserialize(value) {
+        Ok(frames) => frames,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring process modes");
+            return;
+        }
+    };
+    let mut world = eng.world_mut();
+    let root = eng.root();
+    let listed: Vec<(hecs::Entity, crate::process::ProcessMode)> = frames
+        .iter()
+        .filter_map(|frame| {
+            let entity = resolve(&world, root, frame.id.as_deref(), frame.entity)?;
+            Some((entity, crate::process::ProcessMode::parse(&frame.mode)?))
+        })
+        .collect();
+    // A mode the snapshot does not list is one the node did not carry, so a
+    // mode set during the tick being re-run has to come back off.
+    let stale: Vec<hecs::Entity> = crate::scene::collect_subtree(&world, root)
+        .into_iter()
+        .filter(|e| !listed.iter().any(|(listed, _)| listed == e))
+        .collect();
+    for entity in stale {
+        crate::process::set(&mut world, entity, crate::process::ProcessMode::Inherit);
+    }
+    for (entity, mode) in listed {
+        crate::process::set(&mut world, entity, mode);
     }
 }
 

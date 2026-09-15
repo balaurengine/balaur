@@ -64,11 +64,19 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 (transforms) → Render → Last (deferred destruction)`.
 
 - `queue_free` lands in `Last`, so iteration is never invalidated mid-frame.
-- `FixedUpdate` drains one app-owned accumulator in whole `FIXED_DT` steps: 0 in
-  a fast frame, up to `MAX_SUBSTEPS` in a slow one. One accumulator, not one per
-  plugin — per-plugin ones made the step count depend on wall-clock jitter.
+- `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
+  in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
+  per plugin — per-plugin ones made the step count depend on wall-clock jitter.
+  `FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
 - Order inside a stage is registration order, and core registers the script
   callback first, so `fixed_update` runs before that frame's physics step.
+- A debugger's freeze stops the whole stage. A game's own pause does not: the
+  stage runs and each per-node subsystem asks `process::ticks`, because
+  `process = "always"` has to let one subtree run while its sibling is held.
+  Physics is one world and is held whole either way.
+- `SceneSync` places a node that opted into interpolation between the two
+  poses the last fixed steps left it in. Render-side only: `Transform` and
+  `composed_global` answer the tick, so no script and no digest sees a blend.
 
 ## Scripting
 
@@ -549,7 +557,8 @@ scenes and manifest into a `.bpak`. Packed runs build no compiler and no watcher
 - `scripts/package.sh` bakes a build id and every release carries a VERSION
   asset, which catches a Monday nightly meeting Wednesday's template and drives
   `balaur update` — one command replacing binary, editor, template and header,
-  which only work as a set. A source build refuses and points at git.
+  which only work as a set. A source build refuses and points at git. An update
+  follows the channel its own version names, and `--channel` crosses lines.
 - A signed macOS game is `export --app`: a `.app` with the pack in
   `Contents/Resources`, because codesign seals resources but never bytes
   appended to a flat binary. Signing happens after export.
@@ -784,7 +793,7 @@ Rune fits: IEEE-754 doubles and 64-bit integers that never mix, `+ - * /` and
 | `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`; Rune has no transcendentals, and our fork puts its `powf`/`powi` on libm (`crates/balaur_script_rune/tests/pow.rs`) |
 | Object iteration order is the hash map's | **Done** — the fork hashes with `XxHash64` at a fixed seed, so order is the same everywhere. Still not *insertion* order: sort the keys. Upstream's `ahash` seeds from `getrandom` and its AES and software paths disagree |
 | A random source seeded from entropy | **Done** — `rng` is an engine-owned PCG32 with a fixed default seed |
-| Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `FIXED_DT`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
+| Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `fixed_dt()`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
 
 Engine-side:
 
@@ -848,6 +857,15 @@ tick.
 - **Restore re-enters the real path**: a recorded `NetEvent` goes down the same
   channel the workers use, so dispatch, handler lookup, await-wake and arrival
   order are the originals.
+- **How work leaves a tick is `core::task`.** `ExternalIo` is how it reports
+  back; the other half is getting off the tick, and `task::step` is that for
+  work that can be cut into slices. A desktop hands the job a thread, a browser
+  has none, so `task::park` advances one slice per frame from
+  `advance_parked_system` at `Stage::First` and `step` is `park` there. A job
+  moves to a thread natively, so it is `Send` there and not on the web, and it
+  reads the file backend where it runs rather than carrying an `Rc` across.
+  Work that waits on a socket or a fetch is not this shape and still spawns its
+  own, once per target.
 - **Capture and restore are symmetric only for passive sources.** Input and the
   gamepad only receive, so `add_replay_resource::<T>` is one line. A socket is
   not: those subsystems hold a `replay::ExternalIo<E>`, which hands out the
@@ -947,7 +965,7 @@ Transport, session and rollback are built; replication is not.
 | Cross-machine identity | `StableId` — survives rename, reparent, reload |
 | Generic property read/write | `ComponentRegistry`'s `get` / `patch` hooks |
 | A wire schema | Component schemas: every property declares a `type`, with defaults |
-| A tick clock | `Engine::tick`, `FIXED_DT`, `App::set_fixed_dt` |
+| A tick clock | `Engine::tick`, `fixed_dt()`, `App::set_fixed_dt`; a recording's header carries the rate |
 
 The schema is the notable one: Godot ships a separate `SceneReplicationConfig`
 because its nodes have no property schema. An encoder generated off the registry

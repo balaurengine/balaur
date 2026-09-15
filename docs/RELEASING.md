@@ -7,13 +7,14 @@ and published by `scripts/draft_release.sh`.
 | --- | --- | --- | --- |
 | Nightly | `nightly`, moved every time | every push to `main` | published prerelease, never `latest` |
 | Version | `v<major>.<minor>.<patch>[-<channel>.<n>]`, permanent | a `v*` tag is pushed | draft, until a human publishes it |
-| Channel | `alpha`, `beta`, moved to the newest of that line | when one is published | published prerelease, never `latest` |
+| Channel | `alpha`, `beta`, `rc`, pointed at the newest of that line | a version on it is published | published prerelease, never `latest` |
 
 ## Creating a release
 
 1. `scripts/bump_version.sh [patch|minor|major]`, patch by default. It moves
    every manifest and lockfile carrying the version; `--dry-run` shows the
-   move first, `--set 0.4.2` writes an exact one.
+   move first, `--set 0.4.2` writes an exact one. A prerelease is set by hand
+   (`--set 0.2.0-alpha.1`), and a part bump refuses to guess its way off one.
 2. Rewrite the `docs/ROADMAP.md` rows the release finished as what landed, and
    say the new version in its opening.
 3. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
@@ -25,7 +26,8 @@ and published by `scripts/draft_release.sh`.
    ```
 6. Read the draft, write what a patch fixed into its notes, and press publish.
    Publishing is what puts the assets behind a fetchable URL; a draft's are not
-   reachable without a token.
+   reachable without a token. It also fires `channel.yml`, which points that
+   line's rolling tag at the release.
 7. **Rebuild the website**, which does not happen on its own. See below.
 
 The tag has to match `Cargo.toml`: `draft_release.sh` fails when it does not,
@@ -96,7 +98,9 @@ knows which line it is on, with nothing to configure.
 
 These are ordinary SemVer prerelease identifiers and Cargo takes them:
 `version = "0.1.0-alpha.1"` builds, and `bump_version.sh --set 0.1.0-alpha.1`
-writes it across the workspace. SemVer also orders them the way you would
+writes it across the workspace. The VS Code extension is the one exception: the
+marketplace takes no suffix, so `editors/code/package.json` carries the release
+the workspace is working towards. SemVer also orders them the way you would
 expect — `alpha` < `beta` < `rc` < the release itself — so "is this newer" needs
 no special case.
 
@@ -121,10 +125,25 @@ balaur update --channel stable    # back to the stable line
 ```
 
 Discovery reuses what `nightly` already does rather than asking the API: each
-channel has a rolling tag moved to the newest release on that line, so an
+channel has a rolling tag pointed at the newest release on that line, so an
 update is a fetch of `releases/download/<channel>/VERSION` and there is no rate
-limit to run into. `draft_release.sh` already moves a rolling tag for
-`nightly`; a channel is the same move under a different name.
+limit to run into. `scripts/move_channel.sh` writes that pointer, and
+`channel.yml` runs it when a release is published.
+
+A channel release carries that one asset. VERSION names the version release,
+and the archives are fetched from there, so a channel is a pointer rather than
+a second copy of every download. The exception is `nightly`, whose VERSION
+names a build rather than a tag: its assets sit on the `nightly` release
+itself. Stable has no pointer of its own, because GitHub's `latest` is one
+already.
 
 A stable build with no stable release to find fails, and should. Falling back
-to a prerelease would hand somebody an alpha they did not ask for.
+to a prerelease would hand somebody an alpha they did not ask for. The failure
+names the channels that do have a release, since the fix is usually one of
+them.
+
+Crossing lines can also go backwards: `--channel stable` from `0.2.0-alpha.3`
+onto a `0.1.0` release is a downgrade. Following that literally is probably not
+what was meant, so it is refused unless `--allow-downgrade` says otherwise. A
+nightly and a source build order against nothing, so neither is ever refused
+this way.

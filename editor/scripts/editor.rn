@@ -23,6 +23,7 @@ mod inputview;
 mod inspector;
 mod layout;
 mod library;
+mod manager;
 mod left;
 mod lint;
 mod menu;
@@ -95,6 +96,7 @@ pub fn init(this) {
         // Whether the first frame has run: the start-up states apply on it,
         // after the screen's room has folded the docks.
         platform_read: false,
+        states_applied: false,
         start_states: "",
         script_buffers: #{},
         schemas: #{},
@@ -128,6 +130,12 @@ pub fn init(this) {
         fps: 0.0,
         // -1 when the layout self-test is not running.
         layout_demo: -1,
+        // The same for the row views' test, and the row it asks for.
+        rows_demo: -1,
+        rows_want: 0,
+        rows_waited: 0,
+        gesture_demo: -1,
+        gesture_from: [],
         frame: 0,
         shot: None,
         // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
@@ -141,6 +149,7 @@ pub fn init(this) {
         // unfolded panel is the way back, not a viewport.
         stage_chrome: true,
         rail_shut: false,
+        chrome_off: false,
         fontdemo: false,
         menu_open: false,
         // A document is over the scene; the hooks list is beside it.
@@ -198,6 +207,7 @@ pub fn init(this) {
         showcase: showcase::state(),
         inputview: inputview::state(),
         library: library::state(),
+        manager: manager::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
         plugins: #{},
@@ -256,6 +266,13 @@ pub fn update(this, dt) {
             report_view(S);
         }
     }
+    // The start screen has no scene to step, no selection to follow and no
+    // gizmo to drag: what it needs from a frame is the shot and the states.
+    if manager::showing(S) {
+        apply_start_states(S);
+        ui::request_repaint();
+        return;
+    }
     let cap = S.capture;
     if cap is Object && S.frame >= cap.from && (S.frame - cap.from) % cap.every == 0 {
         render::screenshot(format!("{}/{}.png", cap.dir, padded(cap.n)));
@@ -295,6 +312,12 @@ pub fn update(this, dt) {
     if S.layout_demo >= 0 {
         selftest::layout_step(S);
     }
+    if S.rows_demo >= 0 {
+        selftest::rows_step(S);
+    }
+    if S.gesture_demo >= 0 {
+        selftest::gesture_step(S);
+    }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
@@ -302,8 +325,14 @@ pub fn update(this, dt) {
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
-        gizmo::update(S);
-    textedit::update(S);
+        // Two fingers on the stage are the camera's, so a gizmo never sees
+        // the frame they drive and the backend's own orbit stands off.
+        if viewport::camera_gesture(S) {
+            render::set_camera_input(false);
+        } else {
+            gizmo::update(S);
+        }
+        textedit::update(S);
     }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
@@ -357,12 +386,28 @@ pub fn update(this, dt) {
     // pointer holds still, so both are in the list.
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+        || S.rows_demo >= 0
+        || S.gesture_demo >= 0
         || layout::animating(S) || S.gizmo.drag is Object
     {
         ui::request_repaint();
     }
     if let Some(_) = S.debug.demo {
         ui::request_repaint();
+    }
+}
+
+// The `--state` list, applied once. Read here rather than at `init`, because
+// a state that folds a dock has to run after the screen has been measured.
+fn apply_start_states(S) {
+    if S.states_applied {
+        return;
+    }
+    S.states_applied = true;
+    for token in S.start_states.split(',') {
+        if token != "" {
+            shell::apply_start_state(S, token);
+        }
     }
 }
 
@@ -385,11 +430,7 @@ pub fn draw_ui(this) {
     S.platform_read = true;
     docks::follow_screen(S, ui::width_class(), ui::height_class());
     if first {
-        for token in S.start_states.split(',') {
-            if token != "" {
-                shell::apply_start_state(S, token);
-            }
-        }
+        apply_start_states(S);
     }
 
     // The popup owns the arrows, Tab, Enter and Escape while it is open, so
@@ -519,6 +560,12 @@ pub fn draw_ui(this) {
     }
 
     showcase::draw(S);
+    // The start screen has the window to itself: no project is open, so there
+    // is no scene to draw behind it and no dock to put over it.
+    if manager::showing(S) {
+        manager::draw(S, S.theme);
+        return;
+    }
     // Stage: decide what is showing, size every sheet once, then draw them.
     // Nothing below computes a rect of its own.
     center::modes(S);
@@ -621,6 +668,40 @@ pub fn draw_form_row(this) {
 
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
+}
+
+// The outliner's context menu, one method a row. The right click that opened
+// it picked the row under the pointer, so each acts on the selection.
+pub fn tree_add_child(this) {
+    model::add_child(this.S, None);
+}
+
+pub fn tree_move_up(this) {
+    model::move_sibling(this.S, -1);
+}
+
+pub fn tree_move_down(this) {
+    model::move_sibling(this.S, 1);
+}
+
+pub fn tree_attach_script(this) {
+    shell::attach_script(this.S);
+}
+
+pub fn tree_duplicate(this) {
+    model::duplicate_selected(this.S);
+}
+
+pub fn tree_toggle_hidden(this) {
+    arrange::toggle_hidden(this.S);
+}
+
+pub fn tree_toggle_locked(this) {
+    arrange::toggle_locked(this.S);
+}
+
+pub fn tree_delete(this) {
+    model::delete_selected(this.S);
 }
 
 pub fn hot_reload(this) {

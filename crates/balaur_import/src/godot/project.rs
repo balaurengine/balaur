@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use crate::godot::{Document, Value};
 
@@ -99,7 +99,7 @@ pub(crate) fn custom_font(
     if !crate::godot::files::has_extension(&path, "tres") {
         return Some(path).filter(|p| !p.is_empty());
     }
-    let text = std::fs::read_to_string(root.join(&path)).ok()?;
+    let text = crate::godot::io::text(&root.join(&path)).ok()?;
     let variation = crate::godot::parse(&text).ok()?;
     let id = variation
         .first("resource")?
@@ -416,14 +416,9 @@ pub(crate) fn uid_index(root: &std::path::Path) -> Result<BTreeMap<String, Strin
     let mut index = BTreeMap::new();
     let mut dirs = vec![root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
-        let entries = std::fs::read_dir(&dir)
-            .with_context(|| format!("reading {}", dir.display()))?
-            .flatten();
-        for entry in entries {
-            let path = entry.path();
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if entry.file_type().is_ok_and(|t| t.is_dir()) {
+        for (name, is_dir) in crate::godot::io::list(&dir) {
+            let path = dir.join(&name);
+            if is_dir {
                 // `.godot` is the editor's own cache and holds a copy of every
                 // import, which would double the index and win the ties.
                 if !name.starts_with('.') {
@@ -457,7 +452,7 @@ fn uid_of(path: &std::path::Path) -> Option<String> {
     if !matches!(extension, "uid" | "tscn" | "tres" | "import") {
         return None;
     }
-    let text = std::fs::read_to_string(path).ok()?;
+    let text = crate::godot::io::text(path).ok()?;
     if extension == "uid" {
         let uid = text.trim();
         return uid.starts_with("uid://").then(|| uid.to_string());

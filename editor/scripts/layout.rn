@@ -111,6 +111,20 @@ pub fn gutter(S) {
     if S.compact { TIGHT_GUTTER } else { S.layout.gutter }
 }
 
+/// The seam between two sheets, the gutter's own step.
+pub fn seam(S) {
+    if S.compact { TIGHT_GAP } else { S.layout.gap }
+}
+
+/// What the shell spends on itself before a sheet gets anything: the gutter
+/// either side, the two seams across and down, and the status strip inside
+/// the bottom dock. Every floor subtracts it, so none of them promises room
+/// the layout has already spent.
+pub fn chrome(S) {
+    let edges = 2.0 * gutter(S) + 2.0 * seam(S);
+    #{ w: edges, h: edges + S.layout.status_h }
+}
+
 /// What the scene states for one of a box's sizes. A `padding` is four sides
 /// in the component whatever the scene spelled, so take the first.
 fn stated(S, id, key) {
@@ -419,18 +433,19 @@ fn right_head_h(S) {
 /// The least screen that holds one side dock beside a stage worth having,
 /// as a width; and down, the bar, the bottom dock and the stage. Below
 /// either, the shell is one sheet at a time.
-pub fn floors() {
+pub fn floors(S) {
     // The stage's own floor down the screen, not the seam's: a dock shrinks
     // to `BOTTOM_MIN` before the stage is asked to give anything up, so a
     // laptop window keeps all three docks rather than folding to one.
-    (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN,
-        BAR_H_GUESS + BOTTOM_MIN + crate::center::stage_floor().h)
+    let spent = chrome(S);
+    (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.w,
+        BAR_H_GUESS + BOTTOM_MIN + crate::center::stage_floor().h + spent.h)
 }
 
 /// Whether three columns fit across: both side docks and the stage at their
 /// floors. Below this the side docks start folded and an open one takes half.
 pub fn three_fit(S) {
-    S.screen_w >= LEFT_MIN + STAGE_MIN + RIGHT_MIN
+    S.screen_w >= LEFT_MIN + STAGE_MIN + RIGHT_MIN + chrome(S).w
 }
 
 // The bar's height before its node has been measured, for the floor above:
@@ -450,7 +465,10 @@ pub fn stage_room(S) {
     } else {
         util::max(m.dock_h, BOTTOM_MIN) + m.status_h
     };
-    #{ w: w - tree_w - insp_w, h: S.screen_h - m.bar.h - dock_h }
+    // Less what the shell spends on itself: the room a rail or a chip strip
+    // is offered is the room it will actually be drawn in.
+    let spent = chrome(S);
+    #{ w: w - tree_w - insp_w - spent.w, h: S.screen_h - m.bar.h - dock_h - spent.h }
 }
 
 /// How wide an open side dock is: what the seam was dragged to on a screen

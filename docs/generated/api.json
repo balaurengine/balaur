@@ -14,11 +14,11 @@
     },
     "material": {
       "directory": "materials",
-      "doc": "A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.\n\n```toml\n[[assets]]\nid = \"water\"\ntype = \"material\"\nshader = \"shaders/water.wesl\"\nfeatures = { lit = true }\n# a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or \"#rrggbb\"/\"#rrggbbaa\" a vec4\nparams = { speed = 0.4, tint = \"#3aa0ff\" }\n```"
+      "doc": "A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.\n\n```toml\n[[assets]]\nid = \"water\"\ntype = \"material\"\nshader = \"shaders/water.wesl\"\nfeatures = { lit = true }\n# a number is an f32, [x, y] a vec2, [x, y, z] a vec3, [x, y, z, w] or \"#rrggbb\"/\"#rrggbbaa\" a vec4\nparams = { speed = 0.4, tint = \"#3aa0ff\" }\n\n# How a node drawing it rasterizes, rather than what colour it comes out.\n[surface]\nalpha = \"blend\"              # opaque, mask (a cutout), or blend\nalpha_cutoff = 0.5           # what a mask drops a fragment below\ndouble_sided = true\ntransmission = 0.9           # above zero is glass: it refracts the scene behind it\nior = 1.5                    # how sharply it bends light\nthickness = 0.2              # how far light travels inside it, in world units\nattenuation_color = \"#dff0ea\"\nattenuation_distance = 2.0\nmirror = true                # show the scene reflected in this surface's own plane\nmirror_intensity = 1.0\nmirror_falloff = 0.0         # above zero fades the reflection as the surface turns away\nmirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space\n```"
     },
     "mesh": {
       "directory": "models",
-      "doc": "Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\ncolors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex\nskin = { bones = [{ path = \"Rig/Hip\", weights = [1, 1, 1] }] }   # one weight per vertex\nmorphs = [{ name = \"smile\", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile\n```"
+      "doc": "Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\npart = \"stone\"                   # glTF only: just this material's triangles\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\ncolors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex\nskin = { bones = [{ path = \"Rig/Hip\", weights = [1, 1, 1] }] }   # one weight per vertex\nmorphs = [{ name = \"smile\", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile\n```"
     },
     "path2d": {
       "directory": "paths",
@@ -50,7 +50,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\nlink = \"#3aa0ff\"                 # what a `[url]` span in markup text is drawn in\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\nlink = \"#3aa0ff\"                 # what a `[url]` span in markup text is drawn in\nrow_on = \"#2f6fb0\"               # a picked row of a `list`, `tree` or `table`\nrow_on_color = \"#ffffff\"         # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_press` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\nrow_head = \"#ffffff08\"           # its header's plate\nrow_rule = \"#00000000\"           # the lines down its columns, hidden here\nrow_guide = \"#8a8a8a8c\"          # the lines down a tree's indent\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"ink\"\nstroke = \"sky\"\nradius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
     }
   },
   "component_docs": {
@@ -83,6 +83,7 @@
     "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
     "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.",
+    "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
     "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
     "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
     "sound": "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
@@ -210,6 +211,10 @@
     ],
     "ragdoll": [
       "physics"
+    ],
+    "reflection_probe": [
+      "3d",
+      "render"
     ],
     "shape2d": [
       "2d",
@@ -654,6 +659,12 @@
       }
     },
     "camera": {
+      "aberration_amount": {
+        "default": 0.004,
+        "description": "How far `aberration` slides red from blue at the frame's edge, as a fraction of it",
+        "min": 0.0,
+        "type": "float"
+      },
       "ambient": {
         "default": [
           0.0,
@@ -681,6 +692,12 @@
         "description": "Whether this camera drives the view; the last current one wins",
         "type": "bool"
       },
+      "grain_amount": {
+        "default": 0.06,
+        "description": "How much the `grain` pass lightens and darkens a pixel",
+        "min": 0.0,
+        "type": "float"
+      },
       "kind": {
         "default": "3d",
         "description": "Which camera this node drives",
@@ -699,10 +716,54 @@
         "description": "World point the 3D camera looks at",
         "type": "vec3"
       },
+      "pixelate_size": {
+        "default": 4.0,
+        "description": "The side of one block the `pixelate` pass reads the frame back in, in pixels",
+        "min": 1.0,
+        "type": "float"
+      },
       "post": {
         "default": [],
-        "description": "The frame's passes, in order. bloom, ssao, ssr, dof, tonemap name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
+        "description": "The frame's passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
         "type": "strings"
+      },
+      "ssao_bias": {
+        "default": 0.025,
+        "description": "How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black",
+        "min": 0.0,
+        "type": "float"
+      },
+      "ssao_intensity": {
+        "default": 1.2,
+        "description": "How strongly the `ssao` pass darkens",
+        "min": 0.0,
+        "type": "float"
+      },
+      "ssao_power": {
+        "default": 1.5,
+        "description": "The contrast the occlusion is raised to",
+        "min": 0.001,
+        "type": "float"
+      },
+      "ssao_radius": {
+        "default": 0.5,
+        "description": "How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene",
+        "min": 0.001,
+        "type": "float"
+      },
+      "vignette_amount": {
+        "default": 0.35,
+        "description": "How dark the corners go under the `vignette` pass",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "vignette_roundness": {
+        "default": 1.0,
+        "description": "1 darkens in a circle whatever shape the frame is; 0 follows the frame",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
       },
       "zoom": {
         "default": 60.0,
@@ -1991,7 +2052,7 @@
       },
       "show_sky": {
         "default": true,
-        "description": "False lights the scene from the sky without drawing it, leaving the background colour",
+        "description": "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both",
         "type": "bool"
       },
       "sky": {
@@ -2794,6 +2855,40 @@
         "default": "",
         "description": "The node holding the bodies, one per bone, named after it",
         "type": "node"
+      }
+    },
+    "reflection_probe": {
+      "falloff": {
+        "default": 0.5,
+        "description": "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky",
+        "min": 0.0,
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "description": "Half the box this probe speaks for, in world units, centred on the node",
+        "min": 0.0,
+        "type": "vec3"
+      },
+      "image": {
+        "default": "",
+        "description": "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position",
+        "type": "string"
+      },
+      "intensity": {
+        "default": 1.0,
+        "description": "Brightness of what the probe reflects",
+        "min": 0.0,
+        "type": "float"
+      },
+      "rotation": {
+        "default": 0.0,
+        "description": "Turn of the captured map about y, in degrees",
+        "type": "float"
       }
     },
     "shape2d": {
@@ -4190,6 +4285,12 @@
         ],
         "type": "enum"
       },
+      "breakpoints": {
+        "default": [],
+        "description": "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means",
+        "group": "value",
+        "type": "strings"
+      },
       "checked": {
         "default": false,
         "description": "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
@@ -4215,7 +4316,7 @@
       },
       "columns": {
         "default": 0,
-        "description": "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list",
+        "description": "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list. A `table`'s columns are its `titles`",
         "group": "layout",
         "min": 0,
         "type": "int"
@@ -4225,6 +4326,13 @@
         "description": "Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own",
         "group": "events",
         "type": "string"
+      },
+      "current_line": {
+        "default": 0,
+        "description": "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none",
+        "group": "value",
+        "min": 0,
+        "type": "int"
       },
       "deadzone": {
         "default": 0.0,
@@ -4332,12 +4440,25 @@
         "min": 0.0,
         "type": "float"
       },
+      "gutter_width": {
+        "default": 0.0,
+        "description": "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits",
+        "group": "layout",
+        "min": 0.0,
+        "type": "float"
+      },
       "handle": {
         "default": 0.0,
-        "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one",
+        "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing",
         "group": "value",
         "min": 0.0,
         "type": "float"
+      },
+      "header": {
+        "default": true,
+        "description": "Draw the strip that names a `table`'s columns. Off, the columns are still `titles`', and a table that names none keeps its first row as a row",
+        "group": "layout",
+        "type": "bool"
       },
       "height": {
         "default": 0.0,
@@ -4356,6 +4477,13 @@
       "hide_shorter": {
         "default": 0.0,
         "description": "Not drawn while the room is shorter than this many design pixels. Zero is no line",
+        "group": "placement",
+        "min": 0.0,
+        "type": "float"
+      },
+      "hide_taller": {
+        "default": 0.0,
+        "description": "Not drawn while the room is this tall or taller, in design pixels. Zero is no line",
         "group": "placement",
         "min": 0.0,
         "type": "float"
@@ -4486,6 +4614,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "multi": {
+        "default": false,
+        "description": "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked",
+        "group": "value",
+        "type": "bool"
+      },
       "numeric": {
         "default": false,
         "description": "Keep a `field` to digits, a sign and a point",
@@ -4510,9 +4644,21 @@
         "group": "events",
         "type": "string"
       },
+      "on_gutter": {
+        "default": "",
+        "description": "Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
       "on_link": {
         "default": "",
         "description": "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_move": {
+        "default": "",
+        "description": "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -4553,7 +4699,7 @@
       },
       "placeholder": {
         "default": "",
-        "description": "What a `field` shows while it is empty, the letter a `drag_value` puts before its number, and a `table`'s column names split on U+001F",
+        "description": "What a `field` shows while it is empty, and the letter a `drag_value` puts before its number",
         "group": "value",
         "type": "string"
       },
@@ -4569,11 +4715,29 @@
         ],
         "type": "enum"
       },
+      "problems": {
+        "default": [],
+        "description": "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter",
+        "group": "value",
+        "type": "strings"
+      },
       "radius": {
         "default": -1.0,
         "description": "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall",
         "group": "paint",
         "type": "float"
+      },
+      "reorderable": {
+        "default": false,
+        "description": "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder",
+        "group": "events",
+        "type": "bool"
+      },
+      "reverse": {
+        "default": false,
+        "description": "Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named",
+        "group": "value",
+        "type": "bool"
       },
       "role": {
         "default": "",
@@ -4606,6 +4770,12 @@
         "group": "type",
         "type": "bool"
       },
+      "selection": {
+        "default": [],
+        "description": "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one",
+        "group": "value",
+        "type": "strings"
+      },
       "shortcut": {
         "default": "",
         "description": "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
@@ -4628,6 +4798,18 @@
         "description": "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture",
         "group": "paint",
         "type": "vec4"
+      },
+      "sort": {
+        "default": "",
+        "description": "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`",
+        "group": "value",
+        "type": "string"
+      },
+      "sortable": {
+        "default": false,
+        "description": "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret",
+        "group": "events",
+        "type": "bool"
       },
       "source": {
         "default": "",
@@ -4660,7 +4842,7 @@
       },
       "text_align": {
         "default": "start",
-        "description": "Where text sits in the width the widget was given",
+        "description": "Where text sits in the width the widget was given, and where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right",
         "group": "type",
         "options": [
           "start",
@@ -4693,6 +4875,12 @@
         "group": "paint",
         "type": "asset"
       },
+      "titles": {
+        "default": [],
+        "description": "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names",
+        "group": "value",
+        "type": "strings"
+      },
       "toggle": {
         "default": false,
         "description": "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode",
@@ -4721,12 +4909,24 @@
         "description": "Draw the widget; hidden widgets keep their state",
         "type": "bool"
       },
+      "warnings": {
+        "default": [],
+        "description": "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it",
+        "group": "value",
+        "type": "strings"
+      },
       "width": {
         "default": 0.0,
         "description": "Panel width in design pixels; 0 sizes to content",
         "group": "placement",
         "min": 0.0,
         "type": "float"
+      },
+      "widths": {
+        "default": [],
+        "description": "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back",
+        "group": "layout",
+        "type": "strings"
       },
       "wrap": {
         "default": false,
@@ -5146,6 +5346,7 @@
         "focused": "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
         "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
+        "paused": "Whether the game is paused.",
         "platform": "Where this runs: `{ os, web, mobile, touchscreen, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
@@ -5154,8 +5355,12 @@
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
         "script_costs": "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine.",
+        "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused(bool)` follows, the ones the pause just stopped included.",
+        "set_time_scale": "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it.",
         "tick": "Which frame this is, counted whole: what simulation code branches on instead of `time`.",
+        "tick_hz": "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
+        "time_scale": "What time is being multiplied by; 1.0 is real time.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
         "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project."
@@ -5168,6 +5373,7 @@
         "focused",
         "has_plugin",
         "open_url",
+        "paused",
         "platform",
         "plugin_version",
         "plugins",
@@ -5176,8 +5382,12 @@
         "reload_script",
         "reveal",
         "script_costs",
+        "set_paused",
+        "set_time_scale",
         "tick",
+        "tick_hz",
         "time",
+        "time_scale",
         "timings",
         "unix_time",
         "user_data_dir"
@@ -5191,6 +5401,7 @@
         "focused": "()",
         "has_plugin": "(name: string)",
         "open_url": "(url: string)",
+        "paused": "()",
         "platform": "()",
         "plugin_version": "(name: string)",
         "plugins": "()",
@@ -5199,8 +5410,12 @@
         "reload_script": "(key: string)",
         "reveal": "(path: string)",
         "script_costs": "()",
+        "set_paused": "(on: bool)",
+        "set_time_scale": "(scale: float)",
         "tick": "()",
+        "tick_hz": "()",
         "time": "()",
+        "time_scale": "()",
         "timings": "()",
         "unix_time": "()",
         "user_data_dir": "()"
@@ -6581,20 +6796,25 @@
         "has_component": "Whether the node carries the named component.",
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "has_tag": "Whether the node is filed under a name.",
+        "interpolate": "Whether the node is drawn between fixed steps.",
         "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
         "material": "The `material` asset the node names itself, empty when it takes its parent's.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
         "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds.",
         "path": "The node's slash-separated path, built by climbing parents from the node up to the root.",
+        "process": "When this node ticks: \"inherit\", \"pausable\", \"when_paused\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer.",
         "queue_free": "Destroy the node and its subtree at the end of the frame.",
         "remove_component": "Take the named component off the node.",
         "remove_tag": "Take a name off the node; a name it never had is left alone.",
+        "reset_interpolation": "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you.",
         "script_path": "The path of the script attached to the node, nil when it has none.",
         "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest.",
+        "set_interpolate": "Draw the node between fixed steps, or stop. Needs `[time] interpolate` on; a body and a script with `fixed_update` ask for it on their own.",
         "set_material": "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's.",
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
+        "set_process": "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"when_paused\" runs only while paused; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
         "set_tint": "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.",
         "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
@@ -6603,6 +6823,7 @@
         "stable_id": "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not.",
         "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
+        "ticking": "Whether the node ticks this frame, its process mode and the game's pause together.",
         "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
@@ -6632,20 +6853,25 @@
         "has_component",
         "has_method",
         "has_tag",
+        "interpolate",
         "is_valid",
         "material",
         "name",
         "parent",
         "patch_component",
         "path",
+        "process",
         "queue_free",
         "remove_component",
         "remove_tag",
+        "reset_interpolation",
         "script_path",
         "set_component",
+        "set_interpolate",
         "set_material",
         "set_name",
         "set_parent",
+        "set_process",
         "set_sibling_index",
         "set_tint",
         "set_visible",
@@ -6654,6 +6880,7 @@
         "stable_id",
         "state",
         "tags",
+        "ticking",
         "tint",
         "translate",
         "visible",
@@ -6684,20 +6911,25 @@
         "has_component": "(component: string)",
         "has_method": "(method: string)",
         "has_tag": "(node, tag: string)",
+        "interpolate": "(node)",
         "is_valid": "()",
         "material": "(node)",
         "name": "()",
         "parent": "()",
         "patch_component": "(component: string, params: table)",
         "path": "()",
+        "process": "(node)",
         "queue_free": "()",
         "remove_component": "(component: string)",
         "remove_tag": "(node, tag: string)",
+        "reset_interpolation": "(node)",
         "script_path": "()",
         "set_component": "(component: string, params: any?)",
+        "set_interpolate": "(node, on: bool)",
         "set_material": "(node, material: string)",
         "set_name": "(name: string)",
         "set_parent": "(parent: node)",
+        "set_process": "(node, mode: string)",
         "set_sibling_index": "(index: int)",
         "set_tint": "(node, r: float, g: float, b: float, a: float?)",
         "set_visible": "(node, on: bool)",
@@ -6706,6 +6938,7 @@
         "stable_id": "()",
         "state": "()",
         "tags": "(node)",
+        "ticking": "(node)",
         "tint": "(node)",
         "translate": "(x: float, y: float, z: float)",
         "visible": "(node)",
@@ -7924,6 +8157,74 @@
       }
     },
     {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "The projects this machine has opened, the templates a new one starts from, and the folder picker the OS provides. What the editor's start screen is made of.",
+      "docs": {
+        "copy_example": "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
+        "create": "Write a new project at `path` from a template id, or from nothing when the id is empty. Answers `{ path, name }`, or `{ error }`.",
+        "examples": "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
+        "forget": "Drop one project from the list. The folder is not touched.",
+        "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
+        "open": "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
+        "pick_folder": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
+        "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
+        "templates": "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
+        "version": "The version of the binary the editor is running in."
+      },
+      "functions": [
+        "copy_example",
+        "create",
+        "examples",
+        "forget",
+        "home",
+        "open",
+        "pick_folder",
+        "recent",
+        "templates",
+        "version"
+      ],
+      "name": "project",
+      "signatures": {
+        "copy_example": "(String, String) -> Value",
+        "create": "(String, String) -> Value",
+        "examples": "() -> Value",
+        "forget": "String -> Value",
+        "home": "() -> Value",
+        "open": "String -> Value",
+        "pick_folder": "() -> Value",
+        "recent": "() -> Value",
+        "templates": "() -> Value",
+        "version": "() -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's engine screen; `balaur update` is the same code.",
+      "docs": {
+        "channels": "Every release line a build may follow, in the order a version moves through them.",
+        "install": "Replace this install with what that channel or tag holds, and answer `{ note }` when it worked. Downloads while it blocks, and refuses inside a macOS bundle, which updates by its own download.",
+        "installed": "This build: `{ version, id, channel, tag, source }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, and `source` is true for a build from a checkout.",
+        "releases": "Every release the project has published, newest first: `{ tag, id, channel, when, current }` each, where `when` is how long ago it was published. Reads the network and blocks while it does. Answers `{ error }` as its one row when the feed could not be read."
+      },
+      "functions": [
+        "channels",
+        "install",
+        "installed",
+        "releases"
+      ],
+      "name": "release",
+      "signatures": {
+        "channels": "() -> Value",
+        "install": "(String, String, bool) -> Value",
+        "installed": "() -> Value",
+        "releases": "() -> Value"
+      }
+    },
+    {
       "acts_on": {
         "built_mesh": [
           "boolean3d"
@@ -7968,6 +8269,18 @@
         "tilemap"
       ],
       "constants": [
+        {
+          "name": "ALPHA_BLEND",
+          "value": "blend"
+        },
+        {
+          "name": "ALPHA_MASK",
+          "value": "mask"
+        },
+        {
+          "name": "ALPHA_OPAQUE",
+          "value": "opaque"
+        },
         {
           "name": "CAMERA_2D",
           "value": "2d"

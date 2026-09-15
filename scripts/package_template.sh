@@ -6,7 +6,7 @@
 # each gets the shape its OS actually launches, and what a game does with the
 # template differs per platform. See docs/PLAN-mobile-export.md.
 #
-# Usage: package_template.sh <platform>     ios | android | web
+# Usage: package_template.sh <platform>     ios | ios-sim | android | web
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,8 +16,15 @@ dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 case "$platform" in
-ios)
-  target=aarch64-apple-ios
+ios | ios-sim)
+  # The simulator runs the host's own architecture, so its slice is a target
+  # of its own. Same bundle, same plist: what a simulator launches is what a
+  # phone launches, which is the point of checking there first.
+  if [ "$platform" = ios-sim ]; then
+    target=$(uname -m | sed 's/arm64/aarch64/')-apple-ios-sim
+  else
+    target=aarch64-apple-ios
+  fi
   # Stated once; the plist below declares it too. StoreKit 2 is the floor:
   # the Swift shim in crates/balaur_apple is built for iOS 15 and a template
   # that claimed less would not load its own symbols.
@@ -53,7 +60,7 @@ ios)
 </dict>
 </plist>
 PLIST
-  (cd "$dist" && tar -czf "balaur-template-ios.tar.gz" "Balaur.app")
+  (cd "$dist" && tar -czf "balaur-template-$platform.tar.gz" "Balaur.app")
   rm -rf "$app"
   ;;
 
@@ -248,7 +255,7 @@ web)
   ;;
 
 *)
-  printf '::error::unknown platform %s (ios, android, web)\n' "$platform"
+  printf '::error::unknown platform %s (ios, ios-sim, android, web)\n' "$platform"
   exit 1
   ;;
 esac

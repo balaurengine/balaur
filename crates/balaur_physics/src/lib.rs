@@ -52,7 +52,7 @@ pub use query::overlaps;
 
 use balaur_core::digest::{Entry, Hasher, node_label};
 
-use balaur_core::FIXED_DT;
+use balaur_core::fixed_dt;
 
 pub struct PhysicsState {
     pub world: PhysicsWorld,
@@ -472,6 +472,12 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
+    // One world, so a paused game holds every body — an `always` subtree
+    // included. Godot holds physics the same way, and a body that kept
+    // moving inside a paused world would collide with one that did not.
+    if eng.paused() {
+        return;
+    }
     {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
@@ -499,9 +505,10 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
         }
 
-        // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
-        // second accumulator here would drift out of step with the scripts.
-        state.world.integration_parameters.dt = scalar::real(FIXED_DT);
+        // Exactly one step: Stage::FixedUpdate already repeats at the fixed
+        // step, and a second accumulator here would drift out of step with
+        // the scripts.
+        state.world.integration_parameters.dt = scalar::real(fixed_dt());
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::default();

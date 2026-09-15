@@ -1,0 +1,10 @@
+[application]
+name = "pause"
+main_scene = "scenes/main.toml"
+
+# Drawing between fixed steps is off until a project asks, because it costs
+# one tick of latency. This one asks, so the boxes move on every frame of a
+# display faster than the tick.
+[time]
+tick_hz = 60
+interpolate = true

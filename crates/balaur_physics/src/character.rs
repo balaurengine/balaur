@@ -21,8 +21,9 @@ use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
+use crate::PhysicsState;
 use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
-use crate::{FIXED_DT, PhysicsState};
+use balaur_core::fixed_dt;
 
 /// The schema both dimensions share. `up` is the one property whose shape
 /// differs, so each adds its own.
@@ -121,7 +122,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         let mut collisions = Vec::new();
         let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
-            scalar::real(FIXED_DT),
+            scalar::real(fixed_dt()),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -143,7 +144,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
                 filter,
             );
             controller.solve_character_collision_impulses(
-                scalar::real(FIXED_DT),
+                scalar::real(fixed_dt()),
                 &mut queries,
                 shape.as_ref(),
                 mass,

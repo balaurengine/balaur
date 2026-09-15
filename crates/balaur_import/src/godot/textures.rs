@@ -12,11 +12,11 @@ use std::path::Path;
 /// they want. `None` when there is no import, or it was compressed for the
 /// GPU and holds neither.
 pub(crate) fn raster(root: &Path, relative: &str) -> Option<(Vec<u8>, &'static str)> {
-    let import = std::fs::read_to_string(root.join(format!("{relative}.import"))).ok()?;
+    let import = crate::godot::io::text(&root.join(format!("{relative}.import"))).ok()?;
     let document = crate::godot::parse(&import).ok()?;
     let imported = document.first("remap")?.field("path")?.as_str()?;
     let file = imported.strip_prefix("res://").unwrap_or(imported);
-    let bytes = std::fs::read(root.join(file)).ok()?;
+    let bytes = crate::godot::io::bytes(&root.join(file)).ok()?;
     embedded(&bytes)
 }
 

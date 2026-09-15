@@ -528,6 +528,13 @@ type = "widget_theme"            # a widget takes the theme of the nearest ances
 ink = "#1b1b1b"
 sky = "#3aa0ff"
 link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
+row_on = "#2f6fb0"               # a picked row of a `list`, `tree` or `table`
+row_on_color = "#ffffff"         # and the ink on it
+row_hover = "#ffffff12"          # what a row takes under the pointer; `row_press` while held
+row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
+row_head = "#ffffff08"           # its header's plate
+row_rule = "#00000000"           # the lines down its columns, hidden here
+row_guide = "#8a8a8a8c"          # the lines down a tree's indent
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "sky"
@@ -548,6 +555,12 @@ fill = "#5cb4ff"
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
+
+[table]                          # a row view is dressed like any other kind
+fill = "ink"
+stroke = "sky"
+radius = 6.0
+padding_x = 10.0                 # the air either side of a cell's text
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "#d33a3a"

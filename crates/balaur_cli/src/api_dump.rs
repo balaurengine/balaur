@@ -31,6 +31,8 @@ pub(crate) fn dump_api() -> Result<()> {
     balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load(&mut app, &mut import_api::ImportPlugin::new(dir.clone()))?;
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut crate::project_api::ProjectPlugin::new())?;
     app.load_project()?;
     let host = balaur::rune::rune_of(&app.engine);
     let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;

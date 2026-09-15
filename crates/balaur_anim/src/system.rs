@@ -2,7 +2,7 @@
 //! deliver what the step passed over.
 //!
 //! `dt` only ever feeds the accumulator; what the simulation sees is
-//! [`FIXED_DT`], every time, so the same inputs give the same transforms on
+//! [`fixed_dt`], every time, so the same inputs give the same transforms on
 //! every machine no matter how the frames fell.
 //!
 //! Two things happen strictly *after* the animation state and the world are
@@ -20,7 +20,7 @@ use balaur_core::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
 
 use crate::clip::{Clip, Property, Wrap};
-use crate::player::{AnimationState, FIXED_DT, MAX_SUBSTEPS, Playback};
+use crate::player::{AnimationState, Playback, fixed_dt, max_substeps};
 use crate::sampler::{self, Pose, TrackValue};
 use crate::tween::{self, TweenId};
 
@@ -128,15 +128,26 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         for playback in state.players.values_mut() {
             playback.finished.clear();
         }
-        state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
-        while state.accumulator >= FIXED_DT {
+        let step = fixed_dt();
+        let paused = balaur_core::process::pause(eng);
+        state.accumulator = (state.accumulator + dt).min(step * max_substeps() as f32);
+        while state.accumulator >= step {
             let mut ended_now = Vec::new();
             for (&entity, playback) in &mut state.players {
+                if !balaur_core::process::ticks(&world, entity, paused) {
+                    continue;
+                }
                 if advance_playback(&world, entity, playback, &mut effects) {
                     ended_now.push(entity);
                 }
             }
-            crate::machine::step(&world, &mut state.machines, &mut state.players, &ended_now);
+            crate::machine::step(
+                &world,
+                &mut state.machines,
+                &mut state.players,
+                &ended_now,
+                paused,
+            );
             ended.extend(ended_now);
             // Tweens come after the players, so a tween is what lands on a
             // property both of them drive. One waiting on another sits out
@@ -149,7 +160,8 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                 .collect();
             let mut done: Vec<TweenId> = Vec::new();
             for (&id, tween) in &mut state.tweens {
-                if waiting.contains(&id) {
+                if waiting.contains(&id) || !balaur_core::process::ticks(&world, tween.node, paused)
+                {
                     continue;
                 }
                 if let Err(why) = tween::begin(eng, tween) {
@@ -170,7 +182,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
             for id in done {
                 state.tweens.shift_remove(&id);
             }
-            state.accumulator -= FIXED_DT;
+            state.accumulator -= step;
         }
     }
     apply_effects(eng, &effects);
@@ -192,7 +204,7 @@ fn advance_playback(
         return false;
     };
     let was = playback.time;
-    playback.time += FIXED_DT * playback.speed;
+    playback.time += fixed_dt() * playback.speed;
     let (time, past_end) = sampler::clip_time(&clip, playback.time);
     // Backwards off the start ends a non-looping clip too, or a negative
     // speed would leave it playing at time zero for the rest of the session.
@@ -208,8 +220,8 @@ fn advance_playback(
     let pose = sampler::sample(&clip, time);
     let pose = match playback.fade.as_mut() {
         Some(fade) => {
-            fade.elapsed += FIXED_DT;
-            fade.time += FIXED_DT * fade.speed;
+            fade.elapsed += fixed_dt();
+            fade.time += fixed_dt() * fade.speed;
             let (leaving_at, _) = sampler::clip_time(&fade.clip, fade.time);
             let leaving = sampler::sample(&fade.clip, leaving_at);
             let weight = fade.elapsed / fade.duration;

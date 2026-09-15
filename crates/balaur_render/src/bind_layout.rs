@@ -152,3 +152,48 @@ pub(crate) fn sampled_slots_group(
         entries: &entries,
     })
 }
+
+/// Group 1 of the 3D contract: a node's own uniform, and the picture a mirror
+/// shows on it.
+///
+/// The reflection is per node rather than per frame — each mirror is rendered
+/// from its own camera — so it belongs beside the object's uniform rather than
+/// in the frame group with the sky.
+pub(crate) fn object_layout(label: &'static str) -> wgpu::BindGroupLayout {
+    let ctxt = Context::get();
+    let mut entries = vec![uniform_entry(0)];
+    entries.extend(sampled_entries(1));
+    ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some(label),
+        entries: &entries,
+    })
+}
+
+/// One node's group 1. A node that is not a mirror binds a one-pixel black
+/// stand-in, which `mirror_at` never reads: the uniform says there is none.
+pub(crate) fn object_group(
+    layout: &wgpu::BindGroupLayout,
+    uniform: &wgpu::Buffer,
+    mirror: Option<&wgpu::TextureView>,
+) -> wgpu::BindGroup {
+    let fallback = Texture::new_default();
+    let view = mirror.unwrap_or(&fallback.view);
+    Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("mesh_object_bind_group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::Sampler(&fallback.sampler),
+            },
+        ],
+    })
+}

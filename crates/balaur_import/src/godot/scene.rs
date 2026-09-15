@@ -426,7 +426,7 @@ impl Walk<'_> {
 
     /// The values `section` gives the exports of the Godot script `godot`.
     fn script_props(&mut self, section: &Section, path: &str, godot: &str) -> toml::Table {
-        let source = std::fs::read_to_string(self.res.root.join(godot)).unwrap_or_default();
+        let source = crate::godot::io::text(&self.res.root.join(godot)).unwrap_or_default();
         let exports = crate::godot::exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
         let res = &self.res;
@@ -773,7 +773,7 @@ fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
 /// A scene an instance names, read far enough to know its root and its
 /// nodes' classes. `None` when the file is missing or will not parse.
 fn outline(res: &Resources<'_>, prefab: &str) -> Option<Outline> {
-    let text = std::fs::read_to_string(res.root.join(prefab)).ok()?;
+    let text = crate::godot::io::text(&res.root.join(prefab)).ok()?;
     let document = crate::godot::parse(&text).ok()?;
     let own = crate::godot::nodes::resources_of(&document, res.root, res.project);
     let mut classes = BTreeMap::new();

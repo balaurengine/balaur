@@ -13,6 +13,7 @@ pub(crate) mod node;
 pub(crate) mod rows;
 pub(crate) mod schema;
 pub(crate) mod scroll;
+pub(crate) mod table;
 pub(crate) mod taffy;
 pub(crate) mod text;
 pub(crate) mod theme;

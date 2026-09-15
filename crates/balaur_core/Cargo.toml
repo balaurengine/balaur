@@ -30,8 +30,18 @@ sha2.workspace = true
 # across operating systems and this one does not.
 libm.workspace = true
 # `.glb` meshes, skins, clips and morph targets. No `import` feature: a pack
-# hands the reader bytes. `extras` carries `targetNames`, a shape's own name.
-gltf = { version = "1.4", default-features = false, features = ["utils", "names", "extras"] }
+# hands the reader bytes; `extras` carries a shape's own name, and the four
+# extensions below carry what a surface refracts and reflects.
+gltf = { version = "1.4", default-features = false, features = [
+    "utils",
+    "names",
+    "extras",
+    "KHR_materials_transmission",
+    "KHR_materials_ior",
+    "KHR_materials_volume",
+    "KHR_materials_specular",
+    "KHR_materials_emissive_strength",
+] }
 sys-locale = "0.3"
 i_overlay = "8"
 # The one triangulator: `balaur_core::triangulate` is where it is named, and

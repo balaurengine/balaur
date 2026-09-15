@@ -9,7 +9,6 @@ use anyhow::{Result, anyhow};
 use balaur_script::Value;
 
 use crate::App;
-use crate::FIXED_DT;
 use crate::components::{ComponentDef, prop_bool, prop_f32};
 use crate::engine::Engine;
 use crate::hecs::Entity;
@@ -116,15 +115,16 @@ fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
 /// One fixed step of every running timer, emitting `timeout` from each one
 /// that ran out: a one-shot stops, any other counts the next wait on from
 /// where this one ended.
-pub(crate) fn step_system(eng: &Engine, _dt: f32) {
+pub(crate) fn step_system(eng: &Engine, dt: f32) {
     let mut fired = Vec::new();
     {
+        let paused = crate::process::pause(eng);
         let world = eng.world();
         for (entity, timer) in &mut world.query::<(Entity, &mut Timer)>() {
-            if !timer.running {
+            if !timer.running || !crate::process::ticks(&world, entity, paused) {
                 continue;
             }
-            timer.left -= FIXED_DT;
+            timer.left -= dt;
             if timer.left > 0.0 {
                 continue;
             }

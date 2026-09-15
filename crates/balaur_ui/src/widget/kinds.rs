@@ -110,7 +110,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = box_of(&widget, at.assigned);
     let id = format!("balaur-code-{}", entity.to_bits());
-    let opts = crate::immediate::code::code_opts(&widget);
+    let opts = crate::immediate::code::code_opts(&widget, &at.theme);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -130,8 +130,16 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let edited = crate::immediate::code::code_editor(at.eng, &id, &widget.text, &opts);
     crate::bridge::pop();
     match edited {
-        Ok((text, changed, _, _)) if changed => at.edits.push((entity, Edit::Text(text))),
-        Ok(_) => {}
+        Ok((text, changed, hit, _)) => {
+            if changed {
+                at.edits.push((entity, Edit::Text(text)));
+            }
+            // The line alone: what a click on the gutter means is the script's
+            // to decide, as a breakpoint in one editor and a value in another.
+            if let Some(line) = hit {
+                at.edits.push((entity, Edit::Gutter(line)));
+            }
+        }
         Err(err) => warn_code(&err),
     }
     let used = inner.min_rect().size();

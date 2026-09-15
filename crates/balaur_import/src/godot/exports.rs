@@ -82,7 +82,7 @@ pub(crate) fn exports(source: &str, classes: &Classes) -> Vec<Export> {
     // A chain longer than this is a cycle, which Godot refuses too.
     for _ in 0..16 {
         let Some(file) = base else { break };
-        let Ok(text) = std::fs::read_to_string(classes.root.join(&file)) else {
+        let Ok(text) = crate::godot::io::text(&classes.root.join(&file)) else {
             break;
         };
         chain.push(own(&text, classes));
@@ -399,7 +399,7 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         .iter()
         .filter(|f| crate::godot::files::has_extension(f, "gd"))
     {
-        let Ok(source) = std::fs::read_to_string(root.join(file)) else {
+        let Ok(source) = crate::godot::io::text(&root.join(file)) else {
             continue;
         };
         let word = |prefix: &str| {

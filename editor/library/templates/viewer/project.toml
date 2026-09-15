@@ -1,3 +1,17 @@
 [application]
 name = "{{name}}"
 main_scene = "scenes/main.toml"
+
+# What an export re-encodes on the way into the pack. Every one is off, so a
+# build ships the bytes you gave it; each is measured on the examples.
+[export]
+# "webp" writes images as lossless WebP, about a third off a PNG and nothing
+# off a JPEG, which it leaves alone. "quantised" is a 256-colour palette.
+images = "keep"
+# "subset" keeps only the code points the project's scenes and scripts name.
+# The largest saving here by far: it takes the `text` example down by 89%.
+# `font_ranges` adds hex ranges for text a server sends or a player types.
+fonts = "keep"
+# "flac" re-encodes uncompressed audio sample for sample; "vorbis" is lossy.
+# Neither touches an .ogg or an .mp3 that is already compressed.
+audio = "keep"

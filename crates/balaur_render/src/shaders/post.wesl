@@ -16,6 +16,13 @@ struct PostInput {
 @group(0) @binding(0) var frame_texture: texture_2d<f32>;
 @group(0) @binding(1) var frame_sampler: sampler;
 
+struct PostFrame {
+    // The frame in pixels, then seconds since the run began and a spare.
+    size_clock: vec4<f32>,
+}
+
+@group(0) @binding(2) var<uniform> post_frame: PostFrame;
+
 // One oversized triangle rather than two: a quad's diagonal is a seam where
 // interpolation differs either side of it.
 fn fullscreen(index: u32) -> PostInput {
@@ -35,4 +42,15 @@ fn frame(uv: vec2<f32>) -> vec4<f32> {
 /// The size of one texel, for a pass that reads its neighbours.
 fn texel() -> vec2<f32> {
     return 1.0 / vec2<f32>(textureDimensions(frame_texture));
+}
+
+/// The frame in pixels.
+fn size() -> vec2<f32> {
+    return post_frame.size_clock.xy;
+}
+
+/// Seconds since the run began. Render time, never the simulation tick, so
+/// a pass that moves is never what a replay disagrees about.
+fn time() -> f32 {
+    return post_frame.size_clock.z;
 }

@@ -1,0 +1,21 @@
+# A gradient held under a glowing rim: the stack's fresnel and gradient layers
+# over a dark, glossy base.
+type = "material"
+shader = "shaders/layers.wesl"
+
+[features]
+gradient = true
+fresnel = true
+
+[params]
+tint = "#ffffff"
+gradient_from = "#123a55"
+gradient_to = "#7b2f6b"
+gradient_axis = [0.0, 1.0, 0.0, 0.0]
+gradient_length = 3.0
+fresnel_color = "#7fe8ff"
+fresnel_power = 2.5
+metallic = 0.0
+roughness = 0.15
+reflectance = 0.7
+emissive = 0.0

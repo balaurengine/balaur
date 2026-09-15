@@ -55,9 +55,13 @@ pub fn open(S) {
 /// and again when the window opens, so a hand edit between the two is not
 /// silently reverted on the next write.
 pub fn load_files(S) {
-    let manifest = fs::read(S.game_root + "/project.toml");
-    if manifest is String {
-        settings::load(manifest);
+    // With no project open there is no manifest to read: a relative path off
+    // an empty root is a path outside every root there is.
+    if S.game_root != "" {
+        let manifest = fs::read(S.game_root + "/project.toml");
+        if manifest is String {
+            settings::load(manifest);
+        }
     }
     let prefs = fs::read(prefs_path());
     if prefs is String {
@@ -161,15 +165,49 @@ pub fn commit_prefs(S) {
     fs::write(prefs_path(), settings::to_toml("editor", if prefs is String { prefs } else { "" }));
 }
 
+// Under this the list of categories goes above the rows rather than beside
+// them: two columns of 190 and a row's own controls do not fit a phone.
+const STACK_BELOW = 520.0;
+
 pub fn draw(S) {
     let k = S.theme;
+    let stacked = ui::screen_size()[0] < STACK_BELOW;
     crate::window::sheet(S, "settings", "Settings", || { save_button(S, k); }, || {
+        if stacked {
+            // One column, the picker at its head: the rows are what the
+            // reader came for, and a sidebar beside them leaves neither room.
+            ui::vertical(|| {
+                picker(S, k);
+                ui::add_space(10);
+                body(S, k);
+            });
+            return;
+        }
         ui::horizontal(#{ height: 0 }, || {
             sidebar(S, k);
             ui::add_space(20);
             body(S, k);
         });
     });
+}
+
+// The sidebar's list as one control, for a screen with room for one column.
+fn picker(S, k) {
+    S.settings.query = crate::search::field(S, k, FIELD, "Search", ui::available_width());
+    ui::add_space(8);
+    let names = [];
+    for category in categories() {
+        names.push(category);
+    }
+    let at = current(S);
+    let (picked, changed) = ui::dropdown("settings-at", at, names, #{
+        width: ui::available_width(), size: style::MD,
+        height: crate::style::row_h(S), color: k.text,
+    });
+    if changed {
+        set_query(S, "");
+        S.settings.at = picked;
+    }
 }
 
 fn save_button(S, k) {
@@ -218,8 +256,9 @@ fn body(S, k) {
         if S.settings.query != "" {
             ui::label(format!("{} matching \"{}\"", rows.len(), S.settings.query), style::mono_sm(k.faint));
         } else if scope_of(current(S)) == "project" {
-            ui::horizontal(#{ height: 24 }, || {
-                ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+            ui::horizontal(#{ height: crate::style::row_h(S), width: crate::window::inner_w(S) }, || {
+                ui::label("Written to project.toml, and shipped with the game.",
+                    util::merge(style::mono_sm(k.faint), #{ truncate: true }));
                 ui::right(|| {
                     target_picker(S, k);
                 });
@@ -254,11 +293,20 @@ fn body(S, k) {
     });
 }
 
+// What an editor gets, from the room the sheet left rather than a number: on
+// a phone the same rows are half as wide, and a stated 220 runs off the page.
+fn control_w(S) {
+    util::clamp(crate::window::inner_w(S) - 150.0, 96.0, 220.0)
+}
+
 // One setting: its path, its editor, and the line of help underneath. A
 // search result shows the whole path, since the category is not on screen.
 fn row(S, k, def) {
     let name = if S.settings.query == "" { key_of(def) } else { def.path };
-    ui::horizontal(#{ height: 24 }, || {
+    let h = crate::style::row_h(S);
+    // Stated, not measured: a row that hugs its contents gives `ui::right`
+    // the whole layer to align against, and the editor lands off the sheet.
+    ui::horizontal(#{ height: h, width: crate::window::inner_w(S) }, || {
         ui::label(name, style::mono(k.text));
         ui::right(|| {
             edit(S, k, def, def.path);
@@ -270,7 +318,8 @@ fn row(S, k, def) {
         let suffix = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
         // Wrapped: one long sentence otherwise widens the page, and every
         // editor aligned to its right edge goes off the sheet with it.
-        ui::label(help + suffix, util::merge(style::mono_sm(k.faint), #{ wrap: true }));
+        ui::label(help + suffix, util::merge(style::mono_sm(k.faint),
+            #{ wrap: true, width: crate::window::inner_w(S) }));
     }
     if def.scope == "project" {
         overrides(S, k, def);
@@ -284,7 +333,7 @@ fn overrides(S, k, def) {
     let held = settings::overrides(def.path);
     for tag in held {
         let path = override_path(tag, def.path);
-        ui::horizontal(#{ height: 22 }, || {
+        ui::horizontal(#{ height: 22, width: crate::window::inner_w(S) }, || {
             ui::label("  on " + tag, style::mono_sm(k.dim));
             ui::right(|| {
                 if ui::pill("×", #{ height: 20, size: style::SM, radius: 6, fill: k.panel, color: k.faint }) {
@@ -317,7 +366,7 @@ fn target_picker(S, k) {
     }
     let showing = if S.settings.target == "" { "override for…" } else { "override for " + S.settings.target };
     let (picked, changed) = ui::dropdown("settings:target", showing, options,
-        #{ width: 170, size: style::SM, color: k.dim });
+        #{ width: util::min(170.0, ui::available_width()), size: style::SM, color: k.dim });
     if changed {
         S.settings.target = if picked == "none" { "" } else { picked };
     }
@@ -348,7 +397,7 @@ fn edit(S, k, def, path) {
         // A setting declared with no default reads as nil, and `() as f64` is
         // a runtime error; the slider starts at its floor instead.
         let now = if value is Tuple { low } else { util::f(value) };
-        let (v, changed) = ui::slider(now, low, high, #{ width: 220 });
+        let (v, changed) = ui::slider(now, low, high, #{ width: control_w(S) });
         if changed {
             write(S, path, v);
         }
@@ -359,7 +408,7 @@ fn edit(S, k, def, path) {
         // often as it is changed, and the slider draws no number at all.
         let now = if value is i64 { util::f(value) } else { low };
         let (v, changed) = ui::drag_value(now, #{
-            width: 220.0, speed: 0.05, decimals: 0,
+            width: control_w(S), speed: 0.05, decimals: 0,
             fill: k.sunken, stroke: k.line, color: k.text,
         });
         if changed {
@@ -370,7 +419,7 @@ fn edit(S, k, def, path) {
             "set:" + path,
             if value is String { value } else { "" },
             util::vec(spec.get("options").unwrap_or([])),
-            #{ width: 220, size: style::MD, height: 24, color: k.text },
+            #{ width: control_w(S), size: style::MD, height: crate::style::row_h(S), color: k.text },
         );
         if changed {
             write(S, path, v);
@@ -379,7 +428,7 @@ fn edit(S, k, def, path) {
         // Comma-separated: a list of globs or ranges is short, and a row of
         // its own per entry would be a page per setting.
         let (text, _, submitted) = ui::text_field("set:" + path, "",
-            util::merge(style::field(k, 220.0), #{ value: commas(value) }));
+            util::merge(style::field(k, control_w(S)), #{ value: commas(value) }));
         if submitted {
             write(S, path, split_commas(text));
         }

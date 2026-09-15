@@ -385,8 +385,8 @@ text = "Table"
 kind = "table"
 height = 196
 font = "mono"
-# The column names, split on the same separator the rows are.
-placeholder = "name\u001Fkind\u001Fsize"
+# The column names, and with them how many columns the table has.
+titles = ["name", "kind", "size"]
 
 [[nodes]]
 id = "h_boxes"

@@ -13,7 +13,7 @@ pub fn exports() {
 // What a card, an outline row and a table row are made of. One table, three
 // shapes, so the same data reaches all three views. The marks are glyphs from
 // the Phosphor face the theme names as its icon family.
-fn entries() {
+pub fn entries() {
     [
         #{ icon: "\u{e67c}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
         #{ icon: "\u{e67c}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
@@ -30,7 +30,7 @@ fn entries() {
     ]
 }
 
-fn row(icon, label, note, tint) {
+pub fn row(icon, label, note, tint) {
     icon + SEP + label + SEP + note + SEP + tint
 }
 
@@ -51,8 +51,18 @@ fn cards(this) {
     out
 }
 
+/// The cards in the order the entries are written down, for a screen that
+/// does not shuffle them.
+pub fn cards_in_order() {
+    let out = [];
+    for e in entries() {
+        out.push(row(e.icon, e.name, e.kind, e.tint));
+    }
+    out
+}
+
 // The same entries as an outline: a kind, then its members a tab deeper.
-fn outline() {
+pub fn outline() {
     let out = [];
     let seen = [];
     for e in entries() {
@@ -72,7 +82,7 @@ fn outline() {
 }
 
 // And as a table: one cell a column, split on the separator the header is.
-fn table() {
+pub fn table() {
     let out = [];
     for e in entries() {
         out.push(e.name + SEP + e.kind + SEP + e.size);

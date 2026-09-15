@@ -109,7 +109,7 @@ pub(crate) fn convert(
 /// A library saved as its own `.tres`: its `[resource]` section, and the
 /// animations it declares as sub-resources.
 fn load_library<'a>(res: &Resources<'a>, path: &str) -> Option<(Section, Resources<'a>)> {
-    let text = std::fs::read_to_string(res.root.join(path)).ok()?;
+    let text = crate::godot::io::text(&res.root.join(path)).ok()?;
     let document = crate::godot::parse(&text).ok()?;
     let resource = document.first("resource")?.clone();
     let internal = document
