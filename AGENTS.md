@@ -125,6 +125,7 @@ shipped into the devlog post the site pairs with a built row.
 | `scripts/precommit.sh --lints` | the above, plus every clippy shape and cargo-deny |
 | `scripts/precommit.sh` | the above, plus the tests and both kinds of docs |
 | `scripts/precommit.sh --e2e` | the above, plus the socket suites and the example pipeline |
+| `--fix` on any of them | runs `cargo fmt --all` first, so the fmt step checks formatted code |
 
 Each runs the checks in parallel streams, and each feature shape keeps its own
 target directory: a shape switch is what rebuilds the world, not a second run.

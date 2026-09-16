@@ -4,7 +4,7 @@
 //! the world "close" is a desync, not a rollback.
 
 use balaur_core::Engine;
-use balaur_core::components::{self, ComponentDef, StableId};
+use balaur_core::components::{self, ComponentDef};
 use balaur_core::snapshot::{self, SnapshotRing};
 use balaur_core::{App, AppConfig, Transform, digest};
 
@@ -15,18 +15,16 @@ fn app() -> App {
 fn spawn(app: &App, id: &str, x: f32) -> balaur_core::hecs::Entity {
     let root = app.engine.root();
     let mut world = app.engine.world_mut();
-    let entity = balaur_core::scene::spawn_node(&mut world, id, root);
-    world.insert_one(entity, StableId(id.to_string())).unwrap();
+    let entity = balaur_core::scene::spawn_node_with_id(&mut world, id, root, id.to_string());
     world.get::<&mut Transform>(entity).unwrap().position.x = x;
     entity
 }
 
-/// Spawn the way a script does: no id in hand, one minted by the allocator.
+/// Spawn the way a script does: no id in hand, one minted as it is made.
 fn spawn_at_run_time(app: &App, name: &str) -> String {
     let root = app.engine.root();
     let mut world = app.engine.world_mut();
     let entity = balaur_core::scene::spawn_node(&mut world, name, root);
-    balaur_core::ids::assign(&app.engine, &mut world, entity);
     balaur_core::ids::of(&world, entity).expect("a run-time spawn carries an id")
 }
 

@@ -32,6 +32,7 @@ scripts/precommit.sh --files    # fmt and the five lints that only read files
 scripts/precommit.sh --lints    # the lint job: every clippy shape, cargo-deny
 scripts/precommit.sh            # the above, plus the tests and both kinds of docs
 scripts/precommit.sh --e2e      # adds the socket suites and the example pipeline
+scripts/precommit.sh --fix      # any tier, formatting the whole checkout first
 ```
 
 Install the hook once and a push runs the lints on its own:

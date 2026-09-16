@@ -367,11 +367,23 @@ fn a_replay_reproduces_the_recording_after_the_scene_is_rebuilt() {
     let mut app = app_in(dir.path());
     let driver = attach(&app, "Driver", "d.rn");
 
+    // With the ids a scene file gives, as the mirror is built: a node spawned
+    // again with no id in hand is a new node, and gets a new one.
     let build = |app: &App| {
         let root = app.engine.root();
-        let game = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Game", root);
+        let game = balaur_core::scene::spawn_node_with_id(
+            &mut app.engine.world_mut(),
+            "Game",
+            root,
+            String::from("n_game"),
+        );
         app.engine.set_debug_scope(Some(game));
-        let mover = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Mover", game);
+        let mover = balaur_core::scene::spawn_node_with_id(
+            &mut app.engine.world_mut(),
+            "Mover",
+            game,
+            String::from("n_mover"),
+        );
         app.engine
             .script_host()
             .unwrap()

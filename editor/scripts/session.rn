@@ -2,7 +2,6 @@
 // shows what happened in it. `replay::*` is the engine side; this is the
 // editor's policy about where files go and how many are kept.
 
-use crate::anim;
 use crate::model;
 use crate::shell;
 use crate::util;

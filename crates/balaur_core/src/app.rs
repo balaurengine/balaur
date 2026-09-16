@@ -234,7 +234,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     );
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
-    eng.insert_resource(crate::ids::IdAllocator::default());
     eng.insert_resource(crate::netsession::PeerTraffic::default());
     eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());

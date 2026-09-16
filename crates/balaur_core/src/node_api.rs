@@ -278,7 +278,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("get_component", &[], "(component: string)", "The named component's properties as a table, nil when the node does not carry it."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
         ("component_names", &[], "()", "The names of every component on the node."),
-        ("stable_id", &[], "()", "The node's stable id, what a scene file declared or what `ids::mint` gave a spawned node, empty when it carries none. Survives rename and reparent, which a path does not."),
+        ("stable_id", &[], "()", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not."),
         ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
@@ -659,14 +659,9 @@ fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    let id = crate::ids::mint(eng);
     let mut world = eng.world_mut();
     let name = text(args, 1)?.to_string();
-    let child = if id.is_empty() {
-        scene::spawn_node(&mut world, &name, e)
-    } else {
-        scene::spawn_node_with_id(&mut world, &name, e, id)
-    };
+    let child = scene::spawn_node(&mut world, &name, e);
     drop(world);
     // A game that adds a node is a game whose world changed, which is what a
     // session timeline is for. Scene loading does not come through here.

@@ -16,7 +16,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
-use crate::components::StableId;
 use crate::document_paths::Ids;
 use anyhow::{Context, Result, anyhow, bail};
 use balaur_script::Value;
@@ -724,17 +723,23 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             // none. Chosen at the spawn rather than inserted after, which
             // would move every node in the file to another archetype.
             None if node.extra.contains_key(crate::transform::COMPONENT) => {
-                scene::spawn_node(&mut eng.world_mut(), &node.name, parent)
+                scene::spawn_node_with_id(
+                    &mut eng.world_mut(),
+                    &node.name,
+                    parent,
+                    format!("{}{}", build.prefix, ids[index]),
+                )
             }
-            None => scene::spawn_node_bare(&mut eng.world_mut(), &node.name, parent),
+            None => scene::spawn_node_bare_with_id(
+                &mut eng.world_mut(),
+                &node.name,
+                parent,
+                format!("{}{}", build.prefix, ids[index]),
+            ),
         };
         by_id.insert(ids[index].as_str(), entity);
         if node.parent.is_empty() {
             scene_root = Some((node.name.as_str(), entity));
-        }
-        if merged.is_none() {
-            eng.world_mut()
-                .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         }
         // The prefab lands first, so the node's own keys win over its root's.
         if node.instance.is_some() {

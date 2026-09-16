@@ -236,8 +236,12 @@ fn a_sensor_reports_overlap_without_collision_response() {
     let mut seen_from_sensor = false;
     for _ in 0..240 {
         app.tick(1.0 / 60.0);
-        seen_from_ball |= balaur_physics::dim2::overlaps(&app.engine, ball).contains(&sensor);
-        seen_from_sensor |= balaur_physics::dim2::overlaps(&app.engine, sensor).contains(&ball);
+        seen_from_ball |= balaur_physics::dim2::overlaps(&app.engine, ball)
+            .unwrap()
+            .contains(&sensor);
+        seen_from_sensor |= balaur_physics::dim2::overlaps(&app.engine, sensor)
+            .unwrap()
+            .contains(&ball);
     }
     let final_y = app
         .engine

@@ -156,27 +156,35 @@ macro_rules! functions {
         fn sort_hits(
             hits: &mut [(Entity, Real, [f32; $N], [f32; $N])],
             world: &balaur_core::hecs::World,
-        ) {
+        ) -> Result<()> {
+            let keys = hits
+                .iter()
+                .map(|h| balaur_core::ids::order_key(world, h.0))
+                .collect::<Result<Vec<_>>>()?;
+            let mut order: Vec<usize> = (0..hits.len()).collect();
             // `total_cmp`, not `partial_cmp`: a NaN distance makes the latter a
             // non-order, which `sort_by` is allowed to panic on.
-            hits.sort_by(|a, b| {
-                a.1.total_cmp(&b.1).then_with(|| {
-                    balaur_core::ids::order_key(world, a.0)
-                        .cmp(&balaur_core::ids::order_key(world, b.0))
-                })
+            order.sort_by(|&a, &b| {
+                hits[a]
+                    .1
+                    .total_cmp(&hits[b].1)
+                    .then_with(|| keys[a].cmp(&keys[b]))
             });
+            let sorted: Vec<_> = order.iter().map(|&i| hits[i]).collect();
+            hits.copy_from_slice(&sorted);
+            Ok(())
         }
 
         /// Node lists cross the seam in [`balaur_core::ids::order_key`] order, for
         /// the same reason hit lists cross it sorted by distance.
-        fn node_list(hits: &mut Vec<Entity>, world: &balaur_core::hecs::World) -> Value {
-            hits.sort_by_cached_key(|e| balaur_core::ids::order_key(world, *e));
+        fn node_list(hits: &mut Vec<Entity>, world: &balaur_core::hecs::World) -> Result<Value> {
+            balaur_core::ids::sort_by_id(world, hits)?;
             hits.dedup();
-            Value::List(
+            Ok(Value::List(
                 hits.iter()
                     .map(|e| Value::Node(e.to_bits().get()))
                     .collect(),
-            )
+            ))
         }
 
         /// The `shape` half of a shapecast or shape query, in the collider
@@ -195,11 +203,11 @@ macro_rules! functions {
         ///
         /// Rapier tracks an intersection pair only when one side is a sensor, which is
         /// why this is not the same question as `shape_hits`.
-        pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
+        pub fn overlaps(eng: &Engine, entity: Entity) -> Result<Vec<Entity>> {
             let state = eng.resource::<$State>();
             let state = state.borrow();
             let Some(handles) = state.colliders.get(&entity) else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
             let mut hits = Vec::new();
             for &handle in handles {
@@ -215,14 +223,14 @@ macro_rules! functions {
                     }
                 }
             }
-            hits.sort_by_cached_key(|e| balaur_core::ids::order_key(&eng.world(), *e));
+            balaur_core::ids::sort_by_id(&eng.world(), &mut hits)?;
             hits.dedup();
-            hits
+            Ok(hits)
         }
 
         /// `overlaps`, as a node list.
         pub(crate) fn overlaps_value(eng: &Engine, node: NodeId) -> Result<Vec<NodeId>> {
-            Ok(overlaps(eng, entity_of(node)?)
+            Ok(overlaps(eng, entity_of(node)?)?
                 .into_iter()
                 .map(node_id_of)
                 .collect())

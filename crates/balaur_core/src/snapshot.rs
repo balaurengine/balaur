@@ -14,16 +14,15 @@
 //! freed, with its name, parent, components and script. It is registered
 //! first, so every later source finds the entity it is about to write to.
 //!
-//! Everything is keyed by [`StableId`] rather than by entity index, because a
-//! respawned node is a new entity. The recorded index is kept as a fallback
-//! for a node that carries no id, which is a tree built by hand in a test
-//! rather than one loaded from a scene.
+//! Everything is keyed by [`StableId`](crate::components::StableId) rather
+//! than by entity index, because a respawned node is a new entity. The
+//! recorded index is kept beside it for a node with no id, which no spawn
+//! makes: every node is given one when it is spawned.
 
 use anyhow::{Context, Result};
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
-use crate::components::StableId;
 use crate::engine::Engine;
 use crate::scene::{Children, Name, Parent, ScriptAttachment, collect_subtree};
 
@@ -541,9 +540,7 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
             components,
         });
     }
-    let next_id = eng
-        .try_resource::<crate::ids::IdAllocator>()
-        .map_or(0, |a| a.borrow().next);
+    let next_id = crate::ids::next(eng);
     serde_json::to_value(NodesFrame { next_id, nodes }).unwrap_or(serde_json::Value::Null)
 }
 
@@ -561,9 +558,7 @@ fn load_nodes(eng: &Engine, value: &serde_json::Value) {
     for node in respawn_order(&frame.nodes) {
         respawn(eng, root, node);
     }
-    if let Some(allocator) = eng.try_resource::<crate::ids::IdAllocator>() {
-        allocator.borrow_mut().next = frame.next_id;
-    }
+    crate::ids::set_next(eng, frame.next_id);
 }
 
 /// Frame order for a respawn: parents first, then siblings by index.
@@ -657,9 +652,7 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     }
     let entity = {
         let mut world = eng.world_mut();
-        let entity = crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index);
-        let _ = world.insert_one(entity, StableId(node.id.clone()));
-        entity
+        crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index, node.id.clone())
     };
     for (name, text) in &node.components {
         let Ok(params) = toml::from_str::<toml::Value>(text) else {

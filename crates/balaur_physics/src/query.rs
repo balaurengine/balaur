@@ -5,7 +5,7 @@
 //!
 //! Two rules hold for everything here. **Order is ours, not rapier's**: the
 //! pipeline walks a BVH, and BVH order is not something a replay may depend
-//! on, so every list is sorted by distance and then by entity bits before it
+//! on, so every list is sorted by distance and then by stable id before it
 //! crosses the binding seam. And **the world is borrowed while a query runs**:
 //! a `predicate` that calls back into `physics3d` gets an error saying so
 //! rather than a panic from the `RefCell`.
@@ -106,7 +106,7 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
                 ));
             }
         }
-        sort_hits(&mut candidates, &eng.world());
+        sort_hits(&mut candidates, &eng.world())?;
         for (entity, toi, point, normal) in candidates {
             if allowed(eng, &opts, entity)? {
                 return Ok(hit_value(entity, point, normal, toi));
@@ -159,7 +159,7 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
         // Sorted first, then filtered: the predicate sees the hits in the
         // order a script will, and reading the node back out of a built value
         // to ask about it would be the long way round.
-        sort_hits(&mut hits, &eng.world());
+        sort_hits(&mut hits, &eng.world())?;
         let mut out = Vec::new();
         for (entity, distance, point, normal) in hits {
             if allowed(eng, &opts, entity)? {
@@ -270,7 +270,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_point(point)
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits, &eng.world()))
+        node_list(&mut hits, &eng.world())
     });
     m.function("shape_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -288,7 +288,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_shape(Pose::from_translation(at), builder.shape.as_ref())
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits, &eng.world()))
+        node_list(&mut hits, &eng.world())
     });
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -306,7 +306,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_aabb_conservative(aabb)
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits, &eng.world()))
+        node_list(&mut hits, &eng.world())
     });
 }
 
@@ -410,7 +410,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
-        Ok(node_list(&mut nodes, &eng.world()))
+        node_list(&mut nodes, &eng.world())
     });
     // Awake bodies only: a game that walks every body each frame to read a
     // position is doing the one thing sleeping was meant to save.
@@ -429,7 +429,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
             })
             .map(|(entity, _)| *entity)
             .collect();
-        Ok(node_list(&mut nodes, &eng.world()))
+        node_list(&mut nodes, &eng.world())
     });
     m.function("contacts", |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
@@ -452,15 +452,16 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Every contact point on a node's colliders, in the order rapier holds them
-/// within a pair and by entity bits between pairs.
+/// within a pair and by the other node's stable id between pairs.
 fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
     let entity = entity_of(node)?;
+    let world = eng.world();
     let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return Ok(Value::List(Vec::new()));
     };
-    let mut out: Vec<(u64, Value)> = Vec::new();
+    let mut out: Vec<(String, Value)> = Vec::new();
     for &handle in handles {
         for pair in state.world.contact_pairs_with(handle) {
             let other_handle = if pair.collider1 == handle {
@@ -485,7 +486,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
                     // first may be the other node: every query reports world.
                     let p = first.position() * point.local_p1;
                     out.push((
-                        other.to_bits().get(),
+                        balaur_core::ids::order_key(&world, other)?,
                         map([
                             (k::NODE, Value::Node(other.to_bits().get())),
                             (k::POINT, Value::Vec3(scalar::a3(p))),
@@ -497,7 +498,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
             }
         }
     }
-    out.sort_by_key(|(bits, _)| *bits);
+    out.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(Value::List(out.into_iter().map(|(_, v)| v).collect()))
 }
 
