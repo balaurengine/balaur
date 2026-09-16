@@ -115,6 +115,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
+        state.honour_step_restart(eng);
         let world = eng.world();
         // `Playback` and `Tween` live here, not on the entity, so this is the
         // first place a `queue_free`d node's leftovers can be dropped.

@@ -247,6 +247,9 @@ pub fn toggle_play(S) {
     if S.playing {
         stop_play(S);
     } else {
+        // From the scene as authored, the world a replay rebuilds: a mirror
+        // scrubbed or posed while editing is not where the recording starts.
+        model::build_mirror(S);
         // Recording starts before the scripts attach: an `init` that opens a
         // socket belongs inside the session, and one that takes an await
         // token has to take the id the replay will hand back.

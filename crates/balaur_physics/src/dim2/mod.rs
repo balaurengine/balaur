@@ -180,7 +180,7 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
             }
         }
-        (collector.take(), joint::broken(state))
+        (collector.take(), joint::broken(state, &world))
     };
     events::deliver(eng, &events.0);
     for entity in &events.1 {

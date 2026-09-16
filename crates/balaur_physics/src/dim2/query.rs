@@ -95,7 +95,7 @@ pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
                 }
             }
         }
-        sort_hits(&mut candidates);
+        sort_hits(&mut candidates, &eng.world());
         for (entity, toi, point, normal) in candidates {
             if allowed(eng, &opts, entity)? {
                 return Ok(hit_value(entity, point, normal, toi));
@@ -145,7 +145,7 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut dyn Bindings<Engine>) {
                 }
             }
         }
-        sort_hits(&mut hits);
+        sort_hits(&mut hits, &eng.world());
         let mut out = Vec::new();
         for (entity, toi, point, normal) in hits {
             if allowed(eng, &opts, entity)? {
@@ -289,7 +289,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_point(point)
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
 }
 
@@ -314,7 +314,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_shape(Pose2::from_translation(at), builder.shape.as_ref())
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -331,7 +331,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_aabb_conservative(crate::rapier2d::prelude::Aabb::new(min, max))
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
 }
 

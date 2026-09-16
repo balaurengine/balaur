@@ -420,7 +420,7 @@ fn a_disabled_joint_is_not_retried_every_step() {
     let state = state.borrow();
     assert!(state.joints.is_empty(), "a disabled joint was made anyway");
     assert!(
-        balaur_physics::joint::pending(&state).is_empty(),
+        balaur_physics::joint::pending(&state, &app.engine.world()).is_empty(),
         "a disabled joint is on the retry list, so it re-applies every step"
     );
 }

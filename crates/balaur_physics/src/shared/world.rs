@@ -74,7 +74,7 @@ macro_rules! functions {
             let pending = {
                 let state = eng.resource::<$State>();
                 let state = state.borrow();
-                joint::pending(&state)
+                joint::pending(&state, &eng.world())
             };
             for entity in pending {
                 let params = {

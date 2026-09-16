@@ -311,6 +311,37 @@ pub(crate) fn segment_lengths(points: &[Vec3]) -> Vec<f32> {
 /// The analytic two-bone solve: the root turns to put the middle joint on
 /// the circle both segments can reach, then the middle turns to put the tip
 /// on the target. Out of reach, the chain straightens toward it.
+/// How far `child` sits from `bone`, in world units: its local offset under
+/// the scale above it. Not measured between world joints, which sit where the
+/// last solve turned them, so a chain would carry that solve's rounding into
+/// this one and bend differently after a different number of frames.
+fn reach_2d(world: &World, bone: Entity, child: Entity) -> f32 {
+    let offset = world
+        .get::<&Transform>(child)
+        .map_or(Vec2::ZERO, |t| t.position.truncate());
+    let mut scale = Vec2::ONE;
+    for e in ancestry(world, bone) {
+        if let Ok(t) = world.get::<&Transform>(e) {
+            scale *= t.scale.truncate().abs();
+        }
+    }
+    (offset * scale).length()
+}
+
+/// The 3D twin of [`reach_2d`].
+fn reach_3d(world: &World, bone: Entity, child: Entity) -> f32 {
+    let offset = world
+        .get::<&Transform>(child)
+        .map_or(Vec3::ZERO, |t| t.position);
+    let mut scale = Vec3::ONE;
+    for e in ancestry(world, bone) {
+        if let Ok(t) = world.get::<&Transform>(e) {
+            scale *= t.scale.abs();
+        }
+    }
+    (offset * scale).length()
+}
+
 pub(crate) fn two_bone_ik_2d(world: &World, root: Entity, target: Vec2, flip: bool) {
     let (Some(mid), Some(tip)) = (
         first_child_bone(world, root),
@@ -319,13 +350,9 @@ pub(crate) fn two_bone_ik_2d(world: &World, root: Entity, target: Vec2, flip: bo
         tracing::debug!("two_bone_ik needs a root, middle and tip bone");
         return;
     };
-    let (r, m, t) = (
-        origin_2d(&pose_2d(world, root)),
-        origin_2d(&pose_2d(world, mid)),
-        origin_2d(&pose_2d(world, tip)),
-    );
-    let l1 = (m - r).length();
-    let l2 = (t - m).length();
+    let r = origin_2d(&pose_2d(world, root));
+    let l1 = reach_2d(world, root, mid);
+    let l2 = reach_2d(world, mid, tip);
     // The clamp below has `min > max` for anything shorter, and `f32::clamp`
     // panics on that: a bone 5e-6 from its parent is what reaches it.
     if !(l1 > MIN_BONE && l2 > MIN_BONE) {
@@ -361,13 +388,12 @@ pub(crate) fn two_bone_ik_3d(world: &World, root: Entity, target: Vec3, flip: bo
         tracing::debug!("two_bone_ik needs a root, middle and tip bone");
         return;
     };
-    let (r, m, t) = (
+    let (r, m) = (
         origin_3d(&pose_3d(world, root)),
         origin_3d(&pose_3d(world, mid)),
-        origin_3d(&pose_3d(world, tip)),
     );
-    let l1 = (m - r).length();
-    let l2 = (t - m).length();
+    let l1 = reach_3d(world, root, mid);
+    let l2 = reach_3d(world, mid, tip);
     if !(l1 > MIN_BONE && l2 > MIN_BONE) {
         return;
     }

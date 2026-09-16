@@ -293,3 +293,27 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
         .map(f32::to_bits);
     assert_eq!(later, again, "the re-simulation should retrace the swing");
 }
+
+/// A session starts the playhead's fixed step from a frame boundary, as the
+/// app starts its own. A process that ran before it leaves the remainder part
+/// way to a step, and a replay starts from nothing: kept, the clip steps on a
+/// different frame in each and the replay parts from its recording.
+#[test]
+fn a_session_starts_the_playhead_step_from_a_frame_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app();
+    let hero = playing(&app, "hero", &rise("loop"));
+    // Just short of a step: nothing moves, and the remainder is nearly one.
+    app.advance(0.0166);
+    assert!(height(&app, hero).abs() < f32::EPSILON);
+    balaur_core::replay::start_recording(&app.engine, &dir.path().join("s.blr"), ".", "hash", true)
+        .unwrap();
+    // Half a step: with the remainder dropped, still nothing moves.
+    app.advance(0.009);
+    assert!(
+        height(&app, hero).abs() < f32::EPSILON,
+        "the clip stepped on the remainder the run before the session left: {}",
+        height(&app, hero)
+    );
+    balaur_core::replay::stop_recording(&app.engine, "stop").unwrap();
+}

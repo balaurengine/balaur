@@ -40,6 +40,9 @@ pub(crate) struct EngineInner {
     /// subsystem's awaitable ids share a namespace and a wake can never
     /// resume the wrong task.
     pub(crate) tokens: Cell<u64>,
+    /// Bumped each time the app drops its fixed-step remainder at a session
+    /// boundary; see [`Engine::step_restarts`].
+    pub(crate) step_restarts: Cell<u64>,
     /// The subtree a debugger treats as the game. `None` means the whole tree.
     pub(crate) debug_scope: Cell<Option<hecs::Entity>>,
     pub(crate) frozen: Cell<bool>,
@@ -76,6 +79,7 @@ impl Engine {
                 quit: Cell::new(false),
                 exit_code: Cell::new(0),
                 tokens: Cell::new(1),
+                step_restarts: Cell::new(0),
                 debug_scope: Cell::new(None),
                 frozen: Cell::new(false),
                 replay_hold: Cell::new(false),
@@ -131,6 +135,20 @@ impl Engine {
     /// same. Anything else calling this hands two live operations one id.
     pub fn set_tokens(&self, next: u64) {
         self.inner.tokens.set(next);
+    }
+
+    /// How many times the fixed step has restarted from a frame boundary: a
+    /// recording starting, and a replay starting. A plugin that keeps its own
+    /// accumulator drops its remainder when this moves, as the app drops its
+    /// own, or a session replayed in a long-lived process takes different steps.
+    pub fn step_restarts(&self) -> u64 {
+        self.inner.step_restarts.get()
+    }
+
+    pub(crate) fn restart_steps(&self) {
+        self.inner
+            .step_restarts
+            .set(self.inner.step_restarts.get() + 1);
     }
 
     pub fn remove_resource<T: 'static>(&self) {

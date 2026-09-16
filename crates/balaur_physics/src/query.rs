@@ -106,7 +106,7 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
                 ));
             }
         }
-        sort_hits(&mut candidates);
+        sort_hits(&mut candidates, &eng.world());
         for (entity, toi, point, normal) in candidates {
             if allowed(eng, &opts, entity)? {
                 return Ok(hit_value(entity, point, normal, toi));
@@ -159,7 +159,7 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
         // Sorted first, then filtered: the predicate sees the hits in the
         // order a script will, and reading the node back out of a built value
         // to ask about it would be the long way round.
-        sort_hits(&mut hits);
+        sort_hits(&mut hits, &eng.world());
         let mut out = Vec::new();
         for (entity, distance, point, normal) in hits {
             if allowed(eng, &opts, entity)? {
@@ -270,7 +270,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_point(point)
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
     m.function("shape_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -288,7 +288,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_shape(Pose::from_translation(at), builder.shape.as_ref())
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -306,7 +306,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .intersect_aabb_conservative(aabb)
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
-        Ok(node_list(&mut hits))
+        Ok(node_list(&mut hits, &eng.world()))
     });
 }
 
@@ -410,7 +410,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
-        Ok(node_list(&mut nodes))
+        Ok(node_list(&mut nodes, &eng.world()))
     });
     // Awake bodies only: a game that walks every body each frame to read a
     // position is doing the one thing sleeping was meant to save.
@@ -429,7 +429,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
             })
             .map(|(entity, _)| *entity)
             .collect();
-        Ok(node_list(&mut nodes))
+        Ok(node_list(&mut nodes, &eng.world()))
     });
     m.function("contacts", |eng: &Engine, node: NodeId| {
         contact_list(eng, node)

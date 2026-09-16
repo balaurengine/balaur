@@ -69,6 +69,9 @@ step() { # step <label> <balaur args...>
 # document node must resolve to a node in the engine mirror.
 UNRESOLVED='did not resolve in the mirror'
 
+# What a state that ran leaves in the log. See the check at the end of edit_step.
+RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
+
 edit_step() { # edit_step <label> <project> [state]
   local label=$1 project=$2 state=${3:-} out rc
   set +e
@@ -83,6 +86,12 @@ edit_step() { # edit_step <label> <project> [state]
   if grep -q "$UNRESOLVED" <<<"$out"; then
     grep -E "no mirror node|$UNRESOLVED" <<<"$out" | head -5
     fail "$label: the editor could not resolve every node of the scene"
+  fi
+  # A state that logs nothing ran nothing, and logged no error either: a check
+  # passing, a skip saying why, or a showcase saying what it plays.
+  if [ -n "$state" ] && ! grep -qE "$RAN" <<<"$out"; then
+    printf '%s\n' "$out" | tail -10
+    fail "$label: the state ran nothing, so it asserted nothing"
   fi
 }
 
@@ -213,6 +222,7 @@ for ex in examples/*/; do
   # editor; ninety frames of it is enough to fail on a broken call.
   printf '  show ...   '
   edit_step "$name: showcase" "$ex" "show:input,input"
+  printf 'ok\n'
 
   # The editor plugin seam, from editor/plugins/counter.rn: a dock tab, a
   # window, a palette command, an inspector section and this state itself.

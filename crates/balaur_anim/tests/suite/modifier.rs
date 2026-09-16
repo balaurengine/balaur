@@ -74,6 +74,31 @@ fn two_bone_ik_puts_the_tip_on_a_reachable_target() {
     assert!(global_xy(&app, elbow).y > 0.0);
 }
 
+/// The solve is a function of the rig and the target, not of the frames before
+/// it: a replay, or a peer that joined late, has run a different number of
+/// them and must still land on the same bits.
+#[test]
+fn two_bone_ik_lands_on_the_same_bits_whatever_it_solved_before() {
+    let rotations = |app: &App, bones: [Entity; 2]| {
+        bones.map(|b| app.engine.world().get::<&Transform>(b).unwrap().rotation)
+    };
+    let mut fresh = app();
+    let (shoulder, elbow, _) = chain(&fresh, "two_bone_ik", (1.2, 0.8), false);
+    fresh.tick(1.0 / 60.0);
+    let once = rotations(&fresh, [shoulder, elbow]);
+
+    let mut worn = app();
+    let (shoulder, elbow, _) = chain(&worn, "two_bone_ik", (1.2, 0.8), false);
+    for _ in 0..37 {
+        worn.tick(1.0 / 60.0);
+    }
+    assert_eq!(
+        rotations(&worn, [shoulder, elbow]).map(|q| q.to_array().map(f32::to_bits)),
+        once.map(|q| q.to_array().map(f32::to_bits)),
+        "thirty-seven solves drifted from one"
+    );
+}
+
 #[test]
 fn flip_bends_the_elbow_the_other_way_to_the_same_tip() {
     let mut app = app();

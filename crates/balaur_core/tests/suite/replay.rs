@@ -224,6 +224,33 @@ fn a_session_records_and_replays_in_one_process() {
     );
 }
 
+/// The editor has minted ids long before Play, and the process that replays
+/// has minted a different number: a node spawned inside the session must get
+/// the id it got when it was recorded, or every label in the digest moves.
+#[test]
+fn a_replay_mints_the_ids_its_recording_did() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut recording = app();
+    for _ in 0..3 {
+        balaur_core::ids::mint(&recording.engine);
+    }
+    recording.advance(1.0 / 60.0);
+    let at = balaur_core::ids::next(&recording.engine);
+    assert_eq!(at, 3, "the allocator is installed and counting");
+    replay::start_recording(&recording.engine, &path, ".", "hash", true).unwrap();
+    recording.advance(1.0 / 60.0);
+    replay::stop_recording(&recording.engine, "stop").unwrap();
+
+    let replaying = app();
+    for _ in 0..11 {
+        balaur_core::ids::mint(&replaying.engine);
+    }
+    replay::begin(&replaying.engine, Session::read(&path).unwrap());
+    assert_eq!(balaur_core::ids::next(&replaying.engine), at);
+}
+
 /// A replay that no longer reproduces the recording names the tick it parted
 /// on rather than failing silently.
 #[test]

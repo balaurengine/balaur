@@ -34,6 +34,20 @@ impl Default for IdAllocator {
     }
 }
 
+/// The counter the next id takes, or zero with no allocator installed.
+#[must_use]
+pub fn next(eng: &Engine) -> u64 {
+    eng.try_resource::<IdAllocator>()
+        .map_or(0, |allocator| allocator.borrow().next)
+}
+
+/// Put the counter back, as a replay does to where its recording started.
+pub fn set_next(eng: &Engine, next: u64) {
+    if let Some(allocator) = eng.try_resource::<IdAllocator>() {
+        allocator.borrow_mut().next = next;
+    }
+}
+
 /// The next id, consumed.
 ///
 /// Empty when no allocator is installed, which is the signal to leave the
@@ -46,6 +60,17 @@ pub fn mint(eng: &Engine) -> String {
     let n = allocator.next;
     allocator.next += 1;
     format!("{}:{n}", allocator.authority)
+}
+
+/// An order for nodes that two runs agree on however many nodes each freed
+/// before: the stable id, then the entity bits for a node with none. Bits
+/// alone are reproducible only in a fresh process, which the editor is not.
+#[must_use]
+pub fn order_key(world: &World, entity: Entity) -> (bool, String, u64) {
+    world.get::<&StableId>(entity).map_or_else(
+        |_| (true, String::new(), entity.to_bits().get()),
+        |id| (false, id.0.clone(), 0),
+    )
 }
 
 /// Mint an id and put it on a freshly spawned node.

@@ -830,6 +830,7 @@ impl App {
         // one: both zero the accumulator so they take the same fixed steps.
         if crate::replay::take_record_restart(&self.engine) {
             self.accumulator = 0.0;
+            self.engine.restart_steps();
         }
         // In its own statement: a match holds its scrutinee's temporaries for
         // every arm, and the arms below borrow the player again.
@@ -875,6 +876,7 @@ impl App {
                 .restart,
         ) {
             self.accumulator = 0.0;
+            self.engine.restart_steps();
         }
         for _ in 0..count {
             let Some(fed) = crate::replay::feed_next(&self.engine) else {

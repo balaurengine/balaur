@@ -653,6 +653,7 @@ fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, b
         return 0;
     };
     let mut state = state.borrow_mut();
+    state.honour_step_restart(eng);
     // The same clamp the playhead takes: a frame that hitched must not be
     // paid back in a hundred ticks of spring at once.
     state.jiggle_accumulator =

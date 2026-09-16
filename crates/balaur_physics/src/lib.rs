@@ -530,7 +530,7 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = scalar::quat_of(*body.rotation());
             }
         }
-        (collector.take(), joint::broken(state))
+        (collector.take(), joint::broken(state, &world))
     };
     // Delivered with the world no longer borrowed: a handler is ordinary
     // script code and may move the body it was just told about.

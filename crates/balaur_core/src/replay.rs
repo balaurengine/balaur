@@ -172,15 +172,19 @@ impl<E: Clone + Serialize + DeserializeOwned> ExternalIo<E> {
 /// Where the engine's counters stood when a session started.
 ///
 /// A recording made in a long-lived process — the editor, which plays a game
-/// many times without restarting — starts at whatever tick, time and token
-/// the editor had reached. Replay puts all three back, so a script sees the
-/// numbers it saw, and an http reply keyed by its request id finds the
-/// request that recorded it.
+/// many times without restarting — starts at whatever tick, time, token and
+/// node id the editor had reached. Replay puts them all back, so a script sees
+/// the numbers it saw, an http reply keyed by its request id finds the request
+/// that recorded it, and a node spawned at run time gets the id it had.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Origin {
     pub tick: u64,
     pub time: f64,
     pub tokens: u64,
+    /// Zero in a file recorded before ids were kept, which is where a fresh
+    /// process starts them anyway.
+    #[serde(default)]
+    pub ids: u64,
 }
 
 impl Origin {
@@ -189,20 +193,22 @@ impl Origin {
     /// The tick and time here are provisional: whether the frame this was
     /// read in is itself recorded depends on where in the frame the recording
     /// started, so [`Recorder`] settles both against the first frame it
-    /// actually writes. The token counter is not provisional — it has to be
-    /// the value in force when recording began, because a request made
-    /// between then and the first frame is part of that frame.
+    /// actually writes. The token and id counters are not provisional — each
+    /// has to be the value in force when recording began, because a request
+    /// or a spawn made between then and the first frame is part of that frame.
     pub fn of(eng: &Engine) -> Self {
         Self {
             tick: eng.tick(),
             time: eng.time(),
             tokens: eng.tokens(),
+            ids: crate::ids::next(eng),
         }
     }
 
     pub fn restore(&self, eng: &Engine) {
         eng.set_clock(self.tick, self.time);
         eng.set_tokens(self.tokens);
+        crate::ids::set_next(eng, self.ids);
     }
 }
 

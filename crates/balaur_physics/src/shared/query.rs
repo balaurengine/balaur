@@ -151,21 +151,26 @@ macro_rules! functions {
             ])
         }
 
-        /// Sorted by distance, then by entity bits: two machines must agree on the
-        /// order, and rapier's is its BVH's.
-        fn sort_hits(hits: &mut [(Entity, Real, [f32; $N], [f32; $N])]) {
+        /// Sorted by distance, then by [`balaur_core::ids::order_key`]: two runs
+        /// must agree on the order, and rapier's is its BVH's.
+        fn sort_hits(
+            hits: &mut [(Entity, Real, [f32; $N], [f32; $N])],
+            world: &balaur_core::hecs::World,
+        ) {
             // `total_cmp`, not `partial_cmp`: a NaN distance makes the latter a
             // non-order, which `sort_by` is allowed to panic on.
             hits.sort_by(|a, b| {
-                a.1.total_cmp(&b.1)
-                    .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
+                a.1.total_cmp(&b.1).then_with(|| {
+                    balaur_core::ids::order_key(world, a.0)
+                        .cmp(&balaur_core::ids::order_key(world, b.0))
+                })
             });
         }
 
-        /// Node lists cross the seam sorted by entity bits, for the same reason hit
-        /// lists cross it sorted by distance.
-        fn node_list(hits: &mut Vec<Entity>) -> Value {
-            hits.sort_unstable_by_key(|e| e.to_bits());
+        /// Node lists cross the seam in [`balaur_core::ids::order_key`] order, for
+        /// the same reason hit lists cross it sorted by distance.
+        fn node_list(hits: &mut Vec<Entity>, world: &balaur_core::hecs::World) -> Value {
+            hits.sort_by_cached_key(|e| balaur_core::ids::order_key(world, *e));
             hits.dedup();
             Value::List(
                 hits.iter()
@@ -186,7 +191,7 @@ macro_rules! functions {
             balaur_core::node_api::to_toml(shape)
         }
 
-        /// Nodes whose colliders intersect this node's, sorted by entity bits.
+        /// Nodes whose colliders intersect this node's, in a stable order.
         ///
         /// Rapier tracks an intersection pair only when one side is a sensor, which is
         /// why this is not the same question as `shape_hits`.
@@ -210,7 +215,7 @@ macro_rules! functions {
                     }
                 }
             }
-            hits.sort_unstable_by_key(|e| e.to_bits());
+            hits.sort_by_cached_key(|e| balaur_core::ids::order_key(&eng.world(), *e));
             hits.dedup();
             hits
         }

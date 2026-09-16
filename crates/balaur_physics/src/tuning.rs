@@ -264,7 +264,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
                     .map(|(entity, _)| *entity)
             })
             .collect();
-        nodes.sort_unstable_by_key(|e| e.to_bits());
+        nodes.sort_by_cached_key(|e| balaur_core::ids::order_key(&eng.world(), *e));
         Ok(Value::List(
             nodes
                 .into_iter()
