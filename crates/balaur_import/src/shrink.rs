@@ -58,7 +58,10 @@ pub fn shrink(project: &Path, tag: &str, scale: f32) -> Result<Shrunk> {
             continue;
         }
         if is_pixel_art(project, &rel) {
-            out.skipped.push((rel, "pixel art, sampled nearest: a smaller copy drops texels".into()));
+            out.skipped.push((
+                rel,
+                "pixel art, sampled nearest: a smaller copy drops texels".into(),
+            ));
             continue;
         }
         let Some(target) = variant_name(&rel, tag) else {
@@ -163,7 +166,11 @@ mod tests {
                 .save(art.join(name))
                 .unwrap();
         }
-        std::fs::write(dir.path().join("project.toml"), "[application]\nname = \"t\"\n").unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\n",
+        )
+        .unwrap();
         std::fs::write(art.join("hero.png.toml"), "filter = \"nearest\"\n").unwrap();
         dir
     }

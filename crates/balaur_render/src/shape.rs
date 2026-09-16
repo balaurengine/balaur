@@ -84,17 +84,17 @@ pub(crate) mod words {
     pub(crate) const TRIANGLE: &str = "triangle";
     pub(crate) const SEGMENT: &str = "segment";
 
+    /// Which camera a `camera` node drives.
     pub(crate) const PERSPECTIVE: &str = "3d";
     pub(crate) const ORTHOGRAPHIC: &str = "2d";
-    /// Which camera a `camera` node drives.
 
+    /// The passes a `camera`'s `post` list may name; any other name in it is a
+    /// `material` asset.
     pub(crate) const BLOOM: &str = "bloom";
     pub(crate) const SSAO: &str = "ssao";
     pub(crate) const SSR: &str = "ssr";
     pub(crate) const DOF: &str = "dof";
     pub(crate) const TONEMAP: &str = "tonemap";
-    /// The passes a `camera`'s `post` list may name; any other name in it is a
-    /// `material` asset.
     pub(crate) const FXAA: &str = "fxaa";
     pub(crate) const SHARPEN: &str = "sharpen";
     pub(crate) const VIGNETTE: &str = "vignette";

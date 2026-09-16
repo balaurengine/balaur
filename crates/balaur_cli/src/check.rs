@@ -6,7 +6,6 @@
 
 use anyhow::Result;
 
-
 pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
     // A project that means to stay clean says so in its own manifest; the
     // flag is for the run that wants it anyway.

@@ -372,7 +372,7 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "import"))]
 /// `balaur shrink`: the copies written, what was left alone and why, and the
 /// bytes it came to.
 fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
@@ -391,6 +391,26 @@ fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
     Ok(())
 }
 
+/// Shrinking reads and writes images, which is the importers' half of the
+/// tree; a build without them says so rather than not offering the verb.
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "import")))]
+fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
+    let _ = (project, tag, scale);
+    anyhow::bail!("this build has no importers: build with the `import` feature")
+}
+
+/// `balaur import`, or the same refusal when the importers are not built in.
+#[cfg(all(not(target_arch = "wasm32"), feature = "import"))]
+fn import(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+    balaur_import::import_and_report(file, project, layers)
+}
+
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "import")))]
+fn import(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
+    let _ = (file, project, layers);
+    anyhow::bail!("this build has no importers: build with the `import` feature")
+}
+
 /// Each subcommand, to the one function that runs it.
 #[cfg(not(target_arch = "wasm32"))]
 fn dispatch(command: Command) -> Result<()> {
@@ -405,7 +425,7 @@ fn dispatch(command: Command) -> Result<()> {
             file,
             project,
             layers,
-        } => balaur_import::import_and_report(&file, &project, &layers),
+        } => import(&file, &project, &layers),
         Command::New { path, template } => new_project::create(&path, template.as_deref()),
         Command::Run {
             path,

@@ -7,7 +7,7 @@
 //! project's has its paths made absolute against the root that owns it; a host
 //! with one root never gets here.
 //!
-//! [`relative_in`] is the inverse, for a document on its way back to a file:
+//! `relative_in` is the inverse, for a document on its way back to a file:
 //! the editor loads a material, edits one key and saves it, and an absolute
 //! path written into the game would not survive another machine.
 

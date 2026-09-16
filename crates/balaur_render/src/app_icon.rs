@@ -9,9 +9,14 @@ use balaur_core::App;
 
 use crate::AppIconConfig;
 
+/// What the compositing thread sends back: the plate it encoded, or `None`
+/// when the picture would not read, and the path it was asked for.
+#[cfg(target_os = "macos")]
+type Composited = (Option<Vec<u8>>, String);
+
 /// The icon a worker thread is still compositing, if one is.
 #[cfg(target_os = "macos")]
-static PENDING: std::sync::Mutex<Option<std::sync::mpsc::Receiver<(Option<Vec<u8>>, String)>>> =
+static PENDING: std::sync::Mutex<Option<std::sync::mpsc::Receiver<Composited>>> =
     std::sync::Mutex::new(None);
 
 /// Apply a requested dock/application icon (macOS only for now).

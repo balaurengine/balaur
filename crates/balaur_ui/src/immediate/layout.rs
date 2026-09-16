@@ -160,25 +160,31 @@ fn install_bar(m: &mut dyn Bindings<Engine>) {
         "(part, opts)",
         "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
     )]);
-    m.function("bar", |_eng: &Engine, (part, opts): (f32, Option<Value>)| {
-        let opts = Opts::with_roles(opts);
-        with_ui(|ui| {
-            let (w, h) = (opts.px(k::WIDTH, 120.0), opts.px(k::HEIGHT, 4.0));
-            let radius = opts.px(k::RADIUS, h / 2.0);
-            let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
-            ui.painter()
-                .rect_filled(rect, radius, opts.color(k::TRACK, Color32::TRANSPARENT));
-            let filled = w * part.clamp(0.0, 1.0);
-            // Nothing drawn for nothing done: a rounded rect a pixel wide is
-            // a dot, which reads as a little progress rather than none.
-            if filled >= 1.0 {
-                let part = egui::Rect::from_min_size(rect.min, vec2(filled, h));
+    m.function(
+        "bar",
+        |_eng: &Engine, (part, opts): (f32, Option<Value>)| {
+            let opts = Opts::with_roles(opts);
+            with_ui(|ui| {
+                let (w, h) = (opts.px(k::WIDTH, 120.0), opts.px(k::HEIGHT, 4.0));
+                let radius = opts.px(k::RADIUS, h / 2.0);
+                let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
                 ui.painter()
-                    .rect_filled(part, radius, opts.color(k::FILL, Color32::TRANSPARENT));
-            }
-            Ok(())
-        })
-    });
+                    .rect_filled(rect, radius, opts.color(k::TRACK, Color32::TRANSPARENT));
+                let filled = w * part.clamp(0.0, 1.0);
+                // Nothing drawn for nothing done: a rounded rect a pixel wide is
+                // a dot, which reads as a little progress rather than none.
+                if filled >= 1.0 {
+                    let part = egui::Rect::from_min_size(rect.min, vec2(filled, h));
+                    ui.painter().rect_filled(
+                        part,
+                        radius,
+                        opts.color(k::FILL, Color32::TRANSPARENT),
+                    );
+                }
+                Ok(())
+            })
+        },
+    );
 }
 
 pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {

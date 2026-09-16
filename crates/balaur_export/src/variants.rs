@@ -75,7 +75,10 @@ pub(crate) fn apply(pack: &mut Pack, tags: &Tags, declared: &[String]) -> Folded
 /// the copy would draw stretched, which is a resize gone wrong, not a smaller
 /// picture. Not an image, or one that will not decode: nothing to record.
 fn remember_drawn_size(pack: &mut Pack, canonical: &str, variant: &[u8]) -> Option<String> {
-    let drawn = pack.assets.get(canonical).and_then(|bytes| image_size(bytes))?;
+    let drawn = pack
+        .assets
+        .get(canonical)
+        .and_then(|bytes| image_size(bytes))?;
     let sidecar = balaur::import::sidecar_of(canonical);
     let mut settings: toml::Table = pack
         .scenes

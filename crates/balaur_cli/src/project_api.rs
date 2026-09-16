@@ -147,7 +147,9 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
 }
 
 fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
-    m.function("recent", |eng: &Engine, ()| Ok(Value::List(recent_rows(eng))));
+    m.function("recent", |eng: &Engine, ()| {
+        Ok(Value::List(recent_rows(eng)))
+    });
     m.function("templates", |_: &Engine, ()| Ok(Value::List(templates())));
     m.function(
         "create",
@@ -709,7 +711,10 @@ fn create(home: &Path, path: &Path, template: &str) -> Value {
 /// and a tab the stores this browser keeps.
 #[cfg(not(target_family = "wasm"))]
 fn recent_rows(eng: &Engine) -> Vec<Value> {
-    read_list(&home_of(eng)).into_iter().map(row_value).collect()
+    read_list(&home_of(eng))
+        .into_iter()
+        .map(row_value)
+        .collect()
 }
 
 #[cfg(target_family = "wasm")]

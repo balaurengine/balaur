@@ -195,7 +195,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         tracing::warn!("{why}");
     }
     if !folded.names.is_empty() {
-        tracing::info!("variants for {}: {}", tags.0.join(", "), folded.names.join(", "));
+        tracing::info!(
+            "variants for {}: {}",
+            tags.0.join(", "),
+            folded.names.join(", ")
+        );
     }
     let summary = size::prepare(&mut pack, &config)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));

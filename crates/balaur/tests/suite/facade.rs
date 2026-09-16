@@ -461,10 +461,17 @@ fn a_packed_project_reads_its_image_sidecars() {
         "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
-    std::fs::write(root.join("scenes/main.toml"), "[[nodes]]\nid = \"root\"\nname = \"Root\"\n")
-        .unwrap();
+    std::fs::write(
+        root.join("scenes/main.toml"),
+        "[[nodes]]\nid = \"root\"\nname = \"Root\"\n",
+    )
+    .unwrap();
     std::fs::write(root.join("art/hero.png"), PIXEL).unwrap();
-    std::fs::write(root.join("art/hero.png.toml"), "size = [400, 200]\nsrgb = false\n").unwrap();
+    std::fs::write(
+        root.join("art/hero.png.toml"),
+        "size = [400, 200]\nsrgb = false\n",
+    )
+    .unwrap();
     let bytes = balaur::build_pack(root).unwrap().encode();
     drop(dir);
 

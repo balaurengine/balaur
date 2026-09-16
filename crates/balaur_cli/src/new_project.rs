@@ -152,7 +152,10 @@ mod tests {
         // Finder starts a bundle with a working directory of `/`, so the
         // executable's own directory is the only thing pointing at the data.
         let dirs = dirs_under(Some(&contents.join("MacOS")), Some(Path::new("/")));
-        assert!(holds(&dirs, "editor/library"), "the templates the New button copies");
+        assert!(
+            holds(&dirs, "editor/library"),
+            "the templates the New button copies"
+        );
         assert!(
             holds(&dirs, "examples/hello/project.toml"),
             "the examples the Examples tab lists"

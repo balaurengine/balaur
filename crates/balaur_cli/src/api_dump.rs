@@ -4,7 +4,6 @@
 use anyhow::Result;
 use balaur::AppConfig;
 
-
 /// Boot a standard app in a scratch project and print what scripts can reach.
 ///
 /// The engine is asked, not the source: constants like `input.KEY_SPACE` are

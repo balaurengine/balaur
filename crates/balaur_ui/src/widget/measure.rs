@@ -380,8 +380,10 @@ impl<'a> Measure<'a> {
             return egui::Vec2::ZERO;
         };
         // The size it was drawn at, when a smaller copy shipped in its place.
-        let native = balaur_core::import::drawn_size(self.eng, &widget.source)
-            .map_or_else(|| texture.size_vec2(), |(w, h)| egui::vec2(w as f32, h as f32));
+        let native = balaur_core::import::drawn_size(self.eng, &widget.source).map_or_else(
+            || texture.size_vec2(),
+            |(w, h)| egui::vec2(w as f32, h as f32),
+        );
         let aspect = if native.y > 0.0 {
             native.x / native.y
         } else {

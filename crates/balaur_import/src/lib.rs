@@ -597,9 +597,11 @@ mod tests {
         let page = std::fs::read(project.path().join("art/walk.webp")).unwrap();
         assert_eq!(&page[..4], b"RIFF", "the atlas page is a WebP");
         assert_eq!(&page[8..12], b"WEBP");
-        let sampling =
-            std::fs::read_to_string(project.path().join("art/walk.webp.toml")).unwrap();
-        assert!(sampling.contains("nearest"), "pixel art samples nearest: {sampling}");
+        let sampling = std::fs::read_to_string(project.path().join("art/walk.webp.toml")).unwrap();
+        assert!(
+            sampling.contains("nearest"),
+            "pixel art samples nearest: {sampling}"
+        );
         let sheet: toml::Value = toml::from_str(
             &std::fs::read_to_string(project.path().join("sheets/walk.toml")).unwrap(),
         )
@@ -712,7 +714,11 @@ mod tests {
             &[],
         )
         .unwrap();
-        assert_eq!(plan.outputs(), 4, "a page, its sampling, a sheet and a clip library");
+        assert_eq!(
+            plan.outputs(),
+            4,
+            "a page, its sampling, a sheet and a clip library"
+        );
 
         let mut sink = crate::ProjectSink::new(written.path());
         let mut slices = 0;

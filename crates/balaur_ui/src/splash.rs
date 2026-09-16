@@ -23,10 +23,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let loading = eng
         .try_resource::<crate::Loading>()
         .map(|l| l.borrow().clone());
-    // Reporting a load is what holds the splash: the seconds are then the
-    // least it stays rather than the most. A run that reports nothing has no
-    // resource and goes when its seconds are up, which is the plain case and
-    // the one that cannot hang.
+    // Reporting a load holds the splash past its seconds. A run that reports
+    // nothing has no resource, and goes when its seconds are up.
     let held = loading.as_ref().is_some_and(|l| !l.done);
     if path.is_empty() || (eng.time() >= seconds && !held) {
         return;

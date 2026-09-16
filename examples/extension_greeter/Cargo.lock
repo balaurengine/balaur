@@ -33,10 +33,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "balaur_cfg"
+version = "0.2.0"
+
+[[package]]
 name = "balaur_core"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "balaur_cfg",
  "balaur_script",
  "base64",
  "dirs",

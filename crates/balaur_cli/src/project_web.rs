@@ -68,7 +68,7 @@ pub(crate) fn recent() -> Vec<Value> {
                     (
                         "when".into(),
                         Value::Str(crate::project_api::said_ago(
-                            (now - row.modified).max(0.0) as i64,
+                            (now - row.modified).max(0.0) as i64
                         )),
                     ),
                     ("version".into(), Value::Str(String::new())),
@@ -118,4 +118,3 @@ pub(crate) fn forget(id: &Path) -> Value {
     });
     Value::Map(Vec::new())
 }
-
