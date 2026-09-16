@@ -362,9 +362,10 @@ enum JobState {
         done: usize,
         files: usize,
     },
-    /// A project, which has no plan: walking it, a few files a slice.
+    /// A project, which has no plan: walking it, a few files a slice. Boxed
+    /// because a walk is twice the size of the whole of the other variants.
     Walking {
-        walk: balaur_import::ProjectWalk,
+        walk: Box<balaur_import::ProjectWalk>,
         done: usize,
         files: usize,
     },
@@ -507,7 +508,7 @@ impl ImportJob {
                     let files = walk.files();
                     let _ = self.report.send(ImportEvent::Started { source, files });
                     self.state = JobState::Walking {
-                        walk,
+                        walk: Box::new(walk),
                         done: 0,
                         files,
                     };

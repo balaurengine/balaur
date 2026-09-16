@@ -477,9 +477,11 @@ fn a_prefab_from_another_root_names_its_files_from_that_root() {
     let prefab = game.path().join("scenes/prop.toml");
     balaur_core::project::instantiate_scene(
         &app.engine,
+        // A literal string, not a basic one: a Windows path is full of
+        // backslashes, and `\U` in a basic string is an escape.
         &format!(
-            "[[nodes]]\nid = \"n_prop\"\nname = \"Prop\"\ninstance = \"{}\"\n",
-            prefab.to_string_lossy()
+            "[[nodes]]\nid = \"n_prop\"\nname = \"Prop\"\ninstance = '{}'\n",
+            prefab.display()
         ),
         app.engine.root(),
         false,
