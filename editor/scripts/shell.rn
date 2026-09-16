@@ -256,18 +256,32 @@ pub fn toggle_play(S) {
         model::attach_game_scripts(S);
         S.playing = true;
         crate::docks::show(S, "output");
-        physics::set_paused(false);
-        // The mirror was built with every player held (model::build_mirror);
-        // play is what lets the engine advance them.
-        anim::resume_all(S);
+        // Physics and every animation player start next frame: the one a
+        // session opens in is not recorded, so nothing may step in it.
+        S.release_at = S.frame + 1;
         log::info("play: running " + S.game_name);
     }
+}
+
+/// Let the world step: what play and a replay both do the frame after they
+/// start, so a replay's first frame is stepped exactly as the recording's was.
+pub fn release_world(S) {
+    if S.release_at < 0 || S.frame < S.release_at {
+        return;
+    }
+    S.release_at = -1;
+    physics::set_paused(false);
+    // The mirror was built with every player held (model::build_mirror);
+    // play is what lets the engine advance them.
+    anim::resume_all(S);
 }
 
 pub fn stop_play(S) {
     if S.playing {
         log::info("stop: scene reset");
     }
+    // A stop in the frame play started must not release the rebuilt mirror.
+    S.release_at = -1;
     crate::session::end(S, "stop");
     model::build_mirror(S);
     // The game may have restyled the viewport (background, camera).

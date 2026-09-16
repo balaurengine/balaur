@@ -234,8 +234,8 @@ pub fn open(S, name) {
     model::attach_game_scripts(S);
     S.playing = true;
     crate::docks::show(S, "session");
-    physics::set_paused(false);
-    anim::resume_all(S);
+    // Released on the replay's first frame, as play released the recording's.
+    S.release_at = S.frame + 1;
     replay::play();
 }
 

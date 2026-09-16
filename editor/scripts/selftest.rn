@@ -121,20 +121,28 @@ pub fn rename(S) {
 
     // A second node cannot take the same name, or `find_node` answers with
     // whichever came first.
-    let other = 0;
+    let other = -1;
     for (i, node) in S.doc.iter().enumerate() {
         if i != S.sel && node.name != "Renamed" {
             other = i;
             break;
         }
     }
+    if other < 0 {
+        shell::undo(S);
+        check(S.doc[S.sel].name == was, format!("undo puts the old name back ({})", S.doc[S.sel].name));
+        log::info("selftest rename: one node, so no name to collide with, skipping the rest");
+        return;
+    }
+    let other_was = S.doc[other].name;
     crate::shell::choose(S, other);
     model::rename_selected(S, "Renamed");
     check(S.doc[S.sel].name != "Renamed",
         format!("a taken name is made unique ({})", S.doc[S.sel].name));
 
     shell::undo(S);
-    check(S.doc[other].name != "Renamed", "undo puts the old name back");
+    check(S.doc[other].name == other_was,
+        format!("undo puts the old name back ({})", S.doc[other].name));
 }
 
 // The node picker: what it offers, how it is grouped, and that a pick
@@ -1925,6 +1933,11 @@ pub fn theme_switch(S) {
 }
 
 
+/// A row's authored x, which a node that names no transform has at zero.
+fn doc_x(S, i) {
+    util::f(model::doc_transform(S.doc[i], "position", [0.0, 0.0, 0.0])[0])
+}
+
 /// The selection set: extending it, aligning two nodes, undoing that, and
 /// grouping. Every check is on document state, so it runs with no window.
 pub fn selecting(S) {
@@ -1933,17 +1946,21 @@ pub fn selecting(S) {
         return;
     }
     // Two siblings: a parent and its child are one root between them, and
-    // group would then adopt one node rather than two.
+    // group would then adopt one node rather than two. Apart on x if any are,
+    // or the align below has nothing to do and proves nothing.
     let a = 0;
     let b = 1;
     let found = false;
+    let apart = false;
     for i in 0..S.doc.len() {
         for j in i + 1..S.doc.len() {
             let same = S.doc[i].get("parent").unwrap_or("") == S.doc[j].get("parent").unwrap_or("");
-            if same && !found {
+            let differs = util::abs(doc_x(S, i) - doc_x(S, j)) > 1e-3;
+            if same && (!found || (differs && !apart)) {
                 a = i;
                 b = j;
                 found = true;
+                apart = differs;
             }
         }
     }
@@ -1960,15 +1977,16 @@ pub fn selecting(S) {
     check(selection::count(S) == 1 && S.sel == a, "toggling it again drops it");
 
     selection::set(S, [a, b]);
-    let before_a = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
+    let before = [doc_x(S, a), doc_x(S, b)];
     arrange::align(S, 0, "min");
-    let ax = util::f(model::live(S, a).unwrap().transform.global_position().x);
-    let bx = util::f(model::live(S, b).unwrap().transform.global_position().x);
-    check(util::abs(ax - bx) < 1e-4, "align on x puts two nodes on one plane");
+    // The document, not `global_position`: that is as of the last transform
+    // sync, and the two are siblings, so one parent frame holds both.
+    check(util::abs(doc_x(S, a) - doc_x(S, b)) < 1e-4,
+        format!("align on x puts two nodes on one plane ({} and {})", doc_x(S, a), doc_x(S, b)));
 
     shell::undo(S);
-    let back = S.doc[a].get("position").unwrap_or([0.0, 0.0, 0.0]);
-    check(util::f(back[0]) == util::f(before_a[0]), "undo puts the align back");
+    check(util::abs(doc_x(S, a) - before[0]) < 1e-4 && util::abs(doc_x(S, b) - before[1]) < 1e-4,
+        format!("undo puts the align back ({} and {})", doc_x(S, a), doc_x(S, b)));
     check(selection::count(S) == 2, "and restores the set that made it");
 
     let was = S.doc.len();

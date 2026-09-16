@@ -102,6 +102,7 @@ pub fn init(this) {
         // Whether the first frame has run: the start-up states apply on it,
         // after the screen's room has folded the docks.
         platform_read: false,
+        release_at: -1,
         states_applied: false,
         start_states: "",
         script_buffers: #{},
@@ -281,6 +282,7 @@ pub fn update(this, dt) {
         S.fps = (if S.fps == 0.0 { now } else { S.fps }) * 0.9 + now * 0.1;
     }
     S.frame += 1;
+    shell::release_world(S);
     // The splash holds until the shell has settled: the first pass places
     // the docks, the second fills the tree once the mirror resolves, the
     // third is the first drawn with everything in place.
@@ -298,6 +300,11 @@ pub fn update(this, dt) {
             render::screenshot(shot);
             report_view(S);
         }
+    }
+    // A run with no window never calls `draw_ui`, so its states land here: by
+    // this frame a drawn run has measured its screen twice over.
+    if S.frame >= HEADLESS_STATES_AT && !S.platform_read {
+        apply_start_states(S);
     }
     // The start screen has no scene to step, no selection to follow and no
     // gizmo to drag: what it needs from a frame is the shot and the states.
@@ -438,6 +445,9 @@ pub fn update(this, dt) {
         ui::request_repaint();
     }
 }
+
+/// The frame a run that has drawn nothing takes to be headless.
+const HEADLESS_STATES_AT = 3;
 
 // The `--state` list, applied once. Read here rather than at `init`, because
 // a state that folds a dock has to run after the screen has been measured.
