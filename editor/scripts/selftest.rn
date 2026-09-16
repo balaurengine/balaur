@@ -1101,6 +1101,12 @@ pub fn instances(S) {
 // The inspector's script field: a new name writes and attaches a file, a
 // changed name moves it, remove leaves it on disk, and undo walks it all back.
 pub fn script_paths(S) {
+    // Pure string rules, so they hold whatever the project has in it.
+    check(model::names_a_file("art/hero.png"), "a project-relative file is a file name");
+    check(!model::names_a_file("/games/art/hero.png"), "a rooted path is not");
+    check(!model::names_a_file("D:/games/art/hero.png"), "nor is a Windows drive path");
+    check(!model::names_a_file("D:\\games\\art\\hero.png"), "with either separator");
+    check(!model::names_a_file("../Rig"), "and a node path is not a file");
     let picked = None;
     for (i, node) in S.doc.iter().enumerate() {
         if picked.is_none() && !node.contains_key("script") && !model::is_instanced(node) {

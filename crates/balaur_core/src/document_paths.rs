@@ -112,15 +112,11 @@ fn walk(on: &mut dyn FnMut(&mut String), value: &mut toml::Value) {
     }
 }
 
-/// `root` and `path` joined, always with forward slashes: a document is read
-/// back by a reader that splits on `#`, and Windows separators in a value that
-/// a scene also compares as text would make one path two spellings.
+/// `<root>/<path>`, the root spelled as the host declared it: the editor builds
+/// the same string from its game root and strips that prefix to save a path back.
 fn join(root: &Path, path: &str) -> String {
-    let root = root.to_string_lossy().replace('\\', "/");
-    match root.strip_suffix('/') {
-        Some(trimmed) => format!("{trimmed}/{path}"),
-        None => format!("{root}/{path}"),
-    }
+    let root = root.to_string_lossy();
+    format!("{}/{path}", root.trim_end_matches(['/', '\\']))
 }
 
 /// The id index a root ships, or `None` when it has none.
@@ -145,8 +141,9 @@ fn id_path(index: &std::collections::BTreeMap<String, String>, rest: &str) -> Op
 }
 
 /// Whether a value reads as a file name: `..` and `../Rig` are node paths, and
-/// an absolute one is already resolved. The rule `editor/scripts/model.rn`
-/// uses, so the editor's rewrite and this one cannot disagree.
+/// an absolute one is already resolved. `model::names_a_file` in the editor is
+/// the same rule and must stay so, down to a Windows drive counting as absolute:
+/// the editor walks what this hands back.
 fn names_a_file(value: &str) -> bool {
     if value.is_empty() || crate::files::rooted(Path::new(value)) {
         return false;

@@ -47,7 +47,9 @@ check_run() { # check_run <label> <rc> <output>
     fail "$label exited $rc"
   fi
   if grep -q 'ERROR' <<<"$out"; then
-    grep 'ERROR' <<<"$out" | head -5
+    # The lines after too: a script error's message and location follow the
+    # ERROR line on lines of their own, and the first line alone says nothing.
+    grep -A 12 'ERROR' <<<"$out" | head -40
     fail "$label logged errors"
   fi
 }

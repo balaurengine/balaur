@@ -791,8 +791,8 @@ pub fn load(S) {
 
 // Only a value that reads as a file name is a file candidate: `..` and
 // `../Rig` are node paths, and the game's parent directory exists too.
-fn names_a_file(value) {
-    if value == "" || value.starts_with("/") {
+pub fn names_a_file(value) {
+    if value == "" || is_absolute(value) {
         return false;
     }
     let last = "";
@@ -804,6 +804,19 @@ fn names_a_file(value) {
     }
     match last.split_once('.') {
         Some((_, ext)) => ext != "" && ext.chars().all(|c| c.is_alphanumeric()),
+        None => false,
+    }
+}
+
+// Absolute on every OS: `/x`, `\\server\x`, and a Windows drive, `D:/x` or
+// `D:\x`. The engine hands back a drive path on Windows, and read as a file
+// name it joins under the game root into a path outside every root.
+pub fn is_absolute(value) {
+    if value.starts_with("/") || value.starts_with("\\") {
+        return true;
+    }
+    match value.split_once(':') {
+        Some((drive, _)) => drive.len() == 1,
         None => false,
     }
 }
