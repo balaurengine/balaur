@@ -400,7 +400,6 @@ pub fn update(this, dt) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
-    gizmo::draw_marquee(S, S.theme);
     plugins::draw_overlays(S);
     rig::draw(S);
     if !session::scrubbing(S) {

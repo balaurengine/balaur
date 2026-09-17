@@ -171,6 +171,36 @@ weights = [0, 0, 0.5, 0.5, 0, 0, 0.5, 0.5]
 path = "Hip/Thigh/Shin"
 weights = [0, 0, 0, 0.5, 1, 1, 0.5, 0]
 
+# The plume: three bones no clip touches, first under Shin so the shin reaches
+# the top of the head. `jiggle` springs each toward the pose the walk leaves it
+# in, so it lags the body and settles when the body stops.
+[[nodes]]
+id = "n_plume"
+name = "Plume"
+parent = "n_shin"
+bone2d = { rest_position = [0, 0.86], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0, 0.86, 0]
+
+[[nodes]]
+id = "n_plume2"
+name = "Plume2"
+parent = "n_plume"
+bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0 }
+
+[nodes.transform]
+position = [0, 0.3, 0]
+
+[[nodes]]
+id = "n_plume3"
+name = "Plume3"
+parent = "n_plume2"
+bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0, length = 0.3, angle = 1.5708 }
+
+[nodes.transform]
+position = [0, 0.3, 0]
+
 [[nodes]]
 id = "n_shoulder"
 name = "Shoulder"
@@ -246,36 +276,6 @@ weights = [0, 0.5, 0.5, 0, 0, 0.5, 0.5, 0]
 [[nodes.polygon.mesh.skin.bones]]
 path = "Shoulder/Elbow/Hand"
 weights = [0, 0, 0.5, 1, 1, 0.5, 0, 0]
-
-# The plume: three bones off the head that no clip touches. `jiggle` springs
-# each toward the pose the walk leaves it in, one fixed tick at a time, so it
-# lags the body and settles when the body stops.
-[[nodes]]
-id = "n_plume"
-name = "Plume"
-parent = "n_shin"
-bone2d = { rest_position = [0, 0.86], rest_rotation = 0.0 }
-
-[nodes.transform]
-position = [0, 0.86, 0]
-
-[[nodes]]
-id = "n_plume2"
-name = "Plume2"
-parent = "n_plume"
-bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0 }
-
-[nodes.transform]
-position = [0, 0.3, 0]
-
-[[nodes]]
-id = "n_plume3"
-name = "Plume3"
-parent = "n_plume2"
-bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0, length = 0.3, angle = 1.5708 }
-
-[nodes.transform]
-position = [0, 0.3, 0]
 
 [[nodes]]
 id = "n_jiggle"

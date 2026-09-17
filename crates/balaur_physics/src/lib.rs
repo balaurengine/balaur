@@ -171,6 +171,10 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
+        // Before the clip, which writes only the channels it keys.
+        reg.insert_resource(ragdoll::BlendMemory::default());
+        reg.add_system(Stage::PreUpdate, ragdoll::restore_system);
+        reg.add_snapshot_source("ragdoll", ragdoll::save_memory, ragdoll::load_memory);
         ragdoll::register_ragdoll_component(reg);
         build_physics_digest(reg);
         build_physics_snapshot(reg);

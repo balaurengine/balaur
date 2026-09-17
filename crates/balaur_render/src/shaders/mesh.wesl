@@ -371,11 +371,16 @@ fn behind(uv: vec2<f32>, lod: f32) -> vec3<f32> {
 // deriving one costs nothing a material that does not ask for it.
 fn shaded_normal(in: VertexOutput) -> vec3<f32> {
     let n = normalize(in.normal);
+    // Before the branch: WebGPU refuses a derivative in control flow a sample decides.
+    let dp1 = dpdx(in.world);
+    let dp2 = dpdy(in.world);
+    let duv1 = dpdx(in.uv);
+    let duv2 = dpdy(in.uv);
     let mapped = sample_normal_map(in.uv);
     if abs(mapped.x) + abs(mapped.y) < 1e-4 {
         return n;
     }
-    let frame = tangent_frame(n, dpdx(in.world), dpdy(in.world), dpdx(in.uv), dpdy(in.uv));
+    let frame = tangent_frame(n, dp1, dp2, duv1, duv2);
     return normalize(frame * mapped);
 }
 

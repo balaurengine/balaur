@@ -84,6 +84,15 @@ fn find(app: &App, path: &str) -> Option<Entity> {
     scene::find_node(&app.engine.world(), app.engine.root(), path)
 }
 
+fn global_at(app: &App, path: &str) -> balaur_core::glamx::Vec3 {
+    let entity = find(app, path).unwrap();
+    app.engine
+        .world()
+        .get::<&GlobalTransform>(entity)
+        .unwrap()
+        .position
+}
+
 fn global_y(app: &App, entity: Entity) -> f32 {
     app.engine
         .world()
@@ -185,6 +194,84 @@ pub fn update(this, dt) {
         "the rig should have gone limp once the blend came up, the hip is at {}",
         global_y(&app, hip)
     );
+}
+
+#[test]
+fn a_limp_rig_starts_from_the_pose_it_was_built_in() {
+    // These bones lie along +x while a capsule stands along y: the bodies
+    // turn their shapes, never the bones they hand back.
+    let (app, errors) = run(
+        RIG,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    for (bone, x) in [("Rig/Hip/Knee", 1.0), ("Rig/Hip/Knee/Foot", 2.0)] {
+        let at = global_at(&app, bone);
+        assert!(
+            (at.x - x).abs() < 0.05 && at.y.abs() < 0.05,
+            "{bone} should not have moved in one tick, it is at {at}"
+        );
+    }
+}
+
+#[test]
+fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
+    // No clip keys these bones, so nothing but the ragdoll ever moves them:
+    // limp for half a second, then the blend returns and they must too.
+    let (app, errors) = run(
+        RIG,
+        r"pub fn init(this) {
+    physics2d::ragdoll(this.node, #{ blend: 1.0 });
+    this.ticks = 0;
+}
+
+pub fn update(this, dt) {
+    this.ticks += 1;
+    if this.ticks == 30 {
+        this.node.ragdoll.ragdoll_blend(0.0);
+    }
+}",
+        60,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    for (bone, x) in [
+        ("Rig/Hip", 0.0),
+        ("Rig/Hip/Knee", 1.0),
+        ("Rig/Hip/Knee/Foot", 2.0),
+    ] {
+        let at = global_at(&app, bone);
+        assert!(
+            (at.x - x).abs() < 1e-4 && at.y.abs() < 1e-4,
+            "{bone} should be back at its own pose, it is at {at}"
+        );
+    }
+}
+
+#[test]
+fn a_rollback_to_a_limp_tick_gets_back_up_the_same_way() {
+    let (mut app, errors) = run(
+        RIG,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 1.0 }); }",
+        29,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let rig = find(&app, "Rig").unwrap();
+    let stand = |app: &mut App| {
+        let zero = toml::from_str::<toml::Value>("blend = 0.0").unwrap();
+        balaur_core::components::patch(&app.engine, rig, "ragdoll", &zero).unwrap();
+        app.tick(1.0 / 60.0);
+        global_at(app, "Rig/Hip/Knee")
+    };
+    let taken = balaur_core::snapshot::capture(&app.engine);
+    let first = stand(&mut app);
+    balaur_core::snapshot::restore(&app.engine, &taken);
+    let again = stand(&mut app);
+    assert!(
+        (first.x - 1.0).abs() < 1e-4 && first.y.abs() < 1e-4,
+        "the knee should be back at its own pose, it is at {first}"
+    );
+    assert_eq!(again, first, "the rolled-back tick stood up somewhere else");
 }
 
 #[test]

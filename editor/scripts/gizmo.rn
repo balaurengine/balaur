@@ -598,8 +598,8 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
     out
 }
 
-/// Draw the marquee, if one is being dragged. Called from the overlay pass so
-/// it lands over the scene rather than under it.
+/// Draw the marquee, if one is being dragged. From `draw_ui` only, beside the
+/// viewport's other overlays: `ui.*` has no context in `update`.
 pub fn draw_marquee(S, k) {
     let m = match S.gizmo.marquee {
         Some(m) => m,

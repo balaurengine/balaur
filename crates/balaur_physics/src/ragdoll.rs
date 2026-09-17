@@ -2,11 +2,11 @@
 //!
 //! Godot's *Create Physical Skeleton*. [`build_2d`] and [`build_3d`] read a
 //! rig's bones, and for every bone long enough to hold a shape they spawn a
-//! body with a capsule along it, hinged to its parent bone's body. The bodies
-//! are ordinary nodes carrying ordinary `body2d` / `collider2d` / `joint2d`
-//! components, which is what makes a ragdoll savable, undoable in the editor
-//! and visible in the inspector rather than a thing only this module knows
-//! about.
+//! body on the bone's own pose with a capsule along it, hinged to its parent
+//! bone's body. The bodies are ordinary nodes carrying ordinary `body2d` /
+//! `collider2d` / `joint2d` components, which is what makes a ragdoll
+//! savable, undoable in the editor and visible in the inspector rather than a
+//! thing only this module knows about.
 //!
 //! They are spawned under a container at the scene root rather than under the
 //! rig, because physics writes a simulated pose straight into a node's
@@ -19,11 +19,16 @@
 //! clip just wrote toward the pose its body ended up in. At `0` the clip wins
 //! outright and the bodies simulate unseen, at `1` the rig is limp, and
 //! between the two a hit can push a walk around without ending it.
+//!
+//! A clip writes only what it keys, so the pose a bone had before the blend
+//! goes back on it at the start of the next frame: otherwise an unkeyed hip
+//! would stay wherever it fell.
 
 use anyhow::{Result, anyhow};
+use balaur_core::collections::DetHashMap;
 use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
-use balaur_core::scene::{self, GlobalTransform, Parent, Transform};
+use balaur_core::scene::{self, Parent, Transform};
 use balaur_core::skeleton::{self, Bone};
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
@@ -99,22 +104,19 @@ impl Recipe {
     }
 }
 
-/// One bone's segment in world space: where it starts, where it ends, and
-/// which bone it hangs from.
+/// One bone's segment in world space: where it starts, where it ends, how
+/// the bone itself is turned, and which bone it hangs from.
 struct Segment {
     bone: Entity,
     parent: Option<Entity>,
     from: Vec3,
     to: Vec3,
+    rotation: Quat,
 }
 
 impl Segment {
     fn length(&self) -> f32 {
         (self.to - self.from).length()
-    }
-
-    fn middle(&self) -> Vec3 {
-        (self.from + self.to) * 0.5
     }
 }
 
@@ -192,6 +194,7 @@ fn segments(eng: &Engine, rig: Entity, dim3: bool) -> Vec<Segment> {
                 parent,
                 from,
                 to,
+                rotation: rotation(bone),
             })
         })
         .filter(|s| s.length() > MIN_BONE)
@@ -260,7 +263,8 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     Ok(made.into_iter().map(|(_, node)| node).collect())
 }
 
-/// One bone's body: a capsule along the segment, at its middle.
+/// One bone's body: on the bone's pose, so the blend copies it back as it is,
+/// with the capsule turned inside it to lie along the segment.
 fn spawn_body(
     eng: &Engine,
     container: Entity,
@@ -277,15 +281,13 @@ fn spawn_body(
         scene::spawn_node(&mut world, &name, container)
     };
     let length = segment.length();
-    let along = (segment.to - segment.from) / length;
-    // A capsule stands along its own y, so the body is turned to put y on
-    // the bone rather than the capsule being described some other way.
-    let rotation = Quat::from_rotation_arc(Vec3::Y, along);
+    let inverse = segment.rotation.inverse();
+    let along = inverse * (segment.to - segment.from);
     {
         let world = eng.world();
         if let Ok(mut t) = world.get::<&mut Transform>(node) {
-            t.position = segment.middle();
-            t.rotation = rotation;
+            t.position = segment.from;
+            t.rotation = segment.rotation;
         }
     }
     let body = if dim3 { c::BODY_3D } else { c::BODY_2D };
@@ -315,6 +317,16 @@ fn spawn_body(
         k::FRICTION.into(),
         toml::Value::Float(f64::from(recipe.friction)),
     );
+    shape.insert(k::OFFSET.into(), vector(along * 0.5, dim3));
+    // A capsule stands along its own y.
+    let turn = Quat::from_rotation_arc(Vec3::Y, along / length);
+    let turn = if dim3 {
+        let (x, y, z) = turn.to_euler(glamx::EulerRot::XYZ);
+        vector(Vec3::new(x, y, z), true)
+    } else {
+        toml::Value::Float(f64::from(libm::atan2f(-along.x, along.y)))
+    };
+    shape.insert(k::OFFSET_ROTATION.into(), turn);
     balaur_core::components::add(eng, node, collider, Some(&toml::Value::Table(shape)))?;
     Ok(node)
 }
@@ -454,6 +466,59 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
     );
 }
 
+/// One bone's local pose, as a snapshot row keeps it.
+type Pose = ([f32; 3], [f32; 4]);
+
+/// What the blend found on a bone and what it left there.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Blended {
+    incoming: Pose,
+    written: Pose,
+}
+
+/// Every bone the blend wrote this frame.
+#[derive(Default)]
+pub(crate) struct BlendMemory(pub(crate) DetHashMap<Entity, Blended>);
+
+/// Put back the pose each blended bone had before the blend, ahead of the
+/// clip. A bone something else moved since keeps that move.
+pub(crate) fn restore_system(eng: &Engine, _dt: f32) {
+    if eng.frozen_root().is_some() || eng.paused() {
+        return;
+    }
+    let memory = std::mem::take(&mut eng.resource::<BlendMemory>().borrow_mut().0);
+    let world = eng.world();
+    for (bone, pose) in memory {
+        let Ok(mut t) = world.get::<&mut Transform>(bone) else {
+            continue;
+        };
+        if t.position == Vec3::from_array(pose.written.0)
+            && t.rotation == Quat::from_array(pose.written.1)
+        {
+            t.position = Vec3::from_array(pose.incoming.0);
+            t.rotation = Quat::from_array(pose.incoming.1);
+        }
+    }
+}
+
+pub(crate) fn save_memory(eng: &Engine) -> serde_json::Value {
+    let memory = eng.resource::<BlendMemory>();
+    let rows = crate::keyed(&eng.world(), &memory.borrow().0);
+    serde_json::to_value(rows).unwrap_or(serde_json::Value::Null)
+}
+
+pub(crate) fn load_memory(eng: &Engine, value: &serde_json::Value) {
+    let rows = match serde_json::from_value(value.clone()) {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring the ragdoll blend");
+            return;
+        }
+    };
+    let memory = crate::resolved(eng, rows);
+    eng.resource::<BlendMemory>().borrow_mut().0 = memory;
+}
+
 /// Move every bone from the pose the clip wrote toward the pose its body
 /// ended up in.
 ///
@@ -465,6 +530,8 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
     if eng.frozen_root().is_some() || eng.paused() {
         return;
     }
+    let memory = eng.resource::<BlendMemory>();
+    let mut memory = memory.borrow_mut();
     let world = eng.world();
     let rigs: Vec<(Entity, Ragdoll)> = world
         .query::<(Entity, &Ragdoll)>()
@@ -477,6 +544,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
             tracing::debug!(bodies = ragdoll.bodies, "ragdoll bodies name no node");
             continue;
         };
+        // Parents first, so a bone's parent pose is the one blended this frame.
         for bone in skeleton::bones_under(&world, rig) {
             let Ok(name) = world.get::<&scene::Name>(bone) else {
                 continue;
@@ -484,32 +552,22 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
             let Some(body) = scene::find_node(&world, container, &name.0) else {
                 continue;
             };
-            // Where the body's middle puts the bone's own origin: the body
-            // was built centred on the segment, so the origin is half a bone
-            // back along the capsule's axis.
-            let (Ok(body_global), Ok(bone_global)) = (
-                world.get::<&GlobalTransform>(body),
-                world.get::<&GlobalTransform>(bone),
-            ) else {
-                continue;
-            };
-            let half = (bone_global.position - body_global.position).length();
-            let wanted_position = body_global.position + body_global.rotation * Vec3::NEG_Y * half;
-            let wanted_rotation = body_global.rotation;
-            drop(body_global);
-            drop(bone_global);
             drop(name);
-            // The bone's local frame: what the parent's world pose leaves.
+            // Composed rather than read off `GlobalTransform`, which the
+            // scene sync has not caught up with since the step.
+            let (wanted_position, wanted_rotation) = world_pose(&world, body);
             let parent = world.get::<&Parent>(bone).ok().map(|p| p.0);
-            let (parent_position, parent_rotation) = parent
-                .and_then(|p| world.get::<&GlobalTransform>(p).ok())
-                .map_or((Vec3::ZERO, Quat::IDENTITY), |g| (g.position, g.rotation));
+            let (parent_position, parent_rotation) =
+                parent.map_or((Vec3::ZERO, Quat::IDENTITY), |p| world_pose(&world, p));
             let inverse = parent_rotation.inverse();
             let local_position = inverse * (wanted_position - parent_position);
             let local_rotation = inverse * wanted_rotation;
             if let Ok(mut t) = world.get::<&mut Transform>(bone) {
+                let incoming = (t.position.to_array(), t.rotation.to_array());
                 t.position = t.position.lerp(local_position, ragdoll.blend);
                 t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend);
+                let written = (t.position.to_array(), t.rotation.to_array());
+                memory.0.insert(bone, Blended { incoming, written });
             }
         }
     }

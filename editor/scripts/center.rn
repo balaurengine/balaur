@@ -300,6 +300,8 @@ fn viewport(S, k) {
             }
         });
     }
+    // Before the chrome's early return: a box select draws with the chrome hidden.
+    crate::gizmo::draw_marquee(S, k);
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
