@@ -190,6 +190,11 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
     });
     m.function("pick_folder", |eng: &Engine, ()| {
         let picked = pick_folder();
+        // What the reader picked is theirs to hand over, so `fs.*` may read
+        // it: Import project looks inside for the manifest.
+        if let Some(folder) = &picked {
+            balaur::file_api::add_root(eng, folder);
+        }
         let state = eng.resource::<ProjectState>();
         state.borrow_mut().picked.clone_from(&picked);
         Ok(picked.map_or(Value::Nil, Value::Str))

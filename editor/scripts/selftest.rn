@@ -1220,37 +1220,55 @@ pub fn manager_screen(S) {
 const GODOT_PROJECT = "config_version=5\n\n[application]\n\nconfig/name=\"Selftest\"\nrun/main_scene=\"res://main.tscn\"\n";
 const GODOT_SCENE = "[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\"]\n";
 
-// Import project: the button's own half, without the open that would quit
-// this process. What it writes is a balaur project beside the one it read.
+// Import project: the button's own half, with a hand-off in place of the open
+// that would quit this process. The files land over the frames that follow.
 fn converting_a_project(S) {
     let home = engine::user_data_dir();
+    // Where new projects land. The screen sets this from the preferences; a
+    // run editing a project never opened the screen, so it is empty here.
+    S.manager.parent = home;
+    // A folder with no manifest is refused by name, before anything starts.
+    let empty = home + "/selftest-not-a-project";
+    fs::write(empty + "/notes.txt", "nothing to import here");
+    let refused = crate::manager::convert(S, empty, |S, path| {});
+    check(refused == "", "a folder with no project is refused");
+    check(S.manager.failed.contains("project.godot"),
+        format!("saying what it looked for ({})", S.manager.failed));
+    fs::remove(empty);
+
     let source = home + "/selftest-godot";
     fs::write(source + "/project.godot", GODOT_PROJECT);
     fs::write(source + "/main.tscn", GODOT_SCENE);
-    // Where new projects land. The screen sets this from the preferences; a
-    // run editing a project never opened the screen, so it is empty here and
-    // `converted` would aim at the root of the filesystem.
-    S.manager.parent = home;
     let target = home + "/selftest-godot-balaur";
     fs::remove(target);
-
-    let landed = crate::manager::converted(S, source);
+    let landed = crate::manager::convert(S, source, |S, path| {
+        S.convert_demo.landed = path;
+    });
     check(landed == target, format!("a project folder converts beside itself ({})", landed));
+    check(crate::manager::converting(S), "as a job, not inside this frame");
+    S.convert_demo = #{ waited: 0, landed: "", source: source, target: target };
+}
+
+/// The conversion's end, once the job has walked every file.
+pub fn convert_step(S) {
+    let demo = S.convert_demo;
+    if crate::manager::converting(S) {
+        demo.waited += 1;
+        if demo.waited > 300 {
+            S.convert_demo = ();
+            check(false, "the conversion finished within 300 frames");
+        }
+        return;
+    }
+    S.convert_demo = ();
+    let target = demo.target;
+    check(demo.landed == target, format!("once done it hands over where it landed ({})", demo.landed));
     check(fs::exists(target + "/project.toml"), "with settings of its own");
     check(fs::exists(target + "/scenes/main.toml"), "and every scene it read");
     check(S.manager.note.contains("scene"), format!("saying what carried ({})", S.manager.note));
-
-    // A folder with no manifest is refused by name, not by a crash.
-    let empty = home + "/selftest-not-a-project";
-    fs::write(empty + "/notes.txt", "nothing to import here");
-    check(crate::manager::converted(S, empty) == "", "a folder with no project is refused");
-    check(S.manager.failed.contains("project.godot"),
-        format!("saying what it looked for ({})", S.manager.failed));
-
     project::forget(target);
     fs::remove(target);
-    fs::remove(source);
-    fs::remove(empty);
+    fs::remove(demo.source);
 }
 
 // The screen's other half: which build this is and what lines it may follow.

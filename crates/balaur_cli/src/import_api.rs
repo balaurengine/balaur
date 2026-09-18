@@ -205,8 +205,8 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
         (
             "start",
             &[],
-            "(path: string)",
-            "Import one file, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
+            "(path: string, project: string?)",
+            "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
             "running",
@@ -227,12 +227,6 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "()",
             "Stop the imports in flight at the end of the file each is writing. What they had written stays where it landed; each reports `cancelled` with the count it reached.",
         ),
-        (
-            "into",
-            &[],
-            "(path: string, project: string)",
-            "Import one file into a project that is not the one being edited, in one call. What the start screen converts a Godot project with, before it opens the project it wrote. Answers what `file` answers.",
-        ),
     ]);
     m.function("handles", |_: &Engine, path: String| {
         Ok(Value::Bool(handles(Path::new(&path))))
@@ -241,16 +235,20 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
         let project = eng.resource::<ImportState>().borrow().core.project.clone();
         Ok(import(Path::new(&path), &project))
     });
-    m.function("start", |eng: &Engine, path: String| {
-        Ok(Value::Bool(start(eng, Path::new(&path))))
-    });
+    m.function(
+        "start",
+        |eng: &Engine, (path, project): (String, Option<String>)| {
+            Ok(Value::Bool(start(
+                eng,
+                Path::new(&path),
+                project.map(PathBuf::from),
+            )))
+        },
+    );
     m.function("choose", |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
     m.function("cancel", |eng: &Engine, ()| {
         eng.resource::<ImportState>().borrow().cancel.set(true);
         Ok(Value::Nil)
-    });
-    m.function("into", |_: &Engine, (path, project): (String, String)| {
-        Ok(import(Path::new(&path), Path::new(&project)))
     });
     m.function("running", |eng: &Engine, ()| {
         let running = eng.resource::<ImportState>().borrow().running.get();
@@ -268,7 +266,7 @@ const LISTEN_DOC: &str = "Have the node's `on_import(event)`, or the `on_event` 
 #[cfg(all(feature = "import", not(target_family = "wasm")))]
 fn choose(eng: &Engine) -> bool {
     match pick() {
-        Some(path) => start(eng, Path::new(&path)),
+        Some(path) => start(eng, Path::new(&path), None),
         None => false,
     }
 }
@@ -309,12 +307,12 @@ fn choose(_: &Engine) -> bool {
 /// backend, which is an `Rc` and never crosses one, and a job under the tick
 /// is the same job in a browser tab as on a desktop.
 #[cfg(feature = "import")]
-fn start(eng: &Engine, file: &Path) -> bool {
+fn start(eng: &Engine, file: &Path, into: Option<PathBuf>) -> bool {
     let state = eng.resource::<ImportState>();
     let (project, running, cancel) = {
         let state = state.borrow();
         (
-            state.core.project.clone(),
+            into.unwrap_or_else(|| state.core.project.clone()),
             state.running.clone(),
             state.cancel.clone(),
         )
@@ -334,8 +332,8 @@ fn start(eng: &Engine, file: &Path) -> bool {
 
 /// A tab has none of the importers, so there is nothing to start.
 #[cfg(not(feature = "import"))]
-fn start(_: &Engine, file: &Path) -> bool {
-    let _ = file;
+fn start(_: &Engine, file: &Path, into: Option<PathBuf>) -> bool {
+    let _ = (file, into);
     false
 }
 

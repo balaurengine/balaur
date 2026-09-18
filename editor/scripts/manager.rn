@@ -21,6 +21,9 @@ pub fn state() {
         parent: "",
         note: "",
         failed: "",
+        // A project being converted: the manifest it reads, where it lands,
+        // how far along, and what to do once it is done. Empty when none is.
+        importing: #{},
         // The release feed, read once when the Engine tab opens.
         releases: [],
         asked: false,
@@ -168,7 +171,39 @@ fn head(S, k, w) {
         let tone = if S.manager.failed != "" { k.get("warn").unwrap_or(k.accent) } else { k.faint };
         ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
     }
+    if converting(S) {
+        progress(S, k, w);
+    }
+    if installing(S) {
+        install_progress(S, k, w);
+    }
 }
+
+// How far a conversion has got: the count, a bar, and the press that stops it.
+fn progress(S, k, w) {
+    let job = S.manager.importing;
+    let counted = if job.files > 0 { format!("{} of {} files", job.done, job.files) } else { "reading" };
+    ui::add_space(6);
+    ui::horizontal(#{ height: 22, width: w }, || {
+        ui::label(counted, style::mono_sm(k.dim));
+        ui::add_space(10);
+        ui::vertical(|| {
+            ui::add_space(9);
+            let part = if job.files > 0 { util::f(job.done) / util::f(job.files) } else { 0.0 };
+            ui::bar(part, #{ width: util::min(w - 220.0, 360.0), height: 4, track: k.sunken, fill: k.accent });
+        });
+        ui::right(|| {
+            if ui::pill("stop", #{
+                height: 22, size: style::SM, radius: 8, padding_x: 12,
+                fill: k.panel, color: k.dim,
+                tooltip: "Stop after the file it is on; what it wrote stays",
+            }) {
+                import::cancel();
+            }
+        });
+    });
+}
+
 
 // The shell's own tab shape: a pill per page, the open one filled.
 fn tab_row(S, k, w) {
@@ -649,18 +684,20 @@ fn create(S) {
 // a line here and a route in `balaur_import`.
 const MANIFESTS = ["project.godot"];
 
-// Another engine's project becomes a balaur one beside it, converted before
-// it is opened: opening quits this process, so nothing after it would run.
+// Another engine's project becomes a balaur one beside it, opened once the
+// import says it is done: opening quits this process.
 fn import_project(S, folder) {
-    let path = converted(S, folder);
-    if path != "" {
-        go(S, path);
-    }
+    convert(S, folder, |S, path| go(S, path));
 }
 
-// The conversion alone, answering where it landed or "" with the reason in
-// `S.manager.failed`, so a test can drive it without the open that quits.
-pub fn converted(S, folder) {
+/// Start converting `folder` into a balaur project beside it, a few files a
+/// frame. Answers where it will land, or "" with the reason in
+/// `S.manager.failed`; `after(S, path)` runs once every file is written.
+pub fn convert(S, folder, after) {
+    if converting(S) {
+        S.manager.failed = "a project is already being imported";
+        return "";
+    }
     let manifest = "";
     for name in MANIFESTS {
         if manifest == "" && fs::exists(folder + "/" + name) {
@@ -678,15 +715,49 @@ pub fn converted(S, folder) {
         S.manager.failed = why;
         return "";
     }
-    let result = util::obj(import::into(manifest, path));
-    if let Some(why) = result.get("error") {
-        S.manager.failed = "importing " + manifest + ": " + why;
+    if !import::start(manifest, path) {
+        S.manager.failed = "importing " + manifest + " did not start";
         return "";
     }
     S.manager.failed = "";
-    S.manager.note = result.get("note").unwrap_or("");
-    log::info(format!("imported {} into {}: {}", manifest, path, S.manager.note));
+    S.manager.note = "importing " + name;
+    S.manager.importing = #{ source: manifest, path: path, done: 0, files: 0, after: after };
     path
+}
+
+/// Whether a project is being converted.
+pub fn converting(S) {
+    S.manager.importing.contains_key("source")
+}
+
+/// Whether an import report is about the conversion this screen started.
+pub fn owns(S, e) {
+    converting(S) && util::obj(e).get("source").unwrap_or("") == S.manager.importing.source
+}
+
+/// A report on the conversion: the count as it climbs, then how it ended.
+pub fn report(S, e) {
+    let ev = util::obj(e);
+    let kind = ev.get("kind").unwrap_or("");
+    let job = S.manager.importing;
+    if kind == "started" || kind == "wrote" {
+        job.done = ev.get("done").unwrap_or(0);
+        job.files = ev.get("files").unwrap_or(0);
+        S.manager.importing = job;
+        return;
+    }
+    S.manager.importing = #{};
+    if kind == "done" {
+        S.manager.note = ev.get("note").unwrap_or("");
+        log::info(format!("imported {} into {}: {}", job.source, job.path, S.manager.note));
+        let after = job.after;
+        after(S, job.path);
+    } else if kind == "failed" {
+        S.manager.failed = "importing " + job.source + ": " + ev.get("message").unwrap_or("");
+    } else if kind == "cancelled" {
+        S.manager.failed = format!("stopped importing after {} files; {} holds what was written",
+            ev.get("done").unwrap_or(0), job.path);
+    }
 }
 
 
@@ -707,6 +778,11 @@ fn put(S, channel, tag) {
 /// Open a project: the module remembers it, starts the editor on it and asks
 /// this process to quit.
 pub fn go(S, path) {
+    // Opening quits this process, which would leave a conversion half written.
+    if converting(S) {
+        S.manager.failed = "wait for the import to finish, or stop it";
+        return;
+    }
     let answer = util::obj(project::open(path));
     let failed = answer.get("error");
     if let Some(why) = failed {

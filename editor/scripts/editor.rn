@@ -141,6 +141,9 @@ pub fn init(this) {
         rows_demo: -1,
         import_demo: -1,
         import_waited: 0,
+        // The start screen's conversion under test: frames waited, and where
+        // it said it landed. Unit when no test is running.
+        convert_demo: (),
         rows_want: 0,
         rows_waited: 0,
         gesture_demo: -1,
@@ -271,7 +274,13 @@ pub fn on_export(this, e) {
 
 // Every import reports here: what is coming, each file, then the end.
 pub fn on_import(this, e) {
-    dropin::report(this.S, e);
+    let S = this.S;
+    // The start screen's conversion is its own; every other import is a drop's.
+    if manager::owns(S, e) {
+        manager::report(S, e);
+    } else {
+        dropin::report(S, e);
+    }
 }
 
 pub fn update(this, dt) {
@@ -357,6 +366,9 @@ pub fn update(this, dt) {
     }
     if S.import_demo >= 0 {
         selftest::import_step(S);
+    }
+    if S.convert_demo is Object {
+        selftest::convert_step(S);
     }
     // One queued import a frame, so a shot catches several at once.
     if !S.import_queue.is_empty() && S.frame >= S.import_from {
