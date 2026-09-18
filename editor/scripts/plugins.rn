@@ -130,7 +130,8 @@ fn load_one(S, path, id) {
 fn add_all(S, id, declared) {
     for entry in util::vec(declared.get("docks").unwrap_or([])) {
         S.registry.docks.push(#{
-            id: entry.id, name: entry.name,
+            id: entry.id, name: entry.name, tall: entry.get("tall").unwrap_or(false),
+            scrolls: entry.get("scrolls").unwrap_or(false),
             draw: script::shared(entry.draw, arity("dock")), owner: id,
         });
         // Registering a dock is not enough to reach it: a panel is drawn by

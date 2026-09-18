@@ -120,7 +120,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         write_enums(&mut out, level, &mut emitted);
         write_constants(&mut out, level, &context, &mut emitted);
     }
-    let defaults = write_members(&mut out, source, &context, &mut notes);
+    let defaults = write_members(&mut out, source, &context, &exports, &mut notes);
     let static_init = functions.iter().any(|f| f.name == "_static_init");
     write_functions(
         &mut out,
@@ -693,13 +693,27 @@ fn write_members(
     out: &mut String,
     source: &str,
     context: &Context,
+    exports: &[crate::godot::exports::Export],
     notes: &mut Vec<String>,
 ) -> bool {
     let mut assignments: Vec<String> = Vec::new();
+    // An exported vector or colour arrives as a list; the body reads `.x`.
+    for export in exports {
+        use crate::godot::exports::Kind;
+        let shape = match export.kind {
+            Some(Kind::Vec2 | Kind::Vec3) => "vec_of",
+            Some(Kind::Color) => "color_of",
+            _ => continue,
+        };
+        let field = safe(&export.name);
+        assignments.push(format!("    this.{field} = (gd.{shape})(this.{field});"));
+    }
+    // Godot sets an `@onready` member once the scene is in: after the rest,
+    // from the `init` hook, where this node's children are already built.
+    let mut ready: Vec<String> = Vec::new();
     for line in top_level(source) {
         let trimmed = line.as_str();
-        // An exported member is set from the scene, and an `@onready` one is
-        // a node lookup the port has to place.
+        // An exported member is set from the scene.
         if trimmed.starts_with("@export") {
             continue;
         }
@@ -709,25 +723,20 @@ fn write_members(
             continue;
         };
         let name = name_of(rest);
-        // Godot's `var x` with no value is null, and an `@onready var` is
-        // null until the scene is in. Both are that here, so a read before
-        // the write answers nothing rather than failing on a missing field.
-        let Some(value) = assigned(rest).filter(|_| !onready) else {
-            if onready {
-                notes.push(format!(
-                    "`@onready var {name}` reads the scene at load; set it in `init`"
-                ));
-            }
-            assignments.push(format!("    this.{} = ();", safe(&name)));
+        // Godot's `var x` with no value is null, so a read before the write
+        // answers nothing rather than failing on a missing field.
+        assignments.push(format!("    this.{} = ();", safe(&name)));
+        let Some(value) = assigned(rest) else {
             continue;
         };
+        // A node lookup reads `this`, which a plain default never needs.
         let body = gdscript::body(
             &[format!("var _x = {value}")],
             context,
             0,
             &[],
             true,
-            true,
+            !onready,
             "",
         );
         let Some(text) = body
@@ -736,10 +745,17 @@ fn write_members(
             .strip_prefix("let _x = ")
             .and_then(|t| t.strip_suffix(';'))
         else {
+            notes.push(format!("`{name}`: its default did not translate"));
             continue;
         };
-        assignments.push(format!("    this.{} = {text};", safe(&name)));
+        let line = format!("    this.{} = {text};", safe(&name));
+        if onready {
+            ready.push(line);
+        } else {
+            assignments.push(line);
+        }
     }
+    assignments.extend(ready);
     for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
         if context.members.contains(flag) {
             assignments.push(format!("    this.{flag} = true;"));

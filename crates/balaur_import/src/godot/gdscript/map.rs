@@ -39,6 +39,7 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
         "get_meta",
         "set_meta",
         "has_meta",
+        "remove_meta",
         "get_index",
         "move_child",
         "find_child",
@@ -101,7 +102,14 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "tr" => format!("strings::tr({all})"),
         "Vector2" | "Vector2i" => format!("(gd.vec2)({all})"),
         "Vector3" => format!("(gd.vec3)({all})"),
-        "Color" => format!("(gd.color)({all})"),
+        // Godot's `Color` takes a hex string or a colour, a colour and an
+        // alpha, three channels, or four.
+        "Color" => match args.len() {
+            1 => format!("(gd.color_of)({one})"),
+            2 => format!("(gd.color_alpha)({all})"),
+            3 => format!("(gd.color)({all}, 1.0)"),
+            _ => format!("(gd.color)({all})"),
+        },
         "Callable" => format!("(gd.callable)({all})"),
         "preload" | "load" => loaded(&args[0]),
         "instance_from_id" => format!("(gd.instance_from_id)({one})"),
@@ -463,9 +471,10 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "add_to_group" => format!("{receiver}.add_tag({one})"),
         "remove_from_group" => format!("{receiver}.remove_tag({one})"),
         "has_method" => format!("{receiver}.has_method({one})"),
-        "get_meta" => format!("(gd.get)({receiver}.meta, {all})"),
-        "set_meta" => format!("{receiver}.meta[{}] = {}", args.first()?, args.get(1)?),
-        "has_meta" => format!("(gd.has)({receiver}.meta, {one})"),
+        "get_meta" => format!("(gd.get_meta)({receiver}, {one}, {})", args.get(1).map_or("()", String::as_str)),
+        "set_meta" => format!("(gd.set_meta)({receiver}, {}, {})", args.first()?, args.get(1)?),
+        "has_meta" => format!("(gd.has_meta)({receiver}, {one})"),
+        "remove_meta" => format!("(gd.remove_meta)({receiver}, {one})"),
         // `ConfigFile`'s verbs. These names are not the config's alone, so
         // the shim checks the receiver and hands any other value to its own.
         "load" => with_receiver("config_load"),

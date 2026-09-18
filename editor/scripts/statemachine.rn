@@ -123,7 +123,7 @@ pub fn add_state(S, name) {
     // library's first, so a new state plays something from the start.
     let clips = anim::clip_names(S);
     let held = states(found.doc);
-    let own = clips.len() == 0 || clips.contains(name);
+    let own = clips.len() == 0 || util::contains(clips, name);
     held[name] = if own { "" } else { clips[0] };
     found.doc.states = held;
     if found.doc.get("start").unwrap_or("") == "" {

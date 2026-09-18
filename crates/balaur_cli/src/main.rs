@@ -784,6 +784,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let timings = opts.timings.then(|| log_timings(&mut app));
     let engine = app.engine.clone();
     if display == Display::Headless {
+        balaur::keep_log(&app);
         match frames {
             Some(frames) => {
                 for _ in 0..frames {

@@ -223,6 +223,18 @@ fn script_tooling_entries(modules: &mut BTreeMap<String, Module>) {
             "(f: fn, arity: int)",
             "Wrap a script function so it can be called from several places with a fixed argument count.",
         ),
+        (
+            "script",
+            "store",
+            "(key: string, value: any)",
+            "Keep any value under a key for as long as the app runs, held by reference: state no node owns, like a class's static variable.",
+        ),
+        (
+            "script",
+            "stored",
+            "(key: string)",
+            "What `store` kept under a key, the same value rather than a copy; nil when nothing was.",
+        ),
     ] {
         record(modules, module, name, args, doc);
     }

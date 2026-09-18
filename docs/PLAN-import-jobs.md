@@ -291,13 +291,19 @@ rather than itself.
    a `Stepped` that reads on its first slice and writes up to
    `FILES_PER_SLICE` after it, reporting `wrote` per file.
 
-   It is parked rather than given a thread, because the sink holds the file
-   backend and an `Rc` never crosses one. So a desktop import shares the frame
-   it no longer stops, and the browser runs the same job.
+   Where it runs is `task::step`'s choice. A desktop gives the job a thread,
+   which reads and writes the disk there: `ProjectSink` asks for the backend
+   at each write rather than holding the `Rc`, and the counters are atomics.
+   A tab keeps the job under the tick, because its filesystem is memory on
+   the main thread and a worker would find none of it. A tab built with
+   shared memory still hands the plan, the parse and the encode, to a worker
+   through `task::compute`, and writes it a slice at a time back here. A tab
+   without shared memory plans in the job's first slice.
 
-   A level and a Godot project cannot be sliced yet -- both walk their own
-   folder -- so `balaur_import::slices` says so and the job gives them one long
-   slice, with `files` zero to say the count is not known.
+   A level cannot be sliced yet -- it walks its own folder -- so
+   `balaur_import::slices` says so and the job gives it one long slice, with
+   `files` zero to say the count is not known. A Godot project is walked a
+   file at a time by `ProjectWalk`.
 
    `export_shared.rs` moved onto `jobs.rs` with it: `ExportCore` is
    `Reporting<ExportEvent>`, the event implements `Reported`, and that file is
@@ -443,9 +449,10 @@ as `k`. Every control now names its shape or is given a neutral one.
 - **No `on_files_dropped` hook.** Hooks address a node and a window's drop
   addresses none, and a hook would run in the frame, which is the thing being
   fixed.
-- **No shared-memory module for this.** `wasm-bindgen-rayon` gives a tab real
-  threads and costs cross-origin isolation, a nightly `-Z build-std` and a
-  second template. Yielding between files is enough.
+- **No shared-memory editor just for this.** The web editor is built without
+  shared memory. A shared-memory build of it plans on a worker, but a worker
+  cannot reach the tab's filesystem, so writing and walking a folder stay
+  under the tick there too.
 - **No importer in the game template.** A game reads what an import wrote; it
   never imports. The feature stays off there however cheap it turns out to be.
 - **No import over a project's own files.** A drop copies into the project

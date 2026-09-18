@@ -32,7 +32,7 @@ const TAIL = 200;
 pub fn setup(url) {
     let sink = #{
         url: "",
-        run: run_id(),
+        run: "",
         cursor: 0,
         pending: [],
         sending: [],
@@ -50,7 +50,7 @@ pub fn setup(url) {
         spool_in: 0.0,
         dirty: false,
         registered: false,
-        started_at: engine::unix_time(),
+        started_at: 0.0,
         last_flush: "never",
         accepted: 0,
         dropped: 0,
@@ -73,7 +73,7 @@ pub fn server_url() {
 /// One frame: ask for the policy until it comes, read the new lines, and
 /// send a batch when one is due. Replies come back through `settle`.
 pub fn pump(sink, node, dt) {
-    if sink.url == "" {
+    if sink.url == "" || !started(sink) {
         return;
     }
     if !sink.enabled {
@@ -97,7 +97,7 @@ pub fn pump(sink, node, dt) {
         flush(sink, node);
     }
     sink.spool_in -= dt;
-    if sink.dirty && sink.spool_in <= 0.0 {
+    if sink.dirty && (urgent || sink.spool_in <= 0.0) {
         spool(sink);
     }
 }
@@ -141,9 +141,11 @@ pub fn settle(sink, reply) {
     sink.in_flight = ();
     let batch = sink.sending;
     sink.sending = [];
-    sink.dirty = true;
     let status = reply.get("status").unwrap_or(0);
     if status >= 200 && status < 300 {
+        // Written now, not on the next second: a run that quits after this
+        // reply must not leave delivered lines to be sent again.
+        spool(sink);
         sink.registered = true;
         let (ok, answer) = script::attempt(|| json::parse(reply["body"]));
         let counts = if ok && answer is Object { answer } else { #{} };
@@ -155,6 +157,7 @@ pub fn settle(sink, reply) {
     }
     if status >= 400 && status < 500 {
         // Refused for good: retrying would pin the buffer full.
+        spool(sink);
         sink.dropped += batch.len();
         sink.last_flush = format!("{} · refused {} lines", status, batch.len());
         return true;
@@ -164,6 +167,7 @@ pub fn settle(sink, reply) {
     }
     sink.pending = batch;
     trim(sink);
+    sink.dirty = true;
     sink.last_flush = format!("failed ({}): kept for the next try", describe(reply));
     true
 }
@@ -223,8 +227,9 @@ fn policy_came(sink, reply) {
 
 /// What the server asked for: on or off, a level floor, per-category floors.
 pub fn apply_policy(sink, policy) {
-    let enabled = policy.get("enabled").unwrap_or(false);
-    sink.enabled = enabled is bool && enabled;
+    let asked = policy.get("enabled").unwrap_or(false);
+    let enabled = asked is bool && asked;
+    sink.enabled = enabled;
     let level = policy.get("level").unwrap_or("info");
     let floor = if level is String { level } else { "info" };
     sink.level = floor;
@@ -258,10 +263,10 @@ fn take(sink) {
     let now = engine::unix_time();
     let urgent = false;
     for entry in read["entries"] {
-        if !wanted(sink, entry) {
+        let record = record_of(entry, now);
+        if !wanted(sink, record) {
             continue;
         }
-        let record = record_of(entry, now);
         if record["level"] == "error" {
             urgent = true;
         }
@@ -274,10 +279,9 @@ fn take(sink) {
     urgent
 }
 
-fn wanted(sink, entry) {
-    let tag = entry["tag"];
-    let floor = sink.categories.get(tag).unwrap_or(sink.level);
-    rank(entry["level"]) >= rank(floor)
+fn wanted(sink, record) {
+    let floor = sink.categories.get(record["category"]).unwrap_or(sink.level);
+    rank(record["level"]) >= rank(floor)
 }
 
 fn rank(level) {
@@ -299,8 +303,11 @@ fn rank(level) {
     2
 }
 
+/// A line as the server takes it. A script's `[script] …` line is filed under
+/// `script`, the bracket's word, rather than the engine module that logged it.
 fn record_of(entry, now) {
-    let message = format!("{}", entry["message"]);
+    let (category, text) = bracketed(format!("{}", entry["message"]), entry["tag"]);
+    let message = text;
     for field in entry["fields"] {
         message = format!("{} {}={}", message, field["name"], field["value"]);
     }
@@ -308,11 +315,39 @@ fn record_of(entry, now) {
         "seq": entry["seq"],
         "at": now,
         "level": entry["level"],
-        "category": entry["tag"],
+        "category": category,
         "message": message,
         "lobby_id": "",
         "screen": "",
     }
+}
+
+/// `[word] rest` as `(word, rest)`; any other message keeps `tag`.
+fn bracketed(message, tag) {
+    if !message.starts_with("[") {
+        return (tag, message);
+    }
+    let word = "";
+    let rest = "";
+    let state = #{ closed: false, skipped: false };
+    for c in message.chars() {
+        if state.closed {
+            if !state.skipped && c == ' ' {
+                state.skipped = true;
+                continue;
+            }
+            state.skipped = true;
+            rest.push(c);
+        } else if c == ']' {
+            state.closed = true;
+        } else if c != '[' {
+            word.push(c);
+        }
+    }
+    if !state.closed || word == "" || word.len() > 24 {
+        return (tag, message);
+    }
+    return (word, rest);
 }
 
 /// An immediate repeat counts on the line before it instead of adding one.
@@ -405,8 +440,7 @@ fn spool(sink) {
     script::attempt(|| save::write(SPOOL, #{ "entries": held }));
 }
 
-/// What the last run left: its unsent lines, and the tail of its log file
-/// when that recorded an error or a panic.
+/// The lines the last run spooled and never saw delivered.
 fn recovered() {
     let out = [];
     let (ok, kept) = script::attempt(|| save::read(SPOOL));
@@ -417,12 +451,10 @@ fn recovered() {
         }
     }
     script::attempt(|| save::remove(SPOOL));
-    for record in previous_tail() {
-        out.push(record);
-    }
     out
 }
 
+/// The tail of the last run's log file, when it recorded an error or a panic.
 fn previous_tail() {
     let path = log::file();
     if !(path is String) {
@@ -450,22 +482,61 @@ fn previous_tail() {
     if !failed {
         return [];
     }
-    let now = engine::unix_time();
     let out = [];
     let n = from;
     while n < lines.len() {
-        out.push(#{ "seq": 0, "at": now, "level": "error", "category": "engine_log", "message": lines[n], "lobby_id": "", "screen": "" });
+        let line = lines[n];
+        out.push(#{ "seq": 0, "at": 0.0, "level": level_in(line), "category": "engine_log", "message": line, "lobby_id": "", "screen": "" });
         n += 1;
     }
     out
 }
 
+/// A log file line's own level, its second word; a line the engine did not
+/// write, a panic's, counts as an error.
+fn level_in(line) {
+    let words = [];
+    for word in line.split(' ') {
+        if word != "" {
+            words.push(word);
+        }
+        if words.len() == 2 {
+            break;
+        }
+    }
+    if words.len() == 2 && rank(words[1]) != 2 {
+        return words[1];
+    }
+    if words.len() == 2 && words[1] == "info" {
+        return "info";
+    }
+    "error"
+}
+
+/// Name the run once the clock reads, which it does from the first tick on.
 /// Unique per run and never kept: a reused id would merge two runs, and the
 /// server binds an id to the first player who sends it.
-fn run_id() {
+fn started(sink) {
+    if sink.run != "" {
+        return true;
+    }
     let now = engine::unix_time();
-    let ms = if now is f64 { (now * 1000.0) as i64 } else { now * 1000 };
-    format!("{}-{}", engine::device_id(), ms)
+    let seconds = if now is f64 { now } else { now as f64 };
+    if seconds <= 0.0 {
+        return false;
+    }
+    sink.run = format!("{}-{}", engine::device_id(), (seconds * 1000.0) as i64);
+    sink.started_at = seconds;
+    // Read now rather than in `setup`: the log file opens after `init`.
+    for record in previous_tail() {
+        sink.recovered.push(record);
+    }
+    for record in sink.recovered {
+        if record["at"] == 0.0 {
+            record["at"] = seconds;
+        }
+    }
+    true
 }
 
 fn trimmed(url) {

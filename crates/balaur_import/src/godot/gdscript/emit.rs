@@ -607,7 +607,14 @@ impl<'a> Emitter<'a> {
             }
             Expr::Call(callee, args) => self.call(callee, args),
             Expr::Unary(op, inner) => {
+                let literal = matches!(**inner, Expr::Int(_) | Expr::Float(_));
                 let inner = self.expression(inner);
+                // Rune negates a number and nothing else; a vector goes through
+                // the shim, which scales it.
+                if *op == "-" && !literal {
+                    self.uses_shim = true;
+                    return format!("(gd.neg)({inner})");
+                }
                 format!("{op}{inner}")
             }
             Expr::Binary(op, left, right) => self.binary(op, left, right),

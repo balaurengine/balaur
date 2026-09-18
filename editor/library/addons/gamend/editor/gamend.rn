@@ -11,11 +11,15 @@ const LOGS_KEY = "gamend:logs";
 const FLUSH_KEY = "gamend:logs_flush";
 
 pub fn state() {
-    #{ requests: #{}, replies: #{}, ids: #{}, filter: "all", open: #{}, kv_key: "" }
+    #{
+        requests: #{}, replies: #{}, ids: #{}, filter: "all", open: #{}, kv_key: "",
+        // Wrapped once: the kit calls it from the editor's own unit.
+        page: script::shared(page, 3),
+    }
 }
 
 pub fn register() {
-    #{ docks: [#{ id: "gamend", name: "Gamend", draw: draw }] }
+    #{ docks: [#{ id: "gamend", name: "Gamend", tall: true, scrolls: true, draw: draw }] }
 }
 
 fn core_tabs() {
@@ -93,19 +97,17 @@ pub fn draw(S, k) {
         gamend::configure(());
     }
     header(S, k, me);
-    let names = core_tabs();
+    let names = [];
     for feature in features() {
         names.push(feature.name);
     }
-    let tabs = S.kit.tabs;
-    let tab = tabs(S, k, "gamend", names);
-    ui::separator();
-    ui::scroll("gamend-body", #{ axis: "vertical" }, || {
-        body(S, k, me, tab);
-    });
+    let groups = [#{ title: "", names: core_tabs() }, #{ title: "FEATURES", names: names }];
+    let pages = S.kit.pages;
+    pages(S, k, "gamend", groups, me.page);
 }
 
-fn body(S, k, me, tab) {
+fn page(S, k, tab) {
+    let me = S.plugins["gamend"];
     if tab == "Overview" {
         overview(S, k, me);
     } else if tab == "User" {
@@ -123,28 +125,48 @@ fn body(S, k, me, tab) {
     }
 }
 
+/// The two servers, the links, and who is signed in over what: one row
+/// where there is room, two in a side dock.
 fn header(S, k, me) {
     let target = gamend::target();
-    let url = gamend::connection()["url"];
+    let link = gamend::connection();
+    let url = link["url"];
+    let narrow = ui::available_width() < 560.0;
     ui::horizontal(#{ height: 26 }, || {
         ui::spacing(4, 0);
         for name in ["production", "local"] {
             let at = target[name];
             let on = target["name"] == name && url == at;
             let role = if on { "chip_on" } else { "chip" };
-            if ui::pill(format!("{} · {}", name, host_of(at)), #{ role: role, tooltip: at }) && !on {
+            let label = if narrow { name } else { format!("{} · {}", name, host_of(at)) };
+            if ui::pill(label, #{ role: role, tooltip: at }) && !on {
                 pick(S, me, name);
             }
         }
-        ui::add_space(8);
-        if ui::pill("Open", #{ role: "chip", tooltip: url }) {
-            engine::open_url(url);
-        }
-        if ui::pill("Admin", #{ role: "chip", tooltip: url + "/admin" }) {
-            engine::open_url(url + "/admin");
+        if !narrow {
+            ui::add_space(8);
+            links_and_status(k, link);
         }
     });
-    status(k, gamend::connection());
+    if narrow {
+        ui::horizontal(#{ height: 26 }, || {
+            ui::spacing(4, 0);
+            links_and_status(k, link);
+        });
+    }
+    ui::add_space(4);
+}
+
+fn links_and_status(k, link) {
+    let url = link["url"];
+    if ui::pill("Open", #{ role: "chip", tooltip: url }) {
+        engine::open_url(url);
+    }
+    if ui::pill("Admin", #{ role: "chip", tooltip: url + "/admin" }) {
+        engine::open_url(url + "/admin");
+    }
+    ui::add_space(8);
+    status(k, link);
 }
 
 /// Talk to the other of the project's servers from now on, remembered for
@@ -170,7 +192,7 @@ fn status(k, link) {
     }
     let sockets = if open > 0 { format!("socket open, {} topics", topics) } else { "no socket open" };
     let color = if user is String { k.sage } else { k.dim };
-    line(format!("{}  ·  {}  ·  {}", link["url"], who, sockets), color);
+    ui::label(format!("{}  ·  {}", who, sockets), #{ size: 11.5, font: ui::FONT_MONO, color: color, truncate: true });
 }
 
 fn overview(S, k, me) {
@@ -252,9 +274,14 @@ fn signed_out(S, k, me) {
     let saved = saved_session();
     if saved is Object {
         let section = S.kit.section;
-        let tree = S.kit.tree;
+        let field = S.kit.field;
         section(k, "Saved session, from an earlier run");
-        tree(S, k, "gamend:saved", saved, #{});
+        for key in saved.keys() {
+            // A token is masked here as on a live session: a screenshot of
+            // the dock should never carry one.
+            let secret = key.ends_with("token");
+            field(S, k, key, saved[key], #{ mask: secret, copy: secret });
+        }
         ui::horizontal(#{ height: 26 }, || {
             ui::spacing(4, 0);
             if ui::pill("Restore it", #{ role: "chip" }) {
@@ -400,7 +427,8 @@ fn logs(S, k) {
             field(S, k, name, report.get(name).unwrap_or(""), #{});
         }
         if ui::pill("Flush now", #{ role: "chip" }) {
-            scene::root().meta[FLUSH_KEY] = "yes";
+            let root = scene::root();
+            root.meta[FLUSH_KEY] = "yes";
         }
     } else {
         line("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", k.faint);

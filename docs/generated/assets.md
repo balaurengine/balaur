@@ -462,7 +462,7 @@ A project's own faces under `fonts/` read these; the UI applies them.
 | `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |
 | `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |
 | `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |
-| `antialias` | `true`, `false` | `true` | Off draws every glyph pixel fully on or off, for a pixel face. Labels, buttons and world text honour it; text egui draws alone stays smooth. |
+| `antialias` | `true`, `false` | `true` | Off draws every glyph pixel fully on or off, for a pixel face. Labels, buttons and world text drawn at its own size show it; egui's own text and magnified world text stay smooth. |
 
 ### Model keys
 

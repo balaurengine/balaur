@@ -286,11 +286,6 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: save_folder,
     },
     EngineOp {
-        module: "save",
-        name: "set_home",
-        call: save_set_home,
-    },
-    EngineOp {
         module: "engine",
         name: "user_data_dir_of",
         call: user_data_dir_of_project,
@@ -1034,15 +1029,6 @@ fn save_folder(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(
         crate::save::folder(eng).to_string_lossy().into_owned(),
     ))
-}
-
-fn save_set_home(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let home = match args.first() {
-        Some(Value::Str(path)) if !path.is_empty() => Some(std::path::PathBuf::from(path)),
-        _ => None,
-    };
-    crate::save::set_home(eng, home);
-    Ok(Value::Nil)
 }
 
 fn user_data_dir_of_project(eng: &Engine, args: &[Value]) -> Result<Value> {

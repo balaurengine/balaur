@@ -295,7 +295,7 @@ mod file {
     struct Sink {
         path: PathBuf,
         #[cfg(not(target_family = "wasm"))]
-        file: std::fs::File,
+        file: std::fs::File, // os files: native only
     }
 
     static SINK: Mutex<Option<Sink>> = Mutex::new(None);
@@ -317,10 +317,14 @@ mod file {
     /// When the directory or the file cannot be made.
     #[cfg(not(target_family = "wasm"))]
     pub fn open(dir: &Path, name: &str, keep: usize) -> anyhow::Result<PathBuf> {
-        std::fs::create_dir_all(dir)?;
+        std::fs::create_dir_all(dir)?; // os files: native only
         let path = dir.join(format!("{name}.log"));
         rotate(dir, name, keep);
-        let file = std::fs::File::create(&path)?;
+        let mut file = std::fs::File::create(&path)?; // os files: native only
+        // What was logged before the file opened, `init` included, goes first.
+        for entry in &super::since(0).0 {
+            let _ = writeln!(file, "{}", line_of(entry));
+        }
         let had = lock().replace(Sink {
             path: path.clone(),
             file,
@@ -356,24 +360,29 @@ mod file {
         if keep == 0 {
             return;
         }
-        let _ = std::fs::remove_file(at(keep));
+        let _ = std::fs::remove_file(at(keep)); // os files: native only
         for n in (0..keep).rev() {
-            let _ = std::fs::rename(at(n), at(n + 1));
+            let _ = std::fs::rename(at(n), at(n + 1)); // os files: native only
         }
     }
 
     /// One line per entry: elapsed seconds, level, tag, message, fields.
+    #[cfg(not(target_family = "wasm"))]
+    fn line_of(entry: &LogEntry) -> String {
+        let mut line = format!(
+            "{:10.3} {:5} {}: {}",
+            entry.time, entry.level, entry.tag, entry.message
+        );
+        for (name, value) in &entry.fields {
+            let _ = std::fmt::Write::write_fmt(&mut line, format_args!(" {name}={value}"));
+        }
+        line
+    }
+
     pub(super) fn append(entry: &LogEntry) {
         #[cfg(not(target_family = "wasm"))]
         if let Some(sink) = lock().as_mut() {
-            let mut line = format!(
-                "{:10.3} {:5} {}: {}",
-                entry.time, entry.level, entry.tag, entry.message
-            );
-            for (name, value) in &entry.fields {
-                line.push_str(&format!(" {name}={value}"));
-            }
-            let _ = writeln!(sink.file, "{line}");
+            let _ = writeln!(sink.file, "{}", line_of(entry));
             if entry.level == "error" {
                 let _ = sink.file.flush();
             }

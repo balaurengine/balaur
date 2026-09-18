@@ -3,7 +3,7 @@
 // played here writes lands in the same folder as the game run on its own.
 
 pub fn register() {
-    #{ docks: [#{ id: "userdata", name: "User data", draw: draw }] }
+    #{ docks: [#{ id: "userdata", name: "User data", tall: true, draw: draw }] }
 }
 
 pub fn draw(S, k) {

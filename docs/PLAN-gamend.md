@@ -216,10 +216,10 @@ editor plugin the addon carries (`addons/gamend/editor/gamend.rn`), so only a
 project with the addon shows it, and it is written the way anyone's plugin
 is: `register()` returning docks, windows and commands.
 
-**One header, six sub-tabs, then a tab per feature.** The header is always
-there: the server target as two chips, `Open` and `Admin` links to the
-configured URL, and one status line (signed in as whom, socket state,
-topics).
+**One header, six sub-tabs, then a tab per feature.** The header is one
+row: the server target as two chips, `Open` and `Admin` links to the
+configured URL, and who is signed in over what socket. The tabs are a
+sidebar beside the body, since a bottom dock has width and little height.
 
 | Tab | Shows | Works signed out |
 | --- | --- | --- |
@@ -246,7 +246,8 @@ cannot import the editor's modules; it gets `S`, the theme `k` and the `ui`
 verbs. The parts this dock needs are the parts anyone's dock needs, so they
 are written once in the editor and handed to every plugin as closures at
 `S.kit`: `tabs(S, k, id, names)` answering the active one and wrapping to the
-width, `tree(S, k, id, value, opts)` (editable with `edit`),
+width, `pages(S, k, id, groups, draw)` (a sidebar of pages beside the open
+one, a dropdown when narrow), `tree(S, k, id, value, opts)` (editable with `edit`),
 `field(S, k, label, value, opts)` with copy and mask, `section(k, title)`,
 `empty(k, text)`, `files(S, k, id, opts)` (a folder's TOML and JSON files as
 editable structures, with reveal), `game_data(S)` and `save_prefs(S)`. The
@@ -279,7 +280,7 @@ slot, so a developer sees and changes what the game reads.
 **Where saves are while the editor plays.** `save::` files live under the
 user data directory named after the project. A game played inside the
 editor runs in the editor's engine, whose directory is the editor's own, so
-the editor points `save::` at the game's with `save::set_home` when it
+the editor points `save::` at the game's with `project::use_data` when it
 loads a project. A game played there and the same game run alone keep one
 set of saves, and the dock reads what either wrote.
 
@@ -347,27 +348,28 @@ no server dependency and can start now.
 - **E3. The Gamend dock.** §2b is the design. In order:
   - **E3a, built.** The plugin seam for addons (`addons/<name>/editor/`),
     `gamend::connection()` and `activity()`, and a first dock drawing both.
-  - **E3b. The shell and the kit.** `S.kit` in the editor (tabs, tree,
-    field, section, table), then the header, the six sub-tabs, and Overview
-    and Activity on them, with `args` and `reply` kept per row and
-    `clear_activity`. `editor/plugins/counter.rn` moves onto the kit too,
-    as the worked example. Ends with: a hook's reply opened in the dock.
-  - **E3c. The server target.** The `[gamend]` settings, `configure()`
-    reading them, the two chips and the two links. Ends with: one click
-    moves a played game from the production server to localhost, and the
-    exported pack still names production.
-  - **E3d. User and Data.** `gamend::session()` and `restore()`, `prefs.rn`,
-    the User tab with its masked tokens, the Data tab's local slots with
-    editing, and the server's key-value keys. Ends with: a pref changed in
-    the dock is what the running game reads next, signed in or not.
-  - **E3e. Lobby.** The lobby and party behind the joined topics, as
-    structures that follow `lobby_updated`. Ends with: a member going
-    offline shows in the dock when the game hears it.
-- **E4. Logs.** `log::since` and the log file in the engine, then `logs.rn`
-  in the addon (`docs/PLAN-gamend-bindings.md` step 6) and the Logs tab.
-  Ends with: a line logged by a game shows in the server's stream under the
-  run's id, and a run killed mid-match delivers its last lines on the next
-  launch.
+  - **E3b, built.** `S.kit` in the editor (`tabs`, `pages`, `tree`,
+    `field`, `section`, `empty`, `files`), the header, the sub-tabs, and
+    Overview and Activity on them, with `args` and `reply` kept per row and
+    `clear_activity`. `editor/plugins/counter.rn` is on the kit as the
+    worked example, and `editor/plugins/userdata.rn` is the generic User
+    data dock.
+  - **E3c, built.** The `[gamend]` settings, `configure()` reading them,
+    the two chips and the two links.
+  - **E3d, built.** `gamend::session()` and `restore()`, `prefs.rn`, the
+    User tab with its masked tokens, the Data tab's local slots with
+    editing, and one server key-value key at a time. Not yet: the keys a
+    game subscribed to, listed with their last values.
+  - **E3e, part built.** The lobby and party behind the joined topics, read
+    on open and on Refresh. Left: following `lobby_updated` so a member
+    going offline shows when the game hears it.
+  - **E3f, built.** A tab per server feature, each a list of `GET` views.
+- **E4, built.** `log::since` and the log file in the engine (lines logged
+  before it opened go in first), `logs.rn` and `log_sink.rn` in the addon,
+  and the Logs tab. Checked against a stub server: the policy, boot lines,
+  a folded repeat, an error flushing at once, the spool, and the last run's
+  tail. Left: `x-gamend-session` on the SDK's own calls and the socket's
+  `client_session` param, so server lines join the run's.
 
 ## 4. What CI can prove
 
@@ -395,7 +397,7 @@ can: a real NAT, a real region, a phone.
    (`docs/PLAN-steam.md` step 8) or the WebRTC relay answers it without a
    game server. Both stay.
 5. **Whose user data a played game writes.** Answered: the game's. The
-   editor points `save::` at the game's directory (`save::set_home`), so a
+   editor points `save::` at the game's directory (`project::use_data`), so a
    session kept while playing in the editor is found by `balaur run`.
 6. **The default server.** Answered: `https://gamend.org`, a hosted Gamend
    a new game tests against until it names its own.

@@ -428,8 +428,9 @@ keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How ma
 "#;
 
 /// Start this run's log file, unless `[log] file` is off. Only a real run
-/// opens one: a test boots apps without passing through here.
-fn keep_log(app: &App) {
+/// opens one: a test boots apps without passing through here. [`run`] calls
+/// it; a loop of its own, like the CLI's headless one, calls it first.
+pub fn keep_log(app: &App) {
     let eng = &app.engine;
     let setting = |key: &str| balaur_core::settings::get(eng, &format!("log/{key}"));
     if !setting("file").and_then(|v| v.as_bool()).unwrap_or(true) {

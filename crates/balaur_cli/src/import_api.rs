@@ -503,12 +503,8 @@ impl ImportJob {
     /// Say how it ended, and stop.
     fn over(&mut self, event: ImportEvent) -> Progress {
         // Let go first: on a thread, the tick may read the count as soon as
-        // the end arrives.
-        let _ = self
-            .running
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-                Some(n.saturating_sub(1))
-            });
+        // the end arrives. Counted up once when the job was made.
+        self.running.fetch_sub(1, Ordering::Relaxed);
         let _ = self.report.send(event);
         self.state = JobState::Over;
         Progress::Done

@@ -149,7 +149,6 @@ pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("remove", &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
         ("version", &[], "()", "The save version this build writes, from `[save] version`."),
         ("folder", &[], "()", "The directory slots are kept in, not created until something is written."),
-        ("set_home", &[], "(dir: string?)", "Keep slots under another user data directory from now on, nil for this run's own. What the editor does for a game it plays, so a run from the editor and one from `balaur run` share their saves."),
     ]);
 }
 

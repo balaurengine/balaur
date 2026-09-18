@@ -133,7 +133,7 @@ fn a_link_speaks_only_for_the_players_it_is_bound_to() {
     let mut impostor = NetSession::new(2, THREE, 64);
     impostor.add_peer(&far_app.engine, Box::new(far));
     for tick in 1..=20 {
-        impostor.set_input(Value::Int(i64::try_from(tick).unwrap()));
+        impostor.set_input(Value::Int(i64::from(tick)));
         impostor.advance(&mut far_app);
         host.advance(&mut host_app);
     }
@@ -158,7 +158,7 @@ fn an_absent_player_plays_nil_and_holds_nothing_back() {
     guest.add_bound_peer(&guest_app.engine, Box::new(far), 0, vec![0]);
     for tick in 1..=20 {
         host.set_input(Value::Int(1));
-        guest.set_input(Value::Int(i64::try_from(tick).unwrap()));
+        guest.set_input(Value::Int(i64::from(tick)));
         host.advance(&mut host_app);
         guest.advance(&mut guest_app);
     }

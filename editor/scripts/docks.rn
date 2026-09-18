@@ -142,7 +142,7 @@ pub fn panels(S) {
         "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true },
     };
     for entry in S.registry.docks {
-        table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: false };
+        table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: entry.tall };
     }
     S.panels = #{ at: S.frame, persona: S.persona, table: table };
     table
@@ -568,9 +568,9 @@ fn hide_tabs(side) {
 fn tabs_width(S, id) {
     let total = 0.0;
     for tab in S.docks[side_for(S, id)].tabs {
-        // 11 px, semibold: about 6.4 px a character, plus the pill's padding,
+        // 11 px, semibold: about 7 px a character, plus the pill's padding,
         // the close mark and the gap to the next one.
-        total += 30.0 + 6.4 * util::f(panel(S, tab).name.len());
+        total += 34.0 + 7.0 * util::f(panel(S, tab).name.len());
     }
     total
 }
@@ -658,7 +658,7 @@ pub fn draw_bottom_body(S, k) {
 /// holding contents taller than itself: a gap under the tabs, and the panel
 /// clipped to a few rows with empty sheet below it.
 fn body_scrolled(S, k, id) {
-    if scrolls_itself(id) {
+    if scrolls_itself(S, id) {
         body(S, k, id);
         return;
     }
@@ -668,9 +668,16 @@ fn body_scrolled(S, k, id) {
 }
 
 /// The panels that open a scroll of their own, because they want something
-/// the plain one does not do: a log follows what is arriving.
-fn scrolls_itself(id) {
-    id == "output" || id == "docs" || id == "bonemap" || id == "statemachine"
+/// the plain one does not do: a log follows what is arriving. A plugin's dock
+/// says so with `scrolls: true`.
+fn scrolls_itself(S, id) {
+    if id == "output" || id == "docs" || id == "bonemap" || id == "statemachine" {
+        return true;
+    }
+    match crate::plugins::dock(S, id) {
+        Some(entry) => entry.scrolls,
+        None => false,
+    }
 }
 
 /// The strip along the foot of the bottom dock: what is playing, and the

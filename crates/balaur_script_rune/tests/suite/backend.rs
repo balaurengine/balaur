@@ -983,3 +983,77 @@ fn values_filed_on_a_node_are_read_back_by_another_script() {
         "node handles compare"
     );
 }
+
+#[test]
+fn a_stored_value_is_the_same_value_when_read_back() {
+    let dir = project(&[
+        (
+            "writer.rn",
+            "pub fn init(this) { let held = [1]; script::store(\"cache\", held); held.push(2); }\n",
+        ),
+        (
+            "reader.rn",
+            "pub fn update(this, dt) {\n\
+             \x20   let held = script::stored(\"cache\");\n\
+             \x20   this.count = if held is Vec { held.len() as f64 } else { -1.0 };\n\
+             \x20   this.missing = if script::stored(\"nothing\") is Tuple { 1.0 } else { 0.0 };\n\
+             }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let writer = spawn(&app, "Writer");
+    let reader = spawn(&app, "Reader");
+    host.attach(balaur_core::node_id_of(writer), "writer.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(reader), "reader.rn")
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .expect("the app is running Rune");
+    assert_eq!(
+        rune.number_field(reader, "count"),
+        Some(2.0),
+        "another script reads the list, and the push after storing it"
+    );
+    assert_eq!(rune.number_field(reader, "missing"), Some(1.0));
+}
+
+#[test]
+fn vectors_add_scale_and_measure() {
+    let dir = project(&[(
+        "vec.rn",
+        "pub fn init(this) {\n\
+         \x20   let a = balaur::Vec2::new(1.0, 2.0) + balaur::Vec2::new(3.0, 4.0) * 2.0;\n\
+         \x20   this.x = a.x;\n\
+         \x20   this.y = a.y;\n\
+         \x20   this.length = balaur::Vec2::new(3.0, 4.0).length();\n\
+         \x20   let v = balaur::Vec3::new(1.0, 1.0, 1.0);\n\
+         \x20   v += balaur::Vec3::new(1.0, 0.0, 0.0);\n\
+         \x20   this.vx = v.x;\n\
+         \x20   this.same = if balaur::Vec2::new(1.0, 2.0) == balaur::Vec2::new(1.0, 2.0) { 1.0 } else { 0.0 };\n\
+         \x20   this.tint = (balaur::Color::new(1.0, 0.5, 0.0, 1.0) * 0.5).g;\n\
+         }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let node = spawn(&app, "Vec");
+    host.attach(balaur_core::node_id_of(node), "vec.rn").unwrap();
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .expect("the app is running Rune");
+    for (field, want) in [
+        ("x", 7.0),
+        ("y", 10.0),
+        ("length", 5.0),
+        ("vx", 2.0),
+        ("same", 1.0),
+        ("tint", 0.25),
+    ] {
+        assert_eq!(rune.number_field(node, field), Some(want), "{field}");
+    }
+}

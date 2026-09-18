@@ -62,6 +62,142 @@ pub struct Color {
     pub a: f64,
 }
 
+/// The numbers of a vector or a colour, so one set of operators serves all three.
+trait Lanes: rune::Any + Copy {
+    fn lanes(&self) -> [f64; 4];
+    fn from_lanes(lanes: [f64; 4]) -> Self;
+}
+
+impl Lanes for Vec2 {
+    fn lanes(&self) -> [f64; 4] {
+        [self.x, self.y, 0.0, 0.0]
+    }
+    fn from_lanes(l: [f64; 4]) -> Self {
+        Self { x: l[0], y: l[1] }
+    }
+}
+
+impl Lanes for Vec3 {
+    fn lanes(&self) -> [f64; 4] {
+        [self.x, self.y, self.z, 0.0]
+    }
+    fn from_lanes(l: [f64; 4]) -> Self {
+        Self { x: l[0], y: l[1], z: l[2] }
+    }
+}
+
+impl Lanes for Color {
+    fn lanes(&self) -> [f64; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+    fn from_lanes(l: [f64; 4]) -> Self {
+        Self { r: l[0], g: l[1], b: l[2], a: l[3] }
+    }
+}
+
+/// The right side of an operator: the same type lane by lane, or one number
+/// for every lane.
+fn rhs<T: Lanes>(value: &rune::Value) -> anyhow::Result<[f64; 4]> {
+    if let Ok(other) = value.borrow_ref::<T>() {
+        return Ok(other.lanes());
+    }
+    if let Ok(f) = value.as_float() {
+        return Ok([f; 4]);
+    }
+    if let Ok(i) = value.as_signed() {
+        #[allow(clippy::cast_precision_loss, reason = "a script integer used as a scale")]
+        return Ok([i as f64; 4]);
+    }
+    Err(anyhow!("`{}` is not a number or the same kind of vector", value.type_info()))
+}
+
+fn zip<T: Lanes>(a: &T, b: &rune::Value, f: fn(f64, f64) -> f64) -> anyhow::Result<T> {
+    let (l, r) = (a.lanes(), rhs::<T>(b)?);
+    Ok(T::from_lanes([f(l[0], r[0]), f(l[1], r[1]), f(l[2], r[2]), f(l[3], r[3])]))
+}
+
+fn same<T: Lanes>(a: &T, b: &rune::Value) -> bool {
+    b.borrow_ref::<T>().is_ok_and(|b| b.lanes() == a.lanes())
+}
+
+/// An operator's failure raised in the script, where a `Result` would be a
+/// value the script never looks at.
+fn vm<T>(result: anyhow::Result<T>) -> rune::runtime::VmResult<T> {
+    match result {
+        Ok(value) => rune::runtime::VmResult::Ok(value),
+        Err(why) => rune::runtime::VmResult::Err(rune::runtime::VmError::panic(why.to_string())),
+    }
+}
+
+/// `+ - * /` and their assigning forms, and `==`, on one lane type.
+macro_rules! arithmetic {
+    ($m:expr, $t:ty) => {{
+        use rune::runtime::Protocol as P;
+        $m.associated_function(&P::ADD, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x + y)))?;
+        $m.associated_function(&P::SUB, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x - y)))?;
+        $m.associated_function(&P::MUL, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x * y)))?;
+        $m.associated_function(&P::DIV, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x / y)))?;
+        $m.associated_function(&P::ADD_ASSIGN, |a: &mut $t, b: rune::Value| {
+            let out = zip::<$t>(a, &b, |x, y| x + y);
+            vm(out.map(|v| *a = v))
+        })?;
+        $m.associated_function(&P::SUB_ASSIGN, |a: &mut $t, b: rune::Value| {
+            let out = zip::<$t>(a, &b, |x, y| x - y);
+            vm(out.map(|v| *a = v))
+        })?;
+        $m.associated_function(&P::MUL_ASSIGN, |a: &mut $t, b: rune::Value| {
+            let out = zip::<$t>(a, &b, |x, y| x * y);
+            vm(out.map(|v| *a = v))
+        })?;
+        $m.associated_function(&P::DIV_ASSIGN, |a: &mut $t, b: rune::Value| {
+            let out = zip::<$t>(a, &b, |x, y| x / y);
+            vm(out.map(|v| *a = v))
+        })?;
+        $m.associated_function(&P::PARTIAL_EQ, |a: &$t, b: rune::Value| same::<$t>(a, &b))?;
+        $m.associated_function(&P::EQ, |a: &$t, b: rune::Value| same::<$t>(a, &b))?;
+    }};
+}
+
+/// The geometry a vector's own methods answer: length, direction, and the
+/// products and blends Godot's `Vector2` and `Vector3` carry.
+macro_rules! geometry {
+    ($m:expr, $t:ty) => {{
+        $m.associated_function("length", |v: &$t| dot(v.lanes(), v.lanes()).sqrt())?;
+        $m.associated_function("dot", |v: &$t, o: rune::Value| {
+            vm(rhs::<$t>(&o).map(|r| dot(v.lanes(), r)))
+        })?;
+        $m.associated_function("normalized", |v: &$t| {
+            let l = v.lanes();
+            let len = dot(l, l).sqrt();
+            if len == 0.0 {
+                return *v;
+            }
+            <$t>::from_lanes([l[0] / len, l[1] / len, l[2] / len, 0.0])
+        })?;
+        $m.associated_function("distance_to", |v: &$t, o: rune::Value| {
+            vm(zip::<$t>(v, &o, |x, y| x - y).map(|d| {
+                let d = d.lanes();
+                dot(d, d).sqrt()
+            }))
+        })?;
+        $m.associated_function("lerp", |v: &$t, o: rune::Value, t: f64| {
+            let l = v.lanes();
+            vm(rhs::<$t>(&o).map(|to| {
+                <$t>::from_lanes([
+                    l[0] + (to[0] - l[0]) * t,
+                    l[1] + (to[1] - l[1]) * t,
+                    l[2] + (to[2] - l[2]) * t,
+                    l[3] + (to[3] - l[3]) * t,
+                ])
+            }))
+        })?;
+    }};
+}
+
+fn dot(a: [f64; 4], b: [f64; 4]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
 /// Register the value types every binding may see, and give `Node` the whole
 /// engine node API as methods.
 ///
@@ -79,6 +215,17 @@ pub(crate) fn install(
     m.ty::<Vec2>()?;
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
+    m.function("new", |x: f64, y: f64| Vec2 { x, y })
+        .build_associated::<Vec2>()?;
+    m.function("new", |x: f64, y: f64, z: f64| Vec3 { x, y, z })
+        .build_associated::<Vec3>()?;
+    m.function("new", |r: f64, g: f64, b: f64, a: f64| Color { r, g, b, a })
+        .build_associated::<Color>()?;
+    arithmetic!(m, Vec2);
+    arithmetic!(m, Vec3);
+    arithmetic!(m, Color);
+    geometry!(m, Vec2);
+    geometry!(m, Vec3);
 
     // A component-driven operation lives on that component's handle
     // (`node.transform.translate`); the node keeps only what no component owns.

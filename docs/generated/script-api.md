@@ -14,11 +14,11 @@ cannot drift from what scripts actually see.
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 25 | 0 | the engine |
+| [`engine`](#engine) | 26 | 0 | the engine |
 | [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 11 | 0 | the engine |
+| [`gamend`](#gamend) | 16 | 0 | the engine |
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
@@ -26,7 +26,7 @@ cannot drift from what scripts actually see.
 | [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 46 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
-| [`log`](#log) | 5 | 0 | the engine |
+| [`log`](#log) | 7 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 55 | 0 | the engine |
@@ -34,15 +34,15 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 48 | 49 | the engine |
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`project`](#project) | 11 | 0 | the engine |
+| [`project`](#project) | 12 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
 | [`render`](#render) | 50 | 31 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
-| [`save`](#save) | 5 | 0 | the engine |
+| [`save`](#save) | 6 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
-| [`script`](#script) | 17 | 0 | the engine |
+| [`script`](#script) | 19 | 0 | the engine |
 | [`settings`](#settings) | 11 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
@@ -119,7 +119,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
 
 ## `events`
 
@@ -135,7 +135,7 @@ cannot drift from what scripts actually see.
 
 ## `gamend`
 
-**Functions:** `activity`, `call_hook`, `close`, `configure`, `connect`, `connection`, `join`, `leave`, `login`, `push`, `rest`
+**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `join`, `leave`, `login`, `push`, `reply`, `rest`, `restore`, `session`, `target`
 
 ## `geometry2d`
 
@@ -198,7 +198,7 @@ cannot drift from what scripts actually see.
 
 ## `log`
 
-**Functions:** `clear`, `error`, `info`, `recent`, `warn`
+**Functions:** `clear`, `error`, `file`, `info`, `recent`, `since`, `warn`
 
 ## `math`
 
@@ -323,7 +323,7 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `version`
+**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
 
 ## `release`
 
@@ -387,7 +387,7 @@ cannot drift from what scripts actually see.
 
 ## `save`
 
-**Functions:** `read`, `remove`, `slots`, `version`, `write`
+**Functions:** `folder`, `read`, `remove`, `slots`, `version`, `write`
 
 ## `scene`
 
@@ -395,7 +395,7 @@ cannot drift from what scripts actually see.
 
 ## `script`
 
-**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `symbols`
+**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `store`, `stored`, `symbols`
 
 ## `settings`
 

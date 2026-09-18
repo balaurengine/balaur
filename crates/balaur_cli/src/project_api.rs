@@ -143,6 +143,12 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "",
             "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         ),
+        (
+            "use_data",
+            &[],
+            "(name: string?)",
+            "Keep `save::` slots in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share one set of saves. Nil goes back to the editor's own. Answers the directory, or nil.",
+        ),
     ]);
 }
 
@@ -187,6 +193,19 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
     });
     m.function("version", |_: &Engine, ()| {
         Ok(Value::Str(crate::version::long().to_string()))
+    });
+    // A name, never a path: the directory stays under the user data base
+    // whatever a script passes.
+    m.function("use_data", |eng: &Engine, name: Option<String>| {
+        let home = name.filter(|name| !name.is_empty()).map(|name| {
+            let dir = balaur::engine_api::user_data_dir_named(eng, &name);
+            balaur::file_api::add_root(eng, &dir);
+            dir
+        });
+        balaur::save::set_home(eng, home.clone());
+        Ok(home.map_or(Value::Nil, |dir| {
+            Value::Str(dir.to_string_lossy().into_owned())
+        }))
     });
     m.function("pick_folder", |eng: &Engine, ()| {
         let picked = pick_folder();

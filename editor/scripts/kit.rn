@@ -11,11 +11,17 @@ const FOLDER_DEPTH = 3;
 /// The most of a text file shown inline.
 const TEXT_SHOWN = 4000;
 
+/// A `pages` sidebar's width, and the least room that keeps one: narrower,
+/// the pages are a dropdown over the body.
+const SIDEBAR_W = 150.0;
+const SIDEBAR_MIN = 460.0;
+
 /// The kit, each verb wrapped for another unit to call. Made once: every
 /// `script::shared` keeps its function for the life of the run.
 pub fn make() {
     #{
         tabs: script::shared(tabs, 4),
+        pages: script::shared(pages, 5),
         tree: script::shared(tree, 5),
         field: script::shared(field, 5),
         section: script::shared(section, 2),
@@ -26,14 +32,15 @@ pub fn make() {
     }
 }
 
-/// Point `save::` at the game's own user data directory, so a game played
-/// here and the same game run alone keep one set of saves.
+/// Point `save::` at the game's own user data directory, and let `fs` reach
+/// it, so a game played here and the same game run alone keep one set of
+/// saves, and the User data dock can open them.
 pub fn adopt_game_data(S) {
     if S.game_root == "" {
-        save::set_home(());
+        project::use_data(());
         return;
     }
-    save::set_home(game_data(S));
+    project::use_data(game_name(S));
 }
 
 /// The user data directory the open game has when it runs on its own.
@@ -41,13 +48,17 @@ pub fn game_data(S) {
     if S.game_root == "" {
         return engine::user_data_dir();
     }
+    engine::user_data_dir_of(game_name(S))
+}
+
+fn game_name(S) {
     let (ok, manifest) = script::attempt(|| toml::parse(fs::read(S.game_root + "/project.toml")));
     let name = if ok && manifest is Object {
         util::obj(manifest.get("application").unwrap_or(#{})).get("name").unwrap_or("")
     } else {
         ""
     };
-    engine::user_data_dir_of(if name is String { name } else { "" })
+    if name is String { name } else { "" }
 }
 
 /// What a verb remembers between frames: open tabs, open branches, drafts.
@@ -88,6 +99,79 @@ fn tabs(S, k, id, names) {
     }
     m["tab:" + id] = picked.name;
     picked.name
+}
+
+/// A list of pages beside the open one, the way the settings page is laid
+/// out: what a panel with many views and little height wants. `groups` is
+/// `[#{ title, names }]`. `draw(S, k, name)` draws the open page, and must be
+/// wrapped once with `script::shared(f, 3)`: a plugin's closure called from
+/// this unit runs another unit's code. Both halves scroll, so a dock using
+/// this registers with `scrolls: true`.
+fn pages(S, k, id, groups, draw) {
+    let names = [];
+    for group in groups {
+        for name in group.names {
+            names.push(name);
+        }
+    }
+    if names.len() == 0 {
+        return "";
+    }
+    let m = memory(S);
+    let held = m.get("tab:" + id).unwrap_or(());
+    let current = if held is String && util::contains(names, held) { held } else { names[0] };
+    let picked = #{ name: current };
+    if ui::available_width() < SIDEBAR_MIN {
+        let (name, changed) = ui::dropdown("pages:" + id, current, names, #{
+            width: ui::available_width(), size: style::MD, height: style::row_h(S), color: k.text,
+        });
+        if changed {
+            picked.name = name;
+        }
+        ui::scroll("pages-body:" + id, #{ axis: "vertical" }, || {
+            draw(S, k, picked.name);
+        });
+    } else {
+        // Inside another scroll the height is unbounded; a page that tall
+        // would never scroll on its own.
+        let room = ui::available_height();
+        let tall = if room > 0.0 && room < 4000.0 { room } else { 600.0 };
+        ui::horizontal(#{ height: tall }, || {
+            ui::scroll("pages-side:" + id, #{ axis: "vertical", max_width: SIDEBAR_W, max_height: tall }, || {
+                side(k, groups, picked);
+            });
+            ui::add_space(12);
+            ui::scroll("pages-body:" + id, #{ axis: "vertical", max_height: tall }, || {
+                ui::vertical(|| {
+                    draw(S, k, picked.name);
+                });
+            });
+        });
+    }
+    m["tab:" + id] = picked.name;
+    picked.name
+}
+
+fn side(k, groups, picked) {
+    ui::vertical(|| {
+        for group in groups {
+            if group.title != "" {
+                ui::add_space(6);
+                ui::label(group.title, style::mono_sm(k.faint));
+                ui::add_space(2);
+            }
+            for name in group.names {
+                let on = name == picked.name;
+                if ui::pill(name, #{
+                    height: 22, size: style::MD, radius: 6, min_width: SIDEBAR_W - 10.0, align: "left",
+                    fill: if on { k.sunken } else { k.panel },
+                    color: if on { k.text } else { k.dim },
+                }) {
+                    picked.name = name;
+                }
+            }
+        }
+    });
 }
 
 /// Names in rows that fit `width`, measured the way a chip draws them:
@@ -185,7 +269,7 @@ fn head_of(text, most) {
         out.push(c);
         n += 1;
     }
-    (out, false)
+    return (out, false);
 }
 
 /// A value as text, the way a row shows it.

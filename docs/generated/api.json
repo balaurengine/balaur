@@ -5769,7 +5769,8 @@
         "time_scale": "What time is being multiplied by; 1.0 is real time.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
-        "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project."
+        "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project.",
+        "user_data_dir_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."
       },
       "functions": [
         "args",
@@ -5796,7 +5797,8 @@
         "time_scale",
         "timings",
         "unix_time",
-        "user_data_dir"
+        "user_data_dir",
+        "user_data_dir_of"
       ],
       "name": "engine",
       "signatures": {
@@ -5824,7 +5826,8 @@
         "time_scale": "()",
         "timings": "()",
         "unix_time": "()",
-        "user_data_dir": "()"
+        "user_data_dir": "()",
+        "user_data_dir_of": "(project: string)"
       }
     },
     {
@@ -5935,21 +5938,27 @@
       "constants": [],
       "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
       "docs": {
-        "activity": "The last calls and socket messages, newest first, as `{ request, kind, what, status, ms }`; `ms` is nil while a call waits. An observer: never simulate from it.",
+        "activity": "The last calls and socket messages, newest first, as `{ request, kind, what, status, ms, args, reply }`; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
+        "clear_activity": "Forget the calls and messages `activity` holds.",
         "close": "Shut the socket down; false when the connection was already gone.",
-        "configure": "Point the plugin at a server's base url; every other call errors until this one runs.",
+        "configure": "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs.",
         "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take.",
         "connection": "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`.",
         "join": "Subscribe the socket to a topic and return the id the server's `reply` answers.",
         "leave": "Unsubscribe the socket from a topic, returning the id the `reply` answers.",
         "login": "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers.",
         "push": "Send an event and its payload to a topic on the socket, returning the id the `reply` answers.",
-        "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."
+        "reply": "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame.",
+        "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`.",
+        "restore": "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`.",
+        "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in.",
+        "target": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."
       },
       "functions": [
         "activity",
         "call_hook",
+        "clear_activity",
         "close",
         "configure",
         "connect",
@@ -5958,21 +5967,30 @@
         "leave",
         "login",
         "push",
-        "rest"
+        "reply",
+        "rest",
+        "restore",
+        "session",
+        "target"
       ],
       "name": "gamend",
       "signatures": {
         "activity": "() -> Value",
         "call_hook": "(i64, String, String, Option<Value>) -> Value",
+        "clear_activity": "() -> Value",
         "close": "i64 -> Value",
-        "configure": "String -> ()",
+        "configure": "Option<String> -> Value",
         "connect": "(Value, Option<Value>) -> Value",
         "connection": "() -> Value",
         "join": "(i64, String, Option<Value>) -> Value",
         "leave": "(i64, String) -> Value",
         "login": "(Value, Option<Value>, Option<Value>) -> Value",
         "push": "(i64, String, String, Option<Value>) -> Value",
-        "rest": "(Value, String, String, Option<Value>) -> Value"
+        "reply": "i64 -> Value",
+        "rest": "(Value, String, String, Option<Value>) -> Value",
+        "restore": "Option<Value> -> Value",
+        "session": "() -> Value",
+        "target": "() -> Value"
       }
     },
     {
@@ -7057,23 +7075,29 @@
       "docs": {
         "clear": "Empty the buffer, so a console reading it starts again from nothing.",
         "error": "Write a line at error level, tagged as coming from a script.",
+        "file": "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it.",
         "info": "Write a line at info level, tagged as coming from a script.",
-        "recent": "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`.",
+        "recent": "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`.",
+        "since": "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read.",
         "warn": "Write a line at warning level, tagged as coming from a script."
       },
       "functions": [
         "clear",
         "error",
+        "file",
         "info",
         "recent",
+        "since",
         "warn"
       ],
       "name": "log",
       "signatures": {
         "clear": "()",
         "error": "(message: string)",
+        "file": "()",
         "info": "(message: string)",
         "recent": "(n: int?)",
+        "since": "(cursor: int?)",
         "warn": "(message: string)"
       }
     },
@@ -8730,6 +8754,7 @@
         "pick_folder": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         "templates": "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
+        "use_data": "Keep `save::` slots in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share one set of saves. Nil goes back to the editor's own. Answers the directory, or nil.",
         "version": "The version of the binary the editor is running in."
       },
       "functions": [
@@ -8743,6 +8768,7 @@
         "pick_folder",
         "recent",
         "templates",
+        "use_data",
         "version"
       ],
       "name": "project",
@@ -8757,6 +8783,7 @@
         "pick_folder": "() -> Value",
         "recent": "() -> Value",
         "templates": "() -> Value",
+        "use_data": "Option<String> -> Value",
         "version": "() -> Value"
       }
     },
@@ -9251,6 +9278,7 @@
       "constants": [],
       "doc": "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.",
       "docs": {
+        "folder": "The directory slots are kept in, not created until something is written.",
         "read": "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for.",
         "remove": "Delete a slot. Not an error when it was not there.",
         "slots": "Every slot that has been written, in name order.",
@@ -9258,6 +9286,7 @@
         "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."
       },
       "functions": [
+        "folder",
         "read",
         "remove",
         "slots",
@@ -9266,6 +9295,7 @@
       ],
       "name": "save",
       "signatures": {
+        "folder": "()",
         "read": "(slot: string)",
         "remove": "(slot: string)",
         "slots": "()",
@@ -9374,6 +9404,8 @@
         "require": "Load another script file as a module, compiled once and shared by every caller afterwards.",
         "shared": "Wrap a script function so it can be called from several places with a fixed argument count.",
         "signature": "The call the caret is inside, as `#{ title, detail, doc, active }`, where `active` is the argument being typed.",
+        "store": "Keep any value under a key for as long as the app runs, held by reference: state no node owns, like a class's static variable.",
+        "stored": "What `store` kept under a key, the same value rather than a copy; nil when nothing was.",
         "symbols": "What that file declares, as `[#{ name, kind, detail, line, column }]`: its public functions and its `exports()` properties."
       },
       "functions": [
@@ -9393,6 +9425,8 @@
         "require",
         "shared",
         "signature",
+        "store",
+        "stored",
         "symbols"
       ],
       "name": "script",
@@ -9413,6 +9447,8 @@
         "require": "(path: string)",
         "shared": "(f: fn, arity: int)",
         "signature": "(path: string, source: string, line: int, column: int)",
+        "store": "(key: string, value: any)",
+        "stored": "(key: string)",
         "symbols": "(path: string, source: string)"
       }
     },
