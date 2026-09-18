@@ -1,9 +1,8 @@
 //! The sampler: `(clip, time) -> pose`, and nothing else.
 //!
-//! Pure on purpose. Blend trees and state machines are a later tier
-//! (`docs/PLAN-animation-and-resources.md`), and they compose *samples*:
-//! a blender that mixes two poses needs the sampler to depend on nothing but
-//! its two arguments, or the data model has to change to admit it.
+//! Pure on purpose. Crossfades compose *samples* through [`blend`]: a blender
+//! that mixes two poses needs the sampler to depend on nothing but its two
+//! arguments, or the data model has to change to admit it.
 //!
 //! Two pieces of math are written out here rather than taken from glam.
 //! `Quat::from_euler` and `Quat::slerp` both go through `f32::sin` / `cos` /
@@ -226,35 +225,38 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
     }
 }
 
-/// A pose partway from one clip's to another's, `weight` of the way: every
-/// track of the incoming clip blended with the outgoing track that drives the
-/// same property of the same node, and taken as it is where none does.
+/// Tracks drawn from one or more clips, each with the value it lands on.
+pub type Mix<'a> = Vec<(&'a Track, TrackValue)>;
+
+/// One clip's pose on its own, as a [`Mix`] to blend others over.
 #[must_use]
-pub fn blend(from: &Clip, mut from_pose: Pose, to: &Clip, to_pose: Pose, weight: f32) -> Pose {
+pub fn mix_of(clip: &Clip, pose: Pose) -> Mix<'_> {
+    clip.tracks.iter().zip(pose).collect()
+}
+
+/// `clip`'s pose laid over `mix`, `weight` of the way. A track driving what
+/// one already in `mix` drives is blended with it; a track either side keys
+/// alone keeps its own value.
+pub fn blend<'a>(mix: &mut Mix<'a>, clip: &'a Clip, pose: Pose, weight: f32) {
     let weight = weight.clamp(0.0, 1.0);
-    to.tracks
-        .iter()
-        .zip(to_pose)
-        .map(|(track, incoming)| {
-            let partner = from
-                .tracks
-                .iter()
-                .position(|t| t.target == track.target && t.property == track.property);
-            match partner.and_then(|at| from_pose.get_mut(at)) {
-                Some(outgoing) => mix(
-                    std::mem::replace(outgoing, TrackValue::None),
-                    incoming,
-                    weight,
-                ),
-                None => incoming,
+    let held = mix.len();
+    for (track, incoming) in clip.tracks.iter().zip(pose) {
+        let partner = mix[..held]
+            .iter()
+            .position(|(t, _)| t.target == track.target && t.property == track.property);
+        match partner {
+            Some(at) => {
+                let outgoing = std::mem::replace(&mut mix[at].1, TrackValue::None);
+                mix[at] = (track, mix_values(outgoing, incoming, weight));
             }
-        })
-        .collect()
+            None => mix.push((track, incoming)),
+        }
+    }
 }
 
 /// One track's value `weight` of the way from `a` to `b`. A value with nothing
 /// between two of it — a visibility, a name — changes at the halfway point.
-fn mix(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
+fn mix_values(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
     match (a, b) {
         (TrackValue::Position(a), TrackValue::Position(b)) => {
             TrackValue::Position(a.lerp(b, weight))

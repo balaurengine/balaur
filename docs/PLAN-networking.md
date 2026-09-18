@@ -3,7 +3,7 @@
 > transport trait with a websocket and real QUIC datagrams under it, one crate
 > per protocol, and a recorded session tested against a link that drops and
 > delays. Fault injection is switchable from the editor's settings screen
-> (`netcode/faults`) and applies to every session link. `ARCHITECTURE.md`
+> (`multiplayer/faults`) and applies to every session link. `ARCHITECTURE.md`
 > "Networking and state sync" is the record; §3 is what is left, in order.
 >
 > **Next:** step 9, replication, before step 8. The plan orders Gamend first
@@ -16,12 +16,13 @@
 > respectively.
 >
 > **2026-09-05:** the Photon parity investigation split step 8 in two —
-> `docs/PLAN-sessions.md` is the engine half (a session a script can open,
-> `peer` / `host` / `server` roles, server-ordered inputs, late join,
-> reconnect, spectators, host migration, bincode on the wire, the editor's
-> Network dock) and `docs/PLAN-gamend.md` is the server half (a game server
-> per lobby, lobby tokens, rejoin, the match record, typed bindings). Voice
-> got `docs/PLAN-voice.md`. §0 and §1 below gained the rows that came out of
+> `docs/PLAN-multiplayer.md` is the engine half (a match a script can open
+> through the `multiplayer` module, `peer` / `host` / `server` topologies,
+> server-ordered inputs, late join, reconnect, spectators, host migration,
+> bincode on the wire, the editor's Multiplayer dock) and
+> `docs/PLAN-gamend.md` is the server half (a game server per lobby, lobby
+> tokens, rejoin, the match record, typed bindings). Voice got
+> `docs/PLAN-voice.md`. §0 and §1 below gained the rows that came out of
 > it.
 >
 > Two housekeeping items wait on other work: `docs/generated/crates.md`
@@ -30,7 +31,7 @@
 > `manifest.application`) has not been rendered since the `[application]`
 > migration because the editor build sits behind crates mid-edit elsewhere.
 
-# Plan: multiplayer
+# Plan: networking
 
 What a game needs that the engine does not have.
 
@@ -53,13 +54,13 @@ What a game needs that the engine does not have.
   interpolation of the players a client does not own, no lag compensation,
   no interest management.
 - No lobbies or matchmaking beyond a Gamend room.
-- No script can open a session. `NetSession::new`, `add_peer`, `set_input`
+- No script can open a match. `NetSession::new`, `add_peer`, `set_input`
   and `advance` are called by the two lockstep tests and `tests/faults.rs`
   and by nothing else; a script gets `rollback::input` and
-  `rollback::is_resimulating`. `docs/PLAN-sessions.md` step 1.
+  `rollback::is_resimulating`. `docs/PLAN-multiplayer.md` step 1.
 - The roster is fixed at construction and every peer is the same peer: no
   end orders inputs or keeps their history, a closed link is never noticed,
-  and nothing joins, leaves, reconnects or migrates. `docs/PLAN-sessions.md`
+  and nothing joins, leaves, reconnects or migrates. `docs/PLAN-multiplayer.md`
   steps 2 to 6.
 - A run-time `scene.instantiate` still reuses the file's ids, so two
   instances of one scene collide.
@@ -147,8 +148,8 @@ than a line in the replication step.
 | Delta encoding against an acked baseline, quantised off the schema | Step 9 |
 | Join in progress from a baseline snapshot | Step 9 |
 | Per-node restore of physics state, so a correction rewinds one body and not the world | Step 10; the rapier snapshot saves and restores a whole world, and reconciliation needs one body's |
-| Server-ordered inputs, late join and spectators under lockstep, reconnect, host migration | `docs/PLAN-sessions.md` steps 3, 4 and 6 |
-| Bots | Not engine code: a script writes a slot through `session::set_input_for` (`docs/PLAN-sessions.md` §2) |
+| Server-ordered inputs, late join and spectators under lockstep, reconnect, host migration | `docs/PLAN-multiplayer.md` steps 3, 4 and 6 |
+| Bots | Not engine code: a script writes a slot through `multiplayer::set_input_for` (`docs/PLAN-multiplayer.md` §2) |
 | Voice | `docs/PLAN-voice.md`: its own datagram kind on the session link, never journaled |
 | Client-authoritative hit registration | Not planned — the server decides a hit |
 
@@ -188,14 +189,14 @@ The numbering is the original plan's, so what is left keeps the names the
 roadmap and ARCHITECTURE.md already use. A headless CI run of two engines on
 loopback is the bar for 9 and 10, as it was for 5 and 6.
 
-8. **Sessions from Gamend.** Split on 2026-09-05: the engine half is
-   `docs/PLAN-sessions.md` (a session a script can open, roles, late join,
-   reconnect, migration) and the server half is `docs/PLAN-gamend.md` (a
-   game server per lobby, lobby tokens, rejoin, the match record, typed
-   bindings). Done when `docs/PLAN-gamend.md` step E2 is: two engines
-   matched by Gamend play on a server Gamend launched. First point at which
-   a real game ships on this stack, which is why it comes before
-   replication rather than after.
+8. **Matches from Gamend.** Split on 2026-09-05: the engine half is
+   `docs/PLAN-multiplayer.md` (a match a script can open through the
+   `multiplayer` module, roles, late join, reconnect, migration) and the
+   server half is `docs/PLAN-gamend.md` (a game server per lobby, lobby
+   tokens, rejoin, the match record, typed bindings). Done when
+   `docs/PLAN-gamend.md` step E2 is: two engines matched by Gamend play on a
+   server Gamend launched. First point at which a real game ships on this
+   stack, which is why it comes before replication rather than after.
 9. **Replication.** The `replicate` component, change detection, delta
    encoding against the observer's last acked tick, quantisation off the
    schema, an authority rule, RPC by stable id, and join in progress from a

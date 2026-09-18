@@ -4,59 +4,95 @@
 
 use anyhow::{Result, anyhow};
 
-/// An image's pixel size, read from its header alone.
+/// An image's pixel size under its settings: a raster's header alone, or an
+/// SVG at its `scale`.
 ///
-/// Not `load_from_memory`: that decodes the whole file, and a scene full of
-/// sprites pays for every one of them at load.
-pub(crate) fn image_size(bytes: &[u8], name: &str) -> Result<(u32, u32)> {
-    image::ImageReader::new(std::io::Cursor::new(bytes))
-        .with_guessed_format()
-        .map_err(|why| anyhow!("reading the size of {name}: {why}"))?
-        .into_dimensions()
+/// Not a decode: a scene full of sprites would pay for every one at load.
+pub(crate) fn image_size(bytes: &[u8], name: &str, settings: &toml::Table) -> Result<(u32, u32)> {
+    balaur_core::pixels::size(bytes, settings)
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
-/// What [`size_of`] has already read, so a caller asking every frame reads
-/// the file once.
+/// What [`size_of`] and [`shipped_size_of`] have already read, so a caller
+/// asking every frame reads the file once.
 #[derive(Default)]
 pub(crate) struct Sizes {
     generation: u64,
-    by_path: balaur_core::collections::DetHashMap<String, (u32, u32)>,
+    drawn: balaur_core::collections::DetHashMap<String, (u32, u32)>,
+    shipped: balaur_core::collections::DetHashMap<String, (u32, u32)>,
 }
 
-/// An image's pixel size, kept until the asset reloads.
-///
-/// The header is cheap; reaching it is not, because the whole file is read to
-/// get at it. Setting a sprite property re-sizes the quad, so this is asked
-/// once a frame for every sprite an animation drives.
-pub(crate) fn size_of(eng: &crate::Engine, path: &str) -> Result<(u32, u32)> {
+/// The size cache, emptied when an asset reloads.
+fn sizes(eng: &crate::Engine) -> std::rc::Rc<std::cell::RefCell<Sizes>> {
     let generation = balaur_core::assets::generation(eng);
     if eng.try_resource::<Sizes>().is_none() {
         eng.insert_resource(Sizes::default());
     }
     let cache = eng.resource::<Sizes>();
     {
-        let mut cache = cache.borrow_mut();
-        if cache.generation != generation {
-            cache.generation = generation;
-            cache.by_path.clear();
+        let mut held = cache.borrow_mut();
+        if held.generation != generation {
+            held.generation = generation;
+            held.drawn.clear();
+            held.shipped.clear();
         }
-        if let Some(size) = cache.by_path.get(path) {
-            return Ok(*size);
-        }
+    }
+    cache
+}
+
+/// An image's pixel size as the scene measures it, kept until the asset
+/// reloads.
+///
+/// The header is cheap; reaching it is not, because the whole file is read to
+/// get at it. Setting a sprite property re-sizes the quad, so this is asked
+/// once a frame for every sprite an animation drives.
+pub(crate) fn size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)> {
+    let cache = sizes(eng);
+    if let Some(size) = cache.borrow().drawn.get(reference) {
+        return Ok(*size);
     }
     // A smaller copy shipped in the file's place still measures as the size
     // it was drawn at; only the upload needs the pixels actually there.
-    if let Some(drawn) = balaur_core::import::drawn_size(eng, path) {
-        cache.borrow_mut().by_path.insert(path.to_string(), drawn);
-        return Ok(drawn);
+    let source = balaur_core::texture_asset::source(eng, reference)?;
+    let size = match balaur_core::import::drawn_size(eng, &source.path) {
+        Some(drawn) => drawn,
+        None => shipped_size_of(eng, reference)?,
+    };
+    cache.borrow_mut().drawn.insert(reference.to_string(), size);
+    Ok(size)
+}
+
+/// How many of a texture's pixels make a world unit when the node says
+/// nothing: its `pixels_per_unit` import setting, else the engine's 100.
+pub(crate) fn pixels_per_unit(eng: &crate::Engine, reference: &str) -> f32 {
+    let fallback = crate::DEFAULT_PIXELS_PER_UNIT;
+    let Ok(source) = balaur_core::texture_asset::source(eng, reference) else {
+        return fallback;
+    };
+    let key = balaur_core::import::keys::PIXELS_PER_UNIT;
+    let own = balaur_core::import::number(&source.settings.settings, key, f64::from(fallback));
+    if own > 0.0 { own as f32 } else { fallback }
+}
+
+/// The pixels a texture actually holds, which is what the GPU is handed: a
+/// folded or capped copy's own size rather than the one it was drawn at.
+/// `reference` is anything a texture property takes: an image path, a
+/// `texture` asset or an inline one.
+pub(crate) fn shipped_size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)> {
+    let cache = sizes(eng);
+    if let Some(size) = cache.borrow().shipped.get(reference) {
+        return Ok(*size);
     }
+    let source = balaur_core::texture_asset::source(eng, reference)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
-        .read(path)?;
-    let size = image_size(&bytes, path)?;
-    cache.borrow_mut().by_path.insert(path.to_string(), size);
+        .read(&source.path)?;
+    let size = image_size(&bytes, &source.path, &source.settings.settings)?;
+    cache
+        .borrow_mut()
+        .shipped
+        .insert(reference.to_string(), size);
     Ok(size)
 }
 
@@ -189,14 +225,21 @@ mod windowed {
     ///
     /// Decoded here rather than through kiss3d's `add_image_from_memory`,
     /// which is an `expect` on content a scene file names.
-    pub(crate) fn upload(eng: &Engine, path: &str, premultiply: bool) -> Option<Arc<Texture>> {
-        if path.is_empty() {
+    pub(crate) fn upload(eng: &Engine, reference: &str, premultiply: bool) -> Option<Arc<Texture>> {
+        if reference.is_empty() {
             return None;
         }
         let files = eng.resource::<balaur_core::project::ProjectFiles>();
         // Resolved rather than read: this runs on every attach, and a sprite
         // is attached on every frame that draws it.
-        let settings = balaur_core::import::resolved(eng, path);
+        let source = match balaur_core::texture_asset::source(eng, reference) {
+            Ok(source) => source,
+            Err(err) => {
+                tracing::error!("texture '{reference}': {err:#}");
+                return None;
+            }
+        };
+        let (path, settings) = (source.path.as_str(), &source.settings);
         let stamp = super::upload_stamp(&settings.stamp, premultiply);
         let name = super::upload_name(path, files.borrow().mtime(path), &stamp);
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
@@ -213,11 +256,17 @@ mod windowed {
                 return None;
             }
         };
-        match image::load_from_memory(&bytes) {
-            Ok(image) => {
-                // Built on the miss rather than on every attach, which is
-                // also what keeps the two warnings above to one a texture.
-                let asked = sampling(path, &settings.settings, premultiply);
+        // Built on the miss rather than on every attach, which is also what
+        // keeps the two warnings in `sampling` to one a texture.
+        let asked = sampling(path, &settings.settings, premultiply);
+        let alpha = if asked.premultiply {
+            balaur_core::pixels::Alpha::Premultiplied
+        } else {
+            balaur_core::pixels::Alpha::Straight
+        };
+        match balaur_core::pixels::decode(&bytes, &settings.settings, alpha) {
+            Ok(pixels) => {
+                let image = image::DynamicImage::ImageRgba8(pixels);
                 Some(TextureManager::get_global_manager(|tm| {
                     tm.add_image_sampled(image.clone(), &name, asked)
                 }))
@@ -256,12 +305,13 @@ mod tests {
 
     #[test]
     fn an_images_size_comes_off_its_header() {
-        assert_eq!(image_size(&png(), "pixel.png").unwrap(), (1, 1));
+        let none = toml::Table::new();
+        assert_eq!(image_size(&png(), "pixel.png", &none).unwrap(), (1, 1));
     }
 
     #[test]
     fn an_undecodable_image_is_an_error_naming_the_file() {
-        let why = image_size(b"not a png at all", "broken.png").unwrap_err();
+        let why = image_size(b"not a png at all", "broken.png", &toml::Table::new()).unwrap_err();
         assert!(
             format!("{why:#}").contains("broken.png"),
             "the error does not name the file: {why:#}"

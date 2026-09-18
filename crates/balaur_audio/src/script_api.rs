@@ -190,6 +190,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
                     bus: event.bus,
                     gain,
                     emitter,
+                    file: crate::FileSettings::of(eng, &file),
                 },
             );
             Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))

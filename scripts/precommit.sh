@@ -139,7 +139,7 @@ features_stream() {
   fi
   step 'clippy greeter' cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
     --target-dir target/shape/greeter --all-targets -- -D warnings || bad=1
-  # lint.yml's third job. Skipped rather than failed when the tool is absent,
+  # lint.yml's fourth job. Skipped rather than failed when the tool is absent,
   # because it is the one check here that needs the network.
   if command -v cargo-deny >/dev/null 2>&1; then
     step 'cargo deny' cargo deny check advisories bans sources || bad=1
@@ -180,7 +180,7 @@ e2e_stream() {
 wasm_stream() {
   side_env
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
-    --no-default-features --features audio,http,websocket,gamend,web,window \
+    --no-default-features --features audio,http,websocket,gamend,multiplayer,web,window \
     -- -D warnings
 }
 

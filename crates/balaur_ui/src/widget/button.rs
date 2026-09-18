@@ -40,7 +40,7 @@ fn face_of(
         .then(|| crate::images::texture_of(at.eng, ui.ctx(), &widget.source).ok())
         .flatten()
         .map(|texture| {
-            let native = texture.size_vec2();
+            let native = crate::images::native_size(at.eng, &widget.source, &texture);
             let aspect = if native.y > 0.0 {
                 native.x / native.y
             } else {

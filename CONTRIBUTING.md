@@ -54,11 +54,12 @@ times, so read yours rather than this.
 | --- | ---: | ---: | --- |
 | `cargo check -p <crate>` | n/a | seconds | that crate and what depends on it |
 | `cargo check --workspace` | a full build | 23 s | fingerprinting 400 crates |
-| `scripts/precommit.sh --files` | 7 s | 7 s | five Python passes, then rustfmt |
-| `scripts/precommit.sh --lints` | a full build | 6 s | five clippy shapes, a target tree each |
-| `scripts/precommit.sh` | a full build | 48 m | 1493 tests, one process each |
-| `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | nine example projects, every editor state each |
+| `scripts/precommit.sh --files` | 7 s | 7 s | rustfmt, then five Python passes |
+| `scripts/precommit.sh --lints` | a full build | 6 s | six clippy shapes on macOS, five elsewhere, a target tree each |
+| `scripts/precommit.sh` | a full build | 48 m | every test, one process each |
+| `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project, every editor state each |
 | `scripts/e2e.sh target/e2e hello` | n/a | 96 s | one project through run, export, play and edit |
+| `node scripts/web_smoke.mjs dist/play` | n/a | 2 m | every pack of a web bundle, 8 s each in headless Chrome |
 
 Cold is a build, and a build is the dependency tree. The two feature shapes a
 full run added took 13m37s the first time and 31 s after, which is the shape of
@@ -71,8 +72,9 @@ thread and 107 s on eight: each boots a whole app, and that boot is serialised
 somewhere below the test. `--files` and `--lints` cost seconds because neither
 runs one.
 
-Three checks stay in CI, because one machine cannot run them: the pack and
-trace comparison across platforms, the reproducible build, and line coverage.
+Some checks stay in CI, because one machine cannot run them: the pack and
+trace comparison across platforms, the reproducible build, line coverage, and
+`build.yml`'s template, export and signing check for every platform.
 `scripts/coverage.sh` gives the coverage number locally when you want it.
 
 ## Speed

@@ -444,8 +444,11 @@ fn draw_menu(this) {
         ui::label("Balaur benchmarks", #{ role: "heading" });
         ui::label(this.status, #{ role: "meta" });
         ui::add_space(6.0);
-        let (on, changed) = ui::toggle(this.draw, #{ label: "Draw the shapes" });
-        this.draw = on;
+        ui::horizontal(#{}, || {
+            let (on, _) = ui::toggle(this.draw, ());
+            this.draw = on;
+            ui::label("Draw the shapes", ());
+        });
         ui::add_space(8.0);
         ui::scroll("cases", (), || {
             for entry in this.cases {

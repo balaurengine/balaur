@@ -297,7 +297,7 @@ fn asset_look(name, is_dir) {
     if name.ends_with(".toml") {
         return (crate::icons::panel("scene"), "accent");
     }
-    if name.ends_with(".png") || name.ends_with(".jpg") {
+    if crate::importer::kind_of(name) == "texture" {
         return (crate::icons::persona("ui"), "accent");
     }
     return (crate::icons::ui("dot"), "faint");
@@ -754,10 +754,11 @@ fn show_frames(S, k, p) {
     let owners = [];
     for (i, frame) in p.frames.iter().enumerate() {
         let site = format!("{}:{}", shell::script_rel(S, frame.path), frame.line);
-        items.push(util::row(icons::ui("step-into"), frame["function"], site, k.text));
+        // A recursion stacks frames that read alike; the depth keeps them apart.
+        items.push(util::cells([icons::ui("step-into"), frame["function"], site, k.text, format!("{}", i)]));
         owners.push(i);
         for name in util::keys_sorted(frame.locals) {
-            items.push("\t" + util::row("", name, value_text(frame.locals[name]), k.dim));
+            items.push("\t" + util::cells(["", name, value_text(frame.locals[name]), k.dim, format!("{}/{}", i, name)]));
             owners.push(i);
         }
     }

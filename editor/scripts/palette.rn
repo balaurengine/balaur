@@ -74,6 +74,7 @@ fn commands(S) {
         }),
         // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
+        command("Open state machine", "◷", "", || crate::docks::show(S, "statemachine")),
         command("Open the cost dock", icons::panel("cost"), "", || crate::docks::show(S, "cost")),
         command("Open the library", icons::ui("library"), "", || crate::docks::show(S, "library")),
         command("Show event bindings", icons::ui("events"), "", || shell::open_doc(S, "events")),

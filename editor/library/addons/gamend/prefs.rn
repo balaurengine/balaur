@@ -1,0 +1,36 @@
+// The player's prefs on this device, kept in one save slot: what the Godot
+// addon kept in a ConfigFile under `user://`. Never synced; a value that should
+// follow the player belongs in the server's key-value store.
+
+/// The save slot, which the Gamend dock's Data tab edits too.
+pub const SLOT = "gamend_prefs";
+
+/// Every pref, as a table.
+pub fn all() {
+    let (ok, kept) = script::attempt(|| save::read(SLOT));
+    if ok && kept is Object {
+        return kept;
+    }
+    #{}
+}
+
+/// One pref, or `fallback` when it was never set.
+pub fn get(key, fallback) {
+    all().get(key).unwrap_or(fallback)
+}
+
+/// Set one pref and write the slot.
+pub fn set(key, value) {
+    let prefs = all();
+    prefs[key] = value;
+    save::write(SLOT, prefs);
+    return ();
+}
+
+/// Forget one pref.
+pub fn remove(key) {
+    let prefs = all();
+    prefs.remove(key);
+    save::write(SLOT, prefs);
+    return ();
+}

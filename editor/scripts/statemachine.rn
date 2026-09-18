@@ -1,0 +1,518 @@
+// The State machine dock: the selected node's `state_machine` as its states
+// and transitions, edited in place and written back where the machine lives.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::style;
+use crate::util;
+
+// The component and the asset type `balaur_anim` registers, and the keys the
+// component and the machine document spell.
+const COMPONENT = "state_machine";
+const MACHINE_TYPE = "state_machine";
+const ROW_H = 24.0;
+const NAME_W = 96.0;
+const FIELD_W = 120.0;
+
+/// The dock's own state, hung on `S.machine`.
+pub fn state() {
+    // `file` holds a file-backed machine as last read or written, so a frame
+    // does not read the file again.
+    #{ open: None, naming: "", file: None }
+}
+
+// The machine as it is authored: an inline table, or a file's contents and
+// its path. `None` when the node runs none.
+fn source(S) {
+    let node = S.doc.get(S.sel)?;
+    let comp = node.get(COMPONENT)?;
+    if !(comp is Object) {
+        return None;
+    }
+    let machine = comp.get("machine").unwrap_or("");
+    if machine is Object {
+        return Some(#{ doc: machine, path: None });
+    }
+    if machine is String && machine != "" {
+        if let Some(held) = S.machine.file {
+            if held.path == machine {
+                return Some(#{ doc: held.doc, path: Some(machine) });
+            }
+        }
+        let (ok, loaded) = script::attempt(|| assets::duplicate(anim::engine_path(S, machine)));
+        if ok && loaded is Object {
+            S.machine.file = Some(#{ path: machine, doc: loaded });
+            return Some(#{ doc: loaded, path: Some(machine) });
+        }
+    }
+    Some(#{ doc: #{ "type": MACHINE_TYPE, states: #{}, transitions: [] }, path: None })
+}
+
+// A copy to change, so the edit lands after the history step.
+fn editable(S) {
+    match source(S) {
+        Some(found) => Some(#{ doc: util::deep(found.doc), path: found.path }),
+        None => None,
+    }
+}
+
+// Write `doc` back where it came from: into the scene, or over its file.
+fn write(S, found, label) {
+    match found.path {
+        Some(path) => {
+            fs::write(anim::engine_path(S, path), toml::encode(found.doc));
+            script::attempt(|| assets::reload(anim::engine_path(S, path)));
+            S.machine.file = Some(#{ path: path, doc: found.doc });
+            log::info(format!("{}: {}", label, path));
+        }
+        None => {
+            history::record(S, label, None);
+            let node = S.doc[S.sel];
+            let comp = node[COMPONENT];
+            comp.machine = found.doc;
+            model::record_override(S, node, COMPONENT);
+            model::apply_component(S, COMPONENT);
+            history::commit(S);
+        }
+    }
+}
+
+/// Give the selected node a machine of its own, driving its own player.
+pub fn create(S) {
+    history::record(S, "add state machine", None);
+    let node = S.doc[S.sel];
+    node[COMPONENT] = #{
+        machine: #{ "type": MACHINE_TYPE, start: "", states: #{}, transitions: [] },
+        player: "",
+        active: true,
+    };
+    model::record_override(S, node, COMPONENT);
+    model::apply_component(S, COMPONENT);
+    history::commit(S);
+}
+
+fn states(doc) {
+    let held = doc.get("states").unwrap_or(#{});
+    if held is Object { held } else { #{} }
+}
+
+fn transitions(doc) {
+    let held = doc.get("transitions").unwrap_or([]);
+    if held is Vec { held } else { [] }
+}
+
+fn state_names(doc) {
+    let out = [];
+    for (name, _) in states(doc).iter() {
+        out.push(name);
+    }
+    out
+}
+
+/// Add a state playing the clip of its own name.
+pub fn add_state(S, name) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    if name == "" || name == animation::STATE_END || states(found.doc).contains_key(name) {
+        return;
+    }
+    // The clip of its own name when the library has one, and otherwise the
+    // library's first, so a new state plays something from the start.
+    let clips = anim::clip_names(S);
+    let held = states(found.doc);
+    let own = clips.len() == 0 || util::contains(clips, name);
+    held[name] = if own { "" } else { clips[0] };
+    found.doc.states = held;
+    if found.doc.get("start").unwrap_or("") == "" {
+        found.doc.start = name;
+    }
+    write(S, found, "add state");
+}
+
+/// Remove a state, and every transition into or out of it.
+pub fn remove_state(S, name) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    let held = states(found.doc);
+    held.remove(name);
+    found.doc.states = held;
+    let kept = [];
+    for t in transitions(found.doc) {
+        if t.get("from").unwrap_or("") != name && t.get("to").unwrap_or("") != name {
+            kept.push(t);
+        }
+    }
+    found.doc.transitions = kept;
+    if found.doc.get("start").unwrap_or("") == name {
+        found.doc.start = "";
+    }
+    S.machine.open = None;
+    write(S, found, "remove state");
+}
+
+fn set_state_clip(S, name, clip) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    let held = states(found.doc);
+    held[name] = if clip == name { "" } else { clip };
+    found.doc.states = held;
+    write(S, found, "state clip");
+}
+
+fn set_start(S, name) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    found.doc.start = name;
+    write(S, found, "start state");
+}
+
+/// Add a transition between the first two states, open for editing.
+pub fn add_transition(S) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    let names = state_names(found.doc);
+    if names.len() == 0 {
+        return;
+    }
+    let to = if names.len() > 1 { names[1] } else { names[0] };
+    let held = transitions(found.doc);
+    held.push(#{ from: names[0], to: to, advance: animation::ADVANCE_ENABLED });
+    S.machine.open = Some(held.len() - 1);
+    found.doc.transitions = held;
+    write(S, found, "add transition");
+}
+
+pub fn remove_transition(S, at) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    let held = transitions(found.doc);
+    if at >= held.len() {
+        return;
+    }
+    held.remove(at);
+    found.doc.transitions = held;
+    S.machine.open = None;
+    write(S, found, "remove transition");
+}
+
+/// Set one field of transition `at`; an empty text or the default removes it.
+pub fn set_field(S, at, key, value) {
+    let found = match editable(S) {
+        Some(found) => found,
+        None => return,
+    };
+    let held = transitions(found.doc);
+    if at >= held.len() {
+        return;
+    }
+    if value is String && value == "" {
+        held[at].remove(key);
+    } else {
+        held[at][key] = value;
+    }
+    found.doc.transitions = held;
+    write(S, found, "edit transition");
+}
+
+pub fn body(S, k) {
+    ui::add_space(4);
+    let found = match source(S) {
+        Some(found) => found,
+        None => {
+            if S.doc.get(S.sel).is_none() {
+                style::empty(k, "select a node to give it a state machine");
+                return;
+            }
+            ui::horizontal(#{ height: ROW_H }, || {
+                ui::add_space(6);
+                ui::label("no state machine on this node", style::mono_sm(k.faint));
+                ui::add_space(8);
+                if ui::pill("add state machine", #{
+                    height: ROW_H, size: style::SM, strong: true,
+                    tooltip: "Give the node an inline `state_machine` over its own player",
+                    fill: k.accent_soft, color: k.accent,
+                }) {
+                    create(S);
+                }
+            });
+            return;
+        }
+    };
+    let doc = found.doc;
+    header(S, k, found);
+    ui::add_space(4);
+    ui::scroll("statemachine", #{ max_height: S.layout.body_h - 60.0 }, || {
+        ui::spacing(0, 1);
+        state_rows(S, k, doc);
+        ui::add_space(6);
+        transition_rows(S, k, doc);
+    });
+}
+
+fn header(S, k, found) {
+    let doc = found.doc;
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::add_space(6);
+        let place = match found.path {
+            Some(path) => path,
+            None => "inline",
+        };
+        ui::label(place, style::mono_sm(k.faint));
+        ui::add_space(8);
+        ui::label("start", style::mono_sm(k.dim));
+        ui::add_space(4);
+        let start = doc.get("start").unwrap_or("");
+        let (picked, changed) = ui::dropdown(format!("smstart:{}", S.sel), start, state_names(doc), #{
+            width: FIELD_W, size: style::SM, height: ROW_H, color: k.text,
+        });
+        if changed {
+            set_start(S, picked);
+        }
+        live(S, k);
+    });
+}
+
+// While the game runs, the state the machine is in.
+fn live(S, k) {
+    if !S.playing {
+        return;
+    }
+    let (_, live_node) = model::selected(S);
+    if let Some(node) = live_node {
+        let (ok, now) = script::attempt(|| node.state_machine.state());
+        if ok {
+            ui::add_space(8);
+            let text = if now is String { now } else { "—" };
+            ui::label(format!("now {}", text), style::mono_sm(k.accent));
+        }
+    }
+}
+
+fn state_rows(S, k, doc) {
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::add_space(6);
+        ui::label("STATES", style::mono_sm(k.faint));
+    });
+    let clips = anim::clip_names(S);
+    for (name, clip) in states(doc).iter() {
+        ui::horizontal(#{ height: ROW_H }, || {
+            ui::add_space(6);
+            ui::horizontal(#{ height: ROW_H, width: NAME_W }, || {
+                ui::label(name, style::mono(k.text));
+            });
+            if clip is String {
+                let shown = if clip == "" { name } else { clip };
+                let (picked, changed) = ui::dropdown(format!("smclip:{}:{}", S.sel, name), shown, clips, #{
+                    width: FIELD_W, size: style::SM, height: ROW_H, color: k.text,
+                });
+                if changed {
+                    set_state_clip(S, name, picked);
+                }
+            } else {
+                ui::label("nested machine", style::mono_sm(k.dim));
+            }
+            ui::add_space(4);
+            if ui::pill("×", #{ height: ROW_H, size: style::SM, tooltip: "Remove the state and its transitions",
+                fill: k.panel, color: k.faint }) {
+                remove_state(S, name);
+            }
+        });
+    }
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::add_space(6);
+        let (text, _, submitted) = ui::text_field(format!("smnew:{}", S.sel), "new state",
+            util::merge(style::field(k, NAME_W + FIELD_W), #{ value: S.machine.naming, size: style::SM, height: ROW_H }));
+        S.machine.naming = text;
+        ui::add_space(4);
+        let add = ui::pill("add state", #{ height: ROW_H, size: style::SM, strong: true,
+            tooltip: "A state playing the clip of its own name", fill: k.sage_soft, color: k.sage });
+        if (add || submitted) && S.machine.naming != "" {
+            add_state(S, S.machine.naming);
+            S.machine.naming = "";
+        }
+    });
+}
+
+fn transition_rows(S, k, doc) {
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::add_space(6);
+        ui::label("TRANSITIONS", style::mono_sm(k.faint));
+        ui::add_space(8);
+        if ui::pill("add transition", #{ height: ROW_H, size: style::SM, strong: true,
+            tooltip: "A transition between two states, opened for editing", fill: k.sage_soft, color: k.sage }) {
+            add_transition(S);
+        }
+    });
+    let names = state_names(doc);
+    // `end` is somewhere a transition goes, never somewhere one leaves.
+    let targets = state_names(doc);
+    targets.push(animation::STATE_END);
+    for (at, t) in transitions(doc).iter().enumerate() {
+        let open = S.machine.open == Some(at);
+        ui::horizontal(#{ height: ROW_H }, || {
+            ui::add_space(6);
+            let summary = format!("{} → {}  {}", t.get("from").unwrap_or("?"), t.get("to").unwrap_or("?"),
+                t.get("advance").unwrap_or(animation::ADVANCE_ENABLED));
+            if ui::pill(summary, #{ height: ROW_H, size: style::SM, align: ui::ALIGN_LEFT, min_width: NAME_W + FIELD_W,
+                tooltip: "Open the transition's fields",
+                fill: if open { k.accent_soft } else { k.sunken }, color: if open { k.accent } else { k.text },
+                stroke: k.line }) {
+                S.machine.open = if open { None } else { Some(at) };
+            }
+            ui::add_space(4);
+            if ui::pill("×", #{ height: ROW_H, size: style::SM, tooltip: "Remove the transition",
+                fill: k.panel, color: k.faint }) {
+                remove_transition(S, at);
+            }
+        });
+        if open {
+            fields(S, k, at, t, names, targets);
+        }
+    }
+}
+
+fn field_row(k, label, body) {
+    ui::horizontal(#{ height: ROW_H }, || {
+        ui::add_space(18);
+        ui::horizontal(#{ height: ROW_H, width: NAME_W }, || {
+            ui::label(label, style::mono_sm(k.dim));
+        });
+        body();
+    });
+}
+
+fn choice(S, k, at, key, current, choices) {
+    let (picked, changed) = ui::dropdown(format!("smt:{}:{}:{}", S.sel, at, key), current, choices, #{
+        width: FIELD_W, size: style::SM, height: ROW_H, color: k.text,
+    });
+    if changed {
+        set_field(S, at, key, picked);
+    }
+}
+
+fn text(S, k, at, key, current, placeholder) {
+    let (value, _, submitted) = ui::text_field(format!("smtext:{}:{}:{}", S.sel, at, key), placeholder,
+        util::merge(style::field(k, FIELD_W), #{ value: current, size: style::SM, height: ROW_H }));
+    if submitted && value != current {
+        set_field(S, at, key, value);
+    }
+}
+
+fn number(S, k, at, key, current, decimals) {
+    let (v, changed) = ui::drag_value(util::f(current), #{ width: FIELD_W, speed: if decimals == 0 { 0.1 } else { 0.01 },
+        decimals: decimals, fill: k.sunken, stroke: k.line, color: k.text });
+    if changed {
+        // A whole-number field stays one, which is what `priority` parses.
+        set_field(S, at, key, if decimals == 0 { util::i(util::max(0.0, v)) } else { util::max(0.0, v) });
+    }
+}
+
+fn flag(S, k, at, key, on) {
+    let (v, changed) = ui::toggle(on, #{ role: "toggle", on_fill: k.accent_fill, off_fill: k.sunken,
+        on_knob: k.on_accent, off_knob: k.faint });
+    if changed {
+        set_field(S, at, key, v);
+    }
+}
+
+fn fields(S, k, at, t, names, targets) {
+    field_row(k, "from", || choice(S, k, at, "from", t.get("from").unwrap_or(""), names));
+    field_row(k, "to", || choice(S, k, at, "to", t.get("to").unwrap_or(""), targets));
+    field_row(k, "fade", || number(S, k, at, "fade", t.get("fade").unwrap_or(0.0), 2));
+    field_row(k, "ease", || choice(S, k, at, "ease", t.get("ease").unwrap_or(animation::EASE_LINEAR),
+        util::vec(animation::ease_names())));
+    field_row(k, "advance", || choice(S, k, at, "advance", t.get("advance").unwrap_or(animation::ADVANCE_ENABLED),
+        [animation::ADVANCE_DISABLED, animation::ADVANCE_ENABLED, animation::ADVANCE_AUTO]));
+    field_row(k, "switch", || choice(S, k, at, "switch", t.get("switch").unwrap_or(animation::SWITCH_IMMEDIATE),
+        [animation::SWITCH_IMMEDIATE, animation::SWITCH_SYNC, animation::SWITCH_AT_END]));
+    field_row(k, "condition", || text(S, k, at, "condition", t.get("condition").unwrap_or(""), "none"));
+    field_row(k, "check", || text(S, k, at, "check", t.get("check").unwrap_or(""), "no method"));
+    field_row(k, "priority", || number(S, k, at, "priority", t.get("priority").unwrap_or(1), 0));
+    field_row(k, "reset", || flag(S, k, at, "reset", t.get("reset").unwrap_or(true)));
+    field_row(k, "break loop", || flag(S, k, at, "break_loop", t.get("break_loop").unwrap_or(false)));
+}
+
+fn check(ok, what) {
+    if ok {
+        log::info(format!("selftest ok: {}", what));
+    } else {
+        log::error(format!("selftest FAILED: {}", what));
+    }
+}
+
+/// `--state machinedemo`: on the first node with a player, add a state and a
+/// transition, edit and remove them, and undo back to the scene as it was.
+pub fn selftest(S) {
+    let player = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("animation") {
+            player = Some(i);
+            break;
+        }
+    }
+    let player = match player {
+        Some(player) => player,
+        None => {
+            log::info("selftest state machine: no player; skipped");
+            return;
+        }
+    };
+    crate::shell::choose(S, player);
+    let before = toml::encode(util::deep(S.doc[player]));
+    if source(S).is_none() {
+        create(S);
+    }
+    check(source(S).is_some(), "the node runs a state machine");
+
+    add_state(S, "sm_probe");
+    let doc = source(S).unwrap().doc;
+    check(states(doc).contains_key("sm_probe"), "a state is added");
+
+    let count = transitions(doc).len();
+    add_transition(S);
+    let at = count;
+    set_field(S, at, "to", "sm_probe");
+    set_field(S, at, "fade", 0.3);
+    set_field(S, at, "advance", animation::ADVANCE_AUTO);
+    set_field(S, at, "priority", 2);
+    let t = transitions(source(S).unwrap().doc)[at];
+    check(t.get("fade") == Some(0.3) && t.get("advance") == Some(animation::ADVANCE_AUTO),
+        "a transition's fields are written");
+    check(t.get("priority") == Some(2), "priority stays a whole number");
+    set_field(S, at, "condition", "go");
+    set_field(S, at, "condition", "");
+    let t = transitions(source(S).unwrap().doc)[at];
+    check(t.get("condition").is_none(), "an emptied field is removed");
+
+    remove_state(S, "sm_probe");
+    let doc = source(S).unwrap().doc;
+    let dangling = false;
+    for t in transitions(doc) {
+        if t.get("to").unwrap_or("") == "sm_probe" {
+            dangling = true;
+        }
+    }
+    check(!states(doc).contains_key("sm_probe") && !dangling,
+        "removing a state removes its transitions");
+
+    let guard = 0;
+    while crate::history::can_undo(S) && guard < 200 {
+        crate::shell::undo(S);
+        guard += 1;
+    }
+    check(toml::encode(util::deep(S.doc[player])) == before, "undoing everything restores the node");
+    log::info("selftest state machine: done");
+}

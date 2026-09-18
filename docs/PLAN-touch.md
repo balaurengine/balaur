@@ -16,7 +16,7 @@ Raw touch was built and recorded. Everything above it was not.
 - **`input.keyboard_height()`**: in the snapshot, bound, documented. The
   implementation read a page's visual viewport, so it answered on the web and
   zero everywhere else, including the two platforms that have a keyboard.
-- **`render.safe_area()`**: recorded insets, UIKit on iOS through the kiss3d
+- **`window.safe_area()`**: recorded insets, UIKit on iOS through the kiss3d
   fork, `env(safe-area-inset-*)` on a page.
 - **`deadzone` on `scroll`**: a drag threshold in design pixels, so a tap on a
   child lands rather than being taken as a scroll.

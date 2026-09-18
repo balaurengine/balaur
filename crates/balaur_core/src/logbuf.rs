@@ -23,6 +23,8 @@ const CAPACITY: usize = 500;
 
 #[derive(Clone, Debug)]
 pub struct LogEntry {
+    /// Its place in everything captured, from 1: a reader resumes after one.
+    pub seq: u64,
     /// Seconds since the subscriber was installed.
     pub time: f64,
     /// "info", "warn", "error", "debug", "trace".
@@ -111,16 +113,22 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
             }
             let time = buffer.start.elapsed().as_secs_f64();
             buffer.total += 1;
-            buffer.entries.push_back(LogEntry {
+            let entry = LogEntry {
+                seq: buffer.total,
                 time,
                 level: meta.level().as_str().to_lowercase(),
                 tag,
                 message: visitor.message,
                 fields: visitor.fields,
-            });
+            };
+            file::append(&entry);
+            buffer.entries.push_back(entry);
         }
     }
 }
+
+/// Where gilrs times its force-feedback loop, held to errors.
+const QUIET_RUMBLE: &str = "gilrs::ff::server=error";
 
 /// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
 /// records from dependencies land in the same place.
@@ -132,7 +140,10 @@ pub fn capture(max_level: LevelFilter) {
     let _ = tracing_log::LogTracer::init();
     let filter = EnvFilter::builder()
         .with_default_directive(max_level.into())
-        .from_env_lossy();
+        .from_env_lossy()
+        // gilrs times its rumble thread and warns whenever the machine is busy:
+        // a note about load, not about the game, and a warning fails a test run.
+        .add_directive(QUIET_RUMBLE.parse().expect("a fixed directive"));
     #[cfg(not(target_arch = "wasm32"))]
     let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
     // A browser has no stderr and no clock for the timestamp column —
@@ -224,6 +235,26 @@ pub fn recent(n: usize) -> Vec<LogEntry> {
     })
 }
 
+/// What was captured after `cursor`, oldest first, the cursor to pass next,
+/// and how many the ring dropped before they could be read.
+///
+/// `cursor` is a `seq`; 0 reads everything the ring still holds.
+pub fn since(cursor: u64) -> (Vec<LogEntry>, u64, u64) {
+    let guard = lock_buffer();
+    let Some(buffer) = guard.as_ref() else {
+        return (Vec::new(), cursor, 0);
+    };
+    let entries: Vec<LogEntry> = buffer
+        .entries
+        .iter()
+        .filter(|entry| entry.seq > cursor)
+        .cloned()
+        .collect();
+    let first = entries.first().map_or(buffer.total + 1, |entry| entry.seq);
+    let missed = first.saturating_sub(cursor + 1);
+    (entries, buffer.total, missed)
+}
+
 /// How many entries have been captured since `capture`, evicted ones
 /// included: a reader compares two values to learn whether anything is new.
 pub fn total() -> u64 {
@@ -248,4 +279,115 @@ pub fn first_time(site: &'static str, key: &str) -> bool {
         let keys = said.entry(site).or_default();
         !keys.contains(key) && keys.insert(key.to_owned())
     })
+}
+
+pub use file::{open as open_file, path as file_path};
+
+/// The same stream teed to a file, so the run that crashed leaves its lines
+/// behind. Native only: a browser has nowhere to write one.
+mod file {
+    use std::io::Write as _;
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+
+    use super::LogEntry;
+
+    struct Sink {
+        path: PathBuf,
+        #[cfg(not(target_family = "wasm"))]
+        file: std::fs::File, // os files: native only
+    }
+
+    static SINK: Mutex<Option<Sink>> = Mutex::new(None);
+
+    fn lock() -> std::sync::MutexGuard<'static, Option<Sink>> {
+        SINK.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Where the file is, once one is open.
+    pub fn path() -> Option<PathBuf> {
+        lock().as_ref().map(|sink| sink.path.clone())
+    }
+
+    /// Start writing `<dir>/<name>.log`, keeping the last `keep` runs as
+    /// `<name>.1.log` and so on, and write a panic there before it unwinds.
+    ///
+    /// # Errors
+    /// When the directory or the file cannot be made.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn open(dir: &Path, name: &str, keep: usize) -> anyhow::Result<PathBuf> {
+        std::fs::create_dir_all(dir)?; // os files: native only
+        let path = dir.join(format!("{name}.log"));
+        rotate(dir, name, keep);
+        let mut file = std::fs::File::create(&path)?; // os files: native only
+        // What was logged before the file opened, `init` included, goes first.
+        for entry in &super::since(0).0 {
+            let _ = writeln!(file, "{}", line_of(entry));
+        }
+        let had = lock().replace(Sink {
+            path: path.clone(),
+            file,
+        });
+        if had.is_none() {
+            let previous = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                if let Some(sink) = lock().as_mut() {
+                    let _ = writeln!(sink.file, "panic {info}");
+                    let _ = sink.file.flush();
+                }
+                previous(info);
+            }));
+        }
+        Ok(path)
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub fn open(_dir: &Path, _name: &str, _keep: usize) -> anyhow::Result<PathBuf> {
+        anyhow::bail!("a browser build keeps no log file")
+    }
+
+    /// `<name>.log` becomes `<name>.1.log`, and so on, the oldest dropped.
+    #[cfg(not(target_family = "wasm"))]
+    fn rotate(dir: &Path, name: &str, keep: usize) {
+        let at = |n: usize| {
+            if n == 0 {
+                dir.join(format!("{name}.log"))
+            } else {
+                dir.join(format!("{name}.{n}.log"))
+            }
+        };
+        if keep == 0 {
+            return;
+        }
+        let _ = std::fs::remove_file(at(keep)); // os files: native only
+        for n in (0..keep).rev() {
+            let _ = std::fs::rename(at(n), at(n + 1)); // os files: native only
+        }
+    }
+
+    /// One line per entry: elapsed seconds, level, tag, message, fields.
+    #[cfg(not(target_family = "wasm"))]
+    fn line_of(entry: &LogEntry) -> String {
+        let mut line = format!(
+            "{:10.3} {:5} {}: {}",
+            entry.time, entry.level, entry.tag, entry.message
+        );
+        for (name, value) in &entry.fields {
+            let _ = std::fmt::Write::write_fmt(&mut line, format_args!(" {name}={value}"));
+        }
+        line
+    }
+
+    pub(super) fn append(entry: &LogEntry) {
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(sink) = lock().as_mut() {
+            let _ = writeln!(sink.file, "{}", line_of(entry));
+            if entry.level == "error" {
+                let _ = sink.file.flush();
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        let _ = entry;
+    }
 }

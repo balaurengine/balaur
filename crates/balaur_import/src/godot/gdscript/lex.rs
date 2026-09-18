@@ -57,6 +57,7 @@ pub(crate) fn lex(source: &str) -> Result<Vec<Token>, String> {
         indents: vec![0],
         depth: 0,
         line: 0,
+        lambdas: Vec::new(),
     }
     .run(source)
 }
@@ -68,6 +69,17 @@ struct Lexer {
     /// not a block.
     depth: usize,
     line: usize,
+    /// Lambdas whose body is a block inside brackets: Godot's
+    /// `connect(func():` then indented lines, which are blocks after all.
+    lambdas: Vec<Lambda>,
+}
+
+/// One open lambda body: the bracket depth it opened at, the indentation of
+/// the line that opened it, and the indent stack to unwind to.
+struct Lambda {
+    depth: usize,
+    width: usize,
+    indents: usize,
 }
 
 impl Lexer {
@@ -75,16 +87,27 @@ impl Lexer {
         for (index, raw) in source.lines().enumerate() {
             self.line = index + 1;
             let line = raw.trim_end();
-            if self.depth == 0 {
-                let trimmed = line.trim_start();
+            let trimmed = line.trim_start();
+            let width = line.len() - trimmed.len();
+            if self.in_lambda() && !trimmed.is_empty() && !trimmed.starts_with('#') {
+                self.close_lambdas(width);
+            }
+            if self.blocks() {
                 if trimmed.is_empty() || trimmed.starts_with('#') {
                     continue;
                 }
-                let width = line.len() - trimmed.len();
                 self.indentation(width)?;
             }
+            let first = self.out.len();
             self.line_tokens(line)?;
-            if self.depth == 0
+            if self.depth > 0 && self.opens_lambda(first) {
+                self.lambdas.push(Lambda {
+                    depth: self.depth,
+                    width,
+                    indents: self.indents.len(),
+                });
+            }
+            if self.blocks()
                 && !matches!(
                     self.out.last().map(|t| &t.kind),
                     None | Some(Tok::Newline | Tok::Indent)
@@ -99,6 +122,42 @@ impl Lexer {
         }
         self.push(Tok::Eof);
         Ok(self.out)
+    }
+
+    /// Whether a newline and indentation mean blocks here: outside brackets,
+    /// or inside a lambda body at the depth it opened.
+    fn blocks(&self) -> bool {
+        self.depth == 0 || self.lambdas.last().is_some_and(|l| l.depth == self.depth)
+    }
+
+    fn in_lambda(&self) -> bool {
+        self.lambdas.last().is_some_and(|l| l.depth == self.depth)
+    }
+
+    /// A line back at or left of the one that opened a lambda ends its body.
+    fn close_lambdas(&mut self, width: usize) {
+        while let Some(open) = self.lambdas.last()
+            && open.depth == self.depth
+            && width <= open.width
+        {
+            let keep = open.indents;
+            self.lambdas.pop();
+            if !matches!(self.out.last().map(|t| &t.kind), Some(Tok::Newline)) {
+                self.push(Tok::Newline);
+            }
+            while self.indents.len() > keep {
+                self.indents.pop();
+                self.push(Tok::Dedent);
+            }
+        }
+    }
+
+    /// Whether the tokens from `first` end a `func(..):` header, inside
+    /// brackets, with its body on the lines below.
+    fn opens_lambda(&self, first: usize) -> bool {
+        let line = &self.out[first..];
+        matches!(line.last().map(|t| &t.kind), Some(Tok::Op(":")))
+            && line.iter().any(|t| t.kind == Tok::Name("func".into()))
     }
 
     fn push(&mut self, kind: Tok) {
@@ -378,6 +437,18 @@ mod tests {
             !out.contains(&Tok::Indent),
             "no block inside a list: {out:?}"
         );
+    }
+
+    #[test]
+    fn a_lambda_body_inside_brackets_is_a_block() {
+        let out = kinds(
+            "func a():\n\tt.connect(\n\t\tfunc() -> void:\n\t\t\tp.visible = false\n\t\t\tp.x = 1\n\t)\n\tvar y = 2\n",
+        );
+        let indents = out.iter().filter(|t| **t == Tok::Indent).count();
+        let dedents = out.iter().filter(|t| **t == Tok::Dedent).count();
+        assert_eq!((indents, dedents), (2, 2), "{out:?}");
+        let close = out.iter().rposition(|t| *t == Tok::Op(")")).unwrap();
+        assert_eq!(out[close - 1], Tok::Dedent, "the body ends before the bracket: {out:?}");
     }
 
     #[test]

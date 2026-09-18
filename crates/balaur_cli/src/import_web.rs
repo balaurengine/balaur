@@ -11,9 +11,8 @@
 //! importer claims is the model, and the rest are what it may name. A reader
 //! who picks the `.gltf` alone gets told which image is missing.
 
-use std::cell::Cell;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::Sender;
 
 use balaur_core::task;
@@ -23,7 +22,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{Event, File, FileList, HtmlInputElement};
 
-use crate::import_api::{ImportEvent, ImportJob, Source};
+use crate::import_api::{Cancel, ImportEvent, ImportJob, Running, Source};
 
 /// What the chooser offers, as an `accept` list from the one list of what an
 /// importer reads.
@@ -39,8 +38,8 @@ fn accept() -> String {
 pub(crate) fn choose(
     project: PathBuf,
     report: Sender<ImportEvent>,
-    running: Rc<Cell<usize>>,
-    cancel: Rc<Cell<bool>>,
+    running: Running,
+    cancel: Cancel,
 ) -> bool {
     let Some(document) = web_sys::window().and_then(|w| w.document()) else {
         return false;
@@ -74,13 +73,13 @@ pub(crate) fn choose(
     true
 }
 
-/// Read every picked file, then park the import.
+/// Read every picked file, then start the import.
 async fn read_then_import(
     files: FileList,
     project: PathBuf,
     report: Sender<ImportEvent>,
-    running: Rc<Cell<usize>>,
-    cancel: Rc<Cell<bool>>,
+    running: Running,
+    cancel: Cancel,
 ) {
     let mut model: Option<(String, Vec<u8>)> = None;
     let mut with: Vec<(String, Vec<u8>)> = Vec::new();
@@ -114,8 +113,8 @@ async fn read_then_import(
         });
         return;
     };
-    running.set(running.get() + 1);
-    task::park(ImportJob::new(
+    running.fetch_add(1, Ordering::Relaxed);
+    task::step(ImportJob::new(
         Source::Chosen { name, bytes, with },
         project,
         report,

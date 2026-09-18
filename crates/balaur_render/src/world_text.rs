@@ -306,8 +306,8 @@ mod backend {
 
     /// Shape3d `text`, or report that the fonts are not installed yet.
     ///
-    /// The engine holds one shaper, made when the theme's faces load; a run
-    /// without the UI plugin has none, and nothing can draw text.
+    /// The engine holds one shaper, made from the project's faces by whatever
+    /// asks first.
     pub(crate) fn shape(
         eng: &Engine,
         text: &str,
@@ -324,8 +324,7 @@ mod backend {
         style: &super::TextStyle,
         raster: f32,
     ) -> Result<std::rc::Rc<Shaped>> {
-        let state = balaur_text::state(eng)
-            .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
+        let state = balaur_text::shaper(eng);
         // A bitmap face is loaded the first time it is asked for: the page
         // goes into the atlas beside the rasterised glyphs.
         if !style.font.is_empty() {
@@ -371,8 +370,7 @@ mod backend {
     /// Read a `.fnt` and its page out of the project and hand them to the
     /// shaper, once per face. Later calls find it already there.
     fn load_bitmap_font(eng: &Engine, path: &str) -> Result<()> {
-        let state = balaur_text::state(eng)
-            .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
+        let state = balaur_text::shaper(eng);
         if state.borrow().has_bitmap_font(path) {
             return Ok(());
         }
@@ -576,13 +574,11 @@ mod backend {
 ///
 /// Deterministic: measured against the project's fonts and the bundled ones
 /// only, never the machine's, so every platform answers the same. A bitmap
-/// face is measured from its own descriptor, which is as fixed. Without the
-/// shaper — a run with no UI plugin — this reports rather than guessing.
+/// face is measured from its own descriptor, which is as fixed.
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
     #[cfg(feature = "kiss3d")]
     {
-        let state = balaur_text::state(eng)
-            .ok_or_else(|| anyhow::anyhow!("no text shaper: the ui plugin installs it"))?;
+        let state = balaur_text::shaper(eng);
         if !style.font.is_empty() {
             let shaped = shape(eng, text, style)?;
             return Ok([shaped.size.x, shaped.size.y]);
@@ -607,12 +603,12 @@ pub(crate) fn depth_of(layer: usize) -> f32 {
     layer as f32 * 0.001
 }
 
-/// Report a missing shaper once: it is a boot condition on the first frame
-/// and a missing plugin forever after, and neither wants a line per call.
+/// Report a face that will not load once, not once a frame.
 #[cfg(feature = "kiss3d")]
-pub(crate) fn warn_once(err: &anyhow::Error) {
-    if balaur_core::logbuf::first_time("text shaper", "") {
-        tracing::warn!("{err:#}");
+pub(crate) fn report_once(err: &anyhow::Error) {
+    let message = format!("{err:#}");
+    if balaur_core::logbuf::first_time("world text", &message) {
+        tracing::error!("{message}");
     }
 }
 
@@ -677,10 +673,8 @@ pub(crate) fn flush(
     for item in &items {
         match shape(&app.engine, &item.text, &item.style) {
             Ok(block) => shaped.push(Some(block)),
-            // The fonts install on the first UI pass, which is later in this
-            // frame: said once, since the frame after it draws.
             Err(err) => {
-                warn_once(&err);
+                report_once(&err);
                 shaped.push(None);
             }
         }

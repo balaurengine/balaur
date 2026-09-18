@@ -128,28 +128,39 @@ screen, so the second build is three tabs of one centred column.
   for a picture of a scene taken inside the editor.
 - **Engine is one build and one line.** The head says what is installed and
   whether it is current; `Follow` picks the channel; the list under it is that
-  channel's releases, newest first, with the installed one marked and an
-  `Install` on the rest. A rolling tag names no build, so its `VERSION` asset
-  is read to name it. The release feed is one read when the tab opens.
+  channel's releases, newest first, with the installed one marked. Each row's
+  press says which way it goes: `Install` or `Downgrade`, or `Download` for the
+  .dmg where the install is a macOS bundle. The feed is one read when the tab
+  opens, plus one `VERSION` read for the nightly, the only rolling tag listed.
 
 ## 7b. The engine's own versions
 
 The screen's second tab is the build rather than the project, because which
 engine opens a project is the same decision as which project to open.
 
-- **`versions.*`** answers what this build is (`installed`), what lines exist
-  (`channels`), what one line holds now (`published`), and replaces the
-  install (`install`). The last two are `balaur update`'s own code, split into
-  two functions the command and the screen share, so a button and a flag
-  cannot drift.
-- **A check is a press.** Reading a channel's `VERSION` is a network call that
-  blocks, so nothing is read until the reader asks for it, and each answer is
-  kept beside its channel's name.
-- **A downgrade is allowed from here.** Naming an older release is the only
-  reason to name one; the command still refuses without `--allow-downgrade`,
-  which is the difference between typing a flag and pressing a row.
+- **`release.*`** answers what this build is (`installed`) and what lines exist
+  (`channels`). `check` reads the feed and `install` replaces the install, each
+  on a thread that reports to `on_release` through `crate::jobs`. The frame
+  never waits on GitHub. Both run `balaur update`'s own code, so a button and a
+  flag cannot drift.
+- **Every row is ordered against this build.** `order` is `newer`, `older` or
+  `same`, and empty where a nightly meets a version. The head's line and the
+  row's press read it, so an older release is never called newer.
+- **A downgrade is allowed from here.** The row names it `Downgrade`, and
+  pressing it is the choice. The command still refuses without
+  `--allow-downgrade`, which is the difference between typing a flag and
+  pressing a row.
+- **An install that cannot replace itself says so first.** `installed().held`
+  names why: a macOS bundle, whose rows offer the release's .dmg instead, or a
+  cargo target directory, which offers nothing.
+- **An install shows its bytes.** `downloading` reports each megabyte, then
+  `unpacking`, then `installed`. Opening a project waits for it, because
+  opening quits this process.
 - **A source build belongs to no channel** and says so rather than guessing
   one, which is what `channel()` already answered.
+- **About Balaur** in the shell's menu is the same state in a sheet: the
+  version, build, channel and platform, the line's standing, and the one press
+  that moves to its newest release.
 
 ## 8. What is left
 

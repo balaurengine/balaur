@@ -1,9 +1,11 @@
 // The balaur editor: a regular balaur project whose modules draw the whole
 // shell and edit the game given to `balaur edit`; `S` is its one state object.
 
+mod about;
 mod anim;
 mod arrange;
 mod bonemap;
+mod statemachine;
 mod center;
 mod chrome;
 mod complete;
@@ -21,6 +23,7 @@ mod icons;
 mod importer;
 mod inputview;
 mod inspector;
+mod kit;
 mod layout;
 mod library;
 mod manager;
@@ -141,6 +144,9 @@ pub fn init(this) {
         rows_demo: -1,
         import_demo: -1,
         import_waited: 0,
+        // The start screen's conversion under test: frames waited, and where
+        // it said it landed. Unit when no test is running.
+        convert_demo: (),
         rows_want: 0,
         rows_waited: 0,
         gesture_demo: -1,
@@ -205,6 +211,7 @@ pub fn init(this) {
         pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
+        machine: statemachine::state(),
         tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
@@ -237,11 +244,12 @@ pub fn init(this) {
     // Exports and imports run off the frame and report back here as they go.
     export::listen(this.node, #{});
     import::listen(this.node, #{});
+    release::listen(this.node, #{});
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
     settings::load_files(S);
     theme::apply(S);
-    render::set_app_icon("assets/balaur-logo.png");
+    chrome::set_app_icon();
     S.touchscreen = engine::platform().touchscreen;
     shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
@@ -269,9 +277,20 @@ pub fn on_export(this, e) {
     exporter::report(this.S, e);
 }
 
+// A release check or install reports here, for the start screen and About.
+pub fn on_release(this, e) {
+    manager::heard(this.S, e);
+}
+
 // Every import reports here: what is coming, each file, then the end.
 pub fn on_import(this, e) {
-    dropin::report(this.S, e);
+    let S = this.S;
+    // The start screen's conversion is its own; every other import is a drop's.
+    if manager::owns(S, e) {
+        manager::report(S, e);
+    } else {
+        dropin::report(S, e);
+    }
 }
 
 pub fn update(this, dt) {
@@ -300,11 +319,6 @@ pub fn update(this, dt) {
             render::screenshot(shot);
             report_view(S);
         }
-    }
-    // A run with no window never calls `draw_ui`, so its states land here: by
-    // this frame a drawn run has measured its screen twice over.
-    if S.frame >= HEADLESS_STATES_AT && !S.platform_read {
-        apply_start_states(S);
     }
     // The start screen has no scene to step, no selection to follow and no
     // gizmo to drag: what it needs from a frame is the shot and the states.
@@ -357,6 +371,9 @@ pub fn update(this, dt) {
     }
     if S.import_demo >= 0 {
         selftest::import_step(S);
+    }
+    if S.convert_demo is Object {
+        selftest::convert_step(S);
     }
     // One queued import a frame, so a shot catches several at once.
     if !S.import_queue.is_empty() && S.frame >= S.import_from {
@@ -444,9 +461,6 @@ pub fn update(this, dt) {
         ui::request_repaint();
     }
 }
-
-/// The frame a run that has drawn nothing takes to be headless.
-const HEADLESS_STATES_AT = 3;
 
 // The `--state` list, applied once. Read here rather than at `init`, because
 // a state that folds a dock has to run after the screen has been measured.
@@ -644,6 +658,7 @@ pub fn draw_ui(this) {
     // belongs with the drawing, not over a dialog.
     textedit::draw(S, S.theme);
     settings::draw(S);
+    about::draw(S);
     palette::draw(S);
     newnode::draw(S);
     left::rename_draw(S);
@@ -700,6 +715,10 @@ pub fn draw_view_weights(this) {
 
 pub fn draw_view_bonemap(this) {
     bonemap::body(this.S, this.S.theme);
+}
+
+pub fn draw_view_statemachine(this) {
+    statemachine::body(this.S, this.S.theme);
 }
 
 pub fn draw_dock_tools_left(this) {

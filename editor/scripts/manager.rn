@@ -21,11 +21,19 @@ pub fn state() {
         parent: "",
         note: "",
         failed: "",
-        // The release feed, read once when the Engine tab opens.
+        // A project being converted: the manifest it reads, where it lands,
+        // how far along, and what to do once it is done. Empty when none is.
+        importing: #{},
+        // The release feed, asked for once when the Engine tab or About opens,
+        // and whether a read is out.
         releases: [],
         asked: false,
+        reading: false,
         follow: "",
         tag: "",
+        // An install in flight: the tag, bytes so far and of how many, and
+        // whether it is unpacking. Empty when none is.
+        installing: #{},
     }
 }
 
@@ -41,6 +49,7 @@ const NEW_SHEET = "manager-new";
 // The editor's own mark, which the top bar draws too. A project of its own
 // is not open yet, so every row wears this one.
 const LOGO = "assets/balaur-logo.png";
+const MB = 1048576;
 
 /// Whether the editor is running in a browser tab, where a project is opened
 /// by the page rather than by starting a second editor.
@@ -168,6 +177,37 @@ fn head(S, k, w) {
         let tone = if S.manager.failed != "" { k.get("warn").unwrap_or(k.accent) } else { k.faint };
         ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
     }
+    if converting(S) {
+        progress(S, k, w);
+    }
+    if installing(S) {
+        install_progress(S, k, w);
+    }
+}
+
+// How far a conversion has got: the count, a bar, and the press that stops it.
+fn progress(S, k, w) {
+    let job = S.manager.importing;
+    let counted = if job.files > 0 { format!("{} of {} files", job.done, job.files) } else { "reading" };
+    ui::add_space(6);
+    ui::horizontal(#{ height: 22, width: w }, || {
+        ui::label(counted, style::mono_sm(k.dim));
+        ui::add_space(10);
+        ui::vertical(|| {
+            ui::add_space(9);
+            let part = if job.files > 0 { util::f(job.done) / util::f(job.files) } else { 0.0 };
+            ui::bar(part, #{ width: util::min(w - 220.0, 360.0), height: 4, track: k.sunken, fill: k.accent });
+        });
+        ui::right(|| {
+            if ui::pill("stop", #{
+                height: 22, size: style::SM, radius: 8, padding_x: 12,
+                fill: k.panel, color: k.dim,
+                tooltip: "Stop after the file it is on; what it wrote stays",
+            }) {
+                import::cancel();
+            }
+        });
+    });
 }
 
 // The shell's own tab shape: a pill per page, the open one filled.
@@ -419,8 +459,7 @@ fn example_card(S, k, w, h, row) {
 // command cannot disagree.
 fn engine_page(S, k, col, tall) {
     if !S.manager.asked {
-        S.manager.asked = true;
-        S.manager.releases = util::vec(release::releases());
+        check(S);
     }
     let mine = util::obj(release::installed());
     let h = util::max(style::row_h(S), 30.0);
@@ -431,30 +470,33 @@ fn engine_page(S, k, col, tall) {
             ui::label("Balaur " + mine.version, #{
                 size: style::LG, font: ui::FONT_HEADING, strong: true, color: k.text,
             });
-            let line = if mine.source == true {
-                "built from a checkout"
-            } else {
-                mine.id + "  ·  following " + mine.channel
-            };
-            ui::label(line, style::mono_sm(k.faint));
+            ui::label(build_line(mine), style::mono_sm(k.faint));
         });
         ui::right(|| {
-            if ui::pill(icons::ui("reset") + " Check", #{
+            let word = if S.manager.reading { " Checking" } else { " Check" };
+            if ui::pill(icons::ui("reset") + word, #{
                 height: h, size: style::SM, radius: 8, padding_x: 12,
                 fill: k.panel, color: k.dim,
             }) {
-                S.manager.releases = util::vec(release::releases());
+                check(S);
             }
             ui::add_space(10);
             if !tight {
-                ui::label(standing(mine, newest), style::mono_sm(
-                    if newest == "" { k.faint } else { k.get("ok").unwrap_or(k.sage) }));
+                let fresh = newest.get("order").unwrap_or("") == "newer";
+                ui::label(standing(S, S.manager.follow), style::mono_sm(
+                    if fresh { k.get("ok").unwrap_or(k.sage) } else { k.faint }));
             }
         });
     });
+    if mine.held != "" {
+        ui::add_space(4);
+        ui::label(mine.held, util::merge(style::mono_sm(k.faint), #{ wrap: true, width: col }));
+    }
     ui::add_space(SEAM);
     ui::horizontal(#{ height: h + 6.0, width: col }, || {
-        ui::label("Follow", #{ size: style::MD, color: k.dim, width: 60 });
+        ui::horizontal(#{ height: h, width: 60 }, || {
+            ui::label("Follow", #{ size: style::MD, color: k.dim });
+        });
         ui::scroll("manager-follow", #{
             axis: "horizontal", max_width: col - 66.0, max_height: h + 6.0, deadzone: 6,
         }, || {
@@ -474,56 +516,116 @@ fn engine_page(S, k, col, tall) {
         });
     });
     ui::add_space(SEAM);
-    release_list(S, k, col, tall);
+    release_list(S, k, col, tall, mine);
 }
 
-// The newest release on a line, or "" when it holds none.
-fn newest_on(S, channel) {
+/// The build in one line: its id and the line it follows, or where it came
+/// from when it came from no release.
+pub fn build_line(mine) {
+    if mine.source == true {
+        return "built from a checkout";
+    }
+    mine.id + "  ·  following " + mine.channel
+}
+
+/// Ask the feed what every line holds, unless a read is already out. The
+/// answer arrives in `heard`.
+pub fn check(S) {
+    if S.manager.reading {
+        return;
+    }
+    S.manager.asked = true;
+    S.manager.reading = release::check();
+}
+
+/// Whether an install is in flight.
+pub fn installing(S) {
+    S.manager.installing.contains_key("tag")
+}
+
+/// A report on a check or an install. The start screen and the About sheet
+/// both read what this keeps.
+pub fn heard(S, e) {
+    let ev = util::obj(e);
+    let kind = ev.get("kind").unwrap_or("");
+    if kind == "listed" {
+        S.manager.releases = util::vec(ev.get("rows").unwrap_or([]));
+        S.manager.reading = false;
+    } else if kind == "downloading" {
+        S.manager.installing = #{
+            tag: ev.get("tag").unwrap_or(""),
+            done: ev.get("done").unwrap_or(0),
+            total: ev.get("total").unwrap_or(0),
+            unpacking: false,
+        };
+    } else if kind == "unpacking" {
+        let job = S.manager.installing;
+        job.unpacking = true;
+        S.manager.installing = job;
+    } else if kind == "installed" {
+        S.manager.installing = #{};
+        S.manager.failed = "";
+        S.manager.note = ev.get("note").unwrap_or("");
+        log::info(S.manager.note);
+    } else if kind == "failed" {
+        if ev.get("job").unwrap_or("") == "install" {
+            S.manager.installing = #{};
+        } else {
+            S.manager.reading = false;
+        }
+        S.manager.failed = ev.get("message").unwrap_or("");
+    }
+}
+
+/// The newest release on a line, or an empty table when it holds none.
+pub fn newest_on(S, channel) {
     for entry in S.manager.releases {
         let row = util::obj(entry);
         if row.get("channel").unwrap_or("") == channel {
-            return row.get("id").unwrap_or("");
+            return row;
         }
     }
-    ""
+    #{}
 }
 
-fn standing(mine, newest) {
-    if newest == "" {
-        return "no release on this line";
+/// What the newest release on a line means for this build, in a few words.
+pub fn standing(S, channel) {
+    let newest = newest_on(S, channel);
+    let id = newest.get("id").unwrap_or("");
+    if id == "" {
+        return if S.manager.reading { "checking" } else { "no release on this line" };
     }
-    if mine.get("id").unwrap_or("") == newest {
+    let order = newest.get("order").unwrap_or("");
+    if order == "same" {
         return "up to date";
     }
-    if mine.get("source").unwrap_or(false) == true {
-        return newest + " is published";
+    if order == "newer" {
+        return id + " is newer";
     }
-    newest + " is newer"
+    if order == "older" {
+        return id + " is older than this build";
+    }
+    id + " is published"
 }
 
-fn release_list(S, k, col, tall) {
+fn release_list(S, k, col, tall, mine) {
     let h = util::max(style::row_h(S), 30.0);
     let rows = [];
     for entry in S.manager.releases {
         let row = util::obj(entry);
-        let broke = row.get("error");
-        if let Some(why) = broke {
-            ui::label(why, util::merge(style::mono_sm(k.faint), #{ wrap: true, width: col }));
-            return;
-        }
         if row.get("channel").unwrap_or("") == S.manager.follow {
             rows.push(row);
         }
     }
     if rows.len() == 0 {
-        ui::label("Nothing published on this line yet.", style::mono_sm(k.faint));
+        let empty = if S.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
+        ui::label(empty, style::mono_sm(k.faint));
     }
     // As tall as the releases it holds, capped by what is left of the screen:
     // a scroll of one row should not reserve the page.
     let room = util::min(tall - 120.0, util::f(rows.len()) * (h + 15.0) + 4.0);
     ui::scroll("manager-releases", #{ axis: "vertical", max_height: util::max(room, h) }, || {
         for row in rows {
-            let here = row.get("tag").unwrap_or("");
             let current = row.get("current").unwrap_or(false) == true;
             ui::horizontal(#{ height: h + 14.0, width: col }, || {
                 ui::vertical(|| {
@@ -533,22 +635,15 @@ fn release_list(S, k, col, tall) {
                     });
                     ui::label(row.get("when").unwrap_or(""), style::mono_sm(k.faint));
                 });
-                ui::right(|| {
-                    if current {
-                        ui::label("installed", style::mono_sm(k.faint));
-                        return;
-                    }
-                    if ui::pill("Install", #{
-                        height: h, size: style::SM, radius: 8, padding_x: 14, min_width: 88,
-                        fill: k.sunken, color: k.text,
-                    }) {
-                        put(S, "", here);
-                    }
-                });
+                ui::right(|| { row_press(S, k, h, row, mine); });
             });
             ui::separator(k.line);
         }
     });
+    // An install that cannot replace itself has nothing to name a release for.
+    if mine.held != "" {
+        return;
+    }
     ui::add_space(10);
     let tight = narrow(col);
     let label_w = if tight { 0.0 } else { 160.0 };
@@ -572,13 +667,82 @@ fn release_list(S, k, col, tall) {
     }
 }
 
+/// What a release row offers: nothing on the one installed or while another
+/// installs, the .dmg where this install cannot replace itself, and otherwise
+/// the install, named for which way it goes.
+pub fn row_press(S, k, h, row, mine) {
+    if row.get("current").unwrap_or(false) == true {
+        ui::label("installed", style::mono_sm(k.faint));
+        return;
+    }
+    if installing(S) {
+        return;
+    }
+    let look = #{
+        height: h, size: style::SM, radius: 8, padding_x: 14, min_width: 88,
+        fill: k.sunken, color: k.text,
+    };
+    let download = row.get("download").unwrap_or("");
+    if download != "" {
+        if ui::pill("Download", look) {
+            engine::open_url(download);
+        }
+        return;
+    }
+    if mine.held != "" {
+        return;
+    }
+    let word = if row.get("order").unwrap_or("") == "older" { "Downgrade" } else { "Install" };
+    if ui::pill(word, look) {
+        put(S, "", row.get("tag").unwrap_or(""));
+    }
+}
+
 fn install_named(S, k, h) {
+    if installing(S) {
+        return;
+    }
     if ui::pill("Install", #{
         height: h, size: style::SM, radius: 8, padding_x: 14, min_width: 88,
         fill: k.panel, color: k.dim,
     }) {
+        if S.manager.tag == "" {
+            S.manager.failed = "type a release tag first, like v0.2.0";
+            return;
+        }
         put(S, "", S.manager.tag);
     }
+}
+
+/// How far an install has got: the megabytes as they arrive, then the unpack.
+pub fn install_progress(S, k, w) {
+    let job = S.manager.installing;
+    let said = if job.unpacking {
+        "unpacking " + job.tag
+    } else if job.total > 0 {
+        format!("downloading {}  ·  {} of {} MB", job.tag, job.done / MB, job.total / MB)
+    } else {
+        format!("downloading {}  ·  {} MB", job.tag, job.done / MB)
+    };
+    let part = if job.unpacking {
+        1.0
+    } else if job.total > 0 {
+        util::f(job.done) / util::f(job.total)
+    } else {
+        0.0
+    };
+    ui::add_space(6);
+    ui::horizontal(#{ height: 22, width: w }, || {
+        ui::label(said, style::mono_sm(k.dim));
+        ui::add_space(10);
+        ui::vertical(|| {
+            ui::add_space(9);
+            ui::bar(part, #{
+                width: util::max(util::min(w - 280.0, 360.0), 40.0), height: 4,
+                track: k.sunken, fill: k.accent,
+            });
+        });
+    });
 }
 
 // A new project is named in the shell's own sheet, which is what Settings is
@@ -649,18 +813,20 @@ fn create(S) {
 // a line here and a route in `balaur_import`.
 const MANIFESTS = ["project.godot"];
 
-// Another engine's project becomes a balaur one beside it, converted before
-// it is opened: opening quits this process, so nothing after it would run.
+// Another engine's project becomes a balaur one beside it, opened once the
+// import says it is done: opening quits this process.
 fn import_project(S, folder) {
-    let path = converted(S, folder);
-    if path != "" {
-        go(S, path);
-    }
+    convert(S, folder, |S, path| go(S, path));
 }
 
-// The conversion alone, answering where it landed or "" with the reason in
-// `S.manager.failed`, so a test can drive it without the open that quits.
-pub fn converted(S, folder) {
+/// Start converting `folder` into a balaur project beside it, a few files a
+/// frame. Answers where it will land, or "" with the reason in
+/// `S.manager.failed`; `after(S, path)` runs once every file is written.
+pub fn convert(S, folder, after) {
+    if converting(S) {
+        S.manager.failed = "a project is already being imported";
+        return "";
+    }
     let manifest = "";
     for name in MANIFESTS {
         if manifest == "" && fs::exists(folder + "/" + name) {
@@ -678,35 +844,81 @@ pub fn converted(S, folder) {
         S.manager.failed = why;
         return "";
     }
-    let result = util::obj(import::into(manifest, path));
-    if let Some(why) = result.get("error") {
-        S.manager.failed = "importing " + manifest + ": " + why;
+    if !import::start(manifest, path) {
+        S.manager.failed = "importing " + manifest + " did not start";
         return "";
     }
     S.manager.failed = "";
-    S.manager.note = result.get("note").unwrap_or("");
-    log::info(format!("imported {} into {}: {}", manifest, path, S.manager.note));
+    S.manager.note = "importing " + name;
+    S.manager.importing = #{ source: manifest, path: path, done: 0, files: 0, after: after };
     path
 }
 
+/// Whether a project is being converted.
+pub fn converting(S) {
+    S.manager.importing.contains_key("source")
+}
 
-// Replace this install. The reader pressed it, so a downgrade is allowed:
-// naming an older release is the only reason to name one.
-fn put(S, channel, tag) {
-    let answer = util::obj(release::install(channel, tag, true));
-    let failed = answer.get("error");
-    if let Some(why) = failed {
-        S.manager.failed = why;
+/// Whether an import report is about the conversion this screen started.
+pub fn owns(S, e) {
+    converting(S) && util::obj(e).get("source").unwrap_or("") == S.manager.importing.source
+}
+
+/// A report on the conversion: the count as it climbs, then how it ended.
+pub fn report(S, e) {
+    let ev = util::obj(e);
+    let kind = ev.get("kind").unwrap_or("");
+    let job = S.manager.importing;
+    if kind == "started" || kind == "wrote" {
+        job.done = ev.get("done").unwrap_or(0);
+        job.files = ev.get("files").unwrap_or(0);
+        S.manager.importing = job;
         return;
     }
+    S.manager.importing = #{};
+    if kind == "done" {
+        S.manager.note = ev.get("note").unwrap_or("");
+        log::info(format!("imported {} into {}: {}", job.source, job.path, S.manager.note));
+        let after = job.after;
+        after(S, job.path);
+    } else if kind == "failed" {
+        S.manager.failed = "importing " + job.source + ": " + ev.get("message").unwrap_or("");
+    } else if kind == "cancelled" {
+        S.manager.failed = format!("stopped importing after {} files; {} holds what was written",
+            ev.get("done").unwrap_or(0), job.path);
+    }
+}
+
+
+// Replace this install, on a thread; `heard` follows it. The reader pressed
+// it, so a downgrade is allowed: the press said Downgrade where it is one.
+pub fn put(S, channel, tag) {
+    if installing(S) {
+        return;
+    }
+    if !release::install(channel, tag, true) {
+        S.manager.failed = "nothing installs while a recording plays";
+        return;
+    }
+    let named = if tag == "" { channel } else { tag };
     S.manager.failed = "";
-    S.manager.note = answer.get("note").unwrap_or("");
-    log::info(S.manager.note);
+    S.manager.note = "installing " + named;
+    S.manager.installing = #{ tag: named, done: 0, total: 0, unpacking: false };
 }
 
 /// Open a project: the module remembers it, starts the editor on it and asks
 /// this process to quit.
 pub fn go(S, path) {
+    // Opening quits this process, which would leave a conversion half written.
+    if converting(S) {
+        S.manager.failed = "wait for the import to finish, or stop it";
+        return;
+    }
+    // Or an install half swapped in.
+    if installing(S) {
+        S.manager.failed = "wait for the install to finish";
+        return;
+    }
     let answer = util::obj(project::open(path));
     let failed = answer.get("error");
     if let Some(why) = failed {

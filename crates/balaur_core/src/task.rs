@@ -82,9 +82,35 @@ pub fn step(work: impl Stepped + Send + 'static) {
 }
 
 /// Run `work` off the tick, a slice at a time. See the native twin.
+///
+/// A tab parks it even where it has workers: the tab's filesystem lives on
+/// this thread, and a job on a worker would find none of it. [`compute`] is
+/// how such a job hands a worker the part with no files in it.
 #[cfg(target_family = "wasm")]
 pub fn step(work: impl Stepped + 'static) {
     park(work);
+}
+
+/// Run `work` where it cannot hold up a frame, answering on the channel.
+///
+/// For work that touches no file: a parse or an encode. A desktop gives it a
+/// thread and a tab built with shared memory a worker from the page's pool; a
+/// tab without one runs it here, so the answer is waiting on return.
+pub fn compute<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> std::sync::mpsc::Receiver<T> {
+    // One answer, read by the caller's next slice; a dropped caller drops it.
+    let (answer, answered) = std::sync::mpsc::channel();
+    let run = move || {
+        let _ = answer.send(work());
+    };
+    #[cfg(not(target_family = "wasm"))]
+    std::thread::spawn(run);
+    #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+    rayon::spawn(run);
+    #[cfg(all(target_family = "wasm", not(target_feature = "atomics")))]
+    run();
+    answered
 }
 
 /// Advance every parked job by one slice, dropping the ones that finished.

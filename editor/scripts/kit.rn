@@ -1,0 +1,495 @@
+// What a plugin draws with, handed to it as `S.kit`: a plugin's script is its
+// own unit and cannot `use` the editor's modules, so each verb is wrapped once
+// here and called as `let tree = S.kit.tree; tree(S, k, id, value, #{})`.
+
+use crate::style;
+use crate::util;
+
+/// The deepest a file browser walks below its root.
+const FOLDER_DEPTH = 3;
+
+/// The most of a text file shown inline.
+const TEXT_SHOWN = 4000;
+
+/// A `pages` sidebar's width, and the least room that keeps one: narrower,
+/// the pages are a dropdown over the body.
+const SIDEBAR_W = 150.0;
+const SIDEBAR_MIN = 460.0;
+
+/// The kit, each verb wrapped for another unit to call. Made once: every
+/// `script::shared` keeps its function for the life of the run.
+pub fn make() {
+    #{
+        tabs: script::shared(tabs, 4),
+        pages: script::shared(pages, 5),
+        tree: script::shared(tree, 5),
+        field: script::shared(field, 5),
+        section: script::shared(section, 2),
+        empty: script::shared(empty, 2),
+        save_prefs: script::shared(save_prefs, 1),
+        files: script::shared(files, 4),
+        game_data: script::shared(game_data, 1),
+    }
+}
+
+/// Point `save::` at the game's own user data directory, and let `fs` reach
+/// it, so a game played here and the same game run alone keep one set of
+/// saves, and the User data dock can open them.
+pub fn adopt_game_data(S) {
+    if S.game_root == "" {
+        project::use_data(());
+        return;
+    }
+    project::use_data(game_name(S));
+}
+
+/// The user data directory the open game has when it runs on its own.
+pub fn game_data(S) {
+    if S.game_root == "" {
+        return engine::user_data_dir();
+    }
+    engine::user_data_dir_of(game_name(S))
+}
+
+fn game_name(S) {
+    let (ok, manifest) = script::attempt(|| toml::parse(fs::read(S.game_root + "/project.toml")));
+    let name = if ok && manifest is Object {
+        util::obj(manifest.get("application").unwrap_or(#{})).get("name").unwrap_or("")
+    } else {
+        ""
+    };
+    if name is String { name } else { "" }
+}
+
+/// What a verb remembers between frames: open tabs, open branches, drafts.
+fn memory(S) {
+    if !S.contains_key("kit_state") {
+        S.kit_state = #{};
+    }
+    S.kit_state
+}
+
+fn option(opts, key, fallback) {
+    if opts is Object {
+        return opts.get(key).unwrap_or(fallback);
+    }
+    fallback
+}
+
+/// Rows of tabs, wrapped to the width there is; answers the one that is
+/// open, remembered per `id`.
+fn tabs(S, k, id, names) {
+    if names.len() == 0 {
+        return "";
+    }
+    let m = memory(S);
+    let held = m.get("tab:" + id).unwrap_or(());
+    let current = if held is String && util::contains(names, held) { held } else { names[0] };
+    let picked = #{ name: current };
+    for row in wrapped(names, ui::available_width()) {
+        ui::horizontal(#{ height: 26 }, || {
+            ui::spacing(4, 0);
+            for name in row {
+                let role = if name == picked.name { "chip_on" } else { "chip" };
+                if ui::pill(name, #{ role: role }) {
+                    picked.name = name;
+                }
+            }
+        });
+    }
+    m["tab:" + id] = picked.name;
+    picked.name
+}
+
+/// A list of pages beside the open one, the way the settings page is laid
+/// out: what a panel with many views and little height wants. `groups` is
+/// `[#{ title, names }]`. `draw(S, k, name)` draws the open page, and must be
+/// wrapped once with `script::shared(f, 3)`: a plugin's closure called from
+/// this unit runs another unit's code. Both halves scroll, so a dock using
+/// this registers with `scrolls: true`.
+fn pages(S, k, id, groups, draw) {
+    let names = [];
+    for group in groups {
+        for name in group.names {
+            names.push(name);
+        }
+    }
+    if names.len() == 0 {
+        return "";
+    }
+    let m = memory(S);
+    let held = m.get("tab:" + id).unwrap_or(());
+    let current = if held is String && util::contains(names, held) { held } else { names[0] };
+    let picked = #{ name: current };
+    if ui::available_width() < SIDEBAR_MIN {
+        let (name, changed) = ui::dropdown("pages:" + id, current, names, #{
+            width: ui::available_width(), size: style::MD, height: style::row_h(S), color: k.text,
+        });
+        if changed {
+            picked.name = name;
+        }
+        ui::scroll("pages-body:" + id, #{ axis: "vertical" }, || {
+            draw(S, k, picked.name);
+        });
+    } else {
+        // Inside another scroll the height is unbounded; a page that tall
+        // would never scroll on its own.
+        let room = ui::available_height();
+        let tall = if room > 0.0 && room < 4000.0 { room } else { 600.0 };
+        ui::horizontal(#{ height: tall }, || {
+            ui::scroll("pages-side:" + id, #{ axis: "vertical", max_width: SIDEBAR_W, max_height: tall }, || {
+                side(k, groups, picked);
+            });
+            ui::add_space(12);
+            ui::scroll("pages-body:" + id, #{ axis: "vertical", max_height: tall }, || {
+                ui::vertical(|| {
+                    draw(S, k, picked.name);
+                });
+            });
+        });
+    }
+    m["tab:" + id] = picked.name;
+    picked.name
+}
+
+fn side(k, groups, picked) {
+    ui::vertical(|| {
+        for group in groups {
+            if group.title != "" {
+                ui::add_space(6);
+                ui::label(group.title, style::mono_sm(k.faint));
+                ui::add_space(2);
+            }
+            for name in group.names {
+                let on = name == picked.name;
+                if ui::pill(name, #{
+                    height: 22, size: style::MD, radius: 6, min_width: SIDEBAR_W - 10.0, align: "left",
+                    fill: if on { k.sunken } else { k.panel },
+                    color: if on { k.text } else { k.dim },
+                }) {
+                    picked.name = name;
+                }
+            }
+        }
+    });
+}
+
+/// Names in rows that fit `width`, measured the way a chip draws them:
+/// seven design pixels a character and its padding.
+fn wrapped(names, width) {
+    let rows = [];
+    let row = [];
+    let used = 0.0;
+    for name in names {
+        let wide = (name.len() as f64) * 7.0 + 28.0;
+        if row.len() > 0 && used + wide > width {
+            rows.push(row);
+            row = [];
+            used = 0.0;
+        }
+        row.push(name);
+        used += wide;
+    }
+    if row.len() > 0 {
+        rows.push(row);
+    }
+    rows
+}
+
+/// A heading between groups of rows.
+fn section(k, title) {
+    style::section_label(k, title);
+}
+
+/// What a panel says when it has nothing.
+fn empty(k, text) {
+    style::empty(k, text);
+}
+
+/// Write the editor's own settings file, after a plugin set an editor-scope
+/// setting it wants kept.
+fn save_prefs(S) {
+    crate::settings::commit_prefs(S);
+}
+
+/// A labelled value. `mask` hides all but its ends until `show` is pressed,
+/// `copy` adds a copy mark, `color` tints the value.
+fn field(S, k, label, value, opts) {
+    let text = shown(value);
+    let masked = option(opts, "mask", false);
+    let m = memory(S);
+    let key = "shown:" + label;
+    let revealed = m.get(key).unwrap_or(false);
+    let color = option(opts, "color", k.text);
+    ui::horizontal(#{ height: 22 }, || {
+        ui::spacing(6, 0);
+        ui::horizontal(#{ width: 130, height: 22 }, || {
+            ui::label(label, style::mono_sm(k.dim));
+        });
+        let visible = if masked && !revealed { mask(text) } else { text };
+        ui::label(visible, #{ role: "meta", color: color, truncate: true });
+        if masked {
+            let word = if revealed { "hide" } else { "show" };
+            if ui::pill(word, #{ role: "chip" }) {
+                m[key] = !revealed;
+            }
+        }
+        if option(opts, "copy", false) {
+            if ui::pill("copy", #{ role: "chip" }) {
+                ui::set_clipboard(text);
+            }
+        }
+    });
+}
+
+fn mask(text) {
+    let chars = text.chars().collect::<Vec>();
+    if chars.len() <= 12 {
+        return "••••••••";
+    }
+    let head = "";
+    let tail = "";
+    let n = 0;
+    while n < 4 {
+        head.push(chars[n]);
+        tail.push(chars[chars.len() - 4 + n]);
+        n += 1;
+    }
+    head + "••••••••" + tail
+}
+
+/// The first `most` characters of a text, and whether it went on past them.
+fn head_of(text, most) {
+    let out = "";
+    let n = 0;
+    for c in text.chars() {
+        if n == most {
+            return (out, true);
+        }
+        out.push(c);
+        n += 1;
+    }
+    return (out, false);
+}
+
+/// A value as text, the way a row shows it.
+fn shown(value) {
+    if value is String {
+        return value;
+    }
+    if value is Tuple {
+        return "nil";
+    }
+    if value is Object || value is Vec {
+        let (ok, text) = script::attempt(|| json::encode(value));
+        return if ok { text } else { "…" };
+    }
+    format!("{}", value)
+}
+
+/// A value as a tree: a map or a list opens and closes, a leaf shows in mono.
+/// With `edit`, a leaf is a field, Enter keeps what was typed, and the answer
+/// is `(value, changed)`; without, the value as it came and false.
+fn tree(S, k, id, value, opts) {
+    let out = #{ value: value, changed: false };
+    let edit = option(opts, "edit", false);
+    let label = option(opts, "label", "");
+    out.value = branch(S, k, out, id, label, value, edit, 0);
+    (out.value, out.changed)
+}
+
+fn branch(S, k, out, path, label, value, edit, depth) {
+    if value is Object || value is Vec {
+        return container(S, k, out, path, label, value, edit, depth);
+    }
+    leaf(S, k, out, path, label, value, edit, depth)
+}
+
+fn container(S, k, out, path, label, value, edit, depth) {
+    let m = memory(S);
+    let key = "open:" + path;
+    let open = m.get(key).unwrap_or(depth == 0);
+    let count = if value is Object { format!("{} keys", value.len()) } else { format!("{} items", value.len()) };
+    if label != "" || depth > 0 {
+        ui::horizontal(#{ height: 22 }, || {
+            ui::add_space(14.0 * (depth as f64));
+            let mark = if open { "▾ " } else { "▸ " };
+            if ui::pill(mark + label, #{ role: "chip" }) {
+                m[key] = !open;
+            }
+            ui::add_space(6);
+            ui::label(count, style::mono_sm(k.faint));
+        });
+    }
+    if !open {
+        return value;
+    }
+    let inner = if label != "" || depth > 0 { depth + 1 } else { depth };
+    if value is Object {
+        let names = util::keys_sorted(value);
+        for name in names {
+            let child = value[name];
+            value[name] = branch(S, k, out, path + "/" + name, name, child, edit, inner);
+        }
+    } else {
+        let n = 0;
+        while n < value.len() {
+            let child = value[n];
+            value[n] = branch(S, k, out, path + "/" + format!("{}", n), format!("{}", n), child, edit, inner);
+            n += 1;
+        }
+    }
+    value
+}
+
+fn leaf(S, k, out, path, label, value, edit, depth) {
+    let held = #{ value: value };
+    let text = shown(value);
+    ui::horizontal(#{ height: 22 }, || {
+        ui::add_space(14.0 * (depth as f64));
+        ui::horizontal(#{ width: 140, height: 22 }, || {
+            ui::label(label, style::mono_sm(k.dim));
+        });
+        if edit {
+            let (typed, _, entered) = ui::text_field("kit:" + path, "",
+                util::merge(style::field(k, 220.0), #{ value: text, font: ui::FONT_MONO }));
+            if entered && typed != text {
+                held.value = parsed(value, typed);
+                out.changed = true;
+            }
+        } else {
+            ui::label(text, #{ role: "meta", color: k.text, truncate: true });
+        }
+    });
+    held.value
+}
+
+/// What was typed, as the kind of value it replaces: text stays text, and a
+/// number or a switch is read the way a TOML file would read it.
+fn parsed(was, typed) {
+    if was is String {
+        return typed;
+    }
+    let (ok, doc) = script::attempt(|| toml::parse("v = " + typed));
+    if ok && doc is Object {
+        return doc["v"];
+    }
+    typed
+}
+
+/// Every file under a user data directory, opened as a structure where it is
+/// TOML or JSON, edited in place and written back. `opts`: `root` (default
+/// this game's user data directory), `only` (file names to show), `edit`.
+fn files(S, k, id, opts) {
+    let root = option(opts, "root", game_data(S));
+    let only = option(opts, "only", []);
+    ui::horizontal(#{ height: 24 }, || {
+        ui::spacing(6, 0);
+        ui::label(root, #{ role: "meta", color: k.faint, truncate: true });
+        if ui::pill("reveal", #{ role: "chip" }) {
+            reveal(root);
+        }
+    });
+    let drawn = folder(S, k, id, root, "", only, option(opts, "edit", true), 0);
+    if drawn == 0 {
+        empty(k, "nothing kept yet");
+    }
+}
+
+/// One directory's entries; answers how many files it drew.
+fn folder(S, k, id, dir, rel, only, edit, depth) {
+    let drawn = 0;
+    for entry in util::vec(fs::list(dir)) {
+        let path = dir + "/" + entry.name;
+        let here = if rel == "" { entry.name } else { rel + "/" + entry.name };
+        if entry.is_dir {
+            if depth < FOLDER_DEPTH {
+                drawn += folder(S, k, id, path, here, only, edit, depth + 1);
+            }
+            continue;
+        }
+        if only.len() > 0 && !util::contains(only, entry.name) {
+            continue;
+        }
+        file_row(S, k, id + ":" + here, path, here, edit);
+        drawn += 1;
+    }
+    drawn
+}
+
+fn file_row(S, k, id, path, rel, edit) {
+    let m = memory(S);
+    let key = "file:" + id;
+    let open = m.get(key).unwrap_or(false);
+    ui::horizontal(#{ height: 24 }, || {
+        ui::spacing(6, 0);
+        let mark = if open { "▾ " } else { "▸ " };
+        if ui::pill(mark + rel, #{ role: "chip" }) {
+            m[key] = !open;
+        }
+        let when = fs::mtime(path);
+        if when is f64 || when is i64 {
+            let age = (engine::unix_time() as f64) - (when as f64);
+            ui::label(ago(age), style::mono_sm(k.faint));
+        }
+        if ui::pill("reveal", #{ role: "chip" }) {
+            reveal(path);
+        }
+    });
+    if open {
+        document(S, k, id, path, edit);
+    }
+}
+
+/// A file opened: a structure for TOML and JSON, its text otherwise.
+fn document(S, k, id, path, edit) {
+    let text = fs::read(path);
+    if !(text is String) {
+        empty(k, "cannot read this file");
+        return;
+    }
+    let as_toml = path.ends_with(".toml");
+    let as_json = path.ends_with(".json");
+    if !as_toml && !as_json {
+        let (head, more) = head_of(text, TEXT_SHOWN);
+        let cut = if more { "…" } else { "" };
+        ui::label(head + cut, #{ role: "meta", color: k.dim, wrap: true });
+        return;
+    }
+    let (ok, value) = if as_toml {
+        script::attempt(|| toml::parse(text))
+    } else {
+        script::attempt(|| json::parse(text))
+    };
+    if !ok {
+        ui::label(format!("does not parse: {}", value), style::mono_sm(k.accent));
+        return;
+    }
+    let (after, changed) = tree(S, k, id, value, #{ edit: edit });
+    if changed {
+        let body = if as_toml { toml::encode(after) } else { json::encode(after) };
+        fs::write(path, body);
+    }
+}
+
+/// Show a path in the file manager; a folder not made yet is not an error.
+fn reveal(path) {
+    let (ok, why) = script::attempt(|| engine::reveal(path));
+    if !ok {
+        log::warn(format!("cannot reveal {}: {}", path, why));
+    }
+}
+
+/// Seconds as how long ago, in the unit a person reads it in.
+fn ago(seconds) {
+    if seconds < 90.0 {
+        return "just now";
+    }
+    if seconds < 5400.0 {
+        return format!("{} min ago", (seconds / 60.0) as i64);
+    }
+    if seconds < 129600.0 {
+        return format!("{} h ago", (seconds / 3600.0) as i64);
+    }
+    format!("{} days ago", (seconds / 86400.0) as i64)
+}

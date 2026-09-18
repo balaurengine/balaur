@@ -15,11 +15,22 @@
 use balaur_core::hecs::Entity;
 use balaur_script::{NodeId, ScriptHost, Value};
 
-/// Every `(node, method, args)` the engine has called, in order.
+/// Every `(node, method, args)` the engine has called, in order, and what a
+/// method answers when a test has said.
 #[derive(Default)]
-pub(crate) struct Calls(std::cell::RefCell<Vec<(u64, String, Vec<Value>)>>);
+pub(crate) struct Calls(
+    std::cell::RefCell<Vec<(u64, String, Vec<Value>)>>,
+    std::cell::RefCell<Vec<(String, Value)>>,
+);
 
 impl Calls {
+    /// Answer `value` whenever `method` is called, from now on.
+    pub(crate) fn answer(&self, method: &str, value: Value) {
+        let mut answers = self.1.borrow_mut();
+        answers.retain(|(m, _)| m != method);
+        answers.push((method.to_string(), value));
+    }
+
     /// How many times `method` was called on `node`.
     pub(crate) fn count(&self, node: Entity, method: &str) -> usize {
         let id = balaur_core::node_id_of(node).0;
@@ -78,7 +89,11 @@ impl ScriptHost<balaur_core::Engine> for Calls {
         self.0
             .borrow_mut()
             .push((node.0, method.to_string(), args.to_vec()));
-        None
+        self.1
+            .borrow()
+            .iter()
+            .find(|(m, _)| m == method)
+            .map(|(_, value)| value.clone())
     }
     fn call_all(&self, _: &str) {}
     fn call_all_with(&self, _: &str, _: &[Value]) {}

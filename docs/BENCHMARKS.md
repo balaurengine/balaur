@@ -14,7 +14,7 @@
 | **mixed_pile**<br />5000 bodies<br />![mixed_pile](/img/benchmarks/3d_mixed_pile.png) | **4.94 ms** | 11.28 ms | 13.70 ms | 9.72 ms | 84.90 ms |
 | **joint_grid**<br />5000 bodies, 9950 joints<br />![joint_grid](/img/benchmarks/3d_joint_grid.png) | **3.13 ms** | 8.92 ms | — | 10.27 ms | 26.08 ms |
 | **smash**<br />5001 bodies<br />![smash](/img/benchmarks/3d_smash.png) | **8.17 ms** | 19.14 ms | 12.12 ms | 9.62 ms | 99.98 ms |
-| **query_storm**<br />None bodies<br />![query_storm](/img/benchmarks/3d_query_storm.png) | **4.68 ms** | 5.93 ms | 26.45 ms | 6.67 ms | 73.26 ms |
+| **query_storm**<br />2000 bodies<br />![query_storm](/img/benchmarks/3d_query_storm.png) | **4.68 ms** | 5.93 ms | 26.45 ms | 6.67 ms | 73.26 ms |
 | **drop**<br />8000 bodies<br />![drop](/img/benchmarks/3d_drop.png) | **3.21 ms** | 12.26 ms | 22.14 ms | 11.34 ms | — |
 
 ## 2D
@@ -27,7 +27,7 @@
 | **mixed_pile**<br />5000 bodies<br />![mixed_pile](/img/benchmarks/2d_mixed_pile.png) | **2.88 ms** | 9.25 ms | 6.71 ms | 71.12 ms |
 | **joint_grid**<br />5000 bodies, 9950 joints<br />![joint_grid](/img/benchmarks/2d_joint_grid.png) | **2.20 ms** | 10.16 ms | 4.93 ms | — |
 | **smash**<br />5001 bodies<br />![smash](/img/benchmarks/2d_smash.png) | **3.49 ms** | 11.86 ms | 11.57 ms | 55.09 ms |
-| **query_storm**<br />None bodies<br />![query_storm](/img/benchmarks/2d_query_storm.png) | **4.23 ms** | 6.25 ms | 4.56 ms | 57.24 ms |
+| **query_storm**<br />2000 bodies<br />![query_storm](/img/benchmarks/2d_query_storm.png) | **4.23 ms** | 6.25 ms | 4.56 ms | 57.24 ms |
 | **drop**<br />8000 bodies<br />![drop](/img/benchmarks/2d_drop.png) | **6.35 ms** | 16.54 ms | 22.66 ms | 103.34 ms |
 
 ## Nodes

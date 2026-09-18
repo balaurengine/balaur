@@ -233,6 +233,11 @@ fn a_two_dimensional_boolean_fills_the_shapes_combined() {
         .iter()
         .fold(f32::MIN, |widest, p| widest.max(p.x));
     assert!(widest <= 0.01, "the right half should have been cut away");
+    drop(renderable);
+    drop(world);
+    // Drawn as a polygon, but the node carries no `polygon` component: one
+    // reported would be saved and inspected as the node's own.
+    assert!(components::get(&app.engine, owner, "polygon").is_none());
 }
 
 #[test]

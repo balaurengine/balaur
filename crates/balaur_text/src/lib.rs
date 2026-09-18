@@ -217,6 +217,9 @@ pub struct TextState {
     /// `fonts` on purpose: drawing may fall back to whatever the machine has,
     /// and a number that reaches a script may not.
     strict: Option<FontSystem>,
+    /// The faces whose `antialias` import setting is off: their glyphs are
+    /// drawn with every pixel fully on or off.
+    aliased: std::collections::HashSet<fontdb::ID>,
 }
 
 /// A loaded bitmap font: the descriptor, and where its page sits.
@@ -252,10 +255,14 @@ impl TextState {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
         let mut chains: HashMap<String, String> = HashMap::new();
+        let mut aliased = std::collections::HashSet::new();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
             let ids = db.load_font_source(fontdb::Source::Binary(data));
+            if !face.tweak.antialias {
+                aliased.extend(ids.iter().copied());
+            }
             for id in ids {
                 let Some(info) = db.face(id) else {
                     continue;
@@ -293,6 +300,7 @@ impl TextState {
                 .collect(),
             locale: locale.to_string(),
             strict: None,
+            aliased,
         }
     }
 
@@ -499,9 +507,10 @@ impl TextState {
                     continue;
                 }
                 let physical = glyph.physical((0.0, 0.0), 1.0);
+                let hard = self.aliased.contains(&physical.cache_key.font_id);
                 let Some(slot) =
                     self.atlas
-                        .slot(&mut self.fonts, &mut self.swash, physical.cache_key)
+                        .slot(&mut self.fonts, &mut self.swash, physical.cache_key, hard)
                 else {
                     continue;
                 };
@@ -666,9 +675,21 @@ pub fn paint(
     }
 }
 
-/// The shaper for this engine, once the fonts are installed.
+/// The shaper for this engine, if anything has asked for it yet.
 pub fn state(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<TextState>>> {
     eng.try_resource::<TextState>()
+}
+
+/// The shaper for this engine, made from the project's fonts by whichever
+/// asks first: world text can draw before the first UI pass does.
+pub fn shaper(eng: &Engine) -> std::rc::Rc<std::cell::RefCell<TextState>> {
+    if let Some(state) = state(eng) {
+        return state;
+    }
+    let faces = fonts::font_faces(eng);
+    let locale = balaur_core::strings::locale(eng);
+    eng.insert_resource(TextState::new(&faces, &locale));
+    eng.resource::<TextState>()
 }
 
 #[cfg(test)]
@@ -682,6 +703,7 @@ mod tests {
             bytes: Arc::new(
                 include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
             ),
+            tweak: crate::fonts::FaceTweak::default(),
         }];
         faces.extend(crate::fonts::system_faces());
         faces
@@ -731,6 +753,7 @@ mod tests {
             bytes: std::sync::Arc::new(
                 include_bytes!("../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
             ),
+            tweak: crate::fonts::FaceTweak::default(),
         });
         let strict = TextState::new(&own, "en-US").measure(&request);
         let loose = TextState::new(&with_system, "en-US").measure(&request);

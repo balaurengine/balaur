@@ -46,7 +46,10 @@ pub(crate) struct Project {
     /// The project's own `class_name`s, to the class each extends.
     pub classes: crate::godot::exports::Classes,
     /// Every `.gdshader` that translated and compiles, by its Godot path.
-    pub shaders: BTreeMap<String, std::rc::Rc<crate::godot::material::Shader>>,
+    pub shaders: BTreeMap<String, std::sync::Arc<crate::godot::material::Shader>>,
+    /// A state machine's `advance_expression`s, by the script of the node
+    /// they are evaluated against: each a `check` method to add to it.
+    pub checks: BTreeMap<String, Vec<(String, String)>>,
 }
 
 impl Resources<'_> {
@@ -223,6 +226,35 @@ const PLAIN: &[&str] = &[
     "MultiplayerSpawner",
     "MultiplayerSynchronizer",
 ];
+
+/// What `Class.new()` makes of a Godot built-in node class: a one-node scene
+/// document whose node is named `name`, or `None` for a class with no
+/// balaur node.
+pub(crate) fn bare_document(class: &str, name: &str) -> Option<String> {
+    let section = Section {
+        kind: "node".to_string(),
+        attributes: BTreeMap::new(),
+        fields: Vec::new(),
+    };
+    let project = Project::default();
+    let res = Resources {
+        external: BTreeMap::new(),
+        internal: BTreeMap::new(),
+        root: Path::new(""),
+        project: &project,
+    };
+    let mapped = map(class, &section, "", &res);
+    if mapped.notes.iter().any(|note| note.contains("no balaur equivalent")) {
+        return None;
+    }
+    let mut node = toml::Table::new();
+    node.insert("name".to_string(), Toml::String(name.to_string()));
+    node.extend(mapped.keys);
+    node.extend(mapped.components);
+    let mut doc = toml::Table::new();
+    doc.insert("nodes".to_string(), Toml::Array(vec![Toml::Table(node)]));
+    toml::to_string(&doc).ok()
+}
 
 /// Map one node. `parent` is the class of the node above it, which decides
 /// which of a Control's two size flags is the one its container reads.

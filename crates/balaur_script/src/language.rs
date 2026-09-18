@@ -186,6 +186,18 @@ pub trait ScriptHost<C: ?Sized> {
     /// `Value::Callback`.
     fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
 
+    /// Hold a function a script passed into a binding past that call, so
+    /// [`invoke`](Self::invoke) still reaches it, until [`release`](Self::release).
+    fn keep(&self, callback: CallbackId) -> Result<()> {
+        let _ = callback;
+        Err(anyhow::anyhow!("this script backend cannot keep a function"))
+    }
+
+    /// Let go of a function [`keep`](Self::keep) held. Unknown ids are a no-op.
+    fn release(&self, callback: CallbackId) {
+        let _ = callback;
+    }
+
     /// Replace one script file's breakpoints with `lines`, returning the
     /// lines they landed on: a line without code moves to the next that has
     /// some. A backend without a debugger refuses.

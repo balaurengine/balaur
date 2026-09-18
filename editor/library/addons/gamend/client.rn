@@ -12,27 +12,25 @@ const ROWS_KEY = "gamend:rows";
 const KEYS_KEY = "gamend:keys";
 
 /// Point the plugin at a server, and name the server plugin `rpc_call`
-/// reaches. Every other call errors until this one runs.
+/// reaches; nil for either takes `[gamend]`'s. Every other call errors until
+/// this one runs. Answers the server's url.
 pub fn configure(url, plugin) {
-    gamend::configure(url);
+    let at = gamend::configure(url);
     let root = scene::root();
-    if !(root is Tuple) {
+    if !(root is Tuple) && plugin is String {
         root.meta[PLUGIN_KEY] = plugin;
     }
-    return ();
+    return at;
 }
 
 /// The server plugin this game's hooks live in.
 pub fn plugin() {
     let root = scene::root();
-    if root is Tuple {
-        return "";
-    }
-    let name = root.meta[PLUGIN_KEY];
-    if name is String {
+    let name = if root is Tuple { () } else { root.meta[PLUGIN_KEY] };
+    if name is String && name != "" {
         return name;
     }
-    return "";
+    return gamend::target()["plugin"];
 }
 
 /// Open a session from a device id. The reply reaches `node`'s handler as

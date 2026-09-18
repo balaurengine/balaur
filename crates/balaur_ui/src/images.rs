@@ -38,20 +38,55 @@ pub(crate) fn texture_of(
     }
     // Through ProjectFiles, so an image in a packed game loads from the pack
     // rather than from a file that is not shipped.
+    let source = balaur_core::texture_asset::source(eng, path)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
-        .read(path)?;
-    let dynamic = image::load_from_memory(&bytes)?;
-    let rgba = dynamic.to_rgba8();
+        .read(&source.path)?;
+    // egui premultiplies what it is handed, so a bleed would change nothing.
+    let settings = &source.settings;
+    let rgba = balaur_core::pixels::decode(
+        &bytes,
+        &settings.settings,
+        balaur_core::pixels::Alpha::Premultiplied,
+    )?;
     let size = [rgba.width() as usize, rgba.height() as usize];
     let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-    let handle = ctx.load_texture(path, color, egui::TextureOptions::LINEAR);
+    let handle = ctx.load_texture(path, color, options(&settings.settings));
     state
         .borrow_mut()
         .textures
         .insert(path.to_string(), handle.clone());
     Ok(handle)
+}
+
+/// The size a picture measures as: the pixels it was drawn at, which are the
+/// file's own unless a smaller copy shipped in its place.
+pub(crate) fn native_size(eng: &Engine, path: &str, texture: &egui::TextureHandle) -> egui::Vec2 {
+    let source = balaur_core::texture_asset::source(eng, path).map(|found| found.path);
+    balaur_core::import::drawn_size(eng, source.as_deref().unwrap_or(path))
+        .map_or_else(|| texture.size_vec2(), |(w, h)| vec2(w as f32, h as f32))
+}
+
+/// The sampler a file's import settings ask for, in egui's words. egui has one
+/// wrap for both axes, so the horizontal one stands for the pair.
+fn options(settings: &toml::Table) -> egui::TextureOptions {
+    use balaur_core::import::texture::{Filter, Wrap, sampling};
+    let asked = sampling(settings);
+    let filter = |which| match which {
+        Filter::Nearest => egui::TextureFilter::Nearest,
+        Filter::Linear => egui::TextureFilter::Linear,
+    };
+    egui::TextureOptions {
+        magnification: filter(asked.mag),
+        minification: filter(asked.min),
+        wrap_mode: match asked.wrap_u {
+            Wrap::Repeat => egui::TextureWrapMode::Repeat,
+            Wrap::Mirror => egui::TextureWrapMode::MirroredRepeat,
+            Wrap::Clamp => egui::TextureWrapMode::ClampToEdge,
+        },
+        mipmap_mode: asked.mipmaps.then(|| filter(asked.mipmap)),
+    }
 }
 
 /// What part of an image to draw, as egui's unit texture coordinates, and
@@ -106,7 +141,7 @@ fn image_size(native: egui::Vec2, opts: &Opts) -> egui::Vec2 {
 pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
     with_ui(|ui| {
         let texture = texture_of(eng, &ui.ctx().clone(), path)?;
-        let (uv, drawn) = image_uv(texture.size_vec2(), opts);
+        let (uv, drawn) = image_uv(native_size(eng, path, &texture), opts);
         let size = image_size(drawn, opts);
         let radius = opts.px(k::RADIUS, DEFAULT_RADIUS);
         let padding = opts.px(k::PADDING, 0.0);
@@ -152,7 +187,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
         let texture = texture_of(eng, &ui.ctx().clone(), path).ok();
         let native = texture
             .as_ref()
-            .map_or_else(|| vec2(1.0, 1.0), egui::TextureHandle::size_vec2);
+            .map_or_else(|| vec2(1.0, 1.0), |texture| native_size(eng, path, texture));
         let (uv, drawn) = image_uv(native, opts);
         let size = image_size(drawn, opts);
         let padding = opts.px(k::PADDING, 2.0);

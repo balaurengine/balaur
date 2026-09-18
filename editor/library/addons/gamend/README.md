@@ -10,6 +10,17 @@ let client = script::require("addons/gamend/client.rn");
 
 243 operations and 71 realtime events.
 
+Beside the generated `api.rn` and `events.rn`, written by hand:
+
+| Module | For |
+| --- | --- |
+| `client.rn` | `configure`, the socket, hooks and the key-value cache |
+| `auth.rn` | Sign-in through a provider, and the kept session |
+| `presence.rn` | The user cache |
+| `prefs.rn` | The player's prefs on this device |
+| `logs.rn`, `log_sink.rn` | This run's log, shipped in batches; put `log_sink.rn` on a node that lives as long as the game |
+| `editor/gamend.rn` | The Gamend dock in the Balaur editor |
+
 ## Admin – Chat
 
 | Function | Call | What it does |

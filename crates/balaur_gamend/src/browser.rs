@@ -39,6 +39,14 @@ impl SharedClient {
     pub(crate) fn new(base_url: &str) -> Self {
         Self(Rc::new(RefCell::new(Client::new(base_url))))
     }
+
+    pub(crate) fn session(&self) -> Option<crate::client::Session> {
+        self.0.borrow().session().cloned()
+    }
+
+    pub(crate) fn set_session(&self, session: Option<crate::client::Session>) {
+        self.0.borrow_mut().set_session(session);
+    }
 }
 
 async fn send(prepared: Prepared) -> Result<Reply, String> {

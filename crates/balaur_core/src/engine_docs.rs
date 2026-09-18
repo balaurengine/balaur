@@ -24,12 +24,13 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("user_data_dir_of", &[], "(project: string)", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
         ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
         ("reveal", &[], "(path: string)", "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`."),
         ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
         ("plugin_version", &[], "(name: string)", "The version of one loaded plugin, or nil when it did not load."),
-        ("platform", &[], "()", "Where this runs: `{ os, web, mobile, touchscreen, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did."),
+        ("platform", &[], "()", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
         ("device_id", &[], "()", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
         ("unix_time", &[], "()", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
         ("focused", &[], "()", "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window."),
@@ -147,6 +148,7 @@ pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("slots", &[], "()", "Every slot that has been written, in name order."),
         ("remove", &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
         ("version", &[], "()", "The save version this build writes, from `[save] version`."),
+        ("folder", &[], "()", "The directory slots are kept in, not created until something is written."),
     ]);
 }
 
@@ -158,7 +160,9 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("info", &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
         ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
         ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
-        ("recent", &[], "(n: int?)", "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`."),
+        ("recent", &[], "(n: int?)", "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`."),
+        ("since", &[], "(cursor: int?)", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read."),
+        ("file", &[], "()", "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it."),
         ("clear", &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
     ]);
 }

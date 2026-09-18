@@ -2,7 +2,7 @@
 //! path.
 //!
 //! A setting is named the way Godot names one: `physics/solver_iterations`,
-//! `netcode/faults`, `editor/appearance/theme`. The first segment is the
+//! `multiplayer/faults`, `editor/appearance/theme`. The first segment is the
 //! category the editor groups under, the last is the key, and everything
 //! between nests. That is the whole addressing scheme — there is no second
 //! way to refer to a setting, and no registry of tables to keep in step with
@@ -622,37 +622,19 @@ fallback = { type = "string", default = "en", help = "Where a key missing from t
     );
     define_group(
         eng,
-        "netcode",
+        "multiplayer",
         Scope::Editor,
         &parse(
-            "settings.netcode",
+            "settings.multiplayer",
             r#"
-faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every session link, to test rollback against a link that misbehaves." }
+faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every multiplayer link, to test rollback against a link that misbehaves." }
 delay = { type = "int", default = 9, min = 0, max = 60, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
 jitter = { type = "int", default = 3, min = 0, max = 30, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
 loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
 "#,
         ),
     );
-    // The defaults every file of a kind is read with, which a sidecar beside
-    // one file then overrides. The manifest is parsed once while starting, so
-    // a change here reaches the picture on the next run.
-    define_group(
-        eng,
-        "import/texture",
-        Scope::Project,
-        &parse(
-            "settings.import.texture",
-            r#"
-filter = { type = "enum", default = "linear", options = ["linear", "nearest"], order = 1, applies = "restart", help = "Between texels. Nearest is what keeps pixel art crisp when it is magnified." }
-repeat = { type = "enum", default = "clamp", options = ["clamp", "repeat", "mirror"], order = 2, applies = "restart", help = "What a coordinate past the edge reads. Mirror tiles without a seam." }
-mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering." }
-anisotropy = { type = "int", default = 1, min = 1, max = 16, order = 4, applies = "restart", help = "Samples per fetch on a surface seen edge-on. Needs every filter linear." }
-premultiply = { type = "bool", default = false, order = 5, applies = "restart", help = "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only." }
-srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "Off for a normal map or a mask, which carry data rather than colour." }
-"#,
-        ),
-    );
+    build_import_settings(eng, &parse);
     // A prefix may nest, so a subsystem with many settings declares them a
     // group at a time and the editor shows each group under its own heading.
     define_group(
@@ -677,6 +659,70 @@ compact = { type = "bool", default = false, order = 3, help = "Drop labels the i
             r#"
 keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
 verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
+"#,
+        ),
+    );
+}
+
+/// `[import.<kind>]`: the defaults every file of a kind is read with, which a
+/// sidecar beside one file then overrides. The manifest is parsed once while
+/// starting, so a change here reaches the picture on the next run.
+fn build_import_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<toml::Value>) {
+    define_group(
+        eng,
+        "import/texture",
+        Scope::Project,
+        &parse(
+            "settings.import.texture",
+            r#"
+filter = { type = "enum", default = "linear", options = ["linear", "nearest"], order = 1, applies = "restart", help = "Between texels. Nearest is what keeps pixel art crisp when it is magnified." }
+repeat = { type = "enum", default = "clamp", options = ["clamp", "repeat", "mirror"], order = 2, applies = "restart", help = "What a coordinate past the edge reads. Mirror tiles without a seam." }
+mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering." }
+anisotropy = { type = "int", default = 1, min = 1, max = 16, order = 4, applies = "restart", help = "Samples per fetch on a surface seen edge-on. Needs every filter linear." }
+premultiply = { type = "bool", default = false, order = 5, applies = "restart", help = "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only." }
+srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "Off for a normal map or a mask, which carry data rather than colour." }
+bleed = { type = "bool", default = true, order = 7, applies = "restart", help = "Spread the edge colour into fully transparent texels, so a linear filter never samples a dark or white fringe. Colour sampled linearly only." }
+pixels_per_unit = { type = "float", default = 100.0, min = 0.01, order = 8, applies = "restart", help = "Texture pixels to one world unit, for every sprite whose own pixels_per_unit is 0. A pixel-art project sets its tile size here once." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "import/audio",
+        Scope::Project,
+        &parse(
+            "settings.import.audio",
+            r#"
+volume = { type = "float", default = 1.0, min = 0.0, max = 4.0, order = 1, applies = "restart", help = "Every sound's own level, multiplied into each play of it. A file's sidecar sets its own." }
+loop = { type = "bool", default = false, order = 2, applies = "restart", help = "Loop every sound wherever it is played. A music folder usually sets this per file instead." }
+mono = { type = "bool", default = false, order = 3, applies = "restart", help = "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway." }
+max_rate = { type = "int", default = 0, min = 0, max = 192000, order = 4, applies = "restart", help = "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "import/font",
+        Scope::Project,
+        &parse(
+            "settings.import.font",
+            r#"
+scale = { type = "float", default = 1.0, min = 0.1, max = 10.0, order = 1, applies = "restart", help = "How large the UI draws a project face's glyphs, without moving the layout." }
+hinting = { type = "bool", default = true, order = 2, applies = "restart", help = "Snap a face's outlines to the pixel grid. Off for a smooth face drawn large." }
+antialias = { type = "bool", default = true, order = 3, applies = "restart", help = "Smooth glyph edges. Off draws each pixel fully on or off, for a pixel face at its own size; egui's own text and magnified world text stay smooth." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "import/model",
+        Scope::Project,
+        &parse(
+            "settings.import.model",
+            r#"
+scale = { type = "float", default = 1.0, min = 0.0001, max = 1000.0, order = 1, applies = "restart", help = "A model file's units to the scene's: 0.01 for files modelled in centimetres. A skinned mesh is left as authored." }
+lods = { type = "int", default = 0, min = 0, max = 6, order = 2, applies = "restart", help = "How many simpler copies of every rigid model to build at load, each with half the triangles of the one before." }
+lod_distance = { type = "float", default = 20.0, min = 0.01, order = 3, applies = "restart", help = "The camera distance, in world units, at which the first simpler copy takes over; each further one takes over at twice it." }
 "#,
         ),
     );
@@ -711,7 +757,7 @@ fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::R
             r#"
 width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
 height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
-mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. render.set_window_mode changes it later through the same state." }
+mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. window.set_window_mode changes it later through the same state." }
 orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
 vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
 msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
@@ -738,10 +784,10 @@ short_below = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applie
     );
 }
 
-/// The faults the `netcode` settings ask for, or `None` when they are off.
+/// The faults the `multiplayer` settings ask for, or `None` when they are off.
 #[must_use]
 pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
-    if !get(eng, "netcode/faults")?.as_bool()? {
+    if !get(eng, "multiplayer/faults")?.as_bool()? {
         return None;
     }
     // `as_f64`, not `as_float`: a tick count is an integer in the file and in
@@ -753,8 +799,8 @@ pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
         reason = "a tick count from a bounded setting"
     )]
     Some(crate::transport::Faults {
-        delay: number("netcode/delay").unwrap_or(0.0) as u32,
-        jitter: number("netcode/jitter").unwrap_or(0.0) as u32,
-        loss: number("netcode/loss").unwrap_or(0.0) as f32,
+        delay: number("multiplayer/delay").unwrap_or(0.0) as u32,
+        jitter: number("multiplayer/jitter").unwrap_or(0.0) as u32,
+        loss: number("multiplayer/loss").unwrap_or(0.0) as f32,
     })
 }

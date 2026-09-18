@@ -17,7 +17,7 @@ const HOMES = #{
 /// The kind of a dropped file, by extension, or "" for one nothing claims.
 pub fn kind_of(path) {
     let lower = path.to_lowercase();
-    for extension in ["png", "jpg", "jpeg", "webp", "bmp", "tga"] {
+    for extension in ["png", "jpg", "jpeg", "webp", "svg", "bmp", "tga"] {
         if lower.ends_with("." + extension) {
             return "image";
         }
@@ -322,6 +322,10 @@ pub fn report(S, e) {
     } else if kind == "cancelled" {
         let written = ev.get("done").unwrap_or(0);
         ended(S, source, "stopped");
+        // This run's count, not one an earlier import of the same file left.
+        let job = S.jobs[source];
+        job.done = written;
+        S.jobs[source] = job;
         model::forget(S, None);
         log::info(format!("stopped importing {} after {} files", file_name(source), written));
     } else if kind == "failed" {

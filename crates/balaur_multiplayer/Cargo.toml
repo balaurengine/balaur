@@ -1,0 +1,31 @@
+[package]
+name = "balaur_multiplayer"
+description = "Balaur multiplayer plugin: host, join and play a rollback match from a script"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = ["websocket", "webtransport"]
+websocket = ["dep:balaur_websocket"]
+webtransport = ["dep:balaur_webtransport"]
+
+[dependencies]
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+toml.workspace = true
+balaur_websocket = { workspace = true, optional = true }
+balaur_webtransport = { workspace = true, optional = true }
+
+[dev-dependencies]
+balaur = { workspace = true, features = ["multiplayer", "websocket", "webtransport"] }
+tempfile = "3"
+
+[lints]
+workspace = true

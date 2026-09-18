@@ -1,0 +1,68 @@
+# Host or join. The second player to arrive starts the match, which loads
+# the arena on both machines.
+
+[[nodes]]
+id = "n_lobby"
+name = "Lobby"
+
+[nodes.script]
+source = "scripts/lobby.rn"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_lobby"
+[nodes.widget]
+kind = "panel"
+text = ""
+anchor = "center"
+x = 0
+y = 0
+width = 520
+padding = 16
+gap = 12
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "Multiplayer"
+role = "title"
+
+[[nodes]]
+id = "status"
+name = "Status"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "Host a match, or join one on this machine."
+
+[[nodes]]
+id = "buttons"
+name = "Buttons"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+height = 32
+gap = 10
+
+[[nodes]]
+id = "host"
+name = "Host"
+parent = "buttons"
+[nodes.widget]
+kind = "button"
+text = "Host"
+role = "primary"
+on_click = "host"
+
+[[nodes]]
+id = "join"
+name = "Join"
+parent = "buttons"
+[nodes.widget]
+kind = "button"
+text = "Join"
+on_click = "join"

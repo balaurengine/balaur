@@ -193,7 +193,7 @@ reached through a `.tres`. What they use, counted, against what
 | `SCREEN_UV`, `SCREEN_TEXTURE`, `hint_screen_texture` | 4, 4, 2 | `screen_uv(position)` and `sample_screen(uv)`, behind `features = { screen = true }` |
 | `TEXTURE_PIXEL_SIZE` | 3 | `texture_pixel_size()`, added here |
 | `SCREEN_PIXEL_SIZE` | 1 | `screen_pixel_size()`, added here |
-| `filter_linear`, `repeat_enable`, `filter_linear_mipmap` | 4 | sampler settings; the 0.2 "Texture import settings" row, `docs/PLAN-textures.md` |
+| `filter_linear`, `repeat_enable`, `filter_linear_mipmap` | 4 | the texture sidecar's `filter`, `repeat` and `mipmaps`; `docs/generated/assets.md#import-settings` |
 
 `crates/balaur_render/tests/suite/material.rs` links one shader using the
 screen texture, the clock, a displaced vertex and both pixel sizes, so the
@@ -244,8 +244,8 @@ one and a line-based reader takes it for a section. And `Object(InputEventKey,
 than positional, which is what the whole input map is written in.
 
 Beside it, `.import` files, which carry the settings a texture was imported
-with, read for the fields `docs/PLAN-textures.md` covers and reported for the
-rest.
+with, read for the fields a texture sidecar has
+(`docs/generated/assets.md#import-settings`) and reported for the rest.
 
 ## 4. Phase 1: the project — built
 
@@ -332,8 +332,13 @@ with y flipped; a widget stays in design pixels, y down, as widgets measure.
 - **State machines.** An `AnimationTree` whose root is a state machine
   becomes a `state_machine` asset beside the scene and the component that
   runs it; a tree holding its own libraries plays them itself. `Start`'s
-  transition names the start, an `End` transition is reported, and a
-  transition keeps its fade, advance, switch and condition.
+  transition names the start and `End` is the machine's `end`; a nested
+  machine is a table under its state, and its own `End` is reported. A
+  transition keeps its fade, `xfade_curve` sampled into points, advance,
+  switch, condition, priority, reset and loop break. An `advance_expression`
+  becomes a method added to the script of the node it reads, found before
+  any script converts. A script's `parameters/playback`,
+  `parameters/conditions/*` and `active` reach the machine through the shim.
 - **Scripts.** `script` names the `.rn` skeleton §8 writes, and each value
   the scene gave an `@export` becomes a prop of the kind the skeleton
   declares, inherited exports included.

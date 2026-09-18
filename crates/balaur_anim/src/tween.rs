@@ -51,6 +51,8 @@
 //! which is exactly what declaring against `Bindings<Engine>` exists to
 //! avoid. The data form needs no backend sugar at all.
 
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -58,10 +60,12 @@ use balaur_core::Engine;
 use balaur_core::components::{self, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
+use balaur_script::Value;
 use glamx::{Quat, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 use crate::ease::Easing;
+use crate::keys as k;
 use crate::player::{AnimationState, fixed_dt};
 use crate::sampler::{self, euler_from_quat};
 use crate::system::Effect;
@@ -128,7 +132,7 @@ pub struct Tween {
 /// nothing, a target that names no node, or a component the node does not
 /// have.
 pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> {
-    let speed = match spec.get("speed") {
+    let speed = match spec.get(k::SPEED) {
         Some(v) => {
             as_f64(v).ok_or_else(|| anyhow!("`speed` is {}, not a number", v.type_str()))? as f32
         }
@@ -275,7 +279,7 @@ pub(crate) fn begin(eng: &Engine, tween: &mut Tween) -> Result<()> {
 
 /// The handle a `then` names, whichever numeric shape it came back in.
 fn after_of(spec: &toml::Value) -> Result<Option<TweenId>> {
-    let Some(value) = spec.get("then") else {
+    let Some(value) = spec.get(k::THEN) else {
         return Ok(None);
     };
     let id = as_f64(value)
@@ -288,7 +292,7 @@ fn after_of(spec: &toml::Value) -> Result<Option<TweenId>> {
 
 /// Seconds a tween holds its start values before its first step.
 fn delay_of(spec: &toml::Value) -> Result<f32> {
-    let Some(value) = spec.get("delay") else {
+    let Some(value) = spec.get(k::DELAY) else {
         return Ok(0.0);
     };
     let delay = as_f64(value)
@@ -314,18 +318,118 @@ pub fn start_to(
     ease: Option<&str>,
 ) -> Result<TweenId> {
     let mut step = toml::map::Map::new();
-    step.insert("property".into(), property.into());
-    step.insert("to".into(), to.clone());
-    step.insert("duration".into(), f64::from(duration).into());
+    step.insert(k::PROPERTY.into(), property.into());
+    step.insert(k::TO.into(), to.clone());
+    step.insert(k::DURATION.into(), f64::from(duration).into());
     if let Some(ease) = ease.filter(|name| !name.is_empty()) {
-        step.insert("ease".into(), ease.into());
+        step.insert(k::EASE.into(), ease.into());
     }
     let mut spec = toml::map::Map::new();
     spec.insert(
-        "steps".into(),
+        k::STEPS.into(),
         toml::Value::Array(vec![toml::Value::Table(step)]),
     );
     start(eng, node, &toml::Value::Table(spec))
+}
+
+/// Script functions tween steps call, kept by the host until no live tween
+/// names them.
+#[derive(Default)]
+pub(crate) struct KeptFunctions(BTreeSet<u64>);
+
+/// [`start`] from a script's table, whose `call` steps may pass a function:
+/// each is kept by the host past the binding call, and named by its id.
+///
+/// # Errors
+/// As [`start`], or when the host cannot keep a function.
+pub fn start_script(eng: &Engine, node: Entity, spec: &Value) -> Result<TweenId> {
+    let mut spec = spec.clone();
+    if let Value::Map(fields) = &mut spec {
+        for (key, steps) in fields.iter_mut() {
+            if key != k::STEPS {
+                continue;
+            }
+            let Value::List(steps) = steps else {
+                continue;
+            };
+            for step in steps {
+                if let Value::Map(step) = step {
+                    keep_calls(eng, step)?;
+                }
+            }
+        }
+    }
+    start(eng, node, &balaur_core::node_api::to_toml(&spec)?)
+}
+
+fn keep_calls(eng: &Engine, step: &mut [(String, Value)]) -> Result<()> {
+    for (name, call) in step.iter_mut() {
+        let Value::Callback(id) = call else {
+            continue;
+        };
+        if name != k::CALL {
+            continue;
+        }
+        let host = eng
+            .script_host()
+            .ok_or_else(|| anyhow!("no script host to keep a tween's function"))?;
+        host.keep(*id)?;
+        kept(eng).borrow_mut().0.insert(id.0);
+        *call = Value::Int(i64::try_from(id.0)?);
+    }
+    Ok(())
+}
+
+fn kept(eng: &Engine) -> Rc<RefCell<KeptFunctions>> {
+    if let Some(kept) = eng.try_resource::<KeptFunctions>() {
+        return kept;
+    }
+    eng.insert_resource(KeptFunctions::default());
+    eng.resource::<KeptFunctions>()
+}
+
+/// Let go of every kept function that no live tween's keys, nor a waiting
+/// tween's table, names any more.
+pub(crate) fn release_unheld(eng: &Engine) {
+    let Some(kept) = eng.try_resource::<KeptFunctions>() else {
+        return;
+    };
+    if kept.borrow().0.is_empty() {
+        return;
+    }
+    let mut held = BTreeSet::new();
+    if let Some(state) = eng.try_resource::<AnimationState>() {
+        for tween in state.borrow().tweens.values() {
+            let keys = tween.clip.tracks.iter().flat_map(|track| &track.keys);
+            held.extend(keys.filter_map(|key| key.function));
+            if let Some(spec) = &tween.pending {
+                held.extend(functions_in(spec));
+            }
+        }
+    }
+    let gone: Vec<u64> = kept.borrow().0.difference(&held).copied().collect();
+    let host = eng.script_host();
+    let mut kept = kept.borrow_mut();
+    for id in gone {
+        kept.0.remove(&id);
+        if let Some(host) = host.as_ref() {
+            host.release(balaur_script::CallbackId(id));
+        }
+    }
+}
+
+/// The function ids a waiting tween's table calls.
+fn functions_in(spec: &str) -> Vec<u64> {
+    let Ok(spec) = toml::from_str::<toml::Value>(spec) else {
+        return Vec::new();
+    };
+    spec.get(k::STEPS)
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|step| step.get(k::CALL)?.as_integer())
+        .filter_map(|id| u64::try_from(id).ok())
+        .collect()
 }
 
 /// End a tween now, wherever it had got to. Unknown handles are a no-op, so
@@ -349,7 +453,7 @@ pub fn is_running(eng: &Engine, id: TweenId) -> bool {
 /// How many times a tween plays its sequence. Godot's rule: zero or fewer is
 /// forever.
 fn loops_of(spec: &toml::Value) -> Result<u32> {
-    let Some(value) = spec.get("loops") else {
+    let Some(value) = spec.get(k::LOOPS) else {
         return Ok(1);
     };
     let count = as_f64(value)
@@ -378,7 +482,14 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
         let pose = sampler::sample(&clip, time);
         // A tween is generated against the node it plays on, so there is
         // nothing to retarget: its tracks already name that rig.
-        crate::system::write_pose(world, tween.node, "", None, &clip, pose, effects);
+        crate::system::write_pose(
+            world,
+            tween.node,
+            "",
+            None,
+            clip.tracks.iter().zip(pose),
+            effects,
+        );
         crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
     }
     if !over {
@@ -407,7 +518,7 @@ struct Builder<'a> {
 
 fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
     let steps = spec
-        .get("steps")
+        .get(k::STEPS)
         .and_then(toml::Value::as_array)
         .ok_or_else(|| anyhow!("a tween needs a `steps` list"))?;
     if steps.is_empty() {
@@ -448,7 +559,7 @@ impl Builder<'_> {
     /// Place one step on the timeline and record what it does.
     fn add(&mut self, step: &toml::Value) -> Result<()> {
         let parallel = step
-            .get("parallel")
+            .get(k::PARALLEL)
             .and_then(toml::Value::as_bool)
             .unwrap_or(false);
         let start = if parallel {
@@ -457,19 +568,25 @@ impl Builder<'_> {
             self.group = self.chain;
             self.chain
         };
-        let target = match step.get("target") {
+        let target = match step.get(k::TARGET) {
             Some(v) => v
                 .as_str()
                 .ok_or_else(|| anyhow!("`target` is {}, not a node path", v.type_str()))?,
             None => "",
         };
-        let duration = match (step.get("call"), step.get("interval")) {
+        let duration = match (step.get(k::CALL), step.get(k::INTERVAL)) {
             (Some(_), Some(_)) => bail!("a step waits or calls a method, not both"),
             (Some(call), None) => {
-                let method = call
-                    .as_str()
-                    .ok_or_else(|| anyhow!("`call` is {}, not a method name", call.type_str()))?;
-                self.add_call(target, start, method)?;
+                // A method name, or the id of a function `start_script` kept.
+                let function = call.as_integer().and_then(|id| u64::try_from(id).ok());
+                let method = call.as_str();
+                if method.is_none() && function.is_none() {
+                    bail!(
+                        "`call` is {}, not a method name or a function",
+                        call.type_str()
+                    );
+                }
+                self.add_call(target, start, method, function)?;
                 0.0
             }
             (None, Some(interval)) => as_f64(interval)
@@ -485,13 +602,20 @@ impl Builder<'_> {
     }
 
     /// A callback step: a moment on a method track, and no time of its own.
-    fn add_call(&mut self, target: &str, start: f32, method: &str) -> Result<()> {
+    fn add_call(
+        &mut self,
+        target: &str,
+        start: f32,
+        method: Option<&str>,
+        function: Option<u64>,
+    ) -> Result<()> {
         target_of(self.eng, self.node, target)?;
         let index = self.track_for(target, &Property::Call, 0);
         self.tracks[index].keys.push(Key {
             t: start.max(CALL_AT_HEAD),
             value: Vec4::ZERO,
-            call: Some(method.to_string()),
+            call: method.map(str::to_string),
+            function,
             ease: None,
             wide: Vec::new(),
             discrete: None,
@@ -503,19 +627,19 @@ impl Builder<'_> {
     /// takes to get from the first to the second.
     fn add_property(&mut self, step: &toml::Value, target: &str, start: f32) -> Result<f32> {
         let name = step
-            .get("property")
+            .get(k::PROPERTY)
             .and_then(toml::Value::as_str)
             .ok_or_else(|| {
                 anyhow!("a step needs a `property` to animate, an `interval` to wait or a `call`")
             })?;
         let property = Property::parse(name)?;
-        let duration = match step.get("duration") {
+        let duration = match step.get(k::DURATION) {
             Some(v) => as_f64(v)
                 .ok_or_else(|| anyhow!("`duration` is {}, not seconds", v.type_str()))?
                 as f32,
             None => bail!("a property step needs a `duration` in seconds"),
         };
-        let ease = match step.get("ease") {
+        let ease = match step.get(k::EASE) {
             Some(v) => Some(Easing::parse(v.as_str().ok_or_else(|| {
                 anyhow!("`ease` is {}, not a curve name", v.type_str())
             })?)?),
@@ -536,7 +660,7 @@ impl Builder<'_> {
         property: &Property,
         name: &str,
     ) -> Result<(usize, Vec4, Vec4)> {
-        let (destination, relative) = match (step.get("to"), step.get("by")) {
+        let (destination, relative) = match (step.get(k::TO), step.get(k::BY)) {
             (Some(_), Some(_)) => bail!("a step goes `to` a value or `by` one, not both"),
             (Some(v), None) => (v, false),
             (None, Some(v)) => (v, true),
@@ -550,7 +674,7 @@ impl Builder<'_> {
             Some(fixed) => fixed,
             None => count,
         };
-        let from = match step.get("from") {
+        let from = match step.get(k::FROM) {
             Some(v) => {
                 let (value, given) = numbers(v)?;
                 if given != channels {
@@ -649,6 +773,7 @@ fn push_segment(
             t: start,
             value: held,
             call: None,
+            function: None,
             ease: None,
             wide: Vec::new(),
             discrete: None,
@@ -658,6 +783,7 @@ fn push_segment(
         t: start,
         value: from,
         call: None,
+        function: None,
         ease: None,
         wide: Vec::new(),
         discrete: None,
@@ -666,6 +792,7 @@ fn push_segment(
         t: start + duration,
         value: to,
         call: None,
+        function: None,
         ease,
         wide: Vec::new(),
         discrete: None,

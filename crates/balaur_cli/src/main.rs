@@ -12,6 +12,8 @@ use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
 mod api_dump;
+#[cfg(not(target_arch = "wasm32"))]
+mod image_tools;
 // The editor's Export sheet, over the same library the command line drives.
 #[cfg(not(target_family = "wasm"))]
 mod check;
@@ -284,6 +286,24 @@ enum Command {
         #[arg(long, default_value_t = 0.5)]
         scale: f32,
     },
+    /// Pack loose frames onto one page: `art/<name>.webp`, a `sprite_sheet`
+    /// under `sheets/` with every frame, a tag per run of numbered frames
+    /// (`walk_01`, `walk_02`) or single picture, and a clip per run under
+    /// `animations/`. A folder is read in numbered order.
+    Atlas {
+        /// Folders of frames, or the frames themselves.
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        /// What the page, the sheet and the clips are called.
+        #[arg(long)]
+        name: String,
+        /// The project to write into.
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+        /// Frames a second a clip plays at.
+        #[arg(long, default_value_t = 12.0)]
+        fps: f32,
+    },
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
@@ -372,33 +392,6 @@ fn boot_own_pack(pack: &[u8]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "import"))]
-/// `balaur shrink`: the copies written, what was left alone and why, and the
-/// bytes it came to.
-fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
-    let done = balaur_import::shrink::shrink(project, tag, scale)?;
-    for (path, why) in &done.skipped {
-        tracing::info!("left {path} alone: {why}");
-    }
-    let saved = done.before.saturating_sub(done.after);
-    tracing::info!(
-        "{} images at {scale} for '{tag}': {:.1} MB -> {:.1} MB, {:.1} MB saved",
-        done.written.len(),
-        done.before as f64 / 1e6,
-        done.after as f64 / 1e6,
-        saved as f64 / 1e6,
-    );
-    Ok(())
-}
-
-/// Shrinking reads and writes images, which is the importers' half of the
-/// tree; a build without them says so rather than not offering the verb.
-#[cfg(all(not(target_arch = "wasm32"), not(feature = "import")))]
-fn shrink(project: &Path, tag: &str, scale: f32) -> Result<()> {
-    let _ = (project, tag, scale);
-    anyhow::bail!("this build has no importers: build with the `import` feature")
-}
-
 /// `balaur import`, or the same refusal when the importers are not built in.
 #[cfg(all(not(target_arch = "wasm32"), feature = "import"))]
 fn import(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
@@ -416,11 +409,7 @@ fn import(file: &Path, project: &Path, layers: &[String]) -> Result<()> {
 fn dispatch(command: Command) -> Result<()> {
     match command {
         Command::Api => api_dump::dump_api(),
-        Command::Shrink {
-            project,
-            tag,
-            scale,
-        } => shrink(&project, &tag, scale),
+        images @ (Command::Shrink { .. } | Command::Atlas { .. }) => image_tools::run(images),
         Command::Import {
             file,
             project,
@@ -795,6 +784,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let timings = opts.timings.then(|| log_timings(&mut app));
     let engine = app.engine.clone();
     if display == Display::Headless {
+        balaur::keep_log(&app);
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
@@ -1000,6 +990,13 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
                 eng.request_quit();
             }
         });
+    }
+    // With no window nothing calls the shell's `draw_ui`: a pass on no screen
+    // does, so a headless editor is the one a window shows.
+    #[cfg(not(feature = "window"))]
+    if !*offscreen {
+        let (wide, tall) = offscreen_size(size.as_deref())?;
+        balaur::ui::pass_without_window(&mut app, wide as f32, tall as f32);
     }
     // Registered last, so the frame it folds in is the whole frame.
     let log = timings.then(|| log_timings(&mut app));

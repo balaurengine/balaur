@@ -113,31 +113,57 @@ pub(crate) fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
         _ => 100,
     };
     Ok(Value::List(
-        crate::logbuf::recent(n)
-            .into_iter()
-            .map(|e| {
-                // The structured fields ride along: a viewer that drops them
-                // shows a message the event deliberately did not put there.
-                let fields = e
-                    .fields
-                    .iter()
-                    .map(|(name, value)| {
-                        Value::Map(vec![
-                            ("name".into(), Value::Str(name.clone())),
-                            ("value".into(), Value::Str(value.clone())),
-                        ])
-                    })
-                    .collect();
-                Value::Map(vec![
-                    ("time".into(), Value::Num(e.time)),
-                    ("level".into(), Value::Str(e.level.clone())),
-                    ("tag".into(), Value::Str(e.tag.clone())),
-                    ("message".into(), Value::Str(e.message.clone())),
-                    ("fields".into(), Value::List(fields)),
-                ])
-            })
-            .collect(),
+        crate::logbuf::recent(n).iter().map(log_entry).collect(),
     ))
+}
+
+pub(crate) fn log_since(_: &Engine, args: &[Value]) -> Result<Value> {
+    let cursor = match args.first() {
+        Some(Value::Int(n)) => u64::try_from(*n).unwrap_or(0),
+        _ => 0,
+    };
+    let (entries, cursor, missed) = crate::logbuf::since(cursor);
+    let count = |n: u64| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
+    Ok(Value::Map(vec![
+        (
+            "entries".into(),
+            Value::List(entries.iter().map(log_entry).collect()),
+        ),
+        ("cursor".into(), count(cursor)),
+        ("missed".into(), count(missed)),
+    ]))
+}
+
+pub(crate) fn log_file(_: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(crate::logbuf::file_path().map_or(Value::Nil, |path| {
+        Value::Str(path.to_string_lossy().into_owned())
+    }))
+}
+
+/// One entry as a script sees it. The structured fields ride along: a viewer
+/// that drops them shows a message the event deliberately did not put there.
+fn log_entry(e: &crate::logbuf::LogEntry) -> Value {
+    let fields = e
+        .fields
+        .iter()
+        .map(|(name, value)| {
+            Value::Map(vec![
+                ("name".into(), Value::Str(name.clone())),
+                ("value".into(), Value::Str(value.clone())),
+            ])
+        })
+        .collect();
+    Value::Map(vec![
+        (
+            "seq".into(),
+            Value::Int(i64::try_from(e.seq).unwrap_or(i64::MAX)),
+        ),
+        ("time".into(), Value::Num(e.time)),
+        ("level".into(), Value::Str(e.level.clone())),
+        ("tag".into(), Value::Str(e.tag.clone())),
+        ("message".into(), Value::Str(e.message.clone())),
+        ("fields".into(), Value::List(fields)),
+    ])
 }
 
 pub(crate) fn log_clear(_: &Engine, _: &[Value]) -> Result<Value> {
@@ -180,6 +206,7 @@ pub(crate) fn platform(eng: &Engine, _: &[Value]) -> Result<Value> {
         ("mobile".into(), Value::Bool(facts.mobile)),
         ("touchscreen".into(), Value::Bool(facts.touchscreen)),
         ("editor".into(), Value::Bool(facts.editor)),
+        ("dev".into(), Value::Bool(facts.dev)),
     ]))
 }
 

@@ -14,6 +14,8 @@ balaur_script.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+# A token's own expiry, read from its claims; core's version.
+base64 = "0.23"
 
 # The blocking transports, for the worker threads a native build runs.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

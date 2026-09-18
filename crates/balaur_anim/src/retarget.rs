@@ -24,6 +24,7 @@
 //! `retarget` works in a project that has written no assets of its own; a
 //! project wanting different names writes a `skeleton_profile` and says so.
 
+use crate::keys as k;
 use anyhow::{Result, anyhow, bail};
 use balaur_core::collections::DetHashMap;
 use balaur_core::skeleton::{Bone, quat_from_euler};
@@ -175,11 +176,11 @@ impl Retarget {
 /// When `bones` is missing, is not a table, or holds anything but node paths.
 pub fn parse_map(value: &toml::Value) -> Result<BoneMap> {
     let profile = value
-        .get("profile")
+        .get(k::PROFILE)
         .and_then(toml::Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let Some(table) = value.get("bones").and_then(toml::Value::as_table) else {
+    let Some(table) = value.get(k::BONES).and_then(toml::Value::as_table) else {
         bail!("a bone map needs a `[bones]` table of canonical name to node path");
     };
     let mut bones = DetHashMap::default();
@@ -209,7 +210,7 @@ pub fn parse_map(value: &toml::Value) -> Result<BoneMap> {
 /// # Errors
 /// When `bones` is not a list of tables, or a bone has no `name`.
 pub fn parse_profile(value: &toml::Value) -> Result<SkeletonProfile> {
-    let Some(items) = value.get("bones") else {
+    let Some(items) = value.get(k::BONES) else {
         return Ok(SkeletonProfile::humanoid());
     };
     let items = items
@@ -220,13 +221,13 @@ pub fn parse_profile(value: &toml::Value) -> Result<SkeletonProfile> {
         .enumerate()
         .map(|(i, item)| {
             let name = item
-                .get("name")
+                .get(k::NAME)
                 .and_then(toml::Value::as_str)
                 .ok_or_else(|| anyhow!("bone {i} needs a `name`"))?;
             Ok(ProfileBone {
                 name: name.to_string(),
-                rest_rotation: triple(item, "rest_rotation"),
-                rest_position: triple(item, "rest_position"),
+                rest_rotation: triple(item, k::REST_ROTATION),
+                rest_position: triple(item, k::REST_POSITION),
             })
         })
         .collect::<Result<Vec<_>>>()?;

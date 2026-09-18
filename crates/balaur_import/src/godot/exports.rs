@@ -22,6 +22,8 @@ pub(crate) struct Classes {
     pub bases: BTreeMap<String, String>,
     pub files: BTreeMap<String, String>,
     pub root: std::path::PathBuf,
+    /// Each class's `static var`s, with the GDScript text of their default.
+    pub statics: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.
@@ -416,6 +418,10 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         if let Some(name) = word("class_name ") {
             if let Some(base) = word("extends ") {
                 classes.bases.insert(name.clone(), base);
+            }
+            let statics = crate::godot::script::static_vars(&source);
+            if !statics.is_empty() {
+                classes.statics.insert(name.clone(), statics);
             }
             classes.files.insert(name, file.clone());
         }

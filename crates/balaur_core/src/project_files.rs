@@ -38,6 +38,8 @@ pub struct ProjectFiles {
     fs: std::rc::Rc<dyn crate::files::FileBackend>,
     /// The `assets/index.toml` a pack carries; a dev run reads the file.
     packed_index: Option<String>,
+    /// Built from a pack: an exported game, not a run from the sources.
+    from_pack: bool,
     /// `id → path`, parsed on the first `id:
     // ` and dropped by
     /// [`Self::reload_index`].
@@ -55,6 +57,7 @@ impl ProjectFiles {
             source: AssetSource::Files,
             fs: crate::files::default_backend(),
             packed_index: None,
+            from_pack: false,
             index: std::cell::RefCell::new(None),
         }
     }
@@ -72,8 +75,15 @@ impl ProjectFiles {
             source,
             fs: crate::files::default_backend(),
             packed_index: None,
+            from_pack: true,
             index: std::cell::RefCell::new(None),
         }
+    }
+
+    /// Whether these came from a pack, which is what an exported game runs.
+    #[must_use]
+    pub const fn from_pack(&self) -> bool {
+        self.from_pack
     }
 
     /// Serve loose files from `fs` rather than the disk.

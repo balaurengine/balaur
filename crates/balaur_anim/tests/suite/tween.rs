@@ -970,3 +970,68 @@ fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
     tick(&mut app, 30);
     assert_eq!(appearance(&app), (false, 1.0), "hidden, and opaque again");
 }
+
+/// A script that passes the tween a function, which counts each time it runs.
+const MOVER: &str = r#"
+pub fn init(this) {
+    this.landed = 0;
+    let at = this;
+    animation::tween(this.node, #{
+        "steps": [
+            #{ "property": "position", "to": [0.0, 10.0, 0.0], "duration": 0.5 },
+            #{ "call": || { at.landed += 1; } },
+        ],
+    });
+    this.ready = true;
+}
+"#;
+
+fn landed(app: &App, entity: Entity) -> Option<i64> {
+    let id = balaur_core::node_id_of(entity);
+    let state = app
+        .engine
+        .script_host()?
+        .save_state()
+        .into_iter()
+        .find_map(|(node, state)| (node == id).then_some(state))?;
+    let balaur_script::Value::Map(fields) = state else {
+        return None;
+    };
+    let get = |name: &str| fields.iter().find(|(key, _)| key == name).map(|(_, v)| v.clone());
+    assert_eq!(
+        get("ready"),
+        Some(balaur_script::Value::Bool(true)),
+        "the script's init ran to its end"
+    );
+    match get("landed")? {
+        balaur_script::Value::Int(n) => Some(n),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_call_step_runs_a_function_the_script_passed() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"anim\"\n").unwrap();
+    std::fs::write(dir.path().join("mover.rn"), MOVER).unwrap();
+    let mut app = App::new(AppConfig {
+        script_backend: Some(balaur::rune::factory()),
+        ..AppConfig::bare(dir.path().to_path_buf())
+    })
+    .unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    let entity = spawn(&app, "Box");
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur_core::node_id_of(entity), "mover.rn")
+        .unwrap();
+
+    tick(&mut app, 5);
+    assert_eq!(landed(&app, entity), Some(0), "the function waited for its step");
+    tick(&mut app, 40);
+    near(height(&app, entity), 10.0, "the property step ran");
+    assert_eq!(landed(&app, entity), Some(1), "the function ran when its step came");
+    tick(&mut app, 30);
+    assert_eq!(landed(&app, entity), Some(1), "a finished tween calls nothing again");
+}

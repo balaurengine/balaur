@@ -19,10 +19,11 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
 
-use crate::clip::{Clip, Property, Wrap};
-use crate::player::{AnimationState, Playback, fixed_dt, max_substeps};
-use crate::sampler::{self, Pose, TrackValue};
+use crate::clip::{Clip, Property, Track, Wrap};
+use crate::player::{AnimationState, Fade, Playback, fixed_dt, max_substeps};
+use crate::sampler::{self, TrackValue};
 use crate::tween::{self, TweenId};
+use crate::words as w;
 
 /// The method a node's script is called with when its clip ends.
 const FINISHED_METHOD: &str = "on_animation_finished";
@@ -38,6 +39,8 @@ pub(crate) enum Effect {
     },
     /// Call a method on a node's script instance.
     Call { entity: Entity, method: String },
+    /// Call a function a tween step was handed, which the host keeps.
+    Invoke { id: u64 },
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
     /// Put a `polygon/deform` track's offsets on the node it deforms.
@@ -109,8 +112,10 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     }
     let mut effects = Vec::new();
     let mut ended: Vec<Entity> = Vec::new();
+    let mut moved = Vec::new();
     refresh_reloaded_clips(eng);
     crate::machine::prepare(eng);
+    crate::machine::evaluate_checks(eng);
     {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
@@ -148,6 +153,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                 &mut state.players,
                 &ended_now,
                 paused,
+                &mut moved,
             );
             ended.extend(ended_now);
             // Tweens come after the players, so a tween is what lands on a
@@ -187,7 +193,10 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         }
     }
     apply_effects(eng, &effects);
+    // After the effects, so a tween's last call runs before it is let go.
+    tween::release_unheld(eng);
     settle_ended(eng, &ended);
+    crate::machine::announce(eng, &moved);
 }
 
 /// One fixed step of one node. Answers whether the clip ended on this step.
@@ -219,33 +228,49 @@ fn advance_playback(
         playback.finished = playback.clip_name.clone();
     }
     let pose = sampler::sample(&clip, time);
-    let pose = match playback.fade.as_mut() {
-        Some(fade) => {
+    if playback.fades.is_empty() {
+        write_pose(
+            world,
+            entity,
+            &playback.root,
+            playback.retarget.as_ref(),
+            clip.tracks.iter().zip(pose),
+            effects,
+        );
+    } else {
+        for fade in &mut playback.fades {
             fade.elapsed += fixed_dt();
             fade.time += fixed_dt() * fade.speed;
-            let (leaving_at, _) = sampler::clip_time(&fade.clip, fade.time);
-            let leaving = sampler::sample(&fade.clip, leaving_at);
-            let weight = fade.elapsed / fade.duration;
-            sampler::blend(&fade.clip, leaving, &clip, pose, weight)
         }
-        None => pose,
-    };
-    if playback
-        .fade
-        .as_ref()
-        .is_some_and(|fade| fade.elapsed >= fade.duration)
-    {
-        playback.fade = None;
+        let fades = &playback.fades;
+        let sample_fade = |fade: &Fade| sampler::sample(&fade.clip, fade.local_time());
+        let mut mix = sampler::mix_of(&fades[0].clip, sample_fade(&fades[0]));
+        for pair in fades.windows(2) {
+            sampler::blend(
+                &mut mix,
+                &pair[1].clip,
+                sample_fade(&pair[1]),
+                pair[0].weight(),
+            );
+        }
+        let last = fades.len() - 1;
+        sampler::blend(&mut mix, &clip, pose, fades[last].weight());
+        write_pose(
+            world,
+            entity,
+            &playback.root,
+            playback.retarget.as_ref(),
+            mix,
+            effects,
+        );
+        // A fade that has run hides everything older than it, and a clip
+        // that ended holds the pose it ended on, so nothing is left to blend.
+        if finished {
+            playback.fades.clear();
+        } else if let Some(done) = fades.iter().rposition(|fade| fade.elapsed >= fade.duration) {
+            playback.fades.drain(..=done);
+        }
     }
-    write_pose(
-        world,
-        entity,
-        &playback.root,
-        playback.retarget.as_ref(),
-        &clip,
-        pose,
-        effects,
-    );
     collect_calls(
         world,
         entity,
@@ -283,8 +308,7 @@ pub(crate) fn pose_now(eng: &Engine, entity: Entity) {
             entity,
             &playback.root,
             playback.retarget.as_ref(),
-            clip,
-            pose,
+            clip.tracks.iter().zip(pose),
             &mut effects,
         );
     }
@@ -296,18 +320,17 @@ pub(crate) fn pose_now(eng: &Engine, entity: Entity) {
 /// Targets are resolved every step rather than cached: a track may name a node
 /// that is spawned, freed or reparented while the clip is running, and a
 /// missing one is skipped rather than fatal.
-pub(crate) fn write_pose(
+pub(crate) fn write_pose<'a>(
     world: &World,
     entity: Entity,
     root: &str,
     retarget: Option<&crate::retarget::Retarget>,
-    clip: &Clip,
-    pose: Pose,
+    tracks: impl IntoIterator<Item = (&'a Track, TrackValue)>,
     effects: &mut Vec<Effect>,
 ) {
     // Taken by value: a deform track's offsets are as long as the mesh, and
     // moving them into the effect is one copy fewer every step.
-    for (track, value) in clip.tracks.iter().zip(pose) {
+    for (track, value) in tracks {
         // The track's own name is the canonical one a bone map is keyed by;
         // what it drives on this rig is whatever the map says, and the track
         // is left alone when the map says nothing.
@@ -439,14 +462,16 @@ pub(crate) fn collect_calls(
             continue;
         };
         for key in &track.keys {
-            let Some(method) = key.call.as_ref() else {
+            if !spans.iter().any(|&span| sampler::passes(span, key.t)) {
                 continue;
-            };
-            if spans.iter().any(|&span| sampler::passes(span, key.t)) {
+            }
+            if let Some(method) = key.call.as_ref() {
                 effects.push(Effect::Call {
                     entity: target,
                     method: method.clone(),
                 });
+            } else if let Some(id) = key.function {
+                effects.push(Effect::Invoke { id });
             }
         }
     }
@@ -481,12 +506,12 @@ fn target_of(world: &World, entity: Entity, root: &str, target: &str) -> Option<
 fn transform_patch(value: &TrackValue) -> Option<(String, toml::Value)> {
     let vector = |v: Vec3| numbers(v.extend(0.0), 3);
     match value {
-        TrackValue::Position(position) => Some(("position".to_string(), vector(*position))),
-        TrackValue::Scale(scale) => Some(("scale".to_string(), vector(*scale))),
+        TrackValue::Position(position) => Some((w::POSITION.to_string(), vector(*position))),
+        TrackValue::Scale(scale) => Some((w::SCALE.to_string(), vector(*scale))),
         TrackValue::Rotation(rotation) => {
             let (yaw, pitch, roll) = rotation.to_euler(EulerRot::ZYX);
             Some((
-                "rotation_euler".to_string(),
+                w::ROTATION_EULER.to_string(),
                 vector(Vec3::new(roll, pitch, yaw)),
             ))
         }
@@ -541,6 +566,13 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
             Effect::Call { entity, method } => {
                 if let Some(host) = host.as_ref() {
                     host.call_on(balaur_core::node_id_of(*entity), method, &[]);
+                }
+            }
+            Effect::Invoke { id } => {
+                if let Some(host) = host.as_ref()
+                    && let Err(why) = host.invoke(balaur_script::CallbackId(*id), &[])
+                {
+                    tracing::warn!("a tween's function failed: {why:#}");
                 }
             }
             Effect::Deform { entity, offsets } => {

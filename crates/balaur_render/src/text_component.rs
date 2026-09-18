@@ -372,27 +372,14 @@ pub(crate) fn sync_text(
     for (entity, text, resolved, raster) in &wanted {
         match crate::world_text::shape_at(&app.engine, resolved, &text.style, *raster) {
             Ok(block) => blocks.push(Some(block)),
-            // The fonts install on the first UI pass, later in this frame:
-            // said once, since the frame after it draws.
             Err(err) => {
-                crate::world_text::warn_once(&err);
+                crate::world_text::report_once(&err);
                 blocks.push(None);
             }
         }
         let _ = entity;
     }
     let texture = crate::world_text::atlas_texture(&app.engine);
-    if !wanted.is_empty() {
-        tracing::info!(
-            "TEXTSYNC wanted={} texture={} blocks={:?}",
-            wanted.len(),
-            texture.is_some(),
-            blocks
-                .iter()
-                .map(|b| b.as_ref().map(|x| x.quads.len()))
-                .collect::<Vec<_>>()
-        );
-    }
 
     for ((entity, text, resolved, raster), block) in wanted.into_iter().zip(blocks) {
         if let Some(mut old) = slots.remove(&entity) {

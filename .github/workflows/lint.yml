@@ -76,7 +76,7 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
-            --no-default-features --features audio,http,websocket,gamend,web,window \
+            --no-default-features --features audio,http,websocket,gamend,multiplayer,web,window \
             -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
@@ -103,9 +103,9 @@ jobs:
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
-      # Every hand-written document: no filler, no em dash in prose, none of
-      # the vocabulary a model reaches for. The roadmap's rows are reported
-      # rather than failed, because a row's shape needs its dash.
+      # Every hand-written document: none of the vocabulary a model reaches
+      # for, and a roadmap row held to one sentence and 25 words. Filler and
+      # dashes on the roadmap are reported, not failed.
       - name: scripts/prose_lints.py
         run: python3 scripts/prose_lints.py --fail-on-error
       # The script API's own names, against the tables in docs/NAMING.md.

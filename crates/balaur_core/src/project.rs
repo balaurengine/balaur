@@ -94,7 +94,7 @@ impl Orientation {
     }
 }
 
-/// How a window opens, and what `render.set_window_mode` switches between.
+/// How a window opens, and what `window.set_window_mode` switches between.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum WindowMode {
     #[default]

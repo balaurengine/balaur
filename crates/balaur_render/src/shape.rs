@@ -445,7 +445,7 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
                     (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
-                    (k::TEXTURE, r#"{ type = "string", default = "", description = "An image drawn along a polyline, repeating once per world unit of its length" }"#),
+                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes, when kind is rect or ellipse" }"#),
                     (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach" }"#),
                     (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rect; zero is a square corner" }"#),

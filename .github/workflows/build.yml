@@ -143,7 +143,7 @@ jobs:
             host: ubuntu-latest
             variant: editor
             label: editor
-            web-features: audio,http,websocket,gamend,web,window,import
+            web-features: audio,http,websocket,gamend,multiplayer,web,window,import
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -270,7 +270,13 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
+            libxkbcommon-dev libwayland-dev \
+            libvulkan1 mesa-vulkan-drivers
+      # The packs boot in the image's Chrome before they ship, on SwiftShader's
+      # Vulkan: scripts/web_smoke.mjs drives it over a WebSocket, Node 22 and up.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - uses: actions/download-artifact@v8
         with:
           name: balaur-linux-x64

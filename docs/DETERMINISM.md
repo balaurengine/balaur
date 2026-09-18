@@ -15,8 +15,8 @@ bandwidth per player rather than per object.
 
 | | `update(dt)` | `fixed_update(dt)` |
 | --- | --- | --- |
-| Runs | once per frame | 0–4 times per frame |
-| `dt` | measured frame time | always `1/60` |
+| Runs | once per frame | 0–4 times per frame at 60 Hz, more at a faster tick |
+| `dt` | measured frame time | always `1/tick_hz`, `1/60` by default |
 | Before physics | no | yes |
 | Reproducible | no | yes |
 
@@ -43,8 +43,8 @@ balaur run my-game --fixed-tick --trace-digest run-a.txt
 ```
 
 One `<tick> <digest>` per line. Two runs that differ parted at the first
-differing line — `diff` them across machines. CI does this for every example on
-Linux, macOS and Windows.
+differing line — `diff` them across machines. CI does this for five examples
+(`scripts/determinism_trace.sh` names them) on Linux, macOS and Windows.
 
 ## Recording
 
@@ -89,7 +89,7 @@ in physics, script instances through `save_state`/`load_state`). Give a script
 those two methods when only part of its state matters; leave them out and its
 plain fields are captured. Restore puts the node *set* back too: core's `nodes`
 source frees what was spawned and respawns what was freed, before any other
-source writes. `crates/balaur_core/tests/snapshot.rs` holds it.
+source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 
 ## What breaks determinism
 
@@ -108,7 +108,7 @@ source writes. `crates/balaur_core/tests/snapshot.rs` holds it.
 
 Every float method Rune exposes is safe to call: `sqrt`, `abs`, `floor`,
 `ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, and `powf` and
-`powi` are asserted against `libm` in `crates/balaur_script_rune/tests/pow.rs`.
+`powi` are asserted against `libm` in `crates/balaur_script_rune/tests/suite/pow.rs`.
 On the Rust side `scripts/house_lints.py` fails the build on a bare `.sin()`,
 `f32::sin(x)`, `.powf()` and the rest of the inexact list.
 

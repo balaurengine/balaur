@@ -136,9 +136,8 @@ plus a shipped script module with `exports` for its limits;
 `character2d`, with the input actions the preset declares. They are ordinary
 Rune under the runtime's own modules, so a project reads and forks them.
 
-**Look-at and follow are modifiers.** `modifier3d` with `look_at` is
-`docs/PLAN-animation-and-resources.md`'s; `follow` with `lag` and `offset`
-joins it and `modifier2d`.
+**Look-at and follow are modifiers.** `modifier3d` has `look_at`; `follow`
+with `lag` and `offset` joins it and `modifier2d`.
 
 **A scene switch is one call.** `scene.switch(path, #{ fade: 0.3 })`
 replaces the root with a fade the renderer draws; reset is a switch to the

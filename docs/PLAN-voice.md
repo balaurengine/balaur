@@ -1,13 +1,13 @@
 > **Status:** not started. Written on 2026-09-05 from the Photon parity
 > investigation, which found the roadmap's "what is missing is a codec"
 > undersold it: capture, a jitter buffer, voice detection, echo cancellation
-> and a browser path are missing too. Rides on `docs/PLAN-sessions.md` for
+> and a browser path are missing too. Rides on `docs/PLAN-multiplayer.md` for
 > the roster and the link, and on `docs/PLAN-gamend.md` step S5 for the
 > browser fallback.
 
 # Plan: voice
 
-Players heard as well as seen: a microphone in, Opus over the session's
+Players heard as well as seen: a microphone in, Opus over the match's
 datagrams, each player's voice out on a bus, from where their node stands
 if the game says so. Photon Voice is the product this mirrors; the engine's
 shape decides the one rule Photon does not have to state, which is that
@@ -20,8 +20,8 @@ voice never enters the simulation.
 | Output on every target through rodio 0.22 over cpal, WebAudio on wasm | `balaur_audio`, `rodio` with `wasm-bindgen` on wasm |
 | Buses with volumes, and a `master` they mix into | `balaur_audio::bus`, `audio::buses`, `bus_volume` |
 | Positional sound from a listener node: pan and distance gain per emitter, moved per frame | `balaur_audio::spatial`, `emitter_position`, `set_listener`, `pan`, `distance_gain` |
-| Unreliable datagrams on the session link, with a size the link reports | `Transport::send_datagram`, `max_datagram` |
-| The roster: who is in the session and which slot is local | `docs/PLAN-sessions.md` step 1 |
+| Unreliable datagrams on the match's link, with a size the link reports | `Transport::send_datagram`, `max_datagram` |
+| The roster: who is in the match and which slot is local | `docs/PLAN-multiplayer.md` step 1 |
 | A server-side WebRTC peer on Gamend that could carry an audio track | `GamendWeb.WebRTCPeer` over `ex_webrtc` |
 | Signed macOS bundles with a plist the exporter writes | `bundle.rs::export_macos_app` |
 
@@ -47,7 +47,7 @@ Missing:
 
 ## 1. Design
 
-**Voice is an observer.** Like `engine.timings()` and the session's link
+**Voice is an observer.** Like `engine.timings()` and the match's link
 stats, voice is heard and never simulated: no tick reads it, no digest hashes
 it, no snapshot restores it, and a `.blr` does not carry it. A script may ask
 who is speaking for a UI indicator, which is a frame-scoped answer like
@@ -59,7 +59,7 @@ one Opus packet of 60 to 80 bytes at the 24 to 32 kbit/s a voice wants:
 
 ```
 cpal input ─ APM (echo, noise, gain) ─ gate (push-to-talk / activity) ─ Opus encode
-   ─ datagram on the session link, one message kind, never in the journal ─
+   ─ datagram on the match's link, one message kind, never in the journal ─
 receive ─ jitter buffer (60 to 100 ms target, adaptive) ─ Opus decode + PLC
    ─ a rodio Source per speaker ─ the `voice` bus, positional through `spatial` if attached ─ master
 ```
@@ -70,14 +70,15 @@ system libopus). Behind a `voice` feature, off by default like
 `webtransport`, because a C build on six export targets is a cost a game
 without voice should not pay.
 
-**Transport.** Voice frames are datagrams on the session link
-(`docs/PLAN-sessions.md`), tagged as their own message kind so the session
+**Transport.** Voice frames are datagrams on the match's link
+(`docs/PLAN-multiplayer.md`), tagged as their own message kind so the match
 never journals them. Over QUIC a lost frame is a lost frame and concealment
 covers it; over the websocket a datagram is reliable and late, which is
 right for a turn-based game and wrong for a shooter, and the plan does not
-pretend otherwise. Under `host` and `server` roles the ordering end forwards
-voice like inputs, with a per-player mute list and a `voice/max_distance`
-filter applied there, which is Photon's interest group for voice.
+pretend otherwise. Under the `host` and `server` topologies the ordering
+end forwards voice like inputs, with a per-player mute list and a
+`voice/max_distance` filter applied there, which is Photon's interest group
+for voice.
 
 **The browser.** WebTransport in a tab is `docs/PLAN-networking.md` step 13
 and web export is missing, so the first browser path is a WebRTC audio track
@@ -98,7 +99,7 @@ floor that always works.
 
 | Call | Answers |
 | --- | --- |
-| `voice::start(options)` / `stop()` | Open the input and join the session's voice; `mode` is `MODE_PUSH_TO_TALK`, `MODE_ACTIVITY` or `MODE_OPEN` |
+| `voice::start(options)` / `stop()` | Open the input and join the match's voice; `mode` is `MODE_PUSH_TO_TALK`, `MODE_ACTIVITY` or `MODE_OPEN` |
 | `voice::set_transmit(bool)` | The push-to-talk key, from a script's own binding |
 | `voice::level()` | The local input level this frame, for a meter |
 | `voice::speaking(player)` | Whether that player's frames are playing this frame |
@@ -153,9 +154,9 @@ Everything Photon Voice ships, and the decision on each.
    device list, `level()`, the permission strings in every export, and the
    `denied` event. Ends with: a bar in a UI that moves when you speak.
 2. **Loopback voice.** `audiopus`, the jitter buffer, concealment,
-   push-to-talk, the energy gate, the `voice` bus, frames on the session
-   link, under `netcode/faults`. Ends with: two engines on one machine hear
-   each other through five percent loss.
+   push-to-talk, the energy gate, the `voice` bus, frames on the match's
+   link, under `multiplayer/faults`. Ends with: two engines on one machine
+   hear each other through five percent loss.
 3. **Positional voice and per-player controls.** `attach`, mute, volume,
    `max_distance` at the ordering end, the scene-file key. Ends with: a
    player heard from their node, and not heard past the distance.
@@ -181,7 +182,7 @@ device, real echo, the OS prompt.
 1. **libopus on every target.** cmake on the Windows cross build, the iOS
    and Android toolchains, and the wasm build, or a vendored build script.
    Decide at step 2; it is the main cost of the feature.
-2. **The session link or a link of its own.** Datagrams already avoid
+2. **The match's link or a link of its own.** Datagrams already avoid
    head-of-line blocking behind a snapshot, so one link is the default; a
    second QUIC connection is the fallback if voice and inputs contend.
 3. **Rates.** Whether the `voice` bus resamples to rodio's mixer rate or the

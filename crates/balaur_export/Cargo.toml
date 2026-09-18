@@ -15,6 +15,8 @@ recode-fonts = ["dep:hb-subset"]
 [dependencies]
 balaur = { workspace = true, default-features = false }
 balaur_plugin.workspace = true
+# The `.fnt` reader, so a bitmap font's page is never scaled under its glyphs.
+balaur_text.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 toml.workspace = true
@@ -25,6 +27,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 image-webp = "0.2"
 flacenc = { version = "0.5", default-features = false }
 hound = "3"
+# A sound resampled to `max_rate` at export; pure Rust, so a browser tab too.
+rubato = "5"
 # libimagequant is pure Rust from 4 on, so a browser tab quantises too; its
 # `threads` default is rayon, which builds for wasm but cannot spawn there.
 imagequant = { version = "4", default-features = false }
@@ -42,6 +46,8 @@ hb-subset = { package = "mkwebfont_hb-subset", version = "0.5", optional = true 
 
 [dev-dependencies]
 tempfile = "3"
+# An SVG rasterized in a test, which a game template never needs.
+balaur_core = { workspace = true, features = ["svg"] }
 # A test's own sine has to be the same sine on every operating system, which
 # the platform's `sin` is not (DETERMINISM.md).
 libm.workspace = true

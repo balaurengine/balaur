@@ -85,7 +85,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
                     (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }"#),
-                    (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }"#),
+                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                     (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
                     (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),

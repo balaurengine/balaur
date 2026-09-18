@@ -267,7 +267,7 @@ in the game; "not planned" is a deliberate no.
 | A widget that fills its parent minus a margin | Have: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
 | Per-node theme overrides | Have: a node's own properties override its theme |
 | Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
-| The display's safe area | Have: `render.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, iOS reads UIKit's `safeAreaInsets` through the fork's `Window::safe_area`, a desktop answers zero. Android is `docs/PLAN-google.md`'s |
+| The display's safe area | Have: `window.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, iOS reads UIKit's `safeAreaInsets` through the fork's `Window::safe_area`, a desktop answers zero. Android is `docs/PLAN-google.md`'s |
 | Focus, neighbours, focus visuals off on pointer input | Have `focusable`, `ui.focus_*`; explicit neighbours **not planned** — the arrangement order is the neighbour order |
 | A drag threshold before a scroll view scrolls, so a tap on a child lands | Have: `deadzone` on `scroll`, in design pixels; 0 scrolls at once, so a touch scene sets 32 |
 | Tooltips | Not planned; nothing has asked |
@@ -284,8 +284,8 @@ in the game; "not planned" is a deliberate no.
 | A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |
 | The Android back button | Have: it arrives as `KEY_NAVIGATE_BACKWARD`, the same key the browser's back key is; `KEY_BACK` is backspace, as kiss3d names it |
 | Focus lost, app paused, quit requested | Have: `engine.focused()`, recorded, `on_focus_changed(bool)` on change, `on_quit_requested` on every script before the window closes — a chance to save, not a veto |
-| Keep the screen on | Have: `render.set_keep_awake(bool)` — a wake lock on the page, nothing to ask on a desktop |
-| Screen refresh rate | Have: `render.refresh_rate()`, measured from the frame intervals vsync paces, recorded |
+| Keep the screen on | Have: `window.set_keep_awake(bool)` — a wake lock on the page, nothing to ask on a desktop |
+| Screen refresh rate | Have: `window.refresh_rate()`, measured from the frame intervals vsync paces, recorded |
 | The OS, and whether this is a phone, a browser or the editor | Have: `engine.platform()`, recorded in the session's header, since a replay on another machine must answer as the original did |
 | A stable per-install id, for device login | Have: `engine.device_id()`, generated once into the user directory |
 | Wall-clock time | Have: `engine.unix_time()`, read at the top of the tick and recorded |
@@ -313,7 +313,7 @@ in the game; "not planned" is a deliberate no.
 | Skeletal 2D: bones, skinned polygons, weights | Have |
 | Sprite flipbooks | Have: a clip over `sprite/frame` |
 | Tweens that wait, chain, call back, and drive a value a script owns | Have: `delay` and `then = <handle>` on `animation.tween` (a chained tween reads its start values when its turn comes); `on_tween_finished(handle)`; `animation.tween_value(from, to, seconds, ease)` and `tween_value_of(handle)`, read each frame — the method tween without a callback into the middle of a tick; `loops`. Nested tweens **not planned** |
-| State machines and blend trees | `docs/PLAN-animation-and-resources.md`. Fallback: a script with a `state` and `animation.play` on transitions |
+| State machines and blend trees | Have: a `state_machine` asset of clips with crossfades, run by its component, `animation.travel` and conditions. Blend trees **not planned** |
 
 ### Scripting
 
@@ -407,7 +407,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    `on_tween_finished`, `tween_value`; `geometry2d`; `hash.sha256`;
    `encoding.base64`; `rng.uuid`; `http.request` `save_to` with progress;
    `strings.system_locale`; `engine.open_url`, `platform`, `device_id`,
-   `unix_time`, `dark_mode`, `focused`, `stats`; `render.safe_area`,
+   `unix_time`, `dark_mode`, `focused`, `stats`; `window.safe_area`,
    `set_keep_awake`, `refresh_rate`; `input.vibrate`, `KEY_BACK`;
    `audio.define_bus`; `[application] splash`; `balaur test`. Ends with: a
    settings screen, a shop screen, and a content pack downloaded, verified

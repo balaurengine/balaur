@@ -7,7 +7,7 @@
 //! a bool or an int as a number, a `source_color` in linear light, an image as
 //! the slot its sampler was given.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use balaur_plugin::toml;
 use toml::Value as Toml;
@@ -104,7 +104,7 @@ pub(crate) fn attach(value: &Value, res: &Resources<'_>, out: &mut Mapped) {
 
 /// The translated shader a material names: one the import already wrote,
 /// or the source of one saved inside the scene, translated here.
-fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option<Rc<Shader>> {
+fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option<Arc<Shader>> {
     let value = section.field("shader")?;
     if let Some(path) = res.path(value) {
         let found = res.project.shaders.get(path).cloned();
@@ -137,7 +137,7 @@ fn shader_of(section: &Section, res: &Resources<'_>, out: &mut Mapped) -> Option
         ));
         return None;
     }
-    Some(Rc::new(Shader { path, translated }))
+    Some(Arc::new(Shader { path, translated }))
 }
 
 /// The `[params]` key a uniform is set under: its field, or the image slot

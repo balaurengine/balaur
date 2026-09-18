@@ -76,6 +76,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::ICON,
     k::ICON_COLOR,
     k::ICON_SIZE,
+    k::INTERACTIVE,
     k::K_COM,
     k::K_FN,
     k::K_KEY,
@@ -89,6 +90,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::LINE_HEIGHT,
     k::MAX,
     k::MAX_HEIGHT,
+    k::MAX_WIDTH,
     k::MENU,
     k::MENU_CLICK,
     k::MIN,
@@ -123,6 +125,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::TITLE,
     k::TOOLTIP,
     k::TOP,
+    k::TRACK,
     k::TRAILING,
     k::TRAILING_COLOR,
     k::TRAILING_SIZE,
@@ -779,5 +782,49 @@ mod tests {
         let mut sorted = KNOWN_KEYS.to_vec();
         sorted.sort_unstable();
         assert_eq!(KNOWN_KEYS, sorted.as_slice());
+    }
+
+    /// A key a widget reads and the list leaves out is warned about on every
+    /// call that passes it, and a warning fails a test run.
+    #[test]
+    fn every_key_a_widget_reads_is_known() {
+        let source = [
+            include_str!("mod.rs"),
+            include_str!("bindings.rs"),
+            include_str!("code.rs"),
+            include_str!("layout.rs"),
+        ]
+        .concat();
+        let vocabulary = include_str!("../vocabulary.rs");
+        let keys = &vocabulary[vocabulary.find("mod keys {").unwrap()..];
+        let value_of = |name: &str| {
+            let at = keys.find(&format!("const {name}: &str = \"")).unwrap();
+            let rest = &keys[at..];
+            let open = rest.find('"').unwrap() + 1;
+            let close = open + rest[open..].find('"').unwrap();
+            rest[open..close].to_string()
+        };
+        let mut missing = Vec::new();
+        for (at, _) in source.match_indices("opts.") {
+            let call = &source[at..];
+            let Some(open) = call.find('(').filter(|&i| i < 24) else {
+                continue;
+            };
+            let Some(name) = call[open + 1..].trim_start().strip_prefix("k::") else {
+                continue;
+            };
+            let name: String = name
+                .chars()
+                .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+                .collect();
+            let value = value_of(&name);
+            if !KNOWN_KEYS.contains(&value.as_str()) && !missing.contains(&value) {
+                missing.push(value);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "read by a widget, missing from KNOWN_KEYS: {missing:?}"
+        );
     }
 }

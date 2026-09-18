@@ -43,6 +43,7 @@ impl Walk {
         let mut report = Report::default();
         let mut sink = ProjectSink::new(project);
         sink.put("project.toml", converted.project_toml.as_bytes())?;
+        sink.put("godot_settings.rn", converted.settings_module.as_bytes())?;
         report.section("project.godot", converted.notes);
         // A project's own faces come first in every font chain, from `fonts/`.
         if let Some(font) = super::project::custom_font(&document, &uids, &root) {
@@ -98,7 +99,10 @@ impl Walk {
                 }
             }
         } else if extension == "gd" {
-            let source = super::io::text(&self.root.join(&relative))?;
+            let mut source = super::io::text(&self.root.join(&relative))?;
+            if let Some(checks) = self.lookups.checks.get(&relative) {
+                source.push_str(&super::machine::check_functions(checks));
+            }
             let converted = super::script::convert(&source, &relative, &self.lookups.classes);
             let target = format!("{}.rn", relative.trim_end_matches(".gd"));
             self.sink.put(&target, converted.rune.as_bytes())?;

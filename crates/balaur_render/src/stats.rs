@@ -59,7 +59,7 @@ impl Stats {
 ///
 /// Counting a triangle means spinning the primitive or parsing the mesh, and
 /// this pass runs every frame over every node. Image sizes are kept by
-/// `texture::size_of`, which every other reader shares.
+/// `texture::shipped_size_of`, which every other reader shares.
 #[derive(Default)]
 pub(crate) struct Measured {
     /// The asset generation these answers were read at.
@@ -179,12 +179,17 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable3d, cache: &mut Meas
     }
 }
 
-/// Four bytes a pixel, which is what every format the engine uploads becomes.
+/// Four bytes a pixel of what the file holds, which is what every format the
+/// engine uploads becomes, and a third more for a mip chain.
 fn image_bytes(eng: &Engine, path: &str) -> u64 {
-    match crate::texture::size_of(eng, path) {
-        Ok((width, height)) => u64::from(width) * u64::from(height) * 4,
-        Err(_) => 0,
-    }
+    let Ok((width, height)) = crate::texture::shipped_size_of(eng, path) else {
+        return 0;
+    };
+    let base = u64::from(width) * u64::from(height) * 4;
+    let mips = balaur_core::texture_asset::source(eng, path).is_ok_and(|source| {
+        balaur_core::import::texture::sampling(&source.settings.settings).mipmaps
+    });
+    if mips { base + base / 3 } else { base }
 }
 
 fn cost_value(name: &str, cost: &NodeCost) -> Value {

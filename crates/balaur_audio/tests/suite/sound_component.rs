@@ -225,3 +225,22 @@ fn rewrite(path: &Path, len: usize) {
     std::thread::sleep(std::time::Duration::from_millis(10));
     std::fs::write(path, vec![0u8; len]).unwrap();
 }
+
+/// A sound's own sidecar sets its level and its loop wherever it is played.
+#[test]
+fn a_sound_file_carries_its_own_level_and_loop() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("sfx")).unwrap();
+    std::fs::write(
+        dir.path().join("sfx/theme.ogg.toml"),
+        "volume = 0.5\nloop = true\nloop_offset = 1.5\n",
+    )
+    .unwrap();
+    let app = app_in(dir.path());
+    let own = balaur_audio::FileSettings::of(&app.engine, "sfx/theme.ogg");
+    assert!((own.level - 0.5).abs() < f32::EPSILON);
+    assert!(own.looped);
+    assert!((own.loop_offset - 1.5).abs() < f32::EPSILON);
+    let plain = balaur_audio::FileSettings::of(&app.engine, "sfx/hit.ogg");
+    assert_eq!(plain, balaur_audio::FileSettings::default());
+}

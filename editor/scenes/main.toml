@@ -661,6 +661,16 @@ visible = false
 grow = 1
 
 [[nodes]]
+id = "bottom_statemachine"
+name = "BottomStatemachine"
+parent = "bottom"
+[nodes.widget]
+kind = "draw"
+draw = "draw_view_statemachine"
+visible = false
+grow = 1
+
+[[nodes]]
 id = "status"
 name = "Status"
 parent = "bottom"

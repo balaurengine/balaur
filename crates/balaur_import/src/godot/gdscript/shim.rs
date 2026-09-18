@@ -6,7 +6,7 @@
 //! this dispatches on the value.
 
 /// The text written to `gd.rn` beside a converted project.
-pub(crate) const SHIM: &str = r#"// Godot's Variant verbs, for scripts `balaur import` converted. Written by
+pub(crate) const SHIM: &str = r##"// Godot's Variant verbs, for scripts `balaur import` converted. Written by
 // the importer: edit the importer, not this file.
 
 /// Godot's `null`, which is Rune's unit.
@@ -41,9 +41,19 @@ pub fn is_empty(value) {
     return size(value) == 0;
 }
 
-/// `dict.get(key, fallback)`, and `array.get(index)`. `default` is a Rune
-/// keyword, so the parameter is not called that.
+/// `dict.get(key, fallback)`, `array.get(index)` and `object.get(property)`.
+/// `default` is a Rune keyword, so the parameter is not called that.
 pub fn get(container, key, fallback) {
+    if container is balaur::Node {
+        if key == TREE_PLAYBACK && container.has_component(STATE_MACHINE) {
+            return playback(container);
+        }
+        let value = field(container, key);
+        if is_nil(value) {
+            return fallback;
+        }
+        return value;
+    }
     if container is Object {
         if container.contains_key(key) {
             return container[key];
@@ -57,6 +67,39 @@ pub fn get(container, key, fallback) {
         return fallback;
     }
     return fallback;
+}
+
+/// `object.set(property, value)`, `dict.set(key, value)`, and a tree's
+/// `parameters/conditions/<name>`.
+pub fn set(owner, key, value) {
+    if owner is balaur::Node {
+        if key is String && key.starts_with(TREE_CONDITIONS) && owner.has_component(STATE_MACHINE) {
+            let name = key[TREE_CONDITIONS.len()..];
+            return owner.state_machine.set_condition(name, value);
+        }
+        return set_field(owner, key, value);
+    }
+    if owner is Object {
+        owner[key] = value;
+    }
+    ()
+}
+
+// An AnimationTree's parameters, which here are its `state_machine`'s.
+const STATE_MACHINE = "state_machine";
+const TREE_PLAYBACK = "parameters/playback";
+const TREE_CONDITIONS = "parameters/conditions/";
+const TREE_ACTIVE = "active";
+
+/// Godot's `AnimationNodeStateMachinePlayback`, over a tree node's machine.
+fn playback(tree) {
+    #{
+        "travel": |to| tree.state_machine.travel(to),
+        "start": |to| tree.state_machine.jump(to),
+        "get_current_node": || tree.state_machine.state(),
+        "is_playing": || tree.state_machine.get()[TREE_ACTIVE],
+        "stop": || tree.state_machine.patch(#{ "active": false }),
+    }
 }
 
 pub fn has(container, value) {
@@ -505,11 +548,18 @@ pub fn nan() {
 
 /// A pose vector as Godot spells one: the engine answers a `vec3`, and every
 /// translated body reads `.x` and `.y` off it.
+/// A position the engine hands back, as the `Vector2` a 2D Godot game reads.
 pub fn vec_of(v) {
     if is_nil(v) {
         return vec2(0.0, 0.0);
     }
-    return #{ "x": float(v.x), "y": float(v.y), "z": float(v.z) };
+    if v is Vec {
+        return vec2(v[0], v[1]);
+    }
+    if v is Object {
+        return vec2(get(v, "x", 0.0), get(v, "y", 0.0));
+    }
+    vec2(v.x, v.y)
 }
 
 pub fn set_position(node, at) {
@@ -554,16 +604,59 @@ pub fn empty_of() {
     return [];
 }
 
+/// Godot's `Vector2`, `Vector3` and `Color` are the engine's own, which add,
+/// scale and compare with the operators Godot uses.
 pub fn vec2(x, y) {
-    return #{ "x": x, "y": y };
+    balaur::Vec2::new(float(x), float(y))
 }
 
 pub fn vec3(x, y, z) {
-    return #{ "x": x, "y": y, "z": z };
+    balaur::Vec3::new(float(x), float(y), float(z))
 }
 
 pub fn color(r, g, b, a) {
-    return #{ "r": r, "g": g, "b": b, "a": a };
+    balaur::Color::new(float(r), float(g), float(b), float(a))
+}
+
+/// `-x` for a number or a vector.
+pub fn neg(value) {
+    if value is i64 || value is f64 {
+        return -value;
+    }
+    value * -1.0
+}
+
+/// `Color("70664a")`, `Color("#70664aff")`, or a colour copied.
+pub fn color_of(value) {
+    if value is String {
+        let hex = if value.starts_with("#") { value[1..] } else { value };
+        let byte = |at| hex_digit(hex, at) * 16.0 + hex_digit(hex, at + 1);
+        let a = if hex.len() >= 8 { byte(6) } else { 255.0 };
+        return color(byte(0) / 255.0, byte(2) / 255.0, byte(4) / 255.0, a / 255.0);
+    }
+    if value is Vec {
+        let a = if value.len() > 3 { float(value[3]) } else { 1.0 };
+        return color(value[0], value[1], value[2], a);
+    }
+    color(value.r, value.g, value.b, value.a)
+}
+
+/// `Color(colour, alpha)`.
+pub fn color_alpha(value, a) {
+    let out = color_of(value);
+    out.a = float(a);
+    out
+}
+
+fn hex_digit(text, at) {
+    let digits = "0123456789abcdef";
+    let c = text[at..at + 1].to_lowercase();
+    for n in 0..16 {
+        if digits[n..n + 1] == c {
+            return float(n);
+        }
+    }
+    0.0
 }
 
 pub fn range(from, upto, step) {
@@ -734,40 +827,45 @@ pub fn config_keys(owner, section) {
     return keys(get(owner.data, section, #{}));
 }
 
-/// A GDScript `static var`. A Rune module holds no state, so the value lives
-/// on the scene root's `meta` under a key naming the script it came from.
-/// Node meta holds scalars, not nested tables, so a list or a table is kept
-/// as JSON text behind this mark.
-const JSON_MARK = "gdjson:";
 
+/// A `static var`, held by reference for as long as the app runs, as Godot
+/// holds one: any value, a tween or a node included.
 pub fn static_get(key, fallback) {
-    let root = scene::root();
-    if is_nil(root) {
+    let held = script::stored(key);
+    if is_nil(held) {
         return fallback;
     }
-    // A meta key that was never written reads back as nil, so indexing is the
-    // whole test; `meta` is a component handle and answers no `contains_key`.
-    let stored = root.meta[key];
-    if is_nil(stored) {
-        return fallback;
-    }
-    if stored is String && stored.starts_with(JSON_MARK) {
-        return json::parse(substr(stored, JSON_MARK.len(), -1));
-    }
-    return stored;
+    held
 }
 
 pub fn static_set(key, value) {
-    let root = scene::root();
-    if is_nil(root) {
-        return value;
+    script::store(key, value);
+    value
+}
+
+/// Godot's metadata. A value the `meta` component can hold is kept there, as
+/// a scene saves it; a tween, a node or a function is kept beside it.
+pub fn set_meta(node, key, value) {
+    let slot = `meta:${node.stable_id()}:${key}`;
+    let (kept, _) = script::attempt(|| { node.meta[key] = value; });
+    script::store(slot, if kept { () } else { value });
+}
+
+pub fn get_meta(node, key, fallback) {
+    let held = script::stored(`meta:${node.stable_id()}:${key}`);
+    if !is_nil(held) {
+        return held;
     }
-    if value is Object || value is Vec {
-        root.meta[key] = JSON_MARK + json::encode(value);
-    } else {
-        root.meta[key] = value;
-    }
-    return value;
+    get(node.meta, key, fallback)
+}
+
+pub fn has_meta(node, key) {
+    !is_nil(get_meta(node, key, ()))
+}
+
+pub fn remove_meta(node, key) {
+    script::store(`meta:${node.stable_id()}:${key}`, ());
+    let _ = script::attempt(|| { node.meta[key] = (); });
 }
 
 /// Reading a property off another script. Godot read one script's member
@@ -781,21 +879,142 @@ pub fn field(owner, name) {
         if owner.has_method(name) {
             return owner.call(name);
         }
+        if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
+            return owner.state_machine.get()[TREE_ACTIVE];
+        }
         return ();
     }
     if owner is Object {
         return get(owner, name, ());
     }
+    if is_lanes(owner) {
+        let lane = match name {
+            "x" => owner.x,
+            "y" => owner.y,
+            "z" => owner.z,
+            "r" => owner.r,
+            "g" => owner.g,
+            "b" => owner.b,
+            "a" => owner.a,
+            _ => (),
+        };
+        return lane;
+    }
     ()
+}
+
+/// A vector or a colour, whose lanes are fields.
+fn is_lanes(value) {
+    value is balaur::Vec2 || value is balaur::Vec3 || value is balaur::Color
+}
+
+/// What a class's `new()` table names its module under.
+const CLASS_KEY = "__class";
+
+/// Godot's `X.new()` for a node: built from `doc`, a one-node scene, under a
+/// hidden holder until something adds it somewhere, with `script` attached.
+pub fn new_node(doc, script) {
+    let holder = detached();
+    let serial = static_get("gd:new_node", 0) + 1;
+    let _ = static_set("gd:new_node", serial);
+    let name = `new_${serial}`;
+    scene::instantiate(doc.replace("__new__", name), holder);
+    let node = holder.get_node(name);
+    if !is_nil(node) && !is_nil(script) {
+        node.attach_script(script);
+    }
+    node
+}
+
+/// Where a node `new()` made waits to be added: hidden, under the root.
+fn detached() {
+    let root = scene::root();
+    let held = root.get_node("__detached");
+    if is_nil(held) {
+        held = root.add_child("__detached");
+        held.set_visible(false);
+    }
+    held
+}
+
+/// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
+/// name makes a new child, as the engine's own `add_child` does.
+pub fn add_child(parent, child) {
+    if child is balaur::Node {
+        child.set_parent(parent);
+        return child;
+    }
+    parent.add_child(child)
+}
+
+/// A Control's `custom_minimum_size`, which is the widget's `min_width` and
+/// `min_height` here.
+pub fn min_size(node) {
+    if node is balaur::Node && node.has_component("widget") {
+        return vec2(node.widget.min_width, node.widget.min_height);
+    }
+    vec2(0.0, 0.0)
+}
+
+pub fn set_min_size(node, size) {
+    if node is balaur::Node {
+        node.patch_component("widget", #{ "min_width": float(size.x), "min_height": float(size.y) });
+    }
+}
+
+/// Godot's `ProjectSettings.get`: what `project.godot` said, from the module
+/// the importer wrote beside this one.
+pub fn project_setting(path, fallback) {
+    let settings = script::require("godot_settings.rn");
+    let held = (settings.setting)(path);
+    if is_nil(held) {
+        return fallback;
+    }
+    held
+}
+
+/// A `res://` or `user://` path as the project-relative one `fs` takes.
+pub fn project_path(path) {
+    if path.starts_with("res://") {
+        return path[6..];
+    }
+    if path.starts_with("user://") {
+        return engine::user_data_dir() + "/" + path[7..];
+    }
+    path
+}
+
+/// Godot's `ButtonGroup.new()`: a name no other group has, which the
+/// buttons it is given carry as their widget `group`.
+pub fn button_group() {
+    let serial = static_get("gd:button_group", 0) + 1;
+    let _ = static_set("gd:button_group", serial);
+    `group_${serial}`
+}
+
+/// Godot's `RandomNumberGenerator.new()`: its methods over the engine's one
+/// seeded generator, which is what keeps a replay the same.
+pub fn random_numbers() {
+    #{
+        "randf": || rng::random(),
+        "randf_range": |low, high| rng::range(float(low), float(high)),
+        "randi": || rng::int(0, 2147483647),
+        "randi_range": |low, high| rng::int(low, high),
+        "randomize": || (),
+    }
 }
 
 /// Godot's Tween over `animation::tween`.
 ///
-/// Godot builds a tween and runs it at the end of the frame; here a step runs
-/// as it is declared. A GDScript chain sets the easing before its steps, so
-/// what `tween_property` reads is what the chain asked for.
+/// Godot collects a tween's steps and runs them from the next frame. Here each
+/// step appended restarts one `animation::tween` holding every step so far,
+/// which is the same sequence as long as the steps are appended in one frame,
+/// as a GDScript chain is.
 pub fn create_tween(node) {
-    #{ "node": node, "trans": "linear", "mode": "in_out", "handles": [] }
+    #{
+        "node": node, "trans": "linear", "mode": "in_out", "steps": [],
+        "join": false, "joined": false, "loops": 1, "done": [], "handle": (),
+    }
 }
 
 pub fn set_trans(t, name) {
@@ -809,6 +1028,30 @@ pub fn set_ease(t, name) {
     if name is String {
         t.mode = name;
     }
+    t
+}
+
+/// The next step runs with the one before it, as Godot's `parallel()`.
+pub fn tween_parallel(t) {
+    t.join = true;
+    t
+}
+
+/// Every step runs with the one before it, as `set_parallel(true)`.
+pub fn tween_set_parallel(t, on) {
+    let joined = is_nil(on) || on;
+    t.joined = joined;
+    t
+}
+
+pub fn tween_chain(t) {
+    t.join = false;
+    t
+}
+
+pub fn tween_loops(t, count) {
+    t.loops = if is_nil(count) { 0 } else { count };
+    restart(t);
     t
 }
 
@@ -846,16 +1089,14 @@ fn tween_track(path) {
 
 /// A Godot value as the list a track takes.
 fn tween_value(v) {
-    if v is Object {
-        if v.contains_key("r") {
-            return [float(v.r), float(v.g), float(v.b), float(v.a)];
-        }
-        if v.contains_key("z") {
-            return [float(v.x), float(v.y), float(v.z)];
-        }
-        if v.contains_key("x") {
-            return [float(v.x), float(v.y), 0.0];
-        }
+    if v is balaur::Color {
+        return [v.r, v.g, v.b, v.a];
+    }
+    if v is balaur::Vec3 {
+        return [v.x, v.y, v.z];
+    }
+    if v is balaur::Vec2 {
+        return [v.x, v.y, 0.0];
     }
     v
 }
@@ -872,6 +1113,53 @@ fn tween_now(node, track) {
         return tween_value(vec_of(node.transform.scale));
     }
     ()
+}
+
+/// `target` as a path below the tween's node, or nil when it is elsewhere.
+fn below(node, target) {
+    if !(target is balaur::Node) {
+        return ();
+    }
+    let top = node.path();
+    let at = target.path();
+    if at == top {
+        return "";
+    }
+    let head = top + "/";
+    if at.starts_with(head) {
+        return at[head.len()..];
+    }
+    ()
+}
+
+/// Add one step, joined to the last when the chain says so, and restart.
+fn push_step(t, step) {
+    if (t.join || t.joined) && t.steps.len() > 0 {
+        step["parallel"] = true;
+    }
+    t.join = false;
+    t.steps.push(step);
+    restart(t);
+}
+
+/// Stop what is running and start every step so far as one tween, with the
+/// functions waiting on its end as its last steps.
+fn restart(t) {
+    if !is_nil(t.handle) {
+        animation::stop(t.handle);
+    }
+    let steps = [];
+    for step in t.steps {
+        steps.push(step);
+    }
+    for f in t.done {
+        steps.push(#{ "call": f });
+    }
+    if steps.len() == 0 {
+        t.handle = ();
+        return;
+    }
+    t.handle = animation::tween(t.node, #{ "steps": steps, "loops": t.loops });
 }
 
 pub fn tween_property(t, target, path, to, seconds) {
@@ -896,44 +1184,60 @@ pub fn tween_property(t, target, path, to, seconds) {
             }
         }
     }
-    let handle = animation::tween(target, #{
-        "steps": [#{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) }],
-    });
-    t.handles.push(handle);
+    let step = #{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) };
+    let at = below(t.node, target);
+    if is_nil(at) {
+        // A node outside the tween's own runs on a tween of its own.
+        animation::tween(target, #{ "steps": [step] });
+        return t;
+    }
+    if at != "" {
+        step["target"] = at;
+    }
+    push_step(t, step);
     t
 }
 
-/// A tween that only waits, which a chain uses to space its steps.
+/// A step that only waits, which a chain uses to space the others.
 pub fn tween_interval(t, seconds) {
+    push_step(t, #{ "interval": float(seconds) });
     t
 }
 
-pub fn tween_callback(t, held) {
-    if !is_nil(held) {
-        held();
+/// A function the chain calls when it reaches this step.
+pub fn tween_callback(t, f) {
+    if !is_nil(f) {
+        push_step(t, #{ "call": f });
     }
     t
 }
 
+/// Godot's `finished`: a function the tween calls once its last step is done.
+pub fn when_finished(t, f) {
+    if t is Object && t.contains_key("steps") {
+        t.done.push(f);
+        restart(t);
+        return ();
+    }
+    log::warn("`finished` on something that is not a tween is not heard here");
+}
+
 pub fn kill_tween(t) {
-    if t is Object {
-        for handle in t.handles {
-            animation::stop(handle);
-        }
-        t.handles = [];
+    if t is Object && !is_nil(t.handle) {
+        animation::stop(t.handle);
+        t.handle = ();
     }
 }
 
 pub fn tween_running(t) {
-    if !(t is Object) {
-        return false;
-    }
-    for handle in t.handles {
-        if animation::is_tween_running(handle) {
-            return true;
-        }
-    }
-    false
+    t is Object && !is_nil(t.handle) && animation::is_tween_running(t.handle)
+}
+
+/// Godot's `get_window()`: its content scale is the UI's global scale, and
+/// its size the screen in design pixels.
+pub fn window() {
+    let (w, h) = ui::screen_size();
+    #{ "content_scale_factor": ui::scale(), "size": vec2(w, h) }
 }
 
 /// Hearing another node's event. A `from` that is not a node is nothing to
@@ -983,6 +1287,13 @@ pub fn invoke(owner, name) {
         return ();
     }
     if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            if !is_nil(method) {
+                return method(owner);
+            }
+            return ();
+        }
         let held = get(owner, name, ());
         if !is_nil(held) {
             return held();
@@ -1002,6 +1313,13 @@ pub fn invoke1(owner, name, a0) {
         return ();
     }
     if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            if !is_nil(method) {
+                return method(owner, a0);
+            }
+            return ();
+        }
         let held = get(owner, name, ());
         if !is_nil(held) {
             return held(a0);
@@ -1021,6 +1339,13 @@ pub fn invoke2(owner, name, a0, a1) {
         return ();
     }
     if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            if !is_nil(method) {
+                return method(owner, a0, a1);
+            }
+            return ();
+        }
         let held = get(owner, name, ());
         if !is_nil(held) {
             return held(a0, a1);
@@ -1040,6 +1365,13 @@ pub fn invoke3(owner, name, a0, a1, a2) {
         return ();
     }
     if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            if !is_nil(method) {
+                return method(owner, a0, a1, a2);
+            }
+            return ();
+        }
         let held = get(owner, name, ());
         if !is_nil(held) {
             return held(a0, a1, a2);
@@ -1059,10 +1391,26 @@ pub fn set_field(owner, name, value) {
         if owner.has_method(setter) {
             return owner.call(setter, value);
         }
+        if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
+            return owner.state_machine.patch(#{ "active": value });
+        }
         return ();
     }
     if owner is Object {
         owner[name] = value;
+    }
+    if is_lanes(owner) {
+        let v = float(value);
+        match name {
+            "x" => owner.x = v,
+            "y" => owner.y = v,
+            "z" => owner.z = v,
+            "r" => owner.r = v,
+            "g" => owner.g = v,
+            "b" => owner.b = v,
+            "a" => owner.a = v,
+            _ => (),
+        }
     }
     ()
 }
@@ -1098,4 +1446,48 @@ pub fn type_of(value) {
     }
     return "Object";
 }
-"#;
+"##;
+
+#[cfg(test)]
+mod tests {
+    /// The shim is Rune text inside Rust: nothing but running it says it
+    /// still compiles, and every converted script requires it.
+    #[test]
+    fn the_shim_compiles_and_its_vectors_add() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            "pub fn init(this) {\n\
+             \x20   let gd = script::require(\"gd.rn\");\n\
+             \x20   let v = (gd.vec2)(1.0, 2.0) + (gd.neg)((gd.vec2)(0.5, 0.5));\n\
+             \x20   if (gd.field)(v, \"x\") == 0.5 && (gd.color_of)(\"ff0000\").r == 1.0 {\n\
+             \x20       this.node.set_visible(false);\n\
+             \x20   }\n\
+             }\n",
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the shim compiled and did the sums"
+        );
+    }
+}

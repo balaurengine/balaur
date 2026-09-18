@@ -1,0 +1,563 @@
+// Ship a run's log lines to Gamend in batches, as the Godot addon's
+// GamendLogs did. Functions over one `sink` table: `log_sink.rn` keeps it on
+// its node and pumps it each frame, and a game with its own loop can too.
+
+const POLICY_PATH = "/api/v1/client_logs/policy";
+const INGEST_PATH = "/api/v1/client_logs";
+
+/// A flush at this many lines, every this many seconds, and at once on an
+/// error.
+pub const FLUSH_AT = 50;
+pub const FLUSH_EVERY = 10.0;
+
+/// The most held between flushes. The oldest go first, and the gap in `seq`
+/// tells the server what was lost.
+pub const HELD = 500;
+
+/// The save slot unsent lines wait in for the next launch.
+pub const SPOOL = "gamend_logs";
+
+/// How often the spool is rewritten while lines arrive, in seconds.
+const SPOOL_EVERY = 1.0;
+
+/// How long before asking for the policy again after no answer.
+const RETRY = 30.0;
+
+/// How much of the previous run's log file goes up when it recorded a
+/// failure.
+const TAIL = 200;
+
+/// A sink for the server at `url`, or the one this run talks to when `url`
+/// is nil. Nothing is read until the server's policy says to collect.
+pub fn setup(url) {
+    let sink = #{
+        url: "",
+        run: "",
+        cursor: 0,
+        pending: [],
+        sending: [],
+        recovered: [],
+        state: "asking for the policy",
+        off: false,
+        enabled: false,
+        policy: (),
+        retry_in: 0.0,
+        level: "info",
+        categories: #{},
+        batch_max: 200,
+        in_flight: (),
+        elapsed: 0.0,
+        spool_in: 0.0,
+        dirty: false,
+        registered: false,
+        started_at: 0.0,
+        last_flush: "never",
+        accepted: 0,
+        dropped: 0,
+    };
+    let server = if url is String { url } else { server_url() };
+    sink.url = trimmed(server);
+    sink.recovered = recovered();
+    sink
+}
+
+/// The server this run talks to: the configured one, or `[gamend]`'s.
+pub fn server_url() {
+    let url = gamend::connection()["url"];
+    if url is String && url != "" {
+        return url;
+    }
+    gamend::target()["url"]
+}
+
+/// One frame: ask for the policy until it comes, read the new lines, and
+/// send a batch when one is due. Replies come back through `settle`.
+pub fn pump(sink, node, dt) {
+    if sink.url == "" || !started(sink) {
+        return;
+    }
+    if !sink.enabled {
+        if sink.policy is Tuple && !sink.off {
+            sink.retry_in -= dt;
+            if sink.retry_in <= 0.0 {
+                ask_policy(sink, node);
+            }
+        }
+        return;
+    }
+    if sink.recovered.len() > 0 {
+        let earlier = sink.recovered;
+        sink.recovered = [];
+        send(sink, node, earlier);
+    }
+    let urgent = take(sink);
+    sink.elapsed += dt;
+    if urgent || sink.pending.len() >= FLUSH_AT || sink.elapsed >= FLUSH_EVERY {
+        sink.elapsed = 0.0;
+        flush(sink, node);
+    }
+    sink.spool_in -= dt;
+    if sink.dirty && (urgent || sink.spool_in <= 0.0) {
+        spool(sink);
+    }
+}
+
+/// Send what is held now, unless a batch is already out: batches go in
+/// order, and two at once would interleave.
+pub fn flush(sink, node) {
+    if !sink.enabled || !(sink.in_flight is Tuple) || sink.pending.len() == 0 {
+        return false;
+    }
+    let batch = [];
+    let rest = [];
+    for record in sink.pending {
+        if batch.len() < sink.batch_max {
+            batch.push(record);
+        } else {
+            rest.push(record);
+        }
+    }
+    let (ok, id) = send(sink, node, batch);
+    if !ok {
+        return false;
+    }
+    sink.pending = rest;
+    sink.sending = batch;
+    sink.in_flight = id;
+    true
+}
+
+/// A reply to one of the sink's requests; false when it was someone else's.
+pub fn settle(sink, reply) {
+    let request = reply["request"];
+    if sink.policy is i64 && request == sink.policy {
+        sink.policy = ();
+        policy_came(sink, reply);
+        return true;
+    }
+    if !(sink.in_flight is i64) || request != sink.in_flight {
+        return false;
+    }
+    sink.in_flight = ();
+    let batch = sink.sending;
+    sink.sending = [];
+    let status = reply.get("status").unwrap_or(0);
+    if status >= 200 && status < 300 {
+        // Written now, not on the next second: a run that quits after this
+        // reply must not leave delivered lines to be sent again.
+        spool(sink);
+        sink.registered = true;
+        let (ok, answer) = script::attempt(|| json::parse(reply["body"]));
+        let counts = if ok && answer is Object { answer } else { #{} };
+        let accepted = counts.get("accepted").unwrap_or(batch.len());
+        sink.accepted += accepted;
+        sink.dropped = counts.get("dropped").unwrap_or(sink.dropped);
+        sink.last_flush = format!("{} · {} lines", status, accepted);
+        return true;
+    }
+    if status >= 400 && status < 500 {
+        // Refused for good: retrying would pin the buffer full.
+        spool(sink);
+        sink.dropped += batch.len();
+        sink.last_flush = format!("{} · refused {} lines", status, batch.len());
+        return true;
+    }
+    for record in sink.pending {
+        batch.push(record);
+    }
+    sink.pending = batch;
+    trim(sink);
+    sink.dirty = true;
+    sink.last_flush = format!("failed ({}): kept for the next try", describe(reply));
+    true
+}
+
+/// How the sink is doing, as the Gamend dock shows it.
+pub fn report(sink) {
+    #{
+        "shipping": sink.state,
+        "floor": sink.level,
+        "run": sink.run,
+        "pending": sink.pending.len(),
+        "last flush": sink.last_flush,
+        "accepted": sink.accepted,
+        "dropped": sink.dropped,
+    }
+}
+
+/// The headers every call carries: the run's id, and the player's token
+/// once there is one, so an early line is adopted when the run signs in.
+pub fn headers(sink) {
+    let out = #{ "content-type": "application/json", "x-gamend-session": sink.run };
+    let session = gamend::session();
+    if session is Object {
+        let token = session.get("access_token").unwrap_or("");
+        if token is String && token != "" {
+            out["authorization"] = "Bearer " + token;
+        }
+    }
+    out
+}
+
+fn ask_policy(sink, node) {
+    sink.retry_in = RETRY;
+    let url = sink.url + POLICY_PATH;
+    let opts = #{ headers: headers(sink), timeout: 10.0 };
+    let (ok, id) = script::attempt(|| http::request(node, url, opts));
+    if ok {
+        sink.policy = id;
+    } else {
+        sink.state = format!("cannot ask {}: {}", url, id);
+    }
+}
+
+fn policy_came(sink, reply) {
+    let status = reply.get("status").unwrap_or(0);
+    let (ok, policy) = if status == 200 {
+        script::attempt(|| json::parse(reply["body"]))
+    } else {
+        (false, ())
+    };
+    if !ok || !(policy is Object) {
+        sink.state = format!("no policy ({}): asking again", describe(reply));
+        return;
+    }
+    apply_policy(sink, policy);
+}
+
+/// What the server asked for: on or off, a level floor, per-category floors.
+pub fn apply_policy(sink, policy) {
+    let asked = policy.get("enabled").unwrap_or(false);
+    let enabled = asked is bool && asked;
+    sink.enabled = enabled;
+    let level = policy.get("level").unwrap_or("info");
+    let floor = if level is String { level } else { "info" };
+    sink.level = floor;
+    let most = policy.get("batch_max").unwrap_or(200);
+    let batch_max = if most is i64 && most > 0 { most } else { 200 };
+    sink.batch_max = batch_max;
+    let floors = #{};
+    let categories = policy.get("categories").unwrap_or(#{});
+    if categories is Object {
+        for (name, value) in categories {
+            floors[name] = format!("{}", value);
+        }
+    }
+    sink.categories = floors;
+    if !sink.enabled {
+        // Told to collect nothing: drop what the last run left, too.
+        sink.off = true;
+        sink.state = "off: the server collects no client logs";
+        sink.recovered = [];
+        script::attempt(|| save::remove(SPOOL));
+        return;
+    }
+    sink.state = "on";
+}
+
+/// The lines logged since the last read that the policy wants; true when
+/// one of them is an error, which flushes at once.
+fn take(sink) {
+    let read = log::since(sink.cursor);
+    sink.cursor = read["cursor"];
+    let now = engine::unix_time();
+    let urgent = false;
+    for entry in read["entries"] {
+        let record = record_of(entry, now);
+        if !wanted(sink, record) {
+            continue;
+        }
+        if record["level"] == "error" {
+            urgent = true;
+        }
+        sink.dirty = true;
+        if !fold(sink, record) {
+            sink.pending.push(record);
+        }
+    }
+    trim(sink);
+    urgent
+}
+
+fn wanted(sink, record) {
+    let floor = sink.categories.get(record["category"]).unwrap_or(sink.level);
+    rank(record["level"]) >= rank(floor)
+}
+
+fn rank(level) {
+    if level == "trace" {
+        return 0;
+    }
+    if level == "debug" {
+        return 1;
+    }
+    if level == "warn" {
+        return 3;
+    }
+    if level == "error" {
+        return 4;
+    }
+    if level == "off" {
+        return 99;
+    }
+    2
+}
+
+/// A line as the server takes it. A script's `[script] …` line is filed under
+/// `script`, the bracket's word, rather than the engine module that logged it.
+fn record_of(entry, now) {
+    let (category, text) = bracketed(format!("{}", entry["message"]), entry["tag"]);
+    let message = text;
+    for field in entry["fields"] {
+        message = format!("{} {}={}", message, field["name"], field["value"]);
+    }
+    #{
+        "seq": entry["seq"],
+        "at": now,
+        "level": entry["level"],
+        "category": category,
+        "message": message,
+        "lobby_id": "",
+        "screen": "",
+    }
+}
+
+/// `[word] rest` as `(word, rest)`; any other message keeps `tag`.
+fn bracketed(message, tag) {
+    if !message.starts_with("[") {
+        return (tag, message);
+    }
+    let word = "";
+    let rest = "";
+    let state = #{ closed: false, skipped: false };
+    for c in message.chars() {
+        if state.closed {
+            if !state.skipped && c == ' ' {
+                state.skipped = true;
+                continue;
+            }
+            state.skipped = true;
+            rest.push(c);
+        } else if c == ']' {
+            state.closed = true;
+        } else if c != '[' {
+            word.push(c);
+        }
+    }
+    if !state.closed || word == "" || word.len() > 24 {
+        return (tag, message);
+    }
+    return (word, rest);
+}
+
+/// An immediate repeat counts on the line before it instead of adding one.
+fn fold(sink, record) {
+    let count = sink.pending.len();
+    if count == 0 {
+        return false;
+    }
+    let last = sink.pending[count - 1];
+    if last["message"] != record["message"] || last["level"] != record["level"] || last["category"] != record["category"] {
+        return false;
+    }
+    let repeat = last.get("repeat").unwrap_or(1);
+    last["repeat"] = repeat + 1;
+    last["at"] = record["at"];
+    true
+}
+
+fn trim(sink) {
+    while sink.pending.len() > HELD {
+        sink.pending.remove(0);
+    }
+}
+
+fn send(sink, node, records) {
+    let body = json::encode(#{ "session": session_payload(sink), "entries": rendered(records) });
+    let url = sink.url + INGEST_PATH;
+    let opts = #{ method: "POST", headers: headers(sink), body: body, timeout: 15.0 };
+    script::attempt(|| http::request(node, url, opts))
+}
+
+/// Records as the server takes them, a repeat folded into its message.
+fn rendered(records) {
+    let out = [];
+    for record in records {
+        let repeat = record.get("repeat").unwrap_or(1);
+        let message = record["message"];
+        if repeat > 1 {
+            message = format!("{}  (x{})", message, repeat);
+        }
+        out.push(#{
+            "seq": record["seq"],
+            "at": record["at"],
+            "level": record["level"],
+            "category": record["category"],
+            "message": message,
+            "lobby_id": record.get("lobby_id").unwrap_or(""),
+            "screen": record.get("screen").unwrap_or(""),
+        });
+    }
+    out
+}
+
+/// The run described until a batch is accepted; its id alone after that.
+fn session_payload(sink) {
+    if sink.registered {
+        return #{ "client_session_id": sink.run };
+    }
+    let host = engine::platform();
+    let os = host.get("os").unwrap_or("unknown");
+    let web = host.get("web").unwrap_or(false);
+    let platform = if web { "web" } else { os };
+    let dev = host.get("dev").unwrap_or(false);
+    let build = if dev { "debug" } else { "release" };
+    #{
+        "client_session_id": sink.run,
+        "device_id": engine::device_id(),
+        "platform": platform,
+        "build": build,
+        "started_at": sink.started_at,
+        "meta": #{ "engine": "balaur", "os": os },
+    }
+}
+
+/// Unsent lines written down, so a crash leaves them for the next launch.
+fn spool(sink) {
+    sink.dirty = false;
+    sink.spool_in = SPOOL_EVERY;
+    let held = [];
+    for record in sink.sending {
+        held.push(record);
+    }
+    for record in sink.pending {
+        held.push(record);
+    }
+    if held.len() == 0 {
+        script::attempt(|| save::remove(SPOOL));
+        return;
+    }
+    script::attempt(|| save::write(SPOOL, #{ "entries": held }));
+}
+
+/// The lines the last run spooled and never saw delivered.
+fn recovered() {
+    let out = [];
+    let (ok, kept) = script::attempt(|| save::read(SPOOL));
+    if ok && kept is Object {
+        for record in kept.get("entries").unwrap_or([]) {
+            record["category"] = "recovered";
+            out.push(record);
+        }
+    }
+    script::attempt(|| save::remove(SPOOL));
+    out
+}
+
+/// The tail of the last run's log file, when it recorded an error or a panic.
+fn previous_tail() {
+    let path = log::file();
+    if !(path is String) {
+        return [];
+    }
+    let text = fs::read(path.replace("run.log", "run.1.log"));
+    if !(text is String) {
+        return [];
+    }
+    let lines = [];
+    for line in text.split('\n') {
+        if line != "" {
+            lines.push(line);
+        }
+    }
+    let from = if lines.len() > TAIL { lines.len() - TAIL } else { 0 };
+    let failed = false;
+    let n = from;
+    while n < lines.len() {
+        if lines[n].contains(" error ") || lines[n].contains("panic") {
+            failed = true;
+        }
+        n += 1;
+    }
+    if !failed {
+        return [];
+    }
+    let out = [];
+    let n = from;
+    while n < lines.len() {
+        let line = lines[n];
+        out.push(#{ "seq": 0, "at": 0.0, "level": level_in(line), "category": "engine_log", "message": line, "lobby_id": "", "screen": "" });
+        n += 1;
+    }
+    out
+}
+
+/// A log file line's own level, its second word; a line the engine did not
+/// write, a panic's, counts as an error.
+fn level_in(line) {
+    let words = [];
+    for word in line.split(' ') {
+        if word != "" {
+            words.push(word);
+        }
+        if words.len() == 2 {
+            break;
+        }
+    }
+    if words.len() == 2 && rank(words[1]) != 2 {
+        return words[1];
+    }
+    if words.len() == 2 && words[1] == "info" {
+        return "info";
+    }
+    "error"
+}
+
+/// Name the run once the clock reads, which it does from the first tick on.
+/// Unique per run and never kept: a reused id would merge two runs, and the
+/// server binds an id to the first player who sends it.
+fn started(sink) {
+    if sink.run != "" {
+        return true;
+    }
+    let now = engine::unix_time();
+    let seconds = if now is f64 { now } else { now as f64 };
+    if seconds <= 0.0 {
+        return false;
+    }
+    sink.run = format!("{}-{}", engine::device_id(), (seconds * 1000.0) as i64);
+    sink.started_at = seconds;
+    // Read now rather than in `setup`: the log file opens after `init`.
+    for record in previous_tail() {
+        sink.recovered.push(record);
+    }
+    for record in sink.recovered {
+        if record["at"] == 0.0 {
+            record["at"] = seconds;
+        }
+    }
+    true
+}
+
+fn trimmed(url) {
+    let chars = url.chars().collect::<Vec>();
+    let end = chars.len();
+    while end > 0 && chars[end - 1] == '/' {
+        end -= 1;
+    }
+    let out = "";
+    let n = 0;
+    while n < end {
+        out.push(chars[n]);
+        n += 1;
+    }
+    out
+}
+
+fn describe(reply) {
+    let error = reply.get("error").unwrap_or(());
+    if error is String {
+        return error;
+    }
+    format!("{}", reply.get("status").unwrap_or(0))
+}

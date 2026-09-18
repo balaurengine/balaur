@@ -749,7 +749,9 @@ fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool], ink: Color
 /// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
 /// separated by U+001F. `ItemList` carries an icon and a per-item colour the
 /// same way, without a second array to keep in step with the first. Leading
-/// tabs are the tree's depth and are not a field.
+/// tabs are the tree's depth and are not a field. A fifth field is the row's
+/// key, never drawn: the widget knows a row by its string, so it is what
+/// keeps two rows with the same label two rows.
 fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
     let body = item.trim_start_matches('\t');
     let mut parts = body.split('\u{1f}');
@@ -787,7 +789,8 @@ struct Card<'a> {
     color: Color32,
     ink: &'a Ink,
     on: bool,
-    sheet: Option<&'a egui::TextureHandle>,
+    /// The sheet and the pixels its regions are counted in.
+    sheet: Option<(&'a egui::TextureHandle, egui::Vec2)>,
 }
 
 /// One card: the icon over the label, in a box the caller sized. Answers
@@ -813,8 +816,8 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> (bool, bool) {
     let mut head = rect.top() + 6.0;
     // A list that names a `source` reads the icon field as `x,y,w,h` in that
     // picture's own pixels, which is how an atlas picker shows its tiles.
-    let region = sheet.and_then(|sheet| region_uv(sheet.size_vec2(), icon));
-    if let (Some(sheet), Some(uv)) = (sheet, region) {
+    let region = sheet.and_then(|(_, native)| region_uv(native, icon));
+    if let (Some((sheet, _)), Some(uv)) = (sheet, region) {
         let edge = (size.y * 0.6).min(size.x * 0.6).max(1.0);
         let face = egui::Rect::from_center_size(
             pos2(rect.center().x, head + edge / 2.0),
@@ -921,7 +924,11 @@ fn cards(
     let lines = items.len().div_ceil(columns);
     let sheet = (!widget.source.is_empty())
         .then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
-        .flatten();
+        .flatten()
+        .map(|texture| {
+            let native = crate::images::native_size(at.eng, &widget.source, &texture);
+            (texture, native)
+        });
     let mut picked = None;
     let mut aimed = None;
     let mut area = egui::ScrollArea::vertical()
@@ -949,7 +956,7 @@ fn cards(
                         color,
                         ink: &ink,
                         on,
-                        sheet: sheet.as_ref(),
+                        sheet: sheet.as_ref().map(|(texture, native)| (texture, *native)),
                     };
                     let hit = card(ui, item, &face);
                     if hit.0 {
@@ -994,4 +1001,17 @@ pub(crate) fn tree(
     color: Color32,
 ) {
     rows(ui, at, index, font, color, true);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fields;
+
+    #[test]
+    fn a_rows_key_is_never_drawn() {
+        let (icon, label, trailing, tint) =
+            fields("\t\t▣\u{1f}Lid\u{1f}note\u{1f}#ff0000\u{1f}n_crate_b/n_lid");
+        assert_eq!((icon, label, trailing), ("▣", "Lid", "note"));
+        assert_eq!(tint, Some(egui::Color32::from_rgb(0xff, 0, 0)));
+    }
 }

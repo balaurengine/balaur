@@ -9,7 +9,7 @@
 
 **A 2D &amp; 3D node-based game engine, fully deterministic, with scripts that reload in milliseconds.**
 
-Written in Rust. One file to ship.
+Written in Rust. A game exports to a single executable.
 
 [**Docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap) · [Discord](https://discord.gg/v649emcpAu)
 
@@ -20,14 +20,14 @@ Written in Rust. One file to ship.
 ## Features
 
 - **Nodes and scenes** — a tree of named nodes with scripts attached; scenes are plain TOML.
-- **Rune scripting** — Rust's syntax, no build step, async/await, debugger in the editor.
+- **Rune scripting** — Rust's syntax, async/await, a debugger in the editor.
 - **Hot reload** — save a script while the game runs; live in milliseconds, state intact.
 - **Determinism** — same inputs, same bits, every platform. Record a session and replay it.
-- **Physics** — Rapier in 2D and 3D, stepped on a fixed 60 Hz tick.
+- **Physics** — Rapier in 2D and 3D, stepped on a fixed tick, 60 Hz by default.
 - **Rendering** — wgpu: windowed, offscreen for CI screenshots, or headless.
-- **Animation** — clips and tweens, 2D bones with skinned polygons, glTF rigs, two-bone IK.
+- **Animation** — clips, tweens and state machines, 2D bones with skinned polygons, glTF rigs, IK.
 - **Editor** — itself a Balaur project: scene tree, inspector, gizmos, timeline, play-in-editor.
-- **Networking** — HTTP, WebSocket and WebTransport, delivered into the simulation once per tick.
+- **Networking** — HTTP, WebSocket and WebTransport, recorded with the session for replay.
 - **Platforms** — Windows, macOS, Linux; iOS, Android and web cross-compiled in CI on every push.
 - **Export** — one self-contained binary per target: bytecode, scenes and assets fused onto the runtime.
 
@@ -74,7 +74,7 @@ pub fn exports() { #{ speed: 2.0 } }              // what the inspector may tune
 
 pub fn init(this) { this.angle = 0.0; }
 
-pub fn update(this, dt) {                         // per frame; fixed_update is per 60 Hz tick
+pub fn update(this, dt) {                         // per frame; fixed_update is per fixed tick
     this.angle += dt * this.speed;
     this.node.transform.rotation_euler = [0.0, this.angle, 0.0];
 }

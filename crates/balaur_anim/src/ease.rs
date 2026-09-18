@@ -217,6 +217,69 @@ impl Easing {
     }
 }
 
+/// A curve drawn as points, for a shape no named curve has: Godot's `Curve`
+/// resource, sampled. Each point is `[u, value]`, `u` rising from 0 to 1, and
+/// the curve runs straight between them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Points(std::rc::Rc<[[f32; 2]]>);
+
+impl Points {
+    /// Read `[[u, value], …]`.
+    ///
+    /// # Errors
+    /// When an entry is not two numbers, or `u` does not rise from 0 to 1.
+    pub fn parse(value: &toml::Value) -> Result<Self> {
+        let items = value
+            .as_array()
+            .ok_or_else(|| anyhow!("a curve is a list of [u, value] points"))?;
+        let number = |v: &toml::Value| v.as_float().or_else(|| v.as_integer().map(|n| n as f64));
+        let mut points = Vec::with_capacity(items.len());
+        for item in items {
+            let pair = item.as_array().filter(|pair| pair.len() == 2);
+            let (Some(u), Some(y)) = (
+                pair.and_then(|p| number(&p[0])),
+                pair.and_then(|p| number(&p[1])),
+            ) else {
+                return Err(anyhow!("a curve point is [u, value], not {item}"));
+            };
+            points.push([u as f32, y as f32]);
+        }
+        let rising = points.windows(2).all(|w| w[0][0] < w[1][0]);
+        let spans = points
+            .first()
+            .zip(points.last())
+            .is_some_and(|(a, b)| a[0] <= 0.0 && b[0] >= 1.0);
+        if !rising || !spans {
+            return Err(anyhow!("a curve's points run from u = 0 to u = 1, rising"));
+        }
+        Ok(Self(points.into()))
+    }
+
+    /// A curve from points already checked, as a snapshot holds them.
+    pub(crate) fn from_points(points: Vec<[f32; 2]>) -> Self {
+        Self(points.into())
+    }
+
+    /// The points, as parsed.
+    #[must_use]
+    pub fn points(&self) -> &[[f32; 2]] {
+        &self.0
+    }
+
+    /// The curve's value at `u`, held at the ends outside `[0, 1]`.
+    #[must_use]
+    pub fn apply(&self, u: f32) -> f32 {
+        let points = &self.0;
+        let at = points.partition_point(|p| p[0] <= u);
+        match (at.checked_sub(1).map(|i| points[i]), points.get(at)) {
+            (Some(a), Some(b)) => a[1] + (b[1] - a[1]) * (u - a[0]) / (b[0] - a[0]),
+            (Some(a), None) => a[1],
+            (None, Some(b)) => b[1],
+            (None, None) => u,
+        }
+    }
+}
+
 /// Every curve's name, in declaration order: the bare `linear`, then the
 /// twelve transitions in four modes each.
 ///

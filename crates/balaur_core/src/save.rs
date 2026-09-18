@@ -60,6 +60,28 @@ impl SaveConfig {
     }
 }
 
+/// The user data directory slots are kept under, when it is not this run's
+/// own: the editor points a game it plays at the game's folder, so a run
+/// from the editor and one from `balaur run` share their saves.
+#[derive(Default)]
+pub struct SaveHome(pub Option<PathBuf>);
+
+/// Where every slot lives.
+pub fn folder(eng: &Engine) -> PathBuf {
+    eng.try_resource::<SaveHome>()
+        .and_then(|home| home.borrow().0.clone())
+        .unwrap_or_else(|| crate::engine_api::user_data_dir_of(eng))
+        .join("saves")
+}
+
+/// Keep slots under `home` from now on; `None` goes back to this run's own.
+pub fn set_home(eng: &Engine, home: Option<PathBuf>) {
+    match eng.try_resource::<SaveHome>() {
+        Some(held) => held.borrow_mut().0 = home,
+        None => eng.insert_resource(SaveHome(home)),
+    }
+}
+
 /// Where a slot lives. Slots are named by the game, so the name is checked
 /// rather than trusted: a save called `../../id_rsa` is a bug or an attack.
 fn path_of(eng: &Engine, slot: &str) -> Result<PathBuf> {
@@ -72,8 +94,7 @@ fn path_of(eng: &Engine, slot: &str) -> Result<PathBuf> {
     {
         bail!("'{slot}' is not a slot name: letters, digits, '-' and '_' only");
     }
-    let dir = crate::engine_api::user_data_dir_of(eng).join("saves");
-    Ok(dir.join(format!("{slot}.toml")))
+    Ok(folder(eng).join(format!("{slot}.toml")))
 }
 
 /// Write `data` to `slot`, stamped with the version this build writes.
@@ -179,7 +200,7 @@ fn migrate(
 
 /// Every slot that has been written, in name order.
 pub fn slots(eng: &Engine) -> Vec<String> {
-    let dir = crate::engine_api::user_data_dir_of(eng).join("saves");
+    let dir = folder(eng);
     let mut out: Vec<String> = crate::files::backend(eng)
         .list(&dir)
         .into_iter()

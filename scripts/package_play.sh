@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
 # The game template's features plus the importers, which is the difference.
-EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,gamend,web,window,import}
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,gamend,multiplayer,web,window,import}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
@@ -66,6 +66,11 @@ for project in editor examples/*/; do
 done
 [ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
 cp "$module/balaur.js" "$module/balaur_bg.wasm" "$out/"
+
+# Before it ships: WGSL a browser refuses links fine natively, and only a
+# browser's log says so.
+step "boot every pack in a browser"
+node scripts/web_smoke.mjs "$out"
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \

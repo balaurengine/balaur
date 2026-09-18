@@ -178,6 +178,15 @@ impl AppConfig {
     }
 }
 
+/// Takes a live frame instead of [`App::tick`]: a networked match, which
+/// decides each tick's inputs and may run several ticks or none. Answers
+/// whether it took the frame.
+pub type DriveFn = Box<dyn FnMut(&mut App, f32) -> bool>;
+
+/// The one [`DriveFn`] a run has, when a plugin installed one.
+#[derive(Default)]
+pub struct FrameDriver(pub Option<DriveFn>);
+
 pub struct App {
     pub engine: Engine,
     systems: Vec<Vec<SystemFn>>,
@@ -311,6 +320,7 @@ fn register_facts(app: &mut App) {
 /// has, and because the digest carries what they change.
 fn register_core_content(app: &mut App) {
     crate::mesh::register_mesh_asset(app);
+    crate::texture_asset::register_texture_asset(app);
     crate::path::register_path_assets(app);
     crate::heightfield::register_heightfield_asset(app);
     crate::voxels::register_voxels_asset(app);
@@ -841,6 +851,9 @@ impl App {
         match plan {
             crate::replay::Step::Live => {
                 self.engine.set_replay_hold(false);
+                if self.drive(measured_dt) {
+                    return;
+                }
                 // The scale is a wall-clock matter: a run driving at a fixed
                 // step is reproducing a tick sequence, and scaling that would
                 // change the simulation rather than how fast it is watched.
@@ -898,6 +911,24 @@ impl App {
         }
     }
 
+    /// Hand a live frame to the [`FrameDriver`], if one is installed and
+    /// takes it. The driver is out of the engine while it runs, so a script
+    /// it ticks can reach every other resource.
+    fn drive(&mut self, measured_dt: f32) -> bool {
+        let Some(slot) = self.engine.try_resource::<FrameDriver>() else {
+            return false;
+        };
+        let Some(mut driver) = slot.borrow_mut().0.take() else {
+            return false;
+        };
+        let taken = driver(self, measured_dt);
+        let mut slot = slot.borrow_mut();
+        if slot.0.is_none() {
+            slot.0 = Some(driver);
+        }
+        taken
+    }
+
     /// Run one frame at exactly `dt`, whatever the fixed-step policy says.
     pub fn tick(&mut self, dt: f32) {
         self.engine.advance_time(dt);
@@ -920,8 +951,14 @@ impl App {
         let frame_started = Instant::now();
         let mut stages = [std::time::Duration::ZERO; STAGE_COUNT];
         let mut fixed_steps = 0;
+        // A re-run tick is simulation only: nothing draws a world about to be
+        // stepped again.
+        let resimulating = crate::rollback::is_resimulating(&self.engine);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
             let started = Instant::now();
+            if resimulating && stage == Stage::Render as usize {
+                continue;
+            }
             if stage == Stage::FixedUpdate as usize {
                 fixed_steps = self.run_fixed_steps(dt);
             } else {

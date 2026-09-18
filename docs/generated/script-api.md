@@ -8,40 +8,41 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 19 | 0 | the engine |
+| [`animation`](#animation) | 20 | 78 | the engine |
 | [`apple`](#apple) | 18 | 0 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 25 | 0 | the engine |
+| [`engine`](#engine) | 26 | 0 | the engine |
 | [`events`](#events) | 6 | 0 | the engine |
-| [`export`](#export) | 5 | 0 | the engine |
+| [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 9 | 0 | the engine |
+| [`gamend`](#gamend) | 16 | 0 | the engine |
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
-| [`import`](#import) | 8 | 0 | the engine |
+| [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 46 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
-| [`log`](#log) | 5 | 0 | the engine |
+| [`log`](#log) | 7 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
+| [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 55 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 48 | 49 | the engine |
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`project`](#project) | 11 | 0 | the engine |
-| [`release`](#release) | 4 | 0 | the engine |
-| [`render`](#render) | 58 | 31 | the engine |
+| [`project`](#project) | 12 | 0 | the engine |
+| [`release`](#release) | 5 | 0 | the engine |
+| [`render`](#render) | 50 | 31 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
-| [`save`](#save) | 5 | 0 | the engine |
+| [`save`](#save) | 6 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
-| [`script`](#script) | 17 | 0 | the engine |
+| [`script`](#script) | 19 | 0 | the engine |
 | [`settings`](#settings) | 11 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
@@ -50,10 +51,42 @@ cannot drift from what scripts actually see.
 | [`ui`](#ui) | 64 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
+| [`window`](#window) | 8 | 0 | the engine |
 
 ## `animation`
 
-**Functions:** `current`, `define`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `state`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
+**Functions:** `current`, `define`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `state`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
+
+**Constants** (78):
+
+| Name | Value |
+| --- | --- |
+| `ADVANCE_AUTO` | `auto` |
+| `ADVANCE_DISABLED` | `disabled` |
+| `ADVANCE_ENABLED` | `enabled` |
+| `EASE_IN_BACK` | `in_back` |
+| `EASE_IN_BOUNCE` | `in_bounce` |
+| `EASE_IN_CIRC` | `in_circ` |
+| `EASE_IN_CUBIC` | `in_cubic` |
+| `EASE_IN_ELASTIC` | `in_elastic` |
+| `EASE_IN_EXPO` | `in_expo` |
+| `EASE_IN_LINEAR` | `in_linear` |
+| `EASE_IN_OUT_BACK` | `in_out_back` |
+| `EASE_IN_OUT_BOUNCE` | `in_out_bounce` |
+| `EASE_IN_OUT_CIRC` | `in_out_circ` |
+| `EASE_IN_OUT_CUBIC` | `in_out_cubic` |
+| `EASE_IN_OUT_ELASTIC` | `in_out_elastic` |
+| `EASE_IN_OUT_EXPO` | `in_out_expo` |
+| `EASE_IN_OUT_LINEAR` | `in_out_linear` |
+| `EASE_IN_OUT_QUAD` | `in_out_quad` |
+| `EASE_IN_OUT_QUART` | `in_out_quart` |
+| `EASE_IN_OUT_QUINT` | `in_out_quint` |
+| `EASE_IN_OUT_SINE` | `in_out_sine` |
+| `EASE_IN_OUT_SPRING` | `in_out_spring` |
+| `EASE_IN_QUAD` | `in_quad` |
+| `EASE_IN_QUART` | `in_quart` |
+
+…and 54 more.
 
 ## `apple`
 
@@ -86,7 +119,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
 
 ## `events`
 
@@ -94,7 +127,7 @@ cannot drift from what scripts actually see.
 
 ## `export`
 
-**Functions:** `listen`, `output`, `running`, `start`, `targets`
+**Functions:** `listen`, `output`, `preview`, `running`, `start`, `targets`
 
 ## `fs`
 
@@ -102,7 +135,7 @@ cannot drift from what scripts actually see.
 
 ## `gamend`
 
-**Functions:** `call_hook`, `close`, `configure`, `connect`, `join`, `leave`, `login`, `push`, `rest`
+**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `join`, `leave`, `login`, `push`, `reply`, `rest`, `restore`, `session`, `target`
 
 ## `geometry2d`
 
@@ -122,7 +155,7 @@ cannot drift from what scripts actually see.
 
 ## `import`
 
-**Functions:** `cancel`, `choose`, `file`, `handles`, `into`, `listen`, `running`, `start`
+**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running`, `start`
 
 ## `input`
 
@@ -165,7 +198,7 @@ cannot drift from what scripts actually see.
 
 ## `log`
 
-**Functions:** `clear`, `error`, `info`, `recent`, `warn`
+**Functions:** `clear`, `error`, `file`, `info`, `recent`, `since`, `warn`
 
 ## `math`
 
@@ -178,6 +211,33 @@ cannot drift from what scripts actually see.
 | `INF` | `inf` |
 | `PI` | `3.141592653589793` |
 | `TAU` | `6.283185307179586` |
+
+## `multiplayer`
+
+**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled`, `start`, `state`, `stats`, `tick`
+
+**Constants** (18):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CLOSED` | `closed` |
+| `EVENT_CONNECTED` | `connected` |
+| `EVENT_DESYNC` | `desync` |
+| `EVENT_FAILED` | `failed` |
+| `EVENT_JOINED` | `joined` |
+| `EVENT_LEFT` | `left` |
+| `EVENT_STARTED` | `started` |
+| `ROLE_CLIENT` | `client` |
+| `ROLE_HOST` | `host` |
+| `STATE_CONNECTING` | `connecting` |
+| `STATE_IDLE` | `idle` |
+| `STATE_LOBBY` | `lobby` |
+| `STATE_PLAYING` | `playing` |
+| `STATUS_ABSENT` | `absent` |
+| `STATUS_PRESENT` | `present` |
+| `TAG_LOCAL` | `local` |
+| `TRANSPORT_WEBSOCKET` | `websocket` |
+| `TRANSPORT_WEBTRANSPORT` | `webtransport` |
 
 ## `node`
 
@@ -263,15 +323,15 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `version`
+**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
 
 ## `release`
 
-**Functions:** `channels`, `install`, `installed`, `releases`
+**Functions:** `channels`, `check`, `install`, `installed`, `listen`
 
 ## `render`
 
-**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `set_window_mode`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `screenshot`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (31):
 
@@ -327,7 +387,7 @@ cannot drift from what scripts actually see.
 
 ## `save`
 
-**Functions:** `read`, `remove`, `slots`, `version`, `write`
+**Functions:** `folder`, `read`, `remove`, `slots`, `version`, `write`
 
 ## `scene`
 
@@ -335,7 +395,7 @@ cannot drift from what scripts actually see.
 
 ## `script`
 
-**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `symbols`
+**Functions:** `api`, `attempt`, `check`, `complete`, `definition`, `exports`, `find`, `format`, `functions`, `hover`, `references`, `rename`, `replace`, `require`, `shared`, `signature`, `store`, `stored`, `symbols`
 
 ## `settings`
 
@@ -399,4 +459,8 @@ cannot drift from what scripts actually see.
 ## `websocket`
 
 **Functions:** `close`, `connect`, `send`
+
+## `window`
+
+**Functions:** `refresh_rate`, `safe_area`, `set_app_icon`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_keep_awake`, `set_window_mode`
 

@@ -8,7 +8,8 @@
 //!
 //! Settings change pixels and samples, never sizes. A headless run resolves
 //! them for nothing and computes the same world, which is why nothing here
-//! is allowed to move an extent.
+//! is allowed to move an extent. The one exception is an SVG's `scale`, which
+//! is how many pixels it has, and which every build measures alike.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -45,10 +46,51 @@ pub mod keys {
     pub const ANISOTROPY: &str = "anisotropy";
     pub const PREMULTIPLY: &str = "premultiply";
     pub const RECODE: &str = "recode";
+    /// A re-encode's quality for this file alone: imagequant's 0 to 100 for a
+    /// picture, libvorbis's -0.1 to 1.0 for a sound.
+    pub const QUALITY: &str = "quality";
     /// The pixel size an image was drawn at, when a smaller copy shipped in
-    /// its place. Written by an export that folds a variant; read by whatever
-    /// measures the picture rather than samples it.
+    /// its place. Written by an export that folds a variant or caps a size;
+    /// read by whatever measures the picture rather than samples it.
     pub const SIZE: &str = "size";
+    /// A texture's pixels to one world unit, which a node that states none
+    /// takes: a sprite whose own `pixels_per_unit` is 0.
+    pub const PIXELS_PER_UNIT: &str = "pixels_per_unit";
+    /// A normal map: data rather than colour, so `srgb` defaults off.
+    pub const NORMAL_MAP: &str = "normal_map";
+    /// Invert green, for a normal map baked the way DirectX reads one.
+    pub const FLIP_GREEN: &str = "flip_green";
+    /// Spread the edge colour into fully transparent texels, so a linear
+    /// filter never samples the colour hiding under alpha zero.
+    pub const BLEED: &str = "bleed";
+    /// Pixels per unit when an SVG is rasterized; a face's size multiplier.
+    pub const SCALE: &str = "scale";
+    /// A sound loops wherever it is played.
+    pub const LOOP: &str = "loop";
+    /// Seconds into a looping sound its repeats start from, past an intro.
+    pub const LOOP_OFFSET: &str = "loop_offset";
+    /// A sound's own gain, multiplied into every play of it.
+    pub const VOLUME: &str = "volume";
+    /// The family a face joins: `ui`, `heading`, `mono` or `icons`.
+    pub const FAMILY: &str = "family";
+    /// A face's vertical nudge, as a fraction of its size.
+    pub const Y_OFFSET: &str = "y_offset";
+    /// Snap a face's outlines to the pixel grid; off for a smooth face.
+    pub const HINTING: &str = "hinting";
+    /// Where a model's origin moves to, in its own units after `scale`.
+    pub const OFFSET: &str = "offset";
+    /// How many simpler copies of a model to build, each with half the
+    /// triangles of the one before.
+    pub const LODS: &str = "lods";
+    /// The distance from the camera, in world units, at which the first
+    /// simpler copy takes over; each further one takes over at twice it.
+    pub const LOD_DISTANCE: &str = "lod_distance";
+    /// Mix a sound to one channel at export.
+    pub const MONO: &str = "mono";
+    /// The highest sample rate a sound ships at, in Hz; 0 keeps its own.
+    pub const MAX_RATE: &str = "max_rate";
+    /// Smooth a face's glyph edges; off draws every pixel on or off.
+    pub const ANTIALIAS: &str = "antialias";
 }
 
 /// The values a key takes.
@@ -64,6 +106,17 @@ pub mod words {
     /// `recode = "keep"`: ship this file's own bytes whatever the export's
     /// mode is.
     pub const KEEP: &str = "keep";
+    /// `recode` for a picture: lossless WebP, or a 256-colour palette.
+    pub const WEBP: &str = "webp";
+    pub const QUANTISED: &str = "quantised";
+    /// `recode` for a sound: lossless FLAC, or lossy Ogg Vorbis.
+    pub const FLAC: &str = "flac";
+    pub const VORBIS: &str = "vorbis";
+    /// The font families `family` names.
+    pub const UI: &str = "ui";
+    pub const HEADING: &str = "heading";
+    pub const MONO: &str = "mono";
+    pub const ICONS: &str = "icons";
 }
 
 /// Which kind a file belongs to, by extension, or `None` for a file no
@@ -75,9 +128,9 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
         .and_then(|e| e.to_str())?
         .to_ascii_lowercase();
     match extension.as_str() {
-        // The formats the renderer decodes. A picture in another one is not a
-        // texture here, however an image editor spells it.
-        "png" | "webp" => Some(kinds::TEXTURE),
+        // The formats `crate::pixels` reads. An SVG is rasterized, which a
+        // build without the `svg` feature leaves to `balaur export`.
+        "png" | "webp" | "jpg" | "jpeg" | "svg" => Some(kinds::TEXTURE),
         "ogg" | "wav" | "mp3" | "flac" => Some(kinds::AUDIO),
         "ttf" | "otf" | "ttc" | "fnt" => Some(kinds::FONT),
         "glb" | "gltf" | "obj" => Some(kinds::MODEL),
@@ -208,6 +261,24 @@ pub fn settings(eng: &Engine, path: &str) -> toml::Table {
     table
 }
 
+/// One file's settings for a tool with no engine, such as an export or
+/// `balaur shrink`: `[import.<kind>]` from a manifest already resolved for its
+/// target, with the sidecar's text written over it.
+#[must_use]
+pub fn merged(manifest: &toml::Table, path: &str, sidecar: Option<&str>) -> toml::Table {
+    let mut table = kind_of(path)
+        .and_then(|kind| manifest.get("import")?.get(kind)?.as_table().cloned())
+        .unwrap_or_default();
+    if let Some(text) = sidecar {
+        if let Ok(own) = toml::from_str::<toml::Table>(text) {
+            table.extend(own);
+        } else {
+            tracing::warn!("{} is not a settings file", sidecar_of(path));
+        }
+    }
+    table
+}
+
 /// The project's defaults for whatever kind `path` is, as this run resolves
 /// them: `[override.mobile.import.texture] mipmaps = false` answers on a phone.
 fn defaults(eng: &Engine, path: &str) -> toml::Table {
@@ -259,6 +330,17 @@ pub fn flag(settings: &toml::Table, key: &str, fallback: bool) -> bool {
         .unwrap_or(fallback)
 }
 
+/// A number setting, integer or float, or `fallback` when it is missing or
+/// of another type.
+#[must_use]
+pub fn number(settings: &toml::Table, key: &str, fallback: f64) -> f64 {
+    match settings.get(key) {
+        Some(toml::Value::Float(found)) if found.is_finite() => *found,
+        Some(toml::Value::Integer(found)) => *found as f64,
+        _ => fallback,
+    }
+}
+
 /// A whole-number setting, or `fallback` when it is missing or of another
 /// type.
 #[must_use]
@@ -277,7 +359,7 @@ pub fn count(settings: &toml::Table, key: &str, fallback: u16) -> u16 {
 /// and the refusals without a GPU, and so the editor and the exporter read
 /// the same answer the picture does.
 pub mod texture {
-    use super::{count, flag, keys, word, words};
+    use super::{count, flag, keys, number, word, words};
 
     /// Between texels.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -347,9 +429,47 @@ pub mod texture {
             wrap_v: wrap(settings, keys::REPEAT_V, axes),
             mipmaps: flag(settings, keys::MIPMAPS, base.mipmaps),
             anisotropy: count(settings, keys::ANISOTROPY, base.anisotropy).clamp(1, 16),
-            srgb: flag(settings, keys::SRGB, base.srgb),
+            srgb: flag(
+                settings,
+                keys::SRGB,
+                !flag(settings, keys::NORMAL_MAP, !base.srgb),
+            ),
             premultiply: flag(settings, keys::PREMULTIPLY, base.premultiply),
         }
+    }
+
+    /// The smallest and largest `scale` an SVG is rasterized at.
+    pub const SCALE_RANGE: (f32, f32) = (0.01, 64.0);
+
+    /// What a texture's settings do to its texels before anything samples
+    /// them.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct Texels {
+        pub bleed: bool,
+        pub flip_green: bool,
+        /// Pixels per unit for an SVG; a raster ignores it.
+        pub scale: f32,
+    }
+
+    /// The texel settings one file's resolved settings ask for. `bleed` is on
+    /// by default for colour sampled linearly, the one case it changes.
+    #[must_use]
+    pub fn texels(settings: &toml::Table) -> Texels {
+        let sampled = sampling(settings);
+        let linear = sampled.mag == Filter::Linear || sampled.min == Filter::Linear;
+        let (least, most) = SCALE_RANGE;
+        Texels {
+            bleed: flag(settings, keys::BLEED, sampled.srgb && linear),
+            flip_green: flag(settings, keys::FLIP_GREEN, false),
+            scale: (number(settings, keys::SCALE, 1.0) as f32).clamp(least, most),
+        }
+    }
+
+    /// Pixel art: magnified nearest, so every texel is a square a smaller
+    /// copy would drop.
+    #[must_use]
+    pub fn is_pixel_art(settings: &toml::Table) -> bool {
+        sampling(settings).mag == Filter::Nearest
     }
 
     /// Whether this sampler asks for anisotropy the filters cannot give it.
@@ -383,6 +503,187 @@ pub mod texture {
     }
 }
 
+/// What a model file's settings do to the geometry a mesh reads from it.
+pub mod model {
+    use super::{keys, number};
+    use crate::mesh::MeshData;
+
+    /// The most simpler copies a model may ask for.
+    pub const MAX_LODS: usize = 6;
+    /// Where the first simpler copy takes over when the model does not say.
+    pub const DEFAULT_LOD_DISTANCE: f32 = 20.0;
+
+    /// The triangles of each simpler copy a model's `lods` asks for, level
+    /// one first; empty for none. A skinned or morphing mesh gets none: its
+    /// vertices move, and a copy simplified at rest would tear.
+    #[must_use]
+    pub fn lod_levels(mesh: &MeshData, settings: &toml::Table) -> Vec<Vec<[u32; 3]>> {
+        let wanted = number(settings, keys::LODS, 0.0).clamp(0.0, MAX_LODS as f64) as usize;
+        if wanted == 0 || mesh.skin.is_some() || !mesh.morphs.is_empty() {
+            return Vec::new();
+        }
+        let source: Vec<u32> = mesh.indices.iter().flatten().copied().collect();
+        let mut levels = Vec::new();
+        let mut held = source.len();
+        // A farther copy may stray further from the shape: 2% of the model's
+        // size at the first, doubling from there.
+        let mut error = 0.02f32;
+        for _ in 0..wanted {
+            let target = (held / 2) / 3 * 3;
+            if target < 3 {
+                break;
+            }
+            let mut out = vec![0u32; source.len()];
+            let kept =
+                meshopt_rs::simplify::simplify(&mut out, &source, &mesh.positions, target, error);
+            if kept == 0 || kept >= held {
+                break;
+            }
+            out.truncate(kept);
+            held = kept;
+            levels.push(out.as_chunks::<3>().0.to_vec());
+            error = (error * 2.0).min(0.5);
+        }
+        levels
+    }
+
+    /// The camera distance each simpler copy takes over at, level one first.
+    #[must_use]
+    pub fn lod_distances(settings: &toml::Table, levels: usize) -> Vec<f32> {
+        let first = number(
+            settings,
+            keys::LOD_DISTANCE,
+            f64::from(DEFAULT_LOD_DISTANCE),
+        );
+        let first = if first > 0.0 {
+            first as f32
+        } else {
+            DEFAULT_LOD_DISTANCE
+        };
+        std::iter::successors(Some(first), |d| Some(d * 2.0))
+            .take(levels)
+            .collect()
+    }
+
+    /// A model file's `scale` and `offset`, applied to what a mesh reads from it:
+    /// a file modelled in centimetres, or around a corner rather than its centre.
+    /// A rig's bones are nodes a scene places, so a skinned mesh is left as is.
+    pub fn place(mesh: &mut MeshData, settings: &toml::Table, source: &str) {
+        let triple = |key: &str, fallback: f32| -> [f32; 3] {
+            match settings.get(key) {
+                Some(toml::Value::Array(items)) if items.len() == 3 => {
+                    let at = |i: usize| match &items[i] {
+                        toml::Value::Float(f) => *f as f32,
+                        toml::Value::Integer(n) => *n as f32,
+                        _ => fallback,
+                    };
+                    [at(0), at(1), at(2)]
+                }
+                _ => [number(settings, key, f64::from(fallback)) as f32; 3],
+            }
+        };
+        let scale = triple(keys::SCALE, 1.0).map(|s| if s.abs() < 1e-6 { 1.0 } else { s });
+        let offset = triple(keys::OFFSET, 0.0);
+        let unit = scale.iter().all(|s| (s - 1.0).abs() < f32::EPSILON);
+        if unit && offset.iter().all(|o| o.abs() < f32::EPSILON) {
+            return;
+        }
+        if mesh.skin.is_some() {
+            tracing::warn!(
+                "{source}: `scale` and `offset` move no rig, so a skinned mesh is left as authored"
+            );
+            return;
+        }
+        for p in &mut mesh.positions {
+            *p = [0, 1, 2].map(|i| p[i] * scale[i] + offset[i]);
+        }
+        for morph in &mut mesh.morphs {
+            for d in &mut morph.positions {
+                *d = [0, 1, 2].map(|i| d[i] * scale[i]);
+            }
+        }
+        if let Some(normals) = &mut mesh.normals {
+            for n in normals.iter_mut() {
+                let bent = [0, 1, 2].map(|i| n[i] / scale[i]);
+                let length = bent.iter().map(|c| c * c).sum::<f32>().sqrt().max(1e-12);
+                *n = bent.map(|c| c / length);
+            }
+        }
+        // A mirror turns every triangle inside out; swapping two corners puts it back.
+        if scale.iter().filter(|s| **s < 0.0).count() % 2 == 1 {
+            for triangle in &mut mesh.indices {
+                triangle.swap(1, 2);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::place;
+
+        const TRIANGLE: &str = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+
+        fn close(got: [f32; 3], want: [f32; 3]) -> bool {
+            got.iter().zip(&want).all(|(a, b)| (a - b).abs() < 1e-6)
+        }
+
+        /// A grid of `side` by `side` quads in the z = 0 plane.
+        fn grid(side: u32) -> crate::mesh::MeshData {
+            let mut mesh = crate::mesh::MeshData::default();
+            for y in 0..=side {
+                for x in 0..=side {
+                    let bump = ((x * 7 + y * 3) % 5) as f32 * 0.01;
+                    mesh.positions.push([x as f32, y as f32, bump]);
+                }
+            }
+            let at = |x: u32, y: u32| y * (side + 1) + x;
+            for y in 0..side {
+                for x in 0..side {
+                    mesh.indices
+                        .push([at(x, y), at(x + 1, y), at(x + 1, y + 1)]);
+                    mesh.indices
+                        .push([at(x, y), at(x + 1, y + 1), at(x, y + 1)]);
+                }
+            }
+            mesh
+        }
+
+        /// Each simpler copy has at most half the triangles of the one before.
+        #[test]
+        fn a_model_asking_for_lods_gets_simpler_copies() {
+            let mesh = grid(16);
+            let settings: toml::Table = toml::from_str("lods = 2\nlod_distance = 8").unwrap();
+            let levels = super::lod_levels(&mesh, &settings);
+            assert_eq!(levels.len(), 2);
+            assert!(
+                levels[0].len() * 2 <= mesh.indices.len() + 2,
+                "{}",
+                levels[0].len()
+            );
+            assert!(levels[1].len() < levels[0].len());
+            assert_eq!(super::lod_distances(&settings, 2), vec![8.0, 16.0]);
+            assert!(super::lod_levels(&mesh, &toml::Table::new()).is_empty());
+        }
+
+        /// A model file's own `scale` and `offset` place its geometry.
+        #[test]
+        fn a_model_is_scaled_and_moved_by_its_settings() {
+            let mut mesh = crate::mesh::parse_obj(TRIANGLE.as_bytes(), "t.obj").unwrap();
+            let settings: toml::Table = toml::from_str("scale = 0.01\noffset = [0, 1, 0]").unwrap();
+            place(&mut mesh, &settings, "t.obj");
+            assert!(close(mesh.positions[1], [0.01, 1.0, 0.0]));
+            let mirrored: toml::Table = toml::from_str("scale = [-1, 1, 1]").unwrap();
+            let before = mesh.indices[0];
+            place(&mut mesh, &mirrored, "t.obj");
+            assert_eq!(
+                mesh.indices[0],
+                [before[0], before[2], before[1]],
+                "a mirror keeps its facing"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     /// Two counts above zero, or nothing: a size that is not a size would
@@ -397,12 +698,37 @@ mod tests {
         assert_eq!(read("filter = \"linear\""), None);
     }
 
-    use super::{flag, is_sidecar, kind_of, kinds, sidecar_of, stamp, word};
+    use super::{flag, is_sidecar, kind_of, kinds, merged, number, sidecar_of, stamp, word};
+
+    /// A tool reads the project's default, then the file's own over it.
+    #[test]
+    fn a_tool_merges_the_project_default_under_the_sidecar() {
+        let manifest: toml::Table =
+            toml::from_str("[import.texture]\nfilter = \"nearest\"\nmipmaps = true").unwrap();
+        let own = merged(&manifest, "art/hero.png", Some("mipmaps = false"));
+        assert_eq!(word(&own, "filter", ""), "nearest");
+        assert!(!flag(&own, "mipmaps", true));
+        assert!(merged(&manifest, "sfx/hit.wav", None).is_empty());
+        assert_eq!(
+            merged(&manifest, "art/hero.png", Some("not = [toml")).len(),
+            2
+        );
+    }
+
+    #[test]
+    fn a_number_reads_an_integer_or_a_float() {
+        let table: toml::Table = toml::from_str("a = 2\nb = 0.5\nc = \"x\"").unwrap();
+        assert!((number(&table, "a", 0.0) - 2.0).abs() < f64::EPSILON);
+        assert!((number(&table, "b", 0.0) - 0.5).abs() < f64::EPSILON);
+        assert!((number(&table, "c", 7.0) - 7.0).abs() < f64::EPSILON);
+    }
 
     #[test]
     fn a_file_sorts_into_the_kind_its_extension_names() {
         assert_eq!(kind_of("art/hero.PNG"), Some(kinds::TEXTURE));
-        assert_eq!(kind_of("art/photo.jpg"), None, "the engine reads no JPEG");
+        assert_eq!(kind_of("art/photo.jpg"), Some(kinds::TEXTURE));
+        assert_eq!(kind_of("art/logo.svg"), Some(kinds::TEXTURE));
+        assert_eq!(kind_of("art/photo.tga"), None, "no reader decodes a TGA");
         assert_eq!(kind_of("sfx/hit.wav"), Some(kinds::AUDIO));
         assert_eq!(kind_of("fonts/pixel.fnt"), Some(kinds::FONT));
         assert_eq!(kind_of("scenes/main.toml"), None);
@@ -447,10 +773,48 @@ mod tests {
     }
 
     mod sampling {
-        use crate::import::texture::{Filter, Sampling, Wrap, anisotropy_refused, sampling};
+        use crate::import::texture::{
+            Filter, Sampling, Wrap, anisotropy_refused, is_pixel_art, sampling, texels,
+        };
 
         fn of(source: &str) -> Sampling {
             sampling(&toml::from_str::<toml::Table>(source).unwrap())
+        }
+
+        fn table(source: &str) -> toml::Table {
+            toml::from_str(source).unwrap()
+        }
+
+        /// A normal map is data, so it reads raw unless `srgb` says otherwise.
+        #[test]
+        fn a_normal_map_reads_raw_by_default() {
+            assert!(!of("normal_map = true").srgb);
+            assert!(of("normal_map = true\nsrgb = true").srgb);
+            assert!(of("normal_map = false").srgb);
+        }
+
+        /// Bleeding only changes what a linear filter reads from colour.
+        #[test]
+        fn bleed_defaults_on_for_colour_sampled_linearly() {
+            assert!(texels(&table("")).bleed);
+            assert!(!texels(&table("filter = \"nearest\"")).bleed);
+            assert!(!texels(&table("srgb = false")).bleed);
+            assert!(!texels(&table("normal_map = true")).bleed);
+            assert!(texels(&table("filter = \"nearest\"\nbleed = true")).bleed);
+        }
+
+        #[test]
+        fn an_svg_scale_is_clamped_to_something_a_gpu_holds() {
+            assert!((texels(&table("scale = 2")).scale - 2.0).abs() < f32::EPSILON);
+            assert!((texels(&table("scale = 1000.0")).scale - 64.0).abs() < f32::EPSILON);
+            assert!((texels(&table("")).scale - 1.0).abs() < f32::EPSILON);
+        }
+
+        #[test]
+        fn pixel_art_is_what_magnifies_nearest() {
+            assert!(is_pixel_art(&table("filter = \"nearest\"")));
+            assert!(is_pixel_art(&table("mag_filter = \"nearest\"")));
+            assert!(!is_pixel_art(&table("min_filter = \"nearest\"")));
         }
 
         /// A file that says nothing samples the way a sprite wants: clamped,

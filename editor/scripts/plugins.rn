@@ -36,19 +36,25 @@ fn arity(kind) {
     }
 }
 
-/// The two places a plugin lives: the editor's own, on for every project, and
-/// the game's, on only there.
+/// Where a plugin lives: the editor's own, on for every project; the game's;
+/// and each addon's `editor/`, on while the game carries that addon.
 fn roots(S) {
     // With no project open there is only the editor's own directory: a
     // relative path off an empty root is a path outside every root there is.
     if S.game_root == "" {
         return ["plugins"];
     }
-    // An explicit return: a block followed by `[` is an index in Rune.
-    return ["plugins", S.game_root + "/editor"];
+    let found = ["plugins", S.game_root + "/editor"];
+    let addons = S.game_root + "/addons";
+    for entry in util::vec(fs::list(addons)) {
+        if entry.is_dir {
+            found.push(addons + "/" + entry.name + "/editor");
+        }
+    }
+    found
 }
 
-/// Load every plugin in both directories, in name order so registration order
+/// Load every plugin in every root, in name order so registration order
 /// does not depend on the filesystem's.
 ///
 /// A plugin declares `register()` returning what it adds, and optionally
@@ -56,6 +62,10 @@ fn roots(S) {
 /// rather than taking an `api` object because in Rune `api.dock(..)` is a
 /// method call, not a call of a stored closure.
 pub fn load(S) {
+    // Before any plugin registers: what it draws with, and saves pointed at
+    // the game's own folder.
+    S.kit = crate::kit::make();
+    crate::kit::adopt_game_data(S);
     for root in roots(S) {
         let names = [];
         for entry in util::vec(fs::list(root)) {
@@ -120,7 +130,8 @@ fn load_one(S, path, id) {
 fn add_all(S, id, declared) {
     for entry in util::vec(declared.get("docks").unwrap_or([])) {
         S.registry.docks.push(#{
-            id: entry.id, name: entry.name,
+            id: entry.id, name: entry.name, tall: entry.get("tall").unwrap_or(false),
+            scrolls: entry.get("scrolls").unwrap_or(false),
             draw: script::shared(entry.draw, arity("dock")), owner: id,
         });
         // Registering a dock is not enough to reach it: a panel is drawn by

@@ -134,7 +134,7 @@ Every step above is built.
   target, and stamps the target's own tags into the pack as `[build] tags`.
 - `[window] orientation` reaches both native manifests, and `[window] mode`
   is `windowed`, `maximized`, `fullscreen` or `exclusive`, with
-  `render.set_window_mode` beside it. The kiss3d fork gained
+  `window.set_window_mode` beside it. The kiss3d fork gained
   `set_maximized` and `set_exclusive_fullscreen`.
 - `crates/balaur_export/src/variants.rs` folds `name.<tag>.ext` onto
   `name.ext`, for the engine's tags and a project's own.

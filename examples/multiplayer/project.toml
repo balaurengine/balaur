@@ -1,0 +1,15 @@
+[application]
+name = "multiplayer"
+main_scene = "scenes/lobby.toml"
+
+# The arena every machine loads when the match starts, and where the host
+# listens: a websocket on a fixed port, so a second copy knows where to dial.
+[multiplayer]
+scene = "scenes/arena.toml"
+transport = "websocket"
+address = "127.0.0.1:7777"
+players = 2
+
+[input.actions]
+move_x = ["keys:Left,Right", "keys:A,D", "axis:LeftStickX"]
+move_y = ["keys:Down,Up", "keys:S,W", "axis:LeftStickY"]

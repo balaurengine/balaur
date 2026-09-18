@@ -12,7 +12,7 @@ use hecs::Entity;
 
 use crate::components::{ComponentRegistry, StableId};
 use crate::engine::Engine;
-use crate::scene::{Appearance, Name, Parent, Tags, Transform, collect_subtree};
+use crate::scene::{Appearance, Name, Parent, Tags, Transform};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -110,9 +110,39 @@ pub struct DigestRegistry(pub Vec<(String, DigestFn)>);
 /// own interface, whose docks animate on their own schedule.
 #[must_use]
 pub fn scope_of(eng: &Engine) -> Option<std::collections::HashSet<Entity>> {
-    let scope = eng.debug_scope()?;
+    let scope = eng.debug_scope();
     let world = eng.world();
-    Some(collect_subtree(&world, scope).into_iter().collect())
+    let (nodes, skipped) = covered(&world, scope.unwrap_or_else(|| eng.root()));
+    if scope.is_none() && !skipped {
+        return None;
+    }
+    Some(nodes.into_iter().collect())
+}
+
+/// The tag that keeps a node, and everything under it, out of the digest: a
+/// camera or a HUD that differs from machine to machine on purpose.
+pub const TAG_LOCAL: &str = "local";
+
+/// `top` and every node under it but a subtree tagged [`TAG_LOCAL`], in
+/// `crate::scene::collect_subtree`'s order; and whether anything was left out.
+fn covered(world: &hecs::World, top: Entity) -> (Vec<Entity>, bool) {
+    let mut out = Vec::new();
+    let mut skipped = false;
+    let mut stack = vec![top];
+    while let Some(node) = stack.pop() {
+        let local = world
+            .get::<&Tags>(node)
+            .is_ok_and(|tags| tags.0.iter().any(|tag| tag == TAG_LOCAL));
+        if local {
+            skipped = true;
+            continue;
+        }
+        out.push(node);
+        if let Ok(children) = world.get::<&crate::scene::Children>(node) {
+            stack.extend(children.0.iter().copied());
+        }
+    }
+    (out, skipped)
 }
 
 /// Hash the simulation in labelled slices, in scene-tree order.
@@ -126,7 +156,8 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
         // The debug scope when there is one: inside an editor the game is a
         // subtree, and the editor's own nodes are not the run being checked.
         let scope = eng.debug_scope();
-        collect_subtree(&world, scope.unwrap_or_else(|| eng.root()))
+        covered(&world, scope.unwrap_or_else(|| eng.root()))
+            .0
             .into_iter()
             // Not the container itself: an editor makes a fresh one for every
             // run, and its generated id would differ between two runs of the

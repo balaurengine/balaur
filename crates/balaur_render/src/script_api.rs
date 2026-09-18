@@ -1,11 +1,12 @@
-//! The `render` script module's bindings: the 3D and 2D cameras, the OS
-//! window, the backdrop, and the sprite/texture surface a node draws with.
+//! The `render` script module's bindings: the 3D and 2D cameras, the backdrop,
+//! and the sprite/texture surface a node draws with. Also the `window` module.
 //!
 //! Split out of `lib.rs`, which keeps the plugin, its components and its
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
 use anyhow::Context;
 use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::{
@@ -110,8 +111,8 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
         },
     );
-    // Eye xyz, target xyz, fov (rad), HiDPI scale; all zeros with no windowed
-    // backend. Reads the published snapshot, not what `set_camera` wrote.
+    // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
+    // with no windowed backend. Reads the published snapshot, not `set_camera`.
     m.function("camera_pose", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
@@ -126,6 +127,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.scale_factor,
         ))
     });
+    install_screenshot_api(m);
 }
 
 /// The 2D camera: its target center and zoom, the state it published this
@@ -166,7 +168,6 @@ pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// The OS window and its desktop presence.
 /// A script-supplied path against the project, absolute paths left alone.
 pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
@@ -177,18 +178,14 @@ pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathB
         .map_or_else(|| p.to_path_buf(), |root| root.borrow().0.join(p))
 }
 
-pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("screenshot", &[], "", "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so."),
-        ("set_app_icon", &[], "", "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path."),
-        ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
-        ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
-        ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
-        ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
-        ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
-        ("safe_area", &[], "() -> map", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
-        ("refresh_rate", &[], "() -> float", "Frames per second the display refreshes at, as measured over the last frames; 60 with no window."),
-    ]);
+/// `render.screenshot`: the next rendered frame, to a PNG.
+fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "screenshot",
+        &[],
+        "",
+        "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
+    )]);
     // PNG on the next rendered frame; a run with no renderer says so. Fire
     // and forget — the log line naming the file is the completion signal.
     m.function("screenshot", |eng: &Engine, path: String| {
@@ -201,6 +198,30 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         });
         Ok(())
     });
+}
+
+/// The `window` script module, beside `render` in the same plugin.
+pub(crate) fn register_window_module(reg: &mut Registry<'_>) -> anyhow::Result<()> {
+    let mut m = reg.script_module("window")?;
+    m.module_doc(
+        "The OS window and the display under it: mode, cursor, app icon, keep-awake, the safe area and the refresh rate.",
+    );
+    install_window_api(&mut *m);
+    Ok(())
+}
+
+/// The OS window and the display it sits on.
+fn install_window_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_app_icon", &[], "", "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path."),
+        ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
+        ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
+        ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
+        ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
+        ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
+        ("safe_area", &[], "() -> map", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
+        ("refresh_rate", &[], "() -> float", "Frames per second the display refreshes at, as measured over the last frames; 60 with no window."),
+    ]);
     // OS application icon (dock icon on macOS) from a PNG in the project.
     // No reader by design: add `app_icon` when a caller needs it back.
     m.function("set_app_icon", |eng: &Engine, path: String| {
@@ -604,13 +625,15 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         "trace_texture",
         |eng: &Engine, (path, opts): (String, Option<Value>)| {
             let opts = TraceOpts::of(opts.as_ref());
+            let source = balaur_core::texture_asset::source(eng, &path)?;
             let bytes = eng
                 .resource::<balaur_core::project::ProjectFiles>()
                 .borrow()
-                .read(&path)?;
-            let image = image::load_from_memory(&bytes)
-                .with_context(|| format!("decoding the image {path}"))?
-                .to_rgba8();
+                .read(&source.path)?;
+            // Only alpha is traced, so nothing is bled into the clear texels.
+            let alpha = balaur_core::pixels::Alpha::Premultiplied;
+            let image = balaur_core::pixels::decode(&bytes, &source.settings.settings, alpha)
+                .with_context(|| format!("decoding the image {path}"))?;
             let (w, h) = (image.width() as usize, image.height() as usize);
             // The file may be a smaller copy of what was drawn; the outline is
             // in the pixels the artist counted, like a sprite over it.

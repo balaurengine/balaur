@@ -224,7 +224,7 @@ fn size(S, id, key, value) {
         if let Some(handle) = running {
             animation::stop(handle);
         }
-        m.tweens[mark] = animation::tween(found, #{ "steps": [#{ "property": "widget/" + key, "to": value, "duration": EASE_S, "ease": "out_cubic" }] });
+        m.tweens[mark] = animation::tween(found, #{ "steps": [#{ "property": "widget/" + key, "to": value, "duration": EASE_S, "ease": animation::EASE_OUT_CUBIC }] });
         return;
     }
     let params = util::obj(found.get_component("widget"));

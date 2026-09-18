@@ -131,6 +131,8 @@ mod skinned_2d;
 #[cfg(feature = "kiss3d")]
 mod skinned_3d;
 #[cfg(feature = "kiss3d")]
+mod lods;
+#[cfg(feature = "kiss3d")]
 mod touch_draw;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
@@ -359,10 +361,9 @@ pub struct ViewportSnapshot2d {
 /// Read-only: write [`CameraConfig3d`] instead.
 ///
 /// With no windowed backend running it keeps its `Default` — an all-zero
-/// pose, a zero `fov`, a zero `scale_factor` and an all-zero `view_proj`,
-/// which is not invertible. Headless screen-space math gets zeros, not the
-/// camera the scene would have had.
-#[derive(Default)]
+/// pose, a zero `fov` and an all-zero `view_proj`, which is not invertible.
+/// Headless screen-space math gets zeros, not the camera the scene would
+/// have had. The scale is one: every caller divides by it.
 pub struct ViewportSnapshot3d {
     pub eye: [f32; 3],
     pub target: [f32; 3],
@@ -378,6 +379,22 @@ pub struct ViewportSnapshot3d {
     /// The window this was drawn into, in logical points. Zero headless.
     pub width: u32,
     pub height: u32,
+}
+
+impl Default for ViewportSnapshot3d {
+    fn default() -> Self {
+        Self {
+            eye: [0.0; 3],
+            target: [0.0; 3],
+            fov: 0.0,
+            scale_factor: 1.0,
+            view_proj: [0.0; 16],
+            ray_origin: [0.0; 3],
+            ray_dir: [0.0; 3],
+            width: 0,
+            height: 0,
+        }
+    }
 }
 
 /// When `enabled` is false, windowed backends inhibit the camera's mouse
@@ -571,6 +588,9 @@ pub struct SpriteTexture {
     /// where the pixels per unit are known: how far the quad's centre sits
     /// from the node before the node's rotation and scale.
     pub shift: [f32; 2],
+    /// `pixels_per_unit` as authored, where 0 follows the texture's own;
+    /// the renderable carries the value it resolved to.
+    pub own_pixels_per_unit: f32,
 }
 
 impl SpriteTexture {
@@ -1034,14 +1054,13 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(CameraInputConfig { enabled: true });
         let mut m = reg.script_module("render")?;
         m.module_doc(
-            "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the window, backdrop and debug lines.",
+            "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
         );
         for (name, value) in shape::CONSTANTS {
             m.constant(name, balaur_script::Value::Str((*value).to_string()));
         }
         script_api::install_camera_api(&mut *m);
         script_api::install_camera_2d_api(&mut *m);
-        script_api::install_window_api(&mut *m);
         debug_view::install_debug_view_api(&mut *m);
         script_api::install_backdrop_api(&mut *m);
         material::install_material_check(&mut *m);
@@ -1058,6 +1077,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
         tilemap::install_tilemap_terrain_api(&mut *m);
+        script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         register_render_presets(reg)?;

@@ -1,0 +1,124 @@
+// The About sheet: which build this is, the line it follows, and whether that
+// line has moved on. The check and the install are the Engine tab's own, so
+// the sheet and the start screen say the same thing.
+
+use crate::style;
+use crate::util;
+
+const SHEET = "about";
+const LOGO = "assets/balaur-logo.png";
+const SITE = "https://balaurengine.org";
+const SOURCE = "https://github.com/balaurengine/balaur";
+// The mark is dark ink on nothing, drawn for a light ground; the top bar sets
+// it on a light badge, and so does this.
+const PLATE = "#e9edf2";
+const LABEL_W = 96.0;
+
+/// Show the sheet. Opening it is asking, so the feed is read once here unless
+/// the start screen already read it.
+pub fn open(S) {
+    crate::window::show(S, SHEET);
+    if !S.manager.asked && !crate::manager::in_tab() {
+        crate::manager::check(S);
+    }
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    crate::window::sheet(S, SHEET, "About Balaur", || {}, || {
+        body(S, k);
+    });
+}
+
+fn body(S, k) {
+    let w = crate::window::inner_w(S);
+    let h = util::max(style::row_h(S), 30.0);
+    let mine = util::obj(release::installed());
+    ui::horizontal(#{ height: 52, width: w }, || {
+        ui::frame(#{ fill: PLATE, radius: 26, padding_x: 4, padding_y: 4 }, || {
+            ui::image(LOGO, #{ width: 44 });
+        });
+        ui::add_space(14);
+        ui::vertical(|| {
+            ui::label("Balaur " + mine.version, #{
+                size: style::LG, font: ui::FONT_HEADING, strong: true, color: k.text,
+            });
+            ui::label(crate::manager::build_line(mine), style::mono_sm(k.faint));
+        });
+    });
+    ui::add_space(12);
+    fact(k, w, "Version", mine.version);
+    fact(k, w, "Build", if mine.source == true { "from a checkout" } else { mine.id });
+    fact(k, w, "Channel", if mine.channel == "" { "none" } else { mine.channel });
+    fact(k, w, "Platform", engine::platform().os);
+    fact(k, w, "Licence", "MIT");
+    // A tab runs the build the page served it, so it has no line to follow.
+    if !crate::manager::in_tab() {
+        ui::add_space(12);
+        update(S, k, w, h, mine);
+    }
+    ui::add_space(12);
+    ui::horizontal(#{ height: h, width: w }, || {
+        link(k, h, "balaurengine.org", SITE);
+        ui::add_space(8);
+        link(k, h, "Source", SOURCE);
+    });
+}
+
+// One label and its value, the value in the monospace a build id reads in.
+// A label takes no width, so the column is a row of its own that does.
+fn fact(k, w, name, value) {
+    ui::horizontal(#{ height: 22, width: w }, || {
+        ui::horizontal(#{ height: 22, width: LABEL_W }, || {
+            ui::label(name, #{ size: style::MD, color: k.dim });
+        });
+        ui::label(value, style::mono_sm(k.text));
+    });
+}
+
+// Where this build's line stands, the press that asks again, and the newest
+// release on it when there is one to move to.
+fn update(S, k, w, h, mine) {
+    // A source build follows no line; the nightly is what it is nearest to.
+    let line = if mine.channel == "" { "nightly" } else { mine.channel };
+    let newest = crate::manager::newest_on(S, line);
+    ui::horizontal(#{ height: h, width: w }, || {
+        let fresh = newest.get("order").unwrap_or("") == "newer";
+        ui::label(line + ": " + crate::manager::standing(S, line), style::mono_sm(
+            if fresh { k.get("ok").unwrap_or(k.sage) } else { k.faint }));
+        ui::right(|| {
+            // Up to date already says it; only a release to move to gets a press.
+            if newest.get("id").unwrap_or("") != "" && newest.get("order").unwrap_or("") != "same" {
+                crate::manager::row_press(S, k, h, newest, mine);
+                ui::add_space(8);
+            }
+            let word = if S.manager.reading { "Checking" } else { "Check" };
+            if ui::pill(word, #{
+                height: h, size: style::SM, radius: 8, padding_x: 12,
+                fill: k.sunken, color: k.dim,
+            }) {
+                crate::manager::check(S);
+            }
+        });
+    });
+    if mine.held != "" {
+        ui::label(mine.held, util::merge(style::mono_sm(k.faint), #{ wrap: true, width: w }));
+    }
+    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
+    if said != "" {
+        let tone = if S.manager.failed != "" { k.get("warn").unwrap_or(k.accent) } else { k.faint };
+        ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
+    }
+    if crate::manager::installing(S) {
+        crate::manager::install_progress(S, k, w);
+    }
+}
+
+fn link(k, h, text, url) {
+    if ui::pill(text, #{
+        height: h, size: style::SM, radius: 8, padding_x: 12,
+        fill: k.sunken, color: k.dim, tooltip: url,
+    }) {
+        engine::open_url(url);
+    }
+}

@@ -15,8 +15,9 @@ use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
     assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
     dark_mode, device_id, encoding_base64, encoding_from_base64, focused, hash_sha256,
-    hash_sha256_text, log_clear, log_error, log_info, log_recent, log_warn, platform, rng_int,
-    rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale, unix_time,
+    hash_sha256_text, log_clear, log_error, log_file, log_info, log_recent, log_since, log_warn,
+    platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
+    strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -280,6 +281,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: save_version,
     },
     EngineOp {
+        module: "save",
+        name: "folder",
+        call: save_folder,
+    },
+    EngineOp {
+        module: "engine",
+        name: "user_data_dir_of",
+        call: user_data_dir_of_project,
+    },
+    EngineOp {
         module: "strings",
         name: "tr",
         call: strings_tr,
@@ -408,6 +419,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "log",
         name: "clear",
         call: log_clear,
+    },
+    EngineOp {
+        module: "log",
+        name: "since",
+        call: log_since,
+    },
+    EngineOp {
+        module: "log",
+        name: "file",
+        call: log_file,
     },
     EngineOp {
         module: "rng",
@@ -721,8 +742,13 @@ pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
     let name = eng
         .try_resource::<crate::project::ProjectManifest>()
         .map(|m| m.borrow().name.clone())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| "project".to_string());
+        .unwrap_or_default();
+    user_data_dir_named(eng, &name)
+}
+
+/// The user data directory a project named `name` has, made or not.
+pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
+    let name = if name.is_empty() { "project" } else { name };
     // A manifest name is free text; keep only what every filesystem accepts.
     let name: String = name
         .chars()
@@ -997,6 +1023,17 @@ fn save_slots(eng: &Engine, _: &[Value]) -> Result<Value> {
 fn save_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::save::remove(eng, text(args, 0)?)?;
     Ok(Value::Nil)
+}
+
+fn save_folder(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Str(
+        crate::save::folder(eng).to_string_lossy().into_owned(),
+    ))
+}
+
+fn user_data_dir_of_project(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let dir = user_data_dir_named(eng, text(args, 0)?);
+    Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 
 fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {

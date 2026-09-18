@@ -241,7 +241,7 @@ rect = [8, 4, 16, 28]
 
 Files: `animations/`. Used by: `state_machine.machine`.
 
-Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips, each `[[transitions]]` entry names `from`, `to`, `fade`, `advance`, `switch` and `condition`.
+Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.
 
 ```toml
 type = "state_machine"
@@ -249,15 +249,41 @@ start = "idle"
 
 [states]                         # state = clip in the player's library; "" is the state's own name
 idle = "idle"
-walk = "walk_cycle"
+
+[states.move]                    # a nested machine: its states are move/walk and move/run
+start = "walk"
+states = { walk = "", run = "run_cycle" }
 
 [[transitions]]
 from = "idle"
-to = "walk"
+to = "move"                      # entering a nested machine enters its start
 fade = 0.2                       # seconds
+ease = "in_out_sine"             # the curve the fade follows; linear by default
 advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
 switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
+check = "can_move"               # a script method that has to answer true, asked each frame
+priority = 1                     # lower wins among auto transitions and on travel
+reset = true                     # false resumes where the state was last left
+break_loop = false               # true holds a looping clip's end while it fades out
+
+[[transitions]]
+from = "move"                    # leaves from any state inside the nested machine
+to = "end"
+fade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
+```
+
+### `texture`
+
+Files: `textures/`. Used by: `mesh.texture`, `particles.texture`, `polygon.texture`, `shape2d.texture`, `sprite.texture`.
+
+An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
+
+```toml
+type = "texture"
+source = "art/hero.png"
+filter = "nearest"                # this use crisp, the sidecar's smooth
+pixels_per_unit = 32
 ```
 
 ### `tileset`
@@ -377,7 +403,13 @@ premultiply = true
 
 Settings change pixels and samples, never sizes. A headless run reads
 them for nothing and computes the same world, so turning mipmaps on
-cannot move a replay or a network session.
+cannot move a replay or a network session. The two exceptions, an
+SVG's `scale` and a model's `scale`, are read by every build alike.
+
+A texture is a PNG, WebP, JPEG or SVG. An SVG is rasterized at its
+`scale`, and an export writes the raster into the pack under the SVG's
+own name, so a shipped game never needs the rasterizer. Text inside an
+SVG is not drawn; convert it to paths.
 
 ### Texture keys
 
@@ -390,17 +422,96 @@ cannot move a replay or a network session.
 | `mipmaps` | `true`, `false` | `false` | Build the smaller copies a texture drawn small samples, which stops it shimmering. |
 | `mipmap_filter` | `linear`, `nearest` | `linear` | Between mip levels, read only when `mipmaps` is on. |
 | `anisotropy` | `1` to `16` | `1` | Samples per fetch on a surface seen edge-on. Needs every filter `linear`. |
-| `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant; a sprite, a sheet and a tile measure by it. |
 | `srgb` | `true`, `false` | `true` | Off for a normal map or a mask, which carry data rather than colour. |
 | `premultiply` | `true`, `false` | `false` | Scale colour by alpha at upload, so a soft edge blends with no dark fringe. |
-| `recode` | `keep` | unset | Ship this file's own bytes whatever `[export]` says. |
+| `bleed` | `true`, `false` | on for colour sampled `linear` | Spread the edge colour into fully transparent texels, so a linear filter never samples a dark or white fringe. |
+| `normal_map` | `true`, `false` | `false` | A normal map: data rather than colour, so `srgb` is off unless set. |
+| `flip_green` | `true`, `false` | `false` | Invert green, for a normal map baked the way DirectX reads one. |
+| `scale` | a number | `1` | Pixels per unit when an SVG is rasterized. A raster ignores it. |
+| `pixels_per_unit` | a number | `100` | Texture pixels to one world unit, for a sprite whose own `pixels_per_unit` is `0`. |
+| `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant or caps it at `max_size`; a sprite, a sheet and a tile measure by it. |
+| `recode` | `keep`, `webp`, `quantised` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |
+| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantised. |
 
 A value nothing knows reads as the default rather than refusing the
 texture, because a settings file is written by hand. `anisotropy`
 above `1` is dropped with a warning when a filter is `nearest`, which
 is a pair no GPU samples. `premultiply` is honoured on 2D nodes, which
 carry the blend mode that matches it; a 3D mesh draws the same image
-straight.
+straight. The UI draws a picture with the same filter and wrap.
+
+### Audio keys
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `volume` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |
+| `loop` | `true`, `false` | `false` | Loop the file wherever it is played, whatever the caller asked. |
+| `loop_offset` | seconds | `0` | Where each repeat starts, so an intro plays once. |
+| `mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
+| `max_rate` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
+| `recode` | `keep`, `flac`, `vorbis` | `[export] audio` | How an export re-encodes this file alone. |
+| `quality` | `-0.1` to `1` | `[export] audio_quality` | libvorbis's quality when this file is re-encoded as Vorbis. |
+
+### Font keys
+
+A project's own faces under `fonts/` read these; the UI applies them.
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `family` | `ui`, `heading`, `mono`, `icons` | the file name's prefix | The family this face joins. |
+| `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |
+| `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |
+| `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |
+| `antialias` | `true`, `false` | `true` | Off draws every glyph pixel fully on or off, for a pixel face. Labels, buttons and world text drawn at its own size show it; egui's own text and magnified world text stay smooth. |
+
+### Model keys
+
+| Key | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `scale` | a number or `[x, y, z]` | `1` | The model's units to the scene's: `0.01` for a file modelled in centimetres. A negative axis mirrors it and keeps its faces outward. |
+| `offset` | `[x, y, z]` | `[0, 0, 0]` | Where the model's origin moves to, after `scale`. |
+| `lods` | `0` to `6` | `0` | Simpler copies built at load, each with half the triangles of the one before. |
+| `lod_distance` | world units | `20` | Where the first simpler copy takes over from the camera; each further one at twice it. |
+
+`scale` and `offset` apply to the geometry a `mesh` reads, so a
+collider built from it agrees. Levels of detail only change what is
+drawn. A skinned or morphing mesh gets neither, since its vertices move.
+
+### Texture assets
+
+A texture property takes a plain image path, which reads the image
+with its sidecar. For one use of a picture that should read it
+differently, name a `texture` asset instead: a `textures/*.toml` file,
+an `[[assets]]` block or an inline table. Its keys win over the
+image's sidecar.
+
+```toml
+[nodes.sprite]
+texture = { source = "art/hero.png", filter = "nearest" }
+```
+
+The Import tab edits a `textures/*.toml` file in place. An export
+decides a cap or a re-encode from the image's own sidecar.
+
+### At export
+
+`[export] max_size` caps the longer side of every image, in pixels.
+Set it per target under `[override.<tag>.export]`, so a phone ships a
+smaller art set than a desktop. A capped image records its original
+`size`, so a sprite keeps its extent. Pixel art, a bitmap font's page
+and a file with `recode = "keep"` are never capped.
+
+A file beside its variant, `hero.png` and `hero.web.png`, ships
+whichever the target answers to under the first name. `balaur shrink`
+writes such copies.
+
+### Atlases
+
+`balaur atlas <folder> --name hero` packs loose frames onto one page.
+It writes `art/hero.webp`, a `sprite_sheet` with every frame, and a
+clip per run of numbered frames. `walk_01.png` and `walk_02.png` are
+the run `walk`; a picture alone is a one-frame tag of its own name.
+`balaur import file.gif` packs a GIF's frames the same way.
 
 The Import tab in the editor writes the sidecar, one row per key,
 each saying whether the value is the file's own, the project's or the

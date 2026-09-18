@@ -59,6 +59,9 @@ pub struct ExportConfig {
     /// imagequant's 0-100 quality target, which `images = "quantised"` reads
     /// and every other mode ignores.
     pub images_quality: u8,
+    /// The longest side an image ships at, in pixels; 0 ships every one at
+    /// its own size. Per target through `[override.<tag>.export]`.
+    pub max_size: u32,
     /// `keep` or `subset`: whether a font is cut down to the characters the
     /// project's scenes and scripts name.
     pub fonts: crate::recode::FontMode,
@@ -101,6 +104,7 @@ impl Default for ExportConfig {
             tags: Vec::new(),
             images: crate::recode::ImageMode::Keep,
             images_quality: crate::recode::DEFAULT_IMAGES_QUALITY,
+            max_size: 0,
             fonts: crate::recode::FontMode::Keep,
             font_ranges: Vec::new(),
             font_keep: Vec::new(),

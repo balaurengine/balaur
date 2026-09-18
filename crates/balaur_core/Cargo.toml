@@ -9,6 +9,11 @@ authors.workspace = true
 [build-dependencies]
 balaur_cfg.workspace = true
 
+[features]
+# SVG textures rasterized at their `scale`. Off in a game template: an export
+# has already written the raster into the pack.
+svg = ["dep:resvg"]
+
 [dependencies]
 hecs.workspace = true
 glamx.workspace = true
@@ -51,6 +56,11 @@ i_overlay = "8"
 # `balaur_text`'s glyph filler goes through that. `i_overlay`'s sibling.
 i_triangle = "0.48"
 base64 = "0.23"
+# `pixels`: one decoder for the renderer, the UI and the exporter.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+resvg = { version = "0.48", default-features = false, optional = true }
+# A model's simpler copies, generated at load; pure Rust, so a browser runs it.
+meshopt-rs = { version = "0.1", features = ["experimental"] }
 
 [dev-dependencies]
 tempfile = "3"
@@ -69,3 +79,8 @@ web-sys = { version = "0.3", features = ["console", "Window"] }
 # install id can draw there, since `std::process::id` panics on that target.
 [target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
 js-sys = "0.3"
+
+# The shared-memory web build's workers, for `task::compute`: the pool the page
+# starts through `wasm-bindgen-rayon`, since `std::thread` cannot spawn there.
+[target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
+rayon = "1"

@@ -149,7 +149,13 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         let data = match system_static_bytes(&face.name) {
             Some(bytes) => egui::FontData::from_static(bytes),
             None => egui::FontData::from_owned((*face.bytes).clone()),
-        };
+        }
+        .tweak(egui::FontTweak {
+            scale: face.tweak.scale,
+            y_offset_factor: face.tweak.y_offset,
+            hinting: face.tweak.hinting,
+            ..egui::FontTweak::default()
+        });
         fonts
             .font_data
             .insert(face.name.clone(), std::sync::Arc::new(data));

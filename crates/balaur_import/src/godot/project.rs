@@ -15,6 +15,9 @@ use crate::godot::{Document, Value};
 /// A converted project, and what would not convert.
 pub(crate) struct Converted {
     pub project_toml: String,
+    /// `godot_settings.rn`: every plain setting `project.godot` holds, which
+    /// a converted `ProjectSettings.get` reads.
+    pub settings_module: String,
     /// One line per thing that did not carry, for the import report.
     pub notes: Vec<String>,
 }
@@ -80,8 +83,32 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     }
     Ok(Converted {
         project_toml: out,
+        settings_module: settings_module(document),
         notes,
     })
+}
+
+/// Every string, number and bool `project.godot` sets, under Godot's own
+/// `section/key` path, as a Rune module the shim's `project_setting` asks.
+fn settings_module(document: &Document) -> String {
+    let mut arms = String::new();
+    for section in &document.sections {
+        for (key, value) in &section.fields {
+            let literal = match value {
+                Value::Bool(b) => b.to_string(),
+                Value::Int(n) => n.to_string(),
+                Value::Float(f) if f.is_finite() => format!("{f:?}"),
+                Value::Str(text) | Value::Name(text) => crate::godot::gdscript::quoted(text),
+                _ => continue,
+            };
+            let path = crate::godot::gdscript::quoted(&format!("{}/{key}", section.kind));
+            let _ = writeln!(arms, "        {path} => {literal},");
+        }
+    }
+    format!(
+        "// Written by `balaur import` from project.godot: what `ProjectSettings`\n\
+         // answered there.\n\npub fn setting(path) {{\n    match path {{\n{arms}        _ => (),\n    }}\n}}\n"
+    )
 }
 
 /// The font file `gui/theme/custom_font` names, project-relative: the file

@@ -9,6 +9,8 @@ mod common;
 mod api;
 mod authoring;
 mod clip;
+mod constants;
+mod crossfade;
 mod ease;
 mod machine;
 mod modifier;

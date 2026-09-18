@@ -19,9 +19,11 @@ tabs are one full-width bar (`chrome::top_bar`); the status strip is the bottom
 dock's foot; a side dock minimises to a 32 px handle.
 
 Regenerate the PNGs into `target/uiaudit/` with `scripts/uiaudit.sh`, or one with
-`scripts/uiaudit.sh 03-script`. Captures are offscreen at 1600 × 1000 device px,
-`ui_scale` 1.25, so the shell lays out at 1280 × 800 design px — one notch above
-the 1240 px compact threshold. The screenshots are regenerated; the prose is not.
+`scripts/uiaudit.sh 03-script`. Captures are offscreen at 1920 × 1080 device px
+(`OFFSCREEN_SIZE`), `ui_scale` 1.25, so the shell lays out at 1536 × 864 design
+px, above the 1240 px compact threshold. `29`, `30` and `38`–`41` change the
+scale or the size on purpose. The screenshots are regenerated; the prose is
+not.
 
 ---
 
@@ -89,6 +91,12 @@ mark menu without changing persona. Selection is persona-independent.
 | inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, animation/bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |
 | panels open | scene outline · output problems assets · inspector import | scene outline · output problems docs debugger · inspector | scene outline · timeline output library · inspector | scene · output problems profiler · inspector | scene outline · output problems assets · inspector import |
 | screenshot | `01-scene-3d`, `02-scene-2d` | `03-script` | `04-animate` | `05-physics` | `06-interface` |
+
+The Scene persona in other states: `08` is the light theme, `09` a game playing
+in the viewport with its HUD and a recording running, `22` the same logo drawn
+plain and through a material's shader, `23` a 3D skin on three
+bones, `34` a selected spot light with its cone, and `35` the pen tool at 45 %.
+`21` is the Animate persona with the bone tool.
 
 ---
 
@@ -273,6 +281,33 @@ state draws the rows as a sheet: no offscreen run can click a popup open.
 | Plugin window | `plugins::draw_windows` — `ui::window`, floating | `19` | `--state counterdemo` |
 | Node context menu | `left::tree_row`'s `menu:` — add child, attach script, duplicate, delete | — | right-click |
 | Showcase driver | `showcase::draw` — scripted input for the manual's clips | — | `--state show:<name>` |
+| Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state fontdemo` |
+
+---
+
+## 7b. Folded, moved and resized
+
+The same shell with a dock taken away, a panel moved, the scale raised or the
+screen changed. `layout.rn` computes every rect from the room left, so none of
+these has code of its own; the shots are what proves the rects still add up.
+
+| Shot | State | What changes |
+| --- | --- | --- |
+| `26` | `shut:left,shut:right` | Both side docks fold to their 32 px handles in the top corners; the tool rail moves to the left edge and the bottom dock spans the full width. |
+| `27` | `move:output:left,move:assets:right` | Output joins the left dock's tabs and Assets the right's (`docks::move_to`); the bottom dock keeps Problems and Counter. See D25. |
+| `29` | `scale:1.8` | 1067 design px, under `COMPACT_W`: the persona and bar labels fold to icons, and the dock's filter and level pills drop out. |
+| `30` | `scale:2.4` | 800 design px: the tool rail goes to two columns, the viewport keeps two of its chips, and the side docks hold their widths while the stage narrows to about 250 design px. |
+
+`38`–`41` set the framebuffer with `--size`, and the last three add `--touch`,
+which raises the scale to the 44 px touch target. The classes are
+[PLAN-responsive.md](PLAN-responsive.md)'s.
+
+| Shot | Size | Classes | What changes |
+| --- | --- | --- | --- |
+| `38` | 1920 × 1080 | `pointer`, `wide`, `tall` | Nothing: the default shell, as `01`. |
+| `39` | 834 × 1194, touch | `touch`, `medium`, `tall` | Persona labels fold to icons, both side docks fold to handles, and the bottom dock runs the full width. |
+| `40` | 390 × 844, touch | `touch`, `narrow`, `tall` | The bottom dock folds to a ▲ chip beside the zoom reading; the top bar ends after the fourth persona. See D24. |
+| `41` | 844 × 390, touch | `touch`, `medium`, `short` | The bottom dock folds away and the tool rail goes to two columns; the top bar is cut at the right edge. |
 
 ---
 
@@ -283,7 +318,7 @@ dropped as they are fixed; git holds them.
 
 | # | Defect | Where | Seen in |
 | --- | --- | --- | --- |
-| D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `Angular damping`, `Center of mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
+| D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `Angular damping`, `Center of mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20`, `34` |
 | D10 | **The Script persona's inspector is ~500 px of nothing** between Events and Add component. | `inspector::draw` | `03`, `12` |
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
@@ -292,6 +327,11 @@ dropped as they are fixed; git holds them.
 | D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.rn` overwrites `S.compact` from the window width every frame. | `editor.rn:init`, `settings.rn` | any |
 | D22 | **Showcase clicks land off-target.** `showcase.rn` measures its spots off the pre-Stage shell (`ROW = 27` against the tree's 23 px rows, tabs at `y = 27`), so the drawn cursor misses the control the verb drives in every clip. | `showcase.rn` | `--state show:*` |
 | D23 | **`settings?<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.rn`, `search.rn` | `--state settings?theme` |
+| D24 | **The top bar clips instead of folding on a narrow screen.** At 390 px the bar ends after the fourth persona: Interface, play, pause, stop and the command pill are not drawn, so a phone cannot start the game from the bar. At 844 × 390 the last control is cut at the edge. | `chrome::top_bar` | `40`, `41` |
+| D25 | **A moved panel draws in the wrong dock.** Output moved to the left dock shows an empty body; Assets moved to the right draws its toolbar there and its cards in the bottom dock, under the Problems tab. | `docks::move_to`, `dock::draw` | `27` |
+| D26 | **Whatever draws at the top of the stage sits under the viewport's chip strip.** The font sheet's `FONT COVERAGE` and a playing game's `Score 0` overdraw `3D · Perspective` and `2D · Orthographic`. | `center::viewport`'s chips | `09`, `28` |
+| D27 | **Bone names overdraw each other.** A chain's labels sit at their joints at one size, so `Plume`, `Plume2`, `Plume3`, `Elbow` and `Hand` pile into one unreadable block. | `rig.rn` | `21` |
+| D28 | **Deep tree rows clip names mid-word.** Past the fifth level the row runs out of width and cuts `Plume2` to `Plum` and `Hand` to `Ha`, with no ellipsis. | `left::tree_row` | `21` |
 
 ### Where the measurements live
 

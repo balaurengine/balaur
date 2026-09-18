@@ -706,6 +706,7 @@ fn states() {
         "layoutdemo": crate::selftest::layout,
         "manager": crate::manager::open,
         "examples": crate::manager::open_examples,
+        "about": crate::about::open,
         "engine": crate::manager::open_versions,
         "newproject": crate::manager::open_new,
         "versions": crate::manager::open_versions,
@@ -719,6 +720,7 @@ fn states() {
         "polydemo": crate::selftest::polygons,
         "weightdemo": crate::selftest::weighting,
         "bonemapdemo": crate::selftest::bonemap_panel,
+        "machinedemo": crate::statemachine::selftest,
         "ragdolldemo": crate::selftest::physical_bones,
         "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
@@ -769,6 +771,7 @@ fn prefixed_states() {
         ("asset:", state_asset),
         ("import:", state_import),
         ("imports:", state_imports),
+        ("convert:", state_convert),
         ("tab:", state_tab),
         ("shut:", state_shut),
         ("scale:", state_scale),
@@ -960,13 +963,20 @@ fn state_import(S, path) {
 }
 
 // `imports:<path>;<path>`: several imports, one a frame from `IMPORTS_FROM`,
-// so a picture taken at frame 60 catches them at different stages.
+// so a picture taken at frame 60 has the list of all of them.
 const IMPORTS_FROM = 57;
 
 fn state_imports(S, list) {
     crate::docks::show(S, "assets");
     S.import_queue = list.split(';').collect::<Vec>();
     S.import_from = IMPORTS_FROM;
+}
+
+// `convert:<folder>`: the start screen converting a project as Import project
+// does, into the editor's own data folder and left off the recent list.
+fn state_convert(S, folder) {
+    S.manager.parent = engine::user_data_dir();
+    crate::manager::convert(S, folder, |S, path| project::forget(path));
 }
 
 fn state_mode(S, mode) {

@@ -69,7 +69,7 @@ base64 -w0 release.jks                  # Linux
 | `linux-x64`, `linux-arm64` | nothing; a Linux download is verified by its provenance attestation | any |
 | `windows-x64`, `windows-arm64` | `windows-certificate` and its password, or an Azure Trusted Signing metadata JSON for a cloud HSM | any; a non-Windows runner signs through `osslsigncode` |
 | `macos-universal` | `macos-certificate`, `macos-identity`, and the three `notary-*` inputs to notarize | macOS |
-| `ios` | `ios-certificate`, `ios-identity`, `ios-profile`; `ipa: true` for TestFlight | macOS |
+| `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-profile`; `ipa: true` for TestFlight | macOS |
 | `android` | `android-keystore`, `android-key` and the passwords; without them it is signed with Android's debug identity and ships nowhere. `bundletool` as well for the AAB Play takes, which the SDK does not carry | any with the SDK and a JDK |
 | `web` | nothing; a browser trusts the origin | any |
 
