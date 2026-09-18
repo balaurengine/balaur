@@ -1,0 +1,86 @@
+// Every machine runs this the same way: each tick moves every ship by what
+// its slot pressed, read back with `rollback::input`. Only a machine's own
+// input comes from its own keys, or from a fixed pattern under `-- auto`.
+
+const SPEED = 3.0;
+const REPORT_EVERY = 300;
+// Where an `auto` run stops by itself.
+const AUTO_TICKS = 900;
+
+pub fn init(this) {
+    this.auto = false;
+    for arg in engine::args() {
+        if arg == "auto" {
+            this.auto = true;
+        }
+    }
+    render::set_background(0.06, 0.07, 0.09);
+    render::set_camera_2d(0.0, 0.0, 120.0);
+    let me = multiplayer::local_player();
+    let text = `You are player ${me + 1}. The arrow keys move your square.`;
+    this.node.get_node("Hud").patch_component("widget", #{ text: text });
+}
+
+pub fn fixed_update(this, dt) {
+    if multiplayer::state() != multiplayer::STATE_PLAYING {
+        return;
+    }
+    let tick = multiplayer::tick();
+    if this.auto {
+        multiplayer::set_input(autopilot(tick));
+    } else {
+        multiplayer::set_input(keys());
+    }
+    for player in multiplayer::players() {
+        let slot = player["slot"];
+        let pressed = rollback::input(slot);
+        if pressed is Object {
+            let ship = this.node.get_node(`Ship${slot}`);
+            let at = ship.transform.position;
+            let x = at.x + pressed["x"] * SPEED * dt;
+            let y = at.y + pressed["y"] * SPEED * dt;
+            ship.transform.position = [x, y, 0.0];
+        }
+    }
+    if tick % REPORT_EVERY == 0 && !rollback::is_resimulating() {
+        log::info(`played ${tick} ticks`);
+        if this.auto && tick >= AUTO_TICKS {
+            engine::quit(0);
+        }
+    }
+}
+
+pub fn on_multiplayer_event(this, e) {
+    let kind = e["kind"];
+    if kind == multiplayer::EVENT_DESYNC {
+        let tick = e["tick"];
+        log::error(`the machines disagree from tick ${tick}`);
+    } else if kind == multiplayer::EVENT_LEFT {
+        let name = e["name"];
+        log::info(`${name} left; their square stays where it is`);
+    } else if kind == multiplayer::EVENT_CLOSED {
+        let reason = e["reason"];
+        log::info(`the match ended: ${reason}`);
+        if this.auto {
+            engine::quit(0);
+        }
+    }
+}
+
+fn keys() {
+    #{ x: input::action_value("move_x"), y: input::action_value("move_y") }
+}
+
+// A square walk, each player a quarter turn behind the other.
+fn autopilot(tick) {
+    let side = (tick / 90 + multiplayer::local_player()) % 4;
+    if side == 0 {
+        #{ x: 1.0, y: 0.0 }
+    } else if side == 1 {
+        #{ x: 0.0, y: 1.0 }
+    } else if side == 2 {
+        #{ x: -1.0, y: 0.0 }
+    } else {
+        #{ x: 0.0, y: -1.0 }
+    }
+}

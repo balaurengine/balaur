@@ -110,10 +110,12 @@ fn the_camera_can_be_aimed_and_its_pose_read() {
     run_clean(
         r#"
         render::set_camera(1.0, 2.0, 3.0, 0.0, 0.0, 0.0);
-        let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+        let (ex, ey, ez, tx, ty, tz, _, dpi) = render::camera_pose();
         for v in [ex, ey, ez, tx, ty, tz] {
             assert!(v is f64, "camera_pose returned a non-number");
         }
+        // Screen maths divides by it; a zero made the editor's pointer NaN.
+        assert!(dpi == 1.0, "a headless scale should be one");
         assert!(render::camera_matrix() is Vec);
         "#,
     );
@@ -158,10 +160,14 @@ fn debug_lines_can_be_drawn_in_both_dimensions() {
 
 #[test]
 fn a_missing_app_icon_does_not_take_the_frame_down() {
-    let (_app, errors) = run(r#"render::set_app_icon("no/such/icon.png");"#);
+    let (_app, errors) = run(r#"window::set_app_icon("no/such/icon.png");"#);
     assert!(
         errors.iter().all(|e| !e.contains("panic")),
         "a missing icon panicked: {errors:#?}"
+    );
+    assert!(
+        errors.iter().any(|e| e.contains("no/such/icon.png")),
+        "the call never reached the icon: {errors:#?}"
     );
 }
 

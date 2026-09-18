@@ -1080,6 +1080,14 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         value::to_neutral(&out)
     }
 
+    fn keep(&self, callback: balaur_script::CallbackId) -> Result<()> {
+        bindings::keep_callback(callback)
+    }
+
+    fn release(&self, callback: balaur_script::CallbackId) {
+        bindings::release_callback(callback);
+    }
+
     fn call_in(
         &self,
         path: &str,

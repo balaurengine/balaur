@@ -23,12 +23,12 @@ const HOST: u32 = 1;
 const GUEST: u32 = 2;
 
 /// One end of an in-memory link: what this end writes, the other end reads.
-struct Pipe {
+pub(crate) struct Pipe {
     outbound: Rc<RefCell<VecDeque<Received>>>,
     inbound: Rc<RefCell<VecDeque<Received>>>,
 }
 
-fn pipe() -> (Pipe, Pipe) {
+pub(crate) fn pipe() -> (Pipe, Pipe) {
     let one = Rc::new(RefCell::new(VecDeque::new()));
     let two = Rc::new(RefCell::new(VecDeque::new()));
     (

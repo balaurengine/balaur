@@ -2,7 +2,8 @@
 > 2026-09-02, and most of §3 with them — the filesystem verbs, the Assets
 > dock's create, rename and delete, node copy and paste, `ui::central_rect`,
 > `ui::color`, `script::functions`, `script::shared` and `render::pick_ray`.
-> Plugins load from `editor/plugins/` and `<game>/editor/`, with
+> Plugins load from `editor/plugins/`, `<game>/editor/` and each
+> `<game>/addons/<name>/editor/`, with
 > `editor/plugins/counter.rn` as the worked example the e2e suite runs. What
 > is left is below; see [generated/](generated/) for what the code does.
 

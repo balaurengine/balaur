@@ -19,14 +19,18 @@ fn core_defines_settings_in_both_scopes() {
     let all = all.borrow();
     let paths: Vec<&str> = all.0.iter().map(|d| d.path.as_str()).collect();
     assert!(paths.contains(&"application/name"));
-    assert!(paths.contains(&"netcode/faults"));
-    let faults = all.0.iter().find(|d| d.path == "netcode/faults").unwrap();
+    assert!(paths.contains(&"multiplayer/faults"));
+    let faults = all
+        .0
+        .iter()
+        .find(|d| d.path == "multiplayer/faults")
+        .unwrap();
     assert_eq!(
         faults.scope,
         Scope::Editor,
         "fault injection is a developer's tool, not something a game ships"
     );
-    assert_eq!(faults.category(), "netcode");
+    assert_eq!(faults.category(), "multiplayer");
     assert_eq!(faults.label(), "faults");
 }
 
@@ -56,12 +60,16 @@ fn a_nested_path_reads_and_writes_where_it_says() {
 fn a_setting_falls_back_to_its_schema_default() {
     let app = app();
     assert_eq!(
-        settings::get(&app.engine, "netcode/faults"),
+        settings::get(&app.engine, "multiplayer/faults"),
         Some(toml::Value::Boolean(false))
     );
-    settings::set(&app.engine, "netcode/faults", toml::Value::Boolean(true));
+    settings::set(
+        &app.engine,
+        "multiplayer/faults",
+        toml::Value::Boolean(true),
+    );
     assert_eq!(
-        settings::get(&app.engine, "netcode/faults"),
+        settings::get(&app.engine, "multiplayer/faults"),
         Some(toml::Value::Boolean(true))
     );
 }
@@ -116,7 +124,11 @@ kept = true
 #[test]
 fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
-    settings::set(&app.engine, "netcode/faults", toml::Value::Boolean(true));
+    settings::set(
+        &app.engine,
+        "multiplayer/faults",
+        toml::Value::Boolean(true),
+    );
     let written = settings::to_toml(
         &app.engine,
         Scope::Project,
@@ -124,12 +136,12 @@ fn an_editor_setting_stays_out_of_the_manifest() {
     )
     .unwrap();
     assert!(
-        !written.contains("netcode"),
+        !written.contains("faults"),
         "an editor-scope page must not be written to project.toml: {written}"
     );
     let prefs = settings::to_toml(&app.engine, Scope::Editor, "").unwrap();
     assert!(
-        prefs.contains("netcode"),
+        prefs.contains("faults"),
         "it belongs in the editor's own file"
     );
 }
@@ -159,14 +171,18 @@ help = "Whether it rains.""#,
 }
 
 #[test]
-fn the_netcode_page_produces_the_faults_it_describes() {
+fn the_multiplayer_page_produces_the_faults_it_describes() {
     let app = app();
     assert!(
         settings::faults(&app.engine).is_none(),
         "off by default: a link misbehaves only when asked"
     );
-    settings::set(&app.engine, "netcode/faults", toml::Value::Boolean(true));
-    settings::set(&app.engine, "netcode/delay", toml::Value::Float(9.0));
+    settings::set(
+        &app.engine,
+        "multiplayer/faults",
+        toml::Value::Boolean(true),
+    );
+    settings::set(&app.engine, "multiplayer/delay", toml::Value::Float(9.0));
     let faults = settings::faults(&app.engine).expect("turned on");
     assert_eq!(faults.delay, 9);
 }

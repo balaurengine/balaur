@@ -133,7 +133,7 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
         held.system_text_size = settings.system_text_size;
     }
     // Seeded, not owned: `ui.set_scale` changes it afterwards, the way
-    // `render.set_window_mode` changes what `[window] mode` opened with. And
+    // `window.set_window_mode` changes what `[window] mode` opened with. And
     // a script that already asked in its `init` is not overwritten by it.
     let config = eng.resource::<UiConfig>();
     let mut config = config.borrow_mut();
@@ -305,6 +305,33 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     pacing::note_pass(eng, started.elapsed());
 }
 
+/// The UI pass with no window: the one a windowed backend makes, at its
+/// pace, on a screen `width` by `height` points that nothing paints. What
+/// lets a headless editor run the checks that read its own shell.
+pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) {
+    honour_lazy(&app.engine);
+    let ctx = egui::Context::default();
+    app.add_system(balaur_core::Stage::Render, move |eng, _| {
+        if !wants_pass(eng, &ctx, false, false) {
+            return;
+        }
+        let scale = eng
+            .try_resource::<UiConfig>()
+            .map_or(1.0, |config| config.borrow().scale);
+        ctx.set_zoom_factor(scale);
+        ctx.begin_pass(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(width, height),
+            )),
+            ..Default::default()
+        });
+        run_pass(eng, &ctx);
+        // A renderer uploads these; unapplied, the next pass panics.
+        ctx.end_pass().textures_delta.clear();
+    });
+}
+
 fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
@@ -316,8 +343,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             // frame of drawing so widgets never see unbound families.
             let faces = balaur_text::fonts::font_faces(eng);
             theme::load_fonts(ctx, &faces);
-            let locale = balaur_core::strings::locale(eng);
-            eng.insert_resource(balaur_text::TextState::new(&faces, &locale));
+            balaur_text::shaper(eng);
             state.fonts_installed = true;
             // A host that reruns the pass (`Context::will_discard`) draws
             // this frame with the fonts bound.

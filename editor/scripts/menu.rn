@@ -19,6 +19,7 @@ pub fn rows(S) {
         action(icons::ui("search"), "Command palette", "⌘K", |_| { shell::open_palette(S, ""); }),
         action(icons::ui("settings"), "Settings", "⌘,", |_| { crate::settings::open(S); }),
         action(icons::ui("export"), "Export", "⌘E", |_| { crate::exporter::open(S); }),
+        action(icons::ui("about"), "About Balaur", "", |_| { crate::about::open(S); }),
         rule(),
         #{ kind: "label", role: "menu_heading", text: "PANELS", width: ROW_W },
     ];

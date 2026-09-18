@@ -20,10 +20,12 @@ mod apple;
 mod bundle;
 mod config;
 mod extensions;
+pub mod preview;
 pub mod recode;
 pub mod settings;
 mod sign;
 pub mod size;
+mod textures;
 mod variants;
 
 use apple::AppleConfig;
@@ -201,7 +203,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             folded.names.join(", ")
         );
     }
-    let summary = size::prepare(&mut pack, &config)?;
+    let summary = size::prepare_for(&mut pack, &config, &manifest)?;
     tracing::info!("\n{}", pack.report_with(&config.keep));
     if summary.total_saved() > 0 {
         tracing::info!("{summary}");

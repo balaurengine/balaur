@@ -34,15 +34,19 @@ pub fn count(S) {
 }
 
 /// The dock tab and the window draw the same thing; `k` is the active theme.
+/// `S.kit` is what the editor lends a plugin to draw with: its verbs are
+/// stored functions, so each is bound to a local and called.
 pub fn draw(S, k) {
-    ui::add_space(8);
+    let section = S.kit.section;
+    section(k, "Scripted nodes");
     let shown = S.plugins.counter.shown;
-    let text = if shown < 0 {
-        "run “Count scripted nodes” from the palette"
-    } else {
-        format!("{} scripted nodes", shown)
-    };
-    ui::label(text, #{ size: 11.5, font: ui::FONT_MONO, color: k.dim });
+    if shown < 0 {
+        let empty = S.kit.empty;
+        empty(k, "run “Count scripted nodes” from the palette");
+        return;
+    }
+    let field = S.kit.field;
+    field(S, k, "nodes", format!("{}", shown), #{ copy: true });
 }
 
 /// An inspector section, drawn after the built-in ones.

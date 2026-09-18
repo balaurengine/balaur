@@ -1,0 +1,13 @@
+// The User data dock: the files the open game keeps for its player, saves and
+// prefs among them, opened as structures and edited in place. What a game
+// played here writes lands in the same folder as the game run on its own.
+
+pub fn register() {
+    #{ docks: [#{ id: "userdata", name: "User data", draw: draw }] }
+}
+
+pub fn draw(S, k) {
+    ui::request_repaint();
+    let files = S.kit.files;
+    files(S, k, "userdata", #{});
+}

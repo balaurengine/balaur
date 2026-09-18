@@ -5,6 +5,7 @@
 //! re-simulation animate from the wrong time, and every body it pushes
 //! diverges from there.
 
+use balaur_anim::ease::Easing;
 use balaur_anim::{AnimationPlugin, AnimationState};
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
@@ -114,6 +115,42 @@ fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
         expected,
         "the same twenty steps from the same state have to land on the same bits"
     );
+}
+
+#[test]
+fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
+    let mut app = app();
+    let node = playing(&app, "n_platform", &rise("loop"));
+    let hold: toml::Value = toml::from_str(
+        r#"
+        length = 1.0
+        loop = "loop"
+        [[tracks]]
+        property = "position"
+        keys = [{ t = 0.0, value = [0.0, 5.0, 0.0] }, { t = 1.0, value = [0.0, 5.0, 0.0] }]
+        "#,
+    )
+    .unwrap();
+    balaur_anim::define(&app.engine, node, "hold", hold).unwrap();
+    let fades = |app: &App| {
+        app.engine.resource::<AnimationState>().borrow().players[&node]
+            .fades
+            .len()
+    };
+    tick(&mut app, 10);
+    balaur_anim::player::play_faded(&app.engine, node, "hold", 0.5, Easing::LINEAR, true).unwrap();
+    tick(&mut app, 5);
+    balaur_anim::player::play_faded(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
+    tick(&mut app, 2);
+    assert_eq!(fades(&app), 2);
+    let frame = snapshot::capture(&app.engine);
+    tick(&mut app, 20);
+    let expected = height(&app, node).to_bits();
+
+    snapshot::restore(&app.engine, &frame);
+    assert_eq!(fades(&app), 2, "both outgoing clips come back");
+    tick(&mut app, 20);
+    assert_eq!(height(&app, node).to_bits(), expected);
 }
 
 #[test]

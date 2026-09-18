@@ -654,7 +654,7 @@ fn animation_section(S, k) {
     row(S, k, "Loop", || {
         // The engine's own vocabulary, not a boolean: pingpong is a third
         // answer and a toggle cannot say it.
-        let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or("none"), ["none", "loop", "pingpong"], #{
+        let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or(animation::LOOP_NONE), [animation::LOOP_NONE, animation::LOOP_LOOP, animation::LOOP_PINGPONG], #{
             width: control_w(), size: style::MD, height: row_h(S), color: k.text,
         });
         if ch {
@@ -1593,7 +1593,7 @@ pub fn body(S, k) {
         skeleton_section(S, k);
         polygon_section(S, k);
         animation_section(S, k);
-        component_sections(S, k, Some(["animation", "bone2d", "bone3d", "polygon", "transform"]));
+        component_sections(S, k, Some(["animation", "state_machine", "bone2d", "bone3d", "polygon", "transform"]));
         script_section(S, k, "Script");
     } else if S.persona == "ui" {
         component_sections(S, k, Some(["widget"]));

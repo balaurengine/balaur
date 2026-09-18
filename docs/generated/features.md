@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,gamend,web,window` and links 381 crates.
+`--no-default-features --features audio,http,websocket,gamend,web,window` and links 394 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 `WEB_THREADS=1` builds the second template, which adds `parallel` to that
@@ -23,12 +23,13 @@ atomics only that build has.
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
-| `import` | on | off | `balaur import` and `import.*` for the editor. The web game template leaves it off: a game reads what an import wrote and never imports. | `aseprite-loader`, `balaur_import`, `quick-xml`, `strum`, `strum_macros`, `tiled`, … (9 crates) |
+| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game template leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `data-url`, `float-cmp`, `imagesize`, … (24 crates) |
+| `multiplayer` | on | off | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | `balaur_multiplayer` |
 | `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web template alone. | nothing |
 | `web` | on | on | `web.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_web` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec. | `balaur_websocket` |
 | `webtransport` | on | off | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `wgpu`, `winit`, … (61 crates) |
+| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `wgpu`, `winit`, … (58 crates) |
 
 ## What the web template resolves
 

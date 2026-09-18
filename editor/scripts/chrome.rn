@@ -47,6 +47,11 @@ fn icon_w(S) {
     row_h(S)
 }
 
+// Here rather than in editor.rn, whose own `window` module hides the engine's.
+pub fn set_app_icon() {
+    window::set_app_icon("assets/balaur-logo.png");
+}
+
 // The edited project's mark, when it ships one, else balaur's. A project
 // that brought its own logo gets its own name beside it too.
 fn brand_logo(S) {

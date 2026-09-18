@@ -22,6 +22,9 @@ thread_local! {
     static CALLBACKS: RefCell<Vec<(u64, rune::runtime::Function)>> =
         const { RefCell::new(Vec::new()) };
     static NEXT_CALLBACK: Cell<u64> = const { Cell::new(1) };
+    /// Callbacks a binding asked to hold past its call, until released.
+    static KEPT: RefCell<std::collections::BTreeMap<u64, rune::runtime::Function>> =
+        const { RefCell::new(std::collections::BTreeMap::new()) };
     /// Every function and constant declared through the seam, for the API
     /// dump: Rune's context cannot be walked from outside.
     static API: RefCell<Vec<ApiEntry>> = const { RefCell::new(Vec::new()) };
@@ -103,11 +106,25 @@ pub(crate) fn hold_callback(f: rune::runtime::Function) -> CallbackId {
 }
 
 pub(crate) fn lookup_callback(id: CallbackId) -> Option<rune::runtime::Function> {
-    CALLBACKS.with_borrow(|c| {
-        c.iter()
-            .find(|(held, _)| *held == id.0)
-            .and_then(|(_, f)| f.try_clone().ok())
-    })
+    CALLBACKS
+        .with_borrow(|c| {
+            c.iter()
+                .find(|(held, _)| *held == id.0)
+                .and_then(|(_, f)| f.try_clone().ok())
+        })
+        .or_else(|| KEPT.with_borrow(|k| k.get(&id.0).and_then(|f| f.try_clone().ok())))
+}
+
+/// Hold a live callback past the binding call that received it.
+pub(crate) fn keep_callback(id: CallbackId) -> anyhow::Result<()> {
+    let func = lookup_callback(id)
+        .ok_or_else(|| anyhow::anyhow!("callback kept after its call returned"))?;
+    KEPT.with_borrow_mut(|k| k.insert(id.0, func));
+    Ok(())
+}
+
+pub(crate) fn release_callback(id: CallbackId) {
+    KEPT.with_borrow_mut(|k| k.remove(&id.0));
 }
 
 /// Drops every callback registered since it was created.

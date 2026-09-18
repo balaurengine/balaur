@@ -28,6 +28,14 @@ impl SharedClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+
+    pub(crate) fn session(&self) -> Option<crate::client::Session> {
+        self.lock().session().cloned()
+    }
+
+    pub(crate) fn set_session(&self, session: Option<crate::client::Session>) {
+        self.lock().set_session(session);
+    }
 }
 
 pub(crate) fn spawn_login(

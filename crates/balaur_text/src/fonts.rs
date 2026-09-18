@@ -72,6 +72,58 @@ pub struct FontFace {
     /// `heading`, `ui`, `mono`, `icons`, or `system` for an OS face.
     pub chain: &'static str,
     pub bytes: std::sync::Arc<Vec<u8>>,
+    /// What the face's import settings adjust when the UI draws it.
+    pub tweak: FaceTweak,
+}
+
+/// A project face's `scale`, `y_offset` and `hinting`, from its sidecar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FaceTweak {
+    pub scale: f32,
+    /// A fraction of the size, positive downward.
+    pub y_offset: f32,
+    /// `None` follows the UI's own setting.
+    pub hinting: Option<bool>,
+    /// Off draws every glyph pixel fully on or off, for a pixel face.
+    pub antialias: bool,
+}
+
+impl Default for FaceTweak {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            y_offset: 0.0,
+            hinting: None,
+            antialias: true,
+        }
+    }
+}
+
+impl FaceTweak {
+    fn of(settings: &toml::Table) -> Self {
+        use balaur_core::import::{keys, number};
+        Self {
+            scale: (number(settings, keys::SCALE, 1.0) as f32).clamp(0.1, 10.0),
+            y_offset: (number(settings, keys::Y_OFFSET, 0.0) as f32).clamp(-1.0, 1.0),
+            hinting: settings.get(keys::HINTING).and_then(toml::Value::as_bool),
+            antialias: settings
+                .get(keys::ANTIALIAS)
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(true),
+        }
+    }
+}
+
+/// The chain a face's `family` names, or `None` for a word that names none.
+fn family_of(settings: &toml::Table) -> Option<&'static str> {
+    use balaur_core::import::{keys, word, words};
+    match word(settings, keys::FAMILY, "") {
+        words::UI => Some("ui"),
+        words::HEADING => Some("heading"),
+        words::MONO => Some("mono"),
+        words::ICONS => Some("icons"),
+        _ => None,
+    }
 }
 
 /// The faces the operating system ships, whichever of them are present,
@@ -92,6 +144,7 @@ fn system_cache() -> &'static [FontFace] {
                     name: format!("system:{path}"),
                     chain: "system",
                     bytes: std::sync::Arc::new(bytes),
+                    tweak: FaceTweak::default(),
                 })
             })
             .collect()
@@ -137,10 +190,13 @@ pub fn font_faces(eng: &Engine) -> Vec<FontFace> {
             let Ok(bytes) = files.read(&rel) else {
                 continue;
             };
+            // The sidecar's `family` beats the name's prefix.
+            let settings = balaur_core::import::resolved(eng, &rel);
             faces.push(FontFace {
                 name: stem.to_string(),
-                chain: chain_of(stem),
+                chain: family_of(&settings.settings).unwrap_or_else(|| chain_of(stem)),
                 bytes: std::sync::Arc::new(bytes),
+                tweak: FaceTweak::of(&settings.settings),
             });
             tracing::info!("ui: loaded font {stem}");
         }
@@ -169,6 +225,7 @@ fn fallback_face() -> FontFace {
         name: "ui-SourceSans3-Regular".into(),
         chain: "ui",
         bytes: std::sync::Arc::clone(bytes),
+        tweak: FaceTweak::default(),
     }
 }
 

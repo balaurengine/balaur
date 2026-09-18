@@ -75,7 +75,7 @@ that in those words, next to the flag.
 machine the player owns and can single-step. A score, an unlock or a match
 result that matters is written by a server that saw it happen:
 `docs/PLAN-gamend.md` §1 (leaderboard writes come from the game server, never
-from the client), `docs/PLAN-sessions.md` (server-ordered inputs and digest
+from the client), `docs/PLAN-multiplayer.md` (server-ordered inputs and digest
 verification). Nothing here changes what a client is trusted with, which is
 nothing.
 
@@ -156,7 +156,7 @@ Every measure a reader might ask about, and where each stands.
 | Code signing: `codesign`, notarization, Authenticode, `apksigner` | Have. It proves who built the file and that nobody changed it since; it hides nothing |
 | A SHA-256 per asset | Have. It catches a truncated or corrupt entry. It is not a defence: whoever edits an asset recomputes the hash with the same public function |
 | Build provenance | Have: `attest-build-provenance` on what a push to `main` exports |
-| GPU-compressed textures at export | `docs/PLAN-textures.md` step 3. A side effect worth naming: a KTX2 in the pack is no longer the artist's PNG |
+| GPU-compressed textures at export | Not planned: BC7 and ASTC ship bigger than the PNGs they replace. Were it built, a KTX2 in the pack would no longer be the artist's PNG |
 | Compression of the pack (`zstd`) | Not planned on its own; under the seal if web size asks. On its own it hides nothing from anyone with `zstd` installed |
 | Steam DRM wrapper | Not planned, as `docs/PLAN-steam.md` §2 says: it rewrites the executable the exporter appends a pack to |
 | Denuvo, VMProtect, Themida and other packers or virtualisers | Not planned. Each rewrites the executable, which breaks the trailer, the signature and the reproducible build, and each is a licensed product the engine cannot ship |

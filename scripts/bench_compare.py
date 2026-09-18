@@ -297,9 +297,9 @@ def physics_table(dim, results, godot, shots):
             else:
                 cells.append(f"{value:.2f} ms")
         label = f"**{name}**"
-        if found:
+        if found and found.get("body_count") is not None:
             label += f"<br />{found['body_count']} bodies"
-            if found["joint_count"]:
+            if found.get("joint_count"):
                 label += f", {found['joint_count']} joints"
         if (shots / f"{dim}_{name}.png").exists():
             label += f"<br />![{name}](/{IMAGES}/{dim}_{name}.png)"

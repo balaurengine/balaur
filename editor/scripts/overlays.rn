@@ -62,7 +62,7 @@ pub fn motion_path(S) {
     };
     let keys = None;
     for track in anim::tracks(def) {
-        if track.get("target").unwrap_or("") == "" && track.get("property") == Some("position") {
+        if track.get("target").unwrap_or("") == "" && track.get("property") == Some(animation::PROPERTY_POSITION) {
             keys = Some(util::vec(track.get("keys").unwrap_or([])));
         }
     }

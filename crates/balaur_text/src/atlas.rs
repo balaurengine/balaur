@@ -191,12 +191,14 @@ impl GlyphAtlas {
     }
 
     /// The slot for one glyph, rasterising it on first sight. `None` for a
-    /// glyph with no outline, a space or a control character.
+    /// glyph with no outline, a space or a control character. `hard` draws
+    /// its coverage fully on or off, for a face whose `antialias` is off.
     pub(crate) fn slot(
         &mut self,
         fonts: &mut FontSystem,
         swash: &mut SwashCache,
         key: CacheKey,
+        hard: bool,
     ) -> Option<Slot> {
         if let Some(slot) = self.slots.get(&key) {
             return *slot;
@@ -219,7 +221,8 @@ impl GlyphAtlas {
             SwashContent::Mask => image
                 .data
                 .iter()
-                .map(|&a| Color32::from_rgba_premultiplied(a, a, a, a))
+                .map(|&a| if hard { hard_edge(a) } else { a })
+                .map(|a| Color32::from_rgba_premultiplied(a, a, a, a))
                 .collect(),
             SwashContent::Color | SwashContent::SubpixelMask => image
                 .data
@@ -265,5 +268,24 @@ impl GlyphAtlas {
         self.cursor.0 += width;
         self.row_height = self.row_height.max(height);
         Some(at)
+    }
+}
+
+/// A glyph pixel's coverage with no edge between in and out: at least half
+/// covered is ink, anything less is paper.
+fn hard_edge(coverage: u8) -> u8 {
+    if coverage >= 128 { 255 } else { 0 }
+}
+
+#[cfg(test)]
+mod hard_edge_tests {
+    use super::hard_edge;
+
+    #[test]
+    fn a_hard_edge_is_ink_from_half_covered() {
+        assert_eq!(hard_edge(0), 0);
+        assert_eq!(hard_edge(127), 0);
+        assert_eq!(hard_edge(128), 255);
+        assert_eq!(hard_edge(255), 255);
     }
 }

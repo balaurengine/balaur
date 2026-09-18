@@ -22,7 +22,14 @@ digests="$out_dir/digests.txt"
 # Built once, then run directly. `cargo run` re-resolves the workspace and takes
 # the build lock on every call, and the loop below calls once per step.
 cargo build -q -p balaur_cli --bin balaur
-bin=${CARGO_TARGET_DIR:-target}/debug/balaur
+built=${CARGO_TARGET_DIR:-target}/debug/balaur
+# A copy of its own: another build writing target/debug/balaur mid-run would
+# swap the binary under every step still to come.
+exe=
+[ -f "$built.exe" ] && exe=.exe
+bin="$out_dir/bin/balaur$exe"
+mkdir -p "$out_dir/bin"
+cp "$built$exe" "$bin"
 balaur() { "$bin" "$@"; }
 
 # Linux has sha256sum, macOS has shasum, Git Bash on Windows has both.
@@ -51,6 +58,17 @@ check_run() { # check_run <label> <rc> <output>
     # ERROR line on lines of their own, and the first line alone says nothing.
     grep -A 12 'ERROR' <<<"$out" | head -40
     fail "$label logged errors"
+  fi
+  # A warning fails too, but for one a self-test provoked on purpose and named
+  # first (`expect_warning` in editor/scripts/selftest.rn).
+  local warned expected
+  warned=$(grep -E '\bWARN\b' <<<"$out" || true)
+  while IFS= read -r expected; do
+    [ -n "$expected" ] && warned=$(grep -vF -- "$expected" <<<"$warned" || true)
+  done < <(sed -n $'s/\x1b\\[[0-9;]*m//g; s/.*selftest expects the warning: //p' <<<"$out")
+  if [ -n "$warned" ]; then
+    printf '%s\n' "$warned" | head -20
+    fail "$label logged warnings"
   fi
 }
 

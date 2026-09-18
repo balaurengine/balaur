@@ -1,0 +1,50 @@
+# The match. Both machines load this, then the joiner takes on the host's
+# world as it stood after loading, so the first tick starts from one world.
+
+[[nodes]]
+id = "n_arena"
+name = "Arena"
+
+[nodes.script]
+source = "scripts/arena.rn"
+
+[[nodes]]
+id = "n_ship0"
+name = "Ship0"
+parent = "n_arena"
+
+[nodes.transform]
+position = [-2.0, 0.0, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.4, 0.4]
+corner_radius = 0.1
+color = "#e0653f"
+
+[[nodes]]
+id = "n_ship1"
+name = "Ship1"
+parent = "n_arena"
+
+[nodes.transform]
+position = [2.0, 0.0, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.4, 0.4]
+corner_radius = 0.1
+color = "#4a8fd4"
+
+# Says which ship is yours, so it reads differently on each machine. The
+# `local` tag keeps it out of the check that both machines agree.
+[[nodes]]
+id = "n_hud"
+name = "Hud"
+parent = "n_arena"
+tags = ["local"]
+
+[nodes.widget]
+kind = "label"
+text = ""
+anchor = "top_left"

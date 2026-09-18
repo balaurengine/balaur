@@ -56,8 +56,9 @@ fn flatten(S, kids, parent_id, depth) {
 }
 
 
-fn row(icon, name, meta, run) {
-    #{ icon: icon, name: name, meta: meta, run: run }
+// `key` tells apart two rows that read the same; it is never drawn.
+fn row(icon, name, meta, key, run) {
+    #{ icon: icon, name: name, meta: meta, key: key, run: run }
 }
 
 // Per-persona secondary contents, from real project data where it exists.
@@ -69,7 +70,7 @@ fn secondary_content(S) {
         for f in model::list(S, "scripts") {
             if !f.is_dir && f.name.ends_with(".rn") {
                 let rel = "scripts/" + f.name;
-                rows.push(row("‹›", f.name, format!("{} L", model::line_count(S, rel)), || {
+                rows.push(row("‹›", f.name, format!("{} L", model::line_count(S, rel)), rel, || {
                     for (i, node) in S.doc.iter().enumerate() {
                         if model::script_rel(node) == Some(rel) {
                             shell::choose(S, i);
@@ -93,13 +94,13 @@ fn secondary_content(S) {
             let collider = node.contains_key("collider3d") || node.contains_key("collider2d");
             if kind.is_some() || collider {
                 let dim = if node.contains_key("body2d") || node.contains_key("collider2d") { "2D" } else { "3D" };
-                rows.push(row("▣", node.name, format!("{} · {}", kind.unwrap_or("collider3d"), dim), || {
+                rows.push(row("▣", node.name, format!("{} · {}", kind.unwrap_or("collider3d"), dim), node.id, || {
                     shell::choose(S, i);
                 }));
             }
         }
         if rows.len() == 0 {
-            rows.push(row("▣", "no bodies or colliders", "", || {}));
+            rows.push(row("▣", "no bodies or colliders", "", "", || {}));
         }
         return ("Collision", rows);
     } else if S.persona == "anim" {
@@ -111,12 +112,13 @@ fn secondary_content(S) {
                     "◷",
                     if name == "" { node.name } else { name },
                     anim::library_path(node).unwrap_or("inline"),
+                    node.id,
                     || { shell::choose(S, i); },
                 ));
             }
         }
         if rows.len() == 0 {
-            rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", || {}));
+            rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", "", || {}));
         }
         return ("Clips", rows);
     } else if S.persona == "ui" {
@@ -128,13 +130,13 @@ fn secondary_content(S) {
             let widget_some = node.get("widget");
             if let Some(widget) = widget_some {
                 let kind = if widget is Object { widget.get("kind").unwrap_or("widget") } else { widget };
-                rows.push(row("▤", node.name, format!("{}", kind), || { shell::choose(S, i); }));
+                rows.push(row("▤", node.name, format!("{}", kind), node.id, || { shell::choose(S, i); }));
             } else if node.contains_key("script") && model::draws_ui(S, node) {
-                rows.push(row("‹›", node.name, "draw_ui", || { shell::choose(S, i); }));
+                rows.push(row("‹›", node.name, "draw_ui", node.id, || { shell::choose(S, i); }));
             }
         }
         if rows.len() == 0 {
-            rows.push(row("▤", "no widgets or draw_ui scripts", "", || {}));
+            rows.push(row("▤", "no widgets or draw_ui scripts", "", "", || {}));
         }
         return ("Interface", rows);
     } else {
@@ -142,7 +144,7 @@ fn secondary_content(S) {
         for f in model::list(S, "scenes") {
             if !f.is_dir {
                 let rel = "scenes/" + f.name;
-                rows.push(row("◇", f.name, if S.scene_rel == rel { "open" } else { "" }, || {
+                rows.push(row("◇", f.name, if S.scene_rel == rel { "open" } else { "" }, rel, || {
                     if S.scene_rel != rel {
                         model::open_scene(S, rel);
                     }
@@ -263,8 +265,9 @@ fn show_tree(S, k, rows) {
         }
         let (mark, token) = model::node_icon(node);
         // The type's own colour on the row, which is what a mark alone
-        // cannot say: 2D, 3D, UI and physics each read at a glance.
-        line += util::row(mark, node.name, "", k.get(token).unwrap_or(k.text));
+        // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
+        // the row's key: two nodes may share a name, never a row.
+        line += util::cells([mark, node.name, "", k.get(token).unwrap_or(k.text), node.id]);
         items.push(line);
     }
     let params = util::obj(found.get_component("widget"));
@@ -357,7 +360,7 @@ pub fn outline_body(S, k) {
     }
     let items = [];
     for row in rows {
-        items.push(row.icon + "\u{1f}" + row.name + "\u{1f}" + row.meta);
+        items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
     }
     let params = util::obj(found.get_component("widget"));
     params["options"] = items;

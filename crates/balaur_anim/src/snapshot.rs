@@ -77,9 +77,12 @@ struct PlayerFrame {
     /// The bone map reference, re-resolved on restore the way the clip is.
     #[serde(default)]
     retarget: String,
-    /// The clip a crossfade is leaving, mid-fade.
-    #[serde(default)]
+    /// The clip a crossfade is leaving, from before fades stacked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     fade: Option<FadeFrame>,
+    /// The clips crossfades are leaving, oldest first.
+    #[serde(default)]
+    fades: Vec<FadeFrame>,
 }
 
 /// The outgoing half of a crossfade; its clip is re-resolved by name.
@@ -90,6 +93,12 @@ struct FadeFrame {
     speed: f32,
     elapsed: f32,
     duration: f32,
+    #[serde(default)]
+    ease: String,
+    #[serde(default)]
+    curve: Vec<[f32; 2]>,
+    #[serde(default)]
+    break_loop: bool,
 }
 
 /// One running tween, generated clip included: a tween that ended between the
@@ -133,6 +142,8 @@ struct KeyFrame {
     t: f32,
     value: [f32; 4],
     call: Option<String>,
+    #[serde(default)]
+    function: Option<u64>,
     ease: Option<String>,
 }
 
@@ -166,6 +177,14 @@ struct MachineFrame {
     travel: Vec<String>,
     jump: Option<String>,
     conditions: Vec<(String, bool)>,
+    #[serde(default)]
+    times: Vec<(String, f32)>,
+    #[serde(default)]
+    pending: Option<String>,
+    #[serde(default)]
+    ended: bool,
+    #[serde(default)]
+    check_node: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -215,13 +234,8 @@ fn capture(eng: &Engine) -> Value {
                     .collect(),
                 finished: playback.finished.clone(),
                 retarget: playback.retarget_reference.clone(),
-                fade: playback.fade.as_ref().map(|fade| FadeFrame {
-                    clip_name: fade.clip_name.clone(),
-                    time: fade.time,
-                    speed: fade.speed,
-                    elapsed: fade.elapsed,
-                    duration: fade.duration,
-                }),
+                fade: None,
+                fades: playback.fades.iter().map(fade_frame).collect(),
             })
             .collect(),
         tweens: state
@@ -272,10 +286,31 @@ fn capture(eng: &Engine) -> Value {
                     .iter()
                     .map(|(k, v)| (k.clone(), *v))
                     .collect(),
+                times: run.times.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+                pending: run.pending.clone(),
+                ended: run.ended,
+                check_node: run.check_node.clone(),
             })
             .collect(),
     };
     serde_json::to_value(frame).unwrap_or(Value::Null)
+}
+
+fn fade_frame(fade: &crate::player::Fade) -> FadeFrame {
+    FadeFrame {
+        clip_name: fade.clip_name.clone(),
+        time: fade.time,
+        speed: fade.speed,
+        elapsed: fade.elapsed,
+        duration: fade.duration,
+        ease: fade.ease.name().to_string(),
+        curve: fade
+            .curve
+            .as_ref()
+            .map(|curve| curve.points().to_vec())
+            .unwrap_or_default(),
+        break_loop: fade.break_loop,
+    }
 }
 
 fn restore(eng: &Engine, value: &Value) {
@@ -303,9 +338,9 @@ fn restore(eng: &Engine, value: &Value) {
         .iter()
         .map(|(_, player)| clip_for(eng, player))
         .collect();
-    let fades: Vec<Option<crate::player::Fade>> = resolved
+    let fades: Vec<Vec<crate::player::Fade>> = resolved
         .iter()
-        .map(|(_, player)| fade_for(eng, player))
+        .map(|(_, player)| fades_for(eng, player))
         .collect();
     // Resolved here, beside the clips and for the same reason: loading takes
     // the asset cache's borrow. A map that no longer loads leaves the
@@ -377,7 +412,7 @@ fn restore(eng: &Engine, value: &Value) {
         resolved.into_iter().zip(clips).zip(maps).zip(fades)
     {
         let mut playback = playback_of(player, clip, map);
-        playback.fade = fade;
+        playback.fades = fade;
         state.players.insert(entity, playback);
     }
     state.tweens.clear();
@@ -402,9 +437,13 @@ fn machines_of(eng: &Engine, frames: Vec<MachineFrame>) -> Vec<(Entity, MachineR
                 current: machine.current,
                 travel: machine.travel,
                 jump: machine.jump,
+                pending: machine.pending,
+                ended: machine.ended,
+                check_node: machine.check_node,
                 ..MachineRun::default()
             };
             run.conditions.extend(machine.conditions);
+            run.times.extend(machine.times);
             Some((entity, run))
         })
         .collect()
@@ -447,27 +486,38 @@ fn clip_for(eng: &Engine, player: &PlayerFrame) -> Option<std::rc::Rc<Clip>> {
     assets::load_typed::<Clip>(eng, &reference).ok()
 }
 
-/// The clip a restored crossfade was leaving, re-resolved by name.
-fn fade_for(eng: &Engine, player: &PlayerFrame) -> Option<crate::player::Fade> {
-    let fade = player.fade.as_ref()?;
-    let reference = match player
-        .defined
+/// The clips a restored crossfade stack was leaving, re-resolved by name. One
+/// that no longer loads drops out, which cuts rather than fades.
+fn fades_for(eng: &Engine, player: &PlayerFrame) -> Vec<crate::player::Fade> {
+    player
+        .fade
         .iter()
-        .find(|(name, _)| *name == fade.clip_name)
-    {
-        Some((_, reference)) => reference.clone(),
-        None if fade.clip_name.is_empty() => player.library.clone(),
-        None => format!("{}#{}", player.library, fade.clip_name),
-    };
-    let clip = assets::load_typed::<Clip>(eng, &reference).ok()?;
-    Some(crate::player::Fade {
-        clip_name: fade.clip_name.clone(),
-        clip,
-        time: fade.time,
-        speed: fade.speed,
-        elapsed: fade.elapsed,
-        duration: fade.duration,
-    })
+        .chain(&player.fades)
+        .filter_map(|fade| {
+            let reference = match player
+                .defined
+                .iter()
+                .find(|(name, _)| *name == fade.clip_name)
+            {
+                Some((_, reference)) => reference.clone(),
+                None if fade.clip_name.is_empty() => player.library.clone(),
+                None => format!("{}#{}", player.library, fade.clip_name),
+            };
+            let clip = assets::load_typed::<Clip>(eng, &reference).ok()?;
+            Some(crate::player::Fade {
+                clip_name: fade.clip_name.clone(),
+                clip,
+                time: fade.time,
+                speed: fade.speed,
+                elapsed: fade.elapsed,
+                duration: fade.duration,
+                ease: Easing::parse(&fade.ease).unwrap_or(Easing::LINEAR),
+                curve: (!fade.curve.is_empty())
+                    .then(|| crate::ease::Points::from_points(fade.curve.clone())),
+                break_loop: fade.break_loop,
+            })
+        })
+        .collect()
 }
 
 /// The bone map a restored playhead was playing through, re-resolved.
@@ -534,6 +584,7 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
                         t: key.t,
                         value: key.value.to_array(),
                         call: key.call.clone(),
+                        function: key.function,
                         ease: key.ease.map(|ease| ease.name().to_string()),
                     })
                     .collect(),
@@ -566,6 +617,7 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                         t: key.t,
                         value: Vec4::from(key.value),
                         call: key.call.clone(),
+                        function: key.function,
                         ease: key
                             .ease
                             .as_deref()
@@ -607,7 +659,7 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         for name in &playback.queue {
             h.write_str(name);
         }
-        if let Some(fade) = &playback.fade {
+        for fade in &playback.fades {
             h.write_str(&fade.clip_name);
             h.write_f32(fade.time);
             h.write_f32(fade.elapsed);
@@ -623,12 +675,17 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         }
         let mut h = Hasher::new();
         h.write_str(&run.current);
-        for name in run.travel.iter().chain(run.jump.iter()) {
+        for name in run.travel.iter().chain(&run.jump).chain(&run.pending) {
             h.write_str(name);
         }
         for (name, on) in &run.conditions {
             h.write_str(name);
             h.write(&[u8::from(*on)]);
+        }
+        h.write(&[u8::from(run.ended)]);
+        for (name, time) in &run.times {
+            h.write_str(name);
+            h.write_f32(*time);
         }
         out.push(Entry {
             label: format!("{}/state_machine", node_label(&world, entity)),

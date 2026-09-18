@@ -248,8 +248,8 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
   `modify_contacts` hook never reaches a script (`dim2/events.rs:160-220`),
   2D `move_character` drops the node's rotation (`dim2/character.rs:130`),
   and 2D colliders do not round-trip through `get` (`dim2/collider.rs:276`).
-- **PLAN-animation-and-resources.md** gets the snapshot and digest sources as
-  its first item; **PLAN-input.md** the Bluetooth feature report, the twin
+- The animation snapshot and digest sources are built
+  (`balaur_anim::snapshot`); **PLAN-input.md** takes the Bluetooth feature report, the twin
   pads and `reset_bindings`; **PLAN-networking.md** the liveness and journal
   bounds; **PLAN-ui-layout.md** and **PLAN-editor-as-scene.md** close when the
   shell tree lands, and phase 5 is what they leave behind.

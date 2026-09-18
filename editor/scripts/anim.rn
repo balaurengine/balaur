@@ -27,7 +27,7 @@ const MAX_DEPTH = 256;
 // The editor's engine resolves relative paths against the *editor's* root, so
 // references handed to it are made absolute; the document keeps the relative
 // form.
-fn engine_path(S, rel) {
+pub fn engine_path(S, rel) {
     if rel.starts_with("/") {
         return rel;
     }
@@ -197,6 +197,26 @@ pub fn document(S) {
     None
 }
 
+/// Every clip the player's library holds, by name: the entries one level
+/// down, as the engine finds them.
+pub fn clip_names(S) {
+    let out = [];
+    let doc = match document(S) {
+        Some(doc) => doc,
+        None => return out,
+    };
+    for (_, group) in doc.iter() {
+        if group is Object {
+            for (name, entry) in group.iter() {
+                if entry is Object {
+                    out.push(name);
+                }
+            }
+        }
+    }
+    out
+}
+
 // The clip definition under edit: length, loop, tracks.
 pub fn definition(S) {
     match document(S) {
@@ -319,7 +339,7 @@ pub fn ensure_clip(S) {
     history::record(S, "create clip", None);
     let name = node.name.to_lowercase();
     let clips = #{};
-    clips[name] = #{ length: 2.0, "loop": "loop" };
+    clips[name] = #{ length: 2.0, "loop": animation::LOOP_LOOP };
     let library = #{ "type": CLIP_TYPE };
     library[GROUP] = clips;
     node.animation = #{ library: library, autoplay: name, speed: 1.0, root: "" };
@@ -335,7 +355,7 @@ fn track_for(def, property, target) {
             return track;
         }
     }
-    let track = #{ property: property, interp: "linear", keys: [] };
+    let track = #{ property: property, interp: animation::INTERP_LINEAR, keys: [] };
     if target != "" {
         track.target = target;
     }
@@ -392,10 +412,10 @@ pub fn add_key(S, t) {
     history::record(S, "insert keyframe", None);
     let target = target_path(S, player_i);
     let r = found.transform.rotation_euler;
-    put_key(track_for(def, "rotation_euler", target), t, util::xyz(r));
+    put_key(track_for(def, animation::PROPERTY_ROTATION_EULER, target), t, util::xyz(r));
     if !node.contains_key("bone2d") && !node.contains_key("bone3d") {
         let p = found.transform.position;
-        put_key(track_for(def, "position", target), t, util::xyz(p));
+        put_key(track_for(def, animation::PROPERTY_POSITION, target), t, util::xyz(p));
     }
     if t > length(def) {
         def.length = t;

@@ -12,6 +12,8 @@ use anyhow::Result;
 use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
+mod release;
+
 /// How many projects the list keeps. Past this the oldest falls off: the
 /// list is for going back to last week's work, not for an archive.
 const KEPT: usize = 20;
@@ -61,9 +63,7 @@ impl balaur_plugin::Plugin for ProjectPlugin {
         install_project_api(&mut *m);
         install_project_verbs(&mut *m);
         drop(m);
-        let mut v = reg.script_module("release")?;
-        install_release_api(&mut *v);
-        Ok(())
+        release::declare(reg)
     }
 }
 
@@ -201,125 +201,6 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// `release.*`: which build this is, what the channels hold, and replacing
-/// this install with one of them. The same code `balaur update` runs, so the
-/// screen and the command cannot disagree.
-fn install_release_api(m: &mut dyn Bindings<Engine>) {
-    m.module_doc(
-        "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's engine screen; `balaur update` is the same code.",
-    );
-    m.describe(&[
-        (
-            "installed",
-            &[],
-            "",
-            "This build: `{ version, id, channel, tag, source }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, and `source` is true for a build from a checkout.",
-        ),
-        (
-            "channels",
-            &[],
-            "",
-            "Every release line a build may follow, in the order a version moves through them.",
-        ),
-        (
-            "releases",
-            &[],
-            "",
-            "Every release the project has published, newest first: `{ tag, id, channel, when, current }` each, where `when` is how long ago it was published. Reads the network and blocks while it does. Answers `{ error }` as its one row when the feed could not be read.",
-        ),
-        (
-            "install",
-            &[],
-            "(channel: string, tag: string, allow_downgrade: bool)",
-            "Replace this install with what that channel or tag holds, and answer `{ note }` when it worked. Downloads while it blocks, and refuses inside a macOS bundle, which updates by its own download.",
-        ),
-    ]);
-    m.function("installed", |_: &Engine, ()| {
-        let id = crate::version::build_id();
-        Ok(Value::Map(vec![
-            (
-                "version".into(),
-                Value::Str(env!("CARGO_PKG_VERSION").to_string()),
-            ),
-            ("id".into(), Value::Str(id.unwrap_or_default().to_string())),
-            (
-                "channel".into(),
-                Value::Str(crate::version::channel().unwrap_or_default().to_string()),
-            ),
-            (
-                "tag".into(),
-                Value::Str(
-                    crate::version::release_tag()
-                        .unwrap_or_default()
-                        .to_string(),
-                ),
-            ),
-            ("source".into(), Value::Bool(id.is_none())),
-        ]))
-    });
-    m.function("channels", |_: &Engine, ()| {
-        Ok(Value::List(
-            crate::version::CHANNELS
-                .iter()
-                .map(|name| Value::Str((*name).to_string()))
-                .collect(),
-        ))
-    });
-    m.function("releases", |_: &Engine, ()| {
-        Ok(Value::List(match crate::update::releases() {
-            Ok(found) => found
-                .into_iter()
-                .map(|release| {
-                    Value::Map(vec![
-                        (
-                            "current".into(),
-                            Value::Bool(
-                                crate::version::build_id().is_some_and(|own| own == release.id),
-                            ),
-                        ),
-                        ("tag".into(), Value::Str(release.tag)),
-                        ("id".into(), Value::Str(release.id)),
-                        ("channel".into(), Value::Str(release.channel)),
-                        ("when".into(), Value::Str(ago(&release.published))),
-                    ])
-                })
-                .collect(),
-            Err(e) => vec![Value::Map(vec![(
-                "error".into(),
-                Value::Str(format!("{e:#}")),
-            )])],
-        }))
-    });
-    m.function(
-        "install",
-        |_: &Engine, (channel, tag, allow_downgrade): (String, String, bool)| {
-            let (tag, channel) = asked(&tag, &channel);
-            Ok(
-                match crate::update::install(tag, channel, allow_downgrade) {
-                    Ok(note) => Value::Map(vec![("note".into(), Value::Str(note))]),
-                    Err(e) => Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]),
-                },
-            )
-        },
-    );
-}
-
-/// How long ago, in the words a person uses. The clock is the machine's,
-/// which is what "yesterday" is measured against.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "orders a list a person reads, not simulation"
-)]
-fn ago(published: &str) -> String {
-    let Some(then) = unix_of(published) else {
-        return String::new();
-    };
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs().cast_signed());
-    said_ago(now - then)
-}
-
 /// The same words for a time this machine wrote down itself.
 pub(crate) fn said_ago(seconds: i64) -> String {
     let minutes = seconds / 60;
@@ -342,29 +223,6 @@ pub(crate) fn said_ago(seconds: i64) -> String {
     } else {
         format!("{} months ago", days / 30)
     }
-}
-
-/// An ISO 8601 stamp as Unix seconds. Only the shape the feed writes,
-/// `2026-09-14T18:02:17Z`, because that is the only one it writes.
-fn unix_of(stamp: &str) -> Option<i64> {
-    let (date, rest) = stamp.split_once('T')?;
-    let mut parts = date.split('-');
-    let year: i64 = parts.next()?.parse().ok()?;
-    let month: i64 = parts.next()?.parse().ok()?;
-    let day: i64 = parts.next()?.parse().ok()?;
-    let mut clock = rest.trim_end_matches('Z').split(':');
-    let hour: i64 = clock.next()?.parse().ok()?;
-    let minute: i64 = clock.next()?.parse().ok()?;
-    let second: i64 = clock.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    // Days since the epoch by the civil-from-days algorithm, which needs no
-    // table and no leap-year special case past the one in it.
-    let year = if month <= 2 { year - 1 } else { year };
-    let era = year.div_euclid(400);
-    let yoe = year - era * 400;
-    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146_097 + doe - 719_468;
-    Some(days * 86_400 + hour * 3_600 + minute * 60 + second)
 }
 
 /// Where the example projects are, looked for the way the library is: an
@@ -493,14 +351,6 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
-}
-
-/// An empty string is "not asked for": a script passes both and names one.
-fn asked<'a>(tag: &'a str, channel: &'a str) -> (Option<&'a str>, Option<&'a str>) {
-    (
-        (!tag.is_empty()).then_some(tag),
-        (!channel.is_empty()).then_some(channel),
-    )
 }
 
 /// One remembered project.

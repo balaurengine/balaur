@@ -938,17 +938,14 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let ctx = ui.ctx().clone();
     match crate::images::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => {
-            let size = image_size(box_of(widget, at.assigned), texture.size_vec2());
+            let native = crate::images::native_size(at.eng, &widget.source, &texture);
+            let size = image_size(box_of(widget, at.assigned), native);
             if widget.slice.iter().any(|v| *v > 0.0) {
                 // The borders stay the picture's own size; only the middle
                 // stretches to the box.
                 let (rect, response) = ui.allocate_exact_size(size, sense);
-                let shapes = crate::widget::kinds::nine_patch(
-                    texture.id(),
-                    texture.size_vec2(),
-                    rect,
-                    widget.slice,
-                );
+                let shapes =
+                    crate::widget::kinds::nine_patch(texture.id(), native, rect, widget.slice);
                 ui.painter().add(egui::Shape::Vec(shapes));
                 if response.clicked() {
                     at.clicked.push(entity);

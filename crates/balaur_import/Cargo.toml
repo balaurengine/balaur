@@ -12,9 +12,13 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 # `balaur import file.aseprite` reads the editor's own format.
 balaur_render = { workspace = true, features = ["aseprite"] }
+# The `.fnt` reader, so `balaur shrink` leaves a bitmap font's page alone.
+balaur_text.workspace = true
 anyhow.workspace = true
 # `balaur shrink` decodes, scales and re-encodes a project's images.
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+# `balaur atlas`: loose frames of any size packed onto one page.
+texture_packer = { version = "0.30", default-features = false }
 serde_json.workspace = true
 toml.workspace = true
 # Tiled and LDtk levels, read at import: the engine never sees either format.

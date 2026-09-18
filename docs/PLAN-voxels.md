@@ -101,8 +101,8 @@ Per chunk, per pass (opaque, then transparent):
    into `colors`; `MeshData` already carries positions, normals, uvs and
    colours, so nothing new is needed to hold a chunk.
 4. UVs into the set's atlas per face. A merged quad tiles its texture by
-   repeating UVs, which needs `repeat` sampling — `docs/PLAN-textures.md`,
-   and until it lands a merged quad is capped at one tile.
+   repeating UVs, which the atlas texture's `repeat = "repeat"` import
+   setting gives.
 
 Rebuild budget: a dirty set of chunk keys, drained at a fixed count per
 frame. An edit at a chunk boundary dirties the neighbour, or the seam shows
@@ -207,5 +207,5 @@ showcase clip is where a person checks.
    block naming its own material only when it must.
 3. **Runtime edits and the asset.** A dug hole is game state and rides in the
    snapshot; a level built in the editor is a file. Nothing yet says how a
-   game saves a world it changed — that is `docs/PLAN-sessions.md`'s
+   game saves a world it changed — that is `docs/PLAN-multiplayer.md`'s
    territory, and this plan should not invent a second one.

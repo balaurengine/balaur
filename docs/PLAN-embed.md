@@ -30,7 +30,7 @@ Built, and not built for this:
 | Packs with sources or compiled, both running on the 32-bit runtime | `balaur export --keep-sources` |
 | A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |
 | Screenshots from any GPU run; frames to a video through ffmpeg | `render.screenshot`, `scripts/showcase.sh` |
-| Safe area, touches, the browser's keyboard height, keep-awake | `render.safe_area`, `input.touches`, `balaur_platform` |
+| Safe area, touches, the browser's keyboard height, keep-awake | `window.safe_area`, `input.touches`, `balaur_platform` |
 | Plugin requirements declared per project | `project.toml` `[plugins]` |
 
 Missing:

@@ -153,7 +153,7 @@ web)
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
   # what each feature costs, and gen_docs.py reads the default off this line.
-  features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
+  features=${WEB_FEATURES:-audio,http,websocket,gamend,multiplayer,web,window}
   # The solver threads only where the module can: `parallel` pulls rayon in,
   # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
   # is not cross-origin isolated. The plain template must not have it.

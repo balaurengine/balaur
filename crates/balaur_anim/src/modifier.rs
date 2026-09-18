@@ -40,14 +40,7 @@ use glamx::{Quat, Vec3};
 
 pub(crate) use crate::modifier_solve::{chain_of, origin_2d, origin_3d, pose_2d, pose_3d};
 
-/// The five modifiers, written once for the schema, the matcher and the
-/// read-back.
-const LOOK_AT: &str = "look_at";
-const TWO_BONE_IK: &str = "two_bone_ik";
-const FABRIK: &str = "fabrik";
-const CCDIK: &str = "ccdik";
-const JIGGLE: &str = "jiggle";
-const FOLLOW: &str = "follow";
+use crate::words::{CCDIK, FABRIK, FOLLOW, JIGGLE, LOOK_AT, MODIFIER_KINDS, TWO_BONE_IK};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
@@ -163,7 +156,7 @@ pub struct Jiggle {
 }
 
 fn schema() -> String {
-    let kinds = ComponentDef::options(&[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE, FOLLOW]);
+    let kinds = ComponentDef::options(MODIFIER_KINDS);
     // Down, at about two thirds of earth's: a chain that hangs rather than
     // drops. A 2D rig reads the third number as nothing, so both dimensions
     // take the same one.

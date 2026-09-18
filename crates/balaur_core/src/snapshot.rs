@@ -23,6 +23,8 @@ use anyhow::{Context, Result};
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
+use balaur_script::{NodeId, Value};
+
 use crate::engine::Engine;
 use crate::scene::{Children, Name, Parent, ScriptAttachment, collect_subtree};
 
@@ -180,7 +182,7 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
                         .ok()
                         .and_then(|e| crate::ids::of(&world, e)),
                     entity: node.0,
-                    value,
+                    value: portable(&world, value),
                 })
                 .collect();
             serde_json::to_value(states).unwrap_or(serde_json::Value::Null)
@@ -194,11 +196,12 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
             };
             let world = eng.world();
             let root = eng.root();
+            let index = id_index(&world, root);
             let states: Vec<_> = frames
                 .into_iter()
                 .filter_map(|frame| {
                     let entity = resolve(&world, root, frame.id.as_deref(), frame.entity)?;
-                    Some((crate::node_id_of(entity), frame.value))
+                    Some((crate::node_id_of(entity), resolved(&index, frame.value)))
                 })
                 .collect();
             drop(world);
@@ -214,6 +217,67 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
             }
         },
     );
+}
+
+/// The one key of a map standing for a node in a script's saved fields.
+const NODE_REF: &str = "$node";
+
+/// A script value with every node in it written by stable id, so it names
+/// the same node after a respawn, or in another machine's world.
+fn portable(world: &hecs::World, value: Value) -> Value {
+    match value {
+        Value::Node(bits) => crate::entity_of(NodeId(bits))
+            .ok()
+            .and_then(|entity| crate::ids::of(world, entity))
+            .map_or(Value::Node(bits), |id| {
+                Value::Map(vec![(String::from(NODE_REF), Value::Str(id))])
+            }),
+        Value::List(items) => Value::List(items.into_iter().map(|v| portable(world, v)).collect()),
+        Value::Many(items) => Value::Many(items.into_iter().map(|v| portable(world, v)).collect()),
+        Value::Map(pairs) => Value::Map(
+            pairs
+                .into_iter()
+                .map(|(key, v)| (key, portable(world, v)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+/// [`portable`] undone: each written node found again, nil when it is gone.
+fn resolved(index: &crate::DetHashMap<String, Entity>, value: Value) -> Value {
+    match value {
+        Value::Map(pairs) => {
+            if let [(key, Value::Str(id))] = pairs.as_slice()
+                && key == NODE_REF
+            {
+                return index.get(id).map_or(Value::Nil, |entity| {
+                    Value::Node(crate::node_id_of(*entity).0)
+                });
+            }
+            Value::Map(
+                pairs
+                    .into_iter()
+                    .map(|(key, v)| (key, resolved(index, v)))
+                    .collect(),
+            )
+        }
+        Value::List(items) => Value::List(items.into_iter().map(|v| resolved(index, v)).collect()),
+        Value::Many(items) => Value::Many(items.into_iter().map(|v| resolved(index, v)).collect()),
+        other => other,
+    }
+}
+
+/// Every node under `root` by stable id; the first in tree order wins a
+/// duplicate, as `crate::ids::find` would.
+fn id_index(world: &hecs::World, root: Entity) -> crate::DetHashMap<String, Entity> {
+    let mut index = crate::DetHashMap::default();
+    for entity in collect_subtree(world, root) {
+        if let Some(id) = crate::ids::of(world, entity) {
+            index.entry(id).or_insert(entity);
+        }
+    }
+    index
 }
 
 /// Keyed by stable id where a node has one, because a respawned node is a

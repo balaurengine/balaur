@@ -25,7 +25,7 @@ pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use fetch::{download, expected_sha256, fetch_text, obtain};
+pub(crate) use fetch::{download_reporting, expected_sha256, fetch_text, obtain};
 
 #[cfg(not(target_family = "wasm"))]
 mod fetch {
@@ -163,6 +163,17 @@ mod fetch {
     /// bytes land in a sibling `.partial` first, so an interrupted or
     /// rejected download never looks installed.
     pub(crate) fn download(url: &str, path: &Path, expected: Option<&str>) -> Result<()> {
+        download_reporting(url, path, expected, &mut |_, _| {})
+    }
+
+    /// [`download`], telling `progress` the bytes so far and the total, which
+    /// is zero when the server did not say.
+    pub(crate) fn download_reporting(
+        url: &str,
+        path: &Path,
+        expected: Option<&str>,
+        progress: &mut dyn FnMut(u64, u64),
+    ) -> Result<()> {
         let mut response = agent().get(url).call()?;
         if response.status().as_u16() == 404 {
             bail!("{url} does not exist — is this engine version published as a release?");
@@ -170,6 +181,13 @@ mod fetch {
         if !response.status().is_success() {
             bail!("fetching {url}: HTTP {}", response.status());
         }
+        let total = response
+            .headers()
+            .get("content-length")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+        let mut done = 0u64;
         let partial = path.with_extension("partial");
         let mut file = std::fs::File::create(&partial)
             .with_context(|| format!("creating {}", partial.display()))?;
@@ -183,6 +201,8 @@ mod fetch {
             }
             hasher.update(&buf[..n]);
             file.write_all(&buf[..n])?;
+            done += n as u64;
+            progress(done, total);
         }
         drop(file);
         // sha2 0.11 hands back an `Array`, which has no `LowerHex`; folded
@@ -258,6 +278,18 @@ mod fetch {
                 .expect("a matching checksum accepts the download");
             let body = std::fs::read(&path).expect("the downloaded file is readable");
             assert_eq!(body, b"hello");
+        }
+
+        #[test]
+        fn a_download_reports_its_bytes_against_the_size_the_server_gave() {
+            let dir = tempfile::tempdir().expect("a temp directory is creatable");
+            let path = dir.path().join("balaur-runtime-test");
+            let mut last = (0, 0);
+            super::download_reporting(&serve_once(b"hello"), &path, None, &mut |done, total| {
+                last = (done, total);
+            })
+            .expect("the download lands");
+            assert_eq!(last, (5, 5));
         }
 
         #[test]

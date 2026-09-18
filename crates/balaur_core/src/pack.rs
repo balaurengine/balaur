@@ -17,8 +17,8 @@ const MAGIC: &[u8; 5] = b"BPAK\x02";
 /// File extensions that ship inside a pack. A game's textures, sounds and
 /// fonts have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "webp", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf", "fnt",
-    "glb", "gltf", "bin", "obj",
+    "png", "jpg", "jpeg", "webp", "svg", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf",
+    "fnt", "glb", "gltf", "bin", "obj",
 ];
 
 /// How many of the heaviest entries a report names: enough to see where the

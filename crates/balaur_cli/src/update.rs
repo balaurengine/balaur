@@ -12,9 +12,10 @@ pub(crate) fn run(_opts: &crate::UpdateOpts) -> anyhow::Result<()> {
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use imp::{install, releases, run};
+pub(crate) use imp::{download_url, held, releases, replace, run};
 
 /// One published release, as the feed lists it.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Release {
     /// The tag the release was cut under, `v0.2.0` or `nightly`.
     pub(crate) tag: String,
@@ -32,20 +33,39 @@ pub(crate) fn releases() -> anyhow::Result<Vec<Release>> {
     anyhow::bail!("a tab runs the build the page served it")
 }
 
+/// How far an install has got, for a screen that shows it.
+pub(crate) enum Step {
+    /// Bytes of the archive so far, and its size, zero when the server did
+    /// not say.
+    Downloading(u64, u64),
+    Unpacking,
+}
+
 #[cfg(target_family = "wasm")]
-pub(crate) fn install(
+pub(crate) fn replace(
     _tag: Option<&str>,
     _channel: Option<&str>,
     _allow_downgrade: bool,
+    _progress: &mut dyn FnMut(Step),
 ) -> anyhow::Result<String> {
     anyhow::bail!("updating is not available in this build")
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) fn held() -> Option<String> {
+    Some("a browser tab runs the build the page served it".to_string())
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) fn download_url(_tag: &str) -> String {
+    String::new()
 }
 
 #[cfg(not(target_family = "wasm"))]
 mod imp {
     use std::path::{Path, PathBuf};
 
-    use super::Release;
+    use super::{Release, Step};
 
     use anyhow::{Context, Result, bail};
 
@@ -184,7 +204,26 @@ mod imp {
         const FEED: &str = "https://api.github.com/repos/balaurengine/balaur/releases?per_page=30";
         let text =
             crate::templates::fetch_text(FEED)?.context("the release feed answered nothing")?;
-        let feed: serde_json::Value = serde_json::from_str(&text)?;
+        let mut out = parse_feed(&text)?;
+        // A version tag is its own build id; only a rolling tag has to be
+        // asked, through its VERSION, which build it holds now.
+        for release in &mut out {
+            if crate::version::channel_of(&release.tag) != crate::version::NIGHTLY {
+                continue;
+            }
+            if let Ok(Some(found)) = looked_up(Some(&release.tag), None) {
+                release.channel = crate::version::channel_of(&found.id).to_string();
+                release.id = found.id;
+            }
+        }
+        Ok(out)
+    }
+
+    /// The feed's releases, in its order, without the network. A draft is not
+    /// fetchable, and a line's pointer repeats a release listed under its own
+    /// tag, so neither is a row.
+    fn parse_feed(text: &str) -> Result<Vec<Release>> {
+        let feed: serde_json::Value = serde_json::from_str(text)?;
         let items = feed.as_array().context("the release feed is not a list")?;
         let mut out = Vec::new();
         for item in items {
@@ -194,34 +233,19 @@ mod imp {
             let Some(tag) = item.get("tag_name").and_then(serde_json::Value::as_str) else {
                 continue;
             };
-            // A rolling tag names a build in its VERSION asset rather than in
-            // the tag, so the id is read from the release's own name when it
-            // has one and falls back to the tag.
-            let id = item
-                .get("name")
-                .and_then(serde_json::Value::as_str)
-                .filter(|name| name.starts_with('v') || name.starts_with("nightly"))
-                .unwrap_or(tag);
+            if crate::version::is_pointer(tag) {
+                continue;
+            }
             out.push(Release {
-                channel: crate::version::channel_of(id).to_string(),
+                channel: crate::version::channel_of(tag).to_string(),
                 published: item
                     .get("published_at")
                     .and_then(serde_json::Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
-                id: id.to_string(),
+                id: tag.to_string(),
                 tag: tag.to_string(),
             });
-        }
-        // A rolling tag says nothing about which build it holds; its VERSION
-        // asset does. One read per rolling line, not per release.
-        for release in &mut out {
-            if release.id != release.tag {
-                continue;
-            }
-            if let Ok(Some(found)) = looked_up(Some(&release.tag), None) {
-                release.id = found.id;
-            }
         }
         Ok(out)
     }
@@ -261,12 +285,47 @@ mod imp {
         looked_up(tag, channel)?.with_context(|| source.missing())
     }
 
-    /// Replace this install with what a channel or a tag holds. Answers the
-    /// line to show when it worked.
-    pub(crate) fn install(
+    /// Why this install cannot replace itself, or None when it can. A screen
+    /// asks before it offers the press; `install` refuses on the same answer.
+    pub(crate) fn held() -> Option<String> {
+        let exe = std::env::current_exe().ok()?;
+        let install = exe.parent()?;
+        // The archive has the layout of a plain download, not a bundle's, and
+        // the ticket stapled to the .dmg covers what it would replace.
+        if install.ends_with("Contents/MacOS") {
+            return Some("Balaur.app updates by downloading the new .dmg, not in place".into());
+        }
+        // A release unpacked over cargo's output buries what the build wrote.
+        if build_tree(install) {
+            return Some(format!(
+                "{} is a build tree, not an install; update a source build with git",
+                install.display()
+            ));
+        }
+        None
+    }
+
+    /// Where a held macOS bundle gets a release instead: its .dmg. Empty
+    /// anywhere an install replaces itself.
+    pub(crate) fn download_url(tag: &str) -> String {
+        let bundled = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.ends_with("Contents/MacOS")))
+            .unwrap_or(false);
+        if bundled {
+            format!("{RELEASE_BASE}/download/{tag}/balaur-editor-macos-universal.dmg")
+        } else {
+            String::new()
+        }
+    }
+
+    /// Replace this install with what a channel or a tag holds, telling
+    /// `progress` how far it has got. Answers the line to show when it worked.
+    pub(crate) fn replace(
         tag: Option<&str>,
         channel: Option<&str>,
         allow_downgrade: bool,
+        progress: &mut dyn FnMut(Step),
     ) -> Result<String> {
         let source = source(tag, channel)?;
         let base = source.base();
@@ -283,26 +342,15 @@ mod imp {
                 source.installing(published)
             );
         }
+        if let Some(why) = held() {
+            bail!("{why}");
+        }
         let exe = std::env::current_exe().context("locating the running executable")?;
         let install = exe
             .parent()
             .context("the executable has no parent directory")?
             .to_path_buf();
-        // The archive this unpacks has the layout of a plain download, not a
-        // bundle's, and the ticket stapled to the .dmg covers what it replaces.
-        if install.ends_with("Contents/MacOS") {
-            bail!("Balaur.app updates by downloading the new .dmg, not in place");
-        }
-        // A cargo target directory is a build tree rather than an install:
-        // a release unpacked over it buries what the build wrote, and the
-        // editor's Engine tab is one press away from asking for that.
-        if build_tree(&install) {
-            bail!(
-                "{} is a build tree, not an install; update a source build with git",
-                install.display()
-            );
-        }
-        let staged = download_and_unpack(&assets_base(&base, published), &install)?;
+        let staged = download_and_unpack(&assets_base(&base, published), &install, progress)?;
         swap_install(&staged, &install, &exe)?;
         std::fs::remove_dir_all(&staged).ok();
         Ok(format!("updated to {published}; restart to use it"))
@@ -315,10 +363,11 @@ mod imp {
         if opts.check {
             return Ok(());
         }
-        let note = install(
+        let note = replace(
             opts.tag.as_deref(),
             opts.channel.as_deref(),
             opts.allow_downgrade,
+            &mut |_| {},
         )?;
         tracing::info!("{note}");
         Ok(())
@@ -327,7 +376,11 @@ mod imp {
     /// Fetch the editor archive for this platform, verify it, and unpack it
     /// into a staging directory inside the install dir (same filesystem, so
     /// the swap is renames). Returns the unpacked bundle root.
-    fn download_and_unpack(base: &str, install: &Path) -> Result<PathBuf> {
+    fn download_and_unpack(
+        base: &str,
+        install: &Path,
+        progress: &mut dyn FnMut(Step),
+    ) -> Result<PathBuf> {
         let target = host_target()?;
         let ext = if cfg!(windows) { "zip" } else { "tar.gz" };
         let name = format!("balaur-editor-{target}.{ext}");
@@ -337,7 +390,15 @@ mod imp {
         std::fs::remove_dir_all(&staging).ok();
         std::fs::create_dir_all(&staging)?;
         let archive = staging.join(&name);
-        crate::templates::download(&url, &archive, expected.as_deref())?;
+        crate::templates::download_reporting(
+            &url,
+            &archive,
+            expected.as_deref(),
+            &mut |done, total| {
+                progress(Step::Downloading(done, total));
+            },
+        )?;
+        progress(Step::Unpacking);
         unpack(&archive, &staging)?;
         std::fs::remove_file(&archive).ok();
         let root = staging.join(format!("balaur-editor-{target}"));
@@ -432,6 +493,22 @@ mod imp {
             let named = super::assets_base(&base, "v0.3.0-alpha.1");
             assert!(named.ends_with("/download/v0.3.0-alpha.1"));
             assert_eq!(super::assets_base(&base, "nightly-abc1234"), base);
+        }
+
+        #[test]
+        fn the_feed_lists_releases_but_not_drafts_or_line_pointers() {
+            let feed = r#"[
+                {"tag_name": "nightly", "name": "Balaur nightly (716854d)", "draft": false, "published_at": "2026-09-17T18:00:00Z"},
+                {"tag_name": "alpha", "name": "Balaur alpha (v0.2.0-alpha.3)", "draft": false, "published_at": "2026-09-16T10:00:00Z"},
+                {"tag_name": "v0.2.0-alpha.3", "name": "Balaur v0.2.0-alpha.3", "draft": false, "published_at": "2026-09-16T09:00:00Z"},
+                {"tag_name": "v0.2.0", "name": "Balaur v0.2.0", "draft": true, "published_at": null},
+                {"tag_name": "v0.1.0", "name": "Balaur v0.1.0", "draft": false, "published_at": "2026-09-09T12:00:00Z"}
+            ]"#;
+            let rows = super::parse_feed(feed).expect("the feed parses");
+            let tags: Vec<&str> = rows.iter().map(|r| r.tag.as_str()).collect();
+            assert_eq!(tags, ["nightly", "v0.2.0-alpha.3", "v0.1.0"]);
+            let lines: Vec<&str> = rows.iter().map(|r| r.channel.as_str()).collect();
+            assert_eq!(lines, ["nightly", "alpha", "stable"]);
         }
 
         #[test]

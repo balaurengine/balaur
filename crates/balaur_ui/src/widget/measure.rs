@@ -109,7 +109,7 @@ impl<'a> Measure<'a> {
                     .map_or(egui::Vec2::ZERO, |texture| {
                         crate::widget::layer::image_size(
                             vec2(widget.width, widget.height),
-                            texture.size_vec2(),
+                            crate::images::native_size(self.eng, &widget.source, &texture),
                         )
                     })
             }
@@ -379,11 +379,7 @@ impl<'a> Measure<'a> {
         else {
             return egui::Vec2::ZERO;
         };
-        // The size it was drawn at, when a smaller copy shipped in its place.
-        let native = balaur_core::import::drawn_size(self.eng, &widget.source).map_or_else(
-            || texture.size_vec2(),
-            |(w, h)| egui::vec2(w as f32, h as f32),
-        );
+        let native = crate::images::native_size(self.eng, &widget.source, &texture);
         let aspect = if native.y > 0.0 {
             native.x / native.y
         } else {

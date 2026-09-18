@@ -36,6 +36,8 @@ struct Slot {
     /// than pushed every frame because a mirror owns a render target, and
     /// asserting one every frame would rebuild it every frame.
     surface: Option<crate::material::Surface>,
+    /// A model's simpler copies, when its import settings ask for them.
+    lods: Option<crate::lods::Lods>,
 }
 
 /// What a skinned 3D mesh keeps between frames: the vertices as authored,
@@ -702,6 +704,7 @@ fn sync(
     let channel_changed = materials.channel_changed(&channel);
     materials.answer_probe(app);
 
+    let eye = crate::lods::eye(&app.engine);
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
         &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
@@ -738,15 +741,15 @@ fn sync(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.remove();
             }
-            let (mut node, skin, geometry) = match renderable.shape {
+            let (mut node, skin, geometry, lods) = match renderable.shape {
                 // Built by the mesher rather than by kiss3d: the triangles a
                 // collider is fitted to and a ray is picked against are the
                 // ones uploaded here.
-                Shape3d::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None),
+                Shape3d::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None, None),
                 // A boolean's result, already worked out this tick.
                 Shape3d::Built => match renderable.built.as_deref() {
                     Some(mesh) if !mesh.indices.is_empty() => {
-                        (upload_geometry(scene, mesh), None, None)
+                        (upload_geometry(scene, mesh), None, None, None)
                     }
                     _ => continue,
                 },
@@ -774,6 +777,7 @@ fn sync(
                     skin,
                     palette,
                     surface: None,
+                    lods,
                 },
             );
         }
@@ -787,6 +791,9 @@ fn sync(
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
         let visible = appearance.visible;
+        if let Some(lods) = &mut slot.lods {
+            lods.show(&mut slot.node, global.position.distance(eye));
+        }
         slot.node
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)
@@ -883,6 +890,7 @@ fn upload_mesh(
     SceneNode3d,
     Option<MeshSkinSlot>,
     Option<crate::skinned_3d::SkinnedMesh3d>,
+    Option<crate::lods::Lods>,
 )> {
     let reference = renderable.mesh.as_deref().filter(|r| !r.is_empty())?;
     let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
@@ -935,6 +943,7 @@ fn upload_mesh(
             weights: skin.weights.clone(),
             indices: faces.clone(),
         });
+    let lods = crate::lods::Lods::of(&app.engine, &data, &faces);
     // The shapes and the colours before the skin is moved out of the data.
     let morphs = crate::morph::targets_of(&data);
     let colors = data.colors.clone();
@@ -957,7 +966,7 @@ fn upload_mesh(
     }
     let mut node = scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE);
     crate::texture::attach_texture_3d(&app.engine, &mut node, &renderable.texture);
-    Some((node, skin, geometry))
+    Some((node, skin, geometry, lods))
 }
 
 /// Pose a skinned mesh for this frame from the rig's joint matrices: handed

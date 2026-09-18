@@ -3,10 +3,10 @@
 
 Two rule sets, on two scopes.
 
-**House rules**, on the two documents that flow into the website: a sentence
-is under 35 words, no filler, and an em dash is typography only at the lead of
-a list item or a roadmap row, never a splice in prose. The rule is the
-website's (balaur-website scripts/lint-prose.mjs).
+**House rules**, reported on `docs/ROADMAP.md` and failed nowhere (`ERRORS`
+is empty): a sentence is under 35 words, no filler, and an em dash is
+typography only at the lead of a list item or a roadmap row, never a splice in
+prose. The rule is the website's (balaur-website scripts/lint-prose.mjs).
 
 **Roadmap rows**, on `docs/ROADMAP.md`: the website draws each row as a card,
 so a row is one sentence and at most 25 words. Its generator warns rather than
@@ -54,6 +54,7 @@ PHRASES = [
     r"\bthe question (?:was|is)\b", r"\blet's\b", r"\bto be (?:clear|fair)\b",
     r"\bsimply put\b", r"\bin order to\b", r"\bat its core\b",
     r"\bleverag(?:e|es|ed|ing)\b", r"\bdelv(?:e|es|ed|ing)\b", r"\bseamless(?:ly)?\b",
+    r"\bgame[- ]chang(?:er|ing)\b", r"\bwhich matters more than it sounds\b",
 ]
 
 # The em dash that is typography: `- **Term** — text`, `| **Term** — text`.

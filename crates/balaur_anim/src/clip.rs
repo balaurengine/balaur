@@ -38,6 +38,8 @@ use balaur_core::components::as_f64;
 use glamx::Vec4;
 
 use crate::ease::Easing;
+use crate::keys as k;
+use crate::words as w;
 
 /// What happens to time once it runs past the end of a clip.
 ///
@@ -56,11 +58,14 @@ pub enum Wrap {
 impl Wrap {
     pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
-            "none" => Ok(Self::None),
-            "loop" => Ok(Self::Loop),
-            "pingpong" => Ok(Self::PingPong),
+            w::NONE => Ok(Self::None),
+            w::LOOP => Ok(Self::Loop),
+            w::PINGPONG => Ok(Self::PingPong),
             other => Err(anyhow!(
-                "`loop = \"{other}\"` is not one of \"none\", \"loop\", \"pingpong\""
+                "`loop = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
+                w::NONE,
+                w::LOOP,
+                w::PINGPONG
             )),
         }
     }
@@ -68,9 +73,9 @@ impl Wrap {
     /// The name a document spells this mode with, and [`Wrap::parse`] reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
-            Self::None => "none",
-            Self::Loop => "loop",
-            Self::PingPong => "pingpong",
+            Self::None => w::NONE,
+            Self::Loop => w::LOOP,
+            Self::PingPong => w::PINGPONG,
         }
     }
 }
@@ -135,12 +140,12 @@ impl Property {
 
     pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
-            "position" => Ok(Self::Position),
-            "rotation_euler" => Ok(Self::RotationEuler),
-            "rotation" => Ok(Self::Rotation),
-            "scale" => Ok(Self::Scale),
-            "visible" => Ok(Self::Visible),
-            "tint" => Ok(Self::Tint),
+            w::POSITION => Ok(Self::Position),
+            w::ROTATION_EULER => Ok(Self::RotationEuler),
+            w::ROTATION => Ok(Self::Rotation),
+            w::SCALE => Ok(Self::Scale),
+            w::VISIBLE => Ok(Self::Visible),
+            w::TINT => Ok(Self::Tint),
             DEFORM => Ok(Self::Deform),
             other => match other.split_once('/') {
                 Some((component, property))
@@ -152,9 +157,14 @@ impl Property {
                     })
                 }
                 _ => Err(anyhow!(
-                    "`property = \"{other}\"` is not \"position\", \"rotation_euler\", \"rotation\", \
-                     \"scale\", \"visible\", \"tint\" or \"{DEFORM}\", and does not read as \
-                     `component/property`"
+                    "`property = \"{other}\"` is not \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \
+                     \"{}\" or \"{DEFORM}\", and does not read as `component/property`",
+                    w::POSITION,
+                    w::ROTATION_EULER,
+                    w::ROTATION,
+                    w::SCALE,
+                    w::VISIBLE,
+                    w::TINT
                 )),
             },
         }
@@ -164,12 +174,12 @@ impl Property {
     /// which is a document leaving `property` out.
     pub(crate) fn name(&self) -> Option<String> {
         Some(match self {
-            Self::Position => "position".to_string(),
-            Self::RotationEuler => "rotation_euler".to_string(),
-            Self::Rotation => "rotation".to_string(),
-            Self::Scale => "scale".to_string(),
-            Self::Visible => "visible".to_string(),
-            Self::Tint => "tint".to_string(),
+            Self::Position => w::POSITION.to_string(),
+            Self::RotationEuler => w::ROTATION_EULER.to_string(),
+            Self::Rotation => w::ROTATION.to_string(),
+            Self::Scale => w::SCALE.to_string(),
+            Self::Visible => w::VISIBLE.to_string(),
+            Self::Tint => w::TINT.to_string(),
             Self::Component {
                 component,
                 property,
@@ -197,11 +207,14 @@ pub enum Interp {
 impl Interp {
     pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
-            "step" => Ok(Self::Step),
-            "linear" => Ok(Self::Linear),
-            "cubic" => Ok(Self::Cubic),
+            w::STEP => Ok(Self::Step),
+            w::LINEAR => Ok(Self::Linear),
+            w::CUBIC => Ok(Self::Cubic),
             other => Err(anyhow!(
-                "`interp = \"{other}\"` is not one of \"step\", \"linear\", \"cubic\""
+                "`interp = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
+                w::STEP,
+                w::LINEAR,
+                w::CUBIC
             )),
         }
     }
@@ -209,9 +222,9 @@ impl Interp {
     /// The name a document spells this mode with, and [`Interp::parse`] reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
-            Self::Step => "step",
-            Self::Linear => "linear",
-            Self::Cubic => "cubic",
+            Self::Step => w::STEP,
+            Self::Linear => w::LINEAR,
+            Self::Cubic => w::CUBIC,
         }
     }
 }
@@ -229,6 +242,9 @@ pub struct Key {
     /// The method this key dispatches through `ScriptHost::call_on`, on a
     /// method track. `None` on every value key.
     pub call: Option<String>,
+    /// A script function this key calls instead, held by the host while a
+    /// tween names it. Only a tween step makes one.
+    pub function: Option<u64>,
     /// The curve shaping the segment that runs *into* this key, or `None`
     /// for the straight line. Easing belongs to the key a segment arrives at,
     /// which is the convention the format's own examples are written in — so
@@ -280,7 +296,7 @@ pub struct Clip {
 /// asset layer, so every error here reaches a scene author with the reference
 /// that named the clip already wrapped around it.
 pub fn parse(value: &toml::Value) -> Result<Clip> {
-    let wrap = match value.get("loop") {
+    let wrap = match value.get(k::LOOP) {
         Some(v) => Wrap::parse(
             v.as_str()
                 .ok_or_else(|| anyhow!("`loop` is {}, not a mode name", v.type_str()))?,
@@ -288,7 +304,7 @@ pub fn parse(value: &toml::Value) -> Result<Clip> {
         None => Wrap::None,
     };
     let mut tracks = Vec::new();
-    match value.get("tracks") {
+    match value.get(k::TRACKS) {
         None => {}
         Some(toml::Value::Array(items)) => {
             for (index, item) in items.iter().enumerate() {
@@ -308,7 +324,7 @@ pub fn parse(value: &toml::Value) -> Result<Clip> {
 /// The declared `length`, or — when the document leaves it out — the last key
 /// in the clip, which is the only other honest answer.
 fn clip_length(value: &toml::Value, tracks: &[Track]) -> Result<f32> {
-    let length = match value.get("length") {
+    let length = match value.get(k::LENGTH) {
         Some(v) => {
             as_f64(v).ok_or_else(|| anyhow!("`length` is {}, not a number", v.type_str()))? as f32
         }
@@ -325,7 +341,7 @@ fn clip_length(value: &toml::Value, tracks: &[Track]) -> Result<f32> {
 }
 
 fn parse_track(value: &toml::Value) -> Result<Track> {
-    let target = match value.get("target") {
+    let target = match value.get(k::TARGET) {
         Some(v) => v
             .as_str()
             .ok_or_else(|| anyhow!("`target` is {}, not a node path", v.type_str()))?
@@ -334,14 +350,14 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
     };
     // No `property` at all is a method track: a list of moments, and what it
     // does at each of them is on the key rather than on the track.
-    let property = match value.get("property") {
+    let property = match value.get(k::PROPERTY) {
         Some(v) => Property::parse(
             v.as_str()
                 .ok_or_else(|| anyhow!("`property` is {}, not a property name", v.type_str()))?,
         )?,
         None => Property::Call,
     };
-    let interp = match value.get("interp") {
+    let interp = match value.get(k::INTERP) {
         Some(v) => Interp::parse(
             v.as_str()
                 .ok_or_else(|| anyhow!("`interp` is {}, not a mode name", v.type_str()))?,
@@ -377,7 +393,7 @@ fn parse_keys(
     channels: &mut Option<usize>,
 ) -> Result<Vec<Key>> {
     let items = track
-        .get("keys")
+        .get(k::KEYS)
         .and_then(toml::Value::as_array)
         .ok_or_else(|| anyhow!("a track needs a `keys` list"))?;
     if items.is_empty() {
@@ -399,10 +415,10 @@ fn parse_key(
     channels: &mut Option<usize>,
 ) -> Result<Key> {
     let t = value
-        .get("t")
+        .get(k::T)
         .and_then(as_f64)
         .ok_or_else(|| anyhow!("a key needs `t`, its time in seconds"))? as f32;
-    let ease = match value.get("ease") {
+    let ease = match value.get(k::EASE) {
         Some(v) => Some(Easing::parse(v.as_str().ok_or_else(|| {
             anyhow!("`ease` is {}, not a curve name", v.type_str())
         })?)?),
@@ -410,7 +426,7 @@ fn parse_key(
     };
     if *property == Property::Call {
         let call = value
-            .get("call")
+            .get(k::CALL)
             .and_then(toml::Value::as_str)
             .ok_or_else(|| {
                 anyhow!(
@@ -423,12 +439,13 @@ fn parse_key(
             t,
             value: Vec4::ZERO,
             call: Some(call),
+            function: None,
             ease,
             wide: Vec::new(),
             discrete: None,
         });
     }
-    if value.get("call").is_some() {
+    if value.get(k::CALL).is_some() {
         bail!("`call` belongs to a track that declares no `property`; this one animates a value");
     }
     if *property == Property::Deform {
@@ -437,6 +454,7 @@ fn parse_key(
             t,
             value: Vec4::ZERO,
             call: None,
+            function: None,
             ease,
             wide,
             discrete: None,
@@ -445,12 +463,13 @@ fn parse_key(
     // A component's string or bool property keys its own value, which no
     // number can stand for.
     if let Property::Component { .. } = property
-        && let Some(raw @ (toml::Value::String(_) | toml::Value::Boolean(_))) = value.get("value")
+        && let Some(raw @ (toml::Value::String(_) | toml::Value::Boolean(_))) = value.get(k::VALUE)
     {
         return Ok(Key {
             t,
             value: Vec4::ZERO,
             call: None,
+            function: None,
             ease,
             wide: Vec::new(),
             discrete: Some(raw.clone()),
@@ -460,6 +479,7 @@ fn parse_key(
         t,
         value: parse_value(value, channels)?,
         call: None,
+        function: None,
         ease,
         wide: Vec::new(),
         discrete: None,
@@ -473,7 +493,7 @@ fn parse_key(
 /// a clip whose keys disagree would blend a vertex against nothing halfway
 /// through, and there is no sensible offset to invent for it.
 fn parse_wide(key: &toml::Value, channels: &mut Option<usize>) -> Result<Vec<f32>> {
-    let Some(items) = key.get("value").and_then(toml::Value::as_array) else {
+    let Some(items) = key.get(k::VALUE).and_then(toml::Value::as_array) else {
         bail!("a `{DEFORM}` key needs a `value`: a flat list of [dx, dy] per vertex");
     };
     if items.len() % 2 != 0 {
@@ -510,7 +530,7 @@ fn parse_wide(key: &toml::Value, channels: &mut Option<usize>) -> Result<Vec<f32
 /// wide the track is and every later key must agree, so a pose never has to
 /// guess which channel a missing number was.
 fn parse_value(key: &toml::Value, channels: &mut Option<usize>) -> Result<Vec4> {
-    let numbers: Vec<&toml::Value> = match key.get("value") {
+    let numbers: Vec<&toml::Value> = match key.get(k::VALUE) {
         Some(toml::Value::Array(items)) => items.iter().collect(),
         Some(scalar) if as_f64(scalar).is_some() => vec![scalar],
         Some(other) => bail!(

@@ -39,6 +39,7 @@ mod scene_ids;
 mod settings;
 mod skeleton;
 mod snapshot;
+mod star;
 mod standalone;
 mod strings;
 mod task;

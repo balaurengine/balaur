@@ -41,7 +41,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         return;
     };
     // Fit inside the screen, keeping the picture's aspect.
-    let native = texture.size_vec2();
+    let native = crate::images::native_size(eng, &path, &texture);
     let scale = (rect.width() / native.x)
         .min(rect.height() / native.y)
         .min(1.0);

@@ -983,6 +983,11 @@ pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData>
         })
     };
     let mut mesh = parse_part(&bytes, source, &side, definition.part.as_deref())?;
+    crate::import::model::place(
+        &mut mesh,
+        &crate::import::resolved(eng, source).settings,
+        source,
+    );
     mesh.source = Some(source.to_string());
     mesh.part.clone_from(&definition.part);
     Ok(mesh)

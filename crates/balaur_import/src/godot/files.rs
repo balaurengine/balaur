@@ -136,13 +136,16 @@ pub(super) fn lookups(
         rasters.insert(svg.clone(), target);
     }
     let shaders = shaders(root, files, sink, report)?;
-    Ok(Project {
+    let mut project = Project {
         keys: strings.keys,
         uids,
         rasters,
         classes: crate::godot::exports::class_index(root, files),
         shaders,
-    })
+        checks: std::collections::BTreeMap::new(),
+    };
+    project.checks = crate::godot::machine::expression_scripts(root, files, &project);
+    Ok(project)
 }
 
 /// Every `.gdshader` translated to WESL beside it, and the ones that compile
@@ -153,7 +156,7 @@ fn shaders(
     files: &[String],
     sink: &mut dyn Sink,
     report: &mut Report,
-) -> Result<std::collections::BTreeMap<String, std::rc::Rc<crate::godot::material::Shader>>> {
+) -> Result<std::collections::BTreeMap<String, std::sync::Arc<crate::godot::material::Shader>>> {
     let mut shaders = std::collections::BTreeMap::new();
     for godot in files.iter().filter(|f| has_extension(f, "gdshader")) {
         let source = crate::godot::io::text(&root.join(godot))?;
@@ -171,7 +174,7 @@ fn shaders(
             Ok(()) => {
                 shaders.insert(
                     godot.clone(),
-                    std::rc::Rc::new(crate::godot::material::Shader { path, translated }),
+                    std::sync::Arc::new(crate::godot::material::Shader { path, translated }),
                 );
             }
             Err(why) => notes.push(format!(
@@ -447,6 +450,7 @@ position = Vector2(0, -10)
 [ext_resource type="Shader" path="res://shaders/glow.gdshader" id="1_glow"]
 [ext_resource type="Texture2D" path="res://art/hull.png" id="2_hull"]
 [ext_resource type="Theme" path="res://themes/game.tres" id="3_theme"]
+[ext_resource type="Script" path="res://scripts/extras.gd" id="4_extras"]
 
 [sub_resource type="ShaderMaterial" id="Glow"]
 shader = ExtResource("1_glow")
@@ -479,6 +483,9 @@ advance_mode = 2
 xfade_time = 0.2
 advance_mode = 2
 advance_condition = &"moving"
+reset = false
+priority = 3
+break_loop_at_end = true
 
 [sub_resource type="AnimationNodeStateMachine" id="Machine"]
 states/idle/node = SubResource("Idle")
@@ -486,6 +493,8 @@ states/walk/node = SubResource("Walk")
 transitions = ["Start", "idle", SubResource("Enter"), "idle", "walk", SubResource("Go")]
 
 [node name="Extras" type="Node2D"]
+script = ExtResource("4_extras")
+tree = NodePath("Tree")
 
 [node name="Leaning" type="Sprite2D" parent="."]
 skew = 0.25
@@ -549,6 +558,22 @@ PanelContainer/styles/panel = SubResource("Plain")
 
     const SCRIPT: &str = "extends Node2D\n\n@export var speed := 2.0\nvar hidden := 1\n";
 
+    /// Turns its tree off, then on and travels, as a game's script does.
+    const EXTRAS_SCRIPT: &str = r#"extends Node
+
+@export var tree: AnimationTree
+var playback: AnimationNodeStateMachinePlayback
+
+func _ready():
+    tree.active = false
+    playback = tree.get("parameters/playback")
+
+func _process(_delta):
+    if not tree.active:
+        tree.active = true
+        playback.travel(&"walk")
+"#;
+
     fn godot() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         let put = |path: &str, text: &str| {
@@ -566,6 +591,7 @@ PanelContainer/styles/panel = SubResource("Plain")
         put("store/.gdignore", "");
         std::fs::copy(HULL, dir.path().join("store/shot.png")).unwrap();
         put("scripts/root.gd", SCRIPT);
+        put("scripts/extras.gd", EXTRAS_SCRIPT);
         put(
             "scripts/crate.gd",
             "extends Node2D\n\n@export var weight := 1.0\n",
@@ -871,6 +897,9 @@ PanelContainer/styles/panel = SubResource("Plain")
         assert_eq!(go["condition"].as_str(), Some("moving"));
         assert_eq!(go["advance"].as_str(), Some("auto"));
         assert_eq!(go["fade"].as_float(), Some(0.2));
+        assert_eq!(go["reset"].as_bool(), Some(false));
+        assert_eq!(go["priority"].as_integer(), Some(3));
+        assert_eq!(go["break_loop"].as_bool(), Some(true));
         assert!(
             tree["animation"]["library"].as_str().is_some(),
             "the tree plays its own clips"
@@ -1012,8 +1041,8 @@ PanelContainer/styles/panel = SubResource("Plain")
         }
         assert_eq!(
             balaur::animation::machine::state(&app.engine, tree).as_deref(),
-            Some("idle"),
-            "the converted machine entered its start"
+            Some("walk"),
+            "the converted script turned the tree on and travelled"
         );
     }
 }

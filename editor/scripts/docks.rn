@@ -139,6 +139,7 @@ pub fn panels(S) {
         "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
         "weights": #{ name: "Weights", icon: icons::panel("weights"), tall: true },
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
+        "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true },
     };
     for entry in S.registry.docks {
         table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: false };
@@ -311,6 +312,7 @@ fn canvas_views() {
         session: "BottomSession",
         weights: "BottomWeights",
         bonemap: "BottomBonemap",
+        statemachine: "BottomStatemachine",
     }
 }
 
@@ -668,7 +670,7 @@ fn body_scrolled(S, k, id) {
 /// The panels that open a scroll of their own, because they want something
 /// the plain one does not do: a log follows what is arriving.
 fn scrolls_itself(id) {
-    id == "output" || id == "docs" || id == "bonemap"
+    id == "output" || id == "docs" || id == "bonemap" || id == "statemachine"
 }
 
 /// The strip along the foot of the bottom dock: what is playing, and the

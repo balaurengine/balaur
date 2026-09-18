@@ -63,7 +63,10 @@ fn polygon_schema() -> String {
         ),
         (
             k::TEXTURE,
-            r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the tint alone" }"#,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the tint alone" }}"#,
+                balaur_core::texture_asset::TEXTURE_ASSET_TYPE
+            ),
         ),
         (
             k::PIXELS_PER_UNIT,
@@ -180,6 +183,10 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
 
 fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
+    // A `boolean2d` draws its result as a polygon too; that one is its own.
+    if world.get::<&crate::boolean::Boolean2d>(entity).is_ok() {
+        return None;
+    }
     let renderable = world.get::<&Renderable2d>(entity).ok()?;
     if renderable.shape != Shape2d::Polygon {
         return None;

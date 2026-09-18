@@ -14,13 +14,15 @@
 //! what crossed into a tick rides in a recording and a replay hands a script
 //! the same steps without importing anything twice.
 
-use std::cell::Cell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 // The job and what it reports on: both are what `import` brings, and a build
 // without it has the verbs that answer for their absence and nothing else.
 #[cfg(feature = "import")]
 use std::sync::mpsc::Sender;
+#[cfg(all(feature = "import", target_family = "wasm", target_feature = "atomics"))]
+use std::sync::mpsc::Receiver;
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
@@ -134,14 +136,20 @@ impl Reported for ImportEvent {
     }
 }
 
+/// How many imports are in flight, shared with the jobs that count themselves
+/// off. Atomic, because on a desktop each job runs on a thread of its own.
+pub(crate) type Running = Arc<AtomicUsize>;
+
+/// The press that stops one, read by a job at the top of its next slice.
+pub(crate) type Cancel = Arc<AtomicBool>;
+
 /// The project a drop lands in, and the imports in flight in it.
 pub(crate) struct ImportState {
     core: Reporting<ImportEvent>,
     /// Imports this plugin started and has not seen the end of. Counted here
     /// rather than asked of `task`, which counts every job in the process.
-    running: Rc<Cell<usize>>,
-    /// Set by `cancel`, read by every job at the top of its next slice.
-    cancel: Rc<Cell<bool>>,
+    running: Running,
+    cancel: Cancel,
 }
 
 impl AsMut<Reporting<ImportEvent>> for ImportState {
@@ -173,8 +181,8 @@ impl balaur_plugin::Plugin for ImportPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(ImportState {
             core: Reporting::new(self.project.clone()),
-            running: Rc::new(Cell::new(0)),
-            cancel: Rc::new(Cell::new(false)),
+            running: Running::default(),
+            cancel: Cancel::default(),
         });
         // What a job reported reaches a script here, ahead of every plugin's
         // own First work.
@@ -247,11 +255,18 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("choose", |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
     m.function("cancel", |eng: &Engine, ()| {
-        eng.resource::<ImportState>().borrow().cancel.set(true);
+        eng.resource::<ImportState>()
+            .borrow()
+            .cancel
+            .store(true, Ordering::Relaxed);
         Ok(Value::Nil)
     });
     m.function("running", |eng: &Engine, ()| {
-        let running = eng.resource::<ImportState>().borrow().running.get();
+        let running = eng
+            .resource::<ImportState>()
+            .borrow()
+            .running
+            .load(Ordering::Relaxed);
         Ok(count(running))
     });
     install_listen::<ImportState, ImportEvent>(m, "on_import");
@@ -303,9 +318,8 @@ fn choose(_: &Engine) -> bool {
 
 /// Start an import that reports as it goes, answering whether it started.
 ///
-/// Parked rather than given a thread: the sink holds the project's file
-/// backend, which is an `Rc` and never crosses one, and a job under the tick
-/// is the same job in a browser tab as on a desktop.
+/// On a desktop the job takes a thread and reads and writes the disk there.
+/// A tab keeps it under the tick, where its filesystem is; see [`task::step`].
 #[cfg(feature = "import")]
 fn start(eng: &Engine, file: &Path, into: Option<PathBuf>) -> bool {
     let state = eng.resource::<ImportState>();
@@ -319,8 +333,8 @@ fn start(eng: &Engine, file: &Path, into: Option<PathBuf>) -> bool {
     };
     let file = file.to_path_buf();
     state.borrow().core.io.start(eng, |report| {
-        running.set(running.get() + 1);
-        task::park(ImportJob::new(
+        running.fetch_add(1, Ordering::Relaxed);
+        task::step(ImportJob::new(
             Source::Beside(file.clone()),
             project.clone(),
             report.clone(),
@@ -343,8 +357,8 @@ pub(crate) struct ImportJob {
     source: Source,
     project: PathBuf,
     report: Sender<ImportEvent>,
-    running: Rc<Cell<usize>>,
-    cancel: Rc<Cell<bool>>,
+    running: Running,
+    cancel: Cancel,
     state: JobState,
 }
 
@@ -367,8 +381,25 @@ enum JobState {
         done: usize,
         files: usize,
     },
+    /// Planning on a worker, in a tab built with shared memory. What comes
+    /// back is the plan and the picked files, which the writes still read.
+    #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+    Planning(Receiver<(Result<balaur_import::Plan>, Picked)>),
     /// Finished, one way or the other.
     Over,
+}
+
+/// Files a reader picked, by name, with their bytes.
+#[cfg(feature = "import")]
+type Picked = Vec<(String, Vec<u8>)>;
+
+/// One picked file's bytes, or an error naming it as missing.
+#[cfg(feature = "import")]
+fn picked(with: &Picked, uri: &str) -> Result<Vec<u8>> {
+    with.iter()
+        .find(|(name, _)| name == uri)
+        .map(|(_, bytes)| bytes.clone())
+        .ok_or_else(|| anyhow::anyhow!("'{uri}' was not among the files picked, so it cannot be read"))
 }
 
 /// Where a job's bytes come from.
@@ -390,7 +421,7 @@ pub(crate) enum Source {
     Chosen {
         name: String,
         bytes: Vec<u8>,
-        with: Vec<(String, Vec<u8>)>,
+        with: Picked,
     },
 }
 
@@ -431,13 +462,7 @@ impl Source {
                 let path = directory.join(uri);
                 balaur::files::default_backend().read(&path)
             }
-            Self::Chosen { with, .. } => with
-                .iter()
-                .find(|(name, _)| name == uri)
-                .map(|(_, bytes)| bytes.clone())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("'{uri}' was not among the files picked, so it cannot be read")
-                }),
+            Self::Chosen { with, .. } => picked(with, uri),
         }
     }
 }
@@ -448,8 +473,8 @@ impl ImportJob {
         source: Source,
         project: PathBuf,
         report: Sender<ImportEvent>,
-        running: Rc<Cell<usize>>,
-        cancel: Rc<Cell<bool>>,
+        running: Running,
+        cancel: Cancel,
     ) -> Self {
         Self {
             source,
@@ -466,6 +491,8 @@ impl ImportJob {
         match &self.state {
             JobState::Writing { done, .. } | JobState::Walking { done, .. } => *done,
             JobState::Reading | JobState::Over => 0,
+            #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+            JobState::Planning(_) => 0,
         }
     }
 
@@ -475,8 +502,14 @@ impl ImportJob {
 
     /// Say how it ended, and stop.
     fn over(&mut self, event: ImportEvent) -> Progress {
+        // Let go first: on a thread, the tick may read the count as soon as
+        // the end arrives.
+        let _ = self
+            .running
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                Some(n.saturating_sub(1))
+            });
         let _ = self.report.send(event);
-        self.running.set(self.running.get().saturating_sub(1));
         self.state = JobState::Over;
         Progress::Done
     }
@@ -555,10 +588,26 @@ impl ImportJob {
                 });
             }
         };
+        // A tab with workers plans on one: the parse and the encode are the
+        // heavy part, and the writes stay here with the tab's filesystem.
+        #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+        if let Source::Chosen { with, .. } = &mut self.source {
+            let with = std::mem::take(with);
+            self.state = JobState::Planning(task::compute(move || {
+                let side = |uri: &str| picked(&with, uri);
+                (balaur_import::plan_bytes(&name, &bytes, &side, &[]), with)
+            }));
+            return Progress::More;
+        }
         let planned = {
             let side = |uri: &str| self.source.side(uri);
             balaur_import::plan_bytes(&name, &bytes, &side, &[])
         };
+        self.planned(source, planned)
+    }
+
+    /// Start writing what a plan holds, or say why there is none.
+    fn planned(&mut self, source: String, planned: Result<balaur_import::Plan>) -> Progress {
         match planned {
             Ok(plan) => {
                 let files = plan.outputs();
@@ -582,12 +631,11 @@ impl ImportJob {
 #[cfg(feature = "import")]
 impl Stepped for ImportJob {
     fn step(&mut self) -> Progress {
-        if self.cancel.get() {
+        // Cleared by the job that reads it, so one press stops the one
+        // running rather than everything started after it.
+        if self.cancel.swap(false, Ordering::Relaxed) {
             let source = self.source();
             let done = self.written();
-            // Cleared by the job that reads it, so one press stops the one
-            // running rather than everything started after it.
-            self.cancel.set(false);
             return self.over(ImportEvent::Cancelled { source, done });
         }
         match &mut self.state {
@@ -595,6 +643,8 @@ impl Stepped for ImportJob {
             JobState::Over => Progress::Done,
             JobState::Writing { .. } => self.write_slice(),
             JobState::Walking { .. } => self.read_slice(),
+            #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+            JobState::Planning(_) => self.await_plan(),
         }
     }
 }
@@ -722,6 +772,32 @@ impl ImportJob {
     }
 }
 
+#[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+impl ImportJob {
+    /// Wait for the worker's plan without holding the frame, then write it.
+    fn await_plan(&mut self) -> Progress {
+        let JobState::Planning(answer) = &self.state else {
+            return Progress::Done;
+        };
+        let (planned, with) = match answer.try_recv() {
+            Ok(answered) => answered,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return Progress::More,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let source = self.source();
+                return self.over(ImportEvent::Failed {
+                    source,
+                    message: "the worker planning it stopped before it answered".to_string(),
+                });
+            }
+        };
+        if let Source::Chosen { with: held, .. } = &mut self.source {
+            *held = with;
+        }
+        let source = self.source();
+        self.planned(source, planned)
+    }
+}
+
 /// The OS picker, filtered to what an importer reads. Blocking on purpose, as
 /// the project picker is: a native dialog owns the screen while it is up.
 #[cfg(all(
@@ -791,11 +867,11 @@ fn import(file: &Path, _project: &Path) -> Value {
 
 #[cfg(all(test, feature = "import"))]
 mod tests {
-    use super::{ImportEvent, ImportJob, Source};
-    use balaur_core::task::{Progress, Stepped};
-    use std::cell::Cell;
+    use super::{Cancel, ImportEvent, ImportJob, Running, Source};
+    use balaur_core::task::{self, Progress, Stepped};
     use std::path::{Path, PathBuf};
-    use std::rc::Rc;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
 
     const ASEPRITE: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -805,16 +881,28 @@ mod tests {
     /// Drive a job to its end, answering what it reported and how many slices
     /// it took.
     fn run(source: Source, project: &Path) -> (Vec<ImportEvent>, usize, usize) {
+        run_cancelled(source, project, false)
+    }
+
+    /// `run`, with the stop pressed before the first slice or not.
+    fn run_cancelled(
+        source: Source,
+        project: &Path,
+        pressed: bool,
+    ) -> (Vec<ImportEvent>, usize, usize) {
         // The job's own channel, standing in for the `ExternalIo` the plugin
         // hands it. It is read in this function and never leaves the process.
         let (report, events) = std::sync::mpsc::channel();
-        let running = Rc::new(Cell::new(1));
+        let running = Running::default();
+        running.store(1, Ordering::Relaxed);
+        let cancel = Cancel::default();
+        cancel.store(pressed, Ordering::Relaxed);
         let mut job = ImportJob::new(
             source,
             project.to_path_buf(),
             report,
             running.clone(),
-            Rc::new(Cell::new(false)),
+            cancel,
         );
         let mut slices = 0;
         while job.step() == Progress::More {
@@ -822,7 +910,66 @@ mod tests {
             assert!(slices < 1000, "the job never finished");
         }
         slices += 1;
-        (events.try_iter().collect(), slices, running.get())
+        (
+            events.try_iter().collect(),
+            slices,
+            running.load(Ordering::Relaxed),
+        )
+    }
+
+    /// What moves to a desktop thread has to be `Send`, and a field that is
+    /// not would fail here rather than at the one call that spawns.
+    #[test]
+    fn a_job_can_move_to_a_thread() {
+        fn sendable<T: Send>() {}
+        sendable::<ImportJob>();
+    }
+
+    /// The steps a job takes on its own thread are the steps it takes under
+    /// the tick: the count, one line per file, the end.
+    #[test]
+    fn a_job_on_a_thread_reports_every_file_then_the_end() {
+        let project = tempfile::tempdir().unwrap();
+        let (report, events) = std::sync::mpsc::channel();
+        let running = Running::default();
+        running.fetch_add(1, Ordering::Relaxed);
+        task::step(ImportJob::new(
+            Source::Beside(PathBuf::from(ASEPRITE)),
+            project.path().to_path_buf(),
+            report,
+            running.clone(),
+            Cancel::default(),
+        ));
+        let mut seen = Vec::new();
+        while !matches!(seen.last(), Some(ImportEvent::Done { .. } | ImportEvent::Failed { .. })) {
+            let event = events
+                .recv_timeout(Duration::from_secs(20))
+                .expect("the threaded import never finished");
+            seen.push(event);
+        }
+        let kinds: Vec<&str> = seen.iter().map(ImportEvent::kind).collect();
+        assert_eq!(kinds, ["started", "wrote", "wrote", "wrote", "wrote", "done"]);
+        assert_eq!(running.load(Ordering::Relaxed), 0, "it let go before it said so");
+        for event in &seen {
+            if let ImportEvent::Wrote { path, .. } = event {
+                assert!(project.path().join(path).exists(), "{path} was reported, not written");
+            }
+        }
+    }
+
+    /// Stop read before the first slice: nothing written, and the count says so.
+    #[test]
+    fn a_stop_before_the_first_slice_writes_nothing() {
+        let project = tempfile::tempdir().unwrap();
+        let (events, slices, running) =
+            run_cancelled(Source::Beside(PathBuf::from(ASEPRITE)), project.path(), true);
+        assert_eq!(slices, 1);
+        assert_eq!(running, 0, "a stopped job let go of its place");
+        let [ImportEvent::Cancelled { done, .. }] = events.as_slice() else {
+            panic!("expected one cancelled report, got {:?}", events.iter().map(ImportEvent::kind).collect::<Vec<_>>());
+        };
+        assert_eq!(*done, 0);
+        assert!(std::fs::read_dir(project.path()).unwrap().next().is_none(), "it wrote a file");
     }
 
     /// The sequence a progress bar reads: what is coming, each file as it

@@ -79,7 +79,7 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::COLOR_END, r#"{ type = "color", default = [0.8, 0.8, 0.8, 0.0], description = "The tint a particle fades to by the end of its life" }"#),
                     (k::SIZE_END, r#"{ type = "float", default = -1.0, description = "The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`" }"#),
-                    (k::TEXTURE, r#"{ type = "string", default = "", description = "An image each particle draws with, project-relative; empty draws a flat square" }"#),
+                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, each particle draws with; empty draws a flat square" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::ONE_SHOT, r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another" }"#),
                     (k::EXPLOSIVENESS, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime" }"#),
                 ]),

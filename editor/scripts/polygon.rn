@@ -820,7 +820,7 @@ pub fn key_deform(S) {
     if mesh(S).is_none() {
         return;
     }
-    crate::anim::key_property(S, S.anim.time, "polygon/deform", deform(S));
+    crate::anim::key_property(S, S.anim.time, animation::PROPERTY_DEFORM, deform(S));
 }
 
 fn uv_of(S, mesh, i, p) {

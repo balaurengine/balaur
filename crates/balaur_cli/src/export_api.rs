@@ -18,7 +18,7 @@ use balaur::{Engine, Stage};
 use balaur_core::handler::opt;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC};
+use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
 use crate::jobs::{install_listen, pump};
 
 /// The project being edited plus what only a desktop install has: the
@@ -81,6 +81,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running", &[], "()", "How many exports are in flight."),
+        ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
     install_listen::<ExportState, ExportEvent>(m, "on_export");
@@ -105,6 +106,13 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.function("running", |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(i64::MAX))
     });
+    m.function(
+        "preview",
+        |eng: &Engine, (path, target): (String, String)| {
+            let project = eng.resource::<ExportState>().borrow().0.project.clone();
+            Ok(crate::export_shared::preview(&project, &path, &target))
+        },
+    );
 }
 
 /// How many exports are in flight, so a sheet can refuse a second click on a

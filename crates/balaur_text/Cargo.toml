@@ -12,6 +12,7 @@ balaur_plugin.workspace = true
 egui.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+toml.workspace = true
 # Bitmap font pages are PNGs.
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 # The wave in marked-up text is drawn with a sine that must not vary by OS.

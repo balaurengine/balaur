@@ -21,8 +21,9 @@ chromatic aberration, grain, pixelation. `docs/PLAN-shaders.md` owns the
 shader system this builds on, and its phase 9, post-process materials, is
 where four of those passes land. `docs/PLAN-rendering.md` is the 2D half;
 `docs/PLAN-views-and-culling.md` owns the camera's projection, cull masks
-and MSAA; `docs/PLAN-textures.md` owns how an image is imported, which is
-where a normal map's sRGB flag lives.
+and MSAA; a texture's sidecar says how an image is imported, which is
+where a normal map's `normal_map` and sRGB flags live
+(`docs/generated/assets.md#import-settings`).
 
 ## 0. Where the tree is today
 

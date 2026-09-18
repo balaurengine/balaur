@@ -106,6 +106,7 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "preload" | "load" => loaded(&args[0]),
         "instance_from_id" => format!("(gd.instance_from_id)({one})"),
         "get_tree" | "get_viewport" => TREE.into(),
+        "get_window" => "(gd.window)()".into(),
         "get_viewport_rect" => "(gd.viewport_rect)()".into(),
         "inverse_lerp" => format!("(gd.inverse_lerp)({all})"),
         "linear_to_db" => format!("(gd.linear_to_db)({one})"),
@@ -141,6 +142,17 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Engine", "is_debug_build") => "false".into(),
         ("Engine", "has_singleton") => "engine::has_plugin({one})".replace("{one}", &one),
         ("OS", "get_unique_id") => "engine::device_id()".into(),
+        ("OS", "is_debug_build") => "engine::platform().dev".into(),
+        // A button group is the widget's `group` name here.
+        ("ButtonGroup", "new") => "(gd.button_group)()".into(),
+        ("RandomNumberGenerator", "new") => "(gd.random_numbers)()".into(),
+        ("ProjectSettings", "get" | "get_setting") => {
+            let fallback = args.get(1).map_or("()", String::as_str);
+            format!("(gd.project_setting)({one}, {fallback})")
+        }
+        ("ProjectSettings", "has_setting") => format!("!(gd.is_nil)((gd.project_setting)({one}, ()))"),
+        // A project path is the path here: `fs` resolves it against the project.
+        ("ProjectSettings", "globalize_path" | "localize_path") => format!("(gd.project_path)({one})"),
         ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
         ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
         ("OS", "get_user_data_dir") => "engine::user_data_dir()".into(),
@@ -162,7 +174,6 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Vector2", "ONE") => "(gd.vec2)(1.0, 1.0)".into(),
         ("TranslationServer", "set_locale") => format!("strings::set_locale({one})"),
         ("TranslationServer", "get_loaded_locales") => "strings::locales()".into(),
-        ("ProjectSettings", "get_setting") => format!("settings::get({all})"),
         ("ProjectSettings", "set_setting") => format!("settings::set({all})"),
         ("Input", "is_action_pressed") => format!("input::is_action_pressed({one})"),
         ("Input", "is_action_just_pressed") => format!("input::is_action_just_pressed({one})"),
@@ -258,6 +269,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
         "rotation_degrees" => format!("math::deg((gd.rotation_of)({receiver}))"),
+        "custom_minimum_size" => format!("(gd.min_size)({receiver})"),
         "rotation" => format!("(gd.rotation_of)({receiver})"),
         "current_scene" | "root" => "scene::root()".into(),
         "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "selected"
@@ -273,6 +285,11 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     })
 }
 
+/// An argument Godot lets a call leave out, as nil when it did.
+fn or_nil(arg: &str) -> &str {
+    if arg.is_empty() { "()" } else { arg }
+}
+
 /// Godot's `Tween`, whose builder the shim runs over `animation::tween`.
 fn tween_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
     let all = args.join(", ");
@@ -286,11 +303,12 @@ fn tween_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         "tween_callback" => format!("(gd.tween_callback)({receiver}, {one})"),
         "kill" => format!("(gd.kill_tween)({receiver})"),
         "is_running" => format!("(gd.tween_running)({receiver})"),
-        // Godot's chain verbs order steps a frame runs together; here a step
-        // starts as it is declared, so they are the tween itself.
-        "chain" | "parallel" | "set_parallel" | "set_loops" | "play" | "set_speed_scale" => {
-            receiver.to_string()
-        }
+        "parallel" => format!("(gd.tween_parallel)({receiver})"),
+        "chain" => format!("(gd.tween_chain)({receiver})"),
+        "set_parallel" => format!("(gd.tween_set_parallel)({receiver}, {})", or_nil(&one)),
+        "set_loops" => format!("(gd.tween_loops)({receiver}, {})", or_nil(&one)),
+        // A step here starts as it is declared, and runs at the node's speed.
+        "play" | "set_speed_scale" | "bind_node" | "set_process_mode" => receiver.to_string(),
         _ => return None,
     })
 }
@@ -339,6 +357,10 @@ pub(crate) fn todo(what: &str) -> String {
 /// vector and colour setters take their components apart, so the value goes
 /// through the shim and is evaluated once.
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
+    // The window's content scale is the UI's global scale here.
+    if field == "content_scale_factor" {
+        return Some(format!("ui::set_scale({value})"));
+    }
     const WIDGET: &[&str] = &[
         "text",
         "disabled",
@@ -373,6 +395,8 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "name" => format!("{receiver}.set_name({value})"),
         "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
         "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
+        "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
+        "button_group" => format!("{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"),
         _ => return None,
     })
 }
@@ -399,7 +423,10 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         // these on every Variant and Rune's types do not.
         "size" | "is_empty" | "keys" | "values" | "clear" | "duplicate" | "front" | "back"
         | "pop_front" | "pop_back" | "sort" | "reverse" => with_receiver(name),
+        // The shim's `get` always takes a fallback; Godot's defaults to null.
+        "get" if args.len() == 1 => format!("(gd.get)({receiver}, {one}, ())"),
         "get" => with_receiver("get"),
+        "set" if args.len() == 2 => with_receiver("set"),
         "has" | "has_key" => with_receiver("has"),
         "append" | "push_back" => with_receiver("append"),
         "append_array" => with_receiver("append_array"),
@@ -423,7 +450,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "is_valid_int" | "is_valid_float" => with_receiver(name),
         // Nodes.
         "queue_free" => format!("{receiver}.queue_free()"),
-        "add_child" => format!("{receiver}.add_child({one})"),
+        "add_child" => format!("(gd.add_child)({receiver}, {one})"),
         "get_parent" => format!("{receiver}.parent()"),
         "get_children" => format!("{receiver}.children()"),
         "get_node" | "get_node_or_null" | "find_child" => format!("{receiver}.get_node({one})"),

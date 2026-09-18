@@ -42,6 +42,14 @@ Gamend, read on 2026-09-13:
   (`lobby_member_joined`, `party_invite_accepted`, `kv_updated`, …), fed by
   a dispatch over about seventy server event names. No table holds that
   dispatch; it is code.
+- Beside it, the WebRTC layer: `GamendSignalingClient` (459 lines) joins
+  a lobby's `signaling:<lobby_id>` channel and opens WebRTC peers in a star
+  or a mesh, with `peer_joined`, `peer_connected` and `send_data`;
+  `GamendWebRTC` and `GamendWebRTCPeer` open a data channel to Gamend's own
+  peer for hook calls. All three stand on Godot's `WebRTCPeerConnection`.
+  The Rune addon has none of them: they wait on a WebRTC transport in the
+  engine, and are step 6. `GamendLogs`, which ships client log lines into
+  the server's own log stream, is missing too and waits on nothing.
 - The document: 243 operations over 207 paths, every one with a unique
   `operationId`, 144 with no path parameter, 91 with one, 8 with two; 98
   bodies, 93 of them with named fields; 55 with query parameters; one with
@@ -121,6 +129,17 @@ files exactly as `gamend_template` is:
   `restore_session` through `save::`; `go_offline`, `link`, `unlink`,
   `state`, and a `state_changed` event on the node that owns it.
 - `presence.rn` — the user cache, two verbs.
+- `editor/gamend.rn` — the Gamend dock, an editor plugin the addon carries
+  (`docs/PLAN-gamend.md` step E3).
+- `logs.rn` — `setup`, `pump`, `flush`, `settle`, `report`, as
+  `GamendLogs.gd`, over the engine's log cursor; designed in
+  `docs/PLAN-gamend.md` §2b. `log_sink.rn` is the node script that runs
+  it. Step 6.
+- `prefs.rn` — `get`, `set`, `all`, `remove` over a local save slot, which
+  the Gamend dock's Data tab edits (`docs/PLAN-gamend.md` step E3d).
+- `signaling.rn` and `webrtc.rn` — the WebRTC layer, as
+  `GamendSignalingClient.gd` and `GamendWebRTC.gd`. Step 6, once the engine
+  has the transport.
 
 **One call shape, under the five-argument limit.** A façade function takes
 the node, the path parameters in path order, a `params` table for the body,
@@ -184,13 +203,18 @@ outside the node that called it.
 | Client verbs | 16 | written, `client.rn` |
 | Auth verbs | 20 | written, `auth.rn` |
 | Presence verbs | 2 | written, `presence.rn` |
+| The Gamend dock | 1 | written, `editor/gamend.rn` |
+| Log verbs | 7 | written, `logs.rn` and `log_sink.rn`, step 6 |
+| Pref verbs | 4 | written, `prefs.rn`, with the dock |
+| Signaling verbs: `connect_to_peer`, `send_data`, `broadcast_data`, `close_peer`, … | 12 | written, `signaling.rn`, step 6 |
+| WebRTC hook-channel verbs: `connect_webrtc`, `call_hook`, `send_data`, … | 8 | written, `webrtc.rn`, step 6 |
 | Engine calls underneath | 9 | unchanged, `crates/balaur_gamend` |
 
 ## 3. Steps
 
-Steps 1, 2 and 5 are Gamend-side and run in `../gamend`; 3 and 4 are here
-and in the port. Both repositories see the same addon, so the split is by
-where the file lives, not by who does it.
+Steps 1, 2, 5 and 6 are Gamend-side and run in `../gamend`; 3 and 4 are
+here and in the port. Both repositories see the same addon, so the split is
+by where the file lives, not by who does it.
 
 - **1. The generator (Gamend) — built.** `clients/generate_balaur.py`,
   `clients/generate_balaur.sh`, `clients/events.json` seeded from the Godot
@@ -232,6 +256,22 @@ where the file lives, not by who does it.
   `GAMEND_VERSION`, publishes `balaur_addons/addons/gamend` as an artifact
   beside the Godot one. Ends with: a version bump in Gamend reaches a game
   with `sync_gamend.sh` and nothing typed by hand.
+- **6. The rest of the Godot addon (Gamend).** What `gamend_template` has
+  and `balaur_template` does not. `logs.rn` first: the policy fetch, the
+  level floors, repeats folded, batches, the spool and the previous run's
+  log tail, as `docs/PLAN-gamend.md` §2b sets out. It needs the engine's
+  `log::since` and log file (step E4 there), and nothing from WebRTC. Then the WebRTC layer, once the engine has a WebRTC transport
+  (`docs/PLAN-networking.md` step 14): `signaling.rn` joins
+  `signaling:<lobby_id>`, relays offers, answers and ICE, connects peers in
+  a star or a mesh, and gives a game `send_data(user_id, label, bytes)`,
+  `broadcast_data` and the `peer_*` and `channel_*` events, as
+  `GamendSignalingClient.gd` does; `webrtc.rn` opens the data channel to
+  Gamend's own peer and calls hooks over it, as `GamendWebRTC.gd` does.
+  These are Gamend's: what a game sends is its own bytes between users,
+  and the engine's `multiplayer` module (`docs/PLAN-multiplayer.md`) is not
+  involved. Ends with: a log line submitted from a game shows in the
+  server's stream; then two engines in one lobby exchange bytes through
+  `send_data` with no hook between them.
 
 ## 4. What CI can prove
 

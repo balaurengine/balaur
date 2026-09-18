@@ -17,7 +17,7 @@ pub fn personas() {
 pub fn persona_docks(id) {
     match id {
         "script" => docks(["scene", "outline"], ["output", "problems", "docs", "debugger"], ["inspector"]),
-        "anim" => docks(["scene", "outline"], ["timeline", "output", "library"], ["inspector"]),
+        "anim" => docks(["scene", "outline"], ["timeline", "statemachine", "output", "library"], ["inspector"]),
         "phys" => docks(["scene"], ["output", "problems", "profiler"], ["inspector"]),
         "ui" => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),
         _ => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),

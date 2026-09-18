@@ -1,8 +1,8 @@
 > **Status:** built, bar one item. All four steps below landed: pause and
 > `process`, the time scale and `max_fps`, interpolation behind
-> `[time] interpolate`, and `[time] tick_hz`. What is left is the session
+> `[time] interpolate`, and `[time] tick_hz`. What is left is the multiplayer
 > handshake refusing a peer at another rate, which waits on a handshake to
-> put it in — see [PLAN-sessions.md](PLAN-sessions.md).
+> put it in — see [PLAN-multiplayer.md](PLAN-multiplayer.md).
 
 # Plan: pause, process mode, time scale and interpolation between ticks
 

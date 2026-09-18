@@ -38,7 +38,11 @@
     },
     "state_machine": {
       "directory": "animations",
-      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips, each `[[transitions]]` entry names `from`, `to`, `fade`, `advance`, `switch` and `condition`.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\nwalk = \"walk_cycle\"\n\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nfade = 0.2                       # seconds\nadvance = \"auto\"                 # disabled, enabled (fires on animation.travel) or auto\nswitch = \"immediate\"             # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\n```"
+      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nfade = 0.2                       # seconds\nease = \"in_out_sine\"             # the curve the fade follows; linear by default\nadvance = \"auto\"                 # disabled, enabled (fires on animation.travel) or auto\nswitch = \"immediate\"             # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop = false               # true holds a looping clip's end while it fades out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nfade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
+    },
+    "texture": {
+      "directory": "textures",
+      "doc": "An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.\n\n```toml\ntype = \"texture\"\nsource = \"art/hero.png\"\nfilter = \"nearest\"                # this use crisp, the sidecar's smooth\npixels_per_unit = 32\n```"
     },
     "tileset": {
       "directory": "tilesets",
@@ -2578,9 +2582,10 @@
         "type": "asset"
       },
       "texture": {
+        "asset": "texture",
         "default": "",
-        "description": "Image file, project-relative; empty draws the colour alone",
-        "type": "string"
+        "description": "Image file, project-relative, or a `texture` asset; empty draws the colour alone",
+        "type": "asset"
       }
     },
     "meta": {},
@@ -2880,9 +2885,10 @@
         "type": "float"
       },
       "texture": {
+        "asset": "texture",
         "default": "",
-        "description": "An image each particle draws with, project-relative; empty draws a flat square",
-        "type": "string"
+        "description": "An image, or a `texture` asset, each particle draws with; empty draws a flat square",
+        "type": "asset"
       }
     },
     "polygon": {
@@ -2914,9 +2920,10 @@
         "type": "string"
       },
       "texture": {
+        "asset": "texture",
         "default": "",
-        "description": "Image file, project-relative; empty draws the tint alone",
-        "type": "string"
+        "description": "Image file, project-relative, or a `texture` asset; empty draws the tint alone",
+        "type": "asset"
       }
     },
     "ragdoll": {
@@ -3070,9 +3077,10 @@
         "type": "int"
       },
       "texture": {
+        "asset": "texture",
         "default": "",
-        "description": "An image drawn along a polyline, repeating once per world unit of its length",
-        "type": "string"
+        "description": "An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length",
+        "type": "asset"
       },
       "width": {
         "default": 0.02,
@@ -3295,9 +3303,9 @@
         "type": "vec2"
       },
       "pixels_per_unit": {
-        "default": 100.0,
-        "description": "Texture pixels per world unit",
-        "min": 0.01,
+        "default": 0.0,
+        "description": "Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says",
+        "min": 0.0,
         "type": "float"
       },
       "region_origin": {
@@ -3323,9 +3331,10 @@
         "type": "asset"
       },
       "texture": {
+        "asset": "texture",
         "default": "",
-        "description": "Image file, project-relative; required",
-        "type": "string"
+        "description": "Image file, project-relative, or a `texture` asset that reads it with settings of its own; required",
+        "type": "asset"
       }
     },
     "state_machine": {
@@ -3333,6 +3342,11 @@
         "default": true,
         "description": "Whether the machine is running",
         "type": "bool"
+      },
+      "check_node": {
+        "default": "",
+        "description": "Node path whose script answers the transitions' `check` methods; empty means this node",
+        "type": "string"
       },
       "machine": {
         "asset": "state_machine",
@@ -4752,7 +4766,7 @@
       },
       "options": {
         "default": [],
-        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
+        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
         "group": "value",
         "type": "strings"
       },
@@ -5074,17 +5088,331 @@
         "animation",
         "state_machine"
       ],
-      "constants": [],
+      "constants": [
+        {
+          "name": "ADVANCE_AUTO",
+          "value": "auto"
+        },
+        {
+          "name": "ADVANCE_DISABLED",
+          "value": "disabled"
+        },
+        {
+          "name": "ADVANCE_ENABLED",
+          "value": "enabled"
+        },
+        {
+          "name": "EASE_IN_BACK",
+          "value": "in_back"
+        },
+        {
+          "name": "EASE_IN_BOUNCE",
+          "value": "in_bounce"
+        },
+        {
+          "name": "EASE_IN_CIRC",
+          "value": "in_circ"
+        },
+        {
+          "name": "EASE_IN_CUBIC",
+          "value": "in_cubic"
+        },
+        {
+          "name": "EASE_IN_ELASTIC",
+          "value": "in_elastic"
+        },
+        {
+          "name": "EASE_IN_EXPO",
+          "value": "in_expo"
+        },
+        {
+          "name": "EASE_IN_LINEAR",
+          "value": "in_linear"
+        },
+        {
+          "name": "EASE_IN_OUT_BACK",
+          "value": "in_out_back"
+        },
+        {
+          "name": "EASE_IN_OUT_BOUNCE",
+          "value": "in_out_bounce"
+        },
+        {
+          "name": "EASE_IN_OUT_CIRC",
+          "value": "in_out_circ"
+        },
+        {
+          "name": "EASE_IN_OUT_CUBIC",
+          "value": "in_out_cubic"
+        },
+        {
+          "name": "EASE_IN_OUT_ELASTIC",
+          "value": "in_out_elastic"
+        },
+        {
+          "name": "EASE_IN_OUT_EXPO",
+          "value": "in_out_expo"
+        },
+        {
+          "name": "EASE_IN_OUT_LINEAR",
+          "value": "in_out_linear"
+        },
+        {
+          "name": "EASE_IN_OUT_QUAD",
+          "value": "in_out_quad"
+        },
+        {
+          "name": "EASE_IN_OUT_QUART",
+          "value": "in_out_quart"
+        },
+        {
+          "name": "EASE_IN_OUT_QUINT",
+          "value": "in_out_quint"
+        },
+        {
+          "name": "EASE_IN_OUT_SINE",
+          "value": "in_out_sine"
+        },
+        {
+          "name": "EASE_IN_OUT_SPRING",
+          "value": "in_out_spring"
+        },
+        {
+          "name": "EASE_IN_QUAD",
+          "value": "in_quad"
+        },
+        {
+          "name": "EASE_IN_QUART",
+          "value": "in_quart"
+        },
+        {
+          "name": "EASE_IN_QUINT",
+          "value": "in_quint"
+        },
+        {
+          "name": "EASE_IN_SINE",
+          "value": "in_sine"
+        },
+        {
+          "name": "EASE_IN_SPRING",
+          "value": "in_spring"
+        },
+        {
+          "name": "EASE_LINEAR",
+          "value": "linear"
+        },
+        {
+          "name": "EASE_OUT_BACK",
+          "value": "out_back"
+        },
+        {
+          "name": "EASE_OUT_BOUNCE",
+          "value": "out_bounce"
+        },
+        {
+          "name": "EASE_OUT_CIRC",
+          "value": "out_circ"
+        },
+        {
+          "name": "EASE_OUT_CUBIC",
+          "value": "out_cubic"
+        },
+        {
+          "name": "EASE_OUT_ELASTIC",
+          "value": "out_elastic"
+        },
+        {
+          "name": "EASE_OUT_EXPO",
+          "value": "out_expo"
+        },
+        {
+          "name": "EASE_OUT_IN_BACK",
+          "value": "out_in_back"
+        },
+        {
+          "name": "EASE_OUT_IN_BOUNCE",
+          "value": "out_in_bounce"
+        },
+        {
+          "name": "EASE_OUT_IN_CIRC",
+          "value": "out_in_circ"
+        },
+        {
+          "name": "EASE_OUT_IN_CUBIC",
+          "value": "out_in_cubic"
+        },
+        {
+          "name": "EASE_OUT_IN_ELASTIC",
+          "value": "out_in_elastic"
+        },
+        {
+          "name": "EASE_OUT_IN_EXPO",
+          "value": "out_in_expo"
+        },
+        {
+          "name": "EASE_OUT_IN_LINEAR",
+          "value": "out_in_linear"
+        },
+        {
+          "name": "EASE_OUT_IN_QUAD",
+          "value": "out_in_quad"
+        },
+        {
+          "name": "EASE_OUT_IN_QUART",
+          "value": "out_in_quart"
+        },
+        {
+          "name": "EASE_OUT_IN_QUINT",
+          "value": "out_in_quint"
+        },
+        {
+          "name": "EASE_OUT_IN_SINE",
+          "value": "out_in_sine"
+        },
+        {
+          "name": "EASE_OUT_IN_SPRING",
+          "value": "out_in_spring"
+        },
+        {
+          "name": "EASE_OUT_LINEAR",
+          "value": "out_linear"
+        },
+        {
+          "name": "EASE_OUT_QUAD",
+          "value": "out_quad"
+        },
+        {
+          "name": "EASE_OUT_QUART",
+          "value": "out_quart"
+        },
+        {
+          "name": "EASE_OUT_QUINT",
+          "value": "out_quint"
+        },
+        {
+          "name": "EASE_OUT_SINE",
+          "value": "out_sine"
+        },
+        {
+          "name": "EASE_OUT_SPRING",
+          "value": "out_spring"
+        },
+        {
+          "name": "EVENT_ANIMATION_FINISHED",
+          "value": "animation_finished"
+        },
+        {
+          "name": "EVENT_STATE_FINISHED",
+          "value": "state_finished"
+        },
+        {
+          "name": "EVENT_STATE_STARTED",
+          "value": "state_started"
+        },
+        {
+          "name": "INTERP_CUBIC",
+          "value": "cubic"
+        },
+        {
+          "name": "INTERP_LINEAR",
+          "value": "linear"
+        },
+        {
+          "name": "INTERP_STEP",
+          "value": "step"
+        },
+        {
+          "name": "LOOP_LOOP",
+          "value": "loop"
+        },
+        {
+          "name": "LOOP_NONE",
+          "value": "none"
+        },
+        {
+          "name": "LOOP_PINGPONG",
+          "value": "pingpong"
+        },
+        {
+          "name": "MODIFIER_CCDIK",
+          "value": "ccdik"
+        },
+        {
+          "name": "MODIFIER_FABRIK",
+          "value": "fabrik"
+        },
+        {
+          "name": "MODIFIER_FOLLOW",
+          "value": "follow"
+        },
+        {
+          "name": "MODIFIER_JIGGLE",
+          "value": "jiggle"
+        },
+        {
+          "name": "MODIFIER_LOOK_AT",
+          "value": "look_at"
+        },
+        {
+          "name": "MODIFIER_TWO_BONE_IK",
+          "value": "two_bone_ik"
+        },
+        {
+          "name": "PROPERTY_DEFORM",
+          "value": "polygon/deform"
+        },
+        {
+          "name": "PROPERTY_POSITION",
+          "value": "position"
+        },
+        {
+          "name": "PROPERTY_ROTATION",
+          "value": "rotation"
+        },
+        {
+          "name": "PROPERTY_ROTATION_EULER",
+          "value": "rotation_euler"
+        },
+        {
+          "name": "PROPERTY_SCALE",
+          "value": "scale"
+        },
+        {
+          "name": "PROPERTY_TINT",
+          "value": "tint"
+        },
+        {
+          "name": "PROPERTY_VISIBLE",
+          "value": "visible"
+        },
+        {
+          "name": "STATE_END",
+          "value": "end"
+        },
+        {
+          "name": "SWITCH_AT_END",
+          "value": "at_end"
+        },
+        {
+          "name": "SWITCH_IMMEDIATE",
+          "value": "immediate"
+        },
+        {
+          "name": "SWITCH_SYNC",
+          "value": "sync"
+        }
+      ],
       "doc": "Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.",
       "docs": {
         "current": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
         "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
+        "ease_names": "Every curve an `ease` takes, by name: the bare `linear`, then twelve transitions in four modes each.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
         "jump": "Cut the state machine to the named state on the next step, with no fade.",
         "just_finished": "The clip that ended on this node during the last step, and nil on every other frame.",
         "pause": "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.",
-        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
+        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), `ease` (the fade's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
         "queue": "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.",
         "resume": "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.",
         "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
@@ -5092,14 +5420,15 @@
         "state": "The state the machine is in, or nil before it has entered one.",
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
-        "travel": "Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly.",
-        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out.",
+        "travel": "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.",
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out.",
         "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
         "tween_value_of": "Where a value tween has got to, in the shape it was started with; nil once it is over."
       },
       "functions": [
         "current",
         "define",
+        "ease_names",
         "is_playing",
         "is_tween_running",
         "jump",
@@ -5122,6 +5451,7 @@
       "signatures": {
         "current": "NodeId -> Option<String>",
         "define": "(NodeId, String, Value) -> ()",
+        "ease_names": "() -> Value",
         "is_playing": "NodeId -> bool",
         "is_tween_running": "Value -> bool",
         "jump": "(NodeId, String) -> ()",
@@ -5423,7 +5753,7 @@
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
         "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
         "paused": "Whether the game is paused.",
-        "platform": "Where this runs: `{ os, web, mobile, touchscreen, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
+        "platform": "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "profile_scripts": "Start or stop counting what each script costs. Turning it on clears the tally.",
@@ -5536,6 +5866,7 @@
       "docs": {
         "listen": "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.",
         "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
+        "preview": "What one file becomes in a target's pack, as the Import tab shows it: `{ source, before, after, width, height, drawn_width, drawn_height, gpu_bytes }`, where `source` is the file or the variant that ships and `drawn_*` is zero unless a smaller copy does. Nil when the file does not ship there. An empty target is this machine's own.",
         "running": "How many exports are in flight.",
         "start": "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays.",
         "targets": "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."
@@ -5543,6 +5874,7 @@
       "functions": [
         "listen",
         "output",
+        "preview",
         "running",
         "start",
         "targets"
@@ -5551,6 +5883,7 @@
       "signatures": {
         "listen": "(NodeId, Option<Value>) -> ()",
         "output": "String -> Value",
+        "preview": "(String, String) -> Value",
         "running": "() -> i64",
         "start": "(String, Option<Value>) -> bool",
         "targets": "() -> Value"
@@ -5602,10 +5935,12 @@
       "constants": [],
       "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
       "docs": {
+        "activity": "The last calls and socket messages, newest first, as `{ request, kind, what, status, ms }`; `ms` is nil while a call waits. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
         "close": "Shut the socket down; false when the connection was already gone.",
         "configure": "Point the plugin at a server's base url; every other call errors until this one runs.",
         "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take.",
+        "connection": "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`.",
         "join": "Subscribe the socket to a topic and return the id the server's `reply` answers.",
         "leave": "Unsubscribe the socket from a topic, returning the id the `reply` answers.",
         "login": "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers.",
@@ -5613,10 +5948,12 @@
         "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."
       },
       "functions": [
+        "activity",
         "call_hook",
         "close",
         "configure",
         "connect",
+        "connection",
         "join",
         "leave",
         "login",
@@ -5625,10 +5962,12 @@
       ],
       "name": "gamend",
       "signatures": {
+        "activity": "() -> Value",
         "call_hook": "(i64, String, String, Option<Value>) -> Value",
         "close": "i64 -> Value",
         "configure": "String -> ()",
         "connect": "(Value, Option<Value>) -> Value",
+        "connection": "() -> Value",
         "join": "(i64, String, Option<Value>) -> Value",
         "leave": "(i64, String) -> Value",
         "login": "(Value, Option<Value>, Option<Value>) -> Value",
@@ -6834,6 +7173,134 @@
         "sqrt": "(x: float)",
         "tan": "(angle: float)",
         "tanh": "(x: float)"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "EVENT_CLOSED",
+          "value": "closed"
+        },
+        {
+          "name": "EVENT_CONNECTED",
+          "value": "connected"
+        },
+        {
+          "name": "EVENT_DESYNC",
+          "value": "desync"
+        },
+        {
+          "name": "EVENT_FAILED",
+          "value": "failed"
+        },
+        {
+          "name": "EVENT_JOINED",
+          "value": "joined"
+        },
+        {
+          "name": "EVENT_LEFT",
+          "value": "left"
+        },
+        {
+          "name": "EVENT_STARTED",
+          "value": "started"
+        },
+        {
+          "name": "ROLE_CLIENT",
+          "value": "client"
+        },
+        {
+          "name": "ROLE_HOST",
+          "value": "host"
+        },
+        {
+          "name": "STATE_CONNECTING",
+          "value": "connecting"
+        },
+        {
+          "name": "STATE_IDLE",
+          "value": "idle"
+        },
+        {
+          "name": "STATE_LOBBY",
+          "value": "lobby"
+        },
+        {
+          "name": "STATE_PLAYING",
+          "value": "playing"
+        },
+        {
+          "name": "STATUS_ABSENT",
+          "value": "absent"
+        },
+        {
+          "name": "STATUS_PRESENT",
+          "value": "present"
+        },
+        {
+          "name": "TAG_LOCAL",
+          "value": "local"
+        },
+        {
+          "name": "TRANSPORT_WEBSOCKET",
+          "value": "websocket"
+        },
+        {
+          "name": "TRANSPORT_WEBTRANSPORT",
+          "value": "webtransport"
+        }
+      ],
+      "doc": "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.",
+      "docs": {
+        "add_bot": "On a host, a slot its own script plays with `set_input_for`; answers the slot, or nil when the lobby is full.",
+        "host": "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout`, `name`, `token`.",
+        "join": "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout`.",
+        "leave": "Say goodbye and go idle; a host leaving ends the match for everyone.",
+        "local_player": "This machine's own slot, or nil before it has one.",
+        "players": "Every slot as `{ slot, name, bot, local, status }`, `status` as of the tick being simulated.",
+        "role": "`ROLE_HOST` or `ROLE_CLIENT`, or nil when idle.",
+        "set_input": "What this machine's player does on the next tick, until set again; ignored while a tick re-runs.",
+        "set_input_for": "The same for a bot slot this machine plays.",
+        "settled": "The tick before which nothing can be rolled back any more.",
+        "start": "On a host, start with whoever is in rather than waiting for `players`; false when there is no lobby to start.",
+        "state": "`STATE_IDLE`, `STATE_CONNECTING`, `STATE_LOBBY` or `STATE_PLAYING`.",
+        "stats": "`{ rtt_ms, loss, bytes_in, bytes_out }` for the link a slot is reached over; nil for this machine's own. An observer: never simulate from it.",
+        "tick": "The match tick being simulated; what a match branches on instead of `engine.tick`."
+      },
+      "functions": [
+        "add_bot",
+        "host",
+        "join",
+        "leave",
+        "local_player",
+        "players",
+        "role",
+        "set_input",
+        "set_input_for",
+        "settled",
+        "start",
+        "state",
+        "stats",
+        "tick"
+      ],
+      "name": "multiplayer",
+      "signatures": {
+        "add_bot": "Option<String> -> Value",
+        "host": "Option<Value> -> Value",
+        "join": "(String, Option<Value>) -> Value",
+        "leave": "() -> Value",
+        "local_player": "() -> Value",
+        "players": "() -> Value",
+        "role": "() -> Value",
+        "set_input": "Value -> Value",
+        "set_input_for": "(i64, Value) -> Value",
+        "settled": "() -> Value",
+        "start": "() -> Value",
+        "state": "() -> Value",
+        "stats": "i64 -> Value",
+        "tick": "() -> Value"
       }
     },
     {
@@ -8297,25 +8764,28 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's engine screen; `balaur update` is the same code.",
+      "doc": "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.",
       "docs": {
         "channels": "Every release line a build may follow, in the order a version moves through them.",
-        "install": "Replace this install with what that channel or tag holds, and answer `{ note }` when it worked. Downloads while it blocks, and refuses inside a macOS bundle, which updates by its own download.",
-        "installed": "This build: `{ version, id, channel, tag, source }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, and `source` is true for a build from a checkout.",
-        "releases": "Every release the project has published, newest first: `{ tag, id, channel, when, current }` each, where `when` is how long ago it was published. Reads the network and blocks while it does. Answers `{ error }` as its one row when the feed could not be read."
+        "check": "Read the release feed on a thread. `listen` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the .dmg a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
+        "install": "Replace this install with what that channel or tag holds, on a thread. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
+        "installed": "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can.",
+        "listen": "Call a method on `node` with every report a check or an install makes: `on_release` unless `opts.on_event` names another."
       },
       "functions": [
         "channels",
+        "check",
         "install",
         "installed",
-        "releases"
+        "listen"
       ],
       "name": "release",
       "signatures": {
         "channels": "() -> Value",
-        "install": "(String, String, bool) -> Value",
+        "check": "() -> bool",
+        "install": "(String, String, bool) -> bool",
         "installed": "() -> Value",
-        "releases": "() -> Value"
+        "listen": "(NodeId, Option<Value>) -> ()"
       }
     },
     {
@@ -8488,7 +8958,7 @@
           "value": "reinhard"
         }
       ],
-      "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the window, backdrop and debug lines.",
+      "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
       "docs": {
         "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
@@ -8518,10 +8988,7 @@
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
-        "refresh_rate": "Frames per second the display refreshes at, as measured over the last frames; 60 with no window.",
-        "safe_area": "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
-        "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_ball": "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.",
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
@@ -8530,17 +8997,12 @@
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_channel": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_cuboid": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
-        "set_cursor_grab": "Confine the cursor to the window, for FPS-style mouse look.",
-        "set_cursor_hidden": "Hide or show the mouse cursor over the window.",
-        "set_fullscreen": "Put the window into borderless fullscreen on the current monitor, or back into a window.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
-        "set_keep_awake": "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing.",
         "set_rect": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
-        "set_window_mode": "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
         "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
@@ -8578,10 +9040,7 @@
         "mouse_world_2d",
         "outline",
         "pick_ray",
-        "refresh_rate",
-        "safe_area",
         "screenshot",
-        "set_app_icon",
         "set_background",
         "set_ball",
         "set_camera",
@@ -8590,17 +9049,12 @@
         "set_cell",
         "set_channel",
         "set_cuboid",
-        "set_cursor_grab",
-        "set_cursor_hidden",
-        "set_fullscreen",
         "set_grid",
         "set_grid_colors",
-        "set_keep_awake",
         "set_rect",
         "set_shader_preview",
         "set_shader_probe",
         "set_terrain",
-        "set_window_mode",
         "shader_probe",
         "stats",
         "terrain",
@@ -8639,10 +9093,7 @@
         "mouse_world_2d": "() -> (f32, f32)",
         "outline": "NodeId -> Vec<f32>",
         "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
-        "refresh_rate": "() -> f64",
-        "safe_area": "() -> Value",
         "screenshot": "String -> ()",
-        "set_app_icon": "String -> ()",
         "set_background": "(f32, f32, f32) -> ()",
         "set_ball": "(NodeId, f32) -> ()",
         "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
@@ -8651,17 +9102,12 @@
         "set_cell": "(NodeId, i64, i64, i64) -> ()",
         "set_channel": "String -> ()",
         "set_cuboid": "(NodeId, f32, f32, f32) -> ()",
-        "set_cursor_grab": "bool -> ()",
-        "set_cursor_hidden": "bool -> ()",
-        "set_fullscreen": "bool -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
-        "set_keep_awake": "bool -> ()",
         "set_rect": "(NodeId, f32, f32) -> ()",
         "set_shader_preview": "(String, i64) -> ()",
         "set_shader_probe": "(f64, f64) -> ()",
         "set_terrain": "(NodeId, i64, i64, i64) -> ()",
-        "set_window_mode": "String -> ()",
         "shader_probe": "() -> Value",
         "stats": "() -> Value",
         "terrain": "(NodeId, i64, i64) -> i64",
@@ -9633,6 +10079,43 @@
         "close": "i64 -> Value",
         "connect": "(Value, String, Option<Value>) -> Value",
         "send": "(i64, Value) -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "The OS window and the display under it: mode, cursor, app icon, keep-awake, the safe area and the refresh rate.",
+      "docs": {
+        "refresh_rate": "Frames per second the display refreshes at, as measured over the last frames; 60 with no window.",
+        "safe_area": "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop.",
+        "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
+        "set_cursor_grab": "Confine the cursor to the window, for FPS-style mouse look.",
+        "set_cursor_hidden": "Hide or show the mouse cursor over the window.",
+        "set_fullscreen": "Put the window into borderless fullscreen on the current monitor, or back into a window.",
+        "set_keep_awake": "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing.",
+        "set_window_mode": "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."
+      },
+      "functions": [
+        "refresh_rate",
+        "safe_area",
+        "set_app_icon",
+        "set_cursor_grab",
+        "set_cursor_hidden",
+        "set_fullscreen",
+        "set_keep_awake",
+        "set_window_mode"
+      ],
+      "name": "window",
+      "signatures": {
+        "refresh_rate": "() -> f64",
+        "safe_area": "() -> Value",
+        "set_app_icon": "String -> ()",
+        "set_cursor_grab": "bool -> ()",
+        "set_cursor_hidden": "bool -> ()",
+        "set_fullscreen": "bool -> ()",
+        "set_keep_awake": "bool -> ()",
+        "set_window_mode": "String -> ()"
       }
     }
   ]

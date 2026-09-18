@@ -6,7 +6,8 @@ use crate::style;
 use crate::util;
 
 // The keys each kind offers, in the order they are drawn. `fallback` is what
-// the engine assumes when neither the project nor the sidecar says.
+// the engine assumes when neither the project nor the sidecar says; `only`
+// names the one extension a row applies to.
 
 // The per-axis keys (`mag_filter`, `repeat_u`, `mipmap_filter` and the rest)
 // are written by hand: a row apiece would double the panel.
@@ -24,17 +25,76 @@ const ROWS = #{
            help: "colour scaled by alpha at upload, so a soft edge blends without a dark fringe" },
         #{ key: "srgb", kind: "bool", fallback: true,
            help: "off for a normal map or a mask, which carry data rather than colour" },
+        #{ key: "bleed", kind: "bool", fallback: true,
+           help: "the edge colour spread under transparent texels, so a linear filter reads no fringe" },
+        #{ key: "normal_map", kind: "bool", fallback: false,
+           help: "a normal map: data rather than colour, so srgb is off unless set" },
+        #{ key: "flip_green", kind: "bool", fallback: false,
+           help: "invert green, for a normal map baked the way DirectX reads one" },
+        #{ key: "pixels_per_unit", kind: "number", fallback: 100.0, step: 1.0,
+           help: "texture pixels to one world unit, for a sprite whose own is 0" },
+        #{ key: "scale", kind: "number", fallback: 1.0, step: 0.25, only: "svg",
+           help: "pixels per SVG unit; the raster a sprite measures" },
+        #{ key: "recode", kind: "enum", options: ["keep", "webp", "quantised"], fallback: "export",
+           help: "how an export re-encodes this file, over [export] images" },
+        #{ key: "quality", kind: "number", fallback: 80.0, step: 5.0, whole: true,
+           help: "the palette's 0 to 100 quality when this file is quantised" },
+    ],
+    audio: [
+        #{ key: "volume", kind: "number", fallback: 1.0, step: 0.05,
+           help: "the file's own level, multiplied into every play of it" },
+        #{ key: "loop", kind: "bool", fallback: false,
+           help: "loop wherever it is played" },
+        #{ key: "loop_offset", kind: "number", fallback: 0.0, step: 0.1,
+           help: "seconds in that each repeat starts from, past an intro" },
+        #{ key: "mono", kind: "bool", fallback: false,
+           help: "mixed to one channel at export; a WAV only" },
+        #{ key: "max_rate", kind: "count", options: ["0", "11025", "22050", "32000", "44100", "48000"], fallback: 0,
+           help: "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
+        #{ key: "recode", kind: "enum", options: ["keep", "flac", "vorbis"], fallback: "export",
+           help: "how an export re-encodes this file, over [export] audio" },
+    ],
+    font: [
+        #{ key: "family", kind: "enum", options: ["ui", "heading", "mono", "icons"], fallback: "name",
+           help: "the family this face joins; by default its file name's prefix decides" },
+        #{ key: "scale", kind: "number", fallback: 1.0, step: 0.05,
+           help: "how large the UI draws its glyphs, without moving the layout" },
+        #{ key: "y_offset", kind: "number", fallback: 0.0, step: 0.01,
+           help: "a nudge down as a fraction of the size, for a face that sits high" },
+        #{ key: "hinting", kind: "bool", fallback: true,
+           help: "snap outlines to the pixel grid; off for a smooth face" },
+        #{ key: "antialias", kind: "bool", fallback: true,
+           help: "smooth glyph edges; off draws every pixel on or off, for a pixel face" },
+    ],
+    model: [
+        #{ key: "scale", kind: "number", fallback: 1.0, step: 0.01,
+           help: "the model's units to the scene's: 0.01 for a file modelled in centimetres" },
+        #{ key: "lods", kind: "count", options: ["0", "1", "2", "3", "4", "5", "6"], fallback: 0,
+           help: "simpler copies built at load, each half the triangles of the one before" },
+        #{ key: "lod_distance", kind: "number", fallback: 20.0, step: 1.0,
+           help: "camera distance where the first simpler copy takes over; each next at twice it" },
     ],
 };
 
 // What each `count` option writes: the sidecar holds a number, and a dropdown
 // hands back the text beside it.
-const COUNTS = #{ "1": 1, "2": 2, "4": 4, "8": 8, "16": 16 };
+const COUNTS = #{
+    "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "8": 8, "16": 16,
+    "11025": 11025, "22050": 22050, "32000": 32000, "44100": 44100, "48000": 48000,
+};
 
 // Extensions the panel claims, matching `balaur_core::import::kind_of`. A
-// picture in another format is not a texture the engine reads, so offering
-// its settings would write a file nothing opens.
-const KINDS = #{ png: "texture", webp: "texture" };
+// file in another format is not one the engine reads, so offering settings
+// for it would write a file nothing opens.
+const KINDS = #{
+    png: "texture", webp: "texture", jpg: "texture", jpeg: "texture", svg: "texture",
+    ogg: "audio", wav: "audio", mp3: "audio", flac: "audio",
+    ttf: "font", otf: "font", ttc: "font",
+    glb: "model", gltf: "model", obj: "model",
+};
+
+// The targets the panel shows a file shipping to; empty is this machine.
+const TARGETS = [["desktop", ""], ["web", "web"], ["android", "android"], ["ios", "ios"]];
 
 pub fn kind_of(rel) {
     let lower = rel.to_lowercase();
@@ -79,6 +139,45 @@ fn table_at(path) {
     util::obj(value)
 }
 
+// The image a `textures/*.toml` asset reads, or "" for any other file. Such a
+// file holds its own settings, so its rows edit it in place. Kept per file,
+// since a panel asks every frame.
+fn texture_source(S, rel) {
+    let held = S.get("import_texture").unwrap_or(#{ rel: "", source: "" });
+    if held.rel == rel {
+        return held.source;
+    }
+    let found = "";
+    if rel.to_lowercase().ends_with(".toml") {
+        let table = table_at(full(S, rel));
+        if table.get("type").unwrap_or("") == "texture" {
+            let source = table.get("source").unwrap_or("");
+            if source is String {
+                found = source;
+            }
+        }
+    }
+    S.insert("import_texture", #{ rel: rel, source: found });
+    found
+}
+
+// The picture a file's rows describe: a texture asset's source, or the file.
+fn image_of(S, rel) {
+    let source = texture_source(S, rel);
+    if source == "" { rel } else { source }
+}
+
+// The file a key is written to: a texture asset itself, or the sidecar.
+fn settings_file(S, rel) {
+    if texture_source(S, rel) == "" { sidecar_of(rel) } else { rel }
+}
+
+// Which kind's rows a file takes.
+fn kind_for(S, rel) {
+    let kind = kind_of(rel);
+    if kind == "" && texture_source(S, rel) != "" { "texture" } else { kind }
+}
+
 // What `project.toml` says for this kind, which the sidecar overrides.
 fn project_default(S, kind, key) {
     let manifest = toml::parse(fs::read(S.game_root + "/project.toml"));
@@ -93,7 +192,7 @@ pub fn write(S, rel, key, value) {
     // read before the write, and the log goes out first.
     let cleared = value is Tuple;
     let what = if cleared { "cleared" } else { "set" };
-    let path = full(S, sidecar_of(rel));
+    let path = full(S, settings_file(S, rel));
     log::info(format!("import: {} {} for {}", key, what, rel));
     let table = table_at(path);
     if cleared {
@@ -111,24 +210,46 @@ pub fn write(S, rel, key, value) {
     // The renderer uploads a texture under a name built from its settings, so
     // the change shows without a restart.
     assets::invalidate();
+    S.insert("import_shipped", #{ rel: "", rows: [] });
 }
 
 // One row: the label, the control, and where the value came from.
 fn row(S, k, rel, kind, spec) {
     let key = spec.key;
-    let own = sidecar(S, rel).get(key);
+    let own = table_at(full(S, settings_file(S, rel))).get(key);
     let inherited = project_default(S, kind, key);
-    // Read before either Option is unwrapped: unwrapping takes the value.
+    // A texture asset reads its image's sidecar first, and overrides it.
+    let image = image_of(S, rel);
+    let beside = if image == rel { None } else { sidecar(S, image).get(key) };
+    // Read before any Option is unwrapped: unwrapping takes the value.
     let has_own = own.is_some();
-    let source = if inherited.is_some() { "project" } else { "default" };
+    let source = if beside.is_some() { "image" } else if inherited.is_some() { "project" } else { "default" };
     let effective = spec.fallback;
     if let Some(value) = inherited {
+        effective = value;
+    }
+    if let Some(value) = beside {
         effective = value;
     }
     if let Some(value) = own {
         effective = value;
     }
-    let control = if spec.kind == "bool" {
+    // A plain `let` rather than an `if` inside the literal, which Rune can
+    // write into the wrong slot.
+    let shown = spec.fallback;
+    if effective is f64 {
+        shown = effective;
+    } else if effective is i64 {
+        shown = effective as f64;
+    }
+    let whole = spec.get("whole").unwrap_or(false);
+    let control = if spec.kind == "number" {
+        #{
+            kind: "drag_value", grow: 1, tooltip: spec.help, arrows: true,
+            value: shown, step: spec.step,
+            on: |v| { write(S, rel, key, if whole { math::round(v) as i64 } else { v }); },
+        }
+    } else if spec.kind == "bool" {
         #{
             kind: "check", text: "", tooltip: spec.help,
             checked: effective == true,
@@ -169,11 +290,77 @@ fn specs_for(S) {
     if rel == "" {
         return [];
     }
-    let kind = kind_of(rel);
+    let kind = kind_for(S, rel);
     if kind == "" {
         return [];
     }
-    ROWS.get(kind).unwrap_or([])
+    let lower = image_of(S, rel).to_lowercase();
+    let out = [];
+    for spec in ROWS.get(kind).unwrap_or([]) {
+        let only = spec.get("only").unwrap_or("");
+        if only == "" || lower.ends_with("." + only) {
+            out.push(spec);
+        }
+    }
+    out
+}
+
+/// Bytes as a person reads them.
+fn size_text(n) {
+    let n = n as f64;
+    if n < 1024.0 {
+        return format!("{} B", n as i64);
+    }
+    if n < 1048576.0 {
+        return format!("{:.1} KB", n / 1024.0);
+    }
+    format!("{:.1} MB", n / 1048576.0)
+}
+
+/// One target's line, short enough for the dock: the pixels that ship, what
+/// the scene measures when that differs, the bytes, and the variant used.
+fn shipped_line(rel, row) {
+    if !(row is Object) {
+        return "not shipped";
+    }
+    let parts = [];
+    if row.width > 0 {
+        let pixels = format!("{}x{}", row.width, row.height);
+        if row.drawn_width > 0 {
+            pixels = pixels + format!(" of {}x{}", row.drawn_width, row.drawn_height);
+        }
+        parts.push(pixels);
+    }
+    parts.push(size_text(row.after));
+    if row.source != rel {
+        parts.push(util::last_segment(row.source));
+    }
+    util::join(parts, " · ")
+}
+
+/// The same row whole, for the tooltip: what the GPU holds once uploaded.
+fn shipped_tip(row) {
+    if !(row is Object) {
+        return "This file is not in that target's pack.";
+    }
+    let gpu = if row.gpu_bytes > 0 { format!(", {} on the GPU", size_text(row.gpu_bytes)) } else { "" };
+    format!("{} from {}{}", size_text(row.after), size_text(row.before), gpu)
+}
+
+// What each target ships, kept until the file or its settings change: an
+// answer decodes and may re-encode the picture, which no frame should pay.
+fn shipped(S, rel) {
+    let held = S.get("import_shipped").unwrap_or(#{ rel: "", rows: [] });
+    if held.rel == rel {
+        return held.rows;
+    }
+    let rows = [];
+    for pair in TARGETS {
+        let answer = export::preview(rel, pair[1]);
+        rows.push([pair[0], shipped_line(rel, answer), shipped_tip(answer)]);
+    }
+    S.insert("import_shipped", #{ rel: rel, rows: rows });
+    rows
 }
 
 // The Import tab, for whatever the Assets dock has selected. Empty until a
@@ -187,7 +374,8 @@ pub fn panel(S, k) {
         style::empty(k, why);
         return;
     }
-    let kind = kind_of(rel);
+    let kind = kind_for(S, rel);
+    let image = image_of(S, rel);
     ui::add_space(6);
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(10);
@@ -195,7 +383,13 @@ pub fn panel(S, k) {
     });
     ui::horizontal(#{ height: 20 }, || {
         ui::add_space(10);
-        let from = if fs::exists(full(S, sidecar_of(rel))) { sidecar_of(util::last_segment(rel)) } else { "no settings file yet" };
+        let from = if image != rel {
+            "reads " + image
+        } else if fs::exists(full(S, sidecar_of(rel))) {
+            sidecar_of(util::last_segment(rel))
+        } else {
+            "no settings file yet"
+        };
         ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.faint));
     });
     // The same pool the inspector fills: one form under the right sheet, and
@@ -203,6 +397,11 @@ pub fn panel(S, k) {
     crate::inspector::open_pool(S);
     for spec in specs {
         row(S, k, rel, kind, spec);
+    }
+    if kind == "texture" || kind == "audio" {
+        for pair in shipped(S, image) {
+            crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "meta", grow: 1 }]);
+        }
     }
     crate::inspector::close_pool(S);
 }

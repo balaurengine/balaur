@@ -135,6 +135,18 @@ pub fn parse(source: &str) -> anyhow::Result<BitmapFont> {
     Ok(font)
 }
 
+/// The project path of the page a `.fnt` at `path` draws from: beside the
+/// descriptor, as the tool that wrote it left it. `None` for one that does
+/// not parse.
+#[must_use]
+pub fn page_of(path: &str, source: &str) -> Option<String> {
+    let page = parse(source).ok()?.page;
+    Some(match path.rsplit_once('/') {
+        Some((directory, _)) => format!("{directory}/{page}"),
+        None => page,
+    })
+}
+
 impl BitmapFont {
     /// Lay `text` out at `size` pixels, over a page already placed in the
     /// atlas at `region` and `page_size` pixels across.

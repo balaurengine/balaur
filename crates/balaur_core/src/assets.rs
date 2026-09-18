@@ -519,6 +519,25 @@ fn cached_definition(eng: &Engine, key: &AssetRef, reference: &str) -> Result<De
 
 fn read_definition(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Definition> {
     match key {
+        // An image is a texture of itself, so a texture property takes a plain
+        // path; it is read to prove it is there, not parsed.
+        AssetRef::File(path) if crate::texture_asset::image_definition(path).is_some() => {
+            let body = crate::texture_asset::image_definition(path)
+                .unwrap_or_else(|| toml::Value::Table(toml::Table::new()));
+            let files = eng.try_resource::<crate::project::ProjectFiles>();
+            if let Some(files) = files
+                && files.borrow().mtime(path).is_none()
+                && files.borrow().read(path).is_err()
+            {
+                return Err(anyhow!(
+                    "asset reference '{reference}': no image at '{path}'"
+                ));
+            }
+            Ok(Definition {
+                type_name: Some(crate::texture_asset::TEXTURE_ASSET_TYPE.to_string()),
+                body,
+            })
+        }
         AssetRef::File(path) => {
             let document = read_document(eng, path)?;
             Ok(Definition {

@@ -45,6 +45,12 @@ pub(crate) struct Context {
     /// prefix makes unique per script.
     pub static_vars: BTreeMap<String, String>,
     pub static_prefix: String,
+    /// Another class's `static var`s: its file, the store's key prefix, and
+    /// each var's Rune default, so `Class.var` reads and writes that store.
+    pub class_statics: BTreeMap<String, (String, BTreeMap<String, String>)>,
+    /// Each function's parameter defaults as GDScript text, so a call that
+    /// leaves them out passes them: a Rune function takes every argument.
+    pub param_defaults: BTreeMap<String, Vec<Option<String>>>,
 }
 
 /// The members that stand in for Godot's per-node process switch.
@@ -53,6 +59,18 @@ pub(crate) const PHYSICS_PROCESS_FLAG: &str = "physics_process_enabled";
 
 /// What a base's overridden function is named here, so `super` can reach it.
 pub(crate) const BASE_SUFFIX: &str = "__base";
+
+/// An AnimationTree's parameter paths, indexed like a dictionary in Godot and
+/// read or written through the shim here.
+const TREE_PARAMETERS: &str = "parameters/";
+
+/// `tree["parameters/…"]`: the object and the key, when the index is one.
+fn tree_parameter<'e>(object: &'e Expr, index: &'e Expr) -> Option<(&'e Expr, &'e str)> {
+    match index {
+        Expr::Str(key) if key.starts_with(TREE_PARAMETERS) => Some((object, key)),
+        _ => None,
+    }
+}
 
 /// Rune's reserved words: a GDScript name that is one gains a trailing `_`.
 pub(crate) const RESERVED: &[&str] = &[
@@ -301,6 +319,16 @@ impl<'a> Emitter<'a> {
 
     fn assignment(&mut self, target: &Expr, op: &str, value: &Expr, pad: &str) -> String {
         let mut out = String::new();
+        if let Expr::Index(object, index) = target
+            && op == "="
+            && let Some((object, key)) = tree_parameter(object, index)
+        {
+            let object = self.expression(object);
+            let text = self.expression(value);
+            self.uses_shim = true;
+            let _ = writeln!(out, "{pad}(gd.set)({object}, {}, {text});", quoted(key));
+            return out;
+        }
         let indexed = matches!(target, Expr::Index(..));
         // `a[i] += v` is not supported; expanding it is the whole fix.
         if indexed && op != "=" {
@@ -461,6 +489,21 @@ impl<'a> Emitter<'a> {
             let _ = writeln!(out, "{pad}let _ = (gd.static_set)({key}, {name});");
             return Some(out);
         }
+        if let Expr::Field(object, field) = target
+            && let Expr::Name(class) = &**object
+            && !self.is_local(class)
+            && let Some((key, _)) = self.foreign_static(class, field)
+        {
+            let text = if op == "=" {
+                self.expression(value)
+            } else {
+                let read = self.expression(target);
+                let other = self.expression(value);
+                format!("{read} {} {other}", op.trim_end_matches('='))
+            };
+            self.uses_shim = true;
+            return Some(format!("{pad}let _ = (gd.static_set)({key}, {text});\n"));
+        }
         if let Expr::Name(name) = target
             && !self.is_local(name)
             && self.context.static_vars.contains_key(name)
@@ -553,6 +596,11 @@ impl<'a> Emitter<'a> {
             Expr::Name(name) => self.name(name),
             Expr::Field(object, field) => self.field(object, field),
             Expr::Index(object, index) => {
+                if let Some((object, key)) = tree_parameter(object, index) {
+                    let object = self.expression(object);
+                    self.uses_shim = true;
+                    return format!("(gd.get)({object}, {}, ())", quoted(key));
+                }
                 let object = self.expression(object);
                 let index = self.expression(index);
                 format!("{object}[{index}]")
@@ -628,6 +676,12 @@ impl<'a> Emitter<'a> {
         if self.context.consts.contains(name) {
             return name.to_string();
         }
+        // A method named as a value is Godot's `Callable`: a closure here.
+        if !self.context.members.contains(name)
+            && let Some(closure) = self.callable(&Expr::Name(name.to_string()))
+        {
+            return closure;
+        }
         if self.context.members.contains(name) {
             if self.in_static && !self.context.static_vars.contains_key(name) {
                 self.note(format!(
@@ -686,6 +740,9 @@ impl<'a> Emitter<'a> {
             if self.context.signals.contains(field) {
                 return quoted(field);
             }
+            if let Some(closure) = self.callable(&Expr::Field(Box::new(Expr::SelfRef), field.to_string())) {
+                return closure;
+            }
         }
         if let Expr::Name(class) = object
             && !self.is_local(class)
@@ -697,6 +754,10 @@ impl<'a> Emitter<'a> {
             }
             // A static on a project class reads through its module, where the
             // function is a field and must be called in parentheses.
+            if let Some((key, fallback)) = self.foreign_static(class, field) {
+                self.uses_shim = true;
+                return format!("(gd.static_get)({key}, {fallback})");
+            }
             if self.context.classes.contains_key(class) {
                 let module = self.class_module(class);
                 return format!("({module}.{})", safe(field));
@@ -723,6 +784,12 @@ impl<'a> Emitter<'a> {
     }
 
     fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
+        if let Expr::Field(_, verb) = callee
+            && verb == "bind"
+            && let Some(closure) = self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()))
+        {
+            return closure;
+        }
         // `self.method(..)` and a bare `method(..)` are the same call here.
         let own = match callee {
             Expr::Name(name) if !self.is_local(name) => Some(name.clone()),
@@ -739,12 +806,14 @@ impl<'a> Emitter<'a> {
                 let bound = self.method_name(&name);
                 let mut parts = vec!["this".to_string()];
                 parts.extend(args.iter().map(|arg| self.expression(arg)));
+                self.pad_defaults(&name, args.len(), &mut parts);
                 let text = format!("{bound}({})", parts.join(", "));
                 return self.awaited(&name, text);
             }
             if self.context.statics.contains(&name) {
                 let bound = self.method_name(&name);
-                let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+                let mut parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+                self.pad_defaults(&name, args.len(), &mut parts);
                 let text = format!("{bound}({})", parts.join(", "));
                 return self.awaited(&name, text);
             }
@@ -775,6 +844,14 @@ impl<'a> Emitter<'a> {
             && !self.context.classes.contains_key(class)
             && class.chars().next().is_some_and(char::is_uppercase)
         {
+            // A built-in node class made in code is a one-node scene here.
+            if method == "new"
+                && let Some(doc) =
+                    crate::godot::nodes::bare_document(class, crate::godot::script::NEW_NAME)
+            {
+                self.uses_shim = true;
+                return format!("(gd.new_node)({}, ())", quoted(&doc));
+            }
             if let Some(text) = map::static_call(class, method, &parts) {
                 return self.shimmed(text);
             }
@@ -935,6 +1012,16 @@ impl<'a> Emitter<'a> {
         if self.signal_of(&object).is_some() {
             return None;
         }
+        // A tween's `finished` is not an event on a node: the handler becomes
+        // a function the tween calls once its last step is done.
+        if signal == "finished" && verb == "connect" {
+            let receiver = self.expression(&object);
+            if receiver.to_lowercase().contains("tween") {
+                let call = self.callable(args.first()?)?;
+                self.uses_shim = true;
+                return Some(format!("(gd.when_finished)({receiver}, {call})"));
+            }
+        }
         // Godot's handler is always a method of this class. A lambda or a
         // `.bind(..)` is not one, and is reported rather than half-translated.
         let is_handler = |name: &String| self.context.methods.contains(name);
@@ -970,6 +1057,79 @@ impl<'a> Emitter<'a> {
         let handler = handler?;
         self.forwarders.insert(signal.clone(), handler);
         Some(map::signal_subscribe(&receiver, &signal))
+    }
+
+    /// The defaults of the parameters a call to `name` left out, translated
+    /// where the call is, since Godot evaluates them there too.
+    fn pad_defaults(&mut self, name: &str, given: usize, parts: &mut Vec<String>) {
+        let Some(defaults) = self.context.param_defaults.get(name).cloned() else {
+            return;
+        };
+        for fallback in defaults.iter().skip(given) {
+            let Some(text) = fallback else {
+                break;
+            };
+            let value = self.default_arg(text);
+            parts.push(value);
+        }
+    }
+
+    fn default_arg(&mut self, text: &str) -> String {
+        let Ok(tokens) = super::lex::lex(text) else {
+            return "()".to_string();
+        };
+        let lines = [text];
+        match super::parse::Parser::new(&tokens, &lines).expression(0) {
+            Some(expr) => self.expression(&expr),
+            None => "()".to_string(),
+        }
+    }
+
+    /// A Godot `Callable` as a Rune closure: a lambda as itself, a method of
+    /// this class as a call on `this`, and `.bind(..)` with its arguments
+    /// taken now, as Godot takes them.
+    fn callable(&mut self, handler: &Expr) -> Option<String> {
+        if matches!(handler, Expr::Lambda { .. }) {
+            return Some(self.expression(handler));
+        }
+        let (target, bound) = match handler {
+            Expr::Call(callee, bound) => match &**callee {
+                Expr::Field(target, verb) if verb == "bind" => (&**target, bound.as_slice()),
+                _ => return None,
+            },
+            other => (other, &[][..]),
+        };
+        let name = self.own_method(target)?;
+        if self.in_static {
+            return None;
+        }
+        let mut names = vec!["this".to_string()];
+        let mut lets = String::new();
+        for value in bound {
+            let local = self.temp();
+            let text = self.expression(value);
+            lets.push_str(&format!("let {local} = {text}; "));
+            names.push(local);
+        }
+        let call = format!("{}({})", self.method_name(&name), names.join(", "));
+        Some(format!("{{ {lets}|| {{ {call}; }} }}"))
+    }
+
+    /// The name of a method of this class that `target` refers to.
+    fn own_method(&self, target: &Expr) -> Option<String> {
+        let name = match target {
+            Expr::Name(name) if !self.is_local(name) => name,
+            Expr::Field(owner, name) if matches!(**owner, Expr::SelfRef) => name,
+            _ => return None,
+        };
+        self.context.methods.contains(name).then(|| name.clone())
+    }
+
+    /// Another class's `static var`: the store's quoted key and its default.
+    fn foreign_static(&self, class: &str, field: &str) -> Option<(String, String)> {
+        let (file, vars) = self.context.class_statics.get(class)?;
+        let fallback = vars.get(field)?.clone();
+        Some((quoted(&format!("{file}:{field}")), fallback))
     }
 
     fn signal_of(&self, object: &Expr) -> Option<String> {

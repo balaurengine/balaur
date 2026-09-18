@@ -15,7 +15,10 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
         &balaur_core::components::ComponentDef::schema(&[
             (
                 k::TEXTURE,
-                r#"{ type = "string", default = "", description = "Image file, project-relative; required" }"#,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own; required" }}"#,
+                    balaur_core::texture_asset::TEXTURE_ASSET_TYPE
+                ),
             ),
             (
                 k::FRAME,
@@ -31,7 +34,7 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
             ),
             (
                 k::PIXELS_PER_UNIT,
-                r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }"#,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "Texture pixels per world unit; 0 takes the texture's own `pixels_per_unit` import setting, which is 100 unless it says" }"#,
             ),
             (
                 k::OFFSET,
@@ -133,9 +136,13 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                         ]
                     })
                 });
-                let ppu = num(k::PIXELS_PER_UNIT) as f32;
+                let own_ppu = num(k::PIXELS_PER_UNIT) as f32;
+                let per = if own_ppu > 0.0 {
+                    own_ppu
+                } else {
+                    crate::texture::pixels_per_unit(eng, &texture)
+                };
                 let offset = [pair(k::OFFSET, 0), pair(k::OFFSET, 1)];
-                let per = if ppu > 0.0 { ppu } else { crate::DEFAULT_PIXELS_PER_UNIT };
                 set_sprite(
                     eng,
                     entity,
@@ -151,13 +158,10 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                         offset,
                         centered: params.get(k::CENTERED).and_then(toml::Value::as_bool) != Some(false),
                         shift: [offset[0] / per, -offset[1] / per],
+                        own_pixels_per_unit: own_ppu,
                     },
                     explicit,
-                    if ppu > 0.0 {
-                        ppu
-                    } else {
-                        crate::DEFAULT_PIXELS_PER_UNIT
-                    },
+                    per,
                 )?;
                 crate::set_color(eng, entity, crate::color_from_params(params))?;
                 crate::material::set_material_2d(
@@ -271,9 +275,11 @@ fn read_sprite(
             ]),
         );
     }
+    // As authored: 0 follows the texture, and reporting the value it
+    // resolved to would pin it the first time anything patched the sprite.
     map.insert(
         k::PIXELS_PER_UNIT.into(),
-        toml::Value::Float(f64::from(renderable.pixels_per_unit)),
+        toml::Value::Float(f64::from(sprite.own_pixels_per_unit)),
     );
     map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
     map.insert(

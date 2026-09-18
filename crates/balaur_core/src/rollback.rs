@@ -134,6 +134,10 @@ pub struct Session {
     /// because only the session knows when a tick has actually run, and a
     /// re-run has to overwrite the number the first run produced.
     digests: BTreeMap<u64, Digest>,
+    /// Players who left, with the first tick each has no input for.
+    absent: BTreeMap<PlayerId, u64>,
+    /// The newest tick each player's input arrived for.
+    newest: BTreeMap<PlayerId, u64>,
 }
 
 impl Session {
@@ -152,7 +156,66 @@ impl Session {
             dirty: None,
             stale: 0,
             digests: BTreeMap::new(),
+            absent: BTreeMap::new(),
+            newest: BTreeMap::new(),
         }
+    }
+
+    /// The earliest tick a late input has marked to run again, which the next
+    /// [`Session::advance`] does first; its digest and every later one are
+    /// stale until then.
+    #[must_use]
+    pub const fn rerun_from(&self) -> Option<u64> {
+        self.dirty
+    }
+
+    /// Every player in the session, present or not.
+    #[must_use]
+    pub fn players(&self) -> &[PlayerId] {
+        &self.players
+    }
+
+    /// Whether `player` still plays on `tick`; one who left plays no tick
+    /// from the one [`Session::set_absent`] named.
+    #[must_use]
+    pub fn is_present(&self, player: PlayerId, tick: u64) -> bool {
+        self.absent.get(&player).is_none_or(|from| tick < *from)
+    }
+
+    /// The newest tick an input from `player` arrived for.
+    #[must_use]
+    pub fn newest_input(&self, player: PlayerId) -> Option<u64> {
+        self.newest.get(&player).copied()
+    }
+
+    /// What arrived from `player` for `tick`, while the journal still holds it.
+    #[must_use]
+    pub fn arrived_input(&self, player: PlayerId, tick: u64) -> Option<&Input> {
+        self.arrived.get(&(tick, player))
+    }
+
+    /// `player` left: from `from` on, each tick runs with nil for them, and
+    /// no tick waits on them to settle.
+    ///
+    /// A tick already run from a prediction that was not nil is re-run.
+    pub fn set_absent(&mut self, player: PlayerId, from: u64) {
+        if !self.players.contains(&player) {
+            return;
+        }
+        self.absent.insert(player, from);
+        self.arrived
+            .retain(|&(tick, id), _| id != player || tick < from);
+        let wrong = self
+            .used
+            .range((from, 0)..)
+            .find(|((_, id), value)| *id == player && **value != Value::Nil)
+            .map(|((tick, _), _)| *tick);
+        let Some(tick) = wrong else { return };
+        if self.ring.earliest().is_some_and(|earliest| tick < earliest) {
+            self.stale += 1;
+            return;
+        }
+        self.dirty = Some(self.dirty.map_or(tick, |at| at.min(tick)));
     }
 
     /// The tick that runs on the next [`Session::advance`].
@@ -192,6 +255,11 @@ impl Session {
             );
             return;
         }
+        if !self.is_present(player, tick) {
+            return;
+        }
+        let newest = self.newest.entry(player).or_insert(tick);
+        *newest = (*newest).max(tick);
         let changed = self.used.get(&(tick, player)) != Some(&value);
         self.arrived.insert((tick, player), value);
         if tick >= self.next || !changed {
@@ -246,9 +314,9 @@ impl Session {
     /// finished, which is a race and not a desync.
     #[must_use]
     pub fn confirmed(&self, tick: u64) -> bool {
-        self.players
-            .iter()
-            .all(|player| self.arrived.contains_key(&(tick, *player)))
+        self.players.iter().all(|player| {
+            !self.is_present(*player, tick) || self.arrived.contains_key(&(tick, *player))
+        })
     }
 
     /// Run one tick, rolling back first when a late input asked for it.
@@ -314,6 +382,9 @@ impl Session {
         self.players
             .iter()
             .map(|&player| {
+                if !self.is_present(player, tick) {
+                    return (player, Value::Nil);
+                }
                 let value = self
                     .arrived
                     .get(&(tick, player))

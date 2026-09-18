@@ -146,33 +146,34 @@ mod backend {
     pub(crate) fn play(
         device: &Device,
         bytes: Vec<u8>,
-        volume: f32,
-        pitch: f32,
-        looped: bool,
+        (volume, pitch): (f32, f32),
+        shape: super::Shape,
         pan: Option<[f32; 2]>,
     ) -> Result<Sound> {
-        let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes))?;
+        let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes))?.amplify(shape.level);
         let player = Player::connect_new(device.0.mixer());
         player.set_volume(volume);
         player.set_speed(pitch);
-        let Some(gains) = pan else {
-            if looped {
-                player.append(Source::repeat_infinite(decoder));
-            } else {
-                player.append(decoder);
-            }
-            return Ok(Sound { player, pan: None });
+        let pan = pan.map(|gains| Arc::new(Pan::new(gains)));
+        let put = |source: Box<dyn Source + Send>| match &pan {
+            Some(pan) => player.append(spread(source, pan)),
+            None => player.append(source),
         };
-        let pan = Arc::new(Pan::new(gains));
-        if looped {
-            player.append(spread(Source::repeat_infinite(decoder), &pan));
+        if shape.looped && shape.loop_offset > 0.0 {
+            // The intro plays once; every repeat after it starts past it.
+            let once = decoder.buffered();
+            let again = once
+                .clone()
+                .skip_duration(Duration::from_secs_f32(shape.loop_offset))
+                .repeat_infinite();
+            put(Box::new(once));
+            put(Box::new(again));
+        } else if shape.looped {
+            put(Box::new(decoder.repeat_infinite()));
         } else {
-            player.append(spread(decoder, &pan));
+            put(Box::new(decoder));
         }
-        Ok(Sound {
-            player,
-            pan: Some(pan),
-        })
+        Ok(Sound { player, pan })
     }
 
     impl Sound {
@@ -306,6 +307,8 @@ pub struct Cue {
     /// The bus chain's gain, resolved by the caller.
     pub gain: f32,
     pub emitter: Option<Emitter>,
+    /// What the file's own import settings add to every play of it.
+    pub file: FileSettings,
 }
 
 impl Default for Cue {
@@ -317,8 +320,53 @@ impl Default for Cue {
             bus: String::new(),
             gain: 1.0,
             emitter: None,
+            file: FileSettings::default(),
         }
     }
+}
+
+/// A sound file's import settings: its own `volume`, whether it loops
+/// wherever it is played, and where each repeat starts. Its level is baked
+/// into the samples, so a handle's volume of 1 is still the file's own level.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FileSettings {
+    pub level: f32,
+    pub looped: bool,
+    pub loop_offset: f32,
+}
+
+impl Default for FileSettings {
+    fn default() -> Self {
+        Self {
+            level: 1.0,
+            looped: false,
+            loop_offset: 0.0,
+        }
+    }
+}
+
+impl FileSettings {
+    /// The settings `path` is read with: its sidecar over `[import.audio]`.
+    #[must_use]
+    pub fn of(eng: &Engine, path: &str) -> Self {
+        use balaur_core::import::{flag, keys, number};
+        let resolved = balaur_core::import::resolved(eng, path);
+        let settings = &resolved.settings;
+        Self {
+            level: number(settings, keys::VOLUME, 1.0).max(0.0) as f32,
+            looped: flag(settings, keys::LOOP, false),
+            loop_offset: number(settings, keys::LOOP_OFFSET, 0.0).max(0.0) as f32,
+        }
+    }
+}
+
+/// How one play is decoded: a caller's loop or the file's, and the file's
+/// level and loop start.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Shape {
+    pub looped: bool,
+    pub level: f32,
+    pub loop_offset: f32,
 }
 
 impl AudioState {
@@ -376,6 +424,7 @@ impl AudioState {
                 bus: bus.to_string(),
                 gain,
                 emitter: None,
+                file: FileSettings::default(),
             },
         )
     }
@@ -412,12 +461,16 @@ impl AudioState {
         );
         self.open_if_needed();
         if let Some(device) = &self.device {
+            let shape = Shape {
+                looped: cue.looped || cue.file.looped,
+                level: cue.file.level,
+                loop_offset: cue.file.loop_offset,
+            };
             let started = backend::play(
                 device,
                 bytes,
-                applied,
-                (pitch * placed.pitch).max(MIN_PITCH),
-                cue.looped,
+                (applied, (pitch * placed.pitch).max(MIN_PITCH)),
+                shape,
                 placement.map(|placed| spatial::stereo_gains(placed.pan)),
             );
             match started {
@@ -583,6 +636,7 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
                         sound.doppler,
                     )
                 }),
+                file: FileSettings::default(),
             },
         )
     };
@@ -590,6 +644,7 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
         bail!("the node's `sound` component names no `file`");
     }
     let bytes = read_sound(eng, &file)?;
+    cue.file = FileSettings::of(eng, &file);
     if let Some(emitter) = &mut cue.emitter {
         // Composed here rather than read off `GlobalTransform`: a node that
         // entered the scene this frame has not been through a scene sync, and

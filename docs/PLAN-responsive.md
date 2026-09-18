@@ -225,7 +225,7 @@ default: a backdrop must reach the edge, a HUD must not.
 
 `[ui] scale` seeds `UiConfig.scale` at load through `UiSettings`, default 1.0,
 in the range `ui.set_scale` clamps to. `ui.set_scale` still changes it later,
-as `render.set_window_mode` changes `[window] mode`. The zoom multiplies in
+as `window.set_window_mode` changes `[window] mode`. The zoom multiplies in
 `DeviceFacts::text_scale`, the system's preferred text size, unless `[ui]
 system_text_size = false`. The editor's `ui_scale` stays an editor setting.
 

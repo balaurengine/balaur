@@ -32,7 +32,7 @@ pub fn update(this, dt) {
                     "property": "ragdoll/blend",
                     "to": if limp { 1.0 } else { 0.0 },
                     "duration": if limp { 0.25 } else { 0.9 },
-                    "ease": "in_out_sine",
+                    "ease": animation::EASE_IN_OUT_SINE,
                 },
             ],
         });

@@ -6,10 +6,12 @@ Tools and processes for ensuring the code quality remains high.
 
 | Workflow | Covers |
 | --- | --- |
+| `runner.yml` | the one push and pull-request trigger; calls the four below |
 | `lint.yml` | runs format, clippy, house rules and supply chain checks |
 | `docs.yml` | checks if the documentation is generated correctly |
 | `test.yml` | runs the tests |
 | `build.yml` | builds and exports |
+| `channel.yml` | moves a channel's tag when a version is published |
 
 ## Before you push
 
@@ -47,6 +49,8 @@ mechanical; **REPORT** prints only.
 | `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
 | `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
+| `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
+| `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
 
 ## Comments
 
@@ -66,9 +70,11 @@ projects at `balaur export`, `scene-file` breaks existing scenes and the
 inspector generated from the same schemas.
 
 `house_lints.py` covers the Rust half. `scripts/api_lints.py` covers the script
-API by **booting the engine** and reading `balaur api` — derived constants like
-`input.KEY_SPACE` exist only at registration time, and a name scripts cannot
-reach is not API.
+API from what a **booted engine** reports through `balaur api` — derived
+constants like `input.KEY_SPACE` exist only at registration time, and a name
+scripts cannot reach is not API. CI and `precommit.sh` read the committed
+`docs/generated/api.json`; `gen_docs.py --check` is what boots the engine and
+fails if that file is stale.
 
 | Check | Fails on |
 | --- | --- |
@@ -77,7 +83,10 @@ reach is not API.
 | `abbreviation` | `str`, `cfg`, `buf`, `idx`, `pos` where a user reads them |
 | `module-plural` | a plural module that is not a keyed store |
 | `schema-vocabulary` | a schema departing from the closed set — the discriminant is `kind`, the meta key is `type` |
-| `module-undocumented`, undocumented function | anything callable the generated reference could not describe |
+| `module-undocumented`, `function-undocumented`, `component-undocumented`, `asset-undocumented` | anything the generated reference could not describe |
+| `describes-nothing` | a doc entry for a function no longer registered |
+| `acts-on-unknown` | a function documented as acting on a component nobody registers |
+| `setter-without-reader` (report) | a `set_x` with no `x` reader and no comment saying why |
 
 Every exemption carries its reason inline, so it stops being cited as precedent.
 
@@ -107,20 +116,22 @@ A change that alters a recorded digest has to say why.
 
 ## Tests
 
-1,509 `#[test]` functions across 22 crates, 135 integration files, on all three
-desktop platforms. Beyond `cargo test --workspace`:
+About 2,040 `#[test]` functions across 22 crates, 159 integration files, on all
+three desktop platforms. Beyond `cargo test --workspace`:
 
 - `cargo test -p balaur_plugin --features dylib` and `-p balaur --features
   extensions` — the dlopen path, the cdylib, and loading one at run time.
 - `cargo build -p balaur_cli --no-default-features`, plus core and physics
   tested without them: nothing else exercises a subsystem switched off.
+- `cargo test -p balaur_render --features aseprite`, locally only:
+  `precommit.sh` runs it and `test.yml` does not.
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
   on `BALAUR_E2E` so a local `cargo test` stays fast.
 
 ## End to end, over every example
 
-`scripts/e2e.sh` runs each of the nine examples thirty-one ways, on three
+`scripts/e2e.sh` runs each of the twelve examples thirty-six ways, on three
 platforms:
 
 - **check** — every script a scene attaches, compiled, plus the handle calls
@@ -132,16 +143,17 @@ platforms:
 - **run** — dev mode from sources.
 - **export**, twice — the packs must be identical.
 - **play** — the exported pack, no sources, no compiler.
-- **edit**, twenty-six times — the editor booted headless against every
-  example: the scene it opens, then `undo`, `layout`, `rig`, `polygon`,
-  `weights`, `bone map`, `physical bones`, `tiles`, `showcase`, `plugin`,
-  `clipboard`, `script paths`, `assets`, `picking`, `props`, `instances`,
-  `placing`, `timings`, `session`, `theme`, `selection`, `events`, `library`,
-  `pen`, `drag-in`.
+- **edit**, thirty-one times — the editor booted headless against every
+  example: the scene it opens, then `undo`, `layout`, `picker`, `rename`,
+  `import`, `focus`, `rig`, `polygon`, `weights`, `bone map`,
+  `physical bones`, `tiles`, `showcase`, `plugin`, `clipboard`,
+  `script paths`, `assets`, `picking`, `props`, `instances`, `placing`,
+  `timings`, `session`, `theme`, `selection`, `drag-in`, `events`, `library`,
+  `rows`, `pen`.
 
-Two bars: **a clean exit and a clean log.** A logged `ERROR` fails, and so does
-the editor's `did not resolve in the mirror` — an invariant it states at WARN,
-since document and mirror are built from the same TOML. When that broke, nested
+Two bars: **a clean exit and a clean log.** A logged `ERROR` or `WARN` fails,
+bar a warning a self-test names first with `expect_warning`. The editor's
+`did not resolve in the mirror` is why warnings count: when it broke, nested
 nodes silently had no ref, so no inspector, no gizmo, no transform read, and
 nothing else failed.
 
@@ -156,7 +168,12 @@ reviewing a shell change.
   mostly intra-doc links, where a rename leaves a dead one.
 - `scripts/gen_docs.py --check` regenerates `docs/generated/` from cargo
   metadata and a booted engine, and fails on any diff.
-- `api_lints.py` requires a doc line on every script module and function.
+- `api_lints.py` requires a doc line on every script module, function,
+  component and asset type.
+- `scripts/prose_lints.py` fails a roadmap row over one sentence or 25 words,
+  and every hand-written `.md` on the mechanical half of the `avoid-ai-writing`
+  skill. Sentence length, filler and em dashes are reported on
+  `docs/ROADMAP.md`, never failed.
 - `scripts/third_party_notices.py --check`. Licence checking is off in
   `deny.toml`, so `THIRD-PARTY-NOTICES.md` is the only record of what a built
   binary combines.
@@ -189,9 +206,13 @@ case against Godot with Rapier, Box2D v3 and Jolt.
   git sources are denied, with two pinned forks allowlisted by name and reason.
 - Releases carry `SHA256SUMS` and build-provenance attestations, verifiable with
   `gh attestation verify`.
-- `build.yml` exports a game with the same published actions a player's own
-  repository calls — `setup`, `export-game`, `build-engine` — so a broken action
-  fails here rather than on the day someone else runs it.
+- `build.yml` builds the engine and exports a game with the same published
+  actions a player's own repository calls, `build-engine` and `export-game`, so
+  a broken action fails here rather than on the day someone else runs it.
+- `build.yml` also exports and runs a new project on each packaged template
+  (`scripts/package.sh`), runs `scripts/signing_check.sh`
+  (`BALAUR_SIGNING_CHECK`) and `scripts/export_check.sh` per platform, and
+  `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`.
 
 ## What review is left
 

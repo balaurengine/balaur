@@ -8,11 +8,11 @@
 //! name whatever bytes it ends up holding, because every reader identifies an
 //! image by its content and no scene has to be rewritten.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use balaur::Pack;
-use balaur::import::words;
+use balaur::import::{keys, number, sidecar_of, words};
 
 use crate::config::ExportConfig;
 use crate::recode::{self, AudioMode, FontMode, ImageMode, Saving};
@@ -86,12 +86,24 @@ fn kb(bytes: usize) -> String {
     format!("{kilobytes:.0} KB")
 }
 
-/// Drop what nothing names and re-encode what `[export]` allows.
+/// Drop what nothing names and re-encode what `[export]` allows, reading
+/// `[import.<kind>]` from the pack's own manifest with no target's overrides.
+pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
+    let manifest = toml::from_str(&pack.manifest).unwrap_or_default();
+    prepare_for(pack, config, &manifest)
+}
+
+/// [`prepare`] against a manifest already resolved for the target, so a
+/// phone's `[override.mobile.import.texture]` reaches its images.
 ///
 /// Errors only when an entry the config asked to re-encode does not decode:
 /// a broken asset is worth failing an export over, since the game would ship
 /// with it.
-pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
+pub fn prepare_for(
+    pack: &mut Pack,
+    config: &ExportConfig,
+    manifest: &toml::Table,
+) -> Result<Summary> {
     let mut summary = Summary::default();
     if config.strip {
         for key in pack.unreferenced(&config.keep) {
@@ -102,21 +114,42 @@ pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
         pack.strip(&config.keep);
     }
     let keep = code_points(pack, config);
+    let pages = crate::textures::font_pages(
+        pack.assets
+            .iter()
+            .map(|(path, bytes)| (path.as_str(), bytes.as_slice())),
+    );
+    let mut drawn = Vec::new();
     // Disjoint fields: the settings beside a file are read while its bytes
     // are being replaced.
-    let settings = &pack.scenes;
+    let sidecars = &pack.scenes;
     for (path, bytes) in &mut pack.assets {
+        let own = sidecars.get(&sidecar_of(path)).map(String::as_str);
+        let settings = balaur::import::merged(manifest, path, own);
         let before = bytes.len();
-        let Some(smaller) = smaller(path, bytes, config, &keep, settings)? else {
-            continue;
-        };
-        let after = smaller.len();
-        *bytes = smaller;
-        summary.savings.push(Saving {
-            path: path.clone(),
-            before,
-            after,
-        });
+        if let Some(shipped) = shipped(path, bytes, &settings, config, &pages)? {
+            if let Some(size) = shipped.drawn {
+                drawn.push((path.clone(), size));
+            }
+            *bytes = shipped.bytes;
+        }
+        if let Some(smaller) = smaller(path, bytes, config, &keep, &settings)? {
+            *bytes = smaller;
+        }
+        if bytes.len() < before {
+            summary.savings.push(Saving {
+                path: path.clone(),
+                before,
+                after: bytes.len(),
+            });
+        }
+    }
+    for (path, size) in drawn {
+        let sidecar = sidecar_of(&path);
+        let own = pack.scenes.get(&sidecar).map(String::as_str);
+        if let Some(text) = crate::textures::record_drawn(own, size) {
+            pack.scenes.insert(sidecar, text);
+        }
     }
     summary
         .savings
@@ -124,27 +157,57 @@ pub fn prepare(pack: &mut Pack, config: &ExportConfig) -> Result<Summary> {
     Ok(summary)
 }
 
+/// A file as its target ships it before any re-encode: a texture rasterized
+/// or capped, a sound mixed down or resampled, or `None` as it is.
+pub(crate) fn shipped(
+    path: &str,
+    bytes: &[u8],
+    settings: &toml::Table,
+    config: &ExportConfig,
+    pages: &BTreeSet<String>,
+) -> Result<Option<crate::textures::Shipped>> {
+    use balaur::import::{flag, kind_of, kinds};
+    match kind_of(path) {
+        Some(kinds::TEXTURE) => {
+            crate::textures::ship(bytes, settings, config.max_size, pages.contains(path))
+                .with_context(|| format!("preparing {path}"))
+        }
+        Some(kinds::AUDIO) => {
+            let shape = recode::AudioShape {
+                mono: flag(settings, keys::MONO, false),
+                max_rate: number(settings, keys::MAX_RATE, 0.0).clamp(0.0, 384_000.0) as u32,
+            };
+            let shaped =
+                recode::shape_audio(bytes, shape).with_context(|| format!("preparing {path}"))?;
+            Ok(shaped.map(|bytes| crate::textures::Shipped { bytes, drawn: None }))
+        }
+        _ => Ok(None),
+    }
+}
+
 /// The smaller form of one asset, or `None` to keep the author's bytes.
-fn smaller(
+pub(crate) fn smaller(
     path: &str,
     bytes: &[u8],
     config: &ExportConfig,
     keep: &BTreeSet<char>,
-    settings: &BTreeMap<String, String>,
+    settings: &toml::Table,
 ) -> Result<Option<Vec<u8>>> {
     use balaur::import::{kind_of, kinds};
-    let own = recode_word(settings, path);
-    let own = own.as_deref();
+    let own = balaur::import::word(settings, keys::RECODE, "");
+    let own = (!own.is_empty()).then_some(own);
     let images = image_mode(own, config.images);
     let audio = audio_mode(own, config.audio);
     match kind_of(path) {
         // The mode is read before the bytes are: an export that asked for no
         // re-encoding must not fail over a file that does not decode.
         Some(kinds::TEXTURE) if images != ImageMode::Keep => {
-            recode::image_at(bytes, images, config.images_quality)
+            let quality = number(settings, keys::QUALITY, f64::from(config.images_quality));
+            recode::image_at(bytes, images, quality.clamp(0.0, 100.0) as u8)
         }
         Some(kinds::AUDIO) if audio != AudioMode::Keep => {
-            recode::audio_at(bytes, audio, config.audio_quality)
+            let quality = number(settings, keys::QUALITY, f64::from(config.audio_quality));
+            recode::audio_at(bytes, audio, quality.clamp(-0.1, 1.0) as f32)
         }
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.
@@ -160,26 +223,13 @@ fn smaller(
     }
 }
 
-/// What a file's own import sidecar says about re-encoding, if it says
-/// anything: `recode` beside the file beats the `[export]` mode for it alone,
-/// which is how one picture opts out of a pass the rest of them take.
-fn recode_word(settings: &BTreeMap<String, String>, path: &str) -> Option<String> {
-    let text = settings.get(&balaur::import::sidecar_of(path))?;
-    let table: toml::Table = toml::from_str(text).ok()?;
-    Some(
-        table
-            .get(balaur::import::keys::RECODE)?
-            .as_str()?
-            .to_string(),
-    )
-}
-
 /// The image mode one file is re-encoded under: its own word, or the export's.
 fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
     match own {
         None => fallback,
         Some(words::KEEP) => ImageMode::Keep,
-        Some("webp") => ImageMode::Webp,
+        Some(words::WEBP) => ImageMode::Webp,
+        Some(words::QUANTISED) => ImageMode::Quantised,
         Some(other) => {
             tracing::warn!("recode: '{other}' is not a way to re-encode a picture");
             fallback
@@ -191,7 +241,8 @@ fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
 fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
     match own {
         Some(words::KEEP) => AudioMode::Keep,
-        Some("flac") => AudioMode::Flac,
+        Some(words::FLAC) => AudioMode::Flac,
+        Some(words::VORBIS) => AudioMode::Vorbis,
         // A picture's word on a sound is not a mistake worth a warning: one
         // `[import.texture]` default reaches every file of its own kind only.
         _ => fallback,

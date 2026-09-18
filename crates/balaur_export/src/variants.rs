@@ -80,19 +80,8 @@ fn remember_drawn_size(pack: &mut Pack, canonical: &str, variant: &[u8]) -> Opti
         .get(canonical)
         .and_then(|bytes| image_size(bytes))?;
     let sidecar = balaur::import::sidecar_of(canonical);
-    let mut settings: toml::Table = pack
-        .scenes
-        .get(&sidecar)
-        .and_then(|text| toml::from_str(text).ok())
-        .unwrap_or_default();
-    settings.insert(
-        balaur::import::keys::SIZE.to_string(),
-        toml::Value::Array(vec![
-            toml::Value::Integer(i64::from(drawn.0)),
-            toml::Value::Integer(i64::from(drawn.1)),
-        ]),
-    );
-    if let Ok(text) = toml::to_string(&settings) {
+    let own = pack.scenes.get(&sidecar).map(String::as_str);
+    if let Some(text) = crate::textures::record_drawn(own, drawn) {
         pack.scenes.insert(sidecar, text);
     }
     let (vw, vh) = image_size(variant)?;

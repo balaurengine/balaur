@@ -72,8 +72,8 @@ does one that genuinely spans both dimensions: `MeshSkin` deforms a
 is the other way out, and usually the better one: a component's tags are what
 the editor files a node under, and a tag is per type while a `kind` property is
 per node, so a single component can only ever claim one dimension for both. `physics` keeps only what spans
-both worlds — `set_paused`, `is_paused`, `set_sleeping_allowed`,
-`sleeping_allowed`, `clear` — so a module name is not a lie about what is in it.
+both worlds — pausing, sleeping, tuning, threads, debug drawing, counters and
+`clear` — so a module name is not a lie about what is in it.
 In snake_case `_2d`/`_3d` is its own word unless the segment quotes a key or
 module name (`register_shape2d_component`).
 
@@ -106,11 +106,11 @@ Recorded so each stops being cited as precedent for the next.
 | --- | --- |
 | `resource` for the typemap | D1 |
 | `DetHashMap` / `DetHashSet` | The prefix is the whole job: it says which one the house lint wants you to use |
-| `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node:component(name)` beside `node:components()` — two functions one character apart with unrelated return types, and `node:node(path)` |
+| `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
 | `input.is_mouse_down` | `is_down(key)` and `is_mouse_down(button)` are one question about a held button and must agree |
 | `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
-| `render` as one large module | Fixable by moving functions between `install_*` fns at zero user cost; a `render2d` split costs ~23 breaking call sites for a boundary `ui` manages without. Revisit past ~30 functions |
+| `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
 | `"ball"` / `"cuboid"` | parry's words, but nothing in the tree translates them and no bug traces to them. 2D's `circle`/`rect` are already design words |
 | `render.set_ball` / `set_cuboid` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |

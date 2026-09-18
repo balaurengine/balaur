@@ -380,7 +380,7 @@ A filled, textured 2D polygon from the `mesh` asset's points and triangles. With
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
 <tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig root, relative to this node; empty means this node</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the tint alone</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the tint alone</td></tr>
 </tbody>
 </table>
 
@@ -407,7 +407,7 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse or a rounded corner At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>An image drawn along a polyline, repeating once per world unit of its length</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
 </tbody>
 </table>
@@ -438,11 +438,11 @@ A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the image sits against the node, in texture pixels with y down; turns and scales with the node</td></tr>
-<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>0.0</code></td><td>Texture pixels per world unit; 0 takes the texture&#x27;s own `pixels_per_unit` import setting, which is 100 unless it says At least 0.0.</td></tr>
 <tr><td><code>region_origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`</td></tr>
 <tr><td><code>region_size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell</td></tr>
 <tr><td><code>sheet</code></td><td>asset · <code>sprite_sheet</code></td><td>—</td><td>A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset that reads it with settings of its own; required</td></tr>
 </tbody>
 </table>
 
@@ -959,7 +959,7 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the colour alone</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
 </tbody>
 </table>
 
@@ -1227,7 +1227,7 @@ A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and 
 <tr><td><code>size_end</code></td><td>float</td><td><code>-1.0</code></td><td>The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`</td></tr>
 <tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
 <tr><td><code>spread</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>An image each particle draws with, project-relative; empty draws a flat square</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, each particle draws with; empty draws a flat square</td></tr>
 </tbody>
 </table>
 
@@ -1259,7 +1259,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 <tr><td><code>is_playingNodeId</code></td><td><code>bool</code></td><td>Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.</td><td><code>animation</code></td></tr>
 <tr><td><code>just_finishedNodeId</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip that ended on this node during the last step, and nil on every other frame.</td><td><code>animation</code></td></tr>
 <tr><td><code>pauseNodeId</code></td><td>—</td><td>Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.</td><td><code>animation</code></td></tr>
-<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
+<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), `ease` (the fade&#x27;s curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
 <tr><td><code>queue(String)</code></td><td>—</td><td>Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.</td><td><code>animation</code></td></tr>
 <tr><td><code>resumeNodeId</code></td><td>—</td><td>Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.</td><td><code>animation</code></td></tr>
 <tr><td><code>seek(f32)</code></td><td>—</td><td>Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.</td><td><code>animation</code></td></tr>
@@ -1269,7 +1269,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 
 ### `state_machine`
 
-`animation` · 3 properties · 4 methods
+`animation` · 4 properties · 4 methods
 
 Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
 
@@ -1277,6 +1277,7 @@ Runs the `state_machine` asset in `machine` over the `player` node's clips. `aut
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>active</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
+<tr><td><code>check_node</code></td><td>string</td><td>—</td><td>Node path whose script answers the transitions&#x27; `check` methods; empty means this node</td></tr>
 <tr><td><code>machine</code></td><td>asset · <code>state_machine</code></td><td>—</td><td>The state machine to run</td></tr>
 <tr><td><code>player</code></td><td>string</td><td>—</td><td>Node path to the `animation` player it drives; empty means this node</td></tr>
 </tbody>
@@ -1290,7 +1291,7 @@ On a node carrying `state_machine`, as `node.state_machine.<method>`:
 <tr><td><code>jump(String)</code></td><td>—</td><td>Cut the state machine to the named state on the next step, with no fade.</td><td><code>animation</code></td></tr>
 <tr><td><code>set_condition(String, bool)</code></td><td>—</td><td>Turn on or off a condition that `auto` transitions wait on.</td><td><code>animation</code></td></tr>
 <tr><td><code>stateNodeId</code></td><td><code>Value</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
-<tr><td><code>travel(String)</code></td><td>—</td><td>Head for the named state through the fewest transitions, each fading as it says; a state no transition reaches is cut to directly.</td><td><code>animation</code></td></tr>
+<tr><td><code>travel(String)</code></td><td>—</td><td>Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.</td><td><code>animation</code></td></tr>
 </tbody>
 </table>
 
@@ -1409,7 +1410,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>on_move</code></td><td>string</td><td>—</td><td>Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
-<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note and an `#rrggbb` for that row, and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
+<tr><td><code>options</code></td><td>strings</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
 <tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside a container&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme&#x27;s own, and a stated zero is no space at all</td></tr>
 <tr><td><code>padding_x</code></td><td>float</td><td><code>-1.0</code></td><td>The air either side of a caption, in design pixels; below zero takes the theme&#x27;s own</td></tr>
 <tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `field` shows while it is empty, and the letter a `drag_value` puts before its number</td></tr>

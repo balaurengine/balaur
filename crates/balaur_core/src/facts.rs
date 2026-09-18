@@ -22,6 +22,10 @@ pub struct PlatformFacts {
     #[serde(default)]
     pub touchscreen: bool,
     pub editor: bool,
+    /// Running from the project's sources rather than an exported pack:
+    /// Godot's debug build.
+    #[serde(default)]
+    pub dev: bool,
     pub system_locale: Option<String>,
     pub device_id: String,
 }
@@ -40,6 +44,9 @@ impl PlatformFacts {
             mobile: cfg!(mobile),
             touchscreen: touchscreen(),
             editor: eng.debug_scope().is_some(),
+            dev: !eng
+                .try_resource::<crate::project::ProjectFiles>()
+                .is_some_and(|files| files.borrow().from_pack()),
             system_locale: sys_locale::get_locale(),
             device_id: device_id(eng),
         }

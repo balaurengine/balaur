@@ -208,6 +208,102 @@ fn quantise(bytes: &[u8], format: ImageFormat, quality: u8) -> Result<Option<Vec
     Ok(Some(out))
 }
 
+/// What a sound's import settings say about its channels and its rate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AudioShape {
+    /// Mix every channel into one.
+    pub mono: bool,
+    /// The highest sample rate it ships at, in Hz; 0 keeps its own.
+    pub max_rate: u32,
+}
+
+/// The WAV mixed down to one channel and resampled to at most `max_rate`,
+/// written back as a WAV in its own sample format, or `None` when it already
+/// fits. Only uncompressed PCM is read: a compressed stream is left alone.
+pub fn shape_audio(bytes: &[u8], shape: AudioShape) -> Result<Option<Vec<u8>>> {
+    if !is_wav(bytes) || (!shape.mono && shape.max_rate == 0) {
+        return Ok(None);
+    }
+    let mut reader = hound::WavReader::new(std::io::Cursor::new(bytes))
+        .map_err(|why| anyhow!("reading the WAV: {why}"))?;
+    let spec = reader.spec();
+    let lanes = usize::from(spec.channels.max(1));
+    let to_mono = shape.mono && lanes > 1;
+    let rate = if shape.max_rate > 0 {
+        spec.sample_rate.min(shape.max_rate)
+    } else {
+        spec.sample_rate
+    };
+    if !to_mono && rate == spec.sample_rate {
+        return Ok(None);
+    }
+    let mut samples = wav_floats(&mut reader, spec)?;
+    samples.truncate(samples.len() / lanes * lanes);
+    let (samples, lanes) = if to_mono {
+        let mixed = samples
+            .chunks_exact(lanes)
+            .map(|frame| frame.iter().sum::<f32>() / lanes as f32)
+            .collect();
+        (mixed, 1)
+    } else {
+        (samples, lanes)
+    };
+    let samples = if rate == spec.sample_rate {
+        samples
+    } else {
+        resample(&samples, lanes, spec.sample_rate, rate)?
+    };
+    let out = hound::WavSpec {
+        channels: lanes as u16,
+        sample_rate: rate,
+        ..spec
+    };
+    write_wav(&samples, out).map(Some)
+}
+
+/// Interleaved floats from one rate to another, through an FFT resampler
+/// with an anti-aliasing filter.
+fn resample(samples: &[f32], lanes: usize, from: u32, to: u32) -> Result<Vec<f32>> {
+    use rubato::audioadapter_buffers::direct::InterleavedSlice;
+    use rubato::{Fft, FixedSync, Resampler};
+    let frames = samples.len() / lanes;
+    if frames == 0 {
+        return Ok(Vec::new());
+    }
+    let mut resampler = Fft::<f32>::new(from as usize, to as usize, 1024, lanes, FixedSync::Both)
+        .map_err(|why| anyhow!("building the resampler: {why}"))?;
+    let input = InterleavedSlice::new(samples, lanes, frames)
+        .map_err(|why| anyhow!("reading the samples to resample: {why}"))?;
+    let output = resampler
+        .process_all(&input, frames, None)
+        .map_err(|why| anyhow!("resampling: {why}"))?;
+    Ok(output.take_data())
+}
+
+/// Interleaved floats as a WAV in `spec`'s own sample format.
+fn write_wav(samples: &[f32], spec: hound::WavSpec) -> Result<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut out), spec)
+        .map_err(|why| anyhow!("starting the WAV: {why}"))?;
+    let write = |why| anyhow!("writing the WAV: {why}");
+    match spec.sample_format {
+        hound::SampleFormat::Float => {
+            for &sample in samples {
+                writer.write_sample(sample).map_err(write)?;
+            }
+        }
+        hound::SampleFormat::Int => {
+            let full = 2f32.powi(i32::from(spec.bits_per_sample) - 1);
+            for &sample in samples {
+                let level = (sample * full).round().clamp(-full, full - 1.0) as i32;
+                writer.write_sample(level).map_err(write)?;
+            }
+        }
+    }
+    writer.finalize().map_err(write)?;
+    Ok(out)
+}
+
 /// A RIFF/WAVE header, which is the only sound this module re-encodes.
 fn is_wav(bytes: &[u8]) -> bool {
     bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE"
@@ -325,8 +421,7 @@ fn to_vorbis(bytes: &[u8], quality: f32) -> Result<Option<Vec<u8>>> {
 }
 
 /// A WAV's samples as interleaved floats in -1.0 to 1.0, whatever its own
-/// sample format was, because libvorbis analyses floats.
-#[cfg(not(target_family = "wasm"))]
+/// sample format was, because libvorbis and the resampler work in floats.
 fn wav_floats(
     reader: &mut hound::WavReader<std::io::Cursor<&[u8]>>,
     spec: hound::WavSpec,
@@ -479,6 +574,69 @@ mod tests {
         }
         writer.finalize().unwrap();
         out
+    }
+
+    /// Stereo at 44.1 kHz, one channel a sine and the other silent.
+    fn stereo_wav() -> Vec<u8> {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 44_100,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut out = Vec::new();
+        let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut out), spec).unwrap();
+        for n in 0..44_100u32 {
+            let phase = f64::from(n) * 440.0 * std::f64::consts::TAU / 44_100.0;
+            writer
+                .write_sample((libm::sin(phase) * 8000.0) as i16)
+                .unwrap();
+            writer.write_sample(0i16).unwrap();
+        }
+        writer.finalize().unwrap();
+        out
+    }
+
+    /// Mixed to one channel at half the rate: a quarter of the samples, the
+    /// same second of sound, and the sine at half its level.
+    #[test]
+    fn a_sound_is_mixed_down_and_resampled_at_export() {
+        let shape = AudioShape {
+            mono: true,
+            max_rate: 22_050,
+        };
+        let out = shape_audio(&stereo_wav(), shape)
+            .unwrap()
+            .expect("a shaped WAV");
+        let reader = hound::WavReader::new(std::io::Cursor::new(&out)).unwrap();
+        let spec = reader.spec();
+        assert_eq!(
+            (spec.channels, spec.sample_rate, spec.bits_per_sample),
+            (1, 22_050, 16)
+        );
+        let samples: Vec<i16> = reader.into_samples::<i16>().map(Result::unwrap).collect();
+        assert!(
+            samples.len().abs_diff(22_050) < 64,
+            "{} samples",
+            samples.len()
+        );
+        let loudest = samples.iter().map(|s| s.unsigned_abs()).max().unwrap();
+        assert!((3_500..4_500).contains(&loudest), "{loudest}");
+    }
+
+    /// A sound already inside the shape asked for is the author's bytes.
+    #[test]
+    fn a_sound_that_already_fits_is_kept() {
+        let mono_low = AudioShape {
+            mono: true,
+            max_rate: 48_000,
+        };
+        assert_eq!(shape_audio(&sample_wav(), mono_low).unwrap(), None);
+        assert_eq!(shape_audio(b"OggS not a wav", mono_low).unwrap(), None);
+        assert_eq!(
+            shape_audio(&stereo_wav(), AudioShape::default()).unwrap(),
+            None
+        );
     }
 
     /// The samples symphonia reads back, decoding what a player decodes.

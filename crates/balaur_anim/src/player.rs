@@ -13,7 +13,8 @@ use balaur_core::assets;
 use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;
 
-use crate::clip::Clip;
+use crate::clip::{Clip, Wrap};
+use crate::ease::{Easing, Points};
 use crate::tween::{Tween, TweenId};
 
 /// The simulation tick animation advances on, and the ceiling on catch-up
@@ -67,9 +68,9 @@ pub struct Playback {
     /// plays every track exactly as it was authored.
     pub retarget: Option<crate::retarget::Retarget>,
     pub(crate) retarget_reference: String,
-    /// The clip a crossfade is leaving, still advancing and blended out; none
-    /// once the fade has run.
-    pub fade: Option<Fade>,
+    /// The clips crossfades are leaving, oldest first, each still advancing
+    /// and blended out; a fade started mid-fade stacks rather than cuts.
+    pub fades: Vec<Fade>,
 }
 
 /// The outgoing half of a crossfade.
@@ -83,6 +84,82 @@ pub struct Fade {
     /// Seconds of the fade gone, and how many it lasts.
     pub elapsed: f32,
     pub duration: f32,
+    /// The curve the fade's weight follows.
+    pub ease: Easing,
+    /// A drawn curve that takes the place of `ease`: Godot's `xfade_curve`.
+    pub curve: Option<Points>,
+    /// A looping clip holds its last frame rather than wrapping while it
+    /// fades: Godot's `break_loop_at_end`.
+    pub break_loop: bool,
+}
+
+impl Fade {
+    /// How far the fade has gone, `0` to `1`, on its curve.
+    #[must_use]
+    pub fn weight(&self) -> f32 {
+        if self.duration <= 0.0 {
+            return 1.0;
+        }
+        let u = (self.elapsed / self.duration).clamp(0.0, 1.0);
+        match &self.curve {
+            Some(curve) => curve.apply(u),
+            None => self.ease.apply(u),
+        }
+    }
+
+    /// Where in its clip the outgoing half is sampled. A held one stops at
+    /// the end of the pass it was on rather than wrapping.
+    #[must_use]
+    pub fn local_time(&self) -> f32 {
+        if self.break_loop {
+            self.time.clamp(0.0, self.clip.length)
+        } else {
+            crate::sampler::clip_time(&self.clip, self.time).0
+        }
+    }
+}
+
+/// The clip `playback` is on, as the outgoing half of a `duration`-second
+/// fade; `None` for no fade or nothing current.
+pub(crate) fn leaving(
+    playback: &Playback,
+    duration: f32,
+    ease: Easing,
+    curve: Option<Points>,
+    break_loop: bool,
+) -> Option<Fade> {
+    let clip = playback.clip.clone()?;
+    if duration <= 0.0 || !playback.active() {
+        return None;
+    }
+    // Held, the playhead is rebased onto the pass it is in, so clamping it
+    // to the clip stops it at that pass's end.
+    let (time, speed) = if break_loop && clip.wrap != Wrap::None && clip.length > 0.0 {
+        let (local, _) = crate::sampler::clip_time(&clip, playback.time);
+        let pass = libm::floorf(playback.time / clip.length) as i64;
+        let backward = clip.wrap == Wrap::PingPong && pass % 2 != 0;
+        (
+            local,
+            if backward {
+                -playback.speed
+            } else {
+                playback.speed
+            },
+        )
+    } else {
+        (playback.time, playback.speed)
+    };
+    Some(Fade {
+        clip_name: playback.clip_name.clone(),
+        clip,
+        time,
+        speed,
+        elapsed: 0.0,
+        duration,
+        ease,
+        curve,
+        break_loop,
+    })
 }
 
 impl Default for Playback {
@@ -102,7 +179,7 @@ impl Default for Playback {
             finished: String::new(),
             retarget: None,
             retarget_reference: String::new(),
-            fade: None,
+            fades: Vec::new(),
         }
     }
 }
@@ -219,17 +296,37 @@ pub fn play(eng: &Engine, entity: Entity, clip_name: &str) -> Result<()> {
 /// # Errors
 /// As [`play`].
 pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool) -> Result<()> {
+    play_faded(eng, entity, clip_name, 0.0, Easing::LINEAR, from_start)
+}
+
+/// [`play_from`], fading out of whatever is current over `fade` seconds on
+/// the `ease` curve rather than cutting to the new clip: both are sampled and
+/// blended until the fade has run. A fade of zero is a cut, and drops any
+/// fade still running.
+///
+/// # Errors
+/// As [`play`].
+pub fn play_faded(
+    eng: &Engine,
+    entity: Entity,
+    clip_name: &str,
+    fade: f32,
+    ease: Easing,
+    from_start: bool,
+) -> Result<()> {
     let state = eng.resource::<AnimationState>();
-    let (reference, addressable, same) = {
+    let (reference, addressable, same, outgoing) = {
         let state = state.borrow();
         let playback = state
             .players
             .get(&entity)
             .ok_or_else(|| anyhow!("this node has no `animation` component to play a clip on"))?;
+        let same = playback.active() && playback.clip_name == clip_name;
         (
             playback.reference(clip_name),
             playback.defined.contains_key(clip_name) || !playback.library.trim().is_empty(),
-            playback.active() && playback.clip_name == clip_name,
+            same,
+            leaving(playback, fade, ease, None, false).filter(|_| !same),
         )
     };
     if !addressable {
@@ -248,46 +345,11 @@ pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool
         }
         playback.playing = true;
         playback.paused = false;
-    }
-    Ok(())
-}
-
-/// [`play_from`], fading out of whatever is current over `fade` seconds
-/// rather than cutting to the new clip: both are sampled and blended until
-/// the fade has run. A fade of zero, or nothing current, is a plain play.
-///
-/// # Errors
-/// As [`play`].
-pub fn play_faded(
-    eng: &Engine,
-    entity: Entity,
-    clip_name: &str,
-    fade: f32,
-    from_start: bool,
-) -> Result<()> {
-    let leaving = {
-        let state = eng.resource::<AnimationState>();
-        let state = state.borrow();
-        state.players.get(&entity).and_then(|playback| {
-            let clip = playback.clip.clone()?;
-            (fade > 0.0 && playback.active() && playback.clip_name != clip_name).then(|| Fade {
-                clip_name: playback.clip_name.clone(),
-                clip,
-                time: playback.time,
-                speed: playback.speed,
-                elapsed: 0.0,
-                duration: fade,
-            })
-        })
-    };
-    play_from(eng, entity, clip_name, from_start)?;
-    if let Some(playback) = eng
-        .resource::<AnimationState>()
-        .borrow_mut()
-        .players
-        .get_mut(&entity)
-    {
-        playback.fade = leaving;
+        match outgoing {
+            Some(outgoing) => playback.fades.push(outgoing),
+            None if fade <= 0.0 => playback.fades.clear(),
+            None => {}
+        }
     }
     Ok(())
 }
@@ -344,6 +406,7 @@ pub fn stop(eng: &Engine, entity: Entity) {
         playback.playing = false;
         playback.paused = false;
         playback.queue.clear();
+        playback.fades.clear();
     });
 }
 

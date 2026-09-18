@@ -21,7 +21,7 @@ use anyhow::{Context as _, Result, anyhow};
 use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC};
+use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
 use crate::jobs::{install_listen, pump};
 
 /// The file a web bundle keeps its pack under, as the shell page loads it.
@@ -95,6 +95,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "The file name an export for this target produces."),
         ("running", &[], "()", "How many exports are in flight."),
+        ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
     install_listen::<ExportState, ExportEvent>(m, "on_export");
@@ -117,6 +118,13 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.function("running", |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.with(std::cell::Cell::get)).unwrap_or(i64::MAX))
     });
+    m.function(
+        "preview",
+        |eng: &Engine, (path, target): (String, String)| {
+            let project = eng.resource::<ExportState>().borrow().core.project.clone();
+            Ok(crate::export_shared::preview(&project, &path, &target))
+        },
+    );
 }
 
 /// What the sheet draws one row from. Both are ready the moment the tab is:

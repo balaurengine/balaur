@@ -33,6 +33,12 @@ fn check(ok, what) {
     ok
 }
 
+/// A warning the next call provokes on purpose. `scripts/e2e.sh` fails a run
+/// on any warning but one named here first.
+fn expect_warning(text) {
+    log::info(format!("selftest expects the warning: {}", text));
+}
+
 // Every document node must resolve to a live node — the invariant e2e already
 // checks at start-up, asserted here after each mutation instead.
 fn mirror_resolves(S) {
@@ -751,6 +757,7 @@ pub fn assets(S) {
     check(user is String && user.contains("\"renamed-folder/thing.toml\" # kept"),
         "the rename rewrote the reference and kept the comment");
 
+    expect_warning("a name cannot be empty or contain a slash");
     dock::rename_asset(S, "with/slash");
     check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");
 
@@ -812,6 +819,15 @@ pub fn imports(S) {
         importer::write(S, rel, key, ());
     }
     check(!fs::exists(side), "clearing every key removes the sidecar again");
+
+    check(importer::kind_of("art/logo.svg") == "texture", "an SVG is a texture");
+    check(importer::kind_of("sfx/theme.ogg") == "audio", "a sound takes settings too");
+    check(importer::kind_of("fonts/ui-Face.ttf") == "font", "and a face");
+    check(importer::kind_of("models/crate.obj") == "model", "and a model");
+    importer::write(S, rel, "scale", 2.5);
+    check(importer::sidecar(S, rel).get("scale") == Some(2.5), "a number row writes a float");
+    importer::write(S, rel, "scale", ());
+    check(export::preview(rel, "web") is Tuple, "a file that is no picture ships no row, and nothing throws");
 
     fs::remove(root + rel);
     log::info("selftest imports: done");
@@ -1097,8 +1113,10 @@ pub fn instances(S) {
 
     // Structure is the prefab's.
     let before = S.doc.len();
+    expect_warning("cannot add a node inside an instance");
     model::add_child(S, None);
     check(S.doc.len() == before, "adding a node inside an instance is refused");
+    expect_warning("cannot delete a node inside an instance");
     model::delete_selected(S);
     check(S.doc.len() == before, "deleting a node inside an instance is refused");
 
@@ -1124,7 +1142,7 @@ pub fn script_paths(S) {
     let i = match picked {
         Some(i) => i,
         None => {
-            log::warn("scriptdemo: every node has a script");
+            log::info("selftest scriptdemo: every node has a script; skipped");
             return;
         }
     };
@@ -1285,14 +1303,37 @@ fn versions_half(S) {
     let source = mine.get("source").unwrap_or(false) == true;
     let told = if source { mine.id == "" } else { mine.id != "" };
     check(told, "a build with no release id says so instead of inventing one");
-    // The feed, which is a network read: offline it answers one error row,
-    // and either way every row says which line it belongs to.
-    let rows = util::vec(release::releases());
-    let named = rows.iter().all(|row| {
-        let seen = util::obj(row);
-        seen.get("channel").unwrap_or("") != "" || seen.get("error").unwrap_or("") != ""
-    });
-    check(named, format!("every one of {} published releases names its line", rows.len()));
+    // Run from cargo's output, the install is a build tree and says so before
+    // anything offers to replace it.
+    let held = mine.get("held").unwrap_or("");
+    check(!source || held != "", format!("a build tree says it cannot be replaced ({})", held));
+
+    // What a check reports, handed in as the feed would: the newest release on
+    // a line decides what the screen says about it.
+    let saved = S.manager.releases;
+    crate::manager::heard(S, #{ kind: "listed", rows: [
+        #{ tag: "v9.0.0", id: "v9.0.0", channel: "stable", order: "newer", current: false, download: "" },
+        #{ tag: "v0.0.1", id: "v0.0.1", channel: "alpha", order: "older", current: false, download: "" },
+    ] });
+    let ahead = crate::manager::standing(S, "stable");
+    check(ahead == "v9.0.0 is newer", format!("a newer release reads as one ({})", ahead));
+    let behind = crate::manager::standing(S, "alpha");
+    check(behind.contains("older"), format!("an older one is not called newer ({})", behind));
+    let none = crate::manager::standing(S, "rc");
+    check(none == "no release on this line", format!("an empty line says so ({})", none));
+    crate::manager::heard(S, #{ kind: "failed", job: "check", message: "offline" });
+    check(!S.manager.reading && S.manager.failed == "offline", "a failed read stops reading and says why");
+    S.manager.releases = saved;
+    S.manager.failed = "";
+
+    // The About sheet opens on the same state, without asking the network
+    // again once the screen has asked.
+    let asked = S.manager.asked;
+    S.manager.asked = true;
+    crate::about::open(S);
+    check(crate::window::showing(S, "about"), "the About sheet opens");
+    crate::window::hide(S);
+    S.manager.asked = asked;
 }
 
 // The examples that ship beside the editor, and a copy of one. The copy is
@@ -1780,6 +1821,7 @@ pub fn placing(S) {
 
     // A scene that instanced itself would recurse; the verb refuses.
     let held = S.doc.len();
+    expect_warning("a scene cannot instance itself");
     model::instance_scene(S, S.scene_rel);
     check(S.doc.len() == held, "a scene refuses to instance itself");
 
@@ -2245,39 +2287,28 @@ pub fn import_step(S) {
     if S.import_demo == 0 {
         S.import_demo = 1;
         crate::dropin::take(S, DROPPED_MODEL);
-        check(import::running() == 1, "a dropped model starts a job");
-        // Nothing is known about it yet: the job reads the file on its first
-        // slice, which is the next frame.
-        check(S.jobs.len() == 0, "and nothing is claimed before it has read anything");
+        // A report reaches the list on the next pump at the soonest, whether
+        // the job runs on a thread or under the tick.
+        check(S.jobs.len() == 0, "nothing is claimed before a report arrives");
         return;
     }
     if S.import_demo == 1 {
-        S.import_demo = 2;
-        check(crate::dropin::in_flight(S) == 1, "the frame after, one import is in flight");
-        let job = S.jobs.get(DROPPED_MODEL).unwrap_or(#{ name: "", done: -1, files: -1 });
-        check(job.name == "column.glb", "the list says which file");
-        check(job.files == 3, "and how many files are coming");
-        check(job.done == 0, "none of them written yet");
-        return;
-    }
-    if S.import_demo == 2 {
-        if import::running() > 0 {
-            S.import_waited = S.import_waited + 1;
-            if S.import_waited > 300 {
-                S.import_demo = -1;
-                log::info("selftest jobdemo: the import never finished, skipped");
-            }
+        // On a desktop the job has a thread and may be done by the next frame,
+        // so what is asserted is where it ends, not when.
+        let job = S.jobs.get(DROPPED_MODEL).unwrap_or(#{ over: "" });
+        if job.over == "" {
+            waited_for_import(S);
             return;
         }
+        check(import::running() == 0, "a finished import lets go of its place");
+        check(crate::dropin::in_flight(S) == 0, "and nothing is in flight");
+        check(job.name == "column.glb", "the list says which file");
+        check(job.over == "imported", format!("and how it ended ({})", job.over));
+        check(job.done == 3 && job.files == 3,
+            format!("with what it wrote ({} of {})", job.done, job.files));
         let root = S.game_root + "/";
         check(fs::exists(root + "models/column.glb"), "the model landed in the project");
         check(fs::exists(root + "scenes/column.toml"), "with a scene written beside it");
-        check(crate::dropin::in_flight(S) == 0, "nothing is in flight once it ends");
-        // Kept in the list rather than dropped: four files are over in two
-        // frames, and a list emptied that fast was never read.
-        let ended = S.jobs.get(DROPPED_MODEL).unwrap_or(#{ over: "gone", done: 0 });
-        check(ended.over == "imported", format!("the list says how it ended ({})", ended.over));
-        check(ended.done == 3, format!("with what it wrote ({})", ended.done));
         let named = false;
         for node in S.doc {
             if node.get("name").unwrap_or("") == "Column" {
@@ -2294,25 +2325,40 @@ pub fn import_step(S) {
         // a model this teardown is about to delete, and the renderer says so
         // every frame for the rest of the run.
         shell::undo(S);
-        // Again, stopped before its first slice: cancel is read at the top of
-        // one, so nothing has been written yet and the count is honest.
         clear_import(S);
-        S.import_demo = 3;
+        // Again, stopped as it starts. A thread may write all three files
+        // before the press lands, so either end is right if the two agree.
+        S.jobs = #{};
+        S.import_waited = 0;
+        S.import_demo = 2;
         crate::dropin::take(S, DROPPED_MODEL);
         import::cancel();
         return;
     }
-    check(import::running() == 0, "a cancelled import lets go of its place");
-    check(crate::dropin::in_flight(S) == 0, "and nothing is in flight");
-    check(!fs::exists(S.game_root + "/models/column.glb"),
-        "and a cancel before the first file wrote none");
-    // Cancelled before it had said it started, so the list is where the line
-    // comes from rather than the report that never arrived.
-    let stopped = S.jobs.get(DROPPED_MODEL).unwrap_or(#{ over: "gone" });
-    check(stopped.over == "stopped", format!("the list says it stopped ({})", stopped.over));
+    let job = S.jobs.get(DROPPED_MODEL).unwrap_or(#{ over: "" });
+    if job.over == "" {
+        waited_for_import(S);
+        return;
+    }
+    check(import::running() == 0, "a stopped import lets go of its place");
+    let landed = fs::exists(S.game_root + "/models/column.glb");
+    check(job.over == "stopped" || job.over == "imported",
+        format!("it ends stopped or, on a thread already done, imported ({})", job.over));
+    check(job.over != "imported" || landed, "an import that says it finished wrote its model");
+    check(job.over != "stopped" || job.done < 3,
+        format!("a stop says how few files it wrote ({})", job.done));
     clear_import(S);
     S.import_demo = -1;
     log::info("selftest jobdemo: done");
+}
+
+// A frame spent waiting for the import to end, and the give-up after 300.
+fn waited_for_import(S) {
+    S.import_waited = S.import_waited + 1;
+    if S.import_waited > 300 {
+        S.import_demo = -1;
+        check(false, "the import ended within 300 frames");
+    }
 }
 
 pub fn rows_step(S) {
@@ -2398,6 +2444,16 @@ fn rows_drawn(S, widget, rows) {
         format!("every selected node is lit ({} of {})", lit.len(), selection::count(S)));
     check(widget["text"] == "",
         "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
+    // The node knows a row by its string: two alike light and pick as one.
+    let seen = #{};
+    let alike = 0;
+    for row in rows {
+        if seen.contains_key(row) {
+            alike += 1;
+        }
+        seen[row] = true;
+    }
+    check(alike == 0, format!("no two rows are the same string ({} repeat)", alike));
 }
 
 // A row the node reports as picked is the node the document selects. Written

@@ -2,7 +2,30 @@
 
 Rules for anyone editing here, human or agent. `docs/NAMING.md` governs names
 and wins where it disagrees with this file. `CONTRIBUTING.md` covers how the
-project is run and what a pull request carries.
+project is run and what a pull request carries. `CLAUDE.md` imports this file;
+edit this one.
+
+## Where things are
+
+| File | What it holds |
+| --- | --- |
+| [README.md](README.md) | what the engine is, the toolchain, the quickstart |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | what a pull request is held to, and what each check costs |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | how the engine fits together, and every decision |
+| [docs/NAMING.md](docs/NAMING.md) | the naming rules; wins over every other doc |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds; the website's roadmap page is built from it |
+| [docs/PLAN-*.md](docs/) | one plan per subsystem: what is left, in order |
+| [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
+| [docs/DETERMINISM.md](docs/DETERMINISM.md) | keeping a game reproducible; record, replay, finding a desync |
+| [docs/RELEASING.md](docs/RELEASING.md) | how a nightly, a version and a channel are cut |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics timings against Godot, written by `scripts/bench_compare.py` |
+| [docs/EDITOR-SCREENS.md](docs/EDITOR-SCREENS.md) | every editor surface: mockup, code, screenshot |
+| [docs/actions.md](docs/actions.md) | the GitHub Actions a game's repository uses |
+| [docs/generated/](docs/generated/README.md) | script API, components, assets, crates, features; `scripts/gen_docs.py` writes it |
+| [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | every bundled package's licence; `scripts/third_party_notices.py` writes it |
+| [editors/code/README.md](editors/code/README.md) | the VS Code extension over `balaur lsp` |
+| [editor/library/addons/gamend/README.md](editor/library/addons/gamend/README.md) | the generated Gamend SDK addon |
+| [balaur-website](https://github.com/balaurengine/balaur-website) | balaurengine.org: manual, devlog, roadmap page; checked out at `../balaur-website`, with its own `AGENTS.md` |
 
 ## How to work
 
@@ -15,17 +38,25 @@ A change opens with `cargo check` and closes with `scripts/precommit.sh`.
    the fastest signal while the code is still moving.
 3. **Write the test with the code,** not after it. A behaviour with no test is
    a behaviour the next change may delete.
-4. **Close with `scripts/precommit.sh`.** It runs what CI runs. Green locally
-   and red on push is a bug in the script, worth fixing there.
+4. **Close with `scripts/precommit.sh`.** It runs what CI's lint, docs and test
+   jobs run; `--e2e` adds the socket suites and the example pipeline. Exports,
+   signing and the cross-platform comparisons stay in CI. Green locally and red
+   on push is a bug in the script, worth fixing there.
+
+A logged warning is a failure. `scripts/e2e.sh` fails a run on any `WARN`, and
+`scripts/web_smoke.mjs` fails a pack that logs one in a browser. A self-test
+that provokes one on purpose names it first with `expect_warning`.
 
 These land in the same commit as the code:
 
 - **`docs/ROADMAP.md`** changes when the change moves something on it. It is
   the only record of what a version holds. A row is one sentence and at most 25
-  words, says have, planned, fallback or not planned, and names the crate or
-  protocol.
+  words, names the crate or protocol, and carries its milestone: `0.1 done`
+  once built, the version alone until then.
 - **The plan** it came from, so `docs/PLAN-*.md` says what is left.
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
+- **`THIRD-PARTY-NOTICES.md`** when `Cargo.lock` moved:
+  `python3 scripts/third_party_notices.py`.
 - **A devlog post** in the website repo's `blog/` when a user can see the
   change. One post per feature, with a picture or a clip.
 
@@ -46,8 +77,8 @@ Never write: a restatement of the line below, a divider or banner,
 commented-out code, a doc comment on a test whose name already says it, or
 three-plus lines defending a decision.
 
-`scripts/comment_lints.py` enforces the mechanical half across every language
-in the tree; a plain-comment block over three lines fails CI.
+`scripts/comment_lints.py` enforces the mechanical half across Rust, Rune,
+Python, shell, YAML and TOML; a plain-comment block over three lines fails CI.
 
 ## Rune
 
@@ -75,7 +106,7 @@ called or indexed, and the error names a type from the line above. Bind first:
   carries one control proving the script ran, or it holds vacuously.
 - Feature tests and performance tests stay apart. Benchmarks live in
   `crates/balaur_bench/benches/` and no CI job gates on them: a shared runner
-  times them badly. `scripts/bench.py --check` reports what moved.
+  times them badly. `scripts/bench.py --compare` reports what moved.
 - The suites that boot an app over real sockets gate on `BALAUR_E2E`, so a
   plain `cargo test` stays fast. `scripts/e2e_tests.sh` runs them.
 
@@ -83,38 +114,44 @@ called or indexed, and the error names a type from the line above. Bind first:
 
 Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
 
-- Bullets, not paragraphs. One per thing that landed: what it is, the key or
-  flag that turns it on, the number.
-- Lead with the claim, then the mechanism, then the measurement.
-  `**Fonts are cut to what the game shows.**`, then `fonts = "subset"`, then
-  421 KB to 92 KB.
-- A claim without a measurement is cut, not softened. "421 KB to 92 KB", never
+- A devlog post is one feature, titled plainly ("Save games"), with a picture
+  or a clip. One or two sentences open it, then the bullets. A heading names
+  its content, never "What landed".
+- A bullet is a plain sentence: what it is, the key or flag that turns it on,
+  the number. `fonts = "subset"` keeps the code points a project names; one
+  face went from 421 KB to 29 KB. No bold lead closed by a period.
+- Describe the feature as it is. What it replaced, or how a first attempt went,
+  stays out.
+- A claim without a measurement is cut, not softened. "421 KB to 29 KB", never
   "much smaller".
 - No throat-clearing: "the honest summary is", "it is worth noting",
   "genuinely", "actually", "truly", "worth a look". State the fact.
 - Never invent a number, a flag or a file name. It comes from the code or from
   a run, or it does not go in.
-- Em dashes stay in `- **Term** — text`, where they are typography. Not as a
-  prose splice.
+- An em dash is typography only after a list item's lead, `- **Term** — text`.
+  Never a prose splice.
 - Link the clip or the screenshot where one exists.
 
-The limits are numbers, and the website's CI enforces them on every post and
-manual page: 300 words of prose in a post, 35 words in a sentence, 60 in a
-paragraph, 4 paragraphs outside bullets. `scripts/prose_lints.py` holds
-`docs/ROADMAP.md` to the sentence rule here, and holds every hand-written `.md`
-to the mechanical half of the `avoid-ai-writing` skill: the vocabulary a model
-reaches for, the transitions it opens with, the closers it lands on, and the
-markup its chat interfaces leak. Run the skill itself over anything longer than
+The limits are numbers. The website's `scripts/lint-prose.mjs` fails a post
+over 300 words of prose, 35 words in a sentence, 60 in a paragraph or 4
+paragraphs outside bullets, and a manual page over 35 in a sentence or 90 in a
+paragraph. Here, `scripts/prose_lints.py` fails a roadmap row over one
+sentence or 25 words, and fails every hand-written `.md` on the mechanical half
+of the `avoid-ai-writing` skill: the vocabulary a model reaches for, the
+transitions it opens with, the closers it lands on, and the markup its chat
+interfaces leak. On `docs/ROADMAP.md` it also reports long sentences, filler
+and em dashes, without failing. Run the skill itself over anything longer than
 a line before committing it, for the half a regex cannot judge.
 
 A roadmap row says what the thing is, at the level somebody using the engine
 reads. Never a date, a plan's phase number, a CI job or a defect id.
 
 The row is also the card on the website's roadmap page, which is generated from
-this file, so it is held to one sentence and 25 words and that build fails over
-either. Everything the sentence cannot hold goes where a reader can follow it:
-what is not planned and why into the `PLAN-*.md` the row links to, and what
-shipped into the devlog post the site pairs with a built row.
+this file. The site's generator only warns, so `scripts/prose_lints.py` is what
+holds a row to one sentence and 25 words. Everything the sentence cannot hold
+goes where a reader can follow it: what is not planned and why into the
+`PLAN-*.md` the row links to, and what shipped into the devlog post the site
+pairs with a built row.
 
 ## Checks
 

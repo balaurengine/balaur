@@ -118,7 +118,7 @@ fn showing(S) {
         let matches = if query == "" {
             def.category == current(S)
         } else {
-            // The path and the help both, so "packet" finds `netcode/loss`
+            // The path and the help both, so "packet" finds `multiplayer/loss`
             // by its sentence when its name does not say it.
             def.path.to_lowercase().contains(query)
                 || util::obj(def.spec).get("help").unwrap_or("").to_lowercase().contains(query)

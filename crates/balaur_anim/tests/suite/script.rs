@@ -485,3 +485,42 @@ fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
     let read = number(&app, "read");
     assert!((read - 10.0).abs() < 0.05, "read to the end: {read}");
 }
+
+/// Spells every word through the module's constants rather than as a string.
+const CONSTANTS: &str = r#"
+pub fn init(this) {
+    this.node.animation.define("swing", #{
+        "length": 1.0,
+        "loop": animation::LOOP_PINGPONG,
+        "tracks": [#{
+            "property": animation::PROPERTY_POSITION,
+            "interp": animation::INTERP_CUBIC,
+            "keys": [
+                #{ "t": 0.0, "value": [0.0, 0.0, 0.0] },
+                #{ "t": 1.0, "value": [0.0, 2.0, 0.0], "ease": animation::EASE_IN_OUT_SINE },
+            ],
+        }],
+    });
+    this.node.animation.play("wave");
+    this.node.animation.play("swing", #{ "fade": 0.5, "ease": animation::EASE_IN_QUAD });
+}
+"#;
+
+#[test]
+fn a_script_names_curves_and_modes_through_the_module_constants() {
+    let dir = project(("constants.rn", CONSTANTS));
+    let mut app = app_in(dir.path());
+    let entity = hero(&app, "constants.rn");
+    tick(&mut app, 2);
+
+    let state = app.engine.resource::<balaur_anim::AnimationState>();
+    let state = state.borrow();
+    let playback = &state.players[&entity];
+    assert_eq!(playback.clip_name, "swing");
+    assert_eq!(
+        playback.clip.as_ref().unwrap().wrap,
+        balaur_anim::clip::Wrap::PingPong
+    );
+    assert_eq!(playback.fades.len(), 1, "`wave` is fading out");
+    assert_eq!(playback.fades[0].ease.name(), "in_quad");
+}

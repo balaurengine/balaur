@@ -135,7 +135,7 @@ document owns the centre.
 | The status strip | Goes with the dock. The bottom dock folds away whole today, not to its strip, so the save state is read from the dot on the document tab |
 | Opening a panel while focused | Clears `S.focus_was` rather than fighting it. `⌘K`, a diagnostic's gutter click and the dock tabs all set `shut = false`, and a restore must not shut a panel that was deliberately asked for |
 | The top bar | Stays: the document tabs and the persona bar are how the code is left again |
-| OS full screen | Not this verb. `render.set_fullscreen` is the game's, and a borderless editor loses the tabs |
+| OS full screen | Not this verb. `window.set_fullscreen` is the game's, and a borderless editor loses the tabs |
 | Persisting it | Nowhere, like isolate and lock |
 | A focus layout per persona | Not planned. A persona already says what to have open; this is that answer minus everything |
 

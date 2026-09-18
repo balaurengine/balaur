@@ -62,13 +62,22 @@ pub(crate) fn release_tag() -> Option<&'static str> {
     })
 }
 
+/// How `published` stands against `installed`: `Greater` is newer. None when
+/// either is no version tag, since a nightly orders against nothing.
+pub(crate) fn order(published: &str, installed: &str) -> Option<std::cmp::Ordering> {
+    Some(precedence(published)?.cmp(&precedence(installed)?))
+}
+
 /// Whether moving from `installed` to `published` is a step back. A nightly
 /// and a source build order against nothing, so neither is ever a downgrade.
 pub(crate) fn is_downgrade(published: &str, installed: &str) -> bool {
-    match (precedence(published), precedence(installed)) {
-        (Some(new), Some(own)) => new < own,
-        _ => false,
-    }
+    order(published, installed) == Some(std::cmp::Ordering::Less)
+}
+
+/// Whether a tag is a prerelease line's rolling pointer, which holds only a
+/// VERSION naming a release listed under its own tag.
+pub(crate) fn is_pointer(tag: &str) -> bool {
+    CHANNELS[..PRERELEASE_LINES].contains(&tag)
 }
 
 /// Sort key for a version tag: the three numbers, then the prerelease rank
@@ -126,9 +135,25 @@ mod tests {
     }
 
     #[test]
+    fn a_line_name_is_a_pointer_and_a_version_is_not() {
+        assert!(super::is_pointer("alpha"));
+        assert!(super::is_pointer("rc"));
+        assert!(
+            !super::is_pointer("nightly"),
+            "the nightly holds its own assets"
+        );
+        assert!(!super::is_pointer("v0.2.0-alpha.3"));
+    }
+
+    #[test]
     fn a_build_with_no_version_orders_against_nothing() {
         assert!(!super::is_downgrade("nightly-abc1234", "v9.9.9"));
         assert!(!super::is_downgrade("v0.1.0", "nightly-abc1234"));
         assert!(!super::is_downgrade("v0.1.0", "dev"));
+        assert_eq!(super::order("nightly-abc1234", "v0.1.0"), None);
+        assert_eq!(
+            super::order("v0.2.0", "v0.2.0-rc.1"),
+            Some(std::cmp::Ordering::Greater)
+        );
     }
 }

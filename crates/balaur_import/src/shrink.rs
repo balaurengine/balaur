@@ -11,6 +11,7 @@
 //! Pixel art is left alone. Sampled nearest, every texel is a deliberate
 //! square, and a smaller copy has to drop some of them.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -45,19 +46,26 @@ pub fn shrink(project: &Path, tag: &str, scale: f32) -> Result<Shrunk> {
         );
     }
     // What the project says is not the game's is not the game's here either.
-    let manifest = std::fs::read_to_string(project.join("project.toml")).unwrap_or_default();
-    let ignored = balaur_core::ignore::from_manifest(&manifest);
+    let source = std::fs::read_to_string(project.join("project.toml")).unwrap_or_default();
+    let ignored = balaur_core::ignore::from_manifest(&source);
+    // `[import.texture]` as the tag's own build reads it, overrides and all.
+    let tags = balaur_core::tags::Tags(vec![tag.to_string()]);
+    let manifest = balaur_core::settings::resolve(&source, &tags).unwrap_or_default();
+    let (images, pages) = images_under(project);
     let mut out = Shrunk::default();
-    for path in images_under(project) {
-        let rel = path
-            .strip_prefix(project)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+    for path in images {
+        let rel = relative(project, &path);
         if is_variant(&rel) || balaur_core::ignore::ignored(&ignored, &rel) {
             continue;
         }
-        if is_pixel_art(project, &rel) {
+        if pages.contains(&rel) {
+            out.skipped.push((
+                rel,
+                "a bitmap font's page: its glyph boxes count its pixels".into(),
+            ));
+            continue;
+        }
+        if is_pixel_art(project, &manifest, &rel) {
             out.skipped.push((
                 rel,
                 "pixel art, sampled nearest: a smaller copy drops texels".into(),
@@ -106,15 +114,30 @@ fn is_variant(rel: &str) -> bool {
         .is_some_and(|(_, tag)| balaur_core::tags::ALL.contains(&tag))
 }
 
-/// Every image in the project, in a stable order.
-fn images_under(project: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    walk(project, &mut found);
+/// Every image in the project in a stable order, and the pages its bitmap
+/// fonts draw from.
+fn images_under(project: &Path) -> (Vec<PathBuf>, BTreeSet<String>) {
+    let (mut found, mut fonts) = (Vec::new(), Vec::new());
+    walk(project, &mut found, &mut fonts);
     found.sort();
-    found
+    let pages = fonts
+        .iter()
+        .filter_map(|path| {
+            let text = std::fs::read_to_string(path).ok()?;
+            balaur_text::bitmap::page_of(&relative(project, path), &text)
+        })
+        .collect();
+    (found, pages)
 }
 
-fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+fn relative(project: &Path, path: &Path) -> String {
+    path.strip_prefix(project)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn walk(dir: &Path, out: &mut Vec<PathBuf>, fonts: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -124,32 +147,27 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         if name.starts_with('.') {
             continue;
         }
-        if path.is_dir() {
-            walk(&path, out);
-        } else if path
+        let extension = path
             .extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|e| IMAGES.contains(&e.to_ascii_lowercase().as_str()))
-        {
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_default();
+        if path.is_dir() {
+            walk(&path, out, fonts);
+        } else if IMAGES.contains(&extension.as_str()) {
             out.push(path);
+        } else if extension == "fnt" {
+            fonts.push(path);
         }
     }
 }
 
-/// Whether the image's sidecar asks for nearest sampling, which is how a
-/// project marks pixel art.
-fn is_pixel_art(project: &Path, rel: &str) -> bool {
-    use balaur_core::import::keys::{FILTER, MAG_FILTER};
-    let Ok(text) = std::fs::read_to_string(project.join(balaur_core::import::sidecar_of(rel)))
-    else {
-        return false;
-    };
-    let Ok(settings) = toml::from_str::<toml::Table>(&text) else {
-        return false;
-    };
-    [FILTER, MAG_FILTER]
-        .iter()
-        .any(|key| settings.get(*key).and_then(toml::Value::as_str) == Some("nearest"))
+/// Whether the image is sampled nearest, by its sidecar or the project's
+/// `[import.texture]`, which is how a project marks pixel art.
+fn is_pixel_art(project: &Path, manifest: &toml::Table, rel: &str) -> bool {
+    let sidecar = std::fs::read_to_string(project.join(balaur_core::import::sidecar_of(rel))).ok();
+    let settings = balaur_core::import::merged(manifest, rel, sidecar.as_deref());
+    balaur_core::import::texture::is_pixel_art(&settings)
 }
 
 #[cfg(test)]
@@ -204,6 +222,38 @@ mod tests {
         let again = shrink(dir.path(), "web", 0.5).unwrap();
         assert_eq!(again.written, vec!["art/rock.web.png".to_string()]);
         assert!(!dir.path().join("art/rock.web.web.png").exists());
+    }
+
+    /// A project that says `nearest` once has marked every image as pixel art.
+    #[test]
+    fn a_project_wide_nearest_filter_marks_every_image() {
+        let dir = project();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\n\n[import.texture]\nfilter = \"nearest\"\n",
+        )
+        .unwrap();
+        let done = shrink(dir.path(), "web", 0.5).unwrap();
+        assert!(done.written.is_empty(), "{:?}", done.written);
+        assert_eq!(done.skipped.len(), 2);
+    }
+
+    /// A bitmap font's glyph boxes are in its page's pixels.
+    #[test]
+    fn a_bitmap_font_page_is_left_alone() {
+        let dir = project();
+        std::fs::write(
+            dir.path().join("art/pixel.fnt"),
+            "info size=8\npage id=0 file=\"rock.png\"\nchar id=65 x=0 y=0 width=4 height=4 xadvance=4\n",
+        )
+        .unwrap();
+        let done = shrink(dir.path(), "web", 0.5).unwrap();
+        assert!(done.written.is_empty(), "{:?}", done.written);
+        assert!(
+            done.skipped
+                .iter()
+                .any(|(rel, why)| rel == "art/rock.png" && why.contains("font"))
+        );
     }
 
     /// A tag no export answers to would write a file nothing ever picks.

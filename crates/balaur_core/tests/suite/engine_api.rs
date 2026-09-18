@@ -624,7 +624,9 @@ fn the_platform_and_device_id_are_stable_facts() {
         panic!("a map")
     };
     let keys: Vec<&str> = facts.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(keys, ["os", "web", "mobile", "touchscreen", "editor"]);
+    assert_eq!(keys, ["os", "web", "mobile", "touchscreen", "editor", "dev"]);
+    let dev = facts.iter().find(|(k, _)| k == "dev").map(|(_, v)| v.clone());
+    assert_eq!(dev, Some(Value::Bool(true)), "a run from the sources is a dev run");
     let first = call(&app.engine, "engine", "device_id", &[]).unwrap();
     let again = call(&app.engine, "engine", "device_id", &[]).unwrap();
     assert_eq!(first, again, "one id per install");
@@ -726,4 +728,20 @@ fn quit_carries_the_code_the_process_exits_with() {
     assert_eq!(app.engine.exit_code(), 0);
     call(&app.engine, "engine", "quit", &[Value::Int(1)]).unwrap();
     assert_eq!(app.engine.exit_code(), 1);
+}
+
+#[test]
+fn a_run_from_a_pack_is_not_a_dev_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    app.engine.insert_resource(balaur_core::project::ProjectFiles::packed(
+        dir.path().to_path_buf(),
+        std::collections::BTreeMap::new(),
+        balaur_core::project::AssetSource::Embedded,
+    ));
+    let Value::Map(facts) = call(&app.engine, "engine", "platform", &[]).unwrap() else {
+        panic!("a map")
+    };
+    let dev = facts.iter().find(|(k, _)| k == "dev").map(|(_, v)| v.clone());
+    assert_eq!(dev, Some(Value::Bool(false)));
 }

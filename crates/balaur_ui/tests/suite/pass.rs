@@ -69,6 +69,77 @@ fn draw_with(body: &str) -> (tempfile::TempDir, App, egui::Context, Vec<String>)
     (dir, app, ctx, errors)
 }
 
+/// World text can ask for the shaper before the first UI pass, and the pass
+/// then keeps that one: a block shaped first has its glyphs in its atlas.
+#[test]
+fn the_shaper_is_made_by_whoever_asks_first_and_kept() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )
+    .unwrap();
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    assert!(
+        balaur_text::state(&app.engine).is_none(),
+        "nothing has asked yet"
+    );
+    let first = balaur_text::shaper(&app.engine);
+    let ctx = egui::Context::default();
+    for _ in 0..2 {
+        ctx.begin_pass(egui::RawInput::default());
+        balaur_ui::run_pass(&app.engine, &ctx);
+        ctx.end_pass().textures_delta.clear();
+    }
+    let after = balaur_text::state(&app.engine).unwrap();
+    assert!(
+        std::rc::Rc::ptr_eq(&first, &after),
+        "the pass replaced the shaper"
+    );
+}
+
+/// With no window nothing calls `draw_ui`; the pass on no screen does, after
+/// the one that binds the fonts.
+#[test]
+fn a_run_with_no_window_still_draws_its_ui() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"scripts/s.rn\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scripts/s.rn"),
+        "pub fn init(this) { this.drawn = 0; }\npub fn draw_ui(this) { this.drawn += 1; }\n",
+    )
+    .unwrap();
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    balaur_ui::pass_without_window(&mut app, 800.0, 600.0);
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(field(&app, "drawn"), Some(2.0));
+}
+
 fn draw_clean(body: &str) {
     let (_dir, _app, errors) = draw(body);
     assert!(errors.is_empty(), "the pass logged errors: {errors:#?}");

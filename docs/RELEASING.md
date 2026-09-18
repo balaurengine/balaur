@@ -126,14 +126,17 @@ balaur update --channel stable    # back to the stable line
 
 Two installs are refused rather than replaced: `Balaur.app`, whose notarised
 ticket belongs to the .dmg it shipped in, and a cargo target directory, which
-is a build tree a release would bury. The editor's Engine tab is the same
-code, so both answer there too.
+is a build tree a release would bury. The editor's Engine tab and About sheet
+are the same code. They say which it is before offering a press, and a bundle
+gets the release's .dmg instead.
 
 Discovery reuses what `nightly` already does rather than asking the API: each
 channel has a rolling tag pointed at the newest release on that line, so an
 update is a fetch of `releases/download/<channel>/VERSION` and there is no rate
 limit to run into. `scripts/move_channel.sh` writes that pointer, and
-`channel.yml` runs it when a release is published.
+`channel.yml` runs it when a release is published. The Engine tab's list is
+the one API read: the release feed, unauthenticated, once per check, against
+GitHub's 60 an hour.
 
 A channel release carries that one asset. VERSION names the version release,
 and the archives are fetched from there, so a channel is a pointer rather than

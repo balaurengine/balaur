@@ -60,3 +60,30 @@ pub(crate) type ExportCore = crate::jobs::Reporting<ExportEvent>;
 
 /// What `listen` is documented as, so both modules describe it the same way.
 pub(crate) const LISTEN_DOC: &str = "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.";
+
+/// `export.preview`, the same on a desktop and in a tab.
+pub(crate) const PREVIEW_DOC: &str = "What one file becomes in a target's pack, as the Import tab shows it: `{ source, before, after, width, height, drawn_width, drawn_height, gpu_bytes }`, where `source` is the file or the variant that ships and `drawn_*` is zero unless a smaller copy does. Nil when the file does not ship there. An empty target is this machine's own.";
+
+/// One file's row for one target, or nil when it does not ship there.
+pub(crate) fn preview(project: &std::path::Path, path: &str, target: &str) -> Value {
+    let target = (!target.is_empty()).then_some(target);
+    let shown = match balaur_export::preview::preview(project, path, target) {
+        Ok(shown) => shown,
+        Err(why) => {
+            tracing::debug!("export.preview {path}: {why:#}");
+            return Value::Nil;
+        }
+    };
+    let count = |n: u64| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
+    let (drawn_width, drawn_height) = shown.drawn.unwrap_or((0, 0));
+    Value::Map(vec![
+        ("source".into(), Value::Str(shown.source)),
+        ("before".into(), count(shown.before as u64)),
+        ("after".into(), count(shown.after as u64)),
+        ("width".into(), count(u64::from(shown.width))),
+        ("height".into(), count(u64::from(shown.height))),
+        ("drawn_width".into(), count(u64::from(drawn_width))),
+        ("drawn_height".into(), count(u64::from(drawn_height))),
+        ("gpu_bytes".into(), count(shown.gpu_bytes)),
+    ])
+}

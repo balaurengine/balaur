@@ -1,6 +1,7 @@
 //! `balaur import`: a model, a sprite, a level or a Godot project brought
 //! into a project as the files the editor edits.
 
+pub mod atlas;
 mod godot;
 mod ldtk;
 #[cfg(test)]
@@ -9,10 +10,9 @@ pub mod shrink;
 mod tiled_map;
 
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use anyhow::{Context, Result};
-use balaur_core::files::{self, FileBackend};
+use balaur_core::files;
 use balaur_core::glb::{Beside, SideReader};
 use balaur_core::task::Progress;
 
@@ -46,10 +46,10 @@ pub trait Sink {
 ///
 /// The backend is the thread's, so a desktop writes to disk and a browser tab
 /// writes into the memory its project already lives in, with no second path
-/// for either.
+/// for either. Asked for at each write rather than held, so a sink can move to
+/// the thread an import runs on.
 pub struct ProjectSink {
     root: PathBuf,
-    fs: Rc<dyn FileBackend>,
     written: Vec<String>,
 }
 
@@ -59,7 +59,6 @@ impl ProjectSink {
     pub fn new(root: &Path) -> Self {
         Self {
             root: root.to_path_buf(),
-            fs: files::default_backend(),
             written: Vec::new(),
         }
     }
@@ -68,11 +67,11 @@ impl ProjectSink {
 impl Sink for ProjectSink {
     fn put(&mut self, relative: &str, bytes: &[u8]) -> Result<()> {
         let path = self.root.join(relative);
+        let fs = files::default_backend();
         if let Some(parent) = path.parent() {
-            self.fs.mkdir(parent)?;
+            fs.mkdir(parent)?;
         }
-        self.fs
-            .write(&path, bytes)
+        fs.write(&path, bytes)
             .with_context(|| format!("writing {}", path.display()))?;
         self.written.push(relative.to_string());
         Ok(())
@@ -98,6 +97,8 @@ pub fn import_and_report(file: &Path, project: &Path, layers: &[String]) -> Resu
 /// Which importer a file's name routes to.
 enum Route {
     Sprite,
+    /// An animated `.gif`, packed as `balaur atlas` packs loose frames.
+    Gif,
     Model,
     /// A `.tmx` or `.ldtk`, which names the files around it.
     Level,
@@ -111,6 +112,7 @@ fn route(name: &Path, layers: &[String]) -> Result<Route> {
     let extension = extension_of(name);
     Ok(match extension.as_str() {
         "aseprite" | "ase" => Route::Sprite,
+        "gif" => Route::Gif,
         "tmx" | "ldtk" => Route::Level,
         "godot" | "tscn" | "tres" => Route::Godot,
         _ if !layers.is_empty() => {
@@ -127,7 +129,7 @@ fn route(name: &Path, layers: &[String]) -> Result<Route> {
 /// `.tres` is not here -- one on its own is a resource a scene names, not a
 /// thing to import.
 const CLAIMED: &[&str] = &[
-    "glb", "gltf", "aseprite", "ase", "tmx", "ldtk", "godot", "tscn",
+    "glb", "gltf", "aseprite", "ase", "gif", "tmx", "ldtk", "godot", "tscn",
 ];
 
 /// Whether an importer reads this name, by extension.
@@ -152,7 +154,7 @@ pub fn claimed() -> &'static [&'static str] {
 pub fn slices(name: &str) -> bool {
     matches!(
         route(Path::new(name), &[]),
-        Ok(Route::Sprite | Route::Model)
+        Ok(Route::Sprite | Route::Gif | Route::Model)
     )
 }
 
@@ -365,6 +367,12 @@ pub fn plan_bytes(
 ) -> Result<Plan> {
     match route(Path::new(name), layers)? {
         Route::Sprite => plan_sprite(name, bytes, layers),
+        Route::Gif => {
+            let stem = import_stem(Path::new(name))?;
+            let frames =
+                atlas::frames_of_gif(bytes, &stem).with_context(|| format!("importing {name}"))?;
+            plan_sheet(&stem, &frames, false)
+        }
         Route::Model => plan_model(name, bytes, side),
         Route::Level | Route::Godot => anyhow::bail!(
             "{name} names the files around it, so it is imported from the folder it sits in \
@@ -507,6 +515,84 @@ fn plan_sprite(name: &str, bytes: &[u8], layers: &[String]) -> Result<Plan> {
             imported.frames, imported.width, imported.height
         ),
     })
+}
+
+/// A packed sheet's files: `art/<stem>.webp`, `sheets/<stem>.toml` and, for a
+/// run of frames, `animations/<stem>.toml`. `nearest` marks the page as pixel
+/// art, as every frame it was packed from was.
+fn plan_sheet(stem: &str, frames: &[atlas::Frame], nearest: bool) -> Result<Plan> {
+    let texture = format!("art/{stem}.webp");
+    let packed = atlas::pack(frames, stem, &texture)?;
+    let mut outputs = Vec::new();
+    if nearest {
+        outputs.push(Output::Held {
+            path: balaur_core::import::sidecar_of(&texture),
+            bytes: format!(
+                "# Written by `balaur atlas`: its frames were pixel art.\n{} = \"{}\"\n",
+                balaur_core::import::keys::FILTER,
+                balaur_core::import::words::NEAREST
+            )
+            .into_bytes(),
+        });
+    }
+    outputs.push(Output::Held {
+        path: texture,
+        bytes: packed.page,
+    });
+    outputs.push(Output::Held {
+        path: format!("sheets/{stem}.toml"),
+        bytes: packed.sheet.into_bytes(),
+    });
+    if let Some(clips) = packed.clips {
+        outputs.push(Output::Held {
+            path: format!("animations/{stem}.toml"),
+            bytes: clips.into_bytes(),
+        });
+    }
+    Ok(Plan {
+        outputs,
+        next: 0,
+        scene: None,
+        note: format!(
+            "{} frames on a {}x{} page",
+            packed.frames, packed.width, packed.height
+        ),
+    })
+}
+
+/// `balaur atlas <folder or files> --name hero`: every image packed onto one
+/// page with a sheet naming each, written into `project`. A frame shows for
+/// `milliseconds`; the page is pixel art when each file's settings say so.
+///
+/// # Errors
+/// If an input does not read, the frames do not fit one page, or a file
+/// cannot be written.
+pub fn atlas_into(
+    inputs: &[PathBuf],
+    project: &Path,
+    name: &str,
+    milliseconds: u32,
+) -> Result<Imported> {
+    let stem = import_stem(Path::new(name))?;
+    let files = atlas::files_from(inputs)?;
+    let frames = atlas::frames_from(&files, milliseconds)?;
+    let source = std::fs::read_to_string(project.join("project.toml")).unwrap_or_default();
+    let manifest: toml::Table = toml::from_str(&source).unwrap_or_default();
+    let nearest = !files.is_empty()
+        && files.iter().all(|file| {
+            let rel = file
+                .strip_prefix(project)
+                .unwrap_or(file)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let own =
+                std::fs::read_to_string(project.join(balaur_core::import::sidecar_of(&rel))).ok();
+            let settings = balaur_core::import::merged(&manifest, &rel, own.as_deref());
+            balaur_core::import::texture::is_pixel_art(&settings)
+        });
+    let side =
+        |uri: &str| -> Result<Vec<u8>> { anyhow::bail!("an atlas names no file beside it: {uri}") };
+    plan_sheet(&stem, &frames, nearest)?.write_all(&mut ProjectSink::new(project), &side)
 }
 
 /// `balaur import model.glb --project game`: `models/model.glb` (and the
