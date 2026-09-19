@@ -19,7 +19,7 @@
     "gamedev"
   ],
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.91.0"
   },
   "activationEvents": [
     "onLanguage:rune",
@@ -70,6 +70,6 @@
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^10.1.1"
   }
 }

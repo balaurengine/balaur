@@ -51,10 +51,10 @@ gltf = { version = "1.4", default-features = false, features = [
     "KHR_materials_emissive_strength",
 ] }
 sys-locale = "0.3"
-i_overlay = "8"
+i_overlay = "9"
 # The one triangulator: `balaur_core::triangulate` is where it is named, and
 # `balaur_text`'s glyph filler goes through that. `i_overlay`'s sibling.
-i_triangle = "0.48"
+i_triangle = "0.49"
 base64 = "0.23"
 # `pixels`: one decoder for the renderer, the UI and the exporter.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }

@@ -197,7 +197,7 @@ pub fn link(
     root: &str,
     features: &[(&str, bool)],
 ) -> Result<wesl::CompileResult> {
-    let mut resolver = wesl::VirtualResolver::new();
+    let mut resolver = wesl::resolver::VirtualResolver::new();
     let mounted = [
         ("package::common", COMMON),
         (SPRITE_MODULE, SPRITE),
@@ -211,23 +211,22 @@ pub fn link(
             .map_err(|e| anyhow!("shader module path `{path}`: {e}"))?;
         resolver.add_module(parsed, (*source).into());
     }
-    let mut compiler = wesl::Wesl::new("").set_custom_resolver(resolver);
-    compiler.set_options(wesl::CompileOptions {
+    let mut options = wesl::CompileOptions {
         // Catches a call to a name nothing declares, which otherwise reaches
         // naga and so needs a GPU to find. It does not check types; naga
         // still does that at `create_shader_module`.
         validate: true,
+        sourcemap: true,
         ..Default::default()
-    });
-    compiler.use_sourcemap(true);
+    };
     for (name, on) in features {
-        compiler.set_feature(name, *on);
+        options.features.set(name, *on);
     }
     let root_path = root
         .parse()
         .map_err(|e| anyhow!("shader root module `{root}`: {e}"))?;
-    compiler
-        .compile(&root_path)
+    wesl::Compiler::new_with_resolver(options, resolver)
+        .compile_module(&root_path)
         .map_err(|e| anyhow!("linking {root}: {e}"))
 }
 

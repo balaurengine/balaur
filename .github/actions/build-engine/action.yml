@@ -178,6 +178,6 @@ runs:
         if-no-files-found: error
 
     - if: inputs.attest == 'true'
-      uses: actions/attest-build-provenance@v2
+      uses: actions/attest-build-provenance@v4
       with:
         subject-path: dist/*

@@ -48,7 +48,7 @@ runs:
 
     - id: cached
       if: steps.resolve.outputs.cacheable == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ steps.resolve.outputs.install }}
         key: balaur-${{ steps.resolve.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.targets }}
