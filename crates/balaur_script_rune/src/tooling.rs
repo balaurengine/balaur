@@ -108,8 +108,14 @@ pub struct Location {
 /// What the caret sits after, which decides what may follow it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum At {
-    /// `physics2d::ray|` — an engine module's own name is known.
-    Module { module: String, prefix: String },
+    /// `physics2d::ray|` — an engine module's own name is known. `path` is
+    /// every segment before the caret, for a mounted addon's
+    /// `gamend::lobbies::`.
+    Module {
+        module: String,
+        path: Vec<String>,
+        prefix: String,
+    },
     /// `node.body2d.app|` — the receiver named a registered component.
     Handle { component: String, prefix: String },
     /// `this.spe|` — the script's own properties and functions.
@@ -170,10 +176,11 @@ pub(crate) fn classify(source: &str, offset: usize) -> At {
     let prefix = prefix.to_string();
     let head = &source[..start];
     if let Some(before) = head.strip_suffix("::") {
-        let (module, _) = word_before(before, before.len());
-        if !module.is_empty() {
+        let path = path_before(before);
+        if let Some(module) = path.last() {
             return At::Module {
-                module: module.to_string(),
+                module: module.clone(),
+                path,
                 prefix,
             };
         }
@@ -195,6 +202,24 @@ pub(crate) fn classify(source: &str, offset: usize) -> At {
         };
     }
     At::Instance { prefix }
+}
+
+/// The `a::b` a path ends with, every segment in order.
+fn path_before(text: &str) -> Vec<String> {
+    let mut path = Vec::new();
+    let mut rest = text;
+    loop {
+        let (word, start) = word_before(rest, rest.len());
+        if word.is_empty() {
+            break;
+        }
+        path.insert(0, word.to_string());
+        match rest[..start].strip_suffix("::") {
+            Some(earlier) => rest = earlier,
+            None => break,
+        }
+    }
+    path
 }
 
 /// The methods each component's handle offers, from the drives table
@@ -236,7 +261,17 @@ impl RuneHost {
         let at = classify(source, offset_of(source, line, column));
         let mut out = Vec::new();
         match &at {
-            At::Module { module, prefix } => Self::complete_module(module, prefix, &mut out),
+            At::Module {
+                module,
+                path,
+                prefix,
+            } => {
+                // An engine module is one segment; `kit::math::` is a mount's.
+                if path.len() == 1 {
+                    Self::complete_module(module, prefix, &mut out);
+                }
+                self.complete_mounted(path, prefix, &mut out);
+            }
             At::Handle { component, prefix } => {
                 Self::complete_handle(component, prefix, &mut out);
             }
@@ -507,7 +542,13 @@ impl RuneHost {
         if name.is_empty() {
             return Ok(None);
         }
-        Ok(Self::describe(key, source, &source[..start], name))
+        let head = &source[..start];
+        if let Some(before) = head.strip_suffix("::")
+            && let Some(found) = self.describe_mounted(&path_before(before), name)
+        {
+            return Ok(Some(found));
+        }
+        Ok(Self::describe(key, source, head, name))
     }
 
     /// The one thing `name` means, given what precedes it. The same four

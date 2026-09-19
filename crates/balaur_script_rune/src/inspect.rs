@@ -123,7 +123,7 @@ pub(crate) fn public_functions(source: &str) -> Vec<PublicSignature> {
 /// A signature broken over two lines used to be invisible here, which took
 /// the function out of `script::require`, out of the editor's hooks list, and
 /// out of the list a plugin's `register` is looked for in.
-fn parameters(lines: &[&str], at: usize, first: &str) -> Option<String> {
+pub(crate) fn parameters(lines: &[&str], at: usize, first: &str) -> Option<String> {
     let mut gathered = String::from(first);
     let mut scan = at;
     while !gathered.contains(')') {

@@ -218,6 +218,7 @@ impl RuneHost {
         let mut assets: Vec<String> = Vec::new();
         let mut binaries: Vec<String> = Vec::new();
         let mut sources = false;
+        let mut recheck = false;
         {
             let state = self.state.borrow();
             let Some(events) = &state.events else { return };
@@ -235,6 +236,9 @@ impl RuneHost {
                     let key = rel.to_string_lossy().replace('\\', "/");
                     match path.extension().and_then(|e| e.to_str()) {
                         Some("rn") => {
+                            if key.starts_with("addons/") {
+                                recheck = true;
+                            }
                             for root in roots_of(&state, &key) {
                                 if !changed.contains(&root) {
                                     changed.push(root);
@@ -261,6 +265,9 @@ impl RuneHost {
                     }
                 }
             }
+        }
+        if recheck {
+            self.state.borrow_mut().recheck_mounts = true;
         }
         if sources || !binaries.is_empty() {
             balaur_core::assets::invalidate(&self.engine);

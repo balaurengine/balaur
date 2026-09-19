@@ -14,10 +14,12 @@
 
 mod api;
 mod bindings;
+mod context;
 mod debugger;
 mod handles;
 mod holds;
 mod inspect;
+mod mounts;
 mod packed;
 mod pause;
 mod profile;
@@ -53,9 +55,7 @@ pub use inspect::Finding;
 use inspect::{public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
-use script_module::script_module;
 use shared::{SHARED_FNS, trampoline};
-use task::WaitFuture;
 pub use tooling::{Completion, Hover, Kind, Location, Symbol, offset_of};
 pub use value::{Color, Node, Vec2, Vec3};
 
@@ -183,9 +183,16 @@ struct State {
     pack: Option<Pack>,
     /// Registered by plugins at startup, folded into the context on first use.
     pending: Rc<RefCell<Vec<rune::Module>>>,
-    /// Built once. Compiling needs the full context; running needs only the
-    /// runtime half.
+    /// The plugins' modules once folded in, kept for a context built again.
+    kept: Vec<rune::Module>,
+    /// Built on first use and again when the mounted addons change.
+    /// Compiling needs the full context; running needs only the runtime half.
     context: Option<(Rc<rune::Context>, Arc<RuntimeContext>)>,
+    /// The addons the context mounts, and the roots they were found under.
+    mounts: Vec<mounts::Mount>,
+    mount_roots: Vec<PathBuf>,
+    /// A saved addon file may have changed what its mount exposes.
+    recheck_mounts: bool,
     scripts: FxHashMap<String, Script>,
     /// `script::require` results: an object of the script's public functions
     /// per key. The object's contents swap in place on hot reload, so every
@@ -248,7 +255,11 @@ impl RuneHost {
                 project_root,
                 pack,
                 pending: Rc::new(RefCell::new(Vec::new())),
+                kept: Vec::new(),
                 context: None,
+                mounts: Vec::new(),
+                mount_roots: Vec::new(),
+                recheck_mounts: false,
                 scripts: FxHashMap::default(),
                 modules: HashMap::new(),
                 module_slots: HashMap::new(),
@@ -266,38 +277,6 @@ impl RuneHost {
 
     pub fn engine(&self) -> Engine {
         self.engine.clone()
-    }
-
-    /// Fold every registered module into a context.
-    ///
-    /// Deferred to first use because Rune builds a context once, and plugins
-    /// are still registering bindings while the app is being assembled.
-    fn context(&self) -> Result<(Rc<rune::Context>, Arc<RuntimeContext>)> {
-        if let Some(built) = &self.state.borrow().context {
-            return Ok(built.clone());
-        }
-        let mut ctx = rune::Context::with_default_modules()?;
-        let mut values = rune::Module::with_crate("balaur")?;
-        value::install(&mut values, &self.engine)?;
-        ctx.install(values)?;
-        // `task::wait(token).await` parks until the engine wakes the token.
-        // `init` and handlers may be async; `update` is deliberately synchronous.
-        let mut task = rune::Module::with_crate("task")?;
-        task.function("wait", |token: i64| WaitFuture {
-            token: u64::try_from(token).unwrap_or(u64::MAX),
-        })
-        .build()?;
-        task::declare_waits(self, &mut task)?;
-        ctx.install(task)?;
-        ctx.install(script_module(self)?)?;
-        let pending = self.state.borrow().pending.clone();
-        for m in pending.borrow_mut().drain(..) {
-            ctx.install(m)?;
-        }
-        let runtime = Arc::new(ctx.runtime()?);
-        let built = (Rc::new(ctx), runtime);
-        self.state.borrow_mut().context = Some(built.clone());
-        Ok(built)
     }
 
     fn normalize_key(path: &str) -> String {

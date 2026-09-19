@@ -147,6 +147,15 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   path is looked up in the roots a host added before the project's own:
   `balaur edit` runs with the editor as the project, and the game it plays
   requires its own addons.
+- An addon's files are also native modules: `addons/<name>/<file>.rn` is
+  `<name>::<file>` in every script, with no `require`. Its `pub fn`s are
+  called by path and its `pub const`s read as constants, a `pub mod` block's
+  one segment deeper. Each function forwards to the file's current unit, so
+  a save reaches every caller. The context is built again when a root is
+  added or a saved addon changes what it exposes. A pack keeps the
+  signatures; a constant is already inside each unit that reads it. A path
+  clashing with an engine item is reported and left out
+  (`balaur_script_rune/src/mounts.rs`).
 
 ### Prefabs
 

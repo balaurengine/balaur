@@ -65,6 +65,32 @@ pub async fn init(this) {{
 }
 
 #[test]
+fn the_sdk_addon_is_reachable_by_path() {
+    if !e2e_enabled() {
+        return;
+    }
+    let url = gamend_url();
+    let files = gamend_addon();
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    // `addons/gamend/api.rn` is `gamend::api`, beside the engine's own
+    // `gamend::configure`.
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    gamend::configure("{url}");
+    let health = task::wait(gamend::api::health_index(())).await;
+    let named = gamend::events::decode("lobby:7", "user_joined", #{{}});
+    log::info(`by-path ${{health["status"]}} ${{named["kind"]}}`);
+}}
+"#
+    );
+    run_until_with(&borrowed, &source, &["by-path 200 lobby_member_joined"]);
+}
+
+#[test]
 fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
     if !e2e_enabled() {
         return;

@@ -271,6 +271,17 @@ by where the file lives, not by who does it.
   involved. Ends with: a log line submitted from a game shows in the
   server's stream; then two engines in one lobby exchange bytes through
   `send_data` with no hook between them.
+- **7. The SDK by path.** The engine half is built: an addon's
+  `addons/<name>/<file>.rn` is the module `<name>::<file>`
+  (`crates/balaur_script_rune/src/mounts.rs`). The Gamend half waits for
+  `clients/sdkgen` to land. `api.rn` splits into one file per OpenAPI tag,
+  each function named without its tag: `gamend::lobbies::create_lobby`.
+  `events.rn` holds one `pub mod` per channel of `events.json`, each event
+  named without the channel: `gamend::events::lobby::MEMBER_JOINED`. The
+  flat constants go, so each event has one name. The hand-written files, the
+  dock and the port's Godot-signature module call by path. Ends with: the
+  addon has no `script::require` of its own files, and the flow tests name
+  their operations and events by path.
 
 ## 4. What CI can prove
 
