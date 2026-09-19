@@ -702,7 +702,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("configure", &[], "(url: string?)", "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs."),
         ("login", &[], "", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
-        ("register", &[], "(node: node?, account: map)", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. No email is sent."),
+        ("register", &[], "(node: node?, account: map)", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
         ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take."),
     ]);
