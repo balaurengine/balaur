@@ -1071,28 +1071,32 @@ pub(crate) fn build_2d_node(
     })
 }
 
-/// A polyline as a group of triangle strips with round joins: one piece per
-/// segment and joint, each with its place along the chain for the gradient.
-/// The points come from the same mesh asset physics reads, flattened to xy.
+/// How many colours a gradient steps through along a polyline.
+const GRADIENT_BANDS: usize = 32;
+
+/// A polyline stroked into one outline with its joins and caps, cut into
+/// bands along it when a gradient needs somewhere to change colour. The
+/// points come from the same mesh asset physics reads, flattened to xy.
 pub(crate) fn build_polyline_node(
     app: &App,
     scene: &mut SceneNode2d,
     renderable: &Renderable2d,
-    width: f32,
-    closed: bool,
+    stroke: &balaur_core::stroke::Stroke,
 ) -> Option<(SceneNode2d, Vec<(SceneNode2d, f32)>)> {
     let points = polyline_points(app, renderable.polyline.as_deref(), false);
     if points.len() < 2 {
         return None;
     }
-    let texture = renderable
-        .line
-        .as_ref()
-        .map(|style| style.texture.as_str())
-        .unwrap_or_default();
+    let style = renderable.line.as_ref();
+    let texture = style.map(|s| s.texture.as_str()).unwrap_or_default();
+    let bands = if style.is_some_and(|s| s.gradient.is_some()) {
+        GRADIENT_BANDS
+    } else {
+        1
+    };
     let mut group = scene.add_group();
     let mut pieces = Vec::new();
-    for piece in crate::polyline_strip::pieces(&points, width, closed) {
+    for piece in balaur_core::stroke::stroke(&points, stroke, bands) {
         let mesh =
             kiss3d::resource::GpuMesh2d::new(piece.coords, piece.faces, Some(piece.uvs), false);
         let mut node = group.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(mesh)), Vec2::ONE);

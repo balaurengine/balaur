@@ -3,8 +3,9 @@
 
 use crate::shape::keys as k;
 use anyhow::Result;
-use balaur_core::components::{ComponentDef, prop_str};
+use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str, prop_vec2};
 use balaur_core::primitive::{Flat, Solid};
+use balaur_core::stroke::{self, Cap, Join, Stroke};
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
@@ -214,6 +215,7 @@ pub(crate) mod keys {
     pub(crate) const FLAGS: &str = "flags";
     pub(crate) const TERRAIN: &str = "terrain";
     pub(crate) const SEED: &str = "seed";
+    pub(crate) const CAP: &str = "cap";
     pub(crate) const CLOSED: &str = "closed";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const COLOR_END: &str = "color_end";
@@ -239,6 +241,7 @@ pub(crate) mod keys {
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INTENSITY: &str = "intensity";
     pub(crate) const MIRROR: &str = "mirror";
+    pub(crate) const JOIN: &str = "join";
     pub(crate) const KIND: &str = p::KIND;
     pub(crate) const LETTER_SPACING: &str = "letter_spacing";
     pub(crate) const LIFETIME: &str = "lifetime";
@@ -248,6 +251,7 @@ pub(crate) mod keys {
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MESH: &str = "mesh";
+    pub(crate) const MITER_LIMIT: &str = "miter_limit";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const OP: &str = "op";
@@ -294,6 +298,7 @@ pub(crate) mod keys {
     pub(crate) const SPREAD: &str = "spread";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_KEY: &str = "text_key";
+    pub(crate) const TAPER: &str = "taper";
     pub(crate) const TEXTURE: &str = "texture";
     pub(crate) const TILESET: &str = "tileset";
     pub(crate) const WIDTH: &str = "width";
@@ -420,13 +425,48 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string();
-        let shape = Shape2d::Polyline {
-            width: balaur_core::components::prop_f32(params, k::WIDTH).max(0.001),
-            closed: balaur_core::components::prop_bool(params, k::CLOSED),
-        };
+        let shape = Shape2d::Polyline(Stroke {
+            width: prop_f32(params, k::WIDTH).max(0.001),
+            closed: prop_bool(params, k::CLOSED),
+            join: Join::from_word(prop_str(params, k::JOIN)).unwrap_or_default(),
+            cap: Cap::from_word(prop_str(params, k::CAP)).unwrap_or_default(),
+            miter_limit: prop_f32(params, k::MITER_LIMIT),
+            taper: prop_vec2(params, k::TAPER),
+        });
         return Ok((shape, Some(source)));
     }
     Ok((Shape2d::Flat(Flat::from_params(params)?), None))
+}
+
+/// A polyline's params, as `shape2d` saves them.
+fn polyline_params(
+    map: &mut toml::map::Map<String, toml::Value>,
+    stroke: &Stroke,
+    renderable: &crate::Renderable2d,
+) {
+    let float = |v: f32| toml::Value::Float(f64::from(v));
+    let word = |w: &str| toml::Value::String(w.into());
+    map.insert(k::KIND.into(), word(words::POLYLINE));
+    map.insert(k::WIDTH.into(), float(stroke.width));
+    map.insert(k::CLOSED.into(), toml::Value::Boolean(stroke.closed));
+    map.insert(k::JOIN.into(), word(stroke.join.word()));
+    map.insert(k::CAP.into(), word(stroke.cap.word()));
+    map.insert(k::MITER_LIMIT.into(), float(stroke.miter_limit));
+    map.insert(
+        k::TAPER.into(),
+        toml::Value::Array(stroke.taper.map(float).to_vec()),
+    );
+    if let Some(source) = &renderable.polyline {
+        map.insert(k::MESH.into(), word(source));
+    }
+    if let Some(style) = &renderable.line {
+        if let Some(gradient) = style.gradient {
+            map.insert(k::GRADIENT.into(), color_to_toml(gradient));
+        }
+        if !style.texture.is_empty() {
+            map.insert(k::TEXTURE.into(), word(&style.texture));
+        }
+    }
 }
 
 /// The `shape2d` component: 2D primitives.
@@ -444,6 +484,10 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
                     (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
+                    (k::JOIN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a polyline's segments meet" }}"#, stroke::ROUND, options(stroke::JOINS))),
+                    (k::CAP, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How an open polyline ends" }}"#, stroke::ROUND, options(stroke::CAPS))),
+                    (k::MITER_LIMIT, r#"{ type = "float", default = 4.0, min = 1.0, description = "How far a miter join may reach, in half-widths, before its corner is cut to a bevel" }"#),
+                    (k::TAPER, r#"{ type = "vec2", default = [1.0, 1.0], description = "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps" }"#),
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes, when kind is rect or ellipse" }"#),
@@ -495,25 +539,7 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                             map.extend(table.clone());
                         }
                     }
-                    Shape2d::Polyline { width, closed } => {
-                        map.insert(k::KIND.into(), toml::Value::String(words::POLYLINE.into()));
-                        map.insert(k::WIDTH.into(), toml::Value::Float(f64::from(width)));
-                        map.insert(k::CLOSED.into(), toml::Value::Boolean(closed));
-                        if let Some(source) = renderable.polyline.clone() {
-                            map.insert(k::MESH.into(), toml::Value::String(source));
-                        }
-                        if let Some(style) = &renderable.line {
-                            if let Some(gradient) = style.gradient {
-                                map.insert(k::GRADIENT.into(), color_to_toml(gradient));
-                            }
-                            if !style.texture.is_empty() {
-                                map.insert(
-                                    k::TEXTURE.into(),
-                                    toml::Value::String(style.texture.clone()),
-                                );
-                            }
-                        }
-                    }
+                    Shape2d::Polyline(stroke) => polyline_params(&mut map, &stroke, &renderable),
                 }
                 map.insert(k::COLOR.into(), color_to_toml(renderable.color));
                 map.insert(

@@ -48,8 +48,6 @@ mod morph;
 mod particles;
 pub mod pick;
 mod polygon;
-#[cfg(feature = "kiss3d")]
-mod polyline_strip;
 pub mod preview;
 #[cfg(feature = "kiss3d")]
 mod probe;
@@ -117,6 +115,8 @@ mod kiss3d_input;
 #[cfg(feature = "kiss3d")]
 mod light_map;
 #[cfg(feature = "kiss3d")]
+mod lods;
+#[cfg(feature = "kiss3d")]
 mod material_cache;
 #[cfg(feature = "kiss3d")]
 mod pipeline;
@@ -130,8 +130,6 @@ mod shader_material_3d;
 mod skinned_2d;
 #[cfg(feature = "kiss3d")]
 mod skinned_3d;
-#[cfg(feature = "kiss3d")]
-mod lods;
 #[cfg(feature = "kiss3d")]
 mod touch_draw;
 
@@ -499,13 +497,10 @@ pub enum Shape2d {
         hx: f32,
         hy: f32,
     },
-    /// A chain of points: open it is a line, closed it is a polygon outline.
-    /// The points live in `Renderable2d::polyline`, the way a sprite's texture
-    /// lives beside its quad — the enum stays `Copy`.
-    Polyline {
-        width: f32,
-        closed: bool,
-    },
+    /// A chain of points drawn thick: open it is a line, closed it is a
+    /// polygon outline. The points live in `Renderable2d::polyline`, the way a
+    /// sprite's texture lives beside its quad — the enum stays `Copy`.
+    Polyline(balaur_core::stroke::Stroke),
     /// A filled, textured polygon, deformed by a rig when its mesh carries
     /// skin weights. The geometry lives in `Renderable2d::polygon`.
     Polygon,

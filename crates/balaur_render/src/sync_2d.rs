@@ -134,8 +134,8 @@ pub(crate) fn build_slot_2d(
     let mut pieces = Vec::new();
     let built = match renderable.shape {
         Shape2d::Polygon => crate::skinned_2d::build_polygon_node(app, scene, renderable),
-        Shape2d::Polyline { width, closed } => {
-            build_polyline_node(app, scene, renderable, width, closed).map(|(node, built)| {
+        Shape2d::Polyline(stroke) => {
+            build_polyline_node(app, scene, renderable, &stroke).map(|(node, built)| {
                 pieces = built;
                 (node, None, None)
             })

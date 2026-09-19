@@ -124,6 +124,12 @@ pub fn prop_f64(params: &toml::Value, key: &str) -> f64 {
     params.get(key).and_then(as_f64).unwrap_or_default()
 }
 
+/// The two numbers a `vec2`-typed property holds.
+pub fn prop_vec2(params: &toml::Value, key: &str) -> [f32; 2] {
+    let [x, y, _] = prop_vec3(params, key);
+    [x, y]
+}
+
 /// The three numbers a `vec3`-typed property holds.
 pub fn prop_vec3(params: &toml::Value, key: &str) -> [f32; 3] {
     let axis = |i: usize| {

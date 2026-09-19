@@ -2975,6 +2975,16 @@
       }
     },
     "shape2d": {
+      "cap": {
+        "default": "round",
+        "description": "How an open polyline ends",
+        "options": [
+          "round",
+          "butt",
+          "square"
+        ],
+        "type": "enum"
+      },
       "closed": {
         "default": false,
         "description": "Join the last point back to the first, making a polygon outline",
@@ -3026,6 +3036,16 @@
         "min": 0.01,
         "type": "float"
       },
+      "join": {
+        "default": "round",
+        "description": "How a polyline's segments meet",
+        "options": [
+          "round",
+          "miter",
+          "bevel"
+        ],
+        "type": "enum"
+      },
       "kind": {
         "default": "rect",
         "description": "Rendered 2D shape",
@@ -3052,6 +3072,12 @@
         "description": "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve",
         "type": "asset"
       },
+      "miter_limit": {
+        "default": 4.0,
+        "description": "How far a miter join may reach, in half-widths, before its corner is cut to a bevel",
+        "min": 1.0,
+        "type": "float"
+      },
       "points": {
         "default": 5,
         "description": "Tips, when kind is star",
@@ -3075,6 +3101,14 @@
         "description": "Sides, when kind is ngon",
         "min": 3,
         "type": "int"
+      },
+      "taper": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps",
+        "type": "vec2"
       },
       "texture": {
         "asset": "texture",
