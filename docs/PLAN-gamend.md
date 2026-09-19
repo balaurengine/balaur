@@ -49,7 +49,7 @@ The engine:
 | --- | --- |
 | `gamend::configure`, `login`, `rest`, `connect`, `join`, `push`, `leave`, `call_hook`, `close`: nine calls, all delivered once per tick and replayable | `crates/balaur_gamend/src/lib.rs` |
 | Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser, a refusing stub on emscripten | `client/phoenix.rs`, `browser.rs` |
-| Tests against a real server, `GAMEND_URL` or gamend.org: the public API in the e2e suite, sign-in and the socket opt-in | `crates/balaur_gamend/tests` |
+| Tests against a real server, `GAMEND_URL` or gamend.org, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
 
 Missing:
@@ -378,9 +378,10 @@ no server dependency and can start now.
 ## 4. What CI can prove
 
 Engine: `crates/balaur_gamend/tests` talks to a real server, never a
-stand-in: `GAMEND_URL`, or gamend.org. The public API runs with the e2e
-suite; anything that signs in creates an account there, so it is opt-in
-(`--ignored`). E2's test spawns a real `balaur run --server`. Gamend: its own suite
+stand-in: `GAMEND_URL`, or gamend.org, in the e2e suite. A test that signs
+in registers its own account by device and deletes it before it ends
+(`DELETE /api/v1/me`, with `current_password` once it has one). E2's test
+spawns a real `balaur run --server`. Gamend: its own suite
 (`lobbies_test.exs`, `matchmaking_test.exs`, `signaling_test.exs`) plus one
 that spawns a stub `balaur` script printing a port and a hash. What neither
 can: a real NAT, a real region, a phone.

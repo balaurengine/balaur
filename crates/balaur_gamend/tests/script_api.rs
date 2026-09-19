@@ -2,11 +2,10 @@
 //! through `balaur::standard_app`, against a real Gamend server
 //! (`GAMEND_URL`, or gamend.org).
 //!
-//! The public API needs no account, so it runs with the e2e suite. Signing
-//! in creates an account on that server, so that test is opt-in:
-//! `cargo test -p balaur_gamend -- --ignored`.
+//! All of it runs with the e2e suite. A test that signs in registers its own
+//! account by device and deletes it through the SDK before it ends.
 
-use balaur_testkit::{e2e_enabled, gamend_url, run_until, run_until_with};
+use balaur_testkit::{e2e_enabled, gamend_url, run_until_with};
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
 fn gamend_addon() -> Vec<(String, String)> {
@@ -66,10 +65,17 @@ pub async fn init(this) {{
 }
 
 #[test]
-#[ignore = "signs in to GAMEND_URL (gamend.org by default) with a new device account"]
-fn a_script_signs_in_connects_and_calls_a_hook() {
+fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
+    if !e2e_enabled() {
+        return;
+    }
     let url = gamend_url();
     let device = device_id();
+    let files = gamend_addon();
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
     let source = format!(
         r#"
 pub async fn init(this) {{
@@ -84,16 +90,19 @@ pub async fn init(this) {{
 
 pub async fn on_gamend_event(this, e) {{
     if e["kind"] == "open" {{
-        let me = task::wait(gamend::rest((), "GET", "/api/v1/me")).await;
+        let api = script::require("addons/gamend/api.rn");
+        let me = task::wait((api.users_get_current_user)(())).await;
         let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
-        log::info(format!("gamend-live {{}} {{}}", me["status"], hook["status"]));
+        gamend::close(this.socket);
+        let gone = task::wait((api.user_delete_current_user)(())).await;
+        log::info(format!("gamend-live {{}} {{}} {{}}", me["status"], hook["status"], gone["status"]));
     }}
 }}
 "#
     );
     // No plugin answers `sdk_probe` on a stock server, so the hook's reply is
     // an error, which still proves the whole path.
-    run_until(&source, &["gamend-live 200 error"]);
+    run_until_with(&borrowed, &source, &["gamend-live 200 error 200"]);
 }
 
 #[allow(

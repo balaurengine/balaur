@@ -62,7 +62,8 @@ async fn send(prepared: Prepared) -> Result<Reply, String> {
     headers
         .append(crate::client::RUN_HEADER, crate::client::run_id())
         .map_err(describe)?;
-    if matches!(prepared.method.as_str(), "POST" | "PUT" | "PATCH") {
+    let deleting_with_body = prepared.method == "DELETE" && prepared.body.is_some();
+    if matches!(prepared.method.as_str(), "POST" | "PUT" | "PATCH") || deleting_with_body {
         headers
             .append("content-type", "application/json")
             .map_err(describe)?;

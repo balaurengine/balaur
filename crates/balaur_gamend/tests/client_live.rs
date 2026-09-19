@@ -1,10 +1,11 @@
 //! The whole client against a real Gamend server: `GAMEND_URL`, or gamend.org.
 //!
-//! Ignored by default, because device login creates a throwaway account on
-//! that server: `cargo test -p balaur_gamend -- --ignored`. A local
-//! `mix dev.start` is `GAMEND_URL=http://localhost:4000`.
+//! Part of the e2e suite. Each test registers its own account by device and
+//! deletes it before it ends. A local `mix dev.start` is
+//! `GAMEND_URL=http://localhost:4000`.
 
-use balaur_gamend::client::{Client, Credentials, Socket, SocketEvent, auth};
+use balaur_gamend::client::{Client, Credentials, Session, Socket, SocketEvent, auth};
+use balaur_testkit::{e2e_enabled, gamend_url};
 use serde_json::json;
 
 #[allow(
@@ -43,10 +44,25 @@ fn wait_for<T>(
     panic!("timed out waiting for a socket event");
 }
 
+/// Sign in by device on a client of its own.
+fn sign_in(server: &str, device: &str) -> (Client, Session) {
+    let mut client = Client::new(server);
+    let session = auth::login(
+        &mut client,
+        &Credentials::Device {
+            device_id: device.to_string(),
+        },
+    )
+    .unwrap();
+    (client, session)
+}
+
 #[test]
-#[ignore = "signs in to GAMEND_URL (gamend.org by default) with a new device account"]
 fn login_me_refresh_and_realtime_against_a_live_server() {
-    let server = balaur_testkit::gamend_url();
+    if !e2e_enabled() {
+        return;
+    }
+    let server = gamend_url();
     let mut client = Client::new(&server);
 
     let health = client.call("GET", "/api/v1/health", None).unwrap();
@@ -143,4 +159,50 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
         _ => None,
     });
     assert_eq!(status, "ok");
+
+    let deleted = client.call("DELETE", "/api/v1/me", None).unwrap();
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+}
+
+#[test]
+fn a_device_registers_signs_in_again_and_deletes_its_account() {
+    if !e2e_enabled() {
+        return;
+    }
+    let server = gamend_url();
+    let device = device_id();
+
+    // A device the server has not seen registers a new account; the same
+    // device again is the same account.
+    let (mut client, first) = sign_in(&server, &device);
+    let (_, second) = sign_in(&server, &device);
+    assert_eq!(second.user_id, first.user_id);
+
+    // With a password, deleting is something to prove.
+    let password = format!("balaur-test-{}", device_id());
+    let set = client
+        .call(
+            "PATCH",
+            "/api/v1/me/password",
+            Some(&json!({ "password": password })),
+        )
+        .unwrap();
+    assert_eq!(set.status, 200, "{}", set.body);
+    let (mut client, _) = sign_in(&server, &device);
+    let refused = client.call("DELETE", "/api/v1/me", None).unwrap();
+    assert_eq!(refused.status, 401, "{}", refused.body);
+    let deleted = client
+        .call(
+            "DELETE",
+            "/api/v1/me",
+            Some(&json!({ "current_password": password })),
+        )
+        .unwrap();
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+
+    // Gone: the same device now registers a new account, deleted in turn.
+    let (mut client, third) = sign_in(&server, &device);
+    assert_ne!(third.user_id, first.user_id);
+    let cleaned = client.call("DELETE", "/api/v1/me", None).unwrap();
+    assert_eq!(cleaned.status, 200, "{}", cleaned.body);
 }

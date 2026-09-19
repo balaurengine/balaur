@@ -279,10 +279,14 @@ by where the file lives, not by who does it.
   engine, fails the build when the addon does not compile. The live flow of
   step 2 runs against `mix dev.start` in the same job, which is the check on
   `events.json`: a server event the table does not name fails it.
-- Balaur: the step 3 test against gamend.org's public API in the e2e
-  suite, and sign-in, the socket and a hook opt-in, since they create an
-  account. `scripts/sync_gamend.sh --check` in precommit, so the library
-  copy and the version it names never drift.
+- Balaur: the step 3 test against gamend.org in the e2e suite: the public
+  API, and a script that registers by device, calls a hook and deletes its
+  account through the SDK. `scripts/sync_gamend.sh --check` in precommit,
+  so the library copy and the version it names never drift.
+- Gamend: `DELETE /api/v1/me` reads `current_password` from its body, but
+  its OpenAPI operation declares no body, so the generated
+  `user_delete_current_user(node)` cannot delete an account that has a
+  password. Declare the optional body and regenerate.
 - The port: its scenarios, as today.
 - What neither can: a real provider's OAuth page, and the socket under a
   real NAT.

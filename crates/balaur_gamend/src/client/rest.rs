@@ -114,16 +114,28 @@ impl Client {
     ) -> Result<Reply> {
         let prepared = self.prepare(method, path, body, authenticated);
         let mut response = match prepared.method.as_str() {
-            "GET" | "DELETE" => {
-                let mut r = if prepared.method == "GET" {
-                    self.agent.get(&prepared.url)
-                } else {
-                    self.agent.delete(&prepared.url)
-                };
+            "GET" => {
+                let mut r = self.agent.get(&prepared.url);
                 if let Some(token) = &prepared.bearer {
                     r = r.header("authorization", token);
                 }
                 r.header(super::RUN_HEADER, super::run_id()).call()?
+            }
+            // A body only when given one: deleting an account that has a
+            // password sends its `current_password`.
+            "DELETE" => {
+                let mut r = self.agent.delete(&prepared.url);
+                if let Some(token) = &prepared.bearer {
+                    r = r.header("authorization", token);
+                }
+                let r = r.header(super::RUN_HEADER, super::run_id());
+                match prepared.body.as_deref() {
+                    Some(body) => r
+                        .force_send_body()
+                        .header("content-type", "application/json")
+                        .send(body)?,
+                    None => r.call()?,
+                }
             }
             "POST" | "PUT" | "PATCH" => {
                 let mut r = match prepared.method.as_str() {

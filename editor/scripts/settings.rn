@@ -89,13 +89,19 @@ fn categories() {
     seen
 }
 
+// A category with anything that ships is a project one; its editor-only
+// rows follow under their own heading.
 fn scope_of(category) {
+    let found = #{ any: false };
     for def in settings::all() {
         if def.category == category {
-            return def.scope;
+            if def.scope == "project" {
+                return "project";
+            }
+            found.any = true;
         }
     }
-    "project"
+    if found.any { "editor" } else { "project" }
 }
 
 fn current(S) {
@@ -127,8 +133,14 @@ fn showing(S) {
             rows.push(def);
         }
     }
-    rows.sort_by(|a, b| order_of(a).partial_cmp(order_of(b)).unwrap());
+    rows.sort_by(|a, b| rank_of(a).partial_cmp(rank_of(b)).unwrap());
     rows
+}
+
+// Project rows before editor ones, each in the order it asks for.
+fn rank_of(def) {
+    let tail = if def.scope == "editor" { 100000.0 } else { 0.0 };
+    tail + order_of(def)
 }
 
 fn order_of(def) {
@@ -278,7 +290,16 @@ fn body(S, k) {
         // Starts as the empty group, so ungrouped rows at the top of a page
         // get no heading and the first real group does.
         let group = "";
+        let scope = scope_of(current(S));
         for def in rows {
+            if !searching && def.scope != scope {
+                scope = def.scope;
+                group = "";
+                ui::add_space(10);
+                ui::label("THIS EDITOR", style::mono_sm(k.faint));
+                ui::label("Kept in this editor only, and never written to the project.", style::mono_sm(k.faint));
+                ui::add_space(4);
+            }
             let here = group_of(def);
             if !searching && here != group {
                 group = here;
