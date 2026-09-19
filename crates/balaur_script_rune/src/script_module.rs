@@ -66,7 +66,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             let wrapped = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
                 shared.push(f);
-                trampoline(shared.len() - 1, arity)
+                trampoline(shared.len() - 1, arity, "a shared function")
             });
             if let Some(function) = wrapped {
                 return rune::to_value(function).expect("a function always converts");

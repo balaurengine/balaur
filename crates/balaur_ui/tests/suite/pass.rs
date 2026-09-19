@@ -844,3 +844,32 @@ fn a_pill_in_a_sized_overlay_still_lights_up() {
         "the pill painted nothing more under the pointer: {cold} boxes either way"
     );
 }
+
+#[test]
+fn a_headless_run_answers_the_window_the_project_states() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n\n[window]\nwidth = 840\nheight = 1920\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = { source = \"s.rn\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("s.rn"),
+        "pub fn update(this, dt) {\n    let (w, h) = ui::screen_size();\n    this.w = w;\n    this.h = h;\n}\n",
+    )
+    .unwrap();
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        field(&app, "w"),
+        Some(840.0),
+        "outside a pass, with no screen"
+    );
+    assert_eq!(field(&app, "h"), Some(1920.0));
+}

@@ -893,7 +893,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("available_width", &[], "", "The width left in the current container, in design pixels."),
         ("available_height", &[], "", "The height left in the current container, in design pixels."),
         ("central_rect", &[], "", "The x, y, width and height of the surface being drawn into, in design pixels."),
-        ("screen_size", &[], "", "The window's width and height, in design pixels."),
+        ("screen_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
         ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it: modifiers and a key joined by `+`, as in `\"cmd+shift+s\"` or `\"f5\"`. `cmd` is the platform's command key, Command on a Mac and Control everywhere else."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard."),
         ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
@@ -925,9 +925,16 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         if w > 0.0 && h > 0.0 {
             return Ok((w, h));
         }
+        // No screen and no pass is a headless run, which answers the window
+        // the project states: what it would open, the same on every machine.
         with_ctx(|ctx| {
             let rect = ctx.viewport_rect();
             Ok((rect.width(), rect.height()))
+        })
+        .or_else(|_| {
+            let window = balaur_core::project::WindowSettings::from_settings(eng);
+            #[allow(clippy::cast_precision_loss, reason = "a window's size in pixels")]
+            Ok((window.width as f32, window.height as f32))
         })
     });
     m.function("shortcut", |_eng: &Engine, chord: String| {

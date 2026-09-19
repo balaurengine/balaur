@@ -47,6 +47,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once", group = "type" }"#),
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
+                    (k::PASS_NODE, r#"{ type = "bool", default = false, description = "Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets", group = "events" }"#),
                     (k::ON_LINK, r#"{ type = "string", default = "", description = "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
                     (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
@@ -265,6 +266,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::ON_CLICK.into(),
         toml::Value::String(widget.on_click.to_string()),
     );
+    map.insert(k::PASS_NODE.into(), toml::Value::Boolean(widget.pass_node));
     reach_to_toml(widget, &mut map);
     map.insert(k::PADDING.into(), four(widget.padding));
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
@@ -690,6 +692,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         row_height: f(k::ROW_HEIGHT),
         font: s(k::FONT),
         on_click: s(k::ON_CLICK),
+        pass_node: r.flag(k::PASS_NODE),
         context: s(k::CONTEXT),
         on_link: s(k::ON_LINK),
         selectable: r.flag(k::SELECTABLE),

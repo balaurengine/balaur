@@ -1073,7 +1073,8 @@ fn vectors_add_scale_and_measure() {
     let mut app = app_in(dir.path());
     let host = app.engine.script_host().unwrap();
     let node = spawn(&app, "Vec");
-    host.attach(balaur_core::node_id_of(node), "vec.rn").unwrap();
+    host.attach(balaur_core::node_id_of(node), "vec.rn")
+        .unwrap();
     app.tick(1.0 / 60.0);
     let rune = host
         .as_any()
@@ -1089,4 +1090,111 @@ fn vectors_add_scale_and_measure() {
     ] {
         assert_eq!(rune.number_field(node, field), Some(want), "{field}");
     }
+}
+
+#[test]
+fn a_required_function_takes_many_arguments_and_its_error_reaches_the_caller() {
+    let dir = project(&[
+        (
+            "lib.rn",
+            "pub fn sum(a, b, c, d, e, f, g) { a + b + c + d + e + f + g }\n\
+             pub fn broken(x) { x.nothing_here }\n",
+        ),
+        (
+            "user.rn",
+            "pub fn init(this) {\n\
+             \x20   let lib = script::require(\"lib.rn\");\n\
+             \x20   this.sum = (lib.sum)(1, 2, 3, 4, 5, 6, 7) as f64;\n\
+             \x20   let (ok, _) = script::attempt(|| (lib.broken)(1));\n\
+             \x20   this.raised = if ok { 0.0 } else { 1.0 };\n\
+             }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let node = spawn(&app, "User");
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .expect("the app is running Rune");
+    assert_eq!(
+        rune.number_field(node, "sum"),
+        Some(28.0),
+        "seven arguments"
+    );
+    assert_eq!(
+        rune.number_field(node, "raised"),
+        Some(1.0),
+        "the failure is the caller's to see, not a nil answer"
+    );
+}
+
+#[test]
+fn a_script_reads_another_scripts_members_and_callables() {
+    let dir = project(&[
+        (
+            "held.rn",
+            "pub fn init(this) {\n\
+             \x20   this.speed = 3.5;\n\
+             \x20   let counts = std::collections::HashMap::new();\n\
+             \x20   counts.insert(7, \"seven\");\n\
+             \x20   this.counts = counts;\n\
+             }\n\
+             pub fn doubler(this) { |x| x * 2 }\n",
+        ),
+        (
+            "reader.rn",
+            "pub fn update(this, _dt) {\n\
+             \x20   let other = this.node.parent().get_node(\"Held\");\n\
+             \x20   this.speed = other.script_field(\"speed\");\n\
+             \x20   this.seven = if other.script_field(\"counts\")[\"7\"] == \"seven\" { 1.0 } else { 0.0 };\n\
+             \x20   this.doubled = (other.call(\"doubler\"))(4) as f64;\n\
+             \x20   let t = balaur::Transform2d::from_parts(0.0, balaur::Vec2::new(2.0, 2.0), balaur::Vec2::new(1.0, 0.0));\n\
+             \x20   this.back = (t.affine_inverse() * (t * balaur::Vec2::new(3.0, 5.0))).y;\n\
+             \x20   this.turned = balaur::Vec2::new(1.0, 0.0).rotated(math::PI / 2.0).y;\n\
+             }\n",
+        ),
+    ]);
+    let mut app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let held = spawn(&app, "Held");
+    let reader = spawn(&app, "Reader");
+    host.attach(balaur_core::node_id_of(held), "held.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(reader), "reader.rn")
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .expect("the app is running Rune");
+    assert_eq!(
+        rune.number_field(reader, "speed"),
+        Some(3.5),
+        "a member read off the node"
+    );
+    assert_eq!(
+        rune.number_field(reader, "seven"),
+        Some(1.0),
+        "an int-keyed map crosses as text keys"
+    );
+    assert_eq!(
+        rune.number_field(reader, "doubled"),
+        Some(8.0),
+        "a returned closure is callable"
+    );
+    assert_eq!(
+        rune.number_field(reader, "back"),
+        Some(5.0),
+        "a transform and its inverse"
+    );
+    let turned = rune.number_field(reader, "turned").unwrap();
+    assert!(
+        (turned - 1.0).abs() < 1e-9,
+        "a vector turned a quarter: {turned}"
+    );
 }

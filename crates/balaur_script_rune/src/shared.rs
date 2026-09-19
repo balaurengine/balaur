@@ -1,14 +1,13 @@
 //! Calling one unit's function from inside another unit's VM.
 //!
-//! A unit-bound `Function` value dispatches into the wrong unit when it is
-//! called from inside another unit's execution. A call routed through a native
-//! Rust function lands correctly, so `script::require`'s exports are native
-//! trampolines holding only a slot in the table here.
+//! `script::require`'s exports are native trampolines holding only a slot in
+//! the table here, so a reload that refills the slot reaches every caller,
+//! including one that kept a function out of the module.
 
 use std::cell::RefCell;
 
 use rune::alloc::clone::TryClone as _;
-use rune::runtime::Function;
+use rune::runtime::{Function, VmError, VmResult};
 
 thread_local! {
     /// The functions behind `script::require`'s exports, by the slot a
@@ -16,43 +15,36 @@ thread_local! {
     pub(crate) static SHARED_FNS: RefCell<Vec<Function>> = const { RefCell::new(Vec::new()) };
 }
 
+/// The most parameters a trampoline forwards: Rune's native functions stop there.
+pub(crate) const MOST_ARGS: usize = 5;
+
 /// A native function forwarding to `SHARED_FNS[slot]` with `arity` args.
 /// Arity is fixed per wrapper because Rune native functions are typed;
 /// script-model functions keep their whole signature on one line, which is
 /// where the arity was read from.
-pub(crate) fn trampoline(slot: usize, arity: usize) -> Option<Function> {
-    fn relay(slot: usize, args: Vec<rune::Value>) -> rune::Value {
+pub(crate) fn trampoline(slot: usize, arity: usize, label: &str) -> Option<Function> {
+    // The callee's error goes back to the caller, prefixed with the function
+    // that failed: a logged error and a nil answer hid which call it was.
+    fn relay(slot: usize, label: &str, args: Vec<rune::Value>) -> VmResult<rune::Value> {
         // Cloned out before the call: the callee may itself require.
         let function = SHARED_FNS.with(|f| f.borrow()[slot].try_clone().ok());
-        let outcome = function.map(|f| f.call::<rune::Value>(args).into_result());
-        match outcome {
-            Some(Ok(value)) => value,
-            Some(Err(err)) => {
-                tracing::error!("a required function failed: {err}");
-                rune::to_value(()).expect("unit always converts")
-            }
-            None => rune::to_value(()).expect("unit always converts"),
+        match function.map(|f| f.call::<rune::Value>(args).into_result()) {
+            Some(Ok(value)) => VmResult::Ok(value),
+            Some(Err(err)) => VmResult::Err(VmError::panic(format!("{label}: {err}"))),
+            None => VmResult::Ok(rune::to_value(()).expect("unit always converts")),
         }
     }
+    type V = rune::Value;
+    let label = label.to_string();
     Some(match arity {
-        0 => Function::new(move || relay(slot, Vec::new())),
-        1 => Function::new(move |a: rune::Value| relay(slot, vec![a])),
-        2 => Function::new(move |a: rune::Value, b: rune::Value| relay(slot, vec![a, b])),
-        3 => Function::new(move |a: rune::Value, b: rune::Value, c: rune::Value| {
-            relay(slot, vec![a, b, c])
+        0 => Function::new(move || relay(slot, &label, Vec::new())),
+        1 => Function::new(move |a: V| relay(slot, &label, vec![a])),
+        2 => Function::new(move |a: V, b: V| relay(slot, &label, vec![a, b])),
+        3 => Function::new(move |a: V, b: V, c: V| relay(slot, &label, vec![a, b, c])),
+        4 => Function::new(move |a: V, b: V, c: V, d: V| relay(slot, &label, vec![a, b, c, d])),
+        5 => Function::new(move |a: V, b: V, c: V, d: V, e: V| {
+            relay(slot, &label, vec![a, b, c, d, e])
         }),
-        4 => Function::new(
-            move |a: rune::Value, b: rune::Value, c: rune::Value, d: rune::Value| {
-                relay(slot, vec![a, b, c, d])
-            },
-        ),
-        5 => Function::new(
-            move |a: rune::Value,
-                  b: rune::Value,
-                  c: rune::Value,
-                  d: rune::Value,
-                  e: rune::Value| { relay(slot, vec![a, b, c, d, e]) },
-        ),
         _ => return None,
     })
 }

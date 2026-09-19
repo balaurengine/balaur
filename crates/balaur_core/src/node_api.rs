@@ -137,6 +137,10 @@ pub const NODE_OPS: &[NodeOp] = &[
     },
     NodeOp { name: "call", call },
     NodeOp {
+        name: "script_field",
+        call: script_field,
+    },
+    NodeOp {
         name: "call_async",
         call: call_async,
     },
@@ -282,6 +286,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
+        ("script_field", &[], "(name: string)", "A member the node's script instance holds, read by another script: GDScript's `node.speed`. Nil for no script or no such member."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
         ("call_async", &[], "(method: string, args: any?)", "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`."),
         ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
@@ -873,6 +878,15 @@ fn has_method(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Bool(eng.script_host().is_some_and(|host| {
         host.has_method(crate::node_id_of(e), method)
     })))
+}
+
+fn script_field(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let name = text(args, 1)?;
+    Ok(eng
+        .script_host()
+        .and_then(|host| host.script_field(crate::node_id_of(e), name))
+        .unwrap_or(Value::Nil))
 }
 
 /// `node:call("method", ...)`: one script calling another's method, with

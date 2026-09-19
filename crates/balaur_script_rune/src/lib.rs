@@ -16,6 +16,7 @@ mod api;
 mod bindings;
 mod debugger;
 mod handles;
+mod holds;
 mod inspect;
 mod packed;
 mod pause;
@@ -202,6 +203,10 @@ struct State {
     _watcher: Option<RecommendedWatcher>,
     breakpoints: FxHashMap<String, Breakpoints>,
     paused: Option<Paused>,
+    /// How many scene builds are attaching scripts, and the `init` calls they
+    /// hold until the outermost has attached everything.
+    init_hold: usize,
+    held_inits: Vec<(Entity, String)>,
 }
 
 #[derive(Clone)]
@@ -253,6 +258,8 @@ impl RuneHost {
                 _watcher: watcher,
                 breakpoints: FxHashMap::default(),
                 paused: None,
+                init_hold: 0,
+                held_inits: Vec::new(),
             })),
         })
     }
@@ -606,6 +613,13 @@ impl RuneHost {
         if self.resolve(&key, "fixed_update").is_some() {
             balaur_core::interpolate::enable(&self.engine, entity);
         }
+        {
+            let mut held = self.state.borrow_mut();
+            if held.init_hold > 0 {
+                held.held_inits.push((entity, key));
+                return Ok(());
+            }
+        }
         self.invoke(entity, &key, "init", (state,), true, None);
         Ok(())
     }
@@ -832,6 +846,23 @@ impl RuneHost {
         Ok(value)
     }
 
+    /// The key a `script::require` names. A relative path found under a root
+    /// the host added reads from there first: `balaur edit` runs with the
+    /// editor as the project root, and the game it plays requires its own.
+    fn required_key(&self, path: &str) -> String {
+        let key = Self::normalize_key(path);
+        if balaur_core::files::rooted(Path::new(&key)) {
+            return key;
+        }
+        let files = balaur_core::files::backend(&self.engine);
+        balaur_core::file_api::project_roots(&self.engine)
+            .into_iter()
+            .skip(1)
+            .map(|root| root.join(&key))
+            .find(|full| files.exists(full))
+            .map_or(key, |full| full.to_string_lossy().replace('\\', "/"))
+    }
+
     /// Build the export object for one script: its `pub fn`s by name, each
     /// wrapped in a Rust-routed trampoline (see `SHARED_FNS`).
     fn module_object(&self, key: &str) -> Result<rune::runtime::Object> {
@@ -857,6 +888,14 @@ impl RuneHost {
             let Some(function) = self.method(key, &declared.name) else {
                 continue;
             };
+            let name = rune::alloc::String::try_from(declared.name.as_str())?;
+            // Past the five parameters a native trampoline takes, the function
+            // itself: callable from any unit, though a reload reaches it only
+            // through the module and not through a copy a caller kept.
+            if declared.arity > crate::shared::MOST_ARGS {
+                object.insert(name, rune::to_value(function)?)?;
+                continue;
+            }
             let slot = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
                 if let Some(slot) = spare.pop() {
@@ -867,36 +906,13 @@ impl RuneHost {
                     shared.len() - 1
                 }
             });
-            let Some(wrapper) = trampoline(slot, declared.arity) else {
+            let label = format!("{key}: {}", declared.name);
+            let Some(wrapper) = trampoline(slot, declared.arity, &label) else {
                 spare.push(slot);
-                tracing::warn!(
-                    "{key}: `{}` takes too many parameters to require",
-                    declared.name
-                );
                 continue;
             };
             held.push(slot);
-    /// The key a `script::require` names. A relative path found under a root
-    /// the host added reads from there first: `balaur edit` runs with the
-    /// editor as the project root, and the game it plays requires its own.
-    fn required_key(&self, path: &str) -> String {
-        let key = Self::normalize_key(path);
-        if balaur_core::files::rooted(Path::new(&key)) {
-            return key;
-        }
-        let files = balaur_core::files::backend(&self.engine);
-        balaur_core::file_api::project_roots(&self.engine)
-            .into_iter()
-            .skip(1)
-            .map(|root| root.join(&key))
-            .find(|full| files.exists(full))
-            .map_or(key, |full| full.to_string_lossy().replace('\\', "/"))
-    }
-
-            object.insert(
-                rune::alloc::String::try_from(declared.name.as_str())?,
-                rune::to_value(wrapper)?,
-            )?;
+            object.insert(name, rune::to_value(wrapper)?)?;
         }
         if let Some(constants) = self.method(key, inspect::CONSTANTS_FN) {
             let table = constants.call::<rune::runtime::Object>(()).into_result()?;
@@ -1048,6 +1064,26 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
             .get(&entity)
             .map(|i| i.key.clone());
         key.is_some_and(|key| self.resolve(&key, method).is_some())
+    }
+
+    fn hold_inits(&self) {
+        RuneHost::hold_inits(self);
+    }
+
+    fn release_inits(&self) {
+        RuneHost::release_inits(self);
+    }
+
+    fn script_field(
+        &self,
+        node: balaur_script::NodeId,
+        name: &str,
+    ) -> Option<balaur_script::Value> {
+        let entity = balaur_core::entity_of(node).ok()?;
+        let state = self.state.borrow();
+        let instance = state.instances.get(&entity)?;
+        let object = instance.state.borrow_ref::<rune::runtime::Object>().ok()?;
+        value::to_neutral(object.get(name)?).ok()
     }
 
     fn call_all(&self, method: &str) {

@@ -219,6 +219,7 @@ pub(crate) mod keys {
     pub(crate) const OFF_KNOB: &str = "off_knob";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
+    pub(crate) const PASS_NODE: &str = "pass_node";
     pub(crate) const ON_FILL: &str = "on_fill";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";

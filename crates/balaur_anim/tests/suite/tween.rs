@@ -997,7 +997,12 @@ fn landed(app: &App, entity: Entity) -> Option<i64> {
     let balaur_script::Value::Map(fields) = state else {
         return None;
     };
-    let get = |name: &str| fields.iter().find(|(key, _)| key == name).map(|(_, v)| v.clone());
+    let get = |name: &str| {
+        fields
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, v)| v.clone())
+    };
     assert_eq!(
         get("ready"),
         Some(balaur_script::Value::Bool(true)),
@@ -1012,7 +1017,11 @@ fn landed(app: &App, entity: Entity) -> Option<i64> {
 #[test]
 fn a_call_step_runs_a_function_the_script_passed() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"anim\"\n").unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[project]\nname = \"anim\"\n",
+    )
+    .unwrap();
     std::fs::write(dir.path().join("mover.rn"), MOVER).unwrap();
     let mut app = App::new(AppConfig {
         script_backend: Some(balaur::rune::factory()),
@@ -1028,10 +1037,35 @@ fn a_call_step_runs_a_function_the_script_passed() {
         .unwrap();
 
     tick(&mut app, 5);
-    assert_eq!(landed(&app, entity), Some(0), "the function waited for its step");
+    assert_eq!(
+        landed(&app, entity),
+        Some(0),
+        "the function waited for its step"
+    );
     tick(&mut app, 40);
     near(height(&app, entity), 10.0, "the property step ran");
-    assert_eq!(landed(&app, entity), Some(1), "the function ran when its step came");
+    assert_eq!(
+        landed(&app, entity),
+        Some(1),
+        "the function ran when its step came"
+    );
     tick(&mut app, 30);
-    assert_eq!(landed(&app, entity), Some(1), "a finished tween calls nothing again");
+    assert_eq!(
+        landed(&app, entity),
+        Some(1),
+        "a finished tween calls nothing again"
+    );
+}
+
+#[test]
+fn a_tween_moves_a_node_that_never_had_a_transform() {
+    let mut app = app();
+    let entity = spawn(&app, "Bare");
+    let _ = app.engine.world_mut().remove_one::<Transform>(entity);
+    start(&app, entity, IN_ORDER);
+    tick(&mut app, 40);
+    assert!(
+        height(&app, entity) > 9.0,
+        "the tween started from the identity and arrived"
+    );
 }

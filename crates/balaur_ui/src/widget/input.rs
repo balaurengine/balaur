@@ -181,30 +181,36 @@ fn apply_system(eng: &Engine, _dt: f32) {
         // the tree the search walks.
         let signals: Vec<_> = signals
             .into_iter()
-            .map(|(entity, method)| (recipient(eng, host.as_ref(), entity, &method), method))
+            .map(|(entity, method)| {
+                let args = passed(eng, entity, Vec::new());
+                (recipient(eng, host.as_ref(), entity, &method), method, args)
+            })
             .collect();
         let typed: Vec<_> = typed
             .into_iter()
             .map(|(entity, method, value)| {
-                (
-                    recipient(eng, host.as_ref(), entity, &method),
-                    method,
-                    value,
-                )
+                let args = passed(eng, entity, vec![value]);
+                (recipient(eng, host.as_ref(), entity, &method), method, args)
             })
             .collect();
-        for (entity, method) in signals {
-            host.call_on(balaur_core::node_id_of(entity), &method, &[]);
-        }
-        for (entity, method, value) in typed {
-            host.call_on(
-                balaur_core::node_id_of(entity),
-                &method,
-                std::slice::from_ref(&value),
-            );
+        for (entity, method, args) in signals.into_iter().chain(typed) {
+            host.call_on(balaur_core::node_id_of(entity), &method, &args);
         }
     }
     announce_focus(eng, focused.as_ref());
+}
+
+/// A handler's arguments, with the widget's own node last where it asks to
+/// pass it.
+fn passed(eng: &Engine, entity: Entity, mut args: Vec<Value>) -> Vec<Value> {
+    let pass = eng
+        .world()
+        .get::<&Widget>(entity)
+        .is_ok_and(|widget| widget.pass_node);
+    if pass {
+        args.push(Value::Node(balaur_core::node_id_of(entity).0));
+    }
+    args
 }
 
 /// One edit written onto the widget it names, and what that says.

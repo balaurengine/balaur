@@ -4787,6 +4787,12 @@
         "group": "layout",
         "type": "float"
       },
+      "pass_node": {
+        "default": false,
+        "description": "Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets",
+        "group": "events",
+        "type": "bool"
+      },
       "placeholder": {
         "default": "",
         "description": "What a `field` shows while it is empty, and the letter a `drag_value` puts before its number",
@@ -5949,13 +5955,13 @@
         "leave": "Unsubscribe the socket from a topic, returning the id the `reply` answers.",
         "login": "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers.",
         "push": "Send an event and its payload to a topic on the socket, returning the id the `reply` answers.",
+        "register": "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link.",
         "reply": "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame.",
         "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`.",
         "restore": "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`.",
         "run_id": "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it.",
         "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in.",
         "target": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."
-        "register": "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. No email is sent.",
       },
       "functions": [
         "activity",
@@ -5969,13 +5975,13 @@
         "leave",
         "login",
         "push",
+        "register",
         "reply",
         "rest",
         "restore",
         "run_id",
         "session",
         "target"
-        "register",
       ],
       "name": "gamend",
       "signatures": {
@@ -5990,13 +5996,13 @@
         "leave": "(i64, String) -> Value",
         "login": "(Value, Option<Value>, Option<Value>) -> Value",
         "push": "(i64, String, String, Option<Value>) -> Value",
+        "register": "(Value, Option<Value>, Option<Value>) -> Value",
         "reply": "i64 -> Value",
         "rest": "(Value, String, String, Option<Value>) -> Value",
         "restore": "Option<Value> -> Value",
         "run_id": "() -> Value",
         "session": "() -> Value",
         "target": "() -> Value"
-        "register": "(Value, Option<Value>, Option<Value>) -> Value",
       }
     },
     {
@@ -7396,6 +7402,7 @@
         "remove_component": "Take the named component off the node.",
         "remove_tag": "Take a name off the node; a name it never had is left alone.",
         "reset_interpolation": "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you.",
+        "script_field": "A member the node's script instance holds, read by another script: GDScript's `node.speed`. Nil for no script or no such member.",
         "script_path": "The path of the script attached to the node, nil when it has none.",
         "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest.",
         "set_interpolate": "Draw the node between fixed steps, or stop. Needs `[time] interpolate` on; a body and a script with `fixed_update` ask for it on their own.",
@@ -7453,6 +7460,7 @@
         "remove_component",
         "remove_tag",
         "reset_interpolation",
+        "script_field",
         "script_path",
         "set_component",
         "set_interpolate",
@@ -7511,6 +7519,7 @@
         "remove_component": "(component: string)",
         "remove_tag": "(node, tag: string)",
         "reset_interpolation": "(node)",
+        "script_field": "(name: string)",
         "script_path": "()",
         "set_component": "(component: string, params: any?)",
         "set_interpolate": "(node, on: bool)",
@@ -9907,7 +9916,7 @@
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
-        "screen_size": "The window's width and height, in design pixels.",
+        "screen_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states.",
         "scroll": "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels along.",
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",

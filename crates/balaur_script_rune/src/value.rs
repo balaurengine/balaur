@@ -1,6 +1,7 @@
 //! Conversions between the neutral `balaur_script::Value` and Rune's.
 
 pub(crate) mod component;
+pub(crate) mod transform;
 
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
@@ -82,7 +83,11 @@ impl Lanes for Vec3 {
         [self.x, self.y, self.z, 0.0]
     }
     fn from_lanes(l: [f64; 4]) -> Self {
-        Self { x: l[0], y: l[1], z: l[2] }
+        Self {
+            x: l[0],
+            y: l[1],
+            z: l[2],
+        }
     }
 }
 
@@ -91,7 +96,12 @@ impl Lanes for Color {
         [self.r, self.g, self.b, self.a]
     }
     fn from_lanes(l: [f64; 4]) -> Self {
-        Self { r: l[0], g: l[1], b: l[2], a: l[3] }
+        Self {
+            r: l[0],
+            g: l[1],
+            b: l[2],
+            a: l[3],
+        }
     }
 }
 
@@ -105,17 +115,29 @@ fn rhs<T: Lanes>(value: &rune::Value) -> anyhow::Result<[f64; 4]> {
         return Ok([f; 4]);
     }
     if let Ok(i) = value.as_signed() {
-        #[allow(clippy::cast_precision_loss, reason = "a script integer used as a scale")]
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "a script integer used as a scale"
+        )]
         return Ok([i as f64; 4]);
     }
-    Err(anyhow!("`{}` is not a number or the same kind of vector", value.type_info()))
+    Err(anyhow!(
+        "`{}` is not a number or the same kind of vector",
+        value.type_info()
+    ))
 }
 
 fn zip<T: Lanes>(a: &T, b: &rune::Value, f: fn(f64, f64) -> f64) -> anyhow::Result<T> {
     let (l, r) = (a.lanes(), rhs::<T>(b)?);
-    Ok(T::from_lanes([f(l[0], r[0]), f(l[1], r[1]), f(l[2], r[2]), f(l[3], r[3])]))
+    Ok(T::from_lanes([
+        f(l[0], r[0]),
+        f(l[1], r[1]),
+        f(l[2], r[2]),
+        f(l[3], r[3]),
+    ]))
 }
 
+#[allow(clippy::float_cmp, reason = "Godot's `==` on a vector is exact too")]
 fn same<T: Lanes>(a: &T, b: &rune::Value) -> bool {
     b.borrow_ref::<T>().is_ok_and(|b| b.lanes() == a.lanes())
 }
@@ -133,10 +155,18 @@ fn vm<T>(result: anyhow::Result<T>) -> rune::runtime::VmResult<T> {
 macro_rules! arithmetic {
     ($m:expr, $t:ty) => {{
         use rune::runtime::Protocol as P;
-        $m.associated_function(&P::ADD, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x + y)))?;
-        $m.associated_function(&P::SUB, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x - y)))?;
-        $m.associated_function(&P::MUL, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x * y)))?;
-        $m.associated_function(&P::DIV, |a: &$t, b: rune::Value| vm(zip::<$t>(a, &b, |x, y| x / y)))?;
+        $m.associated_function(&P::ADD, |a: &$t, b: rune::Value| {
+            vm(zip::<$t>(a, &b, |x, y| x + y))
+        })?;
+        $m.associated_function(&P::SUB, |a: &$t, b: rune::Value| {
+            vm(zip::<$t>(a, &b, |x, y| x - y))
+        })?;
+        $m.associated_function(&P::MUL, |a: &$t, b: rune::Value| {
+            vm(zip::<$t>(a, &b, |x, y| x * y))
+        })?;
+        $m.associated_function(&P::DIV, |a: &$t, b: rune::Value| {
+            vm(zip::<$t>(a, &b, |x, y| x / y))
+        })?;
         $m.associated_function(&P::ADD_ASSIGN, |a: &mut $t, b: rune::Value| {
             let out = zip::<$t>(a, &b, |x, y| x + y);
             vm(out.map(|v| *a = v))
@@ -194,6 +224,84 @@ macro_rules! geometry {
     }};
 }
 
+/// The rest of Godot's `Vector2`: angles, rounding and the bounded moves.
+fn plane(m: &mut rune::Module) -> Result<(), rune::ContextError> {
+    use balaur_core::libm;
+    let each = |v: &Vec2, f: fn(f64) -> f64| Vec2 {
+        x: f(v.x),
+        y: f(v.y),
+    };
+    m.associated_function("angle", |v: &Vec2| libm::atan2(v.y, v.x))?;
+    m.associated_function("angle_to_point", |v: &Vec2, to: &Vec2| {
+        libm::atan2(to.y - v.y, to.x - v.x)
+    })?;
+    m.associated_function("rotated", |v: &Vec2, by: f64| {
+        let (s, c) = (libm::sin(by), libm::cos(by));
+        Vec2 {
+            x: v.x * c - v.y * s,
+            y: v.x * s + v.y * c,
+        }
+    })?;
+    m.associated_function("abs", move |v: &Vec2| each(v, f64::abs))?;
+    m.associated_function("floor", move |v: &Vec2| each(v, libm::floor))?;
+    m.associated_function("ceil", move |v: &Vec2| each(v, libm::ceil))?;
+    m.associated_function("round", move |v: &Vec2| each(v, libm::round))?;
+    m.associated_function("sign", move |v: &Vec2| {
+        each(v, |x| if x == 0.0 { 0.0 } else { x.signum() })
+    })?;
+    m.associated_function("orthogonal", |v: &Vec2| Vec2 { x: v.y, y: -v.x })?;
+    m.associated_function("length_squared", |v: &Vec2| v.x * v.x + v.y * v.y)?;
+    m.associated_function("distance_squared_to", |v: &Vec2, o: &Vec2| {
+        (o.x - v.x) * (o.x - v.x) + (o.y - v.y) * (o.y - v.y)
+    })?;
+    m.associated_function("direction_to", |v: &Vec2, o: &Vec2| {
+        unit(o.x - v.x, o.y - v.y)
+    })?;
+    m.associated_function("clamp", |v: &Vec2, lo: &Vec2, hi: &Vec2| Vec2 {
+        x: v.x.clamp(lo.x, hi.x),
+        y: v.y.clamp(lo.y, hi.y),
+    })?;
+    m.associated_function("limit_length", |v: &Vec2, most: f64| {
+        let len = libm::sqrt(v.x * v.x + v.y * v.y);
+        if len <= most || len == 0.0 {
+            return *v;
+        }
+        Vec2 {
+            x: v.x / len * most,
+            y: v.y / len * most,
+        }
+    })?;
+    m.associated_function("move_toward", |v: &Vec2, to: &Vec2, delta: f64| {
+        let (dx, dy) = (to.x - v.x, to.y - v.y);
+        let len = libm::sqrt(dx * dx + dy * dy);
+        if len <= delta || len < 1e-5 {
+            return *to;
+        }
+        Vec2 {
+            x: v.x + dx / len * delta,
+            y: v.y + dy / len * delta,
+        }
+    })?;
+    m.associated_function("is_zero_approx", |v: &Vec2| {
+        v.x.abs() < 1e-5 && v.y.abs() < 1e-5
+    })?;
+    m.associated_function("is_equal_approx", |v: &Vec2, o: &Vec2| {
+        (v.x - o.x).abs() < 1e-5 && (v.y - o.y).abs() < 1e-5
+    })?;
+    Ok(())
+}
+
+fn unit(x: f64, y: f64) -> Vec2 {
+    let len = balaur_core::libm::sqrt(x * x + y * y);
+    if len == 0.0 {
+        return Vec2 { x: 0.0, y: 0.0 };
+    }
+    Vec2 {
+        x: x / len,
+        y: y / len,
+    }
+}
+
 fn dot(a: [f64; 4], b: [f64; 4]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
@@ -212,6 +320,13 @@ pub(crate) fn install(
     // `a == b` on two handles: the same node. Anything else is not equal.
     m.associated_function(&rune::runtime::Protocol::PARTIAL_EQ, Node::same)?;
     m.associated_function(&rune::runtime::Protocol::EQ, Node::same)?;
+    // A node keys a map by its id, as Godot's dictionaries key by object.
+    m.associated_function(
+        &rune::runtime::Protocol::HASH,
+        |n: &Node, hasher: &mut rune::runtime::Hasher| {
+            std::hash::Hasher::write_u64(hasher, n.id);
+        },
+    )?;
     m.ty::<Vec2>()?;
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
@@ -226,6 +341,8 @@ pub(crate) fn install(
     arithmetic!(m, Color);
     geometry!(m, Vec2);
     geometry!(m, Vec3);
+    plane(m)?;
+    transform::install(m)?;
 
     // A component-driven operation lives on that component's handle
     // (`node.transform.translate`); the node keeps only what no component owns.
@@ -307,6 +424,23 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Ok(Neutral::Map(out));
     }
+    // A map keyed by more than strings, as a Godot dictionary is: its keys
+    // spelled as text, the way JSON spells them.
+    if let Ok(map) = v.borrow_ref::<rune::modules::collections::HashMap>() {
+        let mut out = Vec::new();
+        for (k, val) in map.entries()? {
+            let key = match to_neutral(&k)? {
+                Neutral::Str(s) => s,
+                Neutral::Int(i) => i.to_string(),
+                Neutral::Num(n) => n.to_string(),
+                Neutral::Bool(b) => b.to_string(),
+                other => return Err(anyhow!("a map key cannot be {other:?}")),
+            };
+            out.push((key, to_neutral(&val)?));
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        return Ok(Neutral::Map(out));
+    }
     if let Ok(f) = v.borrow_ref::<rune::runtime::Function>() {
         return Ok(Neutral::Callback(crate::bindings::hold_callback(
             f.try_clone()?,
@@ -380,6 +514,11 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Some(Neutral::Map(out));
     }
+    if v.borrow_ref::<rune::modules::collections::HashMap>()
+        .is_ok()
+    {
+        return to_neutral(v).ok();
+    }
     if let Ok(t) = v.borrow_tuple_ref()
         && t.is_empty()
     {
@@ -438,8 +577,12 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             }
             rune::to_value(obj)?
         }
+        // A function one script returned to another: the same function, while
+        // the call that handed it over still holds it.
         Neutral::Callback(CallbackId(id)) => {
-            return Err(anyhow!("cannot hand callback {id} back to a script"));
+            let function = crate::bindings::lookup_callback(CallbackId(*id))
+                .ok_or_else(|| anyhow!("callback {id} was used after its call returned"))?;
+            rune::to_value(function)?
         }
     };
     Ok(out)

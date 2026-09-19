@@ -41,6 +41,14 @@ pub trait ScriptHost<C: ?Sized> {
     /// rather than having to ask for them.
     fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()>;
 
+    /// Hold every `init` the attaches from here would run, until the
+    /// matching [`ScriptHost::release_inits`]: a scene attaches all its
+    /// scripts before any `init` runs, so one may reach another's.
+    fn hold_inits(&self) {}
+
+    /// End a hold; the outermost runs the held `init`s in attach order.
+    fn release_inits(&self) {}
+
     /// What `path`'s `exports` declares tunable, one spec per property.
     ///
     /// Each `Value` is a map in the component schema's own vocabulary:
@@ -136,6 +144,14 @@ pub trait ScriptHost<C: ?Sized> {
         false
     }
 
+    /// A value the node's script instance holds under `name`: another
+    /// script reading a member it declared. `None` for no script or no such
+    /// member, and from a backend whose instances hold no named state.
+    fn script_field(&self, node: NodeId, name: &str) -> Option<Value> {
+        let _ = (node, name);
+        None
+    }
+
     /// Call a public function in a script *file*, with no instance.
     ///
     /// The seam for a project-level hook, a save migration today, where the
@@ -190,7 +206,9 @@ pub trait ScriptHost<C: ?Sized> {
     /// [`invoke`](Self::invoke) still reaches it, until [`release`](Self::release).
     fn keep(&self, callback: CallbackId) -> Result<()> {
         let _ = callback;
-        Err(anyhow::anyhow!("this script backend cannot keep a function"))
+        Err(anyhow::anyhow!(
+            "this script backend cannot keep a function"
+        ))
     }
 
     /// Let go of a function [`keep`](Self::keep) held. Unknown ids are a no-op.

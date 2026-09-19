@@ -445,12 +445,20 @@ impl RuneHost {
     /// against the unit's sources is what turns "field not found" into a file,
     /// a line and the frames that led there.
     pub(crate) fn report(&self, key: &str, label: &str, err: &rune::runtime::VmError) {
-        let sources = self
-            .state
-            .borrow()
-            .scripts
-            .get(key)
-            .and_then(|s| s.sources.clone());
+        // An error thrown in a unit another script required renders against
+        // that unit's sources: its line numbers mean nothing in the caller's.
+        let thrown = err.first_location().map(|at| at.unit.clone());
+        let sources = {
+            let state = self.state.borrow();
+            let owner = thrown.and_then(|unit| {
+                state
+                    .scripts
+                    .values()
+                    .find(|s| std::sync::Arc::ptr_eq(&s.unit, &unit))
+                    .and_then(|s| s.sources.clone())
+            });
+            owner.or_else(|| state.scripts.get(key).and_then(|s| s.sources.clone()))
+        };
         // A packed script has no sources; there is nothing to render against.
         let Some(sources) = sources else {
             tracing::error!("[{key}] {label}: {err}");

@@ -331,7 +331,8 @@ pub(crate) fn bound_handler(
         let called = BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
         let result = match called {
             Some(Ok(v)) => v,
-            Some(Err(err)) => return VmResult::Err(VmError::panic(err.to_string())),
+            // The whole chain: "tween step 0" alone does not say what was wrong.
+            Some(Err(err)) => return VmResult::Err(VmError::panic(format!("{err:#}"))),
             None => return VmResult::Err(VmError::panic(orphaned)),
         };
         match crate::value::from_neutral(&result) {

@@ -681,11 +681,16 @@ fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
-    for (entity, script, props) in &build.pending {
-        scene::remember_script_props(eng, *entity, props);
-        host.attach_with_props(crate::node_id_of(*entity), script, props)?;
-    }
-    Ok(())
+    host.hold_inits();
+    let attached = build
+        .pending
+        .iter()
+        .try_for_each(|(entity, script, props)| {
+            scene::remember_script_props(eng, *entity, props);
+            host.attach_with_props(crate::node_id_of(*entity), script, props)
+        });
+    host.release_inits();
+    attached
 }
 
 fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Build) -> Result<()> {
