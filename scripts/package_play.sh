@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
 # The game template's features plus the importers, which is the difference.
-EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,gamend,multiplayer,web,window,import}
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,webtransport,gamend,multiplayer,web,window,import}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }

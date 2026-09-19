@@ -180,7 +180,7 @@ e2e_stream() {
 wasm_stream() {
   side_env
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
-    --no-default-features --features audio,http,websocket,gamend,multiplayer,web,window \
+    --no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,web,window \
     -- -D warnings
 }
 

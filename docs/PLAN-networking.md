@@ -38,11 +38,9 @@ What a game needs that the engine does not have.
 ## 0. What is missing
 
 - No WebRTC, so two browsers cannot reach each other without a relay.
-- The browser has no WebTransport backend it can reach: `browser.rs` is a
-  wasm-bindgen client gated on `target_family = "wasm"`, which the
-  emscripten web target matches but cannot run, so a web build still falls
-  back to websockets. The decision — a C shim beside `emscripten_websocket.c`,
-  or a gate on `not(target_os = "emscripten")` — is step 13.
+- A browser joins a match but cannot host one: it has no listening socket.
+  Its WebTransport client (`balaur_webtransport/src/browser.rs`) is in the
+  default web build, as the websocket client is; a host is a native build.
 - Nothing bounds a session yet: the rollback journal's `arrived` and `used`
   are never pruned, a peer may name any tick and any player, the websocket
   client and listener have no connect or handshake timeout, and a
@@ -217,9 +215,10 @@ loopback is the bar for 9 and 10, as it was for 5 and 6.
     can see: a per-observer filter over the replicated set, a send rate
     decoupled from the tick rate, and a cap that drops the least urgent
     deltas rather than growing a queue.
-13. **WebTransport in the browser.** The emscripten shim over the browser's
-    WebTransport API, with `serverCertificateHashes` for the dev server.
-    Blocked on web export, so it lands whenever that does.
+13. **WebTransport in the browser.** The client is built: a shim over the
+    browser's WebTransport API, with `serverCertificateHashes` for a
+    self-signed host, in the default web build. Left: a browser joining a
+    native host in a test.
 14. **WebRTC data channels.** Only when a game needs browser peer-to-peer
     without a relay. Same trait, same loopback tests.
 

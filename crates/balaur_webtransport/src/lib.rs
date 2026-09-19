@@ -116,6 +116,13 @@ impl WebTransportLink {
     /// # Errors
     /// When the url or the trust settings are unusable. A failure to reach
     /// the peer is not an error here — it arrives as a `Closed` state.
+    #[cfg_attr(
+        target_family = "wasm",
+        allow(
+            clippy::needless_pass_by_value,
+            reason = "native moves `accept` into its thread; the browser only reads it"
+        )
+    )]
     pub fn connect(eng: &Engine, url: &str, accept: Accept) -> Result<Self> {
         let (commands, command_rx) = channel();
         let (event_tx, events) = channel();
@@ -126,7 +133,7 @@ impl WebTransportLink {
         #[cfg(not(target_family = "wasm"))]
         std::thread::spawn(move || link::dial(&url, accept, command_rx, &event_tx));
         #[cfg(target_family = "wasm")]
-        browser::dial(&url, accept, command_rx, &event_tx);
+        browser::dial(&url, &accept, command_rx, &event_tx);
         Ok(Self {
             events,
             commands: Some(commands),

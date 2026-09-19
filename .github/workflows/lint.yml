@@ -76,7 +76,7 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
-            --no-default-features --features audio,http,websocket,gamend,multiplayer,web,window \
+            --no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,web,window \
             -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds

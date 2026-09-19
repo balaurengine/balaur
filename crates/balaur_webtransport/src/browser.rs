@@ -116,7 +116,7 @@ thread_local! {
 
 pub(crate) fn dial(
     url: &str,
-    accept: Accept,
+    accept: &Accept,
     commands: Receiver<LinkCommand>,
     events: &Sender<LinkEvent>,
 ) {
@@ -145,7 +145,7 @@ pub(crate) fn dial(
 
     let handle = bt_open(
         url,
-        hashes_to_js(&accept),
+        hashes_to_js(accept),
         opened.as_ref().unchecked_ref(),
         on_reliable.as_ref().unchecked_ref(),
         on_datagram.as_ref().unchecked_ref(),
