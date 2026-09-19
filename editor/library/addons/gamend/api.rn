@@ -19,6 +19,43 @@
 const CORE = "addons/gamend/core.rn";
 
 
+/// Daily counters by key or prefix (admin)
+/// `GET /api/v1/admin/analytics/counts`
+pub fn admin_analytics_admin_get_analytics_counts(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["key", "days"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/counts${query}`)
+}
+
+/// Per-day active / new users and cohort retention (admin)
+/// `GET /api/v1/admin/analytics/daily`
+pub fn admin_analytics_admin_get_analytics_daily(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["days"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/daily${query}`)
+}
+
+/// Currency granted / spent per day per ledger reason (admin)
+/// `GET /api/v1/admin/analytics/economy`
+pub fn admin_analytics_admin_get_analytics_economy(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["days", "currency"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/economy${query}`)
+}
+
+/// Live counters: players, lobbies, parties, quests, matchmaking,
+/// tournaments (admin)
+/// `GET /api/v1/admin/analytics/snapshot`
+pub fn admin_analytics_admin_get_analytics_snapshot(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/analytics/snapshot")
+}
+
+/// DAU / WAU / MAU, D1 / D7 / D30 and payer conversion (admin)
+/// `GET /api/v1/admin/analytics`
+pub fn admin_analytics_admin_get_analytics_summary(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/analytics")
+}
+
 /// Add a blocklist word (admin)
 /// `POST /api/v1/admin/chat/filter_words`
 pub fn admin_chat_admin_create_chat_filter_word(node, params) {
@@ -96,6 +133,12 @@ pub fn admin_chat_admin_import_chat_filter_words(node, params) {
         return (core.missing)("admin_chat_admin_import_chat_filter_words", "lang");
     }
     gamend::rest(node, "POST", "/api/v1/admin/chat/filter_words/import", params)
+}
+
+/// Languages with a bundled word list (admin)
+/// `GET /api/v1/admin/chat/filter_words/languages`
+pub fn admin_chat_admin_list_chat_filter_languages(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/chat/filter_words/languages")
 }
 
 /// List blocklist words (admin)
@@ -668,6 +711,14 @@ pub fn admin_storage_admin_list_storage_objects(node, options) {
     gamend::rest(node, "GET", `/api/v1/admin/storage${query}`)
 }
 
+/// Objects and bytes stored under a prefix (admin)
+/// `GET /api/v1/admin/storage/usage`
+pub fn admin_storage_admin_storage_usage(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["prefix"]);
+    gamend::rest(node, "GET", `/api/v1/admin/storage/usage${query}`)
+}
+
 /// Upload or overwrite an object at any key (admin)
 /// `PUT /api/v1/admin/storage/object`
 pub fn admin_storage_admin_upload_storage_object(node, params, options) {
@@ -872,6 +923,19 @@ pub fn authentication_refresh_token(node, params) {
     gamend::rest(node, "POST", "/api/v1/refresh", params)
 }
 
+/// Register
+/// `POST /api/v1/register`
+pub fn authentication_register(node, params) {
+    let core = script::require(CORE);
+    if !(core.given)(params, "email") {
+        return (core.missing)("authentication_register", "email");
+    }
+    if !(core.given)(params, "password") {
+        return (core.missing)("authentication_register", "password");
+    }
+    gamend::rest(node, "POST", "/api/v1/register", params)
+}
+
 /// Unlink device ID
 /// `DELETE /api/v1/me/device`
 pub fn authenticate_unlink_device(node) {
@@ -923,19 +987,6 @@ pub fn chat_list_chat_messages(node, options) {
     let query = (core.query)(options, ["chat_type", "chat_ref_id", "page", "page_size"]);
     gamend::rest(node, "GET", `/api/v1/chat/messages${query}`)
 }
-/// Register
-/// `POST /api/v1/register`
-pub fn authentication_register(node, params) {
-    let core = script::require(CORE);
-    if !(core.given)(params, "email") {
-        return (core.missing)("authentication_register", "email");
-    }
-    if !(core.given)(params, "password") {
-        return (core.missing)("authentication_register", "password");
-    }
-    gamend::rest(node, "POST", "/api/v1/register", params)
-}
-
 
 /// List active mutes in a group
 /// `GET /api/v1/groups/{id}/mutes`
@@ -1063,6 +1114,18 @@ pub fn chat_unmute_party_member(node, params) {
 /// `PATCH /api/v1/chat/messages/{id}`
 pub fn chat_update_chat_message(node, id, params) {
     gamend::rest(node, "PATCH", `/api/v1/chat/messages/${id}`, params)
+}
+
+/// Client log capture policy
+/// `GET /api/v1/client_logs/policy`
+pub fn client_logs_get_client_log_policy(node) {
+    gamend::rest(node, "GET", "/api/v1/client_logs/policy")
+}
+
+/// Upload a batch of client log entries
+/// `POST /api/v1/client_logs`
+pub fn client_logs_upload_client_logs(node, params) {
+    gamend::rest(node, "POST", "/api/v1/client_logs", params)
 }
 
 /// Current user's item quantities
@@ -1368,8 +1431,10 @@ pub fn hooks_call_hook(node, params) {
 
 /// List available hook functions
 /// `GET /api/v1/hooks`
-pub fn hooks_list_hooks(node) {
-    gamend::rest(node, "GET", "/api/v1/hooks")
+pub fn hooks_list_hooks(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/hooks${query}`)
 }
 
 /// Get a key/value entry
@@ -1627,14 +1692,18 @@ pub fn parties_leave_party(node) {
 
 /// List pending party invites for the current user
 /// `GET /api/v1/parties/invitations`
-pub fn parties_list_party_invitations(node) {
-    gamend::rest(node, "GET", "/api/v1/parties/invitations")
+pub fn parties_list_party_invitations(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/parties/invitations${query}`)
 }
 
 /// List pending party invites sent by the current leader
 /// `GET /api/v1/parties/invitations/sent`
-pub fn parties_list_sent_party_invitations(node) {
-    gamend::rest(node, "GET", "/api/v1/parties/invitations/sent")
+pub fn parties_list_sent_party_invitations(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/parties/invitations/sent${query}`)
 }
 
 /// Create a lobby with the party (leader only)
@@ -1677,14 +1746,16 @@ pub fn payments_apple_webhook(node, params) {
 /// `GET /api/v1/payments/catalog`
 pub fn payments_catalog(node, options) {
     let core = script::require(CORE);
-    let query = (core.query)(options, ["provider"]);
+    let query = (core.query)(options, ["provider", "page", "page_size"]);
     gamend::rest(node, "GET", `/api/v1/payments/catalog${query}`)
 }
 
 /// List current user's active entitlements
 /// `GET /api/v1/payments/entitlements`
-pub fn payments_entitlements(node) {
-    gamend::rest(node, "GET", "/api/v1/payments/entitlements")
+pub fn payments_entitlements(node, options) {
+    let core = script::require(CORE);
+    let query = (core.query)(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/payments/entitlements${query}`)
 }
 
 /// Receive Google Play RTDN Pub/Sub push events
@@ -1836,6 +1907,12 @@ pub fn signaling_stats(node) {
     gamend::rest(node, "GET", "/api/v1/signaling/stats")
 }
 
+/// All public server counters in one call
+/// `GET /api/v1/stats`
+pub fn stats_get_stats(node) {
+    gamend::rest(node, "GET", "/api/v1/stats")
+}
+
 /// Server clock
 /// `GET /api/v1/time`
 pub fn time_get_server_time(node) {
@@ -1884,7 +1961,7 @@ pub fn tournaments_tournament_entries(node, id, options) {
     gamend::rest(node, "GET", `/api/v1/tournaments/${id}/entries${query}`)
 }
 
-/// The caller's current unresolved match, if any
+/// The caller's current unresolved match
 /// `GET /api/v1/tournaments/{id}/my_match`
 pub fn tournaments_tournament_my_match(node, id) {
     gamend::rest(node, "GET", `/api/v1/tournaments/${id}/my_match`)

@@ -8,7 +8,7 @@ let api = script::require("addons/gamend/api.rn");
 let client = script::require("addons/gamend/client.rn");
 ```
 
-244 operations and 71 realtime events.
+254 operations and 71 realtime events.
 
 Beside the generated `api.rn` and `events.rn`, written by hand:
 
@@ -20,6 +20,16 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `prefs.rn` | The player's prefs on this device |
 | `logs.rn`, `log_sink.rn` | This run's log, shipped in batches; put `log_sink.rn` on a node that lives as long as the game |
 | `editor/gamend.rn` | The Gamend dock in the Balaur editor |
+
+## Admin – Analytics
+
+| Function | Call | What it does |
+| --- | --- | --- |
+| `admin_analytics_admin_get_analytics_counts(node, options)` | `GET /api/v1/admin/analytics/counts` | Daily counters by key or prefix (admin) |
+| `admin_analytics_admin_get_analytics_daily(node, options)` | `GET /api/v1/admin/analytics/daily` | Per-day active / new users and cohort retention (admin) |
+| `admin_analytics_admin_get_analytics_economy(node, options)` | `GET /api/v1/admin/analytics/economy` | Currency granted / spent per day per ledger reason (admin) |
+| `admin_analytics_admin_get_analytics_snapshot(node)` | `GET /api/v1/admin/analytics/snapshot` | Live counters: players, lobbies, parties, quests, matchmaking, tournaments (admin) |
+| `admin_analytics_admin_get_analytics_summary(node)` | `GET /api/v1/admin/analytics` | DAU / WAU / MAU, D1 / D7 / D30 and payer conversion (admin) |
 
 ## Admin – Chat
 
@@ -34,6 +44,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `admin_chat_admin_delete_chat_mute(node, id)` | `DELETE /api/v1/admin/chat/mutes/{id}` | Lift a mute (admin) |
 | `admin_chat_admin_delete_chat_report(node, id)` | `DELETE /api/v1/admin/chat/reports/{id}` | Delete a chat report (admin) |
 | `admin_chat_admin_import_chat_filter_words(node, params)` | `POST /api/v1/admin/chat/filter_words/import` | Import a bundled word list (admin) |
+| `admin_chat_admin_list_chat_filter_languages(node)` | `GET /api/v1/admin/chat/filter_words/languages` | Languages with a bundled word list (admin) |
 | `admin_chat_admin_list_chat_filter_words(node, options)` | `GET /api/v1/admin/chat/filter_words` | List blocklist words (admin) |
 | `admin_chat_admin_list_chat_messages(node, options)` | `GET /api/v1/admin/chat` | List all chat messages (admin) |
 | `admin_chat_admin_list_chat_mutes(node, options)` | `GET /api/v1/admin/chat/mutes` | List chat mutes (admin) |
@@ -166,6 +177,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `admin_storage_admin_delete_storage_object(node, options)` | `DELETE /api/v1/admin/storage` | Delete a stored object (admin) |
 | `admin_storage_admin_download_storage_object(node, options)` | `GET /api/v1/admin/storage/object` | Download an object by key (admin) |
 | `admin_storage_admin_list_storage_objects(node, options)` | `GET /api/v1/admin/storage` | List stored objects with usage (admin) |
+| `admin_storage_admin_storage_usage(node, options)` | `GET /api/v1/admin/storage/usage` | Objects and bytes stored under a prefix (admin) |
 | `admin_storage_admin_upload_storage_object(node, params, options)` | `PUT /api/v1/admin/storage/object` | Upload or overwrite an object at any key (admin) |
 
 ## Admin – Tournaments
@@ -205,6 +217,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `authenticate_oauth_request(node, provider)` | `GET /api/v1/auth/{provider}` | Initiate API OAuth |
 | `authenticate_oauth_session_status(node, session_id)` | `GET /api/v1/auth/session/{session_id}` | Get OAuth session status |
 | `authentication_refresh_token(node, params)` | `POST /api/v1/refresh` | Refresh access token |
+| `authentication_register(node, params)` | `POST /api/v1/register` | Register |
 | `authenticate_unlink_device(node)` | `DELETE /api/v1/me/device` | Unlink device ID |
 | `authenticate_unlink_provider(node, provider)` | `DELETE /api/v1/me/providers/{provider}` | Unlink OAuth provider |
 
@@ -217,7 +230,6 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `chat_get_chat_message(node, id)` | `GET /api/v1/chat/messages/{id}` | Get a single chat message |
 | `chat_list_chat_messages(node, options)` | `GET /api/v1/chat/messages` | List chat messages |
 | `chat_list_group_mutes(node, id, options)` | `GET /api/v1/groups/{id}/mutes` | List active mutes in a group |
-| `authentication_register(node, params)` | `POST /api/v1/register` | Register |
 | `chat_list_lobby_mutes(node, options)` | `GET /api/v1/lobbies/mutes` | List active mutes in your lobby |
 | `chat_list_party_mutes(node, options)` | `GET /api/v1/parties/mutes` | List active mutes in your party |
 | `chat_mark_chat_read(node, params)` | `POST /api/v1/chat/read` | Mark chat as read |
@@ -230,6 +242,13 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `chat_unmute_lobby_member(node, params)` | `POST /api/v1/lobbies/unmute` | Lift a mute in your lobby |
 | `chat_unmute_party_member(node, params)` | `POST /api/v1/parties/unmute` | Lift a mute in your party |
 | `chat_update_chat_message(node, id, params)` | `PATCH /api/v1/chat/messages/{id}` | Update your own chat message |
+
+## Client logs
+
+| Function | Call | What it does |
+| --- | --- | --- |
+| `client_logs_get_client_log_policy(node)` | `GET /api/v1/client_logs/policy` | Client log capture policy |
+| `client_logs_upload_client_logs(node, params)` | `POST /api/v1/client_logs` | Upload a batch of client log entries |
 
 ## Economy
 
@@ -295,7 +314,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | Function | Call | What it does |
 | --- | --- | --- |
 | `hooks_call_hook(node, params)` | `POST /api/v1/hooks/call` | Invoke a hook function |
-| `hooks_list_hooks(node)` | `GET /api/v1/hooks` | List available hook functions |
+| `hooks_list_hooks(node, options)` | `GET /api/v1/hooks` | List available hook functions |
 
 ## KV
 
@@ -359,8 +378,8 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `parties_invite_to_party(node, params)` | `POST /api/v1/parties/invite` | Invite a user to the party (leader only) |
 | `parties_kick_party_member(node, params)` | `POST /api/v1/parties/kick` | Kick a member from the party (leader only) |
 | `parties_leave_party(node)` | `POST /api/v1/parties/leave` | Leave the current party |
-| `parties_list_party_invitations(node)` | `GET /api/v1/parties/invitations` | List pending party invites for the current user |
-| `parties_list_sent_party_invitations(node)` | `GET /api/v1/parties/invitations/sent` | List pending party invites sent by the current leader |
+| `parties_list_party_invitations(node, options)` | `GET /api/v1/parties/invitations` | List pending party invites for the current user |
+| `parties_list_sent_party_invitations(node, options)` | `GET /api/v1/parties/invitations/sent` | List pending party invites sent by the current leader |
 | `parties_party_create_lobby(node, params)` | `POST /api/v1/parties/create_lobby` | Create a lobby with the party (leader only) |
 | `parties_party_join_lobby(node, id, params)` | `POST /api/v1/parties/join_lobby/{id}` | Join a lobby with the party (leader only) |
 | `parties_party_stats(node)` | `GET /api/v1/parties/stats` | Party counts |
@@ -373,7 +392,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | --- | --- | --- |
 | `payments_apple_webhook(node, params)` | `POST /api/v1/payments/webhooks/apple` | Receive App Store Server Notification v2 events |
 | `payments_catalog(node, options)` | `GET /api/v1/payments/catalog` | List active payment catalog entries |
-| `payments_entitlements(node)` | `GET /api/v1/payments/entitlements` | List current user's active entitlements |
+| `payments_entitlements(node, options)` | `GET /api/v1/payments/entitlements` | List current user's active entitlements |
 | `payments_google_webhook(node, params)` | `POST /api/v1/payments/webhooks/google` | Receive Google Play RTDN Pub/Sub push events |
 | `payments_steam_checkout(node, params)` | `POST /api/v1/payments/checkout/steam` | Create a Steam MicroTxn transaction |
 | `payments_steam_finalize(node, params)` | `POST /api/v1/payments/steam/finalize` | Finalize an authorized Steam MicroTxn transaction |
@@ -416,6 +435,12 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | --- | --- | --- |
 | `signaling_stats(node)` | `GET /api/v1/signaling/stats` | WebRTC room counts |
 
+## Stats
+
+| Function | Call | What it does |
+| --- | --- | --- |
+| `stats_get_stats(node)` | `GET /api/v1/stats` | All public server counters in one call |
+
 ## Time
 
 | Function | Call | What it does |
@@ -432,7 +457,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `tournaments_list_tournaments(node, options)` | `GET /api/v1/tournaments` | List tournaments |
 | `tournaments_tournament_bracket(node, id, options)` | `GET /api/v1/tournaments/{id}/bracket` | Brackets and their matches (paginated by bracket) |
 | `tournaments_tournament_entries(node, id, options)` | `GET /api/v1/tournaments/{id}/entries` | Registered entries (paginated) |
-| `tournaments_tournament_my_match(node, id)` | `GET /api/v1/tournaments/{id}/my_match` | The caller's current unresolved match, if any |
+| `tournaments_tournament_my_match(node, id)` | `GET /api/v1/tournaments/{id}/my_match` | The caller's current unresolved match |
 | `tournaments_tournament_standings(node, id)` | `GET /api/v1/tournaments/{id}/standings` | Placements, wins and champions |
 
 ## Users
