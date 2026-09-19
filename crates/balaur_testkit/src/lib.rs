@@ -24,6 +24,13 @@ pub fn e2e_enabled() -> bool {
     false
 }
 
+/// The Gamend server the live suites talk to: `GAMEND_URL`, or gamend.org.
+/// Never a stand-in: a test that passes against one proves the stand-in.
+#[must_use]
+pub fn gamend_url() -> String {
+    std::env::var("GAMEND_URL").unwrap_or_else(|_| String::from("https://gamend.org"))
+}
+
 /// The log buffer is global and tests run in parallel, so one test's lines
 /// would surface in another's assertions.
 static LOG: Mutex<()> = Mutex::new(());

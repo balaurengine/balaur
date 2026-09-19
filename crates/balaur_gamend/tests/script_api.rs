@@ -1,187 +1,12 @@
 //! The gamend bindings called the way a game calls them: from a script,
-//! through `balaur::standard_app`.
+//! through `balaur::standard_app`, against a real Gamend server
+//! (`GAMEND_URL`, or gamend.org).
 //!
-//! Most tests speak to a miniature in-process Gamend — one port serving the
-//! login REST call and a Phoenix-ish websocket — so CI needs no Elixir. The
-//! `live_` test at the bottom is ignored by default and runs the same flow
-//! against a real `mix dev.start` server.
+//! The public API needs no account, so it runs with the e2e suite. Signing
+//! in creates an account on that server, so that test is opt-in:
+//! `cargo test -p balaur_gamend -- --ignored`.
 
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-
-use balaur_testkit::{e2e_enabled, run_until, run_until_with};
-use serde_json::{Value, json};
-
-/// A one-port Gamend stand-in: device login and a generic GET over HTTP,
-/// joins and an echoing `call_hook` over the websocket.
-fn serve_gamend() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        while let Ok((stream, _)) = listener.accept() {
-            std::thread::spawn(move || serve_connection(stream));
-        }
-    });
-    format!("http://{addr}")
-}
-
-fn serve_connection(stream: TcpStream) {
-    let mut probe = [0u8; 16];
-    let peeked = stream.peek(&mut probe).unwrap_or(0);
-    if String::from_utf8_lossy(&probe[..peeked]).starts_with("GET /socket") {
-        serve_socket(stream);
-    } else {
-        serve_http(stream);
-    }
-}
-
-fn serve_http(mut stream: TcpStream) {
-    let mut request = Vec::new();
-    let mut chunk = [0u8; 1024];
-    while !request.windows(4).any(|w| w == b"\r\n\r\n") {
-        match stream.read(&mut chunk) {
-            Ok(0) | Err(_) => return,
-            Ok(n) => request.extend_from_slice(&chunk[..n]),
-        }
-    }
-    // Read the body out too, not just the head: answering and closing over
-    // bytes the client is still sending resets the connection on Windows, and
-    // the reply the client never read is lost with it.
-    let head_end = request
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .map_or(request.len(), |at| at + 4);
-    let head = String::from_utf8_lossy(&request[..head_end]).into_owned();
-    let length: usize = head
-        .lines()
-        .find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            name.eq_ignore_ascii_case("content-length")
-                .then(|| value.trim().parse().ok())?
-        })
-        .unwrap_or(0);
-    while request.len() < head_end + length {
-        match stream.read(&mut chunk) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => request.extend_from_slice(&chunk[..n]),
-        }
-    }
-    let body = if head.starts_with("POST /api/v1/login/device") {
-        json!({"data": {"access_token": "tok", "refresh_token": "ref", "expires_in": 900,
-                        "user_id": "00000000-0000-7000-8000-000000000001",
-                        "username": "tester", "display_name": ""}})
-        .to_string()
-    } else {
-        // The request line and body come back too, so a test can assert what
-        // a call put on the wire without a second server.
-        let line = head.lines().next().unwrap_or_default();
-        let (method, rest) = line.split_once(' ').unwrap_or(("", ""));
-        let path = rest.split_whitespace().next().unwrap_or_default();
-        let sent = String::from_utf8_lossy(&request[head_end..]).into_owned();
-        json!({"data": {"pong": true, "method": method, "path": path, "sent": sent}}).to_string()
-    };
-    let _ = stream.write_all(
-        format!(
-            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-            body.len()
-        )
-        .as_bytes(),
-    );
-}
-
-fn serve_socket(stream: TcpStream) {
-    let Ok(mut connection) = tungstenite::accept(stream) else {
-        return;
-    };
-    loop {
-        let message = match connection.read() {
-            Ok(m) if m.is_text() => m,
-            Ok(tungstenite::Message::Close(_)) | Err(_) => break,
-            Ok(_) => continue,
-        };
-        let frame: Value = match serde_json::from_str(message.to_text().unwrap_or_default()) {
-            Ok(frame) => frame,
-            Err(_) => continue,
-        };
-        let (join_ref, reference, topic, event, payload) = (
-            frame[0].clone(),
-            frame[1].clone(),
-            frame[2].clone(),
-            frame[3].as_str().unwrap_or_default().to_string(),
-            frame[4].clone(),
-        );
-        let reply = |status: &str, response: Value| {
-            json!([join_ref, reference, topic, "phx_reply",
-                   {"status": status, "response": response}])
-            .to_string()
-        };
-        let text = match event.as_str() {
-            "phx_join" | "heartbeat" | "phx_leave" => reply("ok", json!({})),
-            "call_hook" => reply("ok", json!({"data": payload["args"][0]})),
-            _ => reply("error", json!({"error": "unknown_event"})),
-        };
-        if connection
-            .send(tungstenite::Message::Text(text.into()))
-            .is_err()
-        {
-            break;
-        }
-    }
-}
-
-#[test]
-fn a_script_logs_in_rests_and_calls_a_hook() {
-    if !e2e_enabled() {
-        return;
-    }
-    let url = serve_gamend();
-    let source = format!(
-        r#"
-pub async fn init(this) {{
-    gamend::configure("{url}");
-    let login = task::wait(gamend::login(#{{ device_id: "dev-1" }})).await;
-    log::info(format!("gamend-login {{}}", login["username"]));
-    let r = task::wait(gamend::rest((), "GET", "/api/v1/ping")).await;
-    log::info(format!("gamend-rest {{}} {{}}", r["status"], r["body"]["data"]["pong"]));
-    this.socket = gamend::connect(this.node);
-}}
-
-pub async fn on_gamend_event(this, e) {{
-    if e["kind"] == "open" {{
-        let reply = task::wait(gamend::call_hook(this.socket, "arena", "echo", ["hi"])).await;
-        log::info(format!("gamend-hook {{}} {{}}", reply["status"], reply["response"]["data"]));
-    }}
-}}
-"#
-    );
-    run_until(&source, &["gamend-hook ok hi"]);
-}
-
-#[test]
-fn a_rune_script_logs_in_and_calls_a_hook() {
-    if !e2e_enabled() {
-        return;
-    }
-    let url = serve_gamend();
-    let source = format!(
-        r#"
-pub async fn init(this) {{
-    gamend::configure("{url}");
-    let login = task::wait(gamend::login(#{{ "device_id": "dev-3" }})).await;
-    log::info(`gamend-login ${{login["username"]}}`);
-    this.socket = gamend::connect(this.node);
-}}
-
-pub async fn on_gamend_event(this, e) {{
-    if e["kind"] == "open" {{
-        let reply = task::wait(gamend::call_hook(this.socket, "arena", "echo", ["hi"])).await;
-        log::info(`gamend-hook ${{reply["status"]}} ${{reply["response"]["data"]}}`);
-    }}
-}}
-"#
-    );
-    run_until(&source, &["gamend-hook ok hi"]);
-}
+use balaur_testkit::{e2e_enabled, gamend_url, run_until, run_until_with};
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
 fn gamend_addon() -> Vec<(String, String)> {
@@ -202,74 +27,86 @@ fn gamend_addon() -> Vec<(String, String)> {
 }
 
 #[test]
-fn the_sdk_addon_puts_an_operation_on_the_wire() {
+fn the_sdk_addon_reads_the_public_api_of_the_server() {
     if !e2e_enabled() {
         return;
     }
-    let url = serve_gamend();
+    let url = gamend_url();
     let files = gamend_addon();
     let borrowed: Vec<(&str, &str)> = files
         .iter()
         .map(|(path, text)| (path.as_str(), text.as_str()))
         .collect();
-    // The stand-in echoes the request line and body, so this asserts the
-    // wire itself. One line at the end, because the harness reads a
-    // fifty-entry ring the HTTP client's traces would fill.
+    // A query, a path parameter and a bare call, through the addon's own
+    // functions. One line at the end: the harness reads a fifty-entry ring.
     let source = format!(
         r#"
 pub async fn init(this) {{
     let api = script::require("addons/gamend/api.rn");
     let events = script::require("addons/gamend/events.rn");
     gamend::configure("{url}");
-    task::wait(gamend::login((), #{{ "device_id": "dev-sdk" }})).await;
-
-    let one = task::wait((api.lobbies_get_lobby)((), "lob-7")).await["body"]["data"];
-    let listed = task::wait((api.quests_my_quests)((), #{{ "page": 2 }})).await["body"]["data"];
-    let made = task::wait((api.lobbies_quick_join)((), #{{ "title": "duel" }})).await["body"]["data"];
+    let boards = task::wait((api.leaderboards_list_leaderboards)((), #{{ "page": 1 }})).await;
+    let listed = boards["body"]["data"];
+    let records = if listed.len() > 0 {{
+        task::wait((api.leaderboards_list_leaderboard_records)((), listed[0]["id"], #{{}})).await["status"]
+    }} else {{
+        200
+    }};
+    let stats = task::wait((api.lobbies_lobby_stats)(())).await;
     let named = (events.decode)("lobby:7", "user_joined", #{{ "user_id": 3 }});
-
-    log::info(`sdk ${{one["method"]}} ${{one["path"]}}`
-        + ` | ${{listed["path"]}}`
-        + ` | ${{made["method"]}} ${{made["sent"]}}`
-        + ` | ${{named["kind"]}}`);
+    log::info(`sdk ${{boards["status"]}} ${{records}} ${{stats["status"]}} | ${{named["kind"]}}`);
 }}
 "#
     );
     run_until_with(
         &borrowed,
         &source,
-        &[concat!(
-            "sdk GET /api/v1/lobbies/lob-7",
-            " | /api/v1/me/quests?page=2",
-            r#" | POST {"title":"duel"}"#,
-            " | lobby_member_joined",
-        )],
+        &["sdk 200 200 200 | lobby_member_joined"],
     );
 }
 
 #[test]
-#[ignore = "needs a running gamend server on localhost:4000"]
-fn live_a_script_talks_to_a_real_server() {
-    let source = r#"
-pub async fn init(this) {
-    gamend::configure("http://localhost:4000");
-    let login = task::wait(gamend::login(#{ device_id: "balaur-plugin-live-test" })).await;
-    if login.contains_key("error") {
-        log::info(format!("gamend-live login failed: {}", login["error"]));
+#[ignore = "signs in to GAMEND_URL (gamend.org by default) with a new device account"]
+fn a_script_signs_in_connects_and_calls_a_hook() {
+    let url = gamend_url();
+    let device = device_id();
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    gamend::configure("{url}");
+    let login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
+    if login.contains_key("error") {{
+        log::info(format!("gamend-live login failed: {{}}", login["error"]));
         return;
-    }
+    }}
     this.socket = gamend::connect(this.node);
-}
+}}
 
-pub async fn on_gamend_event(this, e) {
-    if e["kind"] == "open" {
+pub async fn on_gamend_event(this, e) {{
+    if e["kind"] == "open" {{
         let me = task::wait(gamend::rest((), "GET", "/api/v1/me")).await;
         let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
-        log::info(format!("gamend-live {} {}", me["status"], hook["status"]));
-    }
+        log::info(format!("gamend-live {{}} {{}}", me["status"], hook["status"]));
+    }}
+}}
+"#
+    );
+    // No plugin answers `sdk_probe` on a stock server, so the hook's reply is
+    // an error, which still proves the whole path.
+    run_until(&source, &["gamend-live 200 error"]);
 }
-"#;
-    // The hook has no plugin behind it on a stock server, so its reply is an
-    // error — which still proves the whole path.
-    run_until(source, &["gamend-live 200 error"]);
+
+#[allow(
+    clippy::disallowed_methods,
+    reason = "names a throwaway test account, not simulation"
+)]
+fn device_id() -> String {
+    format!(
+        "balaur-script-test-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    )
 }

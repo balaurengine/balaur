@@ -425,8 +425,7 @@ rows above that name them are what this plan asks of each.
 - **Web:** the wasm build already runs on every push; step 1 adds a
   `wasm-bindgen-test` in headless Chromium for the `web` verbs, the
   origin-private file system round trip, the Fetch and socket backends
-  against the in-process Phoenix server `crates/balaur_gamend/tests`
-  already starts, and the audio unlock. No frame is drawn: the runner has
+  against gamend.org (`GAMEND_URL`), and the audio unlock. No frame is drawn: the runner has
   no GPU, and the canvas is what `--offscreen` proves on a desktop.
 - **Text:** shaping and layout are pure functions of bytes and a font, so
   a golden test per script — Arabic joined, Hebrew reversed, Thai broken

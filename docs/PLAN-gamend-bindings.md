@@ -169,8 +169,8 @@ Gamend checkout beside this one or from the addon artifact Gamend's CI
 publishes, the way the website's `sync-docs.sh` refreshes from this
 repository's `docs/generated`. The Library dock's card for an addon copies
 the directory into the open project; `balaur new --addon gamend` does the
-same for a new one. The engine's own tests exercise the copy against the
-in-process Gamend stand-in in `crates/balaur_gamend/tests`.
+same for a new one. The engine's own tests exercise the copy against a
+real server, gamend.org by default (`crates/balaur_gamend/tests`).
 
 **Copied into a game as `addons/gamend/`.** Polyglot Pirates' port lists
 `/addons/gamend/` in `port/ported.txt` so `port/reimport.sh` never
@@ -233,9 +233,8 @@ by where the file lives, not by who does it.
   `addon` kind in `manifest.toml` and the dock, `balaur new --addon`,
   `scripts/sync_gamend.sh`. Ends with: a new project from any template plus
   the addon passes `balaur check`, and a test in `crates/balaur_gamend/tests`
-  boots it against the in-process stand-in and calls
-  `users_get_current_user`, `rpc_call` and one decoded event through the
-  addon rather than through `rest`.
+  boots it against gamend.org and calls the addon's own functions (a query,
+  a path parameter) and one decoded event rather than `rest`.
 - **4. The port.** `/addons/gamend/` in `ported.txt` and
   `port/sync_gamend.sh` are done: the SDK is copied in rather than
   translated, and the scenarios still pass. What is left is the call
@@ -280,10 +279,10 @@ by where the file lives, not by who does it.
   engine, fails the build when the addon does not compile. The live flow of
   step 2 runs against `mix dev.start` in the same job, which is the check on
   `events.json`: a server event the table does not name fails it.
-- Balaur: the step 3 test against the in-process stand-in, which grows a
-  recording router so a test can assert the method, path and body any
-  façade function sends without a server. `scripts/sync_gamend.sh --check`
-  in precommit, so the library copy and the version it names never drift.
+- Balaur: the step 3 test against gamend.org's public API in the e2e
+  suite, and sign-in, the socket and a hook opt-in, since they create an
+  account. `scripts/sync_gamend.sh --check` in precommit, so the library
+  copy and the version it names never drift.
 - The port: its scenarios, as today.
 - What neither can: a real provider's OAuth page, and the socket under a
   real NAT.
@@ -291,8 +290,7 @@ by where the file lives, not by who does it.
 ## 5. Open questions
 
 1. **Protobuf on the socket.** The server serves it on request; the Godot
-   addon asks for it. This plan speaks JSON, which is the default and what
-   the stand-in can fake. The generator could emit a decoder from the same
+   addon asks for it. This plan speaks JSON, which is the default. The generator could emit a decoder from the same
    proto when the bytes matter.
 2. **Engine-level bindings too.** The earlier draft of this plan generated
    a Rust module into `crates/balaur_gamend` so every operation appeared in

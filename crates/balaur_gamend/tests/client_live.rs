@@ -1,13 +1,11 @@
-//! The whole client against a real Gamend server.
+//! The whole client against a real Gamend server: `GAMEND_URL`, or gamend.org.
 //!
-//! Ignored by default: run a server with `mix dev.start` in the gamend
-//! checkout, then `cargo test -p balaur_gamend -- --ignored`. Device login
-//! creates its own throwaway account, so a fresh dev database is enough.
+//! Ignored by default, because device login creates a throwaway account on
+//! that server: `cargo test -p balaur_gamend -- --ignored`. A local
+//! `mix dev.start` is `GAMEND_URL=http://localhost:4000`.
 
 use balaur_gamend::client::{Client, Credentials, Socket, SocketEvent, auth};
 use serde_json::json;
-
-const SERVER: &str = "http://localhost:4000";
 
 #[allow(
     clippy::disallowed_methods,
@@ -46,12 +44,13 @@ fn wait_for<T>(
 }
 
 #[test]
-#[ignore = "needs a running gamend server on localhost:4000"]
+#[ignore = "signs in to GAMEND_URL (gamend.org by default) with a new device account"]
 fn login_me_refresh_and_realtime_against_a_live_server() {
-    let mut client = Client::new(SERVER);
+    let server = balaur_testkit::gamend_url();
+    let mut client = Client::new(&server);
 
     let health = client.call("GET", "/api/v1/health", None).unwrap();
-    assert_eq!(health.status, 200, "is `mix dev.start` running?");
+    assert_eq!(health.status, 200, "is {server} up?");
 
     // Device login creates an anonymous account on first use.
     let session = auth::login(
@@ -65,10 +64,12 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     assert!(!session.user_id.is_empty());
     assert_eq!(session.expires_in, 900);
 
-    // The token authenticates REST calls; /me is the flat, unenveloped one.
+    // The token authenticates REST calls. /me comes under `data` from servers
+    // with the API envelope and flat from older ones.
     let me = client.call("GET", "/api/v1/me", None).unwrap();
     assert_eq!(me.status, 200);
-    assert_eq!(me.body["id"], json!(session.user_id));
+    let profile = me.body.get("data").unwrap_or(&me.body);
+    assert_eq!(profile["id"], json!(session.user_id));
 
     let refreshed = auth::refresh(&client, &session.refresh_token).unwrap();
     assert!(!refreshed.access_token.is_empty());
@@ -76,7 +77,7 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
 
     let ws = format!(
         "{}/socket/websocket?token={}&vsn=2.0.0",
-        SERVER.replace("http", "ws"),
+        server.replacen("http", "ws", 1),
         session.access_token
     );
     let mut socket = Socket::connect(&ws).unwrap();
@@ -132,4 +133,14 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
         _ => None,
     });
     assert_eq!(status, "error");
+
+    // Leaving the own topic is acknowledged like a join.
+    let leave_ref = socket.leave(&topic).unwrap();
+    let status = wait_for(&mut socket, &mut backlog, |event| match event {
+        SocketEvent::Reply {
+            reference, status, ..
+        } if *reference == leave_ref => Some(status.clone()),
+        _ => None,
+    });
+    assert_eq!(status, "ok");
 }
