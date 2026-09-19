@@ -78,6 +78,9 @@ pub fn triangulate_shape(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32
 
 fn fill(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32; 3]>) {
     let mut triangulator: Triangulator<u32, i32> = Triangulator::default();
+    // Delaunay flips away the slivers a plain fill leaves, which a bending
+    // skin or a navmesh's path would otherwise follow.
+    triangulator.delaunay(true);
     let filled = triangulator.triangulate(&contours.to_vec());
     let triangles = filled.indices.as_chunks::<3>().0.to_vec();
     (filled.points, triangles)
@@ -207,6 +210,36 @@ mod shape_tests {
         hole.reverse();
         let (points, triangles) = triangulate_shape(&[square(0.0, 0.0, 1.0), hole]);
         assert!((area(&points, &triangles) - 0.75).abs() < 1e-3);
+    }
+
+    /// Delaunay: no corner of the fill sits inside another triangle's
+    /// circumcircle, which is what rules out slivers where fatter ones fit.
+    #[test]
+    fn no_corner_sits_inside_another_triangle_s_circumcircle() {
+        let arc: Vec<[f32; 2]> = (0..=12)
+            .map(|i| {
+                let (sin, cos) = libm::sincosf(i as f32 * std::f32::consts::PI / 12.0);
+                [4.0 * cos, sin]
+            })
+            .collect();
+        let (points, triangles) = triangulate_shape(&[arc]);
+        for [a, b, c] in &triangles {
+            let [a, b, c] = [a, b, c].map(|i| glamx::Vec2::from(points[*i as usize]));
+            for (index, point) in points.iter().enumerate() {
+                if [a, b, c].contains(&glamx::Vec2::from(*point)) {
+                    continue;
+                }
+                let [pa, pb, pc] = [a, b, c].map(|v| v - glamx::Vec2::from(*point));
+                let inside = pa.length_squared() * pb.perp_dot(pc)
+                    + pb.length_squared() * pc.perp_dot(pa)
+                    + pc.length_squared() * pa.perp_dot(pb);
+                let winding = (b - a).perp_dot(c - a).signum();
+                assert!(
+                    inside * winding <= 1e-4,
+                    "corner {index} is inside {a} {b} {c}"
+                );
+            }
+        }
     }
 
     /// A word set at a game's scale is smaller than one unit across.
