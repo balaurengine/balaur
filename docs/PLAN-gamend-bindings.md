@@ -287,8 +287,9 @@ by where the file lives, not by who does it.
   password and answers like login; the engine's `gamend::register` and the
   addon's `client.register_email` open its session. `DELETE /api/v1/me`
   declares its optional `current_password`, so `user_delete_current_user`
-  deletes an account that has a password. The e2e suite registers both kinds
-  of account and deletes them.
+  deletes an account that has a password. The e2e suite uses device
+  accounts only, since an email account needs its confirmation link
+  opened; the server's own suite covers email sign-up.
 - The port: its scenarios, as today.
 - What neither can: a real provider's OAuth page, and the socket under a
   real NAT.
