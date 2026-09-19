@@ -53,9 +53,32 @@ pub fn register_email(node, email, password, username) {
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
-/// topic before reporting `open`, so hooks work as soon as it does.
+/// topic before reporting `open`, so hooks work as soon as it does. A dropped
+/// connection comes back on its own and joins its topics again: `route`
+/// hands the node `on_socket_reconnecting`, then `on_socket_reopened`.
 pub fn connect(node) {
     return gamend::connect(node);
+}
+
+/// Hand an event to the node's own handler for it. A server message goes to
+/// `on_<kind>`, named as `gamend::events::decode` names it
+/// (`on_lobby_member_joined`); the socket's own to `on_socket_<kind>`
+/// (`open`, `reconnecting`, `reopened`, `closed`, `error`); a call's result
+/// to `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
+/// took the event.
+pub fn route(node, e) {
+    let kind = e["kind"];
+    let event = e;
+    let method = if e.contains_key("socket") { `on_socket_${kind}` } else { `on_${kind}` };
+    if kind == "message" {
+        event = gamend::events::decode(e["topic"], e["event"], e["payload"]);
+        method = `on_${event["kind"]}`;
+    }
+    if !node.has_method(method) {
+        return false;
+    }
+    node.call(method, event);
+    return true;
 }
 
 pub fn close(socket) {

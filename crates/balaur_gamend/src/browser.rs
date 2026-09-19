@@ -22,6 +22,7 @@ use web_sys::{
     Response, WebSocket,
 };
 
+use crate::channels::{Rejoin, Rejoins};
 use crate::client::auth::{Credentials, login_request, refresh_request, session_of};
 use crate::client::rest::{Prepared, Reply, reply_of};
 use crate::client::{Client, Protocol, SocketEvent};
@@ -167,25 +168,76 @@ enum Arrival {
     Failed(String),
 }
 
-/// One browser connection the engine still holds, stepped once per tick.
-struct LiveSocket {
+/// One WebSocket and what its callbacks queued.
+struct Link {
     ws: WebSocket,
-    socket: u64,
     protocol: Protocol,
     arrivals: Rc<RefCell<VecDeque<Arrival>>>,
     opened: Rc<Cell<bool>>,
-    commands: Receiver<SocketCommand>,
-    events: Sender<GamendEvent>,
-    user_topic: String,
     /// The own-user join's ref, sent on open; the connection reports `open`
     /// only once its reply says ok, so `open` implies "ready for call_hook".
     join_ref: Option<String>,
     joined: bool,
-    /// ref → the request id whose reply it will carry.
-    pending: Vec<(String, u64)>,
+    /// After a reconnect, ref → the topic joined again, until its reply.
+    rejoining: Vec<(String, String)>,
     /// The callbacks stay owned here: dropping one unregisters it.
     _callbacks: Vec<Closure<dyn FnMut(JsValue)>>,
     _on_message: Closure<dyn FnMut(MessageEvent)>,
+}
+
+/// The browser still fires a closed socket's `onclose` after this is
+/// dropped, and a dropped closure throws when called: detach them first.
+impl Drop for Link {
+    fn drop(&mut self) {
+        self.ws.set_onopen(None);
+        self.ws.set_onmessage(None);
+        self.ws.set_onclose(None);
+        self.ws.set_onerror(None);
+        let _ = self.ws.close();
+    }
+}
+
+/// Where a socket is between one connection and the next.
+enum Phase {
+    Live(Link),
+    /// Sitting out a back-off until this page time, in seconds.
+    Waiting(f64),
+    /// Renewing a stale token; the promise settles into the cell.
+    Renewing(Rc<RefCell<Option<Result<(), String>>>>),
+}
+
+/// What the rest of a tick does after a live step.
+enum Next {
+    Stay,
+    Drop(String),
+    ClosedByGame,
+}
+
+/// One socket the engine still holds, stepped once per tick. It outlives a
+/// connection: a drop reconnects, backing off, and joins again every topic
+/// the game had joined.
+struct LiveSocket {
+    socket: u64,
+    client: SharedClient,
+    commands: Receiver<SocketCommand>,
+    events: Sender<GamendEvent>,
+    user_topic: String,
+    phase: Phase,
+    /// A connection that never opened is an error, not a drop.
+    opened_once: bool,
+    tries: u32,
+    /// ref → the request id whose reply it will carry.
+    pending: Vec<(String, u64)>,
+    /// ref → the topic a join asked for, forgotten if the server refuses it.
+    joining: Vec<(String, String)>,
+    /// What the game joined, with its payload: what a reconnect joins again.
+    topics: Vec<(String, Json)>,
+    /// Topics the server refused on the last reconnect.
+    lost: Vec<String>,
+    /// Channels the server crashed, waiting to be joined again, and the
+    /// joins sent for them, by ref.
+    rejoins: Rejoins,
+    rejoining: Vec<(String, Rejoin)>,
 }
 
 thread_local! {
@@ -211,43 +263,30 @@ fn now() -> f64 {
     js_sys::Date::now() / 1000.0
 }
 
-/// The server reads the token once, as the socket opens, and a browser
-/// hides why a handshake failed: a stale token is renewed first.
+/// Seconds before its expiry that a token counts as stale.
+const RENEW_MARGIN: i64 = 30;
+
+/// Whether the session's token is past its expiry, or near it. The server
+/// reads the token only as a socket opens, and a browser hides why a
+/// handshake failed, so a stale one is renewed first.
+fn stale(client: &SharedClient) -> bool {
+    #[allow(clippy::cast_possible_truncation, reason = "seconds since 1970")]
+    let now = now() as i64;
+    client
+        .0
+        .borrow()
+        .session()
+        .is_some_and(|session| session.stale(now, RENEW_MARGIN))
+}
+
 pub(crate) fn spawn_socket(
     client: &SharedClient,
     socket: u64,
     commands: Receiver<SocketCommand>,
     events: &Sender<GamendEvent>,
 ) {
-    let client = client.clone();
-    let events = events.clone();
-    spawn_local(async move {
-        #[allow(clippy::cast_possible_truncation, reason = "seconds since 1970")]
-        let now = now() as i64;
-        let stale = client
-            .0
-            .borrow()
-            .session()
-            .is_some_and(|session| session.stale(now, RENEW_MARGIN));
-        if stale && let Err(reason) = renew(&client).await {
-            let _ = events.send(GamendEvent::SocketError { socket, reason });
-            return;
-        }
-        open_socket(&client, socket, commands, &events);
-    });
-}
-
-/// Seconds before its expiry that a token counts as stale.
-const RENEW_MARGIN: i64 = 30;
-
-fn open_socket(
-    client: &SharedClient,
-    socket: u64,
-    commands: Receiver<SocketCommand>,
-    events: &Sender<GamendEvent>,
-) {
-    let (url, user_topic) = match socket_url(client) {
-        Ok(parts) => parts,
+    let user_topic = match socket_url(client) {
+        Ok((_, topic)) => topic,
         Err(err) => {
             let _ = events.send(GamendEvent::SocketError {
                 socket,
@@ -256,82 +295,97 @@ fn open_socket(
             return;
         }
     };
-    let ws = match WebSocket::new(&url) {
-        Ok(ws) => ws,
-        Err(error) => {
-            let _ = events.send(GamendEvent::SocketError {
-                socket,
-                reason: describe(error),
-            });
-            return;
-        }
-    };
-    ws.set_binary_type(BinaryType::Arraybuffer);
-    let arrivals: Rc<RefCell<VecDeque<Arrival>>> = Rc::new(RefCell::new(VecDeque::new()));
-    let opened = Rc::new(Cell::new(false));
-
-    let on_open = {
-        let opened = Rc::clone(&opened);
-        Closure::wrap(Box::new(move |_: JsValue| opened.set(true)) as Box<dyn FnMut(JsValue)>)
-    };
-    ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
-
-    let on_message = {
-        let arrivals = Rc::clone(&arrivals);
-        Closure::wrap(Box::new(move |event: MessageEvent| {
-            if let Some(text) = event.data().as_string() {
-                arrivals.borrow_mut().push_back(Arrival::Text(text));
-            } else {
-                tracing::warn!("binary frame on a JSON connection; dropped");
-            }
-        }) as Box<dyn FnMut(MessageEvent)>)
-    };
-    ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-
-    let on_close = {
-        let arrivals = Rc::clone(&arrivals);
-        Closure::wrap(Box::new(move |event: JsValue| {
-            let reason = event
-                .dyn_ref::<CloseEvent>()
-                .map(CloseEvent::reason)
-                .filter(|r| !r.is_empty())
-                .unwrap_or_else(|| String::from("closed"));
-            arrivals.borrow_mut().push_back(Arrival::Closed(reason));
-        }) as Box<dyn FnMut(JsValue)>)
-    };
-    ws.set_onclose(Some(on_close.as_ref().unchecked_ref()));
-
-    let on_error = {
-        let arrivals = Rc::clone(&arrivals);
-        Closure::wrap(Box::new(move |event: JsValue| {
-            // The browser deliberately withholds why a socket failed.
-            let reason = event
-                .dyn_ref::<ErrorEvent>()
-                .map(ErrorEvent::message)
-                .filter(|m| !m.is_empty())
-                .unwrap_or_else(|| String::from("the connection failed"));
-            arrivals.borrow_mut().push_back(Arrival::Failed(reason));
-        }) as Box<dyn FnMut(JsValue)>)
-    };
-    ws.set_onerror(Some(on_error.as_ref().unchecked_ref()));
-
+    // Due at once: the first step renews a stale token and dials.
     LIVE.with(|live| {
         live.borrow_mut().push(LiveSocket {
-            ws,
             socket,
-            protocol: Protocol::new(now()),
-            arrivals,
-            opened,
+            client: client.clone(),
             commands,
             events: events.clone(),
             user_topic,
-            join_ref: None,
-            joined: false,
+            phase: Phase::Waiting(0.0),
+            opened_once: false,
+            tries: 0,
             pending: Vec::new(),
-            _callbacks: vec![on_open, on_close, on_error],
-            _on_message: on_message,
+            joining: Vec::new(),
+            topics: Vec::new(),
+            lost: Vec::new(),
+            rejoins: Rejoins::default(),
+            rejoining: Vec::new(),
         });
     });
+}
+
+impl Link {
+    fn open(url: &str) -> Result<Self, String> {
+        let ws = WebSocket::new(url).map_err(describe)?;
+        ws.set_binary_type(BinaryType::Arraybuffer);
+        let arrivals: Rc<RefCell<VecDeque<Arrival>>> = Rc::new(RefCell::new(VecDeque::new()));
+        let opened = Rc::new(Cell::new(false));
+
+        let on_open = {
+            let opened = Rc::clone(&opened);
+            Closure::wrap(Box::new(move |_: JsValue| opened.set(true)) as Box<dyn FnMut(JsValue)>)
+        };
+        ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+
+        let on_message = {
+            let arrivals = Rc::clone(&arrivals);
+            Closure::wrap(Box::new(move |event: MessageEvent| {
+                if let Some(text) = event.data().as_string() {
+                    arrivals.borrow_mut().push_back(Arrival::Text(text));
+                } else {
+                    tracing::warn!("binary frame on a JSON connection; dropped");
+                }
+            }) as Box<dyn FnMut(MessageEvent)>)
+        };
+        ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+
+        let on_close = {
+            let arrivals = Rc::clone(&arrivals);
+            Closure::wrap(Box::new(move |event: JsValue| {
+                let reason = event
+                    .dyn_ref::<CloseEvent>()
+                    .map(CloseEvent::reason)
+                    .filter(|r| !r.is_empty())
+                    .unwrap_or_else(|| String::from("closed"));
+                arrivals.borrow_mut().push_back(Arrival::Closed(reason));
+            }) as Box<dyn FnMut(JsValue)>)
+        };
+        ws.set_onclose(Some(on_close.as_ref().unchecked_ref()));
+
+        let on_error = {
+            let arrivals = Rc::clone(&arrivals);
+            Closure::wrap(Box::new(move |event: JsValue| {
+                // The browser deliberately withholds why a socket failed.
+                let reason = event
+                    .dyn_ref::<ErrorEvent>()
+                    .map(ErrorEvent::message)
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or_else(|| String::from("the connection failed"));
+                arrivals.borrow_mut().push_back(Arrival::Failed(reason));
+            }) as Box<dyn FnMut(JsValue)>)
+        };
+        ws.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+
+        Ok(Self {
+            ws,
+            protocol: Protocol::new(now()),
+            arrivals,
+            opened,
+            join_ref: None,
+            joined: false,
+            rejoining: Vec::new(),
+            _callbacks: vec![on_open, on_close, on_error],
+            _on_message: on_message,
+        })
+    }
+
+    fn send(&self, frame: &str) -> Result<(), String> {
+        self.ws
+            .send_with_str(frame)
+            .map_err(|err| format!("websocket send: {}", describe(err)))
+    }
 }
 
 /// Step every live connection once; called once per tick.
@@ -340,64 +394,224 @@ pub(crate) fn pump() {
 }
 
 impl LiveSocket {
-    /// One tick of the connection. Answers whether it is still alive.
+    /// One tick of the socket. Answers whether it is still alive.
     fn step(&mut self) -> bool {
-        if self.opened.get() && self.join_ref.is_none() {
-            let (reference, frame) = self.protocol.join(&self.user_topic, &json!({}));
-            if self.ws.send_with_str(&frame).is_err() {
-                return self.fail("the user channel join could not be sent");
+        match &self.phase {
+            Phase::Live(_) => match self.live() {
+                Next::Stay => true,
+                Next::Drop(reason) => self.dropped(reason),
+                Next::ClosedByGame => self.closed_by_game(),
+            },
+            Phase::Waiting(at) => {
+                let at = *at;
+                if !self.wait_commands() {
+                    return self.closed_by_game();
+                }
+                if now() < at {
+                    return true;
+                }
+                if !stale(&self.client) {
+                    return self.dial();
+                }
+                let settled = Rc::new(RefCell::new(None));
+                let into = Rc::clone(&settled);
+                let client = self.client.clone();
+                spawn_local(async move {
+                    *into.borrow_mut() = Some(renew(&client).await);
+                });
+                self.phase = Phase::Renewing(settled);
+                true
             }
-            self.join_ref = Some(reference);
-        }
-        let arrivals: Vec<Arrival> = self.arrivals.borrow_mut().drain(..).collect();
-        for arrival in arrivals {
-            match arrival {
-                Arrival::Text(text) => match self.protocol.decode(&text) {
-                    Ok(Some(event)) => {
-                        if !self.deliver(event) {
-                            return false;
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(err) => return self.fail(&err.to_string()),
-                },
-                Arrival::Closed(reason) => return self.close(reason),
-                Arrival::Failed(reason) => return self.fail(&reason),
-            }
-        }
-        if !self.joined {
-            return true;
-        }
-        loop {
-            match self.commands.try_recv() {
-                Ok(command) => match self.run(command) {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        let _ = self.ws.close_with_code_and_reason(1000, "bye");
-                        return self.close("closed by the game".into());
-                    }
-                    Err(err) => return self.fail(&err.to_string()),
-                },
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    let _ = self.ws.close_with_code_and_reason(1000, "bye");
-                    return self.close("closed by the game".into());
+            Phase::Renewing(settled) => {
+                let outcome = settled.borrow_mut().take();
+                if !self.wait_commands() {
+                    return self.closed_by_game();
+                }
+                match outcome {
+                    None => true,
+                    Some(Ok(())) => self.dial(),
+                    Some(Err(reason)) => self.dropped(reason),
                 }
             }
         }
-        match self.protocol.heartbeat(now()) {
-            Ok(Some(frame)) => {
-                if self.ws.send_with_str(&frame).is_err() {
-                    return self.fail("the heartbeat could not be sent");
-                }
-            }
-            Ok(None) => {}
-            Err(err) => return self.fail(&err.to_string()),
-        }
-        true
     }
 
-    fn deliver(&mut self, event: SocketEvent) -> bool {
+    fn dial(&mut self) -> bool {
+        let link = socket_url(&self.client)
+            .map_err(|err| err.to_string())
+            .and_then(|(url, _)| Link::open(&url));
+        match link {
+            Ok(link) => {
+                self.phase = Phase::Live(link);
+                true
+            }
+            Err(reason) => self.dropped(reason),
+        }
+    }
+
+    /// The connection is gone. A socket that was open backs off and tries
+    /// again, telling the game; one that never opened, or ran out of
+    /// tries, reports an error and ends.
+    fn dropped(&mut self, reason: String) -> bool {
+        self.fail_pending();
+        // A reconnect joins every topic again anyway.
+        self.rejoins = Rejoins::default();
+        self.rejoining.clear();
+        if let Phase::Live(link) = &self.phase {
+            let _ = link.ws.close();
+        }
+        let reason = if self.opened_once {
+            self.tries += 1;
+            if self.tries <= crate::RECONNECT_TRIES {
+                let wait = crate::backoff(self.tries);
+                let _ = self.events.send(GamendEvent::SocketReconnecting {
+                    socket: self.socket,
+                    attempt: self.tries,
+                    reason,
+                    wait,
+                });
+                self.phase = Phase::Waiting(now() + wait);
+                return true;
+            }
+            format!("gave up after {} tries: {reason}", crate::RECONNECT_TRIES)
+        } else {
+            reason
+        };
+        let _ = self.events.send(GamendEvent::SocketError {
+            socket: self.socket,
+            reason,
+        });
+        false
+    }
+
+    fn closed_by_game(&mut self) -> bool {
+        if let Phase::Live(link) = &self.phase {
+            let _ = link.ws.close_with_code_and_reason(1000, "bye");
+        }
+        self.fail_pending();
+        let _ = self.events.send(GamendEvent::SocketClosed {
+            socket: self.socket,
+            reason: "closed by the game".into(),
+        });
+        false
+    }
+
+    /// Commands that arrive with no connection to carry them. A call fails
+    /// at once rather than wait on a connection that may not come back; a
+    /// leave drops its topic from what is joined again. False when the game
+    /// closed the socket.
+    fn wait_commands(&mut self) -> bool {
+        loop {
+            let command = match self.commands.try_recv() {
+                Ok(command) => command,
+                Err(TryRecvError::Empty) => return true,
+                Err(TryRecvError::Disconnected) => return false,
+            };
+            match command {
+                SocketCommand::Close => return false,
+                SocketCommand::Interrupt => {}
+                SocketCommand::Leave { request, topic } => {
+                    self.topics.retain(|(joined, _)| *joined != topic);
+                    let _ = self.events.send(GamendEvent::Replied {
+                        request,
+                        status: "ok".into(),
+                        response: Json::Null,
+                    });
+                }
+                SocketCommand::Join { request, .. }
+                | SocketCommand::Push { request, .. }
+                | SocketCommand::CallHook { request, .. } => {
+                    let _ = self.events.send(GamendEvent::Failed {
+                        request,
+                        message: "the socket is reconnecting".into(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// One tick of an open connection.
+    fn live(&mut self) -> Next {
+        let Phase::Live(link) = &mut self.phase else {
+            return Next::Stay;
+        };
+        if link.opened.get() && link.join_ref.is_none() {
+            let (reference, frame) = link.protocol.join(&self.user_topic, &json!({}));
+            if let Err(reason) = link.send(&frame) {
+                return Next::Drop(reason);
+            }
+            link.join_ref = Some(reference);
+        }
+        // Decoded before any is delivered: delivering needs the whole socket.
+        let arrivals: Vec<Arrival> = link.arrivals.borrow_mut().drain(..).collect();
+        let mut decoded = Vec::new();
+        let mut ended = None;
+        for arrival in arrivals {
+            match arrival {
+                Arrival::Text(text) => match link.protocol.decode(&text) {
+                    Ok(Some(event)) => decoded.push(event),
+                    Ok(None) => {}
+                    Err(err) => {
+                        ended = Some(err.to_string());
+                        break;
+                    }
+                },
+                Arrival::Closed(reason) | Arrival::Failed(reason) => {
+                    ended = Some(reason);
+                    break;
+                }
+            }
+        }
+        for event in decoded {
+            if let Next::Drop(reason) = self.deliver(event) {
+                return Next::Drop(reason);
+            }
+        }
+        if let Some(reason) = ended {
+            return Next::Drop(reason);
+        }
+        let Phase::Live(link) = &mut self.phase else {
+            return Next::Stay;
+        };
+        if !link.joined {
+            return Next::Stay;
+        }
+        loop {
+            let command = match self.commands.try_recv() {
+                Ok(command) => command,
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => return Next::ClosedByGame,
+            };
+            match self.run(command) {
+                Ok(true) => {}
+                Ok(false) => return Next::ClosedByGame,
+                Err(err) => return Next::Drop(err.to_string()),
+            }
+        }
+        let Phase::Live(link) = &mut self.phase else {
+            return Next::Stay;
+        };
+        for rejoin in self.rejoins.take_due(now()) {
+            let (reference, frame) = link.protocol.join(&rejoin.topic, &rejoin.payload);
+            if let Err(reason) = link.send(&frame) {
+                return Next::Drop(reason);
+            }
+            self.rejoining.push((reference, rejoin));
+        }
+        match link.protocol.heartbeat(now()) {
+            Ok(Some(frame)) => match link.send(&frame) {
+                Ok(()) => Next::Stay,
+                Err(reason) => Next::Drop(reason),
+            },
+            Ok(None) => Next::Stay,
+            Err(err) => Next::Drop(err.to_string()),
+        }
+    }
+
+    fn deliver(&mut self, event: SocketEvent) -> Next {
+        let Phase::Live(link) = &mut self.phase else {
+            return Next::Stay;
+        };
         match event {
             SocketEvent::Reply {
                 reference,
@@ -405,16 +619,45 @@ impl LiveSocket {
                 response,
                 ..
             } => {
-                if !self.joined && self.join_ref.as_deref() == Some(reference.as_str()) {
+                if !link.joined && link.join_ref.as_deref() == Some(reference.as_str()) {
                     if status != "ok" {
-                        return self
-                            .fail(&format!("joining the user channel was refused: {status}"));
+                        return Next::Drop(format!(
+                            "joining the user channel was refused: {status}"
+                        ));
                     }
-                    self.joined = true;
-                    let _ = self.events.send(GamendEvent::SocketOpen {
-                        socket: self.socket,
-                    });
-                    return true;
+                    link.joined = true;
+                    if self.opened_once {
+                        self.rejoin();
+                    } else {
+                        self.opened_once = true;
+                        let _ = self.events.send(GamendEvent::SocketOpen {
+                            socket: self.socket,
+                        });
+                    }
+                    return Next::Stay;
+                }
+                if let Some(at) = link.rejoining.iter().position(|(r, _)| *r == reference) {
+                    let (_, topic) = link.rejoining.remove(at);
+                    if status != "ok" {
+                        self.topics.retain(|(joined, _)| *joined != topic);
+                        self.lost.push(topic);
+                    }
+                    if link.rejoining.is_empty() {
+                        self.reopened();
+                    }
+                    return Next::Stay;
+                }
+                if let Some(at) = self.rejoining.iter().position(|(r, _)| *r == reference) {
+                    let (_, rejoin) = self.rejoining.remove(at);
+                    self.rejoins
+                        .answered(rejoin, status == "ok", &mut self.topics, now());
+                    return Next::Stay;
+                }
+                if let Some(at) = self.joining.iter().position(|(r, _)| *r == reference) {
+                    let (_, topic) = self.joining.remove(at);
+                    if status != "ok" {
+                        self.topics.retain(|(joined, _)| *joined != topic);
+                    }
                 }
                 if let Some(at) = self.pending.iter().position(|(r, _)| *r == reference) {
                     let (_, request) = self.pending.remove(at);
@@ -424,34 +667,66 @@ impl LiveSocket {
                         response,
                     });
                 }
-                true
+                Next::Stay
             }
             SocketEvent::Message {
                 topic,
                 event,
                 payload,
             } => {
+                self.rejoins
+                    .heard(&event, &topic, &self.user_topic, &mut self.topics, now());
                 let _ = self.events.send(GamendEvent::SocketMessage {
                     socket: self.socket,
                     topic,
                     event,
                     payload,
                 });
-                true
+                Next::Stay
             }
-            SocketEvent::Closed { reason } => self.close(reason),
+            SocketEvent::Closed { reason } => Next::Drop(reason),
         }
+    }
+
+    /// Join again every topic the game had, after a reconnect.
+    fn rejoin(&mut self) {
+        let Phase::Live(link) = &mut self.phase else {
+            return;
+        };
+        for (topic, payload) in &self.topics {
+            let (reference, frame) = link.protocol.join(topic, payload);
+            if link.send(&frame).is_ok() {
+                link.rejoining.push((reference, topic.clone()));
+            }
+        }
+        if link.rejoining.is_empty() {
+            self.reopened();
+        }
+    }
+
+    fn reopened(&mut self) {
+        self.tries = 0;
+        let _ = self.events.send(GamendEvent::SocketReopened {
+            socket: self.socket,
+            lost: std::mem::take(&mut self.lost),
+        });
     }
 
     /// Apply one command. `Ok(false)` means the game asked to close.
     fn run(&mut self, command: SocketCommand) -> Result<bool> {
+        let Phase::Live(link) = &mut self.phase else {
+            return Ok(true);
+        };
         let (reference, frame, request) = match command {
             SocketCommand::Join {
                 request,
                 topic,
                 payload,
             } => {
-                let (reference, frame) = self.protocol.join(&topic, &payload);
+                let (reference, frame) = link.protocol.join(&topic, &payload);
+                self.joining.push((reference.clone(), topic.clone()));
+                self.topics.retain(|(joined, _)| *joined != topic);
+                self.topics.push((topic, payload));
                 (reference, frame, request)
             }
             SocketCommand::Push {
@@ -460,11 +735,12 @@ impl LiveSocket {
                 event,
                 payload,
             } => {
-                let (reference, frame) = self.protocol.push(&topic, &event, &payload)?;
+                let (reference, frame) = link.protocol.push(&topic, &event, &payload)?;
                 (reference, frame, request)
             }
             SocketCommand::Leave { request, topic } => {
-                let (reference, frame) = self.protocol.leave(&topic)?;
+                self.topics.retain(|(joined, _)| *joined != topic);
+                let (reference, frame) = link.protocol.leave(&topic)?;
                 (reference, frame, request)
             }
             SocketCommand::CallHook {
@@ -475,15 +751,14 @@ impl LiveSocket {
             } => {
                 let payload = json!({ "plugin": plugin, "fn": function, "args": args });
                 let (reference, frame) =
-                    self.protocol
+                    link.protocol
                         .push(&self.user_topic, "call_hook", &payload)?;
                 (reference, frame, request)
             }
             SocketCommand::Close => return Ok(false),
+            SocketCommand::Interrupt => return Err(anyhow!("interrupted by the game")),
         };
-        self.ws
-            .send_with_str(&frame)
-            .map_err(|err| anyhow!("websocket send: {}", describe(err)))?;
+        link.send(&frame).map_err(anyhow::Error::msg)?;
         self.pending.push((reference, request));
         Ok(true)
     }
@@ -491,31 +766,13 @@ impl LiveSocket {
     /// A reply that will never come is an error the caller must see, not a
     /// task suspended forever.
     fn fail_pending(&mut self) {
+        self.joining.clear();
         for (_, request) in self.pending.drain(..) {
             let _ = self.events.send(GamendEvent::Failed {
                 request,
                 message: "the connection ended before the reply".into(),
             });
         }
-    }
-
-    fn fail(&mut self, reason: &str) -> bool {
-        self.fail_pending();
-        let _ = self.ws.close();
-        let _ = self.events.send(GamendEvent::SocketError {
-            socket: self.socket,
-            reason: reason.to_string(),
-        });
-        false
-    }
-
-    fn close(&mut self, reason: String) -> bool {
-        self.fail_pending();
-        let _ = self.events.send(GamendEvent::SocketClosed {
-            socket: self.socket,
-            reason,
-        });
-        false
     }
 }
 

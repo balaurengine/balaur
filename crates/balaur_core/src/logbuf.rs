@@ -281,22 +281,25 @@ pub fn first_time(site: &'static str, key: &str) -> bool {
     })
 }
 
-pub use file::{open as open_file, path as file_path};
+pub use file::{close as close_file, flush as flush_file, open as open_file, path as file_path};
 
-/// The same stream teed to a file, so the run that crashed leaves its lines
-/// behind. Native only: a browser has nowhere to write one.
+/// The same stream kept in a file, so the run that crashed leaves its lines
+/// behind. Written through the `files` backend: the disk natively, the page's
+/// storage in a browser.
 mod file {
-    #[cfg(not(target_family = "wasm"))]
-    use std::io::Write as _;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
+    use std::thread::ThreadId;
 
     use super::LogEntry;
+    use crate::files::FileBackend;
 
     struct Sink {
         path: PathBuf,
-        #[cfg(not(target_family = "wasm"))]
-        file: std::fs::File, // os files: native only
+        /// The thread that opened the file: its backend is the one written to.
+        owner: ThreadId,
+        /// Lines captured on any thread since the last write.
+        waiting: String,
     }
 
     static SINK: Mutex<Option<Sink>> = Mutex::new(None);
@@ -313,44 +316,81 @@ mod file {
 
     /// Start writing `<dir>/<name>.log`, keeping the last `keep` runs as
     /// `<name>.1.log` and so on, and write a panic there before it unwinds.
+    /// The thread that calls this writes the file, through its default
+    /// backend, each time it calls [`flush`].
     ///
     /// # Errors
     /// When the directory or the file cannot be made.
-    #[cfg(not(target_family = "wasm"))]
     pub fn open(dir: &Path, name: &str, keep: usize) -> anyhow::Result<PathBuf> {
-        std::fs::create_dir_all(dir)?; // os files: native only
+        flush();
+        let fs = crate::files::default_backend();
+        fs.mkdir(dir)?;
         let path = dir.join(format!("{name}.log"));
-        rotate(dir, name, keep);
-        let mut file = std::fs::File::create(&path)?; // os files: native only
+        rotate(&*fs, dir, name, keep);
         // What was logged before the file opened, `init` included, goes first.
+        let mut first = String::new();
         for entry in &super::since(0).0 {
-            let _ = writeln!(file, "{}", line_of(entry));
+            push_line(&mut first, entry);
         }
+        fs.write(&path, first.as_bytes())?;
         let had = lock().replace(Sink {
             path: path.clone(),
-            file,
+            owner: std::thread::current().id(),
+            waiting: String::new(),
         });
         if had.is_none() {
             let previous = std::panic::take_hook();
             std::panic::set_hook(Box::new(move |info| {
-                if let Some(sink) = lock().as_mut() {
-                    let _ = writeln!(sink.file, "panic {info}");
-                    let _ = sink.file.flush();
-                }
                 previous(info);
+                keep_panic(&format!("panic {info}\n"));
             }));
         }
         Ok(path)
     }
 
-    #[cfg(target_family = "wasm")]
-    pub fn open(_dir: &Path, _name: &str, _keep: usize) -> anyhow::Result<PathBuf> {
-        anyhow::bail!("a browser build keeps no log file")
+    /// Write the lines waiting since the last call, in one append. The engine
+    /// calls it once a frame; on a thread other than the opener's it does
+    /// nothing, and the lines wait for that thread.
+    pub fn flush() {
+        let (path, text) = {
+            let mut guard = lock();
+            let Some(sink) = guard.as_mut() else {
+                return;
+            };
+            if sink.waiting.is_empty() || sink.owner != std::thread::current().id() {
+                return;
+            }
+            (sink.path.clone(), std::mem::take(&mut sink.waiting))
+        };
+        // Unlocked first: a backend that logs lands back in `append`.
+        let _ = crate::files::default_backend().append(&path, text.as_bytes());
+    }
+
+    /// Write what is waiting and stop keeping the file.
+    pub fn close() {
+        flush();
+        *lock() = None;
+    }
+
+    /// The panic's line and whatever was waiting, written and synced at once:
+    /// a browser stops the module as soon as the hook returns.
+    fn keep_panic(line: &str) {
+        let (path, text) = {
+            let mut guard = lock();
+            let Some(sink) = guard.as_mut() else {
+                return;
+            };
+            let mut text = std::mem::take(&mut sink.waiting);
+            text.push_str(line);
+            (sink.path.clone(), text)
+        };
+        let fs = crate::files::default_backend();
+        let _ = fs.append(&path, text.as_bytes());
+        fs.sync(&path);
     }
 
     /// `<name>.log` becomes `<name>.1.log`, and so on, the oldest dropped.
-    #[cfg(not(target_family = "wasm"))]
-    fn rotate(dir: &Path, name: &str, keep: usize) {
+    fn rotate(fs: &dyn FileBackend, dir: &Path, name: &str, keep: usize) {
         let at = |n: usize| {
             if n == 0 {
                 dir.join(format!("{name}.log"))
@@ -361,34 +401,31 @@ mod file {
         if keep == 0 {
             return;
         }
-        let _ = std::fs::remove_file(at(keep)); // os files: native only
+        let _ = fs.remove(&at(keep));
         for n in (0..keep).rev() {
-            let _ = std::fs::rename(at(n), at(n + 1)); // os files: native only
+            if fs.exists(&at(n)) {
+                let _ = fs.rename(&at(n), &at(n + 1));
+            }
         }
     }
 
     /// One line per entry: elapsed seconds, level, tag, message, fields.
-    #[cfg(not(target_family = "wasm"))]
-    fn line_of(entry: &LogEntry) -> String {
-        let mut line = format!(
+    fn push_line(out: &mut String, entry: &LogEntry) {
+        use std::fmt::Write as _;
+        let _ = write!(
+            out,
             "{:10.3} {:5} {}: {}",
             entry.time, entry.level, entry.tag, entry.message
         );
         for (name, value) in &entry.fields {
-            let _ = std::fmt::Write::write_fmt(&mut line, format_args!(" {name}={value}"));
+            let _ = write!(out, " {name}={value}");
         }
-        line
+        out.push('\n');
     }
 
     pub(super) fn append(entry: &LogEntry) {
-        #[cfg(not(target_family = "wasm"))]
         if let Some(sink) = lock().as_mut() {
-            let _ = writeln!(sink.file, "{}", line_of(entry));
-            if entry.level == "error" {
-                let _ = sink.file.flush();
-            }
+            push_line(&mut sink.waiting, entry);
         }
-        #[cfg(target_family = "wasm")]
-        let _ = entry;
     }
 }

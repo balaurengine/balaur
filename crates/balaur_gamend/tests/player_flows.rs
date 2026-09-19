@@ -371,3 +371,57 @@ fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
         ],
     );
 }
+
+#[test]
+fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
+    if !e2e_enabled() {
+        return;
+    }
+    run_flow(
+        "realtime",
+        false,
+        &[
+            "create=201",
+            "open=yes",
+            "channel_joined=yes",
+            "interrupted=yes",
+            "reconnecting=yes",
+            "reopened=yes",
+            "nothing_lost=yes",
+            "rename=200",
+            "heard_after=yes",
+            "hook_after=yes",
+            "closed=yes",
+            "leave=200",
+            "delete=200",
+            "lookup_deleted=404",
+        ],
+    );
+}
+
+#[test]
+fn a_kicked_player_forgets_the_closed_channel_and_a_reconnect_does_not_join_it() {
+    if !e2e_enabled() {
+        return;
+    }
+    run_flow(
+        "kicked",
+        true,
+        &[
+            "b_create=201",
+            "join=200",
+            "open=yes",
+            "channel_joined=yes",
+            "b_kick=200",
+            "kicked=yes",
+            "channel_closed=yes",
+            "interrupted=yes",
+            "reopened=yes",
+            "b_rename=200",
+            "not_rejoined=yes",
+            "b_leave=200",
+            "delete=200",
+            "lookup_deleted=404",
+        ],
+    );
+}

@@ -6,12 +6,8 @@ use crate::style;
 use crate::util;
 
 const SHEET = "about";
-const LOGO = "assets/balaur-logo.png";
 const SITE = "https://balaurengine.org";
 const SOURCE = "https://github.com/balaurengine/balaur";
-// The mark is dark ink on nothing, drawn for a light ground; the top bar sets
-// it on a light badge, and so does this.
-const PLATE = "#e9edf2";
 const LABEL_W = 96.0;
 
 /// Show the sheet. Opening it is asking, so the feed is read once here unless
@@ -35,9 +31,7 @@ fn body(S, k) {
     let h = util::max(style::row_h(S), 30.0);
     let mine = util::obj(release::installed());
     ui::horizontal(#{ height: 52, width: w }, || {
-        ui::frame(#{ fill: PLATE, radius: 26, padding_x: 4, padding_y: 4 }, || {
-            ui::image(LOGO, #{ width: 44 });
-        });
+        crate::manager::mark(44.0);
         ui::add_space(14);
         ui::vertical(|| {
             ui::label("Balaur " + mine.version, #{

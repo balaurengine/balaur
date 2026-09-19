@@ -16,6 +16,7 @@ const HEARD_WAIT = 5.0;
 pub async fn init(this) {
     gamend::configure(URL);
     this.heard = [];
+    this.lost = [];
     let steps = [];
     let login = sign_in(DEVICE).await;
     let me = field(login, "user_id");
@@ -34,6 +35,10 @@ pub async fn init(this) {
         goodbye(steps, me, ()).await;
     } else if FLOW == "catalog" {
         catalog(steps, me).await;
+    } else if FLOW == "realtime" {
+        realtime(this, steps, me).await;
+    } else if FLOW == "kicked" {
+        kicked(this, steps, me).await;
     }
     let line = `flow ${FLOW}:`;
     for step in steps {
@@ -296,13 +301,96 @@ async fn catalog(steps, me) {
     goodbye(steps, me, ()).await;
 }
 
-/// Every socket event, named as `gamend::events::decode` names it, for `heard`.
+/// A dropped connection comes back by itself, joins its topics again and
+/// says so, and an event after it still reaches its own handler.
+async fn realtime(this, steps, me) {
+    let made = data(call(steps, "create", || gamend::lobbies::create_lobby((), #{ "title": `live ${TAG}`, "max_users": 2 })).await);
+    let id = field(made, "id");
+    this.socket = gamend::connect(this.node);
+    check(steps, "open", heard(this, "routed_socket_open").await);
+    let joined = task::wait(gamend::join(this.socket, `lobby:${id}`)).await;
+    check(steps, "channel_joined", same(field(joined, "status"), "ok"));
+    check(steps, "interrupted", gamend::interrupt(this.socket));
+    check(steps, "reconnecting", heard(this, "routed_socket_reconnecting").await);
+    check(steps, "reopened", heard(this, "routed_socket_reopened").await);
+    check(steps, "nothing_lost", count(this.lost) == 0);
+    call(steps, "rename", || gamend::lobbies::update_lobby((), #{ "title": `after ${TAG}` })).await;
+    check(steps, "heard_after", heard(this, "routed_lobby_updated").await);
+    // No plugin answers `sdk_probe`, so the reply is an error: the socket
+    // carries calls again.
+    let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
+    check(steps, "hook_after", same(field(hook, "status"), "error"));
+    gamend::close(this.socket);
+    check(steps, "closed", heard(this, "routed_socket_closed").await);
+    call(steps, "leave", || gamend::lobbies::leave_lobby(())).await;
+    goodbye(steps, me, ()).await;
+}
+
+/// A player the host kicks loses the lobby's channel, which the server
+/// closes on purpose: a reconnect after it does not join it again.
+async fn kicked(this, steps, me) {
+    let made = data(as_b(steps, "create", "POST", "/api/v1/lobbies", #{ "title": `kick ${TAG}`, "max_users": 2 }).await);
+    let id = field(made, "id");
+    call(steps, "join", || gamend::lobbies::join_lobby((), id, #{})).await;
+    this.socket = gamend::connect(this.node);
+    check(steps, "open", heard(this, "routed_socket_open").await);
+    let joined = task::wait(gamend::join(this.socket, `lobby:${id}`)).await;
+    check(steps, "channel_joined", same(field(joined, "status"), "ok"));
+    as_b(steps, "kick", "POST", "/api/v1/lobbies/kick", #{ "target_user_id": me }).await;
+    check(steps, "kicked", heard(this, "routed_lobby_member_kicked").await);
+    check(steps, "channel_closed", heard(this, "phx_close").await);
+    check(steps, "interrupted", gamend::interrupt(this.socket));
+    check(steps, "reopened", heard(this, "routed_socket_reopened").await);
+    // The server lets anyone watch a lobby, so a rejoin would be let in and
+    // would hear the rename; only a forgotten topic stays quiet.
+    this.heard = [];
+    as_b(steps, "rename", "PATCH", "/api/v1/lobbies", #{ "title": `renamed ${TAG}` }).await;
+    let rejoined = heard(this, "lobby_updated").await;
+    check(steps, "not_rejoined", !rejoined);
+    gamend::close(this.socket);
+    as_b(steps, "leave", "POST", "/api/v1/lobbies/leave", ()).await;
+    goodbye(steps, me, ()).await;
+}
+
+/// Every socket event, named as `gamend::events::decode` names it, or by
+/// the server's own event where the table names none, for `heard`; and
+/// handed on to the handlers below.
 pub fn on_gamend_event(this, e) {
     let kind = e["kind"];
     if kind == "message" {
-        kind = gamend::events::decode(e["topic"], e["event"], e["payload"])["kind"];
+        let named = gamend::events::decode(e["topic"], e["event"], e["payload"])["kind"];
+        kind = e["event"];
+        if named != "message" {
+            kind = named;
+        }
     }
     this.heard.push(kind);
+    gamend::client::route(this.node, e);
+}
+
+pub fn on_lobby_member_kicked(this, e) {
+    this.heard.push("routed_lobby_member_kicked");
+}
+
+pub fn on_socket_open(this, e) {
+    this.heard.push("routed_socket_open");
+}
+
+pub fn on_socket_reconnecting(this, e) {
+    this.heard.push("routed_socket_reconnecting");
+}
+
+pub fn on_socket_reopened(this, e) {
+    this.lost = e["lost"];
+    this.heard.push("routed_socket_reopened");
+}
+
+pub fn on_socket_closed(this, e) {
+    this.heard.push("routed_socket_closed");
+}
+
+pub fn on_lobby_updated(this, e) {
+    this.heard.push("routed_lobby_updated");
 }
 
 /// Whether the socket delivers `kind` within a few seconds.

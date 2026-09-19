@@ -353,6 +353,41 @@ func shown(box):\n\
 }
 
 #[test]
+fn writing_a_vector_lane_writes_the_vector() {
+    let source = "extends Node\n\
+var velocity := Vector2.ZERO\n\
+\n\
+func push(other):\n\
+\tvar v := Vector2(1, 2)\n\
+\tv.x = 3\n\
+\tvelocity.y += 1\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    for expected in [
+        r#"(gd.set_field)(v, "x", 3)"#,
+        r#"(gd.set_field)(this.velocity, "y", (gd.field)(this.velocity, "y") + 1)"#,
+    ] {
+        assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
+    }
+}
+
+#[test]
+fn writing_into_another_objects_table_and_emitting_its_signal_go_through_the_shim() {
+    let source = "extends Node\n\
+\n\
+func seed(other):\n\
+\tif other.state.is_empty():\n\
+\t\tother.state[\"id\"] = \"ro\"\n\
+\tother.state_changed.emit(other.state)\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    for expected in [
+        r#"let _ = (gd.set)((gd.field)(other, "state"), "id", "ro");"#,
+        r#"(gd.emit_engine)(other, "state_changed", [(gd.field)(other, "state")])"#,
+    ] {
+        assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
+    }
+}
+
+#[test]
 fn a_body_that_calls_the_shim_binds_it_first() {
     let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
     assert!(

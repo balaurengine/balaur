@@ -201,6 +201,11 @@ shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:4
 # The screen a bare launch opens on. Taken with a project given, since the
 # take needs one to boot; the state puts the manager over it either way.
 shot project_manager   examples/hello      "manager"
+shot project_examples  examples/hello      "examples"
+# These two read the release feed, and the shot is frame 60: on a slow
+# connection the picture says `checking`, so look before publishing it.
+shot engine_versions   examples/hello      "versions"
+shot about_balaur      examples/hello      "about"
 # A screen made only of widget nodes: the card grid, the controls and the
 # theme's roles. Run rather than edited, so the picture is the screen itself.
 screen ui_kinds        examples/interface
@@ -226,6 +231,11 @@ shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
 # The completion popup, and the Docs dock the reference is rendered into.
 shot script_completion examples/hello      "script,select:Spinner,show:completion"
+# The same popup along a mounted addon's path: hello with the Gamend SDK in.
+addon_hello=$work/addon_hello
+rm -rf "$addon_hello" && cp -R examples/hello "$addon_hello"
+cp -R editor/library/addons "$addon_hello/addons"
+shot addon_completion "$addon_hello"   "script,select:Spinner,show:addon_completion"
 shot script_docs       examples/hello      "script,select:Spinner,dock:docs"
 # Focus: the code pane with the window to itself, beside its hooks list.
 shot editor_focus      examples/hello      "script,select:Spinner,focus"
@@ -272,6 +282,7 @@ shot editor_profiler   examples/angrynerds "scene,select:Bird,play,dock:profiler
 shot networking_faults examples/angrynerds "scene,settings:netcode"
 shot save_settings     examples/angrynerds "scene,settings:save"
 shot locale_settings   examples/angrynerds "scene,settings:locale"
+shot log_settings      examples/angrynerds "scene,settings:log"
 shot editor_assets     examples/angrynerds "scene,select:Bird,dock:assets"
 # Two imports at once: what each is writing, what the pair of them adds up
 # to, and the Import button they came through.

@@ -18,7 +18,7 @@ cannot drift from what scripts actually see.
 | [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 18 | 0 | the engine |
+| [`gamend`](#gamend) | 19 | 0 | the engine |
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
@@ -135,7 +135,7 @@ cannot drift from what scripts actually see.
 
 ## `gamend`
 
-**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `session`, `target`
+**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `session`, `target`
 
 ## `geometry2d`
 

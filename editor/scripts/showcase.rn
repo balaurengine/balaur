@@ -50,7 +50,8 @@ pub fn start(S, name) {
     match name {
         "scenes" => scenes(S, q),
         "scripting" => scripting(S, q),
-        "completion" => completion(S, q),
+        "completion" => completion(S, q, "    physics2d::a"),
+        "addon_completion" => completion(S, q, "    gamend::lobbies::"),
         "animation" => animation(S, q),
         "physics" => physics(S, q),
         "input" => input_clip(S, q),
@@ -494,10 +495,10 @@ fn scripting(S, q) {
     act(q, 860, || restore_source(S, rel, q));
 }
 
-// Completion, `examples/hello`: the caret lands after a module path and the
-// popup opens under it. The caret is placed rather than typed, the way
-// `edit_source` writes the buffer rather than typing into it.
-fn completion(S, q) {
+// Completion, `examples/hello`: the caret lands after `text`, a module path,
+// and the popup opens under it. The caret is placed rather than typed, the
+// way `edit_source` writes the buffer rather than typing into it.
+fn completion(S, q, text) {
     let rel = "scripts/spinner.rn";
     act(q, 1, || {
         q.kept[rel] = model::source(S, rel).unwrap_or("");
@@ -508,7 +509,7 @@ fn completion(S, q) {
         // `init`, not `update`: the pane does not scroll to a caret the
         // showcase places, so the popup has to open where it already looks.
         let line = line_of(S, rel, "pub fn init");
-        open_at(S, rel, line, "    physics2d::a");
+        open_at(S, rel, line, text);
     });
     act(q, 420, || restore_source(S, rel, q));
 }

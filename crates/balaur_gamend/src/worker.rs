@@ -8,6 +8,7 @@
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 
+use crate::channels::{Rejoin, Rejoins};
 use crate::client::{Client, Credentials, Socket, SocketEvent, auth};
 use serde_json::Value as Json;
 
@@ -129,16 +130,74 @@ fn unix_now() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
-/// Connect, join the own-user topic, then serve until the connection ends.
-/// The returned event is the connection's final word.
+/// How a served connection ended.
+enum Served {
+    /// The game closed the socket.
+    Closed,
+    /// The connection dropped, for this reason.
+    Dropped(String),
+}
+
+/// Connect, join the own-user topic, then serve until the game closes the
+/// socket. A drop reconnects, backing off, and joins again every topic the
+/// game had joined. The returned event is the connection's final word.
 fn open(
     client: &SharedClient,
     socket: u64,
     commands: &Receiver<SocketCommand>,
     events: &Sender<GamendEvent>,
 ) -> anyhow::Result<GamendEvent> {
-    // The server reads the token once, here; a stale one is renewed first,
-    // and a refused one once more.
+    let (mut connection, user_topic) = dial(client)?;
+    // The own-user channel carries hooks, notifications and profile pushes;
+    // joining it first means `open` implies "ready for call_hook".
+    if !join(
+        &mut connection,
+        &user_topic,
+        &Json::Object(serde_json::Map::new()),
+        socket,
+        events,
+    )? {
+        anyhow::bail!("joining the user channel was refused");
+    }
+    let _ = events.send(GamendEvent::SocketOpen { socket });
+    // What the game joined, with its payload: what a reconnect joins again.
+    let mut topics: Vec<(String, Json)> = Vec::new();
+    loop {
+        let reason = match serve(
+            &mut connection,
+            socket,
+            commands,
+            events,
+            &user_topic,
+            &mut topics,
+        ) {
+            Served::Closed => return Ok(closed_by_game(socket)),
+            Served::Dropped(reason) => reason,
+        };
+        match reconnect(client, socket, commands, events, &mut topics, reason) {
+            Ok(Some(fresh)) => connection = fresh,
+            Ok(None) => return Ok(closed_by_game(socket)),
+            Err(gave_up) => {
+                return Ok(GamendEvent::SocketError {
+                    socket,
+                    reason: gave_up.to_string(),
+                });
+            }
+        }
+    }
+}
+
+fn closed_by_game(socket: u64) -> GamendEvent {
+    GamendEvent::SocketClosed {
+        socket,
+        reason: "closed by the game".into(),
+    }
+}
+
+/// A connection the server takes, and the own-user topic. The server reads
+/// the token only here: a stale one is renewed first, a refused one once
+/// more.
+fn dial(client: &SharedClient) -> anyhow::Result<(Socket, String)> {
     let stale = client
         .lock()
         .session()
@@ -147,70 +206,269 @@ fn open(
         client.lock().renew()?;
     }
     let (url, user_topic) = socket_url(client)?;
-    let mut connection = match Socket::connect(&url) {
+    let connection = match Socket::connect(&url) {
         Err(err) if refused(&err) => {
             client.lock().renew()?;
             Socket::connect(&socket_url(client)?.0)?
         }
         other => other?,
     };
+    Ok((connection, user_topic))
+}
 
-    // The own-user channel carries hooks, notifications and profile pushes;
-    // joining it first means `open` implies "ready for call_hook".
-    let join_ref = connection.join(&user_topic, &serde_json::json!({}))?;
-    wait_join(&mut connection, &join_ref, socket, events)?;
-    let _ = events.send(GamendEvent::SocketOpen { socket });
-
-    // ref → the request id whose reply it will carry.
-    let mut pending: Vec<(String, u64)> = Vec::new();
-    loop {
-        match run_commands(&mut connection, commands, &user_topic, &mut pending) {
+/// Run the game's commands and the server's frames until the game closes the
+/// socket or the connection drops.
+fn serve(
+    connection: &mut Socket,
+    socket: u64,
+    commands: &Receiver<SocketCommand>,
+    events: &Sender<GamendEvent>,
+    user_topic: &str,
+    topics: &mut Vec<(String, Json)>,
+) -> Served {
+    let mut calls = Calls::default();
+    let mut rejoins = Rejoins::default();
+    let clock = Clock::start();
+    let reason = loop {
+        match run_commands(connection, commands, user_topic, &mut calls, topics) {
             Ok(true) => {}
             Ok(false) => {
-                fail_pending(&mut pending, events);
-                return Ok(GamendEvent::SocketClosed {
-                    socket,
-                    reason: "closed by the game".into(),
-                });
+                calls.fail(events);
+                return Served::Closed;
             }
-            Err(err) => {
-                fail_pending(&mut pending, events);
-                return Ok(GamendEvent::SocketError {
-                    socket,
-                    reason: err.to_string(),
-                });
-            }
+            Err(err) => break err.to_string(),
         }
-        for event in connection.poll()? {
+        if let Err(err) = send_rejoins(connection, &mut rejoins, &mut calls, clock.now()) {
+            break err.to_string();
+        }
+        let arrived = match connection.poll() {
+            Ok(arrived) => arrived,
+            Err(err) => break err.to_string(),
+        };
+        let mut ended = None;
+        for event in arrived {
             match event {
                 SocketEvent::Reply {
                     reference,
                     status,
                     response,
                     ..
-                } => {
-                    let Some(at) = pending.iter().position(|(r, _)| *r == reference) else {
-                        continue;
-                    };
-                    let (_, request) = pending.remove(at);
-                    let _ = events.send(GamendEvent::Replied {
-                        request,
-                        status,
-                        response,
-                    });
-                }
+                } => match calls.take_rejoin(&reference) {
+                    Some(rejoin) => rejoins.answered(rejoin, status == "ok", topics, clock.now()),
+                    None => calls.replied(events, topics, &reference, status, response),
+                },
                 SocketEvent::Message {
                     topic,
                     event,
                     payload,
-                } => forward_message(events, socket, topic, event, payload),
-                SocketEvent::Closed { reason } => {
-                    fail_pending(&mut pending, events);
-                    return Ok(GamendEvent::SocketClosed { socket, reason });
+                } => {
+                    rejoins.heard(&event, &topic, user_topic, topics, clock.now());
+                    forward_message(events, socket, topic, event, payload);
+                }
+                SocketEvent::Closed { reason } if reason.is_empty() => {
+                    ended = Some(String::from("the server closed the connection"));
+                }
+                SocketEvent::Closed { reason } => ended = Some(reason),
+            }
+        }
+        if let Some(reason) = ended {
+            break reason;
+        }
+    };
+    calls.fail(events);
+    Served::Dropped(reason)
+}
+
+/// Join again the channels whose time has come.
+fn send_rejoins(
+    connection: &mut Socket,
+    rejoins: &mut Rejoins,
+    calls: &mut Calls,
+    now: f64,
+) -> anyhow::Result<()> {
+    for rejoin in rejoins.take_due(now) {
+        let reference = connection.join(&rejoin.topic, &rejoin.payload)?;
+        calls.rejoining.push((reference, rejoin));
+    }
+    Ok(())
+}
+
+/// Seconds since a connection opened, for the rejoin waits.
+struct Clock(std::time::Instant);
+
+impl Clock {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a network back-off, not simulation"
+    )]
+    fn start() -> Self {
+        Self(std::time::Instant::now())
+    }
+
+    fn now(&self) -> f64 {
+        self.0.elapsed().as_secs_f64()
+    }
+}
+
+/// The calls waiting on a reply over one connection.
+#[derive(Default)]
+struct Calls {
+    /// ref → the request id whose reply it will carry.
+    pending: Vec<(String, u64)>,
+    /// ref → the topic a join asked for, forgotten if the server refuses it.
+    joining: Vec<(String, String)>,
+    /// ref → a crashed channel's join, sent by the socket itself.
+    rejoining: Vec<(String, Rejoin)>,
+}
+
+impl Calls {
+    fn take_rejoin(&mut self, reference: &str) -> Option<Rejoin> {
+        let at = self.rejoining.iter().position(|(r, _)| r == reference)?;
+        Some(self.rejoining.remove(at).1)
+    }
+
+    fn replied(
+        &mut self,
+        events: &Sender<GamendEvent>,
+        topics: &mut Vec<(String, Json)>,
+        reference: &str,
+        status: String,
+        response: Json,
+    ) {
+        if let Some(at) = self.joining.iter().position(|(r, _)| r == reference) {
+            let (_, topic) = self.joining.remove(at);
+            if status != "ok" {
+                topics.retain(|(joined, _)| *joined != topic);
+            }
+        }
+        let Some(at) = self.pending.iter().position(|(r, _)| r == reference) else {
+            return;
+        };
+        let (_, request) = self.pending.remove(at);
+        let _ = events.send(GamendEvent::Replied {
+            request,
+            status,
+            response,
+        });
+    }
+
+    /// A reply that will never come is an error the caller must see, not a
+    /// task suspended forever.
+    fn fail(&mut self, events: &Sender<GamendEvent>) {
+        self.joining.clear();
+        self.rejoining.clear();
+        for (_, request) in self.pending.drain(..) {
+            let _ = events.send(GamendEvent::Failed {
+                request,
+                message: "the connection ended before the reply".into(),
+            });
+        }
+    }
+}
+
+/// Come back after a drop, telling the game before each try. `Ok(None)` when
+/// the game closed the socket meanwhile; an error once it gives up.
+fn reconnect(
+    client: &SharedClient,
+    socket: u64,
+    commands: &Receiver<SocketCommand>,
+    events: &Sender<GamendEvent>,
+    topics: &mut Vec<(String, Json)>,
+    mut reason: String,
+) -> anyhow::Result<Option<Socket>> {
+    for attempt in 1..=crate::RECONNECT_TRIES {
+        let wait = crate::backoff(attempt);
+        let _ = events.send(GamendEvent::SocketReconnecting {
+            socket,
+            attempt,
+            reason: reason.clone(),
+            wait,
+        });
+        if !wait_out(wait, commands, events, topics) {
+            return Ok(None);
+        }
+        match reopen(client, socket, events, topics) {
+            Ok(connection) => return Ok(Some(connection)),
+            Err(err) => reason = err.to_string(),
+        }
+    }
+    anyhow::bail!("gave up after {} tries: {reason}", crate::RECONNECT_TRIES)
+}
+
+/// Sit out a back-off. A call made meanwhile fails at once rather than wait
+/// on a connection that may not come back; a leave drops its topic from what
+/// is joined again. False when the game closed the socket.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a network back-off, not simulation"
+)]
+fn wait_out(
+    seconds: f64,
+    commands: &Receiver<SocketCommand>,
+    events: &Sender<GamendEvent>,
+    topics: &mut Vec<(String, Json)>,
+) -> bool {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs_f64(seconds);
+    while std::time::Instant::now() < until {
+        loop {
+            let command = match commands.try_recv() {
+                Ok(command) => command,
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => return false,
+            };
+            match command {
+                SocketCommand::Close => return false,
+                SocketCommand::Interrupt => {}
+                SocketCommand::Leave { request, topic } => {
+                    topics.retain(|(joined, _)| *joined != topic);
+                    let _ = events.send(GamendEvent::Replied {
+                        request,
+                        status: "ok".into(),
+                        response: Json::Null,
+                    });
+                }
+                SocketCommand::Join { request, .. }
+                | SocketCommand::Push { request, .. }
+                | SocketCommand::CallHook { request, .. } => {
+                    let _ = events.send(GamendEvent::Failed {
+                        request,
+                        message: "the socket is reconnecting".into(),
+                    });
                 }
             }
         }
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    true
+}
+
+/// A new connection with the own-user topic and every topic the game joined
+/// joined again. One the server refuses now is dropped and reported.
+fn reopen(
+    client: &SharedClient,
+    socket: u64,
+    events: &Sender<GamendEvent>,
+    topics: &mut Vec<(String, Json)>,
+) -> anyhow::Result<Socket> {
+    let (mut connection, user_topic) = dial(client)?;
+    if !join(
+        &mut connection,
+        &user_topic,
+        &Json::Object(serde_json::Map::new()),
+        socket,
+        events,
+    )? {
+        anyhow::bail!("joining the user channel was refused");
+    }
+    let mut lost = Vec::new();
+    for (topic, payload) in topics.clone() {
+        if !join(&mut connection, &topic, &payload, socket, events)? {
+            lost.push(topic);
+        }
+    }
+    topics.retain(|(topic, _)| !lost.contains(topic));
+    let _ = events.send(GamendEvent::SocketReopened { socket, lost });
+    Ok(connection)
 }
 
 /// A channel message, handed to the frame loop as it arrived.
@@ -229,36 +487,23 @@ fn forward_message(
     });
 }
 
-/// A reply that will never come is an error the caller must see, not a task
-/// suspended forever.
-fn fail_pending(pending: &mut Vec<(String, u64)>, events: &Sender<GamendEvent>) {
-    for (_, request) in pending.drain(..) {
-        let _ = events.send(GamendEvent::Failed {
-            request,
-            message: "the connection ended before the reply".into(),
-        });
-    }
-}
-
-/// Pump the socket until the join's own reply lands, forwarding whatever
-/// else arrives meanwhile.
-fn wait_join(
+/// Join a topic and pump the socket until its reply lands, forwarding
+/// whatever else arrives meanwhile. False when the server refused it; an
+/// error when the connection failed first.
+fn join(
     connection: &mut Socket,
-    join_ref: &str,
+    topic: &str,
+    payload: &Json,
     socket: u64,
     events: &Sender<GamendEvent>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
+    let wanted = connection.join(topic, payload)?;
     for _ in 0..400 {
         for event in connection.poll()? {
             match event {
                 SocketEvent::Reply {
                     reference, status, ..
-                } if reference == join_ref => {
-                    if status == "ok" {
-                        return Ok(());
-                    }
-                    anyhow::bail!("joining the user channel was refused: {status}");
-                }
+                } if reference == wanted => return Ok(status == "ok"),
                 SocketEvent::Message {
                     topic,
                     event,
@@ -271,7 +516,7 @@ fn wait_join(
             }
         }
     }
-    anyhow::bail!("the user channel join never got a reply")
+    anyhow::bail!("joining {topic} never got a reply")
 }
 
 /// Apply queued commands. `Ok(false)` means the game asked to close.
@@ -279,7 +524,8 @@ fn run_commands(
     connection: &mut Socket,
     commands: &Receiver<SocketCommand>,
     user_topic: &str,
-    pending: &mut Vec<(String, u64)>,
+    calls: &mut Calls,
+    topics: &mut Vec<(String, Json)>,
 ) -> anyhow::Result<bool> {
     loop {
         let command = match commands.try_recv() {
@@ -287,20 +533,27 @@ fn run_commands(
             Err(TryRecvError::Empty) => return Ok(true),
             Err(TryRecvError::Disconnected) => return Ok(false),
         };
-        match command {
+        let (reference, request) = match command {
             SocketCommand::Join {
                 request,
                 topic,
                 payload,
-            } => pending.push((connection.join(&topic, &payload)?, request)),
+            } => {
+                let reference = connection.join(&topic, &payload)?;
+                calls.joining.push((reference.clone(), topic.clone()));
+                topics.retain(|(joined, _)| *joined != topic);
+                topics.push((topic, payload));
+                (reference, request)
+            }
             SocketCommand::Push {
                 request,
                 topic,
                 event,
                 payload,
-            } => pending.push((connection.push(&topic, &event, &payload)?, request)),
+            } => (connection.push(&topic, &event, &payload)?, request),
             SocketCommand::Leave { request, topic } => {
-                pending.push((connection.leave(&topic)?, request));
+                topics.retain(|(joined, _)| *joined != topic);
+                (connection.leave(&topic)?, request)
             }
             SocketCommand::CallHook {
                 request,
@@ -309,9 +562,11 @@ fn run_commands(
                 args,
             } => {
                 let payload = serde_json::json!({ "plugin": plugin, "fn": function, "args": args });
-                pending.push((connection.push(user_topic, "call_hook", &payload)?, request));
+                (connection.push(user_topic, "call_hook", &payload)?, request)
             }
             SocketCommand::Close => return Ok(false),
-        }
+            SocketCommand::Interrupt => anyhow::bail!("interrupted by the game"),
+        };
+        calls.pending.push((reference, request));
     }
 }

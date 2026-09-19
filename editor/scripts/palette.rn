@@ -120,9 +120,9 @@ fn commands(S) {
     // nowhere to write a template, but it reopens what the browser keeps.
     if !crate::manager::in_tab() {
         list.push(command("Open project…", icons::panel("assets"), "", || crate::manager::pick(S)));
-        list.push(command("New project…", icons::ui("add"), "", || crate::manager::open(S)));
+        list.push(command("New project…", icons::ui("add"), "", || crate::manager::open_over(S)));
     }
-    list.push(command("Recent projects…", icons::panel("library"), "", || crate::manager::open(S)));
+    list.push(command("Recent projects…", icons::panel("library"), "", || crate::manager::open_over(S)));
     // One command per scene file, the way the channel views are one per
     // channel: a prefab is placed by name rather than through a picker.
     for rel in model::scene_files(S) {

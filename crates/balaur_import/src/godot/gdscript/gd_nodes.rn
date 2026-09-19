@@ -331,6 +331,10 @@ fn detached() {
 pub fn add_child(parent, child) {
     if child is balaur::Node {
         child.set_parent(parent);
+        if child.has_tag(REMOVED) {
+            child.remove_tag(REMOVED);
+            child.set_visible(true);
+        }
         return child;
     }
     parent.add_child(child)
@@ -820,8 +824,22 @@ pub fn emit_now(emitter, name, args) {
     emitter.emit(name, payload);
 }
 
-/// `slider.value_changed.emit(v)` from outside: the widget's own handler runs
-/// now, on the node or scripted ancestor the widget layer would pick.
+/// `parent.remove_child(child)`: a node here is always in the tree, so it
+/// waits under the root, hidden, until it is added again or freed.
+pub fn remove_child(child) {
+    if child is balaur::Node && child.is_valid() && !child.has_tag(REMOVED) {
+        child.set_parent(scene::root());
+        child.add_tag(REMOVED);
+        child.set_visible(false);
+    }
+}
+
+/// Marks a node `remove_child` hid, so adding it back shows it again.
+const REMOVED = "__removed";
+
+/// `other.some_signal.emit(v)`: a widget's own handler runs now, on the node
+/// or scripted ancestor the widget layer would pick; any other signal reaches
+/// what connected to it.
 pub fn emit_engine(emitter, name, args) {
     let key = widget_handler_key(name);
     if !is_nil(key) && emitter is balaur::Node && emitter.has_component("widget") {
@@ -841,7 +859,10 @@ pub fn emit_engine(emitter, name, args) {
             }
         }
     }
-    emit_now(emitter, name, args)
+    if emitter is balaur::Node {
+        return emit_now(emitter, name, args);
+    }
+    emit_obj(emitter, name, args)
 }
 
 /// The widget key holding the handler for a Godot control signal.
@@ -1228,6 +1249,14 @@ fn node_method(node, name, args) {
     if name == "get_children" {
         return node.children();
     }
+    if name == "get_child_count" {
+        return node.children().len() as i64;
+    }
+    if name == "get_child" {
+        let children = node.children();
+        let at = if int(a0) < 0 { children.len() as i64 + int(a0) } else { int(a0) };
+        return get(children, at, ());
+    }
     if name == "get_node" || name == "get_node_or_null" {
         return node.get_node(a0);
     }
@@ -1528,41 +1557,36 @@ fn native(owner, name, args) {
     let count = args.len();
     let a0 = if count > 0 { args[0] } else { () };
     let a1 = if count > 1 { args[1] } else { () };
-    if owner is balaur::Vec2 {
+    // Godot's vector verbs over glam's: a zero vector normalises to zero,
+    // `sign` of zero is zero, and `orthogonal` turns clockwise.
+    if owner is balaur::Vec2 || owner is balaur::Vec3 {
         let out = match name {
             "length" => owner.length(),
-            "normalized" => owner.normalized(),
+            "length_squared" => owner.length_squared(),
+            "normalized" => owner.normalize_or_zero(),
             "dot" => owner.dot(a0),
-            "distance_to" => owner.distance_to(a0),
+            "cross" => owner.cross(a0),
+            "distance_to" => owner.distance(a0),
+            "distance_squared_to" => owner.distance_squared(a0),
+            "direction_to" => (a0 - owner).normalize_or_zero(),
             "lerp" => owner.lerp(a0, float(a1)),
-            "angle" => owner.angle(),
-            "angle_to_point" => owner.angle_to_point(a0),
-            "rotated" => owner.rotated(float(a0)),
+            "angle" => owner.to_angle(),
+            "angle_to" => owner.angle_to(a0),
+            "angle_to_point" => (a0 - owner).to_angle(),
+            "rotated" => owner.rotate_angle(float(a0)),
             "abs" => owner.abs(),
             "floor" => owner.floor(),
             "ceil" => owner.ceil(),
             "round" => owner.round(),
-            "sign" => owner.sign(),
-            "orthogonal" => owner.orthogonal(),
-            "length_squared" => owner.length_squared(),
-            "distance_squared_to" => owner.distance_squared_to(a0),
-            "direction_to" => owner.direction_to(a0),
+            "sign" => vector_sign(owner),
+            "orthogonal" => -owner.perp(),
             "clamp" => owner.clamp(a0, a1),
-            "limit_length" => owner.limit_length(float(a0)),
-            "move_toward" => owner.move_toward(a0, float(a1)),
-            "is_zero_approx" => owner.is_zero_approx(),
-            "is_equal_approx" => owner.is_equal_approx(a0),
-            _ => (),
-        };
-        return out;
-    }
-    if owner is balaur::Vec3 {
-        let out = match name {
-            "length" => owner.length(),
-            "normalized" => owner.normalized(),
-            "dot" => owner.dot(a0),
-            "distance_to" => owner.distance_to(a0),
-            "lerp" => owner.lerp(a0, float(a1)),
+            "limit_length" => owner.clamp_length_max(float(a0)),
+            "move_toward" => owner.move_towards(a0, float(a1)),
+            "is_zero_approx" => owner.abs_diff_eq(owner * 0.0, 0.00001),
+            "is_equal_approx" => owner.abs_diff_eq(a0, 0.00001),
+            "reflect" => owner.reflect(a0),
+            "project" => owner.project_onto(a0),
             _ => (),
         };
         return out;
@@ -1935,6 +1959,24 @@ pub fn set_field(owner, name, value) {
         }
     }
     return ();
+}
+
+/// Godot's `sign()` on a vector: zero stays zero, where glam's gives one.
+fn vector_sign(v) {
+    if v is balaur::Vec3 {
+        return balaur::Vec3::new(sign_of(v.x), sign_of(v.y), sign_of(v.z));
+    }
+    balaur::Vec2::new(sign_of(v.x), sign_of(v.y))
+}
+
+fn sign_of(n) {
+    if n > 0.0 {
+        return 1.0;
+    }
+    if n < 0.0 {
+        return -1.0;
+    }
+    0.0
 }
 
 /// A call `balaur import` could not translate. It says so once per name and

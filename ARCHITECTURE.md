@@ -835,10 +835,21 @@ specified, a single-threaded interpreter with no codegen. Our fork lets an int
 meet a float as a float, the conversion exact, and makes values of different
 types unequal where upstream raises.
 
+The maths types (`balaur::Vec2`, `Vec3`, `Vec4`, `IVec2`, `IVec3`, `Quat`,
+`Transform2d`, `Transform3d`, `Color`) are glam's f64 and i64 types, bound
+from glam's source by `scripts/gen_glam_api.py`. They are value types, as
+Godot's are. Rune shares every value between the names that hold it, so the
+fork copies a type that answers its `COPY` protocol wherever one is bound or
+stored: `let`, `x = ..`, parameters, patterns, fields, indexes, literals and a
+native function's arguments. A field read is not copied, so `this.pos.x = 1`
+writes into `this.pos`. Strings and byte buffers are values the same way,
+copied only when a second name would share one, so a fresh string costs
+nothing. Arrays and tables stay shared, as Godot's are.
+
 | Hazard | Status |
 | --- | --- |
 | `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`; Rune has no transcendentals, and our fork puts its `powf`/`powi` on libm (`crates/balaur_script_rune/tests/suite/pow.rs`) |
-| Object iteration order is the hash map's | **Done** — the fork hashes with `XxHash64` at a fixed seed, so order is the same everywhere. Still not *insertion* order: sort the keys. Upstream's `ahash` seeds from `getrandom` and its AES and software paths disagree |
+| Object iteration order is the hash map's | **Done** — the fork keeps objects, `HashMap` and `HashSet` in insertion order, and hashes with `XxHash64` at a fixed seed. Upstream's `ahash` seeds from `getrandom` and its AES and software paths disagree |
 | A random source seeded from entropy | **Done** — `rng` is an engine-owned PCG32 with a fixed default seed |
 | Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `fixed_dt()`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
 

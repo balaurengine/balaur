@@ -142,18 +142,52 @@ impl Activity {
                 topic,
                 event,
                 payload,
-            } => self.push(Entry {
-                seq: 0,
-                request: 0,
-                socket: Some(*socket),
-                kind: "message",
-                what: format!("{topic} {event}"),
-                status: String::new(),
-                started: None,
-                ms: None,
-                args: None,
-                reply: Some(kept(payload)),
-            }),
+            } => {
+                // The server closed the channel: the socket no longer has it.
+                if event == "phx_close" {
+                    let state = self.sockets.entry(*socket).or_default();
+                    state.topics.retain(|joined| joined != topic);
+                }
+                self.push(Entry {
+                    seq: 0,
+                    request: 0,
+                    socket: Some(*socket),
+                    kind: "message",
+                    what: format!("{topic} {event}"),
+                    status: String::new(),
+                    started: None,
+                    ms: None,
+                    args: None,
+                    reply: Some(kept(payload)),
+                });
+            }
+            GamendEvent::SocketReconnecting {
+                socket,
+                attempt,
+                reason,
+                wait,
+            } => {
+                let state = self.sockets.entry(*socket).or_default();
+                state.open = false;
+                state.reason = Some(reason.clone());
+                self.note(
+                    *socket,
+                    "reconnecting",
+                    format!("try {attempt} in {wait}s: {reason}"),
+                );
+            }
+            GamendEvent::SocketReopened { socket, lost } => {
+                let state = self.sockets.entry(*socket).or_default();
+                state.open = true;
+                state.reason = None;
+                state.topics.retain(|topic| !lost.contains(topic));
+                let what = if lost.is_empty() {
+                    String::from("every topic joined again")
+                } else {
+                    format!("refused again: {}", lost.join(", "))
+                };
+                self.note(*socket, "reopened", what);
+            }
             GamendEvent::SocketClosed { socket, reason }
             | GamendEvent::SocketError { socket, reason } => {
                 let state = self.sockets.entry(*socket).or_default();
@@ -162,6 +196,22 @@ impl Activity {
                 self.finish(*socket, reason.clone(), None);
             }
         }
+    }
+
+    /// Something the connection did on its own, not the answer to a call.
+    fn note(&mut self, socket: u64, kind: &'static str, what: String) {
+        self.push(Entry {
+            seq: 0,
+            request: 0,
+            socket: Some(socket),
+            kind,
+            what,
+            status: String::new(),
+            started: None,
+            ms: None,
+            args: None,
+            reply: None,
+        });
     }
 
     /// A reply to a join or a leave also moves the socket's topics.
@@ -348,6 +398,50 @@ mod tests {
         assert_eq!(
             field(&sockets[0], "topics"),
             &Value::List(vec![Value::Str("lobby:7".into())])
+        );
+    }
+
+    #[test]
+    fn a_drop_shows_while_it_reconnects_and_a_topic_refused_again_leaves_the_socket() {
+        let mut activity = Activity::default();
+        activity.started(1, None, "connect", String::from("realtime"), None);
+        activity.heard(&GamendEvent::SocketOpen { socket: 1 });
+        activity.started(2, Some(1), "join", String::from("lobby:7"), None);
+        activity.heard(&GamendEvent::Replied {
+            request: 2,
+            status: String::from("ok"),
+            response: serde_json::Value::Null,
+        });
+        activity.heard(&GamendEvent::SocketReconnecting {
+            socket: 1,
+            attempt: 1,
+            reason: String::from("reset by peer"),
+            wait: 1.0,
+        });
+        let socket = |activity: &Activity| {
+            let Value::List(sockets) = field(&activity.connection(), "sockets").clone() else {
+                panic!("sockets are a list")
+            };
+            sockets[0].clone()
+        };
+        assert_eq!(field(&socket(&activity), "open"), &Value::Bool(false));
+        assert_eq!(
+            field(&rows(&activity)[0], "kind"),
+            &Value::Str("reconnecting".into())
+        );
+
+        activity.heard(&GamendEvent::SocketReopened {
+            socket: 1,
+            lost: vec![String::from("lobby:7")],
+        });
+        assert_eq!(field(&socket(&activity), "open"), &Value::Bool(true));
+        assert_eq!(
+            field(&socket(&activity), "topics"),
+            &Value::List(Vec::new())
+        );
+        assert_eq!(
+            field(&rows(&activity)[0], "kind"),
+            &Value::Str("reopened".into())
         );
     }
 

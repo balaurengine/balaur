@@ -969,6 +969,7 @@ impl App {
             *elapsed = started.elapsed();
         }
         crate::timings::publish(&self.engine, frame_started.elapsed(), stages, fixed_steps);
+        crate::logbuf::flush_file();
     }
 
     /// Drain the accumulator into whole [`FIXED_DT`] steps.

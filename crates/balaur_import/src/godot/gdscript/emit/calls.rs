@@ -8,7 +8,8 @@ use super::{Emitter, map, quoted, safe};
 use crate::godot::gdscript::ast::Expr;
 
 impl Emitter<'_> {
-    /// Another object's engine signal, emitted by hand: its handlers run.
+    /// Another object's signal, emitted by hand: its handlers run, a widget's
+    /// own among them.
     pub(super) fn engine_emit(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
         let Expr::Field(object, verb) = callee else {
             return None;
@@ -16,7 +17,7 @@ impl Emitter<'_> {
         let Expr::Field(emitter, signal) = &**object else {
             return None;
         };
-        if verb != "emit" || !map::is_engine_signal(signal) || matches!(**emitter, Expr::SelfRef) {
+        if verb != "emit" || matches!(**emitter, Expr::SelfRef) {
             return None;
         }
         let emitter = self.expression(emitter);

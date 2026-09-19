@@ -306,6 +306,11 @@ pub(crate) fn hold_node_fn(
     })
 }
 
+/// The engine a bound handle was registered with.
+pub(crate) fn engine_of(handle: usize) -> Option<Engine> {
+    BOUND.with_borrow(|b| b.get(handle).map(|(engine, _)| engine.clone()))
+}
+
 /// The handler body shared by every binding and every node method: the
 /// arguments cross into neutral values, the bound Rust runs, and its answer
 /// crosses back. `orphaned` is the panic for a handle this thread never

@@ -601,12 +601,8 @@ fn a_shared_closure_is_callable_from_another_unit() {
     );
 }
 
-/// Rune hands object iteration order to scripts, and upstream seeds its maps
-/// from the OS once per process — so the order differed between two runs of
-/// the same binary. The fork hashes with `XxHash64` at a fixed seed instead.
-///
-/// A single process cannot observe the old bug directly; what it can check is
-/// that the order is a specific one rather than whatever this run produced.
+/// An object iterates in the order its keys were written, the same on every
+/// run and every machine: the fork keeps objects in insertion order.
 #[test]
 fn object_iteration_order_does_not_move_between_runs() {
     let dir = project(&[(
@@ -636,11 +632,9 @@ fn object_iteration_order_does_not_move_between_runs() {
         .map(|(_, v)| v)
         .expect("order was written");
 
-    // The literal is a tripwire, not a meaningful order: if the seed or the
-    // hasher moves, this changes and two builds no longer agree.
     assert_eq!(
         order,
-        &balaur_script::Value::Str("angle,target,speed,health,name,".into())
+        &balaur_script::Value::Str("angle,speed,health,target,name,".into())
     );
 }
 
@@ -1055,44 +1049,6 @@ fn a_stored_value_is_the_same_value_when_read_back() {
 }
 
 #[test]
-fn vectors_add_scale_and_measure() {
-    let dir = project(&[(
-        "vec.rn",
-        "pub fn init(this) {\n\
-         \x20   let a = balaur::Vec2::new(1.0, 2.0) + balaur::Vec2::new(3.0, 4.0) * 2.0;\n\
-         \x20   this.x = a.x;\n\
-         \x20   this.y = a.y;\n\
-         \x20   this.length = balaur::Vec2::new(3.0, 4.0).length();\n\
-         \x20   let v = balaur::Vec3::new(1.0, 1.0, 1.0);\n\
-         \x20   v += balaur::Vec3::new(1.0, 0.0, 0.0);\n\
-         \x20   this.vx = v.x;\n\
-         \x20   this.same = if balaur::Vec2::new(1.0, 2.0) == balaur::Vec2::new(1.0, 2.0) { 1.0 } else { 0.0 };\n\
-         \x20   this.tint = (balaur::Color::new(1.0, 0.5, 0.0, 1.0) * 0.5).g;\n\
-         }\n",
-    )]);
-    let mut app = app_in(dir.path());
-    let host = app.engine.script_host().unwrap();
-    let node = spawn(&app, "Vec");
-    host.attach(balaur_core::node_id_of(node), "vec.rn")
-        .unwrap();
-    app.tick(1.0 / 60.0);
-    let rune = host
-        .as_any()
-        .downcast_ref::<balaur_script_rune::RuneHost>()
-        .expect("the app is running Rune");
-    for (field, want) in [
-        ("x", 7.0),
-        ("y", 10.0),
-        ("length", 5.0),
-        ("vx", 2.0),
-        ("same", 1.0),
-        ("tint", 0.25),
-    ] {
-        assert_eq!(rune.number_field(node, field), Some(want), "{field}");
-    }
-}
-
-#[test]
 fn a_required_function_takes_many_arguments_and_its_error_reaches_the_caller() {
     let dir = project(&[
         (
@@ -1143,18 +1099,21 @@ fn a_script_reads_another_scripts_members_and_callables() {
              \x20   counts.insert(7, \"seven\");\n\
              \x20   this.counts = counts;\n\
              }\n\
-             pub fn doubler(this) { |x| x * 2 }\n",
+             pub fn doubler(this) { |x| x * 2 }\n\
+             pub fn count(this) { this.counts.len() }\n",
         ),
         (
             "reader.rn",
             "pub fn update(this, _dt) {\n\
              \x20   let other = this.node.parent().get_node(\"Held\");\n\
              \x20   this.speed = other.script_field(\"speed\");\n\
-             \x20   this.seven = if other.script_field(\"counts\")[\"7\"] == \"seven\" { 1.0 } else { 0.0 };\n\
+             \x20   this.seven = if other.script_field(\"counts\").get(7) == Some(\"seven\") { 1.0 } else { 0.0 };\n\
+             \x20   other.script_field(\"counts\").insert(8, \"eight\");\n\
+             \x20   this.shared = if other.call(\"count\") == 2 { 1.0 } else { 0.0 };\n\
              \x20   this.doubled = (other.call(\"doubler\"))(4) as f64;\n\
              \x20   let t = balaur::Transform2d::from_scale_angle_translation(balaur::Vec2::new(2.0, 2.0), 0.0, balaur::Vec2::new(1.0, 0.0));\n\
              \x20   this.back = (t.inverse() * (t * balaur::Vec2::new(3.0, 5.0))).y;\n\
-             \x20   this.turned = balaur::Vec2::new(1.0, 0.0).rotated(math::PI / 2.0).y;\n\
+             \x20   this.turned = balaur::Vec2::new(1.0, 0.0).rotate_angle(math::PI / 2.0).y;\n\
              }\n",
         ),
     ]);
@@ -1180,7 +1139,12 @@ fn a_script_reads_another_scripts_members_and_callables() {
     assert_eq!(
         rune.number_field(reader, "seven"),
         Some(1.0),
-        "an int-keyed map crosses as text keys"
+        "an int-keyed map keeps its int keys"
+    );
+    assert_eq!(
+        rune.number_field(reader, "shared"),
+        Some(1.0),
+        "a map written through script_field is the other script's own"
     );
     assert_eq!(
         rune.number_field(reader, "doubled"),

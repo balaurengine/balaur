@@ -10,15 +10,18 @@
 //! write returns once memory has them, and the transaction that commits them
 //! is *issued* before control leaves the task that wrote — a microtask
 //! gathers one tick's writes into one transaction — so the browser commits
-//! them whether or not the page runs again. What the desktop calls `fsync`
-//! is [`FileBackend::sync`]: the next transaction asks for a durable commit,
-//! which Chromium and Firefox honour and Safari treats as ordinary.
+//! them whether or not the page runs again. An append is the exception: a
+//! file growing a line at a time is mirrored every few seconds, when the page
+//! is hidden, or with the next transaction. What the desktop calls `fsync`
+//! is [`FileBackend::sync`]: everything pending is issued at once, asking for
+//! a durable commit, which Chromium and Firefox honour and Safari treats as
+//! ordinary.
 //!
 //! Nothing is read back through the mirror while a tab runs. Memory is the
 //! truth; IndexedDB is how the next tab is seeded.
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
@@ -44,6 +47,10 @@ const META: &str = "meta";
 /// A directory with nothing in it has no file to imply it, so it is kept
 /// under a key ending in this and holding no bytes.
 const DIR_MARK: char = '/';
+
+/// How long an appended file waits to be mirrored, in milliseconds. A log
+/// written every frame would otherwise put its whole file every frame.
+const APPEND_EVERY_MS: i32 = 5000;
 
 thread_local! {
     /// The store this tab writes through, for the page's own calls, which
@@ -74,6 +81,8 @@ pub(crate) struct ProjectFs {
     /// again without going through the tab-wide slot.
     me: Weak<ProjectFs>,
     pending: RefCell<BTreeMap<String, Change>>,
+    /// Keys appended to since the last transaction, mirrored on a timer.
+    appended: RefCell<BTreeSet<String>>,
     /// A name to record with the next transaction, given when a project is
     /// made from a pack rather than imported.
     pending_name: RefCell<Option<String>>,
@@ -82,6 +91,8 @@ pub(crate) struct ProjectFs {
     in_flight: Cell<usize>,
     /// Whether a microtask is already queued to issue what is pending.
     queued: Cell<bool>,
+    /// Whether a timer is already set to issue what was appended.
+    timed: Cell<bool>,
     /// Whether the next transaction asks for a durable commit.
     strict: Cell<bool>,
 }
@@ -108,9 +119,11 @@ impl ProjectFs {
             mounted: mounted_at(root),
             me: me.clone(),
             pending: RefCell::new(BTreeMap::new()),
+            appended: RefCell::new(BTreeSet::new()),
             pending_name: RefCell::new(None),
             in_flight: Cell::new(0),
             queued: Cell::new(false),
+            timed: Cell::new(false),
             strict: Cell::new(false),
         });
         for (rel, bytes, mtime) in stored {
@@ -183,7 +196,7 @@ impl ProjectFs {
     /// How many paths are written but not yet committed. What a page asks
     /// before letting someone close the tab.
     pub(crate) fn unsaved(&self) -> usize {
-        self.pending.borrow().len() + self.in_flight.get()
+        self.pending.borrow().len() + self.appended.borrow().len() + self.in_flight.get()
     }
 
     /// Everything under the root as it stands, root-relative, for a download.
@@ -219,8 +232,41 @@ impl ProjectFs {
         let Some(key) = self.key(path) else {
             return;
         };
+        self.appended.borrow_mut().remove(&key);
         self.pending.borrow_mut().insert(key, change);
         self.queue();
+    }
+
+    /// Note that `path` grew. One already pending goes with that write;
+    /// otherwise it waits for the timer.
+    fn mark_appended(&self, path: &Path) {
+        let Some(key) = self.key(path) else {
+            return;
+        };
+        if let Some(change) = self.pending.borrow_mut().get_mut(&key) {
+            *change = Change::Wrote;
+            return;
+        }
+        self.appended.borrow_mut().insert(key);
+        if self.db.is_none() || self.timed.replace(true) {
+            return;
+        }
+        let me = self.me.clone();
+        let task = Closure::once_into_js(move || {
+            if let Some(fs) = me.upgrade() {
+                fs.timed.set(false);
+                fs.issue();
+            }
+        });
+        let set = web_sys::window().map(|window| {
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                task.unchecked_ref(),
+                APPEND_EVERY_MS,
+            )
+        });
+        if !matches!(set, Some(Ok(_))) {
+            self.timed.set(false);
+        }
     }
 
     /// Note the marker that keeps an empty directory.
@@ -272,7 +318,11 @@ impl ProjectFs {
     fn issue(&self) -> Option<IdbTransaction> {
         self.queued.set(false);
         let db = self.db.as_ref()?;
-        let batch = std::mem::take(&mut *self.pending.borrow_mut());
+        let grown = std::mem::take(&mut *self.appended.borrow_mut());
+        let mut batch = std::mem::take(&mut *self.pending.borrow_mut());
+        for key in grown {
+            batch.entry(key).or_insert(Change::Wrote);
+        }
         let name = self.pending_name.borrow_mut().take();
         if batch.is_empty() && name.is_none() {
             return None;
@@ -383,6 +433,12 @@ impl FileBackend for ProjectFs {
         Ok(())
     }
 
+    fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.inner.append(path, bytes)?;
+        self.mark_appended(path);
+        Ok(())
+    }
+
     fn exists(&self, path: &Path) -> bool {
         self.inner.exists(path)
     }
@@ -428,11 +484,12 @@ impl FileBackend for ProjectFs {
         self.inner.canonicalize(path)
     }
 
-    /// The browser's `fsync`: the transaction carrying this write asks for a
-    /// durable commit rather than the default one.
+    /// The browser's `fsync`: what is pending, appends included, is issued
+    /// now and asks for a durable commit. Now, because a panicking module is
+    /// stopped before any microtask could run.
     fn sync(&self, _path: &Path) {
         self.strict.set(true);
-        self.queue();
+        self.issue();
     }
 }
 

@@ -44,6 +44,8 @@ _INEXACT_FLOAT = (r"sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh"
                   r"|atanh|exp|exp2|exp_m1|ln|ln_1p|log|log2|log10|powf|cbrt|hypot")
 # Both spellings: `x.sin()` and `f32::sin(x)` are the same call.
 PLATFORM_FLOAT_RS = re.compile(rf"(?:\.|\bf(?:32|64)::)(?:{_INEXACT_FLOAT})\(")
+# glam's own methods, which the workspace builds with glam's `libm` feature.
+GLAM_BOUND = {"crates/balaur_script_rune/src/value/glam_api.rs"}
 
 # Type suffixes a typemap entry may never take (NAMING.md N2). A denylist, not
 # an allowlist: "no suffix" is a legal category, so `ClearColor` and
@@ -540,7 +542,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                 comment_run_start = None
                 comment_run = []
 
-        if not is_comment:
+        if not is_comment and rel.as_posix() not in GLAM_BOUND:
             m = PLATFORM_FLOAT_RS.search(line)
             if m:
                 findings.append(Finding(rel, i, "platform-float-math",

@@ -1334,6 +1334,18 @@ fn versions_half(S) {
     check(crate::window::showing(S, "about"), "the About sheet opens");
     crate::window::hide(S);
     S.manager.asked = asked;
+
+    // Opened over a project, the screen goes back to it; opened by a state,
+    // as a bare launch shows it, there is nothing to go back to.
+    let was = S.manager.on;
+    crate::manager::open(S);
+    crate::manager::close(S);
+    check(S.manager.on, "a screen opened by a state stays");
+    crate::manager::open_over(S);
+    crate::manager::close(S);
+    check(!S.manager.on,
+        format!("one opened over a project goes back to it ({})", S.game_name));
+    S.manager.on = was;
 }
 
 // The examples that ship beside the editor, and a copy of one. The copy is

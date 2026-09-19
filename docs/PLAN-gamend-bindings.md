@@ -280,9 +280,9 @@ by where the file lives, not by who does it.
   removes what it no longer writes. The flat constants are gone, so each
   event has one name. `client.rn`, `auth.rn` and `log_sink.rn` call by path,
   and `crates/balaur_gamend/tests` names every operation and event by path.
-  Left: the port's Godot-signature module calls the old names until
-  `port/sync_gamend.sh` runs again, and the manual's Gamend page shows
-  `script::require` until this branch merges.
+  The manual's scripting and Gamend pages and the post "Addons by path"
+  describe it. The port's Godot-signature module (step 4) is written against
+  these paths when it is written.
 
 ## 4. What CI can prove
 

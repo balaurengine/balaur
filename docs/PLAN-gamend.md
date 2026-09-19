@@ -308,7 +308,7 @@ saw. Three pieces, each useful alone:
 | Piece | Where | What |
 | --- | --- | --- |
 | A cursor | Engine, `log::since(cursor)` | Answers `{ entries, cursor, missed }`: each line once, in order, and how many the ring dropped between two reads. Entries gain `seq`. Polled once a frame, like every other source; an observer, never recorded |
-| A file | Engine, `[log] file`, `[log] keep` | The same stream teed to `logs/run.log` under the user data directory, the last runs kept as `run.1.log` and on, with a panic written before the process dies. What a script cannot do, because the run that matters is the one that crashed |
+| A file | Engine, `[log] file`, `[log] keep` | The same stream kept in `logs/run.log` under the user data directory, through the file backend so a browser keeps it in IndexedDB, the last runs kept as `run.1.log` and on, with a panic written before the process dies. What a script cannot do, because the run that matters is the one that crashed |
 | Shipping | Addon, `logs.rn` and `log_sink.rn` | `setup(url)`, `pump(sink, node, dt)` each frame, `flush(sink, node)`, `settle(sink, reply)`; `log_sink.rn` is the node script that does it and reports to the dock. Reads `log::since`, keeps what the server's policy asks for (`GET /api/v1/client_logs/policy`: on or off, a level floor, per-category floors), folds an immediate repeat into one line with a count, and posts batches to `POST /api/v1/client_logs` |
 
 Shipping batches as `GamendLogs.gd` does: a flush at fifty entries, every
@@ -376,14 +376,21 @@ no server dependency and can start now.
   earlier lines nor its log file. Checked against `gamend.org` (policy off)
   and a local Gamend with collection on: the run, its device and user, and
   its lobby land in `client_sessions`.
-- **E5. A connection that survives.** A socket dropped without `close`
-  reconnects with backoff, renews a stale token, rejoins its topics, and
-  tells the game `reconnecting`, then `open` or `failed`, as the Godot
-  addon's `network_reconnecting`, `network_rejoined` and `network_failed`
-  did. Beside `on_gamend_event`, a handler per event name
-  (`on_lobby_updated`) for the addon's decoded kinds. Ends with: a socket
-  the server drops comes back, and a lobby event sent after it reaches the
-  game.
+- **E5, built. A connection that survives.** A socket dropped without
+  `close` backs off 1, 2, 4 seconds and on to 30, over eight tries, in
+  `worker.rs` and `browser.rs` alike. Each try renews a stale token and
+  joins again the user topic and every topic the game joined. The handler
+  hears `reconnecting` before each try, then `reopened` with the topics the
+  server refused, or `error` once it gives up. A call made while it waits
+  fails at once. `gamend::interrupt(socket)` cuts the connection to try the
+  path. `gamend::client::route(node, e)` hands an event to `on_<kind>` by
+  its decoded name (`on_lobby_updated`), and the socket's own to
+  `on_socket_<kind>`. Checked against gamend.org and a local Gamend: an
+  interrupted socket comes back into its lobby, and a rename after it
+  reaches `on_lobby_updated`, natively and in headless Chrome. A channel
+  the server crashes (`phx_error`) is joined again the same way, and one it
+  closes on purpose (`phx_close`, a kicked player's lobby) is forgotten, so
+  a reconnect does not join it as a spectator (`channels.rs`).
 
 ## 4. What CI can prove
 

@@ -410,13 +410,16 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
     keep_log(&app);
     #[cfg(feature = "window")]
     {
-        return balaur_render::kiss3d_backend::run_windowed(app, title);
+        let ran = balaur_render::kiss3d_backend::run_windowed(app, title);
+        balaur_core::logbuf::flush_file();
+        return ran;
     }
     #[allow(unreachable_code)] // The windowed path above returns when the feature is on.
     {
         let _ = title;
         app.run();
         balaur_render::warn_if_unserved(&app.engine);
+        balaur_core::logbuf::flush_file();
         Ok(())
     }
 }
@@ -429,7 +432,8 @@ keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How ma
 
 /// Start this run's log file, unless `[log] file` is off. Only a real run
 /// opens one: a test boots apps without passing through here. [`run`] calls
-/// it; a loop of its own, like the CLI's headless one, calls it first.
+/// it; a loop of its own, like the CLI's headless one, calls it first and
+/// `logbuf::flush_file` after it, for the lines logged past the last frame.
 pub fn keep_log(app: &App) {
     let eng = &app.engine;
     let setting = |key: &str| balaur_core::settings::get(eng, &format!("log/{key}"));
@@ -462,7 +466,9 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> Resu
     keep_log(&app);
     #[cfg(feature = "window")]
     {
-        return balaur_render::kiss3d_backend::run_offscreen(app, title, width, height);
+        let ran = balaur_render::kiss3d_backend::run_offscreen(app, title, width, height);
+        balaur_core::logbuf::flush_file();
+        return ran;
     }
     #[allow(unreachable_code)] // The windowed path above returns when the feature is on.
     {
@@ -491,10 +497,13 @@ pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
     let pack = Pack::decode(bytes)?;
     let mut app = standard_app(AppConfig::packed(pack))?;
     app.load_project()?;
+    keep_log(&app);
     let title = app
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
-    balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await
+    let ran = balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await;
+    balaur_core::logbuf::flush_file();
+    ran
 }
 
 /// The editor, booted on an HTML canvas over a project that is already in

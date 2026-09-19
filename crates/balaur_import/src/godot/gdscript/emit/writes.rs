@@ -59,6 +59,23 @@ impl Emitter<'_> {
             let _ = writeln!(out, "{pad}(gd.set)({object}, {}, {text});", quoted(key));
             return out;
         }
+        // An index into a value read through the shim is no place to assign
+        // to: `a.b["k"] = v` writes into the table the read handed back.
+        if let Expr::Index(object, index) = target {
+            let base = self.expression(object);
+            if base.starts_with('(') {
+                let key = self.expression(index);
+                let text = self.expression(value);
+                let text = if op == "=" {
+                    text
+                } else {
+                    format!("(gd.get)({base}, {key}, ()) {} ({text})", op.trim_end_matches('='))
+                };
+                self.uses_shim = true;
+                let _ = writeln!(out, "{pad}let _ = (gd.set)({base}, {key}, {text});");
+                return out;
+            }
+        }
         let indexed = matches!(target, Expr::Index(..));
         // `a[i] += v` is not supported; expanding it is the whole fix.
         if indexed && op != "=" {
@@ -295,7 +312,7 @@ impl Emitter<'_> {
                     let name = self.temp();
                     let text = self.expression(value);
                     // A vector's lane is a float, and takes no int.
-                    let lane = matches!(field.as_str(), "x" | "y" | "z" | "r" | "g" | "b" | "a");
+                    let lane = LANES.contains(&field.as_str());
                     let text = if lane && op == "=" {
                         format!("(gd.float)({text})")
                     } else {
@@ -329,4 +346,9 @@ impl Emitter<'_> {
         let write = format!("(gd.set_field)({object}, {}, {text})", quoted(&field));
         Some(format!("{pad}{};\n", discardable(&write)))
     }
+
 }
+
+/// The fields of a vector or a colour.
+const LANES: &[&str] = &["x", "y", "z", "w", "r", "g", "b", "a"];
+

@@ -309,13 +309,8 @@ Getting there closed four bugs worth naming, two of them in the engine:
 ## 11. Where the port stands, 2026-09-19
 
 Measured against Godot's own run of the game's automation, not against
-all-pass: at game commit `dbc9b9539` Godot passes 30 of its 54 scenarios. The
-port passes 28 of those 30, run headless on a release build.
-
-The two left, `world_map_cargo_panel` and `world_map_cargo_open`, seed a
-fixture into `GamendController.latest_map_state`. That controller is still a
-hand-port stub, and a dictionary read off another script's node arrives as a
-copy, so a write into it is lost. Godot hands the dictionary itself.
+all-pass: at game commit `dbc9b9539` Godot passes 30 of its 54 scenarios, and
+the port passes the same 30, run headless on a release build.
 
 This round closed these rules in the translator and its shim:
 
@@ -324,13 +319,23 @@ This round closed these rules in the translator and its shim:
 - `OptionButton` items are the dropdown's `options`: `add_item`, `clear`,
   `select`, `selected` and `item_count`.
 - `get_global_rect` and `get_rect` read where the widget layer drew a control.
-- `button.pressed.emit()` and the other control signals run the widget's own
-  handler, as the widget layer would.
+- `other.some_signal.emit()` runs the widget's own handler for a control
+  signal, and reaches whatever connected for a script's own.
+- `a.b["k"] = v` writes into the table `a.b` hands back, through `gd.set`.
+- `remove_child` parks the node under the root, hidden, until it is added back.
+- Vectors are value types in the engine, as in Godot, so `v.x = n` translates
+  as written.
 - A node's class constants read through the node, and a static's properties
   are written through `set_field`.
 - A text-keyed dictionary asked for an int key answers the default.
-- Camera zoom tweens, `min_value`/`max_value`, `is_visible_in_tree`, the path
-  verbs on strings and `DisplayServer.window_get_size` are mapped.
+- Camera zoom tweens, `min_value`/`max_value`, `is_visible_in_tree`,
+  `get_child_count`, the path verbs on strings and
+  `DisplayServer.window_get_size` are mapped.
+
+`node.call` and `node.script_field` between two Rune scripts hand over the
+values themselves, so a dictionary read off another script's node is that
+script's own, as Godot's is. The hand-ported `GamendController` carries the
+`latest_*` state members and the loot catalog's country provider.
 
 A debug build runs this scene at about three frames a second, too slow for a
 scenario's 20-second waits; the runs use `target/release/balaur`.

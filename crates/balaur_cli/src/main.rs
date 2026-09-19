@@ -798,6 +798,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
             None => app.run(),
         }
+        balaur::logbuf::flush_file();
         if let Some(log) = &timings {
             print!("{}", log.borrow().report());
         }

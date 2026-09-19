@@ -296,11 +296,13 @@ mod imp {
             return Some("Balaur.app updates by downloading the new .dmg, not in place".into());
         }
         // A release unpacked over cargo's output buries what the build wrote.
+        // No path: the line lands in screenshots, and the folder is the reader's.
         if build_tree(install) {
-            return Some(format!(
-                "{} is a build tree, not an install; update a source build with git",
-                install.display()
-            ));
+            return Some(
+                "this runs from cargo's target directory, not an install; \
+                 update a source build with git"
+                    .into(),
+            );
         }
         None
     }

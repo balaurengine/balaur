@@ -308,7 +308,7 @@ pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
         ("Color", "BLACK") => "(gd.color)(0.0, 0.0, 0.0, 1.0)".into(),
         ("Color", "TRANSPARENT") => "(gd.color)(0.0, 0.0, 0.0, 0.0)".into(),
         ("Vector2", "INF") => "(gd.vec2)(1.0 / 0.0, 1.0 / 0.0)".into(),
-        ("Transform2D", "IDENTITY") => "balaur::Transform2d::identity()".into(),
+        ("Transform2D", "IDENTITY") => "balaur::Transform2d::IDENTITY".into(),
         (class, name) => class_constant(class, name)?.to_string(),
     })
 }
@@ -796,7 +796,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         | "set_process_unhandled_key_input" => "()".into(),
         "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
         "get_index" => format!("{receiver}.sibling_index()"),
-        "remove_child" => format!("{one}.set_parent(())"),
+        "remove_child" => format!("(gd.remove_child)({one})"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
             format!("{receiver}.patch_component(\"widget\", #{{ \"checked\": {one} }})")
@@ -889,10 +889,6 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
         "get_connections" => format!("/* connections of {} */ []", safe(signal)),
         _ => return None,
     })
-}
-
-pub(crate) fn is_engine_signal(name: &str) -> bool {
-    ENGINE_SIGNALS.contains(&name)
 }
 
 /// Signals the engine itself sends, heard as events; a script's own are

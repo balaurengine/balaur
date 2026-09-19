@@ -34,6 +34,8 @@ pub fn state() {
         // An install in flight: the tag, bytes so far and of how many, and
         // whether it is unpacking. Empty when none is.
         installing: #{},
+        // Opened over a project, with the way back to it.
+        back: false,
     }
 }
 
@@ -49,6 +51,9 @@ const NEW_SHEET = "manager-new";
 // The editor's own mark, which the top bar draws too. A project of its own
 // is not open yet, so every row wears this one.
 const LOGO = "assets/balaur-logo.png";
+// The mark is dark ink on nothing, drawn for a light ground: the top bar sets
+// it on a light badge, and so does every other place that shows it.
+const PLATE = "#e9edf2";
 const MB = 1048576;
 
 /// Whether the editor is running in a browser tab, where a project is opened
@@ -61,6 +66,7 @@ pub fn in_tab() {
 pub fn open(S) {
     S.manager.on = true;
     S.manager.read = false;
+    S.manager.back = false;
     // The other two pages are not offered in a tab, so neither is a state
     // that left the screen on one of them.
     if in_tab() {
@@ -93,7 +99,35 @@ pub fn pick(S) {
         go(S, picked);
         return;
     }
+    open_over(S);
+}
+
+/// The engine's mark on its plate, `width` across the ink. The box is its
+/// own: a frame fills the height of the row it sits in.
+pub fn mark(width) {
+    let pad = util::max(width / 11.0, 2.0);
+    let side = width + 2.0 * pad;
+    ui::horizontal(#{ width: side, height: side }, || {
+        ui::frame(#{ fill: PLATE, radius: side / 2.0, padding_x: pad, padding_y: pad }, || {
+            ui::image(LOGO, #{ width: width });
+        });
+    });
+}
+
+/// The screen over the open project, with the way back to it: what the
+/// palette opens. A start state opens the screen a bare launch shows.
+pub fn open_over(S) {
     open(S);
+    S.manager.back = S.game_root != "";
+}
+
+/// Back to the project the screen was opened over. Opening another quits
+/// this process, so without this the only way out was a restart.
+pub fn close(S) {
+    if S.manager.back {
+        S.manager.on = false;
+        S.manager.back = false;
+    }
 }
 
 /// Whether the screen has the window. A run with no project is the screen
@@ -160,16 +194,31 @@ pub fn draw(S, k) {
             projects_page(S, k, col, tall);
         }
     });
+    // Escape closes the New project sheet first, and only then the screen.
+    let sheet_up = crate::window::showing(S, NEW_SHEET);
     new_sheet(S, k);
+    if !sheet_up && ui::shortcut("escape") {
+        close(S);
+    }
 }
 
 fn head(S, k, w) {
     ui::horizontal(#{ height: 34, width: w }, || {
-        ui::image(LOGO, #{ width: 26 });
+        mark(26.0);
         ui::add_space(10);
         ui::label("Balaur", #{ size: style::XL, font: ui::FONT_HEADING, strong: true, color: k.text });
         ui::add_space(10);
         ui::label(project::version(), style::mono_sm(k.faint));
+        if S.manager.back {
+            ui::right(|| {
+                if ui::pill("Back to " + S.game_name, #{
+                    height: 28, size: style::SM, radius: 8, padding_x: 12,
+                    fill: k.panel, color: k.dim, tooltip: "Esc",
+                }) {
+                    close(S);
+                }
+            });
+        }
     });
     let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
     if said != "" {
@@ -344,11 +393,11 @@ fn project_row(S, k, w, row, h) {
                 ui::add_space(2);
                 // The engine's mark: a project keeps its own icon, and none
                 // of them is open, so the row wears the editor's.
-                ui::image(LOGO, #{ width: 20 });
+                mark(20.0);
                 ui::add_space(8);
                 if ui::pill(row.name, #{
                     height: line, size: style::MD, align: ui::ALIGN_LEFT, radius: 8,
-                    min_width: w - marks - 32.0, padding_x: 8,
+                    min_width: w - marks - 36.0, padding_x: 8,
                     icon: if gone { icons::panel("problems") } else { "" },
                     icon_size: style::MD, icon_color: k.faint,
                     fill: "#00000000", hover_fill: k.panel,
@@ -434,8 +483,8 @@ fn example_card(S, k, w, h, row) {
                     // No picture shipped: the engine's own mark, so the card
                     // still reads as a project rather than a blank.
                     ui::horizontal(#{ height: h - 54.0, width: w }, || {
-                        ui::add_space(w / 2.0 - 18.0);
-                        ui::image(LOGO, #{ width: 36 });
+                        ui::add_space(w / 2.0 - 22.0);
+                        mark(36.0);
                     });
                 }
                 ui::horizontal(#{ height: 20, width: w }, || {

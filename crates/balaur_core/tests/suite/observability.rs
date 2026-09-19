@@ -104,6 +104,7 @@ fn the_log_file_starts_with_what_came_before_it_and_keeps_the_last_run() {
     tracing::info!("logged before the file opened");
     let path = logbuf::open_file(dir.path(), "run", 2).expect("the file opens");
     tracing::warn!(code = 7, "logged after it opened");
+    logbuf::flush_file();
 
     let text = std::fs::read_to_string(&path).expect("the file reads");
     assert!(text.contains("logged before the file opened"), "{text}");
@@ -114,5 +115,46 @@ fn the_log_file_starts_with_what_came_before_it_and_keeps_the_last_run() {
 
     logbuf::open_file(dir.path(), "run", 2).expect("the file opens again");
     let kept = std::fs::read_to_string(dir.path().join("run.1.log")).expect("the last run is kept");
+    logbuf::close_file();
     assert!(kept.contains("logged after it opened"));
+}
+
+#[test]
+fn the_log_file_goes_through_the_file_backend_and_keeps_a_panic() {
+    use balaur_core::files::{FileBackend as _, MemoryFs, set_default};
+    let _guard = CAPTURE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    logbuf::capture_for_test();
+    let fs = std::rc::Rc::new(MemoryFs::new());
+    set_default(fs.clone());
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let logs = dir.path().join("logs");
+    let read = |name: &str| {
+        let bytes = fs.read(&logs.join(name)).expect("the file is in memory");
+        String::from_utf8(bytes).expect("the log is text")
+    };
+
+    logbuf::open_file(&logs, "run", 1).expect("the file opens");
+    tracing::info!("kept in memory");
+    assert!(
+        !read("run.log").contains("kept in memory"),
+        "written before a frame ends"
+    );
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).expect("an app");
+    app.tick(1.0 / 60.0);
+    assert!(read("run.log").contains("kept in memory"));
+
+    logbuf::open_file(&logs, "run", 1).expect("the file opens again");
+    tracing::info!("waiting when the panic came");
+    let unwound = std::panic::catch_unwind(|| panic!("the test panics on purpose"));
+    let text = read("run.log");
+    logbuf::close_file();
+    assert!(unwound.is_err());
+    assert!(read("run.1.log").contains("kept in memory"));
+    assert!(text.contains("waiting when the panic came"), "{text}");
+    assert!(
+        text.contains("panic") && text.contains("the test panics on purpose"),
+        "{text}"
+    );
 }

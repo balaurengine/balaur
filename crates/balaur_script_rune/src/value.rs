@@ -1,7 +1,11 @@
 //! Conversions between the neutral `balaur_script::Value` and Rune's.
 
 pub(crate) mod component;
-pub(crate) mod transform;
+mod glam_api;
+mod live;
+pub(crate) mod glam_types;
+
+pub use glam_types::{Vec2, Vec3};
 
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
@@ -28,28 +32,6 @@ impl Node {
     }
 }
 
-/// A vector as scripts see it. Rune has no tuple-struct literals across the
-/// FFI, so bindings take and return this.
-#[derive(rune::Any, Clone, Copy)]
-#[rune(item = ::balaur)]
-pub struct Vec2 {
-    #[rune(get, set)]
-    pub x: f64,
-    #[rune(get, set)]
-    pub y: f64,
-}
-
-#[derive(rune::Any, Clone, Copy)]
-#[rune(item = ::balaur)]
-pub struct Vec3 {
-    #[rune(get, set)]
-    pub x: f64,
-    #[rune(get, set)]
-    pub y: f64,
-    #[rune(get, set)]
-    pub z: f64,
-}
-
 #[derive(rune::Any, Clone, Copy)]
 #[rune(item = ::balaur)]
 pub struct Color {
@@ -63,32 +45,10 @@ pub struct Color {
     pub a: f64,
 }
 
-/// The numbers of a vector or a colour, so one set of operators serves all three.
+/// A colour's four channels, so one set of operators serves them.
 trait Lanes: rune::Any + Copy {
     fn lanes(&self) -> [f64; 4];
     fn from_lanes(lanes: [f64; 4]) -> Self;
-}
-
-impl Lanes for Vec2 {
-    fn lanes(&self) -> [f64; 4] {
-        [self.x, self.y, 0.0, 0.0]
-    }
-    fn from_lanes(l: [f64; 4]) -> Self {
-        Self { x: l[0], y: l[1] }
-    }
-}
-
-impl Lanes for Vec3 {
-    fn lanes(&self) -> [f64; 4] {
-        [self.x, self.y, self.z, 0.0]
-    }
-    fn from_lanes(l: [f64; 4]) -> Self {
-        Self {
-            x: l[0],
-            y: l[1],
-            z: l[2],
-        }
-    }
 }
 
 impl Lanes for Color {
@@ -151,7 +111,7 @@ fn vm<T>(result: anyhow::Result<T>) -> rune::runtime::VmResult<T> {
     }
 }
 
-/// `+ - * /` and their assigning forms, and `==`, on one lane type.
+/// `+ - * /` and `==` on a colour; `c += d` is `c = c + d`.
 macro_rules! arithmetic {
     ($m:expr, $t:ty) => {{
         use rune::runtime::Protocol as P;
@@ -167,151 +127,11 @@ macro_rules! arithmetic {
         $m.associated_function(&P::DIV, |a: &$t, b: rune::Value| {
             vm(zip::<$t>(a, &b, |x, y| x / y))
         })?;
-        $m.associated_function(&P::ADD_ASSIGN, |a: &mut $t, b: rune::Value| {
-            let out = zip::<$t>(a, &b, |x, y| x + y);
-            vm(out.map(|v| *a = v))
-        })?;
-        $m.associated_function(&P::SUB_ASSIGN, |a: &mut $t, b: rune::Value| {
-            let out = zip::<$t>(a, &b, |x, y| x - y);
-            vm(out.map(|v| *a = v))
-        })?;
-        $m.associated_function(&P::MUL_ASSIGN, |a: &mut $t, b: rune::Value| {
-            let out = zip::<$t>(a, &b, |x, y| x * y);
-            vm(out.map(|v| *a = v))
-        })?;
-        $m.associated_function(&P::DIV_ASSIGN, |a: &mut $t, b: rune::Value| {
-            let out = zip::<$t>(a, &b, |x, y| x / y);
-            vm(out.map(|v| *a = v))
-        })?;
         $m.associated_function(&P::PARTIAL_EQ, |a: &$t, b: rune::Value| same::<$t>(a, &b))?;
         $m.associated_function(&P::EQ, |a: &$t, b: rune::Value| same::<$t>(a, &b))?;
     }};
 }
 
-/// The geometry a vector's own methods answer: length, direction, and the
-/// products and blends Godot's `Vector2` and `Vector3` carry.
-macro_rules! geometry {
-    ($m:expr, $t:ty) => {{
-        $m.associated_function("length", |v: &$t| dot(v.lanes(), v.lanes()).sqrt())?;
-        $m.associated_function("dot", |v: &$t, o: rune::Value| {
-            vm(rhs::<$t>(&o).map(|r| dot(v.lanes(), r)))
-        })?;
-        $m.associated_function("normalized", |v: &$t| {
-            let l = v.lanes();
-            let len = dot(l, l).sqrt();
-            if len == 0.0 {
-                return *v;
-            }
-            <$t>::from_lanes([l[0] / len, l[1] / len, l[2] / len, 0.0])
-        })?;
-        $m.associated_function("distance_to", |v: &$t, o: rune::Value| {
-            vm(zip::<$t>(v, &o, |x, y| x - y).map(|d| {
-                let d = d.lanes();
-                dot(d, d).sqrt()
-            }))
-        })?;
-        $m.associated_function("lerp", |v: &$t, o: rune::Value, t: f64| {
-            let l = v.lanes();
-            vm(rhs::<$t>(&o).map(|to| {
-                <$t>::from_lanes([
-                    l[0] + (to[0] - l[0]) * t,
-                    l[1] + (to[1] - l[1]) * t,
-                    l[2] + (to[2] - l[2]) * t,
-                    l[3] + (to[3] - l[3]) * t,
-                ])
-            }))
-        })?;
-    }};
-}
-
-/// The rest of Godot's `Vector2`: angles, rounding and the bounded moves.
-fn plane(m: &mut rune::Module) -> Result<(), rune::ContextError> {
-    use balaur_core::libm;
-    let each = |v: &Vec2, f: fn(f64) -> f64| Vec2 {
-        x: f(v.x),
-        y: f(v.y),
-    };
-    m.associated_function("angle", |v: &Vec2| libm::atan2(v.y, v.x))?;
-    m.associated_function("angle_to_point", |v: &Vec2, to: &Vec2| {
-        libm::atan2(to.y - v.y, to.x - v.x)
-    })?;
-    m.associated_function("rotated", |v: &Vec2, by: f64| {
-        let (s, c) = (libm::sin(by), libm::cos(by));
-        Vec2 {
-            x: v.x * c - v.y * s,
-            y: v.x * s + v.y * c,
-        }
-    })?;
-    m.associated_function("abs", move |v: &Vec2| each(v, f64::abs))?;
-    m.associated_function("floor", move |v: &Vec2| each(v, libm::floor))?;
-    m.associated_function("ceil", move |v: &Vec2| each(v, libm::ceil))?;
-    m.associated_function("round", move |v: &Vec2| each(v, libm::round))?;
-    m.associated_function("sign", move |v: &Vec2| {
-        each(v, |x| if x == 0.0 { 0.0 } else { x.signum() })
-    })?;
-    m.associated_function("orthogonal", |v: &Vec2| Vec2 { x: v.y, y: -v.x })?;
-    m.associated_function("length_squared", |v: &Vec2| v.x * v.x + v.y * v.y)?;
-    m.associated_function("distance_squared_to", |v: &Vec2, o: &Vec2| {
-        (o.x - v.x) * (o.x - v.x) + (o.y - v.y) * (o.y - v.y)
-    })?;
-    m.associated_function("direction_to", |v: &Vec2, o: &Vec2| {
-        unit(o.x - v.x, o.y - v.y)
-    })?;
-    m.associated_function("clamp", |v: &Vec2, lo: &Vec2, hi: &Vec2| Vec2 {
-        x: v.x.clamp(lo.x, hi.x),
-        y: v.y.clamp(lo.y, hi.y),
-    })?;
-    m.associated_function("limit_length", |v: &Vec2, most: f64| {
-        let len = libm::sqrt(v.x * v.x + v.y * v.y);
-        if len <= most || len == 0.0 {
-            return *v;
-        }
-        Vec2 {
-            x: v.x / len * most,
-            y: v.y / len * most,
-        }
-    })?;
-    m.associated_function("move_toward", |v: &Vec2, to: &Vec2, delta: f64| {
-        let (dx, dy) = (to.x - v.x, to.y - v.y);
-        let len = libm::sqrt(dx * dx + dy * dy);
-        if len <= delta || len < 1e-5 {
-            return *to;
-        }
-        Vec2 {
-            x: v.x + dx / len * delta,
-            y: v.y + dy / len * delta,
-        }
-    })?;
-    m.associated_function("is_zero_approx", |v: &Vec2| {
-        v.x.abs() < 1e-5 && v.y.abs() < 1e-5
-    })?;
-    m.associated_function("is_equal_approx", |v: &Vec2, o: &Vec2| {
-        (v.x - o.x).abs() < 1e-5 && (v.y - o.y).abs() < 1e-5
-    })?;
-    Ok(())
-}
-
-fn unit(x: f64, y: f64) -> Vec2 {
-    let len = balaur_core::libm::sqrt(x * x + y * y);
-    if len == 0.0 {
-        return Vec2 { x: 0.0, y: 0.0 };
-    }
-    Vec2 {
-        x: x / len,
-        y: y / len,
-    }
-}
-
-fn dot(a: [f64; 4], b: [f64; 4]) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// Register the value types every binding may see, and give `Node` the whole
-/// engine node API as methods.
-///
-/// The operations come from `balaur_core::node_api::NODE_OPS`, so this is
-/// only the `node.position()` sugar — the behaviour is shared with every other
-/// language.
 pub(crate) fn install(
     m: &mut rune::Module,
     engine: &balaur_core::Engine,
@@ -327,22 +147,17 @@ pub(crate) fn install(
             std::hash::Hasher::write_u64(hasher, n.id);
         },
     )?;
-    m.ty::<Vec2>()?;
-    m.ty::<Vec3>()?;
     m.ty::<Color>()?;
-    m.function("new", |x: f64, y: f64| Vec2 { x, y })
-        .build_associated::<Vec2>()?;
-    m.function("new", |x: f64, y: f64, z: f64| Vec3 { x, y, z })
-        .build_associated::<Vec3>()?;
     m.function("new", |r: f64, g: f64, b: f64, a: f64| Color { r, g, b, a })
         .build_associated::<Color>()?;
-    arithmetic!(m, Vec2);
-    arithmetic!(m, Vec3);
     arithmetic!(m, Color);
-    geometry!(m, Vec2);
-    geometry!(m, Vec3);
-    plane(m)?;
-    transform::install(m)?;
+    glam_types::copy!(m, Color);
+    m.associated_function("with_r", |c: &Color, r: f64| Color { r, ..*c })?;
+    m.associated_function("with_g", |c: &Color, g: f64| Color { g, ..*c })?;
+    m.associated_function("with_b", |c: &Color, b: f64| Color { b, ..*c })?;
+    m.associated_function("with_a", |c: &Color, a: f64| Color { a, ..*c })?;
+    glam_types::install(m)?;
+    glam_api::install(m)?;
 
     // A component-driven operation lives on that component's handle
     // (`node.transform.translate`); the node keeps only what no component owns.
@@ -358,10 +173,26 @@ pub(crate) fn install(
         let call = declared.call;
         let engine = engine.clone();
         let handle = crate::bindings::hold_node_fn(engine, call);
-        m.raw_function(
-            declared.name,
-            crate::bindings::bound_handler(handle, "node method was registered on another thread"),
-        )
+        let bound =
+            crate::bindings::bound_handler(handle, "node method was registered on another thread");
+        // Between two Rune scripts these hand over the values themselves.
+        match declared.name {
+            "call" => m.raw_function(
+                declared.name,
+                live::live_or(handle, bound, |host, node, args| {
+                    let method = args.first()?.borrow_string_ref().ok()?.to_owned();
+                    host.call_live(node, &method, &args[1..])
+                }),
+            ),
+            "script_field" => m.raw_function(
+                declared.name,
+                live::live_or(handle, bound, |host, node, args| {
+                    let name = args.first()?.borrow_string_ref().ok()?.to_owned();
+                    host.field_live(node, &name)
+                }),
+            ),
+            _ => m.raw_function(declared.name, bound),
+        }
         .build_associated::<Node>()?;
     }
     component::install(m, engine)?;
