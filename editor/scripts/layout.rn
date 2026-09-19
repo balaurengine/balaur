@@ -78,6 +78,7 @@ fn node(S, id) {
         "dockbody" => SHELL + "/Body/Centre/Bottom/DockBody",
         "status" => SHELL + "/Body/Centre/Bottom/Status",
         "rightbody" => SHELL + "/Body/Right/RightSheet/RightBody",
+        "rightscroll" => SHELL + "/Body/Right/RightSheet/RightScroll",
         "railslot" => SHELL + "/Body/Centre/UpperRow/RailSlot",
         "rail" => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
         "railtop" => SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop",
@@ -341,6 +342,8 @@ pub fn compute(S) {
     size(S, "bottom", "height", dock_h);
     // The right sheet's header, above the rows the pool makes: a `draw` node
     // with no size takes whatever is left, which would be the whole sheet.
+    // Any other panel draws the whole sheet, so the form's scroll goes.
+    show(S, "rightscroll", right_form_up(S));
     size(S, "rightbody", "height", right_head_h(S));
     size(S, "railslot", "width", rail_w);
     size(S, "rail", "height", crate::center::rail_span(grid, grid.rows));
@@ -425,7 +428,15 @@ fn right_head_h(S) {
     if d.active == "import" {
         return rows + 52.0;
     }
-    rows
+    // The sheet less its tab row and padding; a frame behind, like every box.
+    let sheet = box_of(S, "rightsheet");
+    util::max(rows, sheet.h - rows - 16.0)
+}
+
+/// Whether the panel up in the right dock is one of the pooled forms.
+fn right_form_up(S) {
+    let d = S.docks.right;
+    !d.shut && (d.active == "inspector" || d.active == "import")
 }
 
 // A side dock's width: nothing when it holds no panel, its rail when it is

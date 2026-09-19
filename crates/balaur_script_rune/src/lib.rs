@@ -813,7 +813,7 @@ impl RuneHost {
     /// `script::require`: an object of `key`'s public functions, cached so
     /// every requirer holds the same object.
     pub fn require_module(&self, path: &str) -> Result<rune::Value> {
-        let key = Self::normalize_key(path);
+        let key = self.required_key(path);
         let cached = self
             .state
             .borrow()
@@ -876,6 +876,23 @@ impl RuneHost {
                 continue;
             };
             held.push(slot);
+    /// The key a `script::require` names. A relative path found under a root
+    /// the host added reads from there first: `balaur edit` runs with the
+    /// editor as the project root, and the game it plays requires its own.
+    fn required_key(&self, path: &str) -> String {
+        let key = Self::normalize_key(path);
+        if balaur_core::files::rooted(Path::new(&key)) {
+            return key;
+        }
+        let files = balaur_core::files::backend(&self.engine);
+        balaur_core::file_api::project_roots(&self.engine)
+            .into_iter()
+            .skip(1)
+            .map(|root| root.join(&key))
+            .find(|full| files.exists(full))
+            .map_or(key, |full| full.to_string_lossy().replace('\\', "/"))
+    }
+
             object.insert(
                 rune::alloc::String::try_from(declared.name.as_str())?,
                 rune::to_value(wrapper)?,

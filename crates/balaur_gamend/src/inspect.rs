@@ -11,13 +11,14 @@ use crate::client::Session;
 
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("activity", &[], "()", "The last calls and socket messages, newest first, as `{ request, kind, what, status, ms, args, reply }`; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
+        ("activity", &[], "()", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
         ("connection", &[], "()", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
         ("session", &[], "()", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
         ("restore", &[], "(session: map?)", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
         ("reply", &[], "(request: int)", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
         ("clear_activity", &[], "()", "Forget the calls and messages `activity` holds."),
         ("target", &[], "()", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
+        ("run_id", &[], "()", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
     m.function("activity", |eng: &Engine, (): ()| {
         Ok(eng.resource::<GamendState>().borrow().activity.entries())
@@ -49,6 +50,9 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     });
     m.function("target", |eng: &Engine, (): ()| {
         Ok(crate::target::value(eng))
+    });
+    m.function("run_id", |_: &Engine, (): ()| {
+        Ok(Value::Str(crate::client::run_id().to_string()))
     });
 }
 

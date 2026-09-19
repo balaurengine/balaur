@@ -10,9 +10,16 @@ const PREFS_SLOT = "gamend_prefs";
 const LOGS_KEY = "gamend:logs";
 const FLUSH_KEY = "gamend:logs_flush";
 
+/// Where `client.rn` caches the key-value rows a game subscribed to.
+const ROWS_KEY = "gamend:rows";
+
+/// How many draws the rows scan is reused for: it walks the whole scene.
+const ROWS_EVERY = 30;
+
 pub fn state() {
     #{
         requests: #{}, replies: #{}, ids: #{}, filter: "all", open: #{}, kv_key: "",
+        seen: #{}, rows: #{}, rows_in: 0,
         // Wrapped once: the kit calls it from the editor's own unit.
         page: script::shared(page, 3),
     }
@@ -306,6 +313,7 @@ fn lobby(S, k, me) {
             }
         }
     }
+    follow(me, ids);
     if ids.len() == 0 {
         empty(k, "not in a lobby: its topic shows here once the game joins one");
     }
@@ -335,10 +343,86 @@ fn data(S, k, me) {
     });
     let key = "kv:" + me.kv_key;
     if asked.get {
-        forget(me, key);
+        drop_key(me, key);
     }
     if me.kv_key != "" && (asked.get || me.requests.contains_key(key)) {
         show(S, k, key, fetch(me, key, "/api/v1/kv/" + me.kv_key));
+    }
+    section(k, "Rows the game keeps");
+    let rows = game_rows(me);
+    if rows.len() == 0 {
+        line("none: the rows a playing game subscribed to with `register_kv` show here", k.faint);
+    } else {
+        let tree = S.kit.tree;
+        tree(S, k, "gamend:rows", rows, #{});
+    }
+}
+
+/// Every row `client.rn` caches, from whichever nodes hold them.
+fn game_rows(me) {
+    me.rows_in -= 1;
+    if me.rows_in > 0 {
+        return me.rows;
+    }
+    me.rows_in = ROWS_EVERY;
+    let found = #{};
+    let root = scene::root();
+    let nodes = if root is Tuple { [] } else { [root] };
+    if !(root is Tuple) {
+        for node in root.descendants() {
+            nodes.push(node);
+        }
+    }
+    for node in nodes {
+        let raw = node.meta[ROWS_KEY];
+        if raw is String && raw != "" {
+            let (ok, rows) = script::attempt(|| json::parse(raw));
+            if ok && rows is Object {
+                for (key, value) in rows {
+                    found[key] = value;
+                }
+            }
+        }
+    }
+    me.rows = found;
+    found
+}
+
+/// Ask again for what a newer message on its topic changed: a member joining,
+/// leaving or going offline arrives as one.
+fn follow(me, ids) {
+    let newest = newest_messages();
+    for id in ids {
+        refresh_on(me, newest, "lobby:" + id, "lobby:" + id);
+    }
+    for (topic, _) in newest {
+        if topic.starts_with("party:") {
+            refresh_on(me, newest, topic, "party");
+        }
+    }
+}
+
+/// The newest message's `seq` on each topic.
+fn newest_messages() {
+    let out = #{};
+    for row in gamend::activity() {
+        if row["kind"] != "message" {
+            continue;
+        }
+        let parts = row["what"].split(' ').collect::<Vec>();
+        let topic = parts[0];
+        if !out.contains_key(topic) {
+            out[topic] = row["seq"];
+        }
+    }
+    out
+}
+
+fn refresh_on(me, newest, topic, key) {
+    let seq = newest.get(topic).unwrap_or(0);
+    if seq > me.seen.get(topic).unwrap_or(0) {
+        me.seen[topic] = seq;
+        drop_key(me, key);
     }
 }
 
@@ -418,8 +502,12 @@ fn logs(S, k) {
     let field = S.kit.field;
     section(k, "This run");
     let path = log::file();
-    let file = if path is String { path } else { "none: [log] file is off" };
-    field(S, k, "log file", file, #{ copy: true });
+    if path is String {
+        let short = S.kit.short_path;
+        field(S, k, "log file", short(path), #{ copy: true, copy_text: path });
+    } else {
+        field(S, k, "log file", "none: [log] file is off", #{});
+    }
     section(k, "Shipping to Gamend");
     let report = sink_report();
     if report is Object {
@@ -432,10 +520,6 @@ fn logs(S, k) {
         }
     } else {
         line("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", k.faint);
-    }
-    section(k, "Recent lines");
-    for entry in log::recent(12) {
-        line(format!("{}  {}: {}", entry["level"], entry["tag"], entry["message"]), k.dim);
     }
 }
 
@@ -511,6 +595,12 @@ fn fetch(me, key, path) {
         me.replies[key] = reply;
     }
     reply
+}
+
+/// Drop one fetched key, so it is asked for again.
+fn drop_key(me, key) {
+    me.requests.remove(key);
+    me.replies.remove(key);
 }
 
 /// Drop what the dock fetched under a key prefix, so it asks again.
@@ -593,6 +683,12 @@ fn expires(at) {
     let left = at - whole;
     if left <= 0 {
         return "expired: the next call refreshes it";
+    }
+    if left >= 172800 {
+        return format!("in {} days", left / 86400);
+    }
+    if left >= 7200 {
+        return format!("in {} h {} min", left / 3600, (left % 3600) / 60);
     }
     format!("in {} min {} s", left / 60, left % 60)
 }

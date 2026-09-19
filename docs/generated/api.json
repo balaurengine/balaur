@@ -5938,7 +5938,7 @@
       "constants": [],
       "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
       "docs": {
-        "activity": "The last calls and socket messages, newest first, as `{ request, kind, what, status, ms, args, reply }`; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
+        "activity": "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
         "clear_activity": "Forget the calls and messages `activity` holds.",
         "close": "Shut the socket down; false when the connection was already gone.",
@@ -5952,6 +5952,7 @@
         "reply": "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame.",
         "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`.",
         "restore": "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`.",
+        "run_id": "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it.",
         "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in.",
         "target": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."
       },
@@ -5970,6 +5971,7 @@
         "reply",
         "rest",
         "restore",
+        "run_id",
         "session",
         "target"
       ],
@@ -5989,6 +5991,7 @@
         "reply": "i64 -> Value",
         "rest": "(Value, String, String, Option<Value>) -> Value",
         "restore": "Option<Value> -> Value",
+        "run_id": "() -> Value",
         "session": "() -> Value",
         "target": "() -> Value"
       }
@@ -8754,7 +8757,7 @@
         "pick_folder": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         "templates": "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
-        "use_data": "Keep `save::` slots in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share one set of saves. Nil goes back to the editor's own. Answers the directory, or nil.",
+        "use_data": "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
         "version": "The version of the binary the editor is running in."
       },
       "functions": [

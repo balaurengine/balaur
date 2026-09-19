@@ -143,7 +143,10 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - A `nodes` export is a list of them, Godot's `Array[Node]`: each path is
   resolved the way one is, and a path naming nothing is nil in its place.
 - `script::require` hands back a module's `pub fn`s and its top-level `pub
-  const`s, so a shared constant is read where it is declared.
+  const`s, so a shared constant is read where it is declared. A relative
+  path is looked up in the roots a host added before the project's own:
+  `balaur edit` runs with the editor as the project, and the game it plays
+  requires its own addons.
 
 ### Prefabs
 

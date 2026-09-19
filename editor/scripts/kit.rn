@@ -28,6 +28,7 @@ pub fn make() {
         empty: script::shared(empty, 2),
         save_prefs: script::shared(save_prefs, 1),
         files: script::shared(files, 4),
+        short_path: script::shared(short_path, 1),
         game_data: script::shared(game_data, 1),
     }
 }
@@ -213,7 +214,8 @@ fn save_prefs(S) {
 }
 
 /// A labelled value. `mask` hides all but its ends until `show` is pressed,
-/// `copy` adds a copy mark, `color` tints the value.
+/// `copy` adds a copy mark (copying `copy_text` when given), `color` tints
+/// the value.
 fn field(S, k, label, value, opts) {
     let text = shown(value);
     let masked = option(opts, "mask", false);
@@ -236,7 +238,8 @@ fn field(S, k, label, value, opts) {
         }
         if option(opts, "copy", false) {
             if ui::pill("copy", #{ role: "chip" }) {
-                ui::set_clipboard(text);
+                let whole = option(opts, "copy_text", text);
+                ui::set_clipboard(whole);
             }
         }
     });
@@ -385,7 +388,7 @@ fn files(S, k, id, opts) {
     let only = option(opts, "only", []);
     ui::horizontal(#{ height: 24 }, || {
         ui::spacing(6, 0);
-        ui::label(root, #{ role: "meta", color: k.faint, truncate: true });
+        ui::label(short_path(root), #{ role: "meta", color: k.faint, truncate: true });
         if ui::pill("reveal", #{ role: "chip" }) {
             reveal(root);
         }
@@ -470,6 +473,16 @@ fn document(S, k, id, path, edit) {
         let body = if as_toml { toml::encode(after) } else { json::encode(after) };
         fs::write(path, body);
     }
+}
+
+/// A path as a person reads it: under the home directory it starts with `~`,
+/// which also keeps a user name out of a screenshot.
+fn short_path(path) {
+    let home = project::home();
+    if home is String && home != "" && path.starts_with(home + "/") {
+        return "~" + path[home.len()..];
+    }
+    path
 }
 
 /// Show a path in the file manager; a folder not made yet is not an error.

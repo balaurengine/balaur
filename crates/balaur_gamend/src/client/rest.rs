@@ -123,7 +123,7 @@ impl Client {
                 if let Some(token) = &prepared.bearer {
                     r = r.header("authorization", token);
                 }
-                r.call()?
+                r.header(super::RUN_HEADER, super::run_id()).call()?
             }
             "POST" | "PUT" | "PATCH" => {
                 let mut r = match prepared.method.as_str() {
@@ -134,7 +134,8 @@ impl Client {
                 if let Some(token) = &prepared.bearer {
                     r = r.header("authorization", token);
                 }
-                r.header("content-type", "application/json")
+                r.header(super::RUN_HEADER, super::run_id())
+                    .header("content-type", "application/json")
                     .send(prepared.body.as_deref().unwrap_or("{}"))?
             }
             other => anyhow::bail!("unsupported method `{other}`"),

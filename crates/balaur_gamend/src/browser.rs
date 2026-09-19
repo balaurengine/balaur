@@ -59,6 +59,9 @@ async fn send(prepared: Prepared) -> Result<Reply, String> {
     if let Some(bearer) = &prepared.bearer {
         headers.append("authorization", bearer).map_err(describe)?;
     }
+    headers
+        .append(crate::client::RUN_HEADER, crate::client::run_id())
+        .map_err(describe)?;
     if matches!(prepared.method.as_str(), "POST" | "PUT" | "PATCH") {
         headers
             .append("content-type", "application/json")
@@ -187,9 +190,10 @@ fn socket_url(client: &SharedClient) -> Result<(String, String)> {
         .session()
         .ok_or_else(|| anyhow!("connect needs a logged-in session"))?;
     let url = format!(
-        "{}/socket/websocket?token={}&vsn=2.0.0",
+        "{}/socket/websocket?token={}&client_session={}&vsn=2.0.0",
         client.base_url().replacen("http", "ws", 1),
-        session.access_token
+        session.access_token,
+        crate::client::run_id()
     );
     Ok((url, format!("user:{}", session.user_id)))
 }

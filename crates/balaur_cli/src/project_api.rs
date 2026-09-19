@@ -147,7 +147,7 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "use_data",
             &[],
             "(name: string?)",
-            "Keep `save::` slots in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share one set of saves. Nil goes back to the editor's own. Answers the directory, or nil.",
+            "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
         ),
     ]);
 }
@@ -203,6 +203,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
             dir
         });
         balaur::save::set_home(eng, home.clone());
+        balaur::facts::reread(eng);
         Ok(home.map_or(Value::Nil, |dir| {
             Value::Str(dir.to_string_lossy().into_owned())
         }))

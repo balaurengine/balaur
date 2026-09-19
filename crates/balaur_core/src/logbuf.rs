@@ -286,6 +286,7 @@ pub use file::{open as open_file, path as file_path};
 /// The same stream teed to a file, so the run that crashed leaves its lines
 /// behind. Native only: a browser has nowhere to write one.
 mod file {
+    #[cfg(not(target_family = "wasm"))]
     use std::io::Write as _;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;

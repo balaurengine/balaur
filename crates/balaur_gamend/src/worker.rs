@@ -106,9 +106,10 @@ fn open(
             .session()
             .ok_or_else(|| anyhow::anyhow!("connect needs a logged-in session"))?;
         let ws = format!(
-            "{}/socket/websocket?token={}&vsn=2.0.0",
+            "{}/socket/websocket?token={}&client_session={}&vsn=2.0.0",
             client.base_url().replacen("http", "ws", 1),
-            session.access_token
+            session.access_token,
+            crate::client::run_id()
         );
         (ws, format!("user:{}", session.user_id))
     };

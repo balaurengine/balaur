@@ -169,6 +169,39 @@ fn a_required_module_carries_its_constants() {
 }
 
 #[test]
+fn a_game_played_in_the_editor_requires_from_its_own_root() {
+    let editor = project(&[("helper.rn", "pub fn who() { \"editor\" }\n")]);
+    let game = project(&[
+        ("helper.rn", "pub fn who() { \"game\" }\n"),
+        (
+            "player.rn",
+            r#"pub fn init(this) {
+                let helper = script::require("helper.rn");
+                let who = (helper.who)();
+                let out = if who == "game" { 1.0 } else { 2.0 };
+                this.out = out;
+            }"#,
+        ),
+    ]);
+    let app = app_in(editor.path());
+    balaur_core::file_api::add_root(&app.engine, game.path());
+    let node = spawn(&app, "Player");
+    let host = app.engine.script_host().unwrap();
+    let script = game.path().join("player.rn");
+    host.attach(balaur_core::node_id_of(node), &script.to_string_lossy())
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(1.0),
+        "the game's helper, not the editor's"
+    );
+}
+
+#[test]
 fn a_required_module_shares_functions_and_hot_reloads_in_place() {
     let dir = project(&[
         ("lib.rn", "pub fn double(n) { n * 2 }\n"),

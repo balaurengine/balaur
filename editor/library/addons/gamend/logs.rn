@@ -23,6 +23,9 @@ const SPOOL_EVERY = 1.0;
 /// How long before asking for the policy again after no answer.
 const RETRY = 30.0;
 
+/// A cursor past every line, which `log::since` answers with the newest.
+const NEWEST = 9223372036854775807;
+
 /// How much of the previous run's log file goes up when it recorded a
 /// failure.
 const TAIL = 200;
@@ -32,8 +35,9 @@ const TAIL = 200;
 pub fn setup(url) {
     let sink = #{
         url: "",
-        run: "",
+        run: gamend::run_id(),
         cursor: 0,
+        seq: 0,
         pending: [],
         sending: [],
         recovered: [],
@@ -58,7 +62,20 @@ pub fn setup(url) {
     let server = if url is String { url } else { server_url() };
     sink.url = trimmed(server);
     sink.recovered = recovered();
+    if in_editor() {
+        // The editor's own lines came first in this process; the game's start
+        // here.
+        sink.cursor = log::since(NEWEST)["cursor"];
+    }
     sink
+}
+
+/// A game played inside the editor shares its process, its log and its log
+/// file, none of which are the game's to send.
+fn in_editor() {
+    let host = engine::platform();
+    let editor = host.get("editor").unwrap_or(false);
+    editor is bool && editor
 }
 
 /// The server this run talks to: the configured one, or `[gamend]`'s.
@@ -260,10 +277,14 @@ pub fn apply_policy(sink, policy) {
 fn take(sink) {
     let read = log::since(sink.cursor);
     sink.cursor = read["cursor"];
+    // Numbered here, not by the engine: a gap then means lines really lost
+    // (the buffer's, or trimmed), never lines the floor chose not to send.
+    sink.seq += read["missed"];
     let now = engine::unix_time();
+    let lobby = current_lobby();
     let urgent = false;
     for entry in read["entries"] {
-        let record = record_of(entry, now);
+        let record = record_of(entry, now, lobby);
         if !wanted(sink, record) {
             continue;
         }
@@ -272,6 +293,8 @@ fn take(sink) {
         }
         sink.dirty = true;
         if !fold(sink, record) {
+            sink.seq += 1;
+            record["seq"] = sink.seq;
             sink.pending.push(record);
         }
     }
@@ -305,21 +328,34 @@ fn rank(level) {
 
 /// A line as the server takes it. A script's `[script] …` line is filed under
 /// `script`, the bracket's word, rather than the engine module that logged it.
-fn record_of(entry, now) {
+fn record_of(entry, now, lobby) {
     let (category, text) = bracketed(format!("{}", entry["message"]), entry["tag"]);
     let message = text;
     for field in entry["fields"] {
         message = format!("{} {}={}", message, field["name"], field["value"]);
     }
     #{
-        "seq": entry["seq"],
+        "seq": 0,
         "at": now,
         "level": entry["level"],
         "category": category,
         "message": message,
-        "lobby_id": "",
+        "lobby_id": lobby,
         "screen": "",
     }
+}
+
+/// The lobby the game's socket has joined: the server files the run under it,
+/// so a search for the lobby finds every player's lines.
+fn current_lobby() {
+    for socket in gamend::connection()["sockets"] {
+        for topic in socket["topics"] {
+            if topic.starts_with("lobby:") {
+                return topic.replace("lobby:", "");
+            }
+        }
+    }
+    ""
 }
 
 /// `[word] rest` as `(word, rest)`; any other message keeps `tag`.
@@ -357,7 +393,7 @@ fn fold(sink, record) {
         return false;
     }
     let last = sink.pending[count - 1];
-    if last["message"] != record["message"] || last["level"] != record["level"] || last["category"] != record["category"] {
+    if last["message"] != record["message"] || last["level"] != record["level"] || last["category"] != record["category"] || last["lobby_id"] != record["lobby_id"] {
         return false;
     }
     let repeat = last.get("repeat").unwrap_or(1);
@@ -513,11 +549,10 @@ fn level_in(line) {
     "error"
 }
 
-/// Name the run once the clock reads, which it does from the first tick on.
-/// Unique per run and never kept: a reused id would merge two runs, and the
-/// server binds an id to the first player who sends it.
+/// Note when the run started once the clock reads, which it does from the
+/// first tick on; false until then.
 fn started(sink) {
-    if sink.run != "" {
+    if sink.started_at > 0.0 {
         return true;
     }
     let now = engine::unix_time();
@@ -525,11 +560,12 @@ fn started(sink) {
     if seconds <= 0.0 {
         return false;
     }
-    sink.run = format!("{}-{}", engine::device_id(), (seconds * 1000.0) as i64);
     sink.started_at = seconds;
     // Read now rather than in `setup`: the log file opens after `init`.
-    for record in previous_tail() {
-        sink.recovered.push(record);
+    if !in_editor() {
+        for record in previous_tail() {
+            sink.recovered.push(record);
+        }
     }
     for record in sink.recovered {
         if record["at"] == 0.0 {

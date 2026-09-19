@@ -201,10 +201,10 @@ stands.
 | Generated typed calls over the OpenAPI document, one per operation: `me`, `user`, `session`, `provider`, `lobby`, `party`, `friend`, `group`, `chat`, `chat_mute`, `matchmaking`, `ready_check`, `notification`, `push_token`, `quest`, `leaderboard`, `tournament`, `economy`, `kv`, `storage`, `payment`, `client_log`, `hook`, `stats`, `time`, `health`, `signaling` | Step E1 |
 | Typed realtime events per channel: user, lobby, lobbies, party, group, groups, signaling; `kv:subscribe` | Step E1 |
 | Lobby to match glue: the address and token off `lobby_updated` into `multiplayer::join`, in the game's script; a host-run match that needs no server as the fallback | Step E2 |
-| A Gamend dock in the editor: a header with the server target, Overview, User, Lobby, Data, Activity and Logs sub-tabs, and a tab per server feature | Step E3, designed in §2b; built, E3e's live updates left |
+| A Gamend dock in the editor: a header with the server target, Overview, User, Lobby, Data, Activity and Logs sub-tabs, and a tab per server feature | Built (E3), designed in §2b |
 | The server target: `gamend/url`, `local_url`, `plugin` for the project and `gamend/target` for the person | Built (E3c) |
 | Player prefs kept locally, `prefs.rn`, seen and edited from the dock and the editor's User data dock | Built (E3d) |
-| A log cursor, a log file that survives a crash, and batched shipping to Gamend | Built (E4); the socket's `client_session` param left |
+| A log cursor, a log file that survives a crash, and batched shipping to Gamend | Built (E4) |
 | The wasm stub replaced by the Fetch and WebSocket client | `docs/PLAN-web-editor.md` step 4 |
 | WebRTC data channels behind `Transport`, native and browser | `docs/PLAN-networking.md` step 14 |
 | Admin endpoints | Step E1 generates them too, gated on the token's role; an editor plugin that manages a game's server from the palette is the reason to have them |
@@ -358,18 +358,22 @@ no server dependency and can start now.
     the two chips and the two links.
   - **E3d, built.** `gamend::session()` and `restore()`, `prefs.rn`, the
     User tab with its masked tokens, the Data tab's local slots with
-    editing, and one server key-value key at a time. Not yet: the keys a
-    game subscribed to, listed with their last values.
-  - **E3e, part built.** The lobby and party behind the joined topics, read
-    on open and on Refresh. Left: following `lobby_updated` so a member
-    going offline shows when the game hears it.
+    editing, one server key-value key at a time, and the rows a playing
+    game keeps (`gamend:rows` on its nodes). The editor's device id is the
+    game's, so a device sign-in from the dock is the game's account.
+  - **E3e, built.** The lobby and party behind the joined topics, fetched
+    again when a newer message lands on their topic (`activity` rows carry
+    a `seq`). Checked on a local Gamend: a rename shows in the dock.
   - **E3f, built.** A tab per server feature, each a list of `GET` views.
 - **E4, built.** `log::since` and the log file in the engine (lines logged
   before it opened go in first), `logs.rn` and `log_sink.rn` in the addon,
-  and the Logs tab. Checked against a stub server: the policy, boot lines,
-  a folded repeat, an error flushing at once, the spool, and the last run's
-  tail. Left: `x-gamend-session` on the SDK's own calls and the socket's
-  `client_session` param, so server lines join the run's.
+  and the Logs tab. One run id (`gamend::run_id()`) rides every REST call
+  as `x-gamend-session` and the socket as `client_session`, so server lines
+  join the run's. Each line carries the joined lobby, so the server files
+  the run under it. A game played in the editor sends neither the editor's
+  earlier lines nor its log file. Checked against `gamend.org` (policy off)
+  and a local Gamend with collection on: the run, its device and user, and
+  its lobby land in `client_sessions`.
 
 ## 4. What CI can prove
 

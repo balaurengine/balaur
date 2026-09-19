@@ -28,6 +28,9 @@ const REPLIES: usize = 64;
 const WAITING: &str = "waiting";
 
 struct Entry {
+    /// Its place among every entry ever kept, from 1: a reader that saw one
+    /// knows anything above it is new.
+    seq: u64,
     request: u64,
     /// The socket a join, push, leave or hook went out on.
     socket: Option<u64>,
@@ -56,6 +59,8 @@ pub(crate) struct Activity {
     sockets: BTreeMap<u64, Socket>,
     /// Each finished call's event, by request, newest last.
     replies: VecDeque<(u64, Value)>,
+    /// How many entries were ever kept.
+    pushed: u64,
 }
 
 /// A payload as the dock shows it, or its size when it is too big to keep.
@@ -87,6 +92,7 @@ impl Activity {
         args: Option<&Json>,
     ) {
         self.push(Entry {
+            seq: 0,
             request,
             socket,
             kind,
@@ -137,6 +143,7 @@ impl Activity {
                 event,
                 payload,
             } => self.push(Entry {
+                seq: 0,
                 request: 0,
                 socket: Some(*socket),
                 kind: "message",
@@ -191,10 +198,12 @@ impl Activity {
         }
     }
 
-    fn push(&mut self, entry: Entry) {
+    fn push(&mut self, mut entry: Entry) {
         if self.entries.len() == KEPT {
             self.entries.pop_front();
         }
+        self.pushed += 1;
+        entry.seq = self.pushed;
         self.entries.push_back(entry);
         if let Some(older) = self
             .entries
@@ -241,6 +250,7 @@ impl Activity {
             .rev()
             .map(|entry| {
                 Value::Map(vec![
+                    (String::from("seq"), crate::int(entry.seq)),
                     (String::from("request"), crate::int(entry.request)),
                     (String::from("kind"), Value::Str(entry.kind.into())),
                     (String::from("what"), Value::Str(entry.what.clone())),
@@ -371,5 +381,11 @@ mod tests {
         let rows = rows(&activity);
         assert_eq!(rows.len(), KEPT);
         assert_eq!(field(&rows[0], "request"), &Value::Int(299));
+        // The count keeps going past what is kept, so a reader sees new rows.
+        assert_eq!(field(&rows[0], "seq"), &Value::Int(300));
+        assert_eq!(
+            field(&rows[KEPT - 1], "seq"),
+            &crate::int(300 - KEPT as u64 + 1)
+        );
     }
 }

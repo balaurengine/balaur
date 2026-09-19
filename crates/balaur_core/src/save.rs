@@ -66,12 +66,17 @@ impl SaveConfig {
 #[derive(Default)]
 pub struct SaveHome(pub Option<PathBuf>);
 
-/// Where every slot lives.
-pub fn folder(eng: &Engine) -> PathBuf {
+/// The user data directory in use: the run's own, or the one `set_home`
+/// named. Saves and the device id live under it.
+pub fn home(eng: &Engine) -> PathBuf {
     eng.try_resource::<SaveHome>()
         .and_then(|home| home.borrow().0.clone())
         .unwrap_or_else(|| crate::engine_api::user_data_dir_of(eng))
-        .join("saves")
+}
+
+/// Where every slot lives.
+pub fn folder(eng: &Engine) -> PathBuf {
+    home(eng).join("saves")
 }
 
 /// Keep slots under `home` from now on; `None` goes back to this run's own.

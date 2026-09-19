@@ -695,10 +695,23 @@ pub fn draw_body(S, k, side) {
     }
     tab_row(S, k, side, d);
     if side != "bottom" {
-        body(S, k, d.active);
+        side_body(S, k, side, d.active);
         return;
     }
     body_scrolled(S, k, d.active);
+}
+
+/// A side dock's panel. A plugin's gets the scroll the bottom dock would give
+/// it; the built-in ones size their own boxes.
+fn side_body(S, k, side, id) {
+    let plugin = crate::plugins::dock(S, id).is_some();
+    if !plugin || scrolls_itself(S, id) {
+        body(S, k, id);
+        return;
+    }
+    ui::scroll("dock-body-" + side, #{ max_height: ui::available_height() }, || {
+        body(S, k, id);
+    });
 }
 
 /// Whether a side dock is open: the one sheet that takes the whole body where
