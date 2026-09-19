@@ -557,7 +557,7 @@ pub fn str(value) {
         return out;
     }
     if value is balaur::Transform2d {
-        let out = `[X: ${str(value.x)}, Y: ${str(value.y)}, O: ${str(value.origin)}]`;
+        let out = `[X: ${str(value.x_axis)}, Y: ${str(value.y_axis)}, O: ${str(value.translation)}]`;
         return out;
     }
     if value is std::ops::Function {
@@ -982,7 +982,7 @@ fn span(x0, y0, x1, y1, x2, y2, x3, y3) {
 pub fn global_transform(node) {
     let scale = vec_of(node.transform.global_scale());
     let turn = -float(node.transform.global_rotation_euler().z);
-    balaur::Transform2d::from_parts(turn, scale, pixels_of(node.transform.global_position()))
+    balaur::Transform2d::from_scale_angle_translation(scale, turn, pixels_of(node.transform.global_position()))
 }
 
 /// Godot's `get_canvas_transform()`: world to viewport pixels through the 2D
@@ -996,16 +996,22 @@ pub fn canvas_transform(node) {
     let (w, h) = ui::screen_size();
     let origin = vec2(float(w) / 2.0 - float(camera[0]) * zoom, float(h) / 2.0 + float(camera[1]) * zoom);
     let scale = zoom / PIXELS;
-    balaur::Transform2d::from_parts(0.0, vec2(scale, scale), origin)
+    balaur::Transform2d::from_scale_angle_translation(vec2(scale, scale), 0.0, origin)
+}
+
+/// Godot's `get_scale()`: the y axis carries a mirror's sign.
+pub fn transform_scale(t) {
+    let sign = if t.determinant() < 0.0 { -1.0 } else { 1.0 };
+    vec2(t.x_axis.length(), sign * t.y_axis.length())
 }
 
 /// `Transform2d(..)`: nothing, rotation and origin, or the three columns.
 pub fn transform2d(args) {
     match args.len() as i64 {
         0 => balaur::Transform2d::identity(),
-        2 => balaur::Transform2d::from_parts(float(args[0]), vec2(1.0, 1.0), vec_of(args[1])),
+        2 => balaur::Transform2d::from_scale_angle_translation(vec2(1.0, 1.0), float(args[0]), vec_of(args[1])),
         3 => balaur::Transform2d::new(vec_of(args[0]), vec_of(args[1]), vec_of(args[2])),
-        _ => balaur::Transform2d::from_parts(float(args[0]), vec_of(args[1]), vec_of(args[3])),
+        _ => balaur::Transform2d::from_scale_angle_translation(vec_of(args[1]), float(args[0]), vec_of(args[3])),
     }
 }
 

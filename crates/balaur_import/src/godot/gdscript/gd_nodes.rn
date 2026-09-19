@@ -248,9 +248,9 @@ pub fn field(owner, name) {
     }
     if owner is balaur::Transform2d {
         let part = match name {
-            "origin" => owner.origin,
-            "x" => owner.x,
-            "y" => owner.y,
+            "origin" => owner.translation,
+            "x" => owner.x_axis,
+            "y" => owner.y_axis,
             _ => (),
         };
         return part;
@@ -1211,7 +1211,7 @@ fn node_method(node, name, args) {
         return global_transform(node) * vec_of(a0);
     }
     if name == "to_local" {
-        return global_transform(node).affine_inverse() * vec_of(a0);
+        return global_transform(node).inverse() * vec_of(a0);
     }
     if name == "get_global_transform" || name == "get_global_transform_with_canvas" {
         return global_transform(node);
@@ -1637,14 +1637,14 @@ fn native(owner, name, args) {
     }
     if owner is balaur::Transform2d {
         let out = match name {
-            "affine_inverse" => owner.affine_inverse(),
+            "affine_inverse" => owner.inverse(),
             "inverse" => owner.inverse(),
-            "xform" => owner.xform(a0),
-            "basis_xform" => owner.basis_xform(a0),
-            "get_origin" => owner.get_origin(),
-            "get_rotation" => owner.get_rotation(),
-            "get_scale" => owner.get_scale(),
-            "translated" => owner.translated(a0),
+            "xform" => owner.transform_point2(a0),
+            "basis_xform" => owner.transform_vector2(a0),
+            "get_origin" => owner.translation,
+            "get_rotation" => math::atan2(owner.x_axis.y, owner.x_axis.x),
+            "get_scale" => transform_scale(owner),
+            "translated" => balaur::Transform2d::from_translation(a0) * owner,
             _ => (),
         };
         return out;

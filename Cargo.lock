@@ -858,6 +858,7 @@ dependencies = [
  "balaur_core",
  "balaur_script",
  "bincode",
+ "glamx",
  "hecs",
  "indexmap",
  "libm",

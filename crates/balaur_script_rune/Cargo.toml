@@ -22,6 +22,7 @@ indexmap.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 anyhow.workspace = true
+glamx.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

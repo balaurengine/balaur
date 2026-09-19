@@ -10,7 +10,7 @@ use std::rc::Rc;
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, CallbackId};
 
-fn app_in(dir: &std::path::Path) -> App {
+pub(super) fn app_in(dir: &std::path::Path) -> App {
     App::new(AppConfig {
         script_backend: Some(balaur_script_rune::factory()),
         ..AppConfig::bare(dir.to_path_buf())
@@ -18,12 +18,12 @@ fn app_in(dir: &std::path::Path) -> App {
     .unwrap()
 }
 
-fn spawn(app: &App, name: &str) -> hecs::Entity {
+pub(super) fn spawn(app: &App, name: &str) -> hecs::Entity {
     let root = app.engine.root();
     balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, root)
 }
 
-fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
+pub(super) fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
     for (name, body) in files {
@@ -1152,8 +1152,8 @@ fn a_script_reads_another_scripts_members_and_callables() {
              \x20   this.speed = other.script_field(\"speed\");\n\
              \x20   this.seven = if other.script_field(\"counts\")[\"7\"] == \"seven\" { 1.0 } else { 0.0 };\n\
              \x20   this.doubled = (other.call(\"doubler\"))(4) as f64;\n\
-             \x20   let t = balaur::Transform2d::from_parts(0.0, balaur::Vec2::new(2.0, 2.0), balaur::Vec2::new(1.0, 0.0));\n\
-             \x20   this.back = (t.affine_inverse() * (t * balaur::Vec2::new(3.0, 5.0))).y;\n\
+             \x20   let t = balaur::Transform2d::from_scale_angle_translation(balaur::Vec2::new(2.0, 2.0), 0.0, balaur::Vec2::new(1.0, 0.0));\n\
+             \x20   this.back = (t.inverse() * (t * balaur::Vec2::new(3.0, 5.0))).y;\n\
              \x20   this.turned = balaur::Vec2::new(1.0, 0.0).rotated(math::PI / 2.0).y;\n\
              }\n",
         ),
