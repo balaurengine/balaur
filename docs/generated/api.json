@@ -5955,6 +5955,7 @@
         "run_id": "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it.",
         "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in.",
         "target": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."
+        "register": "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. No email is sent.",
       },
       "functions": [
         "activity",
@@ -5974,6 +5975,7 @@
         "run_id",
         "session",
         "target"
+        "register",
       ],
       "name": "gamend",
       "signatures": {
@@ -5994,6 +5996,7 @@
         "run_id": "() -> Value",
         "session": "() -> Value",
         "target": "() -> Value"
+        "register": "(Value, Option<Value>, Option<Value>) -> Value",
       }
     },
     {

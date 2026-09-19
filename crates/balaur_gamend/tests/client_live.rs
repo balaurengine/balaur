@@ -206,3 +206,43 @@ fn a_device_registers_signs_in_again_and_deletes_its_account() {
     let cleaned = client.call("DELETE", "/api/v1/me", None).unwrap();
     assert_eq!(cleaned.status, 200, "{}", cleaned.body);
 }
+
+#[test]
+fn an_email_account_registers_logs_in_and_deletes_itself() {
+    if !e2e_enabled() {
+        return;
+    }
+    let server = gamend_url();
+    let email = format!("{}@example.com", device_id());
+    let password = format!("balaur-test-{}", device_id());
+    let register = || Credentials::Register {
+        email: email.clone(),
+        password: password.clone(),
+        username: None,
+    };
+    let login = || Credentials::EmailPassword {
+        email: email.clone(),
+        password: password.clone(),
+    };
+
+    // Registering signs in; the password then logs in as the same account.
+    let mut client = Client::new(&server);
+    let made = auth::login(&mut client, &register()).unwrap();
+    let back = auth::login(&mut Client::new(&server), &login()).unwrap();
+    assert_eq!(back.user_id, made.user_id);
+
+    // The email is taken now.
+    let twin = auth::login(&mut Client::new(&server), &register());
+    let why = twin.err().map(|err| err.to_string()).unwrap_or_default();
+    assert!(why.contains("409"), "a second sign-up on one email: {why}");
+
+    let deleted = client
+        .call(
+            "DELETE",
+            "/api/v1/me",
+            Some(&json!({ "current_password": password })),
+        )
+        .unwrap();
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+    assert!(auth::login(&mut Client::new(&server), &login()).is_err());
+}

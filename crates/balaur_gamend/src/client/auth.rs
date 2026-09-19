@@ -37,6 +37,13 @@ pub enum Credentials {
     Device {
         device_id: String,
     },
+    /// A new account with an email and a password, signed in as it is made.
+    /// The server generates a username when none is given.
+    Register {
+        email: String,
+        password: String,
+        username: Option<String>,
+    },
 }
 
 /// The path and body a login posts, for whichever transport sends it.
@@ -48,6 +55,17 @@ pub(crate) fn login_request(credentials: &Credentials) -> (&'static str, Value) 
         ),
         Credentials::Device { device_id } => {
             ("/api/v1/login/device", json!({ "device_id": device_id }))
+        }
+        Credentials::Register {
+            email,
+            password,
+            username,
+        } => {
+            let mut body = json!({ "email": email, "password": password });
+            if let Some(username) = username {
+                body["username"] = json!(username);
+            }
+            ("/api/v1/register", body)
         }
     }
 }
@@ -76,9 +94,9 @@ pub fn refresh(client: &Client, refresh_token: &str) -> Result<Session> {
     session_of(&reply.body, reply.status, "refresh")
 }
 
-/// The `{"data": {...}}` envelope both login and refresh reply with.
+/// The `{"data": {...}}` envelope login, register (201) and refresh reply with.
 pub(crate) fn session_of(body: &Value, status: u16, what: &str) -> Result<Session> {
-    if status != 200 {
+    if !(200..300).contains(&status) {
         let error = body
             .get("error")
             .and_then(Value::as_str)

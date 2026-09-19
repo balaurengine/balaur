@@ -283,10 +283,12 @@ by where the file lives, not by who does it.
   API, and a script that registers by device, calls a hook and deletes its
   account through the SDK. `scripts/sync_gamend.sh --check` in precommit,
   so the library copy and the version it names never drift.
-- Gamend: `DELETE /api/v1/me` reads `current_password` from its body, but
-  its OpenAPI operation declares no body, so the generated
-  `user_delete_current_user(node)` cannot delete an account that has a
-  password. Declare the optional body and regenerate.
+- Accounts: `POST /api/v1/register` signs a player up with an email and a
+  password and answers like login; the engine's `gamend::register` and the
+  addon's `client.register_email` open its session. `DELETE /api/v1/me`
+  declares its optional `current_password`, so `user_delete_current_user`
+  deletes an account that has a password. The e2e suite registers both kinds
+  of account and deletes them.
 - The port: its scenarios, as today.
 - What neither can: a real provider's OAuth page, and the socket under a
   real NAT.

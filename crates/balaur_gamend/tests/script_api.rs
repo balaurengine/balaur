@@ -94,7 +94,7 @@ pub async fn on_gamend_event(this, e) {{
         let me = task::wait((api.users_get_current_user)(())).await;
         let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
         gamend::close(this.socket);
-        let gone = task::wait((api.user_delete_current_user)(())).await;
+        let gone = task::wait((api.user_delete_current_user)((), ())).await;
         log::info(format!("gamend-live {{}} {{}} {{}}", me["status"], hook["status"], gone["status"]));
     }}
 }}
@@ -103,6 +103,37 @@ pub async fn on_gamend_event(this, e) {{
     // No plugin answers `sdk_probe` on a stock server, so the hook's reply is
     // an error, which still proves the whole path.
     run_until_with(&borrowed, &source, &["gamend-live 200 error 200"]);
+}
+
+#[test]
+fn a_script_registers_by_email_and_deletes_its_account() {
+    if !e2e_enabled() {
+        return;
+    }
+    let url = gamend_url();
+    let email = format!("{}@example.com", device_id());
+    let password = format!("balaur-test-{}", device_id());
+    let files = gamend_addon();
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    let client = script::require("addons/gamend/client.rn");
+    let api = script::require("addons/gamend/api.rn");
+    (client.configure)("{url}", ());
+    let made = task::wait((client.register_email)((), "{email}", "{password}", ())).await;
+    let me = task::wait((api.users_get_current_user)(())).await;
+    let gone = task::wait((api.user_delete_current_user)((), #{{ "current_password": "{password}" }})).await;
+    let back = task::wait((client.login_email)((), "{email}", "{password}")).await;
+    let refused = back.contains_key("error");
+    log::info(format!("gamend-email {{}} {{}} {{}} {{}}", made["kind"], me["status"], gone["status"], refused));
+}}
+"#
+    );
+    run_until_with(&borrowed, &source, &["gamend-email login 200 200 true"]);
 }
 
 #[allow(

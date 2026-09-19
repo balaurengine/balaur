@@ -8,7 +8,7 @@ let api = script::require("addons/gamend/api.rn");
 let client = script::require("addons/gamend/client.rn");
 ```
 
-243 operations and 71 realtime events.
+244 operations and 71 realtime events.
 
 Beside the generated `api.rn` and `events.rn`, written by hand:
 
@@ -217,6 +217,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | `chat_get_chat_message(node, id)` | `GET /api/v1/chat/messages/{id}` | Get a single chat message |
 | `chat_list_chat_messages(node, options)` | `GET /api/v1/chat/messages` | List chat messages |
 | `chat_list_group_mutes(node, id, options)` | `GET /api/v1/groups/{id}/mutes` | List active mutes in a group |
+| `authentication_register(node, params)` | `POST /api/v1/register` | Register |
 | `chat_list_lobby_mutes(node, options)` | `GET /api/v1/lobbies/mutes` | List active mutes in your lobby |
 | `chat_list_party_mutes(node, options)` | `GET /api/v1/parties/mutes` | List active mutes in your party |
 | `chat_mark_chat_read(node, params)` | `POST /api/v1/chat/read` | Mark chat as read |
@@ -439,7 +440,7 @@ Beside the generated `api.rn` and `events.rn`, written by hand:
 | Function | Call | What it does |
 | --- | --- | --- |
 | `user_create_current_user_avatar_upload_url(node, params)` | `POST /api/v1/me/avatar/upload_url` | Request an avatar upload ticket |
-| `user_delete_current_user(node)` | `DELETE /api/v1/me` | Delete current user |
+| `user_delete_current_user(node, params)` | `DELETE /api/v1/me` | Delete current user |
 | `users_get_current_user(node)` | `GET /api/v1/me` | Return current user info |
 | `users_get_user(node, id)` | `GET /api/v1/users/{id}` | Get a user by id |
 | `users_search_users(node, options)` | `GET /api/v1/users` | Search users by id, username, or display_name |

@@ -128,8 +128,18 @@ mod backend {
 /// Login input, mirrored from [`client::auth::Credentials`] so the wasm
 /// stub compiles without the wire layer.
 pub enum LoginCredentials {
-    EmailPassword { email: String, password: String },
-    Device { device_id: String },
+    EmailPassword {
+        email: String,
+        password: String,
+    },
+    Device {
+        device_id: String,
+    },
+    Register {
+        email: String,
+        password: String,
+        username: Option<String>,
+    },
 }
 
 /// What the engine thread asks a socket worker to do.
@@ -236,6 +246,15 @@ impl From<LoginCredentials> for client::Credentials {
                 Self::EmailPassword { email, password }
             }
             LoginCredentials::Device { device_id } => Self::Device { device_id },
+            LoginCredentials::Register {
+                email,
+                password,
+                username,
+            } => Self::Register {
+                email,
+                password,
+                username,
+            },
         }
     }
 }
@@ -286,11 +305,12 @@ impl GamendState {
         if let Some(handler) = handler {
             self.request_handlers.insert(request, handler);
         }
-        let who = match &credentials {
-            LoginCredentials::Device { .. } => String::from("device"),
-            LoginCredentials::EmailPassword { email, .. } => email.clone(),
+        let (kind, who) = match &credentials {
+            LoginCredentials::Device { .. } => ("login", String::from("device")),
+            LoginCredentials::EmailPassword { email, .. } => ("login", email.clone()),
+            LoginCredentials::Register { email, .. } => ("register", email.clone()),
         };
-        self.activity.started(request, None, "login", who, None);
+        self.activity.started(request, None, kind, who, None);
         self.io.start(eng, |report| {
             backend::spawn_login(&client, request, credentials, report);
         });
@@ -650,6 +670,21 @@ fn credentials_of(spec: &Value) -> Result<LoginCredentials> {
     }
 }
 
+fn account_of(spec: &Value) -> Result<LoginCredentials> {
+    let field = |key: &str| match opt(Some(spec), key) {
+        Some(Value::Str(s)) => Some(s.clone()),
+        _ => None,
+    };
+    match (field("email"), field("password")) {
+        (Some(email), Some(password)) => Ok(LoginCredentials::Register {
+            email,
+            password,
+            username: field("username"),
+        }),
+        _ => Err(anyhow!("an account needs an `email` and a `password`")),
+    }
+}
+
 fn json_of(value: Option<&Value>) -> Result<Json> {
     match value {
         None | Some(Value::Nil) => Ok(Json::Object(serde_json::Map::new())),
@@ -667,6 +702,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("configure", &[], "(url: string?)", "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs."),
         ("login", &[], "", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
+        ("register", &[], "(node: node?, account: map)", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. No email is sent."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
         ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take."),
     ]);
@@ -695,6 +731,22 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
             eng.resource::<GamendState>()
                 .borrow_mut()
                 .login(eng, id, credentials, handler)?;
+            Ok(int(id))
+        },
+    );
+    m.function(
+        "register",
+        |eng: &Engine, (node, spec, opts): (Value, Option<Value>, Option<Value>)| {
+            let (node, spec) = normalize_target(node, spec);
+            let account = account_of(
+                spec.as_ref()
+                    .ok_or_else(|| anyhow!("register needs an account table"))?,
+            )?;
+            let handler = handler_of(&node, opts.as_ref(), "on_gamend_event")?;
+            let id = eng.next_token();
+            eng.resource::<GamendState>()
+                .borrow_mut()
+                .login(eng, id, account, handler)?;
             Ok(int(id))
         },
     );

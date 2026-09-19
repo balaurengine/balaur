@@ -923,6 +923,19 @@ pub fn chat_list_chat_messages(node, options) {
     let query = (core.query)(options, ["chat_type", "chat_ref_id", "page", "page_size"]);
     gamend::rest(node, "GET", `/api/v1/chat/messages${query}`)
 }
+/// Register
+/// `POST /api/v1/register`
+pub fn authentication_register(node, params) {
+    let core = script::require(CORE);
+    if !(core.given)(params, "email") {
+        return (core.missing)("authentication_register", "email");
+    }
+    if !(core.given)(params, "password") {
+        return (core.missing)("authentication_register", "password");
+    }
+    gamend::rest(node, "POST", "/api/v1/register", params)
+}
+
 
 /// List active mutes in a group
 /// `GET /api/v1/groups/{id}/mutes`
@@ -1895,8 +1908,8 @@ pub fn user_create_current_user_avatar_upload_url(node, params) {
 
 /// Delete current user
 /// `DELETE /api/v1/me`
-pub fn user_delete_current_user(node) {
-    gamend::rest(node, "DELETE", "/api/v1/me")
+pub fn user_delete_current_user(node, params) {
+    gamend::rest(node, "DELETE", "/api/v1/me", params)
 }
 
 /// Return current user info

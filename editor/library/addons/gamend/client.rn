@@ -1,4 +1,4 @@
-// The session, the socket and the server's hooks, over the engine's nine
+// The session, the socket and the server's hooks, over the engine's
 // `gamend::` calls. A module holds no state, so the socket id is the
 // caller's and the row cache lives on the node's `meta`.
 
@@ -42,6 +42,17 @@ pub fn login_device(node, device_id) {
 /// Open a session from an email and a password.
 pub fn login_email(node, email, password) {
     return gamend::login(node, #{ "email": email, "password": password });
+}
+
+/// Make an account from an email and a password and open its session. The
+/// reply reaches `node`'s handler as `kind = "login"`; `username` may be nil,
+/// and the server picks one.
+pub fn register_email(node, email, password, username) {
+    let account = #{ "email": email, "password": password };
+    if username is String {
+        account["username"] = username;
+    }
+    return gamend::register(node, account);
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
