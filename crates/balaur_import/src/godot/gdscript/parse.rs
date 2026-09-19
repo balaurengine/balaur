@@ -9,7 +9,10 @@ use super::lex::{Tok, Token};
 
 /// Binding power per binary operator, loosest first. GDScript's table, which
 /// is Python's with `&&`/`||` spelled both ways.
-fn binding(op: &str) -> Option<(u8, &'static str)> {
+/// What `not` takes: everything that binds at least as tightly as `==`.
+const NOT_OPERAND: u8 = 4;
+
+pub(crate) fn binding(op: &str) -> Option<(u8, &'static str)> {
     Some(match op {
         "||" | "or" => (1, "||"),
         "&&" | "and" => (2, "&&"),
@@ -307,6 +310,24 @@ impl<'a> Parser<'a> {
                 Tok::Name(word) if matches!(word.as_str(), "or" | "and" | "in" | "as" | "is") => {
                     word.clone()
                 }
+                // `a not in b`: the test `in` makes, negated.
+                Tok::Name(word)
+                    if word == "not"
+                        && least <= 4
+                        && self
+                            .tokens
+                            .get(self.at + 1)
+                            .is_some_and(|t| t.kind == Tok::Name("in".into())) =>
+                {
+                    self.next();
+                    self.next();
+                    let right = self.expression(5)?;
+                    left = Expr::Unary(
+                        "!",
+                        Box::new(Expr::Binary("in", Box::new(left), Box::new(right))),
+                    );
+                    continue;
+                }
                 Tok::Name(word) if word == "if" => {
                     // `then if cond else other`, GDScript's ternary.
                     if least > 0 {
@@ -365,9 +386,11 @@ impl<'a> Parser<'a> {
                 self.next();
                 self.unary()
             }
+            // `not` binds looser than a comparison: `not a == b` negates the
+            // comparison, as `!` does in GDScript too.
             Tok::Op("!") => {
                 self.next();
-                Some(Expr::Unary("!", Box::new(self.unary()?)))
+                Some(Expr::Unary("!", Box::new(self.expression(NOT_OPERAND)?)))
             }
             Tok::Op("~") => {
                 self.next();
@@ -375,7 +398,7 @@ impl<'a> Parser<'a> {
             }
             Tok::Name(word) if word == "not" => {
                 self.next();
-                let inner = self.unary()?;
+                let inner = self.expression(NOT_OPERAND)?;
                 // `not x is T` is GDScript's negated type test, which reads
                 // better emitted as one thing than as a negation of one.
                 if let Expr::Is(value, name, _) = inner {
@@ -603,6 +626,11 @@ impl<'a> Parser<'a> {
         self.eat(&Tok::Op(";"));
         if self.check(&Tok::Newline) || self.at_end() || self.check(&Tok::Dedent) {
             self.eat(&Tok::Newline);
+            return Some(());
+        }
+        // A lambda whose body was a block ends its statement with that block.
+        let after_block = self.at > 0 && self.tokens[self.at - 1].kind == Tok::Dedent;
+        if after_block {
             return Some(());
         }
         // A one-line lambda's body ends where its call's argument does.

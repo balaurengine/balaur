@@ -1,0 +1,1970 @@
+/// Godot's viewport rectangle. The engine reports the screen as a pair, and
+/// the visible rect always starts at the origin.
+pub fn viewport_rect() {
+    let (w, h) = ui::screen_size();
+    rect(0.0, 0.0, w, h)
+}
+
+pub fn screen_size() {
+    let (w, h) = ui::screen_size();
+    return vec2(w, h);
+}
+
+/// `OS.has_feature(name)`. The engine reports where it runs as a table, not
+/// as Godot's flat list of feature tags.
+pub fn has_feature(name) {
+    let here = engine::platform();
+    if name == "editor" {
+        return here.editor;
+    }
+    if name == "web" || name == "html5" || name == "javascript" {
+        return here.web;
+    }
+    if name == "mobile" {
+        return here.mobile;
+    }
+    if name == "touchscreen" {
+        return here.touchscreen;
+    }
+    return here.os == name;
+}
+
+pub fn os_name() {
+    return engine::platform().os;
+}
+
+/// Godot's `ConfigFile`: sections of keys, read from and written to a `save`
+/// slot named after the file it was given. `user://settings.json` is the slot
+/// `settings`, so a run given `custom_config=user://automation.cfg` keeps its
+/// settings apart from the player's, as Godot's own path did.
+pub fn config() {
+    #{ "gd_config": true, "data": #{}, "slot": "settings" }
+}
+
+fn is_config(value) {
+    value is Object && value.contains_key("gd_config")
+}
+
+pub fn slot_of(path) {
+    let parts = path.split("/").collect::<Vec>();
+    let name = parts[parts.len() - 1];
+    let head = name.split(".").collect::<Vec>();
+    return head[0];
+}
+
+pub fn config_load(owner, path) {
+    if !is_config(owner) {
+        return owner.load(path);
+    }
+    owner.slot = slot_of(path);
+    let stored = save::read(owner.slot);
+    owner.data = if stored is Object { stored } else { #{} };
+    return 0;
+}
+
+pub fn config_save(owner, path) {
+    if !is_config(owner) {
+        return owner.save(path);
+    }
+    if path is String && path != "" {
+        owner.slot = slot_of(path);
+    }
+    save::write(owner.slot, owner.data);
+    return 0;
+}
+
+pub fn config_get(owner, section, key, fallback) {
+    if !is_config(owner) {
+        return owner.get_value(section, key, fallback);
+    }
+    // A key holding nothing reads as its default, as a missing one does.
+    let held = get(get(owner.data, section, #{}), key, fallback);
+    if is_nil(held) { fallback } else { held }
+}
+
+pub fn config_set(owner, section, key, value) {
+    if !is_config(owner) {
+        return owner.set_value(section, key, value);
+    }
+    let table = get(owner.data, section, #{});
+    table[key] = value;
+    owner.data[section] = table;
+    return ();
+}
+
+/// `erase_section_key(section, key)`: the one way a key leaves.
+pub fn config_erase_key(owner, section, key) {
+    if !is_config(owner) {
+        return owner.erase_section_key(section, key);
+    }
+    let table = get(owner.data, section, #{});
+    if table.contains_key(key) {
+        table.remove(key);
+    }
+    return ();
+}
+
+pub fn config_has_section(owner, section) {
+    if !is_config(owner) {
+        return owner.has_section(section);
+    }
+    return has(owner.data, section);
+}
+
+pub fn config_has_key(owner, section, key) {
+    if !is_config(owner) {
+        return owner.has_section_key(section, key);
+    }
+    return has(get(owner.data, section, #{}), key);
+}
+
+pub fn config_erase_section(owner, section) {
+    if !is_config(owner) {
+        return owner.erase_section(section);
+    }
+    owner.data.remove(section);
+    return ();
+}
+
+pub fn config_sections(owner) {
+    if !is_config(owner) {
+        return owner.get_sections();
+    }
+    return keys(owner.data);
+}
+
+pub fn config_keys(owner, section) {
+    if !is_config(owner) {
+        return owner.get_section_keys(section);
+    }
+    return keys(get(owner.data, section, #{}));
+}
+
+
+/// A `static var`, held by reference for as long as the app runs, as Godot
+/// holds one: any value, a tween or a node included.
+pub fn static_get(key, fallback) {
+    let held = script::stored(key);
+    if is_nil(held) {
+        return fallback;
+    }
+    held
+}
+
+/// A static's value to change in place: what the store holds, stored first
+/// when this is its first use.
+pub fn static_ref(key, fallback) {
+    let held = script::stored(key);
+    if is_nil(held) {
+        script::store(key, fallback);
+        return fallback;
+    }
+    held
+}
+
+pub fn static_set(key, value) {
+    script::store(key, value);
+    value
+}
+
+/// Godot's metadata. A value the `meta` component can hold is kept there, as
+/// a scene saves it; a tween, a node or a function is kept beside it.
+pub fn set_meta(node, key, value) {
+    let slot = `meta:${node.stable_id()}:${key}`;
+    let (kept, _) = script::attempt(|| { node.meta[key] = value; });
+    script::store(slot, if kept { () } else { value });
+}
+
+pub fn get_meta(node, key, fallback) {
+    let held = script::stored(`meta:${node.stable_id()}:${key}`);
+    if !is_nil(held) {
+        return held;
+    }
+    get(node.meta, key, fallback)
+}
+
+pub fn has_meta(node, key) {
+    !is_nil(get_meta(node, key, ()))
+}
+
+pub fn remove_meta(node, key) {
+    script::store(`meta:${node.stable_id()}:${key}`, ());
+    let _ = script::attempt(|| { node.meta[key] = (); });
+}
+
+/// Reading a property off another script. Godot read one script's member
+/// straight off the node; here a node's script is reached by calling it, and
+/// every converted script carries an accessor per member.
+pub fn field(owner, name) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        if owner.has_method(name) {
+            return owner.call(name);
+        }
+        let held = owner.script_field(name);
+        if !is_nil(held) {
+            return held;
+        }
+        // A constant of the node's class, which its module exports.
+        let path = owner.script_path();
+        if path is String {
+            let value = get(script::require(path), name, ());
+            // A function is a constant only under a constant's name.
+            let callable = value is std::ops::Function && name.to_uppercase() != name;
+            if !is_nil(value) && !callable {
+                return constant(value);
+            }
+        }
+        let known = node_property(owner, name);
+        if !is_nil(known) {
+            return known;
+        }
+        if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
+            return owner.state_machine.get()[TREE_ACTIVE];
+        }
+        return ();
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let getter = get(script::require(owner[CLASS_KEY]), `__get_${name}`, ());
+            if !is_nil(getter) {
+                return getter(owner);
+            }
+        }
+        if owner.contains_key(CLASS_KEY) && !owner.contains_key(name) {
+            // A method named without a call is Godot's `Callable`: bound here.
+            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            if !is_nil(method) {
+                let bound = || method(owner);
+                return bound;
+            }
+        }
+        return get(owner, name, ());
+    }
+    if is_map(owner) {
+        return get(owner, name, ());
+    }
+    if owner is balaur::Transform2d {
+        let part = match name {
+            "origin" => owner.origin,
+            "x" => owner.x,
+            "y" => owner.y,
+            _ => (),
+        };
+        return part;
+    }
+    if is_lanes(owner) {
+        let lane = match name {
+            "x" => owner.x,
+            "y" => owner.y,
+            "z" => owner.z,
+            "r" => owner.r,
+            "g" => owner.g,
+            "b" => owner.b,
+            "a" => owner.a,
+            _ => (),
+        };
+        return lane;
+    }
+    return ();
+}
+
+/// A vector or a colour, whose lanes are fields.
+fn is_lanes(value) {
+    value is balaur::Vec2 || value is balaur::Vec3 || value is balaur::Color
+}
+
+/// What a class's `new()` table names its module under.
+const CLASS_KEY = "__class";
+
+/// Godot's `X.new()` for a node: built from `doc`, a one-node scene, under a
+/// hidden holder until something adds it somewhere, with `script` attached.
+pub fn new_node(doc, script) {
+    let holder = detached();
+    let serial = static_get("gd:new_node", 0) + 1;
+    let _ = static_set("gd:new_node", serial);
+    let name = `new_${serial}`;
+    scene::instantiate(doc.replace("__new__", name), holder);
+    let node = holder.get_node(name);
+    if !is_nil(node) && !is_nil(script) {
+        node.attach_script(script);
+    }
+    node
+}
+
+/// Godot's `PackedScene.instantiate()`: the scene a path names, built where
+/// `new()` builds nodes, to be added by `add_child`.
+pub fn instantiate(path) {
+    if !(path is String) {
+        return ();
+    }
+    let text = scene::source(path);
+    if !(text is String) {
+        log::warn(`${path}: no scene there to instantiate`);
+        return ();
+    }
+    let holder = detached();
+    let before = holder.children().len();
+    scene::instantiate(text, holder);
+    let made = holder.children();
+    if made.len() > before {
+        return made[made.len() - 1];
+    }
+    return ();
+}
+
+/// Where a node `new()` made waits to be added: hidden, under the root.
+fn detached() {
+    let root = scene::root();
+    let held = root.get_node("__detached");
+    if is_nil(held) {
+        held = root.add_child("__detached");
+        held.set_visible(false);
+    }
+    held
+}
+
+/// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
+/// name makes a new child, as the engine's own `add_child` does.
+pub fn add_child(parent, child) {
+    if child is balaur::Node {
+        child.set_parent(parent);
+        return child;
+    }
+    parent.add_child(child)
+}
+
+/// A Control's `custom_minimum_size`, which is the widget's `min_width` and
+/// `min_height` here.
+pub fn min_size(node) {
+    if node is balaur::Node && node.has_component("widget") {
+        return vec2(node.widget.min_width, node.widget.min_height);
+    }
+    vec2(0.0, 0.0)
+}
+
+pub fn set_min_size(node, size) {
+    if node is balaur::Node {
+        node.patch_component("widget", #{ "min_width": float(size.x), "min_height": float(size.y) });
+    }
+}
+
+/// Godot's `ProjectSettings.get`: what `project.godot` said, from the module
+/// the importer wrote beside this one.
+pub fn project_setting(path, fallback) {
+    let settings = script::require("godot_settings.rn");
+    let held = (settings.setting)(path);
+    if is_nil(held) {
+        return fallback;
+    }
+    held
+}
+
+/// A `res://` or `user://` path as the project-relative one `fs` takes.
+pub fn project_path(path) {
+    if path.starts_with("res://") {
+        return path[6..];
+    }
+    if path.starts_with("user://") {
+        return engine::user_data_dir() + "/" + path[7..];
+    }
+    path
+}
+
+/// Godot's `ButtonGroup.new()`: a name no other group has, which the
+/// buttons it is given carry as their widget `group`.
+pub fn button_group() {
+    let serial = static_get("gd:button_group", 0) + 1;
+    let _ = static_set("gd:button_group", serial);
+    `group_${serial}`
+}
+
+/// Godot's `RandomNumberGenerator.new()`: its methods over the engine's one
+/// seeded generator, which is what keeps a replay the same.
+pub fn random_numbers() {
+    #{
+        "randf": || rng::random(),
+        "randf_range": |low, high| rng::range(float(low), float(high)),
+        "randi": || rng::int(0, 2147483647),
+        "randi_range": |low, high| rng::int(low, high),
+        "randomize": || (),
+    }
+}
+
+/// `await x.method(..)` on a receiver only known at run time: a node's method
+/// through `call_async`, which resumes once it has returned, and a class
+/// table's or a closure's by awaiting what it answers.
+async fn call_later(owner, name, args) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        let name = fitted(owner, name, args.len() as i64);
+        if !owner.has_method(name) {
+            return ();
+        }
+        let token = match args.len() as i64 {
+            0 => owner.call_async(name),
+            1 => owner.call_async(name, args[0]),
+            2 => owner.call_async(name, args[0], args[1]),
+            3 => owner.call_async(name, args[0], args[1], args[2]),
+            4 => owner.call_async(name, args[0], args[1], args[2], args[3]),
+            5 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4]),
+            6 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4], args[5]),
+            7 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6]),
+            8 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]),
+            9 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]),
+            10 => owner.call_async(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]),
+            _ => (),
+        };
+        let out = task::wait(token).await;
+        return out;
+    }
+    let out = invoke_many(owner, name, args);
+    if out is std::future::Future {
+        return out.await;
+    }
+    out
+}
+
+pub async fn invoke_async(owner, name) {
+    call_later(owner, name, []).await
+}
+
+pub async fn invoke_async1(owner, name, a0) {
+    call_later(owner, name, [a0]).await
+}
+
+pub async fn invoke_async2(owner, name, a0, a1) {
+    call_later(owner, name, [a0, a1]).await
+}
+
+pub async fn invoke_async3(owner, name, a0, a1, a2) {
+    call_later(owner, name, [a0, a1, a2]).await
+}
+
+/// Godot's Tween over `animation::tween`.
+///
+/// Godot collects a tween's steps and runs them from the next frame. Here each
+/// step appended restarts one `animation::tween` holding every step so far,
+/// which is the same sequence as long as the steps are appended in one frame,
+/// as a GDScript chain is.
+/// Whether a value is the table `create_tween` made, rather than a script's
+/// own object answering the same verb.
+fn is_tween(t) {
+    t is Object && t.contains_key("steps") && t.contains_key("handle")
+}
+
+/// A tween verb the engine has no use for: the tween back, or the object's
+/// own method where the receiver is not a tween.
+pub fn tween_same(t, name, args) {
+    if is_tween(t) {
+        return t;
+    }
+    call_value(t, [name].iter().chain(args.iter()).collect::<Vec>())
+}
+
+pub fn create_tween(node) {
+    #{
+        "node": node, "trans": "linear", "mode": "in_out", "steps": [],
+        "join": false, "joined": false, "loops": 1, "done": [], "handle": (),
+    }
+}
+
+pub fn set_trans(t, name) {
+    if !is_tween(t) {
+        return invoke1(t, "set_trans", name);
+    }
+    if name is String {
+        t.trans = name;
+    }
+    t
+}
+
+pub fn set_ease(t, name) {
+    if !is_tween(t) {
+        return invoke1(t, "set_ease", name);
+    }
+    if name is String {
+        t.mode = name;
+    }
+    t
+}
+
+/// The next step runs with the one before it, as Godot's `parallel()`.
+pub fn tween_parallel(t) {
+    if !is_tween(t) {
+        return invoke(t, "parallel");
+    }
+    t.join = true;
+    t
+}
+
+/// Every step runs with the one before it, as `set_parallel(true)`.
+pub fn tween_set_parallel(t, on) {
+    if !is_tween(t) {
+        return invoke1(t, "set_parallel", on);
+    }
+    let joined = is_nil(on) || on;
+    t.joined = joined;
+    t
+}
+
+pub fn tween_chain(t) {
+    if !is_tween(t) {
+        return invoke(t, "chain");
+    }
+    t.join = false;
+    t
+}
+
+pub fn tween_loops(t, count) {
+    if !is_tween(t) {
+        return invoke1(t, "set_loops", count);
+    }
+    t.loops = if is_nil(count) { 0 } else { count };
+    restart(t);
+    t
+}
+
+/// Godot's transition and mode are balaur's one name: `TRANS_SINE` with
+/// `EASE_IN` is `in_sine`, and linear has no mode.
+fn easing(t) {
+    if t.trans == "linear" {
+        return "linear";
+    }
+    let out = `${t.mode}_${t.trans}`;
+    out
+}
+
+/// The track a Godot property name drives, and the channel of it, if any.
+fn tween_track(path) {
+    let name = path;
+    let channel = ();
+    if path is String && path.contains(":") {
+        let cut = path.split(":").collect::<Vec>();
+        name = cut[0];
+        channel = cut[1];
+    }
+    let track = match name {
+        "modulate" => "tint",
+        "self_modulate" => "tint",
+        "position" => "position",
+        "global_position" => "position",
+        "scale" => "scale",
+        "rotation" => "rotation",
+        "visible" => "visible",
+        _ => name,
+    };
+    (track, channel)
+}
+
+/// A Godot value as the list a track takes.
+fn tween_value(v) {
+    if v is balaur::Color {
+        return [v.r, v.g, v.b, v.a];
+    }
+    if v is balaur::Vec3 {
+        return [v.x, v.y, v.z];
+    }
+    if v is balaur::Vec2 {
+        return [v.x, v.y, 0.0];
+    }
+    v
+}
+
+/// Where a track stands now, so a tween of one channel keeps the rest.
+fn tween_now(node, track) {
+    if track == "tint" {
+        return tween_value(node.tint());
+    }
+    if track == "position" {
+        return tween_value(position_of(node));
+    }
+    if track == "scale" {
+        return tween_value(vec_of(node.transform.scale));
+    }
+    return ();
+}
+
+/// `target` as a path below the tween's node, or nil when it is elsewhere.
+fn below(node, target) {
+    if !(target is balaur::Node) {
+        return ();
+    }
+    let top = node.path();
+    let at = target.path();
+    if at == top {
+        return "";
+    }
+    let head = top + "/";
+    if at.starts_with(head) {
+        return at[head.len()..];
+    }
+    return ();
+}
+
+/// Add one step, joined to the last when the chain says so, and restart.
+fn push_step(t, step) {
+    if (t.join || t.joined) && t.steps.len() > 0 {
+        step["parallel"] = true;
+    }
+    t.join = false;
+    t.steps.push(step);
+    restart(t);
+}
+
+/// Stop what is running and start every step so far as one tween, with the
+/// functions waiting on its end as its last steps.
+fn restart(t) {
+    if !is_nil(t.handle) {
+        animation::stop(t.handle);
+    }
+    let steps = [];
+    for step in t.steps {
+        steps.push(step);
+    }
+    for f in t.done {
+        steps.push(#{ "call": f });
+    }
+    if steps.len() == 0 {
+        t.handle = ();
+        return;
+    }
+    t.handle = animation::tween(t.node, #{ "steps": steps, "loops": t.loops });
+}
+
+pub fn tween_property(t, target, path, to, seconds) {
+    if !is_tween(t) {
+        return ();
+    }
+    let (track, channel) = tween_track(path);
+    let want = tween_value(to);
+    if !is_nil(channel) {
+        let held = tween_now(target, track);
+        if held is Vec {
+            let slot = match channel {
+                "x" => 0,
+                "y" => 1,
+                "z" => 2,
+                "r" => 0,
+                "g" => 1,
+                "b" => 2,
+                "a" => 3,
+                _ => -1,
+            };
+            if slot >= 0 && slot < held.len() {
+                held[slot] = float(want);
+                want = held;
+            }
+        }
+    }
+    if track == "position" {
+        want = units_of(#{ "x": want[0], "y": want[1] });
+    } else if track == "rotation" {
+        want = -float(want);
+    } else if track == "zoom" && target is balaur::Node && target.has_component("camera2d") {
+        // A camera's zoom is one number here, scaled as `set_node_property`'s.
+        let zoom = if want is Vec { want[0] } else { want };
+        track = "camera2d/zoom";
+        want = float(zoom) * PIXELS;
+    }
+    let step = #{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) };
+    let at = below(t.node, target);
+    if is_nil(at) {
+        // A node outside the tween's own runs on a tween of its own.
+        animation::tween(target, #{ "steps": [step] });
+        return t;
+    }
+    if at != "" {
+        step["target"] = at;
+    }
+    push_step(t, step);
+    t
+}
+
+/// A step that only waits, which a chain uses to space the others.
+pub fn tween_interval(t, seconds) {
+    if !is_tween(t) {
+        return invoke1(t, "tween_interval", seconds);
+    }
+    push_step(t, #{ "interval": float(seconds) });
+    t
+}
+
+/// A function the chain calls when it reaches this step.
+pub fn tween_callback(t, f) {
+    if !is_tween(t) {
+        return invoke1(t, "tween_callback", f);
+    }
+    if !is_nil(f) {
+        push_step(t, #{ "call": f });
+    }
+    t
+}
+
+/// Godot's `finished`: a function the tween calls once its last step is done.
+pub fn when_finished(t, f) {
+    if t is Object && t.contains_key("steps") {
+        t.done.push(f);
+        restart(t);
+        return ();
+    }
+    log::warn("`finished` on something that is not a tween is not heard here");
+}
+
+pub fn kill_tween(t) {
+    if !is_tween(t) {
+        return invoke(t, "kill");
+    }
+    if t is Object && !is_nil(t.handle) {
+        animation::stop(t.handle);
+        t.handle = ();
+    }
+}
+
+pub fn tween_running(t) {
+    if !is_tween(t) {
+        return invoke(t, "is_running");
+    }
+    t is Object && !is_nil(t.handle) && animation::is_tween_running(t.handle)
+}
+
+/// Godot's `get_window()`: its content scale is the UI's global scale, and
+/// its size the screen in design pixels.
+pub fn window() {
+    let (w, h) = ui::screen_size();
+    #{ "content_scale_factor": ui::scale(), "size": vec2(w, h) }
+}
+
+/// Hearing another node's event. A `from` that is not a node is nothing to
+/// subscribe to, and saying so beats an error inside the engine.
+pub fn listen(node, name, from, handler) {
+    if from is balaur::Node {
+        events::subscribe(node, name, from);
+        return ();
+    }
+    if from is Object && !is_nil(handler) {
+        if !from.contains_key(LISTENERS) {
+            from[LISTENERS] = #{};
+        }
+        let table = from[LISTENERS];
+        if !table.contains_key(name) {
+            table[name] = [];
+        }
+        table[name].push(handler);
+        return ();
+    }
+    log::warn(`${name}: nothing to hear it from`);
+}
+
+/// Where a node's script signals keep their handlers: one list per emitter
+/// and signal, called as the signal is emitted.
+fn handlers_key(emitter, name) {
+    `signal:${emitter.stable_id()}:${name}`
+}
+
+/// Godot's `signal.connect(f)` on a script's own signal.
+pub fn connect(emitter, name, handler) {
+    if emitter is Object {
+        return listen((), name, emitter, handler);
+    }
+    if !(emitter is balaur::Node) || is_nil(handler) {
+        return ();
+    }
+    let key = handlers_key(emitter, name);
+    let list = script::stored(key);
+    if is_nil(list) {
+        list = [];
+    }
+    list.push(handler);
+    script::store(key, list);
+    ()
+}
+
+/// Godot's `disconnect`: here every handler of that signal goes.
+pub fn disconnect(emitter, name) {
+    if emitter is balaur::Node {
+        script::store(handlers_key(emitter, name), []);
+    }
+    if emitter is Object && emitter.contains_key(LISTENERS) {
+        emitter[LISTENERS][name] = [];
+    }
+    return ();
+}
+
+pub fn is_connected(emitter, name) {
+    if emitter is balaur::Node {
+        let list = script::stored(handlers_key(emitter, name));
+        return list is Vec && list.len() > 0;
+    }
+    false
+}
+
+/// Godot's `signal.emit(..)`: each handler called now, then the event sent,
+/// one argument as its payload and several as a list.
+pub fn emit_now(emitter, name, args) {
+    let list = script::stored(handlers_key(emitter, name));
+    if list is Vec {
+        for f in list {
+            call_value(f, args);
+        }
+    }
+    let payload = match args.len() as i64 {
+        0 => (),
+        1 => args[0],
+        _ => args,
+    };
+    emitter.emit(name, payload);
+}
+
+/// `slider.value_changed.emit(v)` from outside: the widget's own handler runs
+/// now, on the node or scripted ancestor the widget layer would pick.
+pub fn emit_engine(emitter, name, args) {
+    let key = widget_handler_key(name);
+    if !is_nil(key) && emitter is balaur::Node && emitter.has_component("widget") {
+        let widget = emitter.get_component("widget");
+        let method = get(widget, key, "");
+        if method is String && method != "" {
+            let sent = if key == "on_click" { [] } else { args.iter().take(1).collect::<Vec>() };
+            if get(widget, "pass_node", false) {
+                sent.push(emitter);
+            }
+            let at = emitter;
+            while at is balaur::Node {
+                if at.has_method(method) {
+                    return invoke_many(at, method, sent);
+                }
+                at = at.parent();
+            }
+        }
+    }
+    emit_now(emitter, name, args)
+}
+
+/// The widget key holding the handler for a Godot control signal.
+fn widget_handler_key(name) {
+    match name {
+        "pressed" => "on_click",
+        "button_up" => "on_click",
+        "toggled" => "on_change",
+        "text_changed" => "on_change",
+        "value_changed" => "on_change",
+        "item_selected" => "on_change",
+        "text_submitted" => "on_submit",
+        _ => (),
+    }
+}
+
+/// Where a class table keeps what `connect` gave it, by signal.
+const LISTENERS = "__listeners";
+
+/// A class table's signal: each listener called with what was emitted.
+pub fn emit_obj(owner, name, args) {
+    if !(owner is Object) || !owner.contains_key(LISTENERS) {
+        return ();
+    }
+    for f in get(owner[LISTENERS], name, []) {
+        call_value(f, args);
+    }
+}
+
+pub fn unlisten(node, name, from) {
+    if from is balaur::Node {
+        events::unsubscribe(node, name, from);
+    }
+}
+
+/// A control's size where the layer last drew it; nothing drawn yet is
+/// zero, as Godot's is before its first layout.
+pub fn size_of(node) {
+    if !(node is balaur::Node) {
+        return field(node, "size");
+    }
+    let drawn = ui::widget_rect(node);
+    if drawn is Object && drawn.contains_key("w") {
+        return vec2(float(drawn["w"]), float(drawn["h"]));
+    }
+    vec2(0.0, 0.0)
+}
+
+/// A control's theme, as the one value scripts read off it.
+pub fn theme_of(node) {
+    #{ "default_font_size": 16 }
+}
+
+/// One of Godot's node properties, read off the node's components.
+fn node_property(node, name) {
+    let out = match name {
+        "position" => position_of(node),
+        "global_position" => global_position_of(node),
+        "scale" => vec_of(node.transform.scale),
+        "rotation" => rotation_of(node),
+        "rotation_degrees" => math::deg(rotation_of(node)),
+        "size" => size_of(node),
+        "visible" => node.visible(),
+        "modulate" => node.tint(),
+        "self_modulate" => node.tint(),
+        "z_index" => node.z_index(),
+        "name" => node.name(),
+        "zoom" => camera_zoom(node),
+        "selected" if node.has_component("widget") => option_index(node),
+        "item_count" if node.has_component("widget") => option_count(node),
+        _ => (),
+    };
+    out
+}
+
+/// A Camera2D's zoom as Godot's multiplier: the engine's is pixels a unit.
+fn camera_zoom(node) {
+    if !node.has_component("camera2d") {
+        return ();
+    }
+    let zoom = float(get(node.get_component("camera2d"), "zoom", PIXELS)) / PIXELS;
+    vec2(zoom, zoom)
+}
+
+/// Writing one of Godot's node properties; false for a name that is not one.
+fn set_node_property(node, name, value) {
+    if name == "position" {
+        set_position(node, value);
+    } else if name == "global_position" {
+        set_global_position(node, value);
+    } else if name == "scale" {
+        set_scale(node, value);
+    } else if name == "rotation" {
+        set_rotation(node, value);
+    } else if name == "rotation_degrees" {
+        set_rotation(node, math::rad(value));
+    } else if name == "visible" {
+        node.set_visible(value);
+    } else if name == "modulate" || name == "self_modulate" {
+        set_tint(node, value);
+    } else if name == "z_index" {
+        node.set_z_index(value);
+    } else if name == "name" {
+        node.set_name(value);
+    } else if name == "selected" && node.has_component("widget") {
+        option_select(node, value);
+    } else if name == "zoom" && node.has_component("camera2d") {
+        node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
+    } else {
+        return false;
+    }
+    true
+}
+
+/// The method a call with `count` arguments reaches: `name__1` stands in
+/// for `name` called without its defaulted tail, where the script has one.
+fn fitted(owner, name, count) {
+    let short = `${name}__${count}`;
+    if owner.has_method(short) {
+        return short;
+    }
+    name
+}
+
+const FILE_ERROR = "file:last_error";
+
+/// Godot's `FileAccess.open(path, mode)`: a table holding the text read, or
+/// collecting what is stored until `close` writes it; nil when a read fails.
+pub fn file_open(path, mode) {
+    let at = project_path(path);
+    let text = "";
+    if mode != 2 {
+        let read = fs::read(at);
+        if !(read is String) {
+            script::store(FILE_ERROR, 7);
+            return ();
+        }
+        text = read;
+    }
+    script::store(FILE_ERROR, 0);
+    let file = #{ "text": text, "line": 0, "out": "" };
+    file["get_as_text"] = || file["text"];
+    file["get_length"] = || file["text"].len() as i64;
+    file["get_line"] = || {
+        let lines = file["text"].split("\n").collect::<Vec>();
+        let index = file["line"];
+        file["line"] = index + 1;
+        if index < lines.len() { lines[index] } else { "" }
+    };
+    file["eof_reached"] = || file["line"] >= file["text"].split("\n").collect::<Vec>().len();
+    file["store_string"] = |s| { file["out"] = file["out"] + s; };
+    file["store_line"] = |s| { file["out"] = `${file["out"]}${s}\n`; };
+    file["close"] = || {
+        if mode != 1 {
+            fs::write(at, file["out"]);
+        }
+    };
+    file["flush"] = || ();
+    file
+}
+
+/// Godot's `FileAccess.get_open_error()`: 0 once an open worked.
+pub fn file_error() {
+    let held = script::stored(FILE_ERROR);
+    if is_nil(held) { 0 } else { held }
+}
+
+/// A `.tres` as its converted module builds it, once: Godot hands every
+/// `preload` of a file the same resource.
+pub fn resource(module) {
+    let key = `resource:${module}`;
+    let held = script::stored(key);
+    if !is_nil(held) {
+        return held;
+    }
+    let made = (script::require(module).resource)();
+    script::store(key, made);
+    made
+}
+
+/// A `.csv` as the godot-csv-importer resource a script loads: its rows as
+/// lists of text, the first row included. Read once, as a preload is.
+pub fn csv_resource(path) {
+    let key = `csv:${path}`;
+    let held = script::stored(key);
+    if !is_nil(held) {
+        return held;
+    }
+    let text = fs::read(path);
+    let made = #{ "records": if text is String { csv_rows(text) } else { [] } };
+    script::store(key, made);
+    made
+}
+
+/// Comma-separated rows, a quoted field keeping its commas, doubled quotes
+/// and line breaks.
+fn csv_rows(text) {
+    let rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    let chars = text.chars().collect::<Vec>();
+    let at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        if quoted {
+            if c == '"' {
+                if at + 1 < chars.len() && chars[at + 1] == '"' {
+                    field += "\"";
+                    at += 1;
+                } else {
+                    quoted = false;
+                }
+            } else {
+                field += `${c}`;
+            }
+        } else if c == '"' {
+            quoted = true;
+        } else if c == ',' {
+            row.push(field);
+            field = "";
+        } else if c == '\n' {
+            row.push(field);
+            rows.push(row);
+            row = [];
+            field = "";
+        } else if c != '\r' {
+            field += `${c}`;
+        }
+        at += 1;
+    }
+    if field != "" || row.len() > 0 {
+        row.push(field);
+        rows.push(row);
+    }
+    rows
+}
+
+/// A path only known at run time, as the project spells it: `res://` goes,
+/// and a scene keeps its stem under `.toml`.
+pub fn load(path) {
+    if !(path is String) {
+        return path;
+    }
+    let rest = if path.starts_with("res://") { path[6..] } else { path };
+    if rest.ends_with(".tres") {
+        return resource(`${rest}.rn`);
+    }
+    if rest.ends_with(".csv") {
+        return csv_resource(rest);
+    }
+    if rest.ends_with(".tscn") {
+        // Bound first: a template straight after `return` is not an
+        // expression Rune's parser will take.
+        let stem = rest[..rest.len() - 5];
+        let out = `${stem}.toml`;
+        return out;
+    }
+    rest
+}
+
+/// `create_timer(t)`: its `timeout` is what a script awaits or connects.
+pub fn timer(seconds) {
+    #{ "timeout": #{ "__after": float(seconds) } }
+}
+
+/// Godot's `await node.signal`: the next time that node delivers the event,
+/// a widget's press being its `click`.
+pub async fn wait_signal(owner, name) {
+    // The tree's own frame signals are a frame's wait.
+    if name == "process_frame" || name == "physics_frame" {
+        task::frames(1).await;
+        return ();
+    }
+    if owner is balaur::Node {
+        let event = name;
+        if name == "pressed" || name == "button_up" {
+            event = "click";
+        } else if ["toggled", "value_changed", "text_changed", "item_selected"].iter().any(|n| n == name) {
+            event = "change";
+        } else if name == "text_submitted" {
+            event = "submit";
+        }
+        let payload = task::wait(events::next(event, owner)).await;
+        return payload;
+    }
+    let value = field(owner, name);
+    if value is Object && value.contains_key("__after") {
+        task::seconds(value["__after"]).await;
+        return ();
+    }
+    if value is std::future::Future {
+        let out = value.await;
+        return out;
+    }
+    value
+}
+
+/// A timer's `timeout.connect(f)`: `f` once the time has passed.
+fn after(wait, f) {
+    let t = create_tween(scene::root());
+    tween_interval(t, wait["__after"]);
+    tween_callback(t, f);
+    ()
+}
+
+/// Godot's `find_children(pattern)`: the descendants whose name matches a
+/// pattern where `*` stands for any run of characters.
+pub fn find_children(node, pattern, type_name, recursive) {
+    let out = [];
+    let pool = if truthy(recursive) { node.descendants() } else { node.children() };
+    // A script class is matched by path, looked up once rather than per node.
+    let files = if type_name == "" { () } else { get(class_table(), type_name, ()) };
+    for child in pool {
+        if !glob(pattern, child.name()) {
+            continue;
+        }
+        let fits = if type_name == "" {
+            true
+        } else if files is Vec {
+            let path = child.script_path();
+            !is_nil(path) && files.iter().any(|f| f == path)
+        } else {
+            is_a(child, type_name)
+        };
+        if fits {
+            out.push(child);
+        }
+    }
+    out
+}
+
+fn glob(pattern, name) {
+    if pattern == "*" || pattern == "" {
+        return true;
+    }
+    let parts = pattern.split("*").collect::<Vec>();
+    if parts.len() == 1 {
+        return pattern == name;
+    }
+    let rest = name;
+    let first = parts[0];
+    if !rest.starts_with(first) {
+        return false;
+    }
+    rest = rest[first.len()..];
+    let last = parts[parts.len() - 1];
+    let index = 1;
+    while index < parts.len() - 1 {
+        let part = parts[index];
+        if !rest.contains(part) {
+            return false;
+        }
+        let head = rest.split(part).collect::<Vec>();
+        rest = rest[head[0].len() + part.len()..];
+        index += 1;
+    }
+    rest.ends_with(last)
+}
+
+/// One of Godot's own node methods, for a node whose script has no method of
+/// that name.
+fn node_method(node, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    if name == "to_global" {
+        return global_transform(node) * vec_of(a0);
+    }
+    if name == "to_local" {
+        return global_transform(node).affine_inverse() * vec_of(a0);
+    }
+    if name == "get_global_transform" || name == "get_global_transform_with_canvas" {
+        return global_transform(node);
+    }
+    if name == "get_canvas_transform" {
+        return canvas_transform(node);
+    }
+    if name == "get_path" {
+        return node.path();
+    }
+    if name == "get_parent" {
+        return node.parent();
+    }
+    if name == "get_children" {
+        return node.children();
+    }
+    if name == "get_node" || name == "get_node_or_null" {
+        return node.get_node(a0);
+    }
+    if name == "is_visible_in_tree" {
+        return node.global_visible();
+    }
+    if name == "is_inside_tree" || name == "is_node_ready" {
+        return node.is_valid();
+    }
+    if name == "queue_free" {
+        return node.queue_free();
+    }
+    if name == "hide" {
+        return node.set_visible(false);
+    }
+    if name == "show" {
+        return node.set_visible(true);
+    }
+    if name == "get_index" {
+        return node.sibling_index();
+    }
+    if name == "is_in_group" {
+        return node.has_tag(a0);
+    }
+    if name == "get_size" {
+        return size_of(node);
+    }
+    if name == "get_global_rect" {
+        return drawn_rect(node, ());
+    }
+    let listed = option_method(node, name, args);
+    if !is_nil(listed) {
+        return listed;
+    }
+    if name == "get_rect" {
+        return drawn_rect(node, node.parent());
+    }
+    return ();
+}
+
+/// An `OptionButton`'s item verbs, over the dropdown widget: `options` holds
+/// the labels and `text` the one picked. Nil for any other method.
+fn option_method(node, name, args) {
+    if !node.has_component("widget") {
+        return ();
+    }
+    let a0 = if args.len() > 0 { args[0] } else { () };
+    if name == "clear" {
+        node.patch_component("widget", #{ "options": [], "text": "" });
+        return true;
+    }
+    if name == "add_item" || name == "add_icon_item" {
+        let label = if name == "add_item" { a0 } else { args[1] };
+        let items = option_items(node);
+        items.push(str(label));
+        node.patch_component("widget", #{ "options": items });
+        return true;
+    }
+    if name == "select" || name == "select_" {
+        return option_select(node, a0);
+    }
+    if name == "get_item_text" {
+        return get(option_items(node), a0, "");
+    }
+    if name == "get_item_count" {
+        return option_count(node);
+    }
+    if name == "get_selected" || name == "get_selected_id" {
+        return option_index(node);
+    }
+    if name == "get_item_id" {
+        return a0;
+    }
+    if name == "is_item_disabled" {
+        return false;
+    }
+    if name == "set_item_disabled" {
+        return true;
+    }
+}
+
+fn option_items(node) {
+    let items = get(node.get_component("widget"), "options", ());
+    if items is Vec { items } else { [] }
+}
+
+/// `item_count`.
+pub fn option_count(node) {
+    if node is balaur::Node { option_items(node).len() } else { field(node, "item_count") }
+}
+
+/// `selected`: the picked item's index, -1 for none.
+pub fn option_index(node) {
+    if !(node is balaur::Node) {
+        return field(node, "selected");
+    }
+    let picked = get(node.get_component("widget"), "text", "");
+    let items = option_items(node);
+    let index = 0;
+    while index < items.len() {
+        if items[index] == picked {
+            return index;
+        }
+        index += 1;
+    }
+    -1
+}
+
+/// `selected = i` and `select(i)`.
+pub fn option_select(node, index) {
+    if !(node is balaur::Node) {
+        return set_field(node, "selected", index);
+    }
+    let text = get(option_items(node), int(index), "");
+    node.patch_component("widget", #{ "text": text });
+    true
+}
+
+/// A path's directory and file name, split at its last `/`.
+fn path_parts(path) {
+    let slash = native(path, "rfind", ["/"]);
+    if slash < 0 {
+        return ["", path];
+    }
+    // The root keeps its slash, as Godot's `get_base_dir` does.
+    let dir = if slash == 0 { "/" } else { path[..slash] };
+    [dir, path[slash + 1..]]
+}
+
+/// A control's rect where the layer last drew it, relative to `origin`'s.
+fn drawn_rect(node, origin) {
+    let drawn = ui::widget_rect(node);
+    if !(drawn is Object && drawn.contains_key("w")) {
+        return rect(0.0, 0.0, 0.0, 0.0);
+    }
+    let x = float(drawn["x"]);
+    let y = float(drawn["y"]);
+    if origin is balaur::Node {
+        let base = ui::widget_rect(origin);
+        if base is Object && base.contains_key("x") {
+            x -= float(base["x"]);
+            y -= float(base["y"]);
+        }
+    }
+    rect(x, y, float(drawn["w"]), float(drawn["h"]))
+}
+
+/// Godot's `Array` methods that are not collection verbs of the shim's own.
+fn array_method(list, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    let a1 = if count > 1 { args[1] } else { () };
+    if name == "assign" {
+        list.clear();
+        for item in a0 {
+            list.push(item);
+        }
+        return ();
+    }
+    if name == "push_front" {
+        list.insert(0, a0);
+        return ();
+    }
+    if name == "insert" {
+        list.insert(int(a0), a1);
+        return ();
+    }
+    if name == "remove_at" {
+        list.remove(int(a0));
+        return ();
+    }
+    if name == "pick_random" {
+        if list.len() == 0 {
+            return ();
+        }
+        return list[rng::int(0, list.len() as i64 - 1)];
+    }
+    if name == "shuffle" {
+        let at = list.len() as i64 - 1;
+        while at > 0 {
+            let other = rng::int(0, at);
+            let held = list[at];
+            list[at] = list[other];
+            list[other] = held;
+            at -= 1;
+        }
+        return ();
+    }
+    if name == "filter" {
+        let out = [];
+        for item in list {
+            if truthy(a0(item)) {
+                out.push(item);
+            }
+        }
+        return out;
+    }
+    if name == "map" {
+        let out = [];
+        for item in list {
+            out.push(a0(item));
+        }
+        return out;
+    }
+    if name == "any" {
+        for item in list {
+            if truthy(a0(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if name == "all" {
+        for item in list {
+            if !truthy(a0(item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if name == "reduce" {
+        let acc = a1;
+        let start = 0;
+        if count < 2 {
+            if list.len() == 0 {
+                return ();
+            }
+            acc = list[0];
+            start = 1;
+        }
+        let at = start;
+        while at < list.len() {
+            acc = a0(acc, list[at]);
+            at += 1;
+        }
+        return acc;
+    }
+    if name == "count" {
+        let n = 0;
+        for item in list {
+            if item == a0 {
+                n += 1;
+            }
+        }
+        return n;
+    }
+    if name == "sort_custom" {
+        // An insertion sort: `a0(a, b)` says whether `a` goes first.
+        let at = 1;
+        while at < list.len() {
+            let held = list[at];
+            let back = at;
+            while back > 0 && truthy(a0(held, list[back - 1])) {
+                list[back] = list[back - 1];
+                back -= 1;
+            }
+            list[back] = held;
+            at += 1;
+        }
+        return ();
+    }
+    if name == "max" || name == "min" {
+        if list.len() == 0 {
+            return ();
+        }
+        let best = list[0];
+        for item in list {
+            if (name == "max" && item > best) || (name == "min" && item < best) {
+                best = item;
+            }
+        }
+        return best;
+    }
+    if name == "has" {
+        return has(list, a0);
+    }
+    if name == "size" {
+        return list.len() as i64;
+    }
+    if name == "is_empty" {
+        return list.len() == 0;
+    }
+    if name == "rfind" {
+        let at = list.len() as i64 - 1;
+        while at >= 0 {
+            if list[at] == a0 {
+                return at;
+            }
+            at -= 1;
+        }
+        return -1;
+    }
+    return ();
+}
+
+/// A method on a value the engine carries natively, named at run time.
+fn native(owner, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    let a1 = if count > 1 { args[1] } else { () };
+    if owner is balaur::Vec2 {
+        let out = match name {
+            "length" => owner.length(),
+            "normalized" => owner.normalized(),
+            "dot" => owner.dot(a0),
+            "distance_to" => owner.distance_to(a0),
+            "lerp" => owner.lerp(a0, float(a1)),
+            "angle" => owner.angle(),
+            "angle_to_point" => owner.angle_to_point(a0),
+            "rotated" => owner.rotated(float(a0)),
+            "abs" => owner.abs(),
+            "floor" => owner.floor(),
+            "ceil" => owner.ceil(),
+            "round" => owner.round(),
+            "sign" => owner.sign(),
+            "orthogonal" => owner.orthogonal(),
+            "length_squared" => owner.length_squared(),
+            "distance_squared_to" => owner.distance_squared_to(a0),
+            "direction_to" => owner.direction_to(a0),
+            "clamp" => owner.clamp(a0, a1),
+            "limit_length" => owner.limit_length(float(a0)),
+            "move_toward" => owner.move_toward(a0, float(a1)),
+            "is_zero_approx" => owner.is_zero_approx(),
+            "is_equal_approx" => owner.is_equal_approx(a0),
+            _ => (),
+        };
+        return out;
+    }
+    if owner is balaur::Vec3 {
+        let out = match name {
+            "length" => owner.length(),
+            "normalized" => owner.normalized(),
+            "dot" => owner.dot(a0),
+            "distance_to" => owner.distance_to(a0),
+            "lerp" => owner.lerp(a0, float(a1)),
+            _ => (),
+        };
+        return out;
+    }
+    if owner is balaur::Color {
+        let out = match name {
+            "lerp" => balaur::Color::new(
+                lerp(owner.r, a0.r, float(a1)), lerp(owner.g, a0.g, float(a1)),
+                lerp(owner.b, a0.b, float(a1)), lerp(owner.a, a0.a, float(a1))),
+            "darkened" => balaur::Color::new(owner.r * (1.0 - a0), owner.g * (1.0 - a0), owner.b * (1.0 - a0), owner.a),
+            "lightened" => balaur::Color::new(
+                owner.r + (1.0 - owner.r) * a0, owner.g + (1.0 - owner.g) * a0,
+                owner.b + (1.0 - owner.b) * a0, owner.a),
+            _ => (),
+        };
+        return out;
+    }
+    if owner is Vec {
+        return array_method(owner, name, args);
+    }
+    if owner is String {
+        let chars = owner.chars().collect::<Vec>();
+        let out = match name {
+            "unicode_at" => chars[int(a0)].to_i64(),
+            "length" => chars.len() as i64,
+            "left" => substr(owner, 0, int(a0)),
+            "right" => substr(owner, math::max(0, chars.len() as i64 - int(a0)), int(a0)),
+            "repeat" => {
+                let text = "";
+                for _ in 0..int(a0) {
+                    text += owner;
+                }
+                text
+            }
+            "to_int" => int(owner),
+            "to_float" => float(owner),
+            "replace" => owner.replace(a0, a1),
+            "to_lower" => owner.to_lowercase(),
+            "to_upper" => owner.to_uppercase(),
+            "strip_edges" => owner.trim(),
+            "begins_with" => owner.starts_with(a0),
+            "ends_with" => owner.ends_with(a0),
+            "contains" => owner.contains(a0),
+            "is_empty" => owner.len() == 0,
+            "split" => split(owner, a0),
+            "find" => find(owner, a0),
+            "substr" => substr(owner, a0, if count > 1 { a1 } else { -1 }),
+            "is_valid_int" => is_valid_int(owner),
+            "rfind" => {
+                let parts = owner.split(a0).collect::<Vec>();
+                if parts.len() < 2 { -1 } else { (owner.len() - parts[parts.len() - 1].len() - a0.len()) as i64 }
+            }
+            "strip_escapes" => owner.trim(),
+            "is_valid_float" => is_valid_float(owner),
+            "trim_prefix" => if owner.starts_with(a0) { owner[a0.len()..] } else { owner },
+            "trim_suffix" => if owner.ends_with(a0) { owner[..owner.len() - a0.len()] } else { owner },
+            "get_base_dir" => path_parts(owner)[0],
+            "get_file" => path_parts(owner)[1],
+            "get_extension" => {
+                let file = path_parts(owner)[1];
+                let dot = native(file, "rfind", ["."]);
+                if dot < 0 { "" } else { file[dot + 1..] }
+            }
+            "get_basename" => {
+                let dot = native(owner, "rfind", ["."]);
+                let slash = native(owner, "rfind", ["/"]);
+                if dot <= slash { owner } else { owner[..dot] }
+            }
+            _ => (),
+        };
+        return out;
+    }
+    if owner is balaur::Transform2d {
+        let out = match name {
+            "affine_inverse" => owner.affine_inverse(),
+            "inverse" => owner.inverse(),
+            "xform" => owner.xform(a0),
+            "basis_xform" => owner.basis_xform(a0),
+            "get_origin" => owner.get_origin(),
+            "get_rotation" => owner.get_rotation(),
+            "get_scale" => owner.get_scale(),
+            "translated" => owner.translated(a0),
+            _ => (),
+        };
+        return out;
+    }
+    return ();
+}
+
+/// A call with more arguments than the `invoke` family spells out: a node's
+/// method, a class table's function or a table's closure, by argument count.
+pub fn invoke_many(owner, name, args) {
+    if is_nil(owner) {
+        return ();
+    }
+    let count = args.len() as i64;
+    if owner is balaur::Node {
+        let name = fitted(owner, name, count);
+        if !owner.has_method(name) {
+            return ();
+        }
+        let out = match count {
+            0 => owner.call(name),
+            1 => owner.call(name, args[0]),
+            2 => owner.call(name, args[0], args[1]),
+            3 => owner.call(name, args[0], args[1], args[2]),
+            4 => owner.call(name, args[0], args[1], args[2], args[3]),
+            5 => owner.call(name, args[0], args[1], args[2], args[3], args[4]),
+            6 => owner.call(name, args[0], args[1], args[2], args[3], args[4], args[5]),
+            7 => owner.call(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6]),
+            8 => owner.call(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]),
+            9 => owner.call(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]),
+            10 => owner.call(name, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]),
+            _ => (),
+        };
+        return out;
+    }
+    if owner is Object && owner.contains_key(CLASS_KEY) {
+        let module = script::require(owner[CLASS_KEY]);
+        let f = get(module, `${name}__${count}`, get(module, name, ()));
+        if is_nil(f) {
+            return ();
+        }
+        return spread_self(f, owner, args);
+    }
+    if owner is Object {
+        let f = get(owner, `${name}/${count}`, get(owner, name, ()));
+        if is_nil(f) {
+            return ();
+        }
+        return spread(f, args);
+    }
+    native(owner, name, args)
+}
+
+/// `f` called with a list's items as its arguments.
+pub fn spread(f, args) {
+    let out = match args.len() as i64 {
+        0 => f(),
+        1 => f(args[0]),
+        2 => f(args[0], args[1]),
+        3 => f(args[0], args[1], args[2]),
+        4 => f(args[0], args[1], args[2], args[3]),
+        5 => f(args[0], args[1], args[2], args[3], args[4]),
+        6 => f(args[0], args[1], args[2], args[3], args[4], args[5]),
+        7 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6]),
+        8 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]),
+        9 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]),
+        10 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]),
+        _ => (),
+    };
+    out
+}
+
+fn spread_self(f, owner, args) {
+    let out = match args.len() as i64 {
+        0 => f(owner),
+        1 => f(owner, args[0]),
+        2 => f(owner, args[0], args[1]),
+        3 => f(owner, args[0], args[1], args[2]),
+        4 => f(owner, args[0], args[1], args[2], args[3]),
+        5 => f(owner, args[0], args[1], args[2], args[3], args[4]),
+        6 => f(owner, args[0], args[1], args[2], args[3], args[4], args[5]),
+        7 => f(owner, args[0], args[1], args[2], args[3], args[4], args[5], args[6]),
+        8 => f(owner, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]),
+        9 => f(owner, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]),
+        10 => f(owner, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]),
+        _ => (),
+    };
+    out
+}
+
+pub async fn invoke_async_many(owner, name, args) {
+    let out = call_later(owner, name, args).await;
+    out
+}
+
+/// `Callable(target, "method")`: the method called on `target` later.
+pub fn callable(target, name) {
+    let bound = || call_value(target, [name]);
+    bound
+}
+
+/// A node from the id `get_instance_id` gave, or nil once it is gone.
+pub fn instance_from_id(id) {
+    scene::node_by_id(id)
+}
+
+/// `.call(..)`: a `Callable` with its arguments, or a node's method by name.
+pub fn call_value(target, args) {
+    if target is std::ops::Function {
+        return spread(target, args);
+    }
+    if is_nil(target) || args.len() == 0 {
+        return ();
+    }
+    let rest = [];
+    for item in args.iter().skip(1) {
+        rest.push(item);
+    }
+    invoke_many(target, args[0], rest)
+}
+
+/// Calling another script's method. A node is asked whether it has one; an
+/// object holding a function answers with that. Anything else is nothing,
+/// which is what Godot's own missing method would have been on a freed node.
+pub fn invoke(owner, name) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        let name = fitted(owner, name, 0);
+        if owner.has_method(name) {
+            return owner.call(name);
+        }
+        return node_method(owner, name, []);
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let module = script::require(owner[CLASS_KEY]);
+            let method = get(module, `${name}__0`, get(module, name, ()));
+            if !is_nil(method) {
+                return method(owner);
+            }
+            return ();
+        }
+        // One closure per argument count, `name/0`, stands in for a
+        // Godot method with defaults; a plain `name` for one without.
+        let held = get(owner, `${name}/0`, get(owner, name, ()));
+        if !is_nil(held) {
+            return held();
+        }
+    }
+    native(owner, name, [])
+}
+
+pub fn invoke1(owner, name, a0) {
+    if is_nil(owner) {
+        return ();
+    }
+    if name == "connect" && owner is Object && owner.contains_key("__after") {
+        return after(owner, a0);
+    }
+    if owner is balaur::Node {
+        let name = fitted(owner, name, 1);
+        if owner.has_method(name) {
+            return owner.call(name, a0);
+        }
+        return node_method(owner, name, [a0]);
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let module = script::require(owner[CLASS_KEY]);
+            let method = get(module, `${name}__1`, get(module, name, ()));
+            if !is_nil(method) {
+                return method(owner, a0);
+            }
+            return ();
+        }
+        // One closure per argument count, `name/1`, stands in for a
+        // Godot method with defaults; a plain `name` for one without.
+        let held = get(owner, `${name}/1`, get(owner, name, ()));
+        if !is_nil(held) {
+            return held(a0);
+        }
+    }
+    native(owner, name, [a0])
+}
+
+pub fn invoke2(owner, name, a0, a1) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        let name = fitted(owner, name, 2);
+        if owner.has_method(name) {
+            return owner.call(name, a0, a1);
+        }
+        return node_method(owner, name, [a0, a1]);
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let module = script::require(owner[CLASS_KEY]);
+            let method = get(module, `${name}__2`, get(module, name, ()));
+            if !is_nil(method) {
+                return method(owner, a0, a1);
+            }
+            return ();
+        }
+        // One closure per argument count, `name/2`, stands in for a
+        // Godot method with defaults; a plain `name` for one without.
+        let held = get(owner, `${name}/2`, get(owner, name, ()));
+        if !is_nil(held) {
+            return held(a0, a1);
+        }
+    }
+    native(owner, name, [a0, a1])
+}
+
+pub fn invoke3(owner, name, a0, a1, a2) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        let name = fitted(owner, name, 3);
+        if owner.has_method(name) {
+            return owner.call(name, a0, a1, a2);
+        }
+        return node_method(owner, name, [a0, a1, a2]);
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let module = script::require(owner[CLASS_KEY]);
+            let method = get(module, `${name}__3`, get(module, name, ()));
+            if !is_nil(method) {
+                return method(owner, a0, a1, a2);
+            }
+            return ();
+        }
+        // One closure per argument count, `name/3`, stands in for a
+        // Godot method with defaults; a plain `name` for one without.
+        let held = get(owner, `${name}/3`, get(owner, name, ()));
+        if !is_nil(held) {
+            return held(a0, a1, a2);
+        }
+    }
+    native(owner, name, [a0, a1, a2])
+}
+
+/// Writing a property on another script, through the setter every converted
+/// script carries.
+pub fn set_field(owner, name, value) {
+    if is_nil(owner) {
+        return ();
+    }
+    if owner is balaur::Node {
+        let setter = `set_${name}`;
+        if owner.has_method(setter) {
+            return owner.call(setter, value);
+        }
+        if set_node_property(owner, name, value) {
+            return ();
+        }
+        if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
+            return owner.state_machine.patch(#{ "active": value });
+        }
+        return ();
+    }
+    if owner is Object {
+        if owner.contains_key(CLASS_KEY) {
+            let setter = get(script::require(owner[CLASS_KEY]), `__set_${name}`, ());
+            if !is_nil(setter) {
+                setter(owner, value);
+                return ();
+            }
+        }
+        owner[name] = value;
+    }
+    if is_lanes(owner) {
+        let v = float(value);
+        match name {
+            "x" => owner.x = v,
+            "y" => owner.y = v,
+            "z" => owner.z = v,
+            "r" => owner.r = v,
+            "g" => owner.g = v,
+            "b" => owner.b = v,
+            "a" => owner.a = v,
+            _ => (),
+        }
+    }
+    return ();
+}
+
+/// A call `balaur import` could not translate. It says so once per name and
+/// carries on, so a scenario reaches the next gap rather than stopping here.
+pub fn todo(what) {
+    log::error(`balaur import did not translate ${what}`);
+    return ();
+}
+
+pub fn type_of(value) {
+    if is_nil(value) {
+        return "nil";
+    }
+    if value is std::bool {
+        return "bool";
+    }
+    if value is i64 {
+        return "int";
+    }
+    if value is f64 {
+        return "float";
+    }
+    if value is String {
+        return "String";
+    }
+    if value is Vec {
+        return "Array";
+    }
+    if value is Object {
+        return "Dictionary";
+    }
+    return "Object";
+}

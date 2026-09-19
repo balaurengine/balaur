@@ -97,6 +97,26 @@ pub(super) fn theme(
     Ok(Some(converted.notes))
 }
 
+/// A `.tres` as the module a script's `preload` reaches. One that will not
+/// parse is left to the scenes that name it.
+pub(super) fn script_resource(
+    root: &Path,
+    relative: &str,
+    sink: &mut dyn Sink,
+    lookups: &Project,
+) -> Result<()> {
+    let text = crate::godot::io::text(&root.join(relative))?;
+    let Ok(document) = crate::godot::parse(&text) else {
+        return Ok(());
+    };
+    let res = crate::godot::nodes::resources_of(&document, root, lookups);
+    let module = crate::godot::resource::convert(relative, &document, &res);
+    sink.put(
+        &crate::godot::resource::module_path(relative),
+        module.as_bytes(),
+    )
+}
+
 /// One face into the project's `fonts/`, where every chain reads it.
 pub(super) fn copy_font(root: &Path, sink: &mut dyn Sink, font: &str) -> Result<()> {
     let Some(name) = Path::new(font).file_name() else {

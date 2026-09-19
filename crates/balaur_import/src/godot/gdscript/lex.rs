@@ -142,12 +142,20 @@ impl Lexer {
         {
             let keep = open.indents;
             self.lambdas.pop();
+            // `func(): return x,` then the next argument: the comma belongs
+            // to the call, after the body closes.
+            let tail = self.out.len().saturating_sub(2);
+            let comma = self.out[tail..].iter().position(|t| t.kind == Tok::Op(","));
+            let comma = comma.map(|at| self.out.remove(tail + at));
             if !matches!(self.out.last().map(|t| &t.kind), Some(Tok::Newline)) {
                 self.push(Tok::Newline);
             }
             while self.indents.len() > keep {
                 self.indents.pop();
                 self.push(Tok::Dedent);
+            }
+            if let Some(comma) = comma {
+                self.out.push(comma);
             }
         }
     }
@@ -448,7 +456,11 @@ mod tests {
         let dedents = out.iter().filter(|t| **t == Tok::Dedent).count();
         assert_eq!((indents, dedents), (2, 2), "{out:?}");
         let close = out.iter().rposition(|t| *t == Tok::Op(")")).unwrap();
-        assert_eq!(out[close - 1], Tok::Dedent, "the body ends before the bracket: {out:?}");
+        assert_eq!(
+            out[close - 1],
+            Tok::Dedent,
+            "the body ends before the bracket: {out:?}"
+        );
     }
 
     #[test]

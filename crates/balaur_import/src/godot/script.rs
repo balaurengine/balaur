@@ -14,6 +14,12 @@ use crate::godot::exports::{Classes, split_top};
 use crate::godot::gdscript::{
     self, BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, safe,
 };
+pub(crate) use class::NEW_NAME;
+use class::{
+    OBJECT_ROOTS, builtin_root, constructs, init_call, write_constructor, write_default_init,
+};
+use constants::{enum_members, self_contained, write_constants, write_enums};
+use members::write_members;
 
 /// A skeleton, and what the port will have to deal with.
 pub(crate) struct Converted {
@@ -40,6 +46,8 @@ struct Function {
     params: Vec<String>,
     /// Each parameter's default as GDScript text, where it declares one.
     defaults: Vec<Option<String>>,
+    /// The parameters typed `int`, which Godot truncates a float into.
+    ints: Vec<String>,
     is_static: bool,
     /// A base's copy of a function this class overrides, emitted under a
     /// suffixed name because `super` calls it.
@@ -78,13 +86,29 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             }
         }
     }
+    let mut getters = BTreeSet::new();
+    let mut setters = BTreeSet::new();
+    for level in &inherited {
+        let found = members::accessors(level);
+        for function in split_functions(&found.text) {
+            if !functions.iter().any(|own| own.name == function.name) {
+                functions.push(function);
+            }
+        }
+        getters.extend(found.getters);
+        setters.extend(found.setters);
+    }
+    let fitted = forwarders(&functions);
+    functions.extend(fitted);
     let mut out = String::new();
     let _ = writeln!(
         out,
         "// Converted from {path} by `balaur import`. Its hooks, exports and\n\
          // bodies are Rune; a line the importer could not read is marked."
     );
-    let context = context(source, path, classes, &functions, &mut notes);
+    let mut context = context(source, path, classes, &functions, &mut notes);
+    context.getters = getters;
+    context.setters = setters;
     let documentation: Vec<String> = source
         .lines()
         .take_while(|line| !line.starts_with("func ") && !line.starts_with("static func "))
@@ -120,7 +144,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         write_enums(&mut out, level, &mut emitted);
         write_constants(&mut out, level, &context, &mut emitted);
     }
-    let defaults = write_members(&mut out, source, &context, &exports, &mut notes);
+    let defaults = write_members(&mut out, &inherited, &context, &exports, &mut notes);
     let static_init = functions.iter().any(|f| f.name == "_static_init");
     write_functions(
         &mut out,
@@ -137,6 +161,36 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             .push("an `_input` handler: read the `input` module from `update` instead".to_string());
     }
     Converted { rune: out, notes }
+}
+
+/// One function per shorter call a defaulted parameter allows: `name__1`
+/// is `name` given one argument, which a call from another script reaches
+/// through the shim, since Rune pads nothing.
+fn forwarders(functions: &[Function]) -> Vec<Function> {
+    let mut out = Vec::new();
+    for function in functions {
+        let hook = HOOKS.iter().any(|(godot, _, _)| *godot == function.name);
+        if function.overridden || hook {
+            continue;
+        }
+        let Some(required) = function.defaults.iter().position(Option::is_some) else {
+            continue;
+        };
+        for count in required..function.params.len() {
+            let params = function.params[..count].join(", ");
+            let keyword = if function.is_static {
+                "static func"
+            } else {
+                "func"
+            };
+            let text = format!(
+                "{keyword} {}__{count}({params}):\n\treturn {}({params})\n",
+                function.name, function.name
+            );
+            out.extend(split_functions(&text));
+        }
+    }
+    out
 }
 
 /// A file's top-level declarations, one per entry, each joined across the
@@ -211,6 +265,11 @@ fn split_functions(source: &str) -> Vec<Function> {
                 signature.push(' ');
                 signature.push_str(lines[i].trim());
             }
+            // A static `_init` is the class's static initialiser, not its
+            // constructor.
+            if signature.starts_with("static func _init(") {
+                signature = signature.replacen("_init(", "_static_init(", 1);
+            }
             let mut function = parse_signature(&signature, line.starts_with("static"));
             function.lines.push(signature);
             while i + 1 < lines.len() {
@@ -242,6 +301,7 @@ fn context(
 ) -> Context {
     let mut context = Context {
         static_prefix: path.to_string(),
+        object_class: OBJECT_ROOTS.contains(&builtin_root(source, classes).as_str()),
         param_defaults: functions
             .iter()
             .filter(|f| !f.overridden && f.defaults.iter().any(Option::is_some))
@@ -278,7 +338,24 @@ fn context(
             context.members.insert(flag.to_string());
         }
     }
+    for (name, _) in inner_classes(source) {
+        context
+            .classes
+            .insert(name.clone(), inner_file(path, &name).replace(".gd", ".rn"));
+    }
+    context.defaulted = classes.defaulted.clone();
+    context.inner = classes
+        .inner
+        .iter()
+        .map(|(name, file)| (name.clone(), file.replace(".gd", ".rn")))
+        .collect();
+    // The node's own signals read as bare names, like the class's.
+    context
+        .signals
+        .extend(gdscript::BUILTIN_SIGNALS.iter().map(|s| (*s).to_string()));
+    collect_bools(&mut context, functions);
     for text in chain(source, classes) {
+        bool_members(&mut context, &text);
         let level = declarations(&text);
         context.members.extend(level.members);
         context.consts.extend(level.consts);
@@ -289,20 +366,17 @@ fn context(
         context.signals.extend(level.signals);
         context.methods.extend(level.methods);
         context.statics.extend(level.statics);
-    }
-    for function in functions {
-        let hook = HOOKS.iter().find(|(godot, _, _)| *godot == function.name);
-        let name = match hook {
-            Some((_, here, _)) => (*here).to_string(),
-            None if RESERVED.contains(&function.name.as_str()) => format!("{}_", function.name),
-            None => function.name.clone(),
-        };
-        if function.overridden {
-            context.bases.insert(format!("{name}{BASE_SUFFIX}"));
-        } else if name != function.name {
-            context.renames.insert(function.name.clone(), name);
+        // `const Flows = preload("res://flows.gd")` names a class as surely
+        // as its `class_name` does: `Flows.new()` reaches that module.
+        for line in top_level(&text) {
+            if let Some((name, module)) = preloaded_script(&line) {
+                context.lazy.remove(&name);
+                context.consts.remove(&name);
+                context.classes.entry(name).or_insert(module);
+            }
         }
     }
+    name_functions(&mut context, functions);
     // A static's default is Rune too, and is inlined wherever it is read.
     let defaults: BTreeMap<String, String> = context
         .static_vars
@@ -319,6 +393,71 @@ fn context(
     context.static_vars = defaults;
     close_asyncs(&mut context, functions, notes);
     context
+}
+
+/// The Rune name each function is emitted under, and how many parameters
+/// each takes by that name.
+fn name_functions(context: &mut Context, functions: &[Function]) {
+    for function in functions {
+        let hook = HOOKS.iter().find(|(godot, _, _)| *godot == function.name);
+        let name = match hook {
+            Some((_, here, _)) => (*here).to_string(),
+            None if RESERVED.contains(&function.name.as_str()) => format!("{}_", function.name),
+            None => function.name.clone(),
+        };
+        if function.overridden {
+            context.bases.insert(format!("{name}{BASE_SUFFIX}"));
+        } else if name != function.name {
+            context.renames.insert(function.name.clone(), name);
+        }
+    }
+    // Each method's parameter count, under the name the module gives it.
+    for function in functions.iter().filter(|f| !f.overridden) {
+        let name = context
+            .renames
+            .get(&function.name)
+            .cloned()
+            .unwrap_or_else(|| function.name.clone());
+        context.arity.entry(name).or_insert(function.params.len());
+    }
+}
+
+/// The flags and the methods declared `-> bool`, whose tests need no truth
+/// check.
+fn collect_bools(context: &mut Context, functions: &[Function]) {
+    for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
+        context.bools.insert(flag.to_string());
+    }
+    for function in functions {
+        let signature = function.lines.first().map_or("", String::as_str);
+        if signature
+            .split("->")
+            .nth(1)
+            .is_some_and(|ret| ret.trim().starts_with("bool"))
+        {
+            context.bools.insert(function.name.clone());
+        }
+    }
+}
+
+/// A level's members typed or valued `bool`.
+fn bool_members(context: &mut Context, text: &str) {
+    for line in top_level(text) {
+        let body = declaration_start(&line).unwrap_or(&line);
+        let Some(rest) = body.strip_prefix("var ") else {
+            continue;
+        };
+        let rest = members::declared(rest);
+        let name = name_of(rest);
+        let after = rest[name.len()..].trim_start();
+        let typed = after
+            .strip_prefix(':')
+            .is_some_and(|t| t.trim_start().starts_with("bool"));
+        let valued = assigned(rest).is_some_and(|v| v == "true" || v == "false");
+        if typed || valued {
+            context.bools.insert(name);
+        }
+    }
 }
 
 /// One GDScript expression as Rune, for a value the file header declares.
@@ -432,6 +571,88 @@ struct Declarations {
     statics: BTreeSet<String>,
 }
 
+/// `const Name = preload("res://a/b.gd")`: the name and the module it loads.
+fn preloaded_script(line: &str) -> Option<(String, String)> {
+    let rest = line.strip_prefix("const ")?;
+    let name = name_of(rest);
+    let value = assigned(rest)?;
+    let inner = value
+        .trim()
+        .strip_prefix("preload(")
+        .or_else(|| value.trim().strip_prefix("load("))?;
+    let path = inner.trim().strip_prefix('"')?.split('"').next()?;
+    let path = path.strip_prefix("res://").unwrap_or(path);
+    let module = path.strip_suffix(".gd")?;
+    Some((name, format!("{module}.rn")))
+}
+
+/// A file's inner `class Name:` blocks, each as the source of a script of its
+/// own: `extends` its base, or `RefCounted`, then its body one level out.
+pub(crate) fn inner_classes(source: &str) -> Vec<(String, String)> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        i += 1;
+        let Some(rest) = line.strip_prefix("class ") else {
+            continue;
+        };
+        let head = rest
+            .split('#')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .trim_end_matches(':');
+        let name = name_of(head);
+        let base = head
+            .split_once(" extends ")
+            .map_or("RefCounted", |(_, base)| base.trim());
+        let mut body: Vec<&str> = Vec::new();
+        while i < lines.len() && (lines[i].trim().is_empty() || lines[i].starts_with([' ', '\t'])) {
+            body.push(lines[i]);
+            i += 1;
+        }
+        let unit = body
+            .iter()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.len() - l.trim_start().len())
+            .min()
+            .unwrap_or(0);
+        let mut text = format!("extends {base}\n");
+        for l in body {
+            text.push_str(l.get(unit..).unwrap_or_default());
+            text.push('\n');
+        }
+        out.push((name, text));
+    }
+    out
+}
+
+/// A file's functions with defaulted parameters, and how many each takes.
+pub(crate) fn defaulted(source: &str) -> BTreeMap<String, usize> {
+    split_functions(source)
+        .into_iter()
+        .filter(|f| f.defaults.iter().any(Option::is_some))
+        // `new` takes what `_init` takes.
+        .map(|f| {
+            (
+                if f.name == "_init" {
+                    "new".to_string()
+                } else {
+                    f.name
+                },
+                f.params.len(),
+            )
+        })
+        .collect()
+}
+
+/// Where an inner class of `file` is written: beside it, named for both.
+pub(crate) fn inner_file(file: &str, name: &str) -> String {
+    format!("{}__{name}.gd", file.trim_end_matches(".gd"))
+}
+
 /// A file's `static var`s, each with the GDScript text of its default.
 pub(crate) fn static_vars(source: &str) -> BTreeMap<String, String> {
     declarations(source).static_vars
@@ -453,10 +674,15 @@ fn declarations(source: &str) -> Declarations {
             line
         };
         if let Some(rest) = body.strip_prefix("static var ") {
-            out.static_vars.insert(
-                name_of(rest),
-                assigned(rest).unwrap_or_default().to_string(),
-            );
+            let rest = members::declared(rest);
+            let name = name_of(rest);
+            let hint = rest[name.len()..]
+                .trim_start()
+                .strip_prefix(':')
+                .map_or("", |t| t.split('=').next().unwrap_or_default().trim());
+            // A typed static with no value starts at its type's empty value.
+            let value = assigned(rest).unwrap_or_else(|| empty_literal(hint));
+            out.static_vars.insert(name, value.to_string());
         } else if let Some(rest) = body.strip_prefix("var ") {
             out.members.insert(name_of(rest));
         } else if let Some(rest) = body.strip_prefix("const ") {
@@ -486,6 +712,20 @@ fn declarations(source: &str) -> Declarations {
         }
     }
     out
+}
+
+/// A GDScript type's empty value, spelled as GDScript.
+fn empty_literal(hint: &str) -> &'static str {
+    match hint {
+        "int" => "0",
+        "float" => "0.0",
+        "bool" => "false",
+        "String" | "StringName" => "\"\"",
+        "Vector2" | "Vector2i" => "Vector2()",
+        h if h.starts_with("Array") || (h.starts_with("Packed") && h.ends_with("Array")) => "[]",
+        h if h.starts_with("Dictionary") => "{}",
+        _ => "",
+    }
 }
 
 /// What a declaration is given, past its name, its type and its `:=` or `=`.
@@ -519,264 +759,6 @@ fn name_of(rest: &str) -> String {
         .collect()
 }
 
-/// A GDScript `enum` as a module constant: named, an object whose fields are
-/// its members, so `StageState.IDLE` reads unchanged; unnamed, one constant
-/// per member.
-fn write_enums(out: &mut String, source: &str, emitted: &mut BTreeSet<String>) {
-    let text = source.replace('\t', " ");
-    let mut rest = text.as_str();
-    while let Some(at) = rest.find("enum ") {
-        // Only a declaration at column 0 is the class's own.
-        let starts_line = rest[..at].ends_with('\n') || at == 0;
-        rest = &rest[at + 5..];
-        if !starts_line {
-            continue;
-        }
-        let Some(open) = rest.find('{') else { continue };
-        let name = rest[..open].trim().to_string();
-        let Some(close) = rest.find('}') else {
-            continue;
-        };
-        let members = enum_members(&rest[open + 1..close]);
-        rest = &rest[close + 1..];
-        if members.is_empty() || !emitted.insert(name.clone()) {
-            continue;
-        }
-        let entries: Vec<String> = members
-            .iter()
-            .map(|(name, value)| format!("\"{name}\": {value}"))
-            .collect();
-        out.push('\n');
-        if name.is_empty() {
-            for (member, value) in &members {
-                if emitted.insert(member.clone()) {
-                    let _ = writeln!(out, "pub const {member} = {value};");
-                }
-            }
-            continue;
-        }
-        let _ = writeln!(out, "pub const {name} = #{{ {} }};", entries.join(", "));
-    }
-}
-
-/// An enum's members and their values, numbered from zero where Godot left
-/// them implicit.
-fn enum_members(body: &str) -> Vec<(String, i64)> {
-    let mut out = Vec::new();
-    let mut next = 0;
-    for entry in body.split(',') {
-        let entry = entry.split('#').next().unwrap_or_default().trim();
-        if entry.is_empty() {
-            continue;
-        }
-        let (name, value) = match entry.split_once('=') {
-            // A value the scan cannot read keeps its position, so the enum is
-            // still emitted and only that member is wrong.
-            Some((name, value)) => (name.trim(), enum_value(value.trim()).unwrap_or(next)),
-            None => (entry, next),
-        };
-        if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            continue;
-        }
-        next = value + 1;
-        out.push((name.to_string(), value));
-    }
-    out
-}
-
-/// An enum member's value: an integer, or the `1 << n` its flags are written
-/// as.
-fn enum_value(text: &str) -> Option<i64> {
-    if let Ok(value) = text.parse::<i64>() {
-        return Some(value);
-    }
-    let (left, right) = text.split_once("<<")?;
-    let left = left.trim().parse::<i64>().ok()?;
-    let right = right.trim().parse::<u32>().ok()?;
-    left.checked_shl(right)
-}
-
-/// A class constant is a module constant here, so a body reads it bare.
-fn write_constants(
-    out: &mut String,
-    source: &str,
-    context: &Context,
-    emitted: &mut BTreeSet<String>,
-) {
-    let mut wrote = false;
-    for line in top_level(source) {
-        let Some(rest) = line.strip_prefix("const ") else {
-            continue;
-        };
-        let name = name_of(rest);
-        let Some(value) = assigned(rest) else {
-            continue;
-        };
-        if !emitted.insert(name.clone()) {
-            continue;
-        }
-        let body = gdscript::body(
-            &[format!("var _x = {value}")],
-            context,
-            0,
-            &[],
-            true,
-            true,
-            "",
-        );
-        let Some(text) = body
-            .rune
-            .trim()
-            .strip_prefix("let _x = ")
-            .and_then(|t| t.strip_suffix(';'))
-        else {
-            continue;
-        };
-        if !wrote {
-            out.push('\n');
-            wrote = true;
-        }
-        // A value that stands alone at load is a constant; one that needs the
-        // shim or a name is a function, read by calling it. The declaration
-        // scan judged the same text, so the two agree.
-        if self_contained(value) {
-            let _ = writeln!(out, "pub const {name} = {text};");
-            continue;
-        }
-        let binding = if body.uses_shim {
-            shim_binding(1)
-        } else {
-            String::new()
-        };
-        let _ = writeln!(out, "pub fn {name}() {{\n{binding}    {text}\n}}");
-    }
-}
-
-/// Whether an expression stands on its own at load: no shim, which is bound
-/// per body, and no name, which needs a node the engine does not have yet.
-fn self_contained(text: &str) -> bool {
-    let mut chars = text.chars().peekable();
-    let mut quoted = false;
-    while let Some(c) = chars.next() {
-        if quoted {
-            if c == '\\' {
-                chars.next();
-            } else if c == '"' {
-                quoted = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => quoted = true,
-            c if c.is_alphabetic() || c == '_' => {
-                let mut word = String::from(c);
-                while chars
-                    .peek()
-                    .is_some_and(|c| c.is_alphanumeric() || *c == '_')
-                {
-                    word.push(chars.next().unwrap_or_default());
-                }
-                // `true`, `false` and a numeric suffix are values; anything
-                // else is a name this cannot resolve at load.
-                if !matches!(word.as_str(), "true" | "false" | "f64" | "i64") {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    true
-}
-
-/// The members a Godot class declared with a value, set on `this` at `init`.
-fn write_members(
-    out: &mut String,
-    source: &str,
-    context: &Context,
-    exports: &[crate::godot::exports::Export],
-    notes: &mut Vec<String>,
-) -> bool {
-    let mut assignments: Vec<String> = Vec::new();
-    // An exported vector or colour arrives as a list; the body reads `.x`.
-    for export in exports {
-        use crate::godot::exports::Kind;
-        let shape = match export.kind {
-            Some(Kind::Vec2 | Kind::Vec3) => "vec_of",
-            Some(Kind::Color) => "color_of",
-            _ => continue,
-        };
-        let field = safe(&export.name);
-        assignments.push(format!("    this.{field} = (gd.{shape})(this.{field});"));
-    }
-    // Godot sets an `@onready` member once the scene is in: after the rest,
-    // from the `init` hook, where this node's children are already built.
-    let mut ready: Vec<String> = Vec::new();
-    for line in top_level(source) {
-        let trimmed = line.as_str();
-        // An exported member is set from the scene.
-        if trimmed.starts_with("@export") {
-            continue;
-        }
-        let onready = trimmed.starts_with("@onready");
-        let body = trimmed.trim_start_matches("@onready").trim_start();
-        let Some(rest) = body.strip_prefix("var ") else {
-            continue;
-        };
-        let name = name_of(rest);
-        // Godot's `var x` with no value is null, so a read before the write
-        // answers nothing rather than failing on a missing field.
-        assignments.push(format!("    this.{} = ();", safe(&name)));
-        let Some(value) = assigned(rest) else {
-            continue;
-        };
-        // A node lookup reads `this`, which a plain default never needs.
-        let body = gdscript::body(
-            &[format!("var _x = {value}")],
-            context,
-            0,
-            &[],
-            true,
-            !onready,
-            "",
-        );
-        let Some(text) = body
-            .rune
-            .trim()
-            .strip_prefix("let _x = ")
-            .and_then(|t| t.strip_suffix(';'))
-        else {
-            notes.push(format!("`{name}`: its default did not translate"));
-            continue;
-        };
-        let line = format!("    this.{} = {text};", safe(&name));
-        if onready {
-            ready.push(line);
-        } else {
-            assignments.push(line);
-        }
-    }
-    assignments.extend(ready);
-    for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
-        if context.members.contains(flag) {
-            assignments.push(format!("    this.{flag} = true;"));
-        }
-    }
-    if assignments.is_empty() {
-        return false;
-    }
-    let binding = if assignments.iter().any(|line| line.contains("(gd.")) {
-        shim_binding(1)
-    } else {
-        String::new()
-    };
-    let _ = write!(
-        out,
-        "\n/// The defaults the class declared with its members.\nfn defaults(this) {{\n{binding}{}\n}}\n",
-        assignments.join("\n")
-    );
-    true
-}
-
 /// Each function as a Rune one: a hook renamed, a keyword name suffixed, a
 /// name declared twice kept once, and its body translated.
 fn write_functions(
@@ -793,16 +775,7 @@ fn write_functions(
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
-    if (defaults || constructs(functions)) && !functions.iter().any(|f| f.name == "_ready") {
-        // Nothing else will call them, and a member read before its default
-        // is set is an error at run time.
-        let set = if defaults { "    defaults(this);\n" } else { "" };
-        let init = if constructs(functions) {
-            "    _init(this);\n"
-        } else {
-            ""
-        };
-        let _ = write!(out, "\npub fn init(this) {{\n{set}{init}}}\n");
+    if write_default_init(out, functions, defaults) {
         seen.push("init".to_string());
     }
     for function in functions {
@@ -872,127 +845,88 @@ fn write_functions(
             "pub fn"
         };
         let _ = write!(out, "\n{word} {name}({params}) {{\n");
-        if static_init && function.name != "_static_init" {
-            let _ = writeln!(out, "    {STATIC_INIT}();");
-        }
-        if defaults && name == "init" {
-            out.push_str("    defaults(this);\n");
-        }
-        if name == "init" && constructs(functions) {
-            out.push_str("    _init(this);\n");
-        }
-        // Godot's `set_process` switched the hook off; here it sets a flag,
-        // and the hook reads it.
-        for (hook, flag) in [
-            ("update", PROCESS_FLAG),
-            ("fixed_update", PHYSICS_PROCESS_FLAG),
-        ] {
-            if name == hook && context.members.contains(flag) {
-                let _ = writeln!(out, "    if !this.{flag} {{\n        return;\n    }}");
-            }
-        }
+        write_prologue(
+            out,
+            function,
+            &name,
+            context,
+            functions,
+            defaults,
+            static_init,
+        );
         out.push_str(&body.rune);
         out.push_str("}\n");
         for (signal, handler) in body.forwarders {
             forwarders.entry(signal).or_insert(handler);
         }
     }
-    write_forwarders(out, functions, &forwarders);
+    write_forwarders(out, functions, context, &forwarders);
 }
 
-/// Whether the class has a `_init` taking nothing, which Godot ran when the
-/// node was made and the `init` hook runs here.
-fn constructs(functions: &[Function]) -> bool {
-    functions
-        .iter()
-        .any(|f| f.name == "_init" && f.params.is_empty() && !f.overridden)
-}
-
-/// The classes `new()` makes a table of rather than a node.
-const OBJECT_ROOTS: &[&str] = &["RefCounted", "Resource", "Object", "Reference"];
-
-/// Godot's `Class.new()`. A node class is built under a holder and its
-/// script attached; any other class is a table naming this module, whose
-/// functions the shim calls with it as `this`.
-fn write_constructor(
+/// What a function does before its own body: an int parameter truncated,
+/// the class's static setup, and `init`'s defaults, `_init` and hook guard.
+fn write_prologue(
     out: &mut String,
-    source: &str,
-    path: &str,
-    classes: &Classes,
+    function: &Function,
+    name: &str,
+    context: &Context,
     functions: &[Function],
     defaults: bool,
+    static_init: bool,
 ) {
-    if functions.iter().any(|f| f.name == "new") {
-        return;
-    }
-    let module = path.replace(".gd", ".rn");
-    let mut root = source
-        .lines()
-        .find_map(|l| l.strip_prefix("extends "))
-        .map(|t| {
-            t.trim()
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                .collect::<String>()
-        })
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "RefCounted".to_string());
-    for _ in 0..16 {
-        match classes.bases.get(&root) {
-            Some(base) => root = base.clone(),
-            None => break,
-        }
-    }
-    if !OBJECT_ROOTS.contains(&root.as_str()) {
-        let doc = crate::godot::nodes::bare_document(&root, NEW_NAME)
-            .unwrap_or_else(|| format!("[[nodes]]\nname = \"{NEW_NAME}\"\n"));
-        let _ = write!(
+    for int in &function.ints {
+        let bound = safe(int);
+        let _ = writeln!(
             out,
-            "\n/// Godot's `new()`: a {root} carrying this script.\npub fn new() {{\n{}    (gd.new_node)({}, {})\n}}\n",
-            shim_binding(1),
-            gdscript::quoted(&doc),
-            gdscript::quoted(&module),
+            "    let {bound} = (script::require(\"gd.rn\").int)({bound});"
         );
-        return;
     }
-    let init = functions.iter().find(|f| f.name == "_init" && !f.overridden);
-    let params: Vec<String> = init
-        .map(|f| f.params.iter().map(|p| safe(p)).collect())
-        .unwrap_or_default();
-    let _ = write!(
-        out,
-        "\n/// Godot's `new()`: this class as a table its functions take as `this`.\npub fn new({}) {{\n    let this = #{{ \"__class\": {} }};\n",
-        params.join(", "),
-        gdscript::quoted(&module),
-    );
-    if defaults {
+    if static_init && function.name != "_static_init" {
+        let _ = writeln!(out, "    {STATIC_INIT}();");
+    }
+    if defaults && name == "init" {
         out.push_str("    defaults(this);\n");
     }
-    if init.is_some() {
-        let mut args = vec!["this".to_string()];
-        args.extend(params);
-        let _ = writeln!(out, "    _init({});", args.join(", "));
+    if name == "init" && constructs(functions) {
+        out.push_str(init_call(functions));
     }
-    out.push_str("    this\n}\n");
+    // Godot's `set_process` switched the hook off; here it sets a flag,
+    // and the hook reads it.
+    for (hook, flag) in [
+        ("update", PROCESS_FLAG),
+        ("fixed_update", PHYSICS_PROCESS_FLAG),
+    ] {
+        if name == hook && context.members.contains(flag) {
+            let _ = writeln!(out, "    if !this.{flag} {{\n        return;\n    }}");
+        }
+    }
 }
-
-/// The name `new_node` gives the node before it swaps in a unique one.
-pub(crate) const NEW_NAME: &str = "__new__";
 
 /// What `connect` asked for: the engine delivers an event as the subscriber's
 /// `on_<name>`, and Godot named a handler of its own.
 fn write_forwarders(
     out: &mut String,
     functions: &[Function],
+    context: &Context,
     forwarders: &std::collections::BTreeMap<String, String>,
 ) {
     for (signal, handler) in forwarders {
         if functions.iter().any(|f| f.name == format!("on_{signal}")) {
             continue;
         }
+        // One argument arrives as the payload, several as a list of them.
+        let arity = context.arity.get(handler).copied().unwrap_or(1);
+        let args = match arity {
+            0 => String::new(),
+            1 => ", payload".to_string(),
+            n => (0..n).fold(String::new(), |mut all, i| {
+                let _ = write!(all, ", payload[{i}]");
+                all
+            }),
+        };
         let _ = write!(
             out,
-            "\n/// `{signal}`, as the engine delivers it.\npub fn on_{signal}(this, payload) {{\n    {handler}(this, payload);\n}}\n"
+            "\n/// `{signal}`, as the engine delivers it.\npub fn on_{signal}(this, payload) {{\n    {handler}(this{args});\n}}\n"
         );
     }
 }
@@ -1046,11 +980,18 @@ fn write_accessors(out: &mut String, context: &Context, functions: &[Function]) 
             wrote = true;
         }
         let bound = safe(member);
-        let _ = write!(out, "\npub fn {bound}(this) {{\n    this.{bound}\n}}\n");
-        let _ = write!(
-            out,
-            "\npub fn {setter}(this, value) {{\n    this.{bound} = value;\n}}\n"
-        );
+        let read = if context.getters.contains(member) {
+            format!("{}{member}(this)", members::GETTER)
+        } else {
+            format!("this.{bound}")
+        };
+        let store = if context.setters.contains(member) {
+            format!("{}{member}(this, value);", members::SETTER)
+        } else {
+            format!("this.{bound} = value;")
+        };
+        let _ = write!(out, "\npub fn {bound}(this) {{\n    {read}\n}}\n");
+        let _ = write!(out, "\npub fn {setter}(this, value) {{\n    {store}\n}}\n");
     }
 }
 
@@ -1070,6 +1011,14 @@ fn parse_signature(signature: &str, is_static: bool) -> Function {
         .and_then(|tail| tail.rsplit_once(')'))
         .map(|(inside, _)| inside.to_string())
         .unwrap_or_default();
+    let ints: Vec<String> = split_top(&params)
+        .into_iter()
+        .filter_map(|p| {
+            let (name, rest) = p.trim().split_once(':')?;
+            let hint = rest.split('=').next().unwrap_or_default().trim();
+            (hint == "int").then(|| name.trim().to_string())
+        })
+        .collect();
     let (params, defaults): (Vec<String>, Vec<Option<String>>) = split_top(&params)
         .into_iter()
         .filter(|p| !p.trim().is_empty())
@@ -1092,6 +1041,7 @@ fn parse_signature(signature: &str, is_static: bool) -> Function {
         name,
         params,
         defaults,
+        ints,
         is_static,
         overridden: false,
         lines: Vec::new(),
@@ -1114,320 +1064,8 @@ fn push_comment(out: &mut String, line: &str, indent: &str) {
     let _ = writeln!(out, "{indent}// {}", line.replace('\t', "    "));
 }
 
+mod class;
+mod constants;
+mod members;
 #[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
-    use super::convert;
-    use crate::godot::exports::Classes;
-
-    const SHIP: &str = "extends Node\n\
-class_name Ship\n\
-\n\
-signal sunk(depth)\n\
-@export var speed := 2.0\n\
-@export var label: String\n\
-@export_range(0, 10) var crew: int = 4\n\
-var hidden := 1\n\
-const LIMIT = 9\n\
-\n\
-func _ready() -> void:\n\
-\tprint(\"ahoy\")\n\
-\n\
-func _process(delta: float) -> void:\n\
-\tposition.x += speed * delta\n\
-\n\
-func _on_go_pressed(\n\
-\t\tforce: float,\n\
-\t\tloud := true) -> void:\n\
-\tsunk.emit(3)\n\
-\n\
-static func knots(v):\n\
-\treturn v * 1.94\n\
-\n\
-func match(a):\n\
-\tpass\n";
-
-    #[test]
-    fn hooks_are_renamed_and_every_other_function_keeps_its_name() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(out.rune.contains("pub fn init(this) {"), "{}", out.rune);
-        assert!(
-            out.rune.contains("pub fn update(this, delta) {"),
-            "the hook keeps the name its body reads: {}",
-            out.rune
-        );
-        assert!(
-            out.rune
-                .contains("pub fn _on_go_pressed(this, force, loud) {"),
-            "a signature over three lines, and the handler name a scene points at: {}",
-            out.rune
-        );
-        assert!(
-            out.rune.contains("pub fn knots(v) {"),
-            "a static function takes no `this`"
-        );
-        assert!(out.rune.contains("pub fn match_(this, a) {"));
-        assert!(out.notes.iter().any(|n| n.contains("`match`")));
-    }
-
-    #[test]
-    fn exports_carry_their_defaults_and_their_types_fill_the_rest() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(
-            out.rune
-                .contains("#{ \"speed\": 2.0, \"label\": \"\", \"crew\": 4 }"),
-            "{}",
-            out.rune
-        );
-        assert!(
-            !out.rune.contains("\"hidden\""),
-            "a plain var is not an export"
-        );
-    }
-
-    #[test]
-    fn bodies_are_translated_rather_than_commented() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(
-            out.rune.contains(r#"log::info((gd.str_all)(["ahoy"]))"#),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune.contains(r#"this.node.emit("sunk", 3);"#),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune.contains("return v * 1.94;"),
-            "a static body too: {}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn set_process_becomes_a_flag_the_frame_hook_reads() {
-        let source = "extends Node\n\
-func _process(delta):\n\
-\tif delta > 1.0:\n\
-\t\tset_process(false)\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(
-            out.rune.contains("this.process_enabled = false;"),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune
-                .contains("    if !this.process_enabled {\n        return;\n    }"),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune.contains("this.process_enabled = true;"),
-            "on by default: {}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn a_tween_chain_and_its_finished_lambda_translate() {
-        let source = "extends Node\n\n\
-func hide(panel):\n\
-\tvar tween := panel.create_tween()\n\
-\ttween.set_trans(Tween.TRANS_SINE)\n\
-\ttween.tween_property(panel, \"modulate:a\", 0.0, 0.2)\n\
-\ttween.tween_callback(_done)\n\
-\ttween.finished.connect(\n\
-\t\tfunc() -> void:\n\
-\t\t\tpanel.visible = false\n\
-\t)\n\n\
-func _done():\n\
-\tpass\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        for want in [
-            "(gd.create_tween)(panel)",
-            "(gd.set_trans)(tween, \"sine\")",
-            "(gd.tween_property)(tween, panel, \"modulate:a\", 0.0, 0.2)",
-            "(gd.tween_callback)(tween, ",
-            "(gd.when_finished)(tween, ",
-        ] {
-            assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
-        }
-        assert!(!out.rune.contains("PORT(gdscript)"), "{}", out.rune);
-    }
-
-    #[test]
-    fn the_window_scale_and_a_debug_build_have_engine_answers() {
-        let source = "extends Node\n\n\
-func grow():\n\
-\tget_window().content_scale_factor = 2.0\n\
-\treturn OS.is_debug_build()\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(out.rune.contains("ui::set_scale(2.0)"), "{}", out.rune);
-        assert!(out.rune.contains("engine::platform().dev"), "{}", out.rune);
-    }
-
-    #[test]
-    fn a_call_leaving_out_a_default_passes_it() {
-        let source = "extends Node\n\nconst NO_REF := \"none\"\n\n\
-func send(topic, ref := NO_REF, tries: int = 3):\n\
-\tpass\n\n\
-func go():\n\
-\tsend(\"a\")\n\
-\tsend(\"b\", \"r\")\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(out.rune.contains("send(this, \"a\", NO_REF, 3)"), "{}", out.rune);
-        assert!(out.rune.contains("send(this, \"b\", \"r\", 3)"), "{}", out.rune);
-    }
-
-    #[test]
-    fn an_object_class_new_is_a_table_its_functions_take() {
-        let source = "extends RefCounted\nclass_name Machine\n\nvar state = \"idle\"\n\n\
-func _init(owner_name, states):\n\
-\tstate = owner_name\n";
-        let out = convert(source, "scripts/machine.gd", &Classes::default());
-        assert!(
-            out.rune.contains("pub fn new(owner_name, states) {")
-                && out.rune.contains("let this = #{ \"__class\": \"scripts/machine.rn\" };")
-                && out.rune.contains("_init(this, owner_name, states);"),
-            "{}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
-        let source = "extends Label\nclass_name Caption\n\nfunc _init():\n\tpass\n";
-        let out = convert(source, "scripts/caption.gd", &Classes::default());
-        assert!(
-            out.rune.contains("pub fn new() {") && out.rune.contains("(gd.new_node)("),
-            "{}",
-            out.rune
-        );
-        assert!(out.rune.contains("\"scripts/caption.rn\")"), "{}", out.rune);
-        assert!(out.rune.contains("    _init(this);\n"), "init runs `_init`: {}", out.rune);
-    }
-
-    #[test]
-    fn another_class_static_var_reads_and_writes_its_store() {
-        let classes = Classes {
-            files: [("Settings".to_string(), "scripts/settings.gd".to_string())]
-                .into_iter()
-                .collect(),
-            statics: [(
-                "Settings".to_string(),
-                [("debug_mode".to_string(), "false".to_string())]
-                    .into_iter()
-                    .collect(),
-            )]
-            .into_iter()
-            .collect(),
-            ..Classes::default()
-        };
-        let source = "extends Node\n\nfunc toggle():\n\tif Settings.debug_mode:\n\t\tSettings.debug_mode = false\n";
-        let out = convert(source, "scripts/a.gd", &classes);
-        assert!(
-            out.rune
-                .contains("(gd.static_get)(\"scripts/settings.gd:debug_mode\", false)"),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune
-                .contains("(gd.static_set)(\"scripts/settings.gd:debug_mode\", false)"),
-            "{}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn super_reaches_the_base_copy_of_an_overridden_function() {
-        let base = "extends Node\nclass_name Fish\n\nfunc swim(speed):\n\treturn speed\n";
-        let dir = std::env::temp_dir().join(format!("gdsuper{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("scripts")).unwrap();
-        std::fs::write(dir.join("scripts/fish.gd"), base).unwrap();
-        let classes = Classes {
-            bases: BTreeMap::default(),
-            files: [("Fish".to_string(), "scripts/fish.gd".to_string())]
-                .into_iter()
-                .collect(),
-            root: dir.clone(),
-            statics: BTreeMap::default(),
-        };
-        let source = "extends Fish\n\nfunc swim(speed):\n\treturn super(speed) * 2\n";
-        let out = convert(source, "scripts/shark.gd", &classes);
-        std::fs::remove_dir_all(&dir).ok();
-        assert!(
-            out.rune.contains("pub fn swim__base(this, speed)"),
-            "{}",
-            out.rune
-        );
-        assert!(out.rune.contains("swim__base(this, speed)"), "{}", out.rune);
-    }
-
-    #[test]
-    fn a_static_var_lives_on_the_scene_root() {
-        let source = "extends Node\n\
-static var _cache := {}\n\
-\n\
-func seen():\n\
-\treturn _cache.size()\n\
-\n\
-func note(key):\n\
-\t_cache[key] = true\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(
-            out.rune
-                .contains(r#"(gd.static_get)("scripts/a.gd:_cache", #{})"#),
-            "{}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn a_body_that_calls_the_shim_binds_it_first() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(
-            out.rune
-                .contains(r#"    let gd = script::require("gd.rn");"#),
-            "{}",
-            out.rune
-        );
-    }
-
-    #[test]
-    fn a_class_constant_becomes_a_module_constant() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(out.rune.contains("pub const LIMIT = 9;"), "{}", out.rune);
-    }
-
-    #[test]
-    fn a_member_with_a_value_lands_in_defaults() {
-        let out = convert(SHIP, "scripts/ship.gd", &Classes::default());
-        assert!(out.rune.contains("this.hidden = 1;"), "{}", out.rune);
-    }
-
-    #[test]
-    fn awaiting_makes_a_function_async_and_its_callers_too() {
-        let source = "extends Node\n\
-func outer():\n\
-\tinner()\n\
-\n\
-func inner():\n\
-\tawait ready\n";
-        let out = convert(source, "scripts/a.gd", &Classes::default());
-        assert!(
-            out.rune.contains("pub async fn inner(this)"),
-            "{}",
-            out.rune
-        );
-        assert!(
-            out.rune.contains("pub async fn outer(this)"),
-            "{}",
-            out.rune
-        );
-        assert!(out.rune.contains("inner(this).await;"), "{}", out.rune);
-    }
-}
+mod tests;

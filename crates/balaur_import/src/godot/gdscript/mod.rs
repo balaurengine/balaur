@@ -15,11 +15,14 @@ mod shim;
 
 use std::collections::BTreeSet;
 
-pub(crate) use emit::{BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, quoted, safe};
+pub(crate) use emit::{
+    BASE_SUFFIX, Context, PHYSICS_PROCESS_FLAG, PROCESS_FLAG, RESERVED, quoted, safe, typed_zero,
+};
 
 /// Where the shim lands in a converted project, and the local a body binds it
 /// to.
 pub(crate) const SHIM_PATH: &str = "gd.rn";
+pub(crate) use map::BUILTIN_SIGNALS;
 pub(crate) use shim::SHIM;
 
 /// One function's body, translated.
@@ -213,9 +216,12 @@ mod tests {
     }
 
     #[test]
-    fn a_signal_emits_by_name_on_the_node() {
+    fn a_signal_calls_its_handlers_and_emits_by_name() {
         let out = translate("sunk.emit(3)\n", &ship());
-        assert!(out.contains(r#"this.node.emit("sunk", 3);"#), "{out}");
+        assert!(
+            out.contains(r#"(gd.emit_now)(this.node, "sunk", [3]);"#),
+            "{out}"
+        );
     }
 
     #[test]
@@ -238,7 +244,10 @@ mod tests {
     #[test]
     fn a_short_circuit_into_a_field_goes_through_a_temporary() {
         let out = translate("var live = true\nhull = live || speed\n", &ship());
-        assert!(out.contains("let tmp1 = live || this.speed;"), "{out}");
+        assert!(
+            out.contains("let tmp1 = live || (gd.truthy)(this.speed);"),
+            "{out}"
+        );
         assert!(out.contains("this.hull = tmp1;"), "{out}");
     }
 

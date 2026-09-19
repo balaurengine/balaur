@@ -1,0 +1,1154 @@
+// Godot's Variant verbs, for scripts `balaur import` converted. Written by
+// the importer: edit the importer, not this file.
+
+/// Godot's `null`, which is Rune's unit.
+pub fn is_nil(value) {
+    return value is Tuple;
+}
+
+/// Another module's constant: a value, or the function computing it.
+pub fn constant(value) {
+    if value is std::ops::Function {
+        return value();
+    }
+    value
+}
+
+/// Godot's truth: null, zero, an empty string or collection and a freed node
+/// are false; everything else is true.
+pub fn truthy(value) {
+    if value is std::bool {
+        return value;
+    }
+    if value is Tuple {
+        return false;
+    }
+    if value is i64 {
+        return value != 0;
+    }
+    if value is f64 {
+        return value != 0.0;
+    }
+    if value is String || value is Vec || value is Object || is_map(value) {
+        return value.len() > 0;
+    }
+    if value is balaur::Node {
+        return value.is_valid();
+    }
+    true
+}
+
+pub fn valid(value) {
+    if value is Tuple {
+        return false;
+    }
+    if value is balaur::Node {
+        return value.is_valid();
+    }
+    return true;
+}
+
+/// A node or a class table, whose script may define a method named like a
+/// collection verb: that method answers, not the verb.
+fn scripted(value) {
+    value is balaur::Node || (value is Object && value.contains_key(CLASS_KEY))
+}
+
+/// A Godot dictionary whose keys are not all strings, which an object
+/// cannot hold.
+fn is_map(value) {
+    return value is std::collections::HashMap;
+}
+
+/// Godot's `is Dictionary`: an object or a hash map.
+pub fn is_dict(value) {
+    value is Object || is_map(value)
+}
+
+pub fn size(value) {
+    if scripted(value) {
+        return invoke(value, "size");
+    }
+    if is_map(value) {
+        return value.len() as i64;
+    }
+    if value is String {
+        return value.len() as i64;
+    }
+    if value is Vec {
+        return value.len() as i64;
+    }
+    if value is Object {
+        return value.keys().len() as i64;
+    }
+    return 0;
+}
+
+pub fn is_empty(value) {
+    return size(value) == 0;
+}
+
+/// `dict.get(key, fallback)`, `array.get(index)` and `object.get(property)`.
+/// `default` is a Rune keyword, so the parameter is not called that.
+pub fn get(container, key, fallback) {
+    if container is balaur::Node {
+        if key == TREE_PLAYBACK && container.has_component(STATE_MACHINE) {
+            return playback(container);
+        }
+        let value = field(container, key);
+        if is_nil(value) {
+            return fallback;
+        }
+        return value;
+    }
+    if container is Object {
+        // A text-keyed dictionary holds no other key.
+        if key is String && container.contains_key(key) {
+            return container[key];
+        }
+        return fallback;
+    }
+    if is_map(container) {
+        if container.contains_key(key) {
+            return container[key];
+        }
+        return fallback;
+    }
+    if container is Vec {
+        if key is i64 && key >= 0 && key < container.len() {
+            return container[key];
+        }
+        return fallback;
+    }
+    return fallback;
+}
+
+/// `object.set(property, value)`, `dict.set(key, value)`, and a tree's
+/// `parameters/conditions/<name>`.
+pub fn set(owner, key, value) {
+    if owner is balaur::Node {
+        if key is String && key.starts_with(TREE_CONDITIONS) && owner.has_component(STATE_MACHINE) {
+            let name = key[TREE_CONDITIONS.len()..];
+            return owner.state_machine.set_condition(name, value);
+        }
+        return set_field(owner, key, value);
+    }
+    if owner is Object && !(key is String) {
+        let map = std::collections::HashMap::new();
+        for pair in owner {
+            map.insert(pair.0, pair.1);
+        }
+        map.insert(key, value);
+        return map;
+    }
+    if owner is Object || is_map(owner) {
+        owner[key] = value;
+    }
+    return ();
+}
+
+// An AnimationTree's parameters, which here are its `state_machine`'s.
+const STATE_MACHINE = "state_machine";
+const TREE_PLAYBACK = "parameters/playback";
+const TREE_CONDITIONS = "parameters/conditions/";
+const TREE_ACTIVE = "active";
+
+/// Godot's `AnimationNodeStateMachinePlayback`, over a tree node's machine.
+fn playback(tree) {
+    #{
+        "travel": |to| tree.state_machine.travel(to),
+        "start": |to| tree.state_machine.jump(to),
+        "get_current_node": || tree.state_machine.state(),
+        "is_playing": || tree.state_machine.get()[TREE_ACTIVE],
+        "stop": || tree.state_machine.patch(#{ "active": false }),
+    }
+}
+
+pub fn has(container, value) {
+    if container is Object {
+        return value is String && container.contains_key(value);
+    }
+    if is_map(container) {
+        return container.contains_key(value);
+    }
+    if container is Vec {
+        for item in container {
+            if item == value {
+                return true;
+            }
+        }
+        return false;
+    }
+    if container is String {
+        return container.contains(value);
+    }
+    return false;
+}
+
+pub fn keys(container) {
+    if scripted(container) {
+        return invoke(container, "keys");
+    }
+    if container is Object || is_map(container) {
+        return container.keys().collect::<Vec>();
+    }
+    return [];
+}
+
+pub fn values(container) {
+    if scripted(container) {
+        return invoke(container, "values");
+    }
+    if container is Object || is_map(container) {
+        return container.values().collect::<Vec>();
+    }
+    if container is Vec {
+        return container;
+    }
+    return [];
+}
+
+pub fn append(container, value) {
+    if scripted(container) {
+        return invoke1(container, "append", value);
+    }
+    container.push(value);
+    return container;
+}
+
+pub fn append_array(container, other) {
+    if scripted(container) {
+        return invoke1(container, "append_array", other);
+    }
+    for item in other {
+        container.push(item);
+    }
+    return container;
+}
+
+pub fn erase(container, value) {
+    if scripted(container) {
+        return invoke1(container, "erase", value);
+    }
+    if container is Object || is_map(container) {
+        container.remove(value);
+        return container;
+    }
+    let out = [];
+    for item in container {
+        if item != value {
+            out.push(item);
+        }
+    }
+    return out;
+}
+
+pub fn find(container, value) {
+    if scripted(container) {
+        return invoke1(container, "find", value);
+    }
+    // On a string Godot's `find` is the index of a substring, not a search
+    // through elements. Rune's String has no `find`, so the text before the
+    // first split is the index.
+    if container is String {
+        if !container.contains(value) {
+            return -1;
+        }
+        let head = container.split(value).collect::<Vec>();
+        // Signed, as Godot's is: a caller compares it with -1.
+        return head[0].len() as i64;
+    }
+    let index = 0;
+    for item in container {
+        if item == value {
+            return index;
+        }
+        index += 1;
+    }
+    return -1;
+}
+
+pub fn clear(container) {
+    if scripted(container) {
+        return invoke(container, "clear");
+    }
+    if container is Object || is_map(container) {
+        for key in container.keys().collect::<Vec>() {
+            container.remove(key);
+        }
+        return container;
+    }
+    container.clear();
+    return container;
+}
+
+pub fn duplicate(value) {
+    if scripted(value) {
+        return invoke(value, "duplicate");
+    }
+    if value is Vec {
+        let out = [];
+        for item in value {
+            out.push(item);
+        }
+        return out;
+    }
+    if value is Object {
+        let out = #{};
+        for key in value.keys() {
+            out[key] = value[key];
+        }
+        return out;
+    }
+    if is_map(value) {
+        let out = std::collections::HashMap::new();
+        for key in value.keys() {
+            out.insert(key, value[key]);
+        }
+        return out;
+    }
+    return value;
+}
+
+/// Godot's `hash()`: the same value always hashes alike, containers by
+/// their contents. Not Godot's own numbers; a script only compares them.
+pub fn hash(value) {
+    let prime = 2147483647;
+    if value is i64 {
+        let h = value % prime;
+        return if h < 0 { -h } else { h };
+    }
+    if value is f64 {
+        return hash(int(value * 1000.0));
+    }
+    if value is std::bool {
+        return if value { 1 } else { 0 };
+    }
+    if value is String {
+        let digest = ::hash::sha256_text(value);
+        let h = 0;
+        let at = 0;
+        while at < 7 {
+            h = h * 16 + int(hex_digit(digest, at));
+            at += 1;
+        }
+        return h;
+    }
+    if value is Vec {
+        let h = 7;
+        for item in value {
+            h = (h * 31 + hash(item)) % prime;
+        }
+        return h;
+    }
+    if value is Object || is_map(value) {
+        let h = 11;
+        for key in value.keys() {
+            h = (h + hash(key) * 17 % prime + hash(value[key])) % prime;
+        }
+        return h;
+    }
+    0
+}
+
+/// `duplicate(true)`: containers inside copied too.
+pub fn duplicate_deep(value) {
+    if value is Vec {
+        let out = [];
+        for item in value {
+            out.push(duplicate_deep(item));
+        }
+        return out;
+    }
+    if value is Object {
+        let out = #{};
+        for key in value.keys() {
+            out[key] = duplicate_deep(value[key]);
+        }
+        return out;
+    }
+    if is_map(value) {
+        let out = std::collections::HashMap::new();
+        for key in value.keys() {
+            out.insert(key, duplicate_deep(value[key]));
+        }
+        return out;
+    }
+    value
+}
+
+pub fn merge(into, other) {
+    if scripted(into) {
+        return invoke1(into, "merge", other);
+    }
+    for key in other.keys().collect::<Vec>() {
+        into[key] = other[key];
+    }
+    return into;
+}
+
+pub fn front(container) {
+    if scripted(container) {
+        return invoke(container, "front");
+    }
+    if size(container) == 0 {
+        return ();
+    }
+    return container[0];
+}
+
+pub fn back(container) {
+    if scripted(container) {
+        return invoke(container, "back");
+    }
+    let count = size(container);
+    if count == 0 {
+        return ();
+    }
+    return container[count - 1];
+}
+
+pub fn pop_front(container) {
+    if scripted(container) {
+        return invoke(container, "pop_front");
+    }
+    if size(container) == 0 {
+        return ();
+    }
+    return container.remove(0);
+}
+
+pub fn pop_back(container) {
+    if scripted(container) {
+        return invoke(container, "pop_back");
+    }
+    // Rune's `pop` answers an `Option`; Godot's, the item or null.
+    let last = container.pop();
+    last.unwrap_or(())
+}
+
+pub fn sort(container) {
+    if scripted(container) {
+        return invoke(container, "sort");
+    }
+    container.sort();
+    return container;
+}
+
+pub fn reverse(container) {
+    if scripted(container) {
+        return invoke(container, "reverse");
+    }
+    container.reverse();
+    return container;
+}
+
+pub fn slice(container, from, upto) {
+    let count = size(container);
+    let start = if from < 0 { count + from } else { from };
+    let end = if upto < 0 { count + upto } else { upto };
+    let out = [];
+    let index = start;
+    while index < end && index < count {
+        out.push(container[index]);
+        index += 1;
+    }
+    return out;
+}
+
+/// A map built from pairs, for a literal whose keys are not literal strings:
+/// an object while every key is a string, a hash map once one is not.
+pub fn dict(pairs) {
+    let strings = true;
+    for pair in pairs {
+        if !(pair[0] is String) {
+            strings = false;
+        }
+    }
+    if strings && pairs.len() > 0 {
+        let out = #{};
+        for pair in pairs {
+            out[pair[0]] = pair[1];
+        }
+        return out;
+    }
+    let out = std::collections::HashMap::new();
+    for pair in pairs {
+        out.insert(pair[0], pair[1]);
+    }
+    return out;
+}
+
+/// What GDScript's `for` walks: a dictionary's keys, an int's range, a
+/// string's characters, anything else as it is.
+pub fn iter(value) {
+    if value is Object || is_map(value) {
+        return value.keys().collect::<Vec>();
+    }
+    if value is i64 {
+        return (0..value).iter().collect::<Vec>();
+    }
+    if value is String {
+        return value.chars().map(|c| `${c}`).collect::<Vec>();
+    }
+    if is_nil(value) {
+        return [];
+    }
+    return value;
+}
+
+/// Text read off disk, or Godot's empty string where there was none.
+pub fn or_text(value) {
+    if value is String {
+        return value;
+    }
+    ""
+}
+
+/// Godot's `str()`: containers spelled out, strings quoted inside them.
+pub fn str(value) {
+    if value is String {
+        return value;
+    }
+    if value is Tuple {
+        return "<null>";
+    }
+    if value is f64 {
+        if value == math::floor(value) && math::abs(value) < 1e15 {
+            let out = `${value as i64}.0`;
+            return out;
+        }
+        let out = `${value}`;
+        return out;
+    }
+    if value is Vec {
+        let parts = [];
+        for item in value {
+            parts.push(quoted_str(item));
+        }
+        let out = `[${join(", ", parts)}]`;
+        return out;
+    }
+    if value is Object || is_map(value) {
+        let parts = [];
+        for key in value.keys() {
+            parts.push(`${quoted_str(key)}: ${quoted_str(value[key])}`);
+        }
+        if parts.len() == 0 {
+            return "{ }";
+        }
+        let out = `{ ${join(", ", parts)} }`;
+        return out;
+    }
+    if value is balaur::Vec2 {
+        let out = `(${str(value.x)}, ${str(value.y)})`;
+        return out;
+    }
+    if value is balaur::Vec3 {
+        let out = `(${str(value.x)}, ${str(value.y)}, ${str(value.z)})`;
+        return out;
+    }
+    if value is balaur::Color {
+        let out = `(${str(value.r)}, ${str(value.g)}, ${str(value.b)}, ${str(value.a)})`;
+        return out;
+    }
+    if value is balaur::Node {
+        let out = `${value.name()}:<Node>`;
+        return out;
+    }
+    if value is balaur::Transform2d {
+        let out = `[X: ${str(value.x)}, Y: ${str(value.y)}, O: ${str(value.origin)}]`;
+        return out;
+    }
+    if value is std::ops::Function {
+        return "<Callable>";
+    }
+    if value is i64 || value is std::bool || value is char {
+        let out = `${value}`;
+        return out;
+    }
+    "<Object>"
+}
+
+fn quoted_str(value) {
+    if value is String {
+        let out = `"${value}"`;
+        return out;
+    }
+    str(value)
+}
+
+pub fn str_all(values) {
+    let out = "";
+    for value in values {
+        if out != "" {
+            out += " ";
+        }
+        out += str(value);
+    }
+    return out;
+}
+
+pub fn is_valid_int(text) {
+    text is String && text.parse::<i64>() is Result && text.parse::<i64>().is_ok()
+}
+
+pub fn is_valid_float(text) {
+    text is String && text.parse::<f64>() is Result && text.parse::<f64>().is_ok()
+}
+
+pub fn int(value) {
+    if value is i64 {
+        return value;
+    }
+    if value is f64 {
+        return value as i64;
+    }
+    if value is std::bool {
+        return if value { 1 } else { 0 };
+    }
+    if value is String {
+        let parsed = value.parse::<i64>();
+        if parsed is Result {
+            return parsed.unwrap_or(0);
+        }
+        return 0;
+    }
+    return 0;
+}
+
+pub fn float(value) {
+    if value is f64 {
+        return value;
+    }
+    if value is i64 {
+        return value as f64;
+    }
+    if value is String {
+        let parsed = value.parse::<f64>();
+        if parsed is Result {
+            return parsed.unwrap_or(0.0);
+        }
+        return 0.0;
+    }
+    return 0.0;
+}
+
+pub fn bool(value) {
+    if value is std::bool {
+        return value;
+    }
+    if value is i64 {
+        return value != 0;
+    }
+    if value is f64 {
+        return value != 0.0;
+    }
+    if value is String {
+        return value != "";
+    }
+    return !is_nil(value);
+}
+
+pub fn to_lower(value) {
+    return value.to_lowercase();
+}
+
+pub fn to_upper(value) {
+    return value.to_uppercase();
+}
+
+pub fn strip_edges(value) {
+    return value.trim();
+}
+
+pub fn begins_with(value, prefix) {
+    return value.starts_with(prefix);
+}
+
+pub fn ends_with(value, suffix) {
+    return value.ends_with(suffix);
+}
+
+pub fn contains(value, part) {
+    return value.contains(part);
+}
+
+pub fn split(value, sep) {
+    return value.split(sep).collect::<Vec>();
+}
+
+pub fn join(sep, parts) {
+    let out = "";
+    let first = true;
+    for part in parts {
+        if !first {
+            out += sep;
+        }
+        out += str(part);
+        first = false;
+    }
+    return out;
+}
+
+pub fn substr(value, from, count) {
+    let total = value.len();
+    let start = if from < 0 { 0 } else { from };
+    let end = if count < 0 { total } else { start + count };
+    let out = "";
+    let index = 0;
+    for c in value.chars() {
+        if index >= start && index < end {
+            out += str(c);
+        }
+        index += 1;
+    }
+    return out;
+}
+
+/// Godot's `"%s of %d" % [a, b]`. The verbs it uses in this game are `%s`,
+/// `%d`, `%f`, `%.Nf` and `%%`.
+pub fn format(template, args) {
+    let out = "";
+    let index = 0;
+    let chars = template.chars().collect::<Vec>();
+    let at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        if c != '%' {
+            out += str(c);
+            at += 1;
+            continue;
+        }
+        at += 1;
+        if at >= chars.len() {
+            break;
+        }
+        if chars[at] == '%' {
+            out += "%";
+            at += 1;
+            continue;
+        }
+        let spec = "";
+        while at < chars.len() && chars[at] != 's' && chars[at] != 'd' && chars[at] != 'f'
+            && chars[at] != 'x' && chars[at] != 'v' {
+            spec += str(chars[at]);
+            at += 1;
+        }
+        let verb = if at < chars.len() { chars[at] } else { 's' };
+        at += 1;
+        let value = if index < args.len() { args[index] } else { () };
+        index += 1;
+        if verb == 'd' {
+            out += str(int(value));
+        } else if verb == 'f' {
+            out += decimals(float(value), places(spec));
+        } else {
+            out += str(value);
+        }
+    }
+    return out;
+}
+
+/// `"{a}".format({"a": 1})`, Godot's other formatter.
+pub fn format_map(template, values) {
+    let out = template;
+    for key in keys(values) {
+        out = out.replace(`{${key}}`, str(values[key]));
+    }
+    return out;
+}
+
+/// The digits a `%.3f` asks for; 6 is Godot's default.
+fn places(spec) {
+    let dot = false;
+    let digits = "";
+    for c in spec.chars() {
+        if c == '.' {
+            dot = true;
+            continue;
+        }
+        if dot {
+            digits += str(c);
+        }
+    }
+    if digits == "" {
+        return 6;
+    }
+    return int(digits);
+}
+
+fn decimals(value, count) {
+    let scale = 1.0;
+    let step = 0;
+    while step < count {
+        scale *= 10.0;
+        step += 1;
+    }
+    let rounded = math::round(value * scale) / scale;
+    if count == 0 {
+        return str(int(rounded));
+    }
+    let text = format!("{}", rounded);
+    let parts = text.split(".").collect::<Vec>();
+    let whole = parts[0];
+    let fraction = if parts.len() > 1 { parts[1] } else { "" };
+    while fraction.len() < count {
+        fraction += "0";
+    }
+    `${whole}.${fraction}`
+}
+
+pub fn min(a, b) {
+    if a < b { a } else { b }
+}
+
+pub fn max(a, b) {
+    if a > b { a } else { b }
+}
+
+pub fn clamp(value, low, high) {
+    if value < low {
+        return low;
+    }
+    if value > high {
+        return high;
+    }
+    value
+}
+
+pub fn abs(value) {
+    if value is balaur::Vec2 {
+        return value.abs();
+    }
+    if value < 0 { -value } else { value }
+}
+
+pub fn lerp(from, to, amount) {
+    return from + (to - from) * amount;
+}
+
+pub fn sign(value) {
+    if value > 0.0 {
+        return 1.0;
+    }
+    if value < 0.0 {
+        return -1.0;
+    }
+    return 0.0;
+}
+
+pub fn snapped(value, step) {
+    if step == 0.0 {
+        return value;
+    }
+    return math::round(value / step) * step;
+}
+
+pub fn fmod(value, by) {
+    return value - by * math::floor(value / by);
+}
+
+pub fn move_toward(from, to, delta) {
+    if math::abs(to - from) <= delta {
+        return to;
+    }
+    return from + sign(to - from) * delta;
+}
+
+pub fn is_zero_approx(value) {
+    return math::abs(value) < 0.00001;
+}
+
+pub fn is_equal_approx(a, b) {
+    return math::abs(a - b) < 0.00001;
+}
+
+pub fn nan() {
+    return 0.0 / 0.0;
+}
+
+/// A pose vector as Godot spells one: the engine answers a `vec3`, and every
+/// translated body reads `.x` and `.y` off it.
+/// A position the engine hands back, as the `Vector2` a 2D Godot game reads.
+pub fn vec_of(v) {
+    if is_nil(v) {
+        return vec2(0.0, 0.0);
+    }
+    if v is Vec {
+        return vec2(v[0], v[1]);
+    }
+    if v is Object {
+        return vec2(get(v, "x", 0.0), get(v, "y", 0.0));
+    }
+    vec2(v.x, v.y)
+}
+
+/// Godot's pixels per unit here. A converted scene stores a 2D position in
+/// units with y up; a converted script reads and writes Godot's pixels, y down.
+const PIXELS = 100.0;
+
+/// A position the engine stores, as the pixels a Godot script reads.
+pub fn pixels_of(v) {
+    let at = vec_of(v);
+    vec2(at.x * PIXELS, -at.y * PIXELS)
+}
+
+/// Pixels a Godot script wrote, as the units the engine stores.
+fn units_of(at) {
+    [float(at.x) / PIXELS, -float(at.y) / PIXELS, 0.0]
+}
+
+pub fn position_of(node) {
+    pixels_of(node.transform.position)
+}
+
+pub fn global_position_of(node) {
+    pixels_of(node.transform.global_position())
+}
+
+pub fn set_position(node, at) {
+    node.transform.position = units_of(at);
+}
+
+pub fn set_global_position(node, at) {
+    let here = vec_of(node.transform.global_position());
+    let local = vec_of(node.transform.position);
+    let want = units_of(at);
+    node.transform.position = [local.x + want[0] - here.x, local.y + want[1] - here.y, 0.0];
+}
+
+pub fn set_scale(node, by) {
+    node.transform.scale = [float(by.x), float(by.y), 1.0];
+}
+
+/// A 2D node turns about z, clockwise positive in Godot's y-down frame, so
+/// the angle a script reads is the stored one negated.
+pub fn rotation_of(node) {
+    return -float(node.transform.rotation_euler.z);
+}
+
+pub fn set_rotation(node, radians) {
+    let euler = node.transform.rotation_euler;
+    node.transform.rotation_euler = [float(euler.x), float(euler.y), -float(radians)];
+}
+
+pub fn set_tint(node, tint) {
+    node.set_tint(float(tint.r), float(tint.g), float(tint.b), float(tint.a));
+}
+
+/// Godot's `Rect2`: its fields, and its methods as closures over them.
+pub fn rect(x, y, w, h) {
+    let x = float(x);
+    let y = float(y);
+    let w = float(w);
+    let h = float(h);
+    #{
+        "position": vec2(x, y),
+        "size": vec2(w, h),
+        "end": vec2(x + w, y + h),
+        "x": x,
+        "y": y,
+        "w": w,
+        "h": h,
+        "grow": |m| rect(x - float(m), y - float(m), w + 2.0 * float(m), h + 2.0 * float(m)),
+        "has_point": |p| p.x >= x && p.y >= y && p.x < x + w && p.y < y + h,
+        "get_center": || vec2(x + w / 2.0, y + h / 2.0),
+        "get_area": || w * h,
+        "has_area": || w > 0.0 && h > 0.0,
+        "intersects": |o| o.x < x + w && o.x + o.w > x && o.y < y + h && o.y + o.h > y,
+        "encloses": |o| o.x >= x && o.y >= y && o.x + o.w <= x + w && o.y + o.h <= y + h,
+        "merge": |o| span(x, y, x + w, y + h, o.x, o.y, o.x + o.w, o.y + o.h),
+        "expand": |p| span(x, y, x + w, y + h, p.x, p.y, p.x, p.y),
+        "abs": || span(x, y, x + w, y + h, x, y, x, y),
+    }
+}
+
+/// `Rect2(position, size)`.
+pub fn rect_of(position, size) {
+    rect(position.x, position.y, size.x, size.y)
+}
+
+/// The rectangle reaching both corner pairs.
+fn span(x0, y0, x1, y1, x2, y2, x3, y3) {
+    let left = math::min(math::min(x0, x1), math::min(x2, x3));
+    let top = math::min(math::min(y0, y1), math::min(y2, y3));
+    let right = math::max(math::max(x0, x1), math::max(x2, x3));
+    let bottom = math::max(math::max(y0, y1), math::max(y2, y3));
+    rect(left, top, right - left, bottom - top)
+}
+
+/// A node's global transform as Godot's `Transform2d`.
+pub fn global_transform(node) {
+    let scale = vec_of(node.transform.global_scale());
+    let turn = -float(node.transform.global_rotation_euler().z);
+    balaur::Transform2d::from_parts(turn, scale, pixels_of(node.transform.global_position()))
+}
+
+/// Godot's `get_canvas_transform()`: world to viewport pixels through the 2D
+/// camera, which is the identity where no window draws one.
+pub fn canvas_transform(node) {
+    let camera = render::camera_2d();
+    let zoom = float(camera[2]);
+    if zoom == 0.0 {
+        return balaur::Transform2d::identity();
+    }
+    let (w, h) = ui::screen_size();
+    let origin = vec2(float(w) / 2.0 - float(camera[0]) * zoom, float(h) / 2.0 + float(camera[1]) * zoom);
+    let scale = zoom / PIXELS;
+    balaur::Transform2d::from_parts(0.0, vec2(scale, scale), origin)
+}
+
+/// `Transform2d(..)`: nothing, rotation and origin, or the three columns.
+pub fn transform2d(args) {
+    match args.len() as i64 {
+        0 => balaur::Transform2d::identity(),
+        2 => balaur::Transform2d::from_parts(float(args[0]), vec2(1.0, 1.0), vec_of(args[1])),
+        3 => balaur::Transform2d::new(vec_of(args[0]), vec_of(args[1]), vec_of(args[2])),
+        _ => balaur::Transform2d::from_parts(float(args[0]), vec_of(args[1]), vec_of(args[3])),
+    }
+}
+
+/// `Array()`, `Dictionary()` and the packed arrays, which Godot spelled as
+/// constructors.
+pub fn empty_of() {
+    return [];
+}
+
+/// Godot's `Vector2`, `Vector3` and `Color` are the engine's own, which add,
+/// scale and compare with the operators Godot uses.
+pub fn vec2(x, y) {
+    balaur::Vec2::new(float(x), float(y))
+}
+
+pub fn vec3(x, y, z) {
+    balaur::Vec3::new(float(x), float(y), float(z))
+}
+
+pub fn color(r, g, b, a) {
+    balaur::Color::new(float(r), float(g), float(b), float(a))
+}
+
+/// `-x` for a number or a vector.
+pub fn neg(value) {
+    if value is i64 || value is f64 {
+        return -value;
+    }
+    value * -1.0
+}
+
+/// `Color("70664a")`, `Color("#70664aff")`, or a colour copied.
+pub fn color_of(value) {
+    if value is String {
+        let hex = if value.starts_with("#") { value[1..] } else { value };
+        let byte = |at| hex_digit(hex, at) * 16.0 + hex_digit(hex, at + 1);
+        let a = if hex.len() >= 8 { byte(6) } else { 255.0 };
+        return color(byte(0) / 255.0, byte(2) / 255.0, byte(4) / 255.0, a / 255.0);
+    }
+    if value is Vec {
+        let a = if value.len() > 3 { float(value[3]) } else { 1.0 };
+        return color(value[0], value[1], value[2], a);
+    }
+    color(value.r, value.g, value.b, value.a)
+}
+
+/// `Color(colour, alpha)`.
+pub fn color_alpha(value, a) {
+    let out = color_of(value);
+    out.a = float(a);
+    out
+}
+
+fn hex_digit(text, at) {
+    let digits = "0123456789abcdef";
+    let c = text[at..at + 1].to_lowercase();
+    for n in 0..16 {
+        if digits[n..n + 1] == c {
+            return float(n);
+        }
+    }
+    0.0
+}
+
+pub fn range(from, upto, step) {
+    let from = int(from);
+    let upto = int(upto);
+    let step = int(step);
+    let out = [];
+    let at = from;
+    while (step > 0 && at < upto) || (step < 0 && at > upto) {
+        out.push(at);
+        at += step;
+    }
+    return out;
+}
+
+/// A node's script answers `is_a` by the class it was converted from, which
+/// the importer writes into every converted script as `CLASS_NAME`.
+/// `x as SomeClass`: `x` when it is one, else nothing.
+pub fn as_class(value, name) {
+    if is_a(value, name) { value } else { () }
+}
+
+/// The import's class table, built once: it names every script class.
+fn class_table() {
+    let held = script::stored("godot:classes");
+    if !is_nil(held) {
+        return held;
+    }
+    let made = (script::require("godot_classes.rn").classes)();
+    script::store("godot:classes", made);
+    made
+}
+
+pub fn is_a(value, name) {
+    if is_nil(value) {
+        return false;
+    }
+    if value is balaur::Node {
+        if name == "Node" || name == "CanvasItem" || name == "Node2D" || name == "Control" {
+            return true;
+        }
+        let files = get(class_table(), name, ());
+        if files is Vec {
+            let path = value.script_path();
+            return !is_nil(path) && files.iter().any(|f| f == path);
+        }
+        return value.has_tag(name);
+    }
+    if value is Object && value.contains_key(CLASS_KEY) {
+        let files = get(class_table(), name, ());
+        return files is Vec && files.iter().any(|f| f == value[CLASS_KEY]);
+    }
+    return false;
+}
+
+pub fn inverse_lerp(from, to, value) {
+    if to == from {
+        return 0.0;
+    }
+    return (value - from) / (to - from);
+}
+
+pub fn linear_to_db(value) {
+    if value <= 0.0 {
+        return -80.0;
+    }
+    return math::log(value) / math::log(10.0) * 20.0;
+}
+
+pub fn db_to_linear(value) {
+    return math::pow(10.0, value / 20.0);
+}
+
+/// Godot's `a + b` on two arrays: a new array holding both.
+pub fn concat(a, b) {
+    let out = [];
+    for item in a {
+        out.push(item);
+    }
+    for item in b {
+        out.push(item);
+    }
+    out
+}

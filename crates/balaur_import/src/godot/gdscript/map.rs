@@ -43,18 +43,72 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
         "get_index",
         "move_child",
         "find_child",
+        "find_children",
+        "create_tween",
         "is_node_ready",
         "is_inside_tree",
         "move_to_front",
         "get_process_delta_time",
         "get_physics_process_delta_time",
+        "get_canvas_transform",
+        "get_global_transform",
+        "get_size",
+        "set_notify_transform",
+        "set_notify_local_transform",
+        "set_process_input",
+        "set_process_unhandled_input",
+        "set_process_unhandled_key_input",
+        "clear",
+        "add_item",
+        "add_icon_item",
+        "select",
+        "get_item_text",
+        "get_item_count",
+        "get_selected_id",
+        "set_item_disabled",
+        "is_item_disabled",
     ];
-    NODE.contains(&name)
-        .then(|| method("this.node", name, args))?
+    // A method the shim maps is its verb; any other goes to the node's own.
+    NODE.contains(&name).then(|| {
+        method("this.node", name, args).unwrap_or_else(|| invoke("this.node", name, args))
+    })
+}
+
+/// Godot's numeric globals: the `i` forms answer an int, and the plain ones
+/// keep an int an int where the engine's would answer a float.
+fn numeric(name: &str, args: &[String]) -> Option<String> {
+    let all = args.join(", ");
+    let one = args.first().cloned().unwrap_or_default();
+    Some(match name {
+        // The `i` forms answer an int whatever they were given, as Godot's do.
+        "mini" => format!("(gd.int)(math::min({all}))"),
+        "maxi" => format!("(gd.int)(math::max({all}))"),
+        "clampi" => format!("(gd.int)(math::clamp({all}))"),
+        "absi" => format!("(gd.int)(math::abs({one}))"),
+        "floori" => format!("(gd.int)(math::floor({one}))"),
+        "ceili" => format!("(gd.int)(math::ceil({one}))"),
+        "roundi" => format!("(gd.int)(math::round({one}))"),
+        // Godot's keep an int an int; the engine's answer a float.
+        "min" if args.len() == 2 => format!("(gd.min)({all})"),
+        "max" if args.len() == 2 => format!("(gd.max)({all})"),
+        "clamp" => format!("(gd.clamp)({all})"),
+        "abs" => format!("(gd.abs)({one})"),
+        "min" | "minf" => format!("math::min({all})"),
+        "max" | "maxf" => format!("math::max({all})"),
+        "clampf" => format!("math::clamp({all})"),
+        "absf" => format!("math::abs({one})"),
+        "floor" | "floorf" => format!("math::floor({one})"),
+        "ceil" | "ceilf" => format!("math::ceil({one})"),
+        "round" | "roundf" => format!("math::round({one})"),
+        _ => return None,
+    })
 }
 
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
 pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
+    if let Some(text) = numeric(name, args) {
+        return Some(text);
+    }
     let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
     Some(match name {
@@ -65,23 +119,24 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "is_instance_valid" => format!("(gd.valid)({one})"),
         "typeof" => format!("(gd.type_of)({one})"),
         "is_zero_approx" => format!("(gd.is_zero_approx)({one})"),
+        "hash" => format!("(gd.hash)({one})"),
         "is_equal_approx" => format!("(gd.is_equal_approx)({all})"),
         "weakref" => one,
-        "range" => match args.len() {
-            1 => format!("(0..{one})"),
-            2 => format!("({}..{})", args[0], args[1]),
-            _ => format!("(gd.range)({all})"),
-        },
+        // A literal bound is an int already; anything else may be a float,
+        // which Godot truncates and a Rune range refuses.
+        "range" => {
+            let int = |a: &String| a.parse::<i64>().is_ok();
+            match args.len() {
+                1 if int(&args[0]) => format!("(0..{one})"),
+                2 if int(&args[0]) && int(&args[1]) => format!("({}..{})", args[0], args[1]),
+                1 => format!("(gd.range)(0, {one}, 1)"),
+                2 => format!("(gd.range)({all}, 1)"),
+                _ => format!("(gd.range)({all})"),
+            }
+        }
         "print" | "prints" | "printt" | "print_rich" => format!("log::info((gd.str_all)([{all}]))"),
         "push_error" | "printerr" => format!("log::error((gd.str_all)([{all}]))"),
         "push_warning" => format!("log::warn((gd.str_all)([{all}]))"),
-        "min" | "minf" | "mini" => format!("math::min({all})"),
-        "max" | "maxf" | "maxi" => format!("math::max({all})"),
-        "clamp" | "clampf" | "clampi" => format!("math::clamp({all})"),
-        "abs" | "absf" | "absi" => format!("math::abs({one})"),
-        "floor" | "floorf" | "floori" => format!("math::floor({one})"),
-        "ceil" | "ceilf" | "ceili" => format!("math::ceil({one})"),
-        "round" | "roundf" | "roundi" => format!("math::round({one})"),
         "sqrt" => format!("math::sqrt({one})"),
         "pow" => format!("math::pow({all})"),
         "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "exp" | "log" => {
@@ -96,20 +151,46 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "fmod" | "fposmod" => format!("(gd.fmod)({all})"),
         "move_toward" => format!("(gd.move_toward)({all})"),
         "randf" => "rng::random()".into(),
-        "randi" => "rng::int()".into(),
-        "randf_range" | "randi_range" => format!("rng::range({all})"),
+        "randi" => "rng::int(0, 2147483647)".into(),
+        "randi_range" => format!("rng::int({all})"),
+        "randf_range" => format!("rng::range({all})"),
         "randomize" => "()".into(),
         "tr" => format!("strings::tr({all})"),
+        "Vector2" | "Vector2i" if args.is_empty() => "(gd.vec2)(0.0, 0.0)".into(),
+        "Vector2" | "Vector2i" if args.len() == 1 => format!("(gd.vec_of)({one})"),
         "Vector2" | "Vector2i" => format!("(gd.vec2)({all})"),
+        "Vector3" | "Vector3i" if args.is_empty() => "(gd.vec3)(0.0, 0.0, 0.0)".into(),
+        "Rect2" | "Rect2i" => match args.len() {
+            0 => "(gd.rect)(0.0, 0.0, 0.0, 0.0)".into(),
+            2 => format!("(gd.rect_of)({all})"),
+            _ => format!("(gd.rect)({all})"),
+        },
         "Vector3" => format!("(gd.vec3)({all})"),
+        "Transform2D" => format!("(gd.transform2d)([{all}])"),
+        "NodePath" | "StringName" => {
+            if args.is_empty() {
+                "\"\"".into()
+            } else {
+                one
+            }
+        }
+        packed if packed.starts_with("Packed") && packed.ends_with("Array") => {
+            if args.is_empty() {
+                "[]".into()
+            } else {
+                one
+            }
+        }
         // Godot's `Color` takes a hex string or a colour, a colour and an
         // alpha, three channels, or four.
         "Color" => match args.len() {
+            0 => "(gd.color)(0.0, 0.0, 0.0, 1.0)".into(),
             1 => format!("(gd.color_of)({one})"),
             2 => format!("(gd.color_alpha)({all})"),
             3 => format!("(gd.color)({all}, 1.0)"),
             _ => format!("(gd.color)({all})"),
         },
+        "Callable" if args.is_empty() => "()".into(),
         "Callable" => format!("(gd.callable)({all})"),
         "preload" | "load" => loaded(&args[0]),
         "instance_from_id" => format!("(gd.instance_from_id)({one})"),
@@ -152,17 +233,22 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS", "get_unique_id") => "engine::device_id()".into(),
         ("OS", "is_debug_build") => "engine::platform().dev".into(),
         // A button group is the widget's `group` name here.
-        ("ButtonGroup", "new") => "(gd.button_group)()".into(),
+        ("ButtonGroup" | "FoldableGroup", "new") => "(gd.button_group)()".into(),
         ("RandomNumberGenerator", "new") => "(gd.random_numbers)()".into(),
         ("ProjectSettings", "get" | "get_setting") => {
             let fallback = args.get(1).map_or("()", String::as_str);
             format!("(gd.project_setting)({one}, {fallback})")
         }
-        ("ProjectSettings", "has_setting") => format!("!(gd.is_nil)((gd.project_setting)({one}, ()))"),
+        ("ProjectSettings", "has_setting") => {
+            format!("!(gd.is_nil)((gd.project_setting)({one}, ()))")
+        }
         // A project path is the path here: `fs` resolves it against the project.
-        ("ProjectSettings", "globalize_path" | "localize_path") => format!("(gd.project_path)({one})"),
+        ("ProjectSettings", "globalize_path" | "localize_path") => {
+            format!("(gd.project_path)({one})")
+        }
         ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
         ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
+        ("DisplayServer", "window_get_size" | "screen_get_size") => "(gd.screen_size)()".into(),
         ("OS", "get_user_data_dir") => "engine::user_data_dir()".into(),
         ("OS", "shell_open") => format!("engine::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
@@ -170,6 +256,18 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS", "get_cmdline_args" | "get_cmdline_user_args") => "engine::args()".into(),
         ("JSON", "stringify") => format!("json::encode({one})"),
         ("JSON", "parse_string") => format!("json::parse({one})"),
+        ("FileAccess", "open") => format!("(gd.file_open)({all})"),
+        ("FileAccess", "get_open_error") => "(gd.file_error)()".into(),
+        ("FileAccess", "get_modified_time") => format!("fs::mtime((gd.project_path)({one}))"),
+        ("FileAccess", "get_file_as_string") => {
+            format!("(gd.or_text)(fs::read((gd.project_path)({one})))")
+        }
+        ("Engine", "get_main_loop") => TREE.into(),
+        // Every bus is the master bus here; `-1` is Godot's "no such bus".
+        ("AudioServer", "get_bus_index") => "0".into(),
+        ("AudioServer", "get_bus_count") => "1".into(),
+        // A browser callback is a closure already.
+        ("JavaScriptBridge", "create_callback") => one.clone(),
         ("FileAccess", "file_exists") | ("DirAccess", "dir_exists") => {
             format!("fs::exists({one})")
         }
@@ -209,6 +307,67 @@ pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
         ("Color", "WHITE") => "(gd.color)(1.0, 1.0, 1.0, 1.0)".into(),
         ("Color", "BLACK") => "(gd.color)(0.0, 0.0, 0.0, 1.0)".into(),
         ("Color", "TRANSPARENT") => "(gd.color)(0.0, 0.0, 0.0, 0.0)".into(),
+        ("Vector2", "INF") => "(gd.vec2)(1.0 / 0.0, 1.0 / 0.0)".into(),
+        ("Transform2D", "IDENTITY") => "balaur::Transform2d::identity()".into(),
+        (class, name) => class_constant(class, name)?.to_string(),
+    })
+}
+
+/// An enum value on one of Godot's classes, as the integer Godot gives it.
+// Rows share values without sharing meaning, as `global_constant`'s do.
+#[allow(clippy::match_same_arms)]
+fn class_constant(class: &str, name: &str) -> Option<i64> {
+    Some(match (class, name) {
+        ("Control", "MOUSE_FILTER_STOP") => 0,
+        ("Control", "MOUSE_FILTER_PASS") => 1,
+        ("Control", "MOUSE_FILTER_IGNORE") => 2,
+        ("Control", "FOCUS_NONE") => 0,
+        ("Control", "FOCUS_CLICK") => 1,
+        ("Control", "FOCUS_ALL") => 2,
+        ("Control", "SIZE_SHRINK_BEGIN") => 0,
+        ("Control", "SIZE_FILL") => 1,
+        ("Control", "SIZE_EXPAND") => 2,
+        ("Control", "SIZE_EXPAND_FILL") => 3,
+        ("Control", "SIZE_SHRINK_CENTER") => 4,
+        ("Control", "SIZE_SHRINK_END") => 8,
+        ("Control", "PRESET_TOP_LEFT") => 0,
+        ("Control", "PRESET_CENTER") => 8,
+        ("Control", "PRESET_FULL_RECT") => 15,
+        ("TextureRect", "EXPAND_KEEP_SIZE") => 0,
+        ("TextureRect", "EXPAND_IGNORE_SIZE") => 1,
+        ("TextureRect", "EXPAND_FIT_WIDTH") => 2,
+        ("TextureRect", "EXPAND_FIT_WIDTH_PROPORTIONAL") => 3,
+        ("TextureRect", "EXPAND_FIT_HEIGHT") => 4,
+        ("TextureRect", "EXPAND_FIT_HEIGHT_PROPORTIONAL") => 5,
+        ("TextureRect", "STRETCH_SCALE") => 0,
+        ("TextureRect", "STRETCH_TILE") => 1,
+        ("TextureRect", "STRETCH_KEEP") => 2,
+        ("TextureRect", "STRETCH_KEEP_CENTERED") => 3,
+        ("TextureRect", "STRETCH_KEEP_ASPECT") => 4,
+        ("TextureRect", "STRETCH_KEEP_ASPECT_CENTERED") => 5,
+        ("TextureRect", "STRETCH_KEEP_ASPECT_COVERED") => 6,
+        ("Line2D", "LINE_JOINT_SHARP" | "LINE_CAP_NONE") => 0,
+        ("Line2D", "LINE_JOINT_BEVEL" | "LINE_CAP_BOX") => 1,
+        ("Line2D", "LINE_JOINT_ROUND" | "LINE_CAP_ROUND") => 2,
+        ("Node", "PROCESS_MODE_INHERIT") => 0,
+        ("Node", "PROCESS_MODE_PAUSABLE") => 1,
+        ("Node", "PROCESS_MODE_WHEN_PAUSED") => 2,
+        ("Node", "PROCESS_MODE_ALWAYS") => 3,
+        ("Node", "PROCESS_MODE_DISABLED") => 4,
+        ("MultiMesh", "TRANSFORM_2D") => 0,
+        ("MultiMesh", "TRANSFORM_3D") => 1,
+        ("TextServer", "AUTOWRAP_OFF") => 0,
+        ("TextServer", "AUTOWRAP_ARBITRARY") => 1,
+        ("TextServer", "AUTOWRAP_WORD") => 2,
+        ("TextServer", "AUTOWRAP_WORD_SMART") => 3,
+        ("Label" | "RichTextLabel", "AUTOWRAP_OFF") => 0,
+        ("Label" | "RichTextLabel", "AUTOWRAP_WORD") => 2,
+        ("Label" | "RichTextLabel", "AUTOWRAP_WORD_SMART") => 3,
+        ("FileAccess", "READ") => 1,
+        ("FileAccess", "WRITE") => 2,
+        ("FileAccess", "READ_WRITE") => 3,
+        ("BaseButton", "ACTION_MODE_BUTTON_PRESS") => 0,
+        ("BaseButton", "ACTION_MODE_BUTTON_RELEASE") => 1,
         _ => return None,
     })
 }
@@ -238,19 +397,27 @@ pub(crate) fn constant(name: &str) -> Option<String> {
 /// `x is Ship`. A project class is a script, which the engine tests by name;
 /// the built-in types test by Rune's own kinds.
 pub(crate) fn type_test(value: &str, name: &str) -> String {
+    let simple = value
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+    let value = if simple {
+        value.to_string()
+    } else {
+        format!("({value})")
+    };
     match name {
         "int" => format!("{value} is i64"),
         "float" => format!("{value} is f64"),
         "bool" => format!("{value} is bool"),
         "String" | "StringName" => format!("{value} is String"),
         "Array" => format!("{value} is Vec"),
-        "Dictionary" => format!("{value} is Object"),
+        "Dictionary" => format!("(gd.is_dict)({value})"),
         _ => format!("(gd.is_a)({value}, {})", quoted(name)),
     }
 }
 
-/// `x as float`. Rune never mixes ints and floats, so a numeric cast is real
-/// work rather than the assertion it was in GDScript.
+/// `x as float`: a numeric cast is real work here, where it was an assertion
+/// in GDScript.
 pub(crate) fn cast(value: &str, name: &str) -> String {
     match name {
         "float" => format!("(gd.float)({value})"),
@@ -263,34 +430,85 @@ pub(crate) fn cast(value: &str, name: &str) -> String {
 
 /// A property read that is a method call here: `node.visible` is
 /// `node.visible()`.
+/// Signals every node or control carries, which a script names bare.
+pub(crate) const BUILTIN_SIGNALS: &[&str] = &[
+    "visibility_changed",
+    "resized",
+    "ready",
+    "tree_entered",
+    "tree_exiting",
+    "tree_exited",
+    "draw",
+    "mouse_entered",
+    "mouse_exited",
+    "focus_entered",
+    "focus_exited",
+    "item_rect_changed",
+    "child_entered_tree",
+    "child_exiting_tree",
+];
+
+/// The node properties `field` in the shim reads off a node at run time.
+const NODE_PROPERTIES: &[&str] = &[
+    "zoom",
+    "position",
+    "global_position",
+    "scale",
+    "rotation",
+    "rotation_degrees",
+    "size",
+    "visible",
+    "modulate",
+    "self_modulate",
+    "z_index",
+    "name",
+];
+
 pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     // `this.<export>` and every other script field stay fields.
     if receiver == "this" {
         return None;
     }
+    // A receiver only known at run time may be a rect or a table as well as
+    // a node: the shim's `field` asks which.
+    let node = receiver == "this.node";
+    if !node && NODE_PROPERTIES.contains(&field) {
+        return None;
+    }
     Some(match field {
         "visible" => format!("{receiver}.visible()"),
-        "global_position" => format!("(gd.vec_of)({receiver}.transform.global_position())"),
-        "position" => format!("(gd.vec_of)({receiver}.transform.position)"),
+        "global_position" => format!("(gd.global_position_of)({receiver})"),
+        "position" => format!("(gd.position_of)({receiver})"),
         "scale" => format!("(gd.vec_of)({receiver}.transform.scale)"),
         "modulate" | "self_modulate" => format!("{receiver}.tint()"),
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
         "rotation_degrees" => format!("math::deg((gd.rotation_of)({receiver}))"),
         "custom_minimum_size" => format!("(gd.min_size)({receiver})"),
+        "size" => format!("(gd.size_of)({receiver})"),
+        "theme" => format!("(gd.theme_of)({receiver})"),
         "rotation" => format!("(gd.rotation_of)({receiver})"),
         "current_scene" | "root" => "scene::root()".into(),
-        "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "selected"
+        "selected" => format!("(gd.option_index)({receiver})"),
+        "item_count" => format!("(gd.option_count)({receiver})"),
+        "text" | "disabled" | "pressed" | "button_pressed" | "editable"
         | "placeholder_text" | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
-            let key = if field == "button_pressed" {
-                "pressed"
-            } else {
-                field
-            };
+            let key = widget_key(field);
             format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
         }
         _ => return None,
     })
+}
+
+/// The widget component's key for a Godot button or range property: a
+/// toggle's state is `checked` here.
+fn widget_key(field: &str) -> &str {
+    match field {
+        "button_pressed" | "pressed" => "checked",
+        "min_value" => "min",
+        "max_value" => "max",
+        other => other,
+    }
 }
 
 /// An argument Godot lets a call leave out, as nil when it did.
@@ -316,7 +534,9 @@ fn tween_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         "set_parallel" => format!("(gd.tween_set_parallel)({receiver}, {})", or_nil(&one)),
         "set_loops" => format!("(gd.tween_loops)({receiver}, {})", or_nil(&one)),
         // A step here starts as it is declared, and runs at the node's speed.
-        "play" | "set_speed_scale" | "bind_node" | "set_process_mode" => receiver.to_string(),
+        "set_speed_scale" | "bind_node" | "set_process_mode" => {
+            format!("(gd.tween_same)({receiver}, \"{name}\", [{all}])")
+        }
         _ => return None,
     })
 }
@@ -330,6 +550,12 @@ fn loaded(arg: &str) -> String {
         return format!("(gd.load)({arg})");
     };
     let path = literal.strip_prefix("res://").unwrap_or(literal);
+    if crate::godot::files::has_extension(path, "tres") {
+        return format!("(gd.resource)({})", quoted(&format!("{path}.rn")));
+    }
+    if crate::godot::files::has_extension(path, "csv") {
+        return format!("(gd.csv_resource)({})", quoted(path));
+    }
     match path.strip_suffix(".tscn") {
         Some(stem) => quoted(&format!("{stem}.toml")),
         None => quoted(path),
@@ -350,6 +576,16 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "CONNECT_DEFERRED" => "1",
         "HORIZONTAL" => "0",
         "VERTICAL" => "1",
+        "HORIZONTAL_ALIGNMENT_LEFT" | "VERTICAL_ALIGNMENT_TOP" => "0",
+        "HORIZONTAL_ALIGNMENT_CENTER" | "VERTICAL_ALIGNMENT_CENTER" => "1",
+        "HORIZONTAL_ALIGNMENT_RIGHT" | "VERTICAL_ALIGNMENT_BOTTOM" => "2",
+        "HORIZONTAL_ALIGNMENT_FILL" | "VERTICAL_ALIGNMENT_FILL" => "3",
+        "SIZE_SHRINK_BEGIN" => "0",
+        "SIZE_FILL" => "1",
+        "SIZE_EXPAND" => "2",
+        "SIZE_EXPAND_FILL" => "3",
+        "SIZE_SHRINK_CENTER" => "4",
+        "SIZE_SHRINK_END" => "8",
         _ => return None,
     })
 }
@@ -365,10 +601,6 @@ pub(crate) fn todo(what: &str) -> String {
 /// vector and colour setters take their components apart, so the value goes
 /// through the shim and is evaluated once.
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
-    // The window's content scale is the UI's global scale here.
-    if field == "content_scale_factor" {
-        return Some(format!("ui::set_scale({value})"));
-    }
     const WIDGET: &[&str] = &[
         "text",
         "disabled",
@@ -376,22 +608,27 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "button_pressed",
         "editable",
         "placeholder_text",
-        "selected",
         "value",
         "max_value",
         "min_value",
         "tooltip_text",
         "icon",
     ];
+    if field == "selected" {
+        return Some(format!("(gd.option_select)({receiver}, {value})"));
+    }
+    // The window's content scale is the UI's global scale here.
+    if field == "content_scale_factor" {
+        return Some(format!("ui::set_scale({value})"));
+    }
     if WIDGET.contains(&field) {
-        let key = if field == "button_pressed" {
-            "pressed"
-        } else {
-            field
-        };
+        let key = widget_key(field);
         return Some(format!(
             "{receiver}.patch_component(\"widget\", #{{ \"{key}\": {value} }})"
         ));
+    }
+    if receiver != "this.node" && NODE_PROPERTIES.contains(&field) {
+        return Some(format!("(gd.set_field)({receiver}, \"{field}\", {value})"));
     }
     Some(match field {
         "visible" => format!("{receiver}.set_visible({value})"),
@@ -404,7 +641,49 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
         "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
         "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
-        "button_group" => format!("{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"),
+        "button_group" => format!(
+            "{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"
+        ),
+        _ => return None,
+    })
+}
+
+/// A string method as the shim verb that answers it on any value.
+fn string_verb(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "to_lower" => "to_lower",
+        "to_upper" => "to_upper",
+        "strip_edges" => "strip_edges",
+        "begins_with" => "begins_with",
+        "ends_with" => "ends_with",
+        "contains" => "contains",
+        "split" => "split",
+        "join" => "join",
+        "substr" => "substr",
+        "length" => "size",
+        "format" => "format_map",
+        "to_int" => "int",
+        "to_float" => "float",
+        "is_valid_int" => "is_valid_int",
+        "is_valid_float" => "is_valid_float",
+        _ => return None,
+    })
+}
+
+/// `ConfigFile`'s verbs as the shim's. These names are not the config's
+/// alone, so the shim checks the receiver and hands any other value on.
+fn config_verb(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "load" => "config_load",
+        "save" => "config_save",
+        "get_value" => "config_get",
+        "set_value" => "config_set",
+        "has_section" => "config_has_section",
+        "has_section_key" => "config_has_key",
+        "erase_section" => "config_erase_section",
+        "erase_section_key" => "config_erase_key",
+        "get_sections" => "config_sections",
+        "get_section_keys" => "config_keys",
         _ => return None,
     })
 }
@@ -429,69 +708,68 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
     Some(match name {
         // Collections and strings, through the shim: Godot answered all of
         // these on every Variant and Rune's types do not.
-        "size" | "is_empty" | "keys" | "values" | "clear" | "duplicate" | "front" | "back"
-        | "pop_front" | "pop_back" | "sort" | "reverse" => with_receiver(name),
+        "duplicate" if args.first().is_some_and(|deep| deep == "true") => {
+            format!("(gd.duplicate_deep)({receiver})")
+        }
+        "duplicate" => format!("(gd.duplicate)({receiver})"),
+        "size" | "is_empty" | "keys" | "values" | "clear" | "front" | "back" | "pop_front"
+        | "pop_back" | "sort" | "reverse" => with_receiver(name),
         // The shim's `get` always takes a fallback; Godot's defaults to null.
         "get" if args.len() == 1 => format!("(gd.get)({receiver}, {one}, ())"),
         "get" => with_receiver("get"),
         "set" if args.len() == 2 => with_receiver("set"),
         "has" | "has_key" => with_receiver("has"),
+        "is_valid" if args.is_empty() => format!("(gd.valid)({receiver})"),
         "append" | "push_back" => with_receiver("append"),
         "append_array" => with_receiver("append_array"),
         "erase" => with_receiver("erase"),
         "find" => with_receiver("find"),
         "merge" => with_receiver("merge"),
         "slice" => with_receiver("slice"),
-        "to_lower" => with_receiver("to_lower"),
-        "to_upper" => with_receiver("to_upper"),
-        "strip_edges" => with_receiver("strip_edges"),
-        "begins_with" => with_receiver("begins_with"),
-        "ends_with" => with_receiver("ends_with"),
-        "contains" => with_receiver("contains"),
-        "split" => with_receiver("split"),
-        "join" => with_receiver("join"),
-        "substr" => with_receiver("substr"),
-        "length" => format!("(gd.size)({receiver})"),
-        "format" => with_receiver("format_map"),
-        "to_int" => format!("(gd.int)({receiver})"),
-        "to_float" => format!("(gd.float)({receiver})"),
-        "is_valid_int" | "is_valid_float" => with_receiver(name),
+        _ if string_verb(name).is_some() => with_receiver(string_verb(name)?),
         // Nodes.
         "queue_free" => format!("{receiver}.queue_free()"),
         "add_child" => format!("(gd.add_child)({receiver}, {one})"),
         "get_parent" => format!("{receiver}.parent()"),
         "get_children" => format!("{receiver}.children()"),
-        "get_node" | "get_node_or_null" | "find_child" => format!("{receiver}.get_node({one})"),
-        "hide" => format!("{receiver}.set_visible(false)"),
-        "show" => format!("{receiver}.set_visible(true)"),
+        "get_node" | "get_node_or_null" => format!("{receiver}.get_node({one})"),
+        "instantiate" => format!("(gd.instantiate)({receiver})"),
+        "find_child" => format!(
+            "(gd.front)((gd.find_children)({receiver}, {one}, \"\", {}))",
+            args.get(1).map_or("true", String::as_str)
+        ),
+        "find_children" => format!(
+            "(gd.find_children)({receiver}, {one}, {}, {})",
+            args.get(1).map_or("\"\"", String::as_str),
+            args.get(2).map_or("true", String::as_str)
+        ),
+        "hide" | "show" => format!("{receiver}.set_visible({})", name == "show"),
         "set_visible" => format!("{receiver}.set_visible({one})"),
-        "is_visible" | "is_visible_in_tree" => format!("{receiver}.visible()"),
+        "is_visible" => format!("{receiver}.visible()"),
+        "is_visible_in_tree" => format!("{receiver}.global_visible()"),
         "get_instance_id" => format!("{receiver}.stable_id()"),
         "is_in_group" => format!("{receiver}.has_tag({one})"),
         "add_to_group" => format!("{receiver}.add_tag({one})"),
         "remove_from_group" => format!("{receiver}.remove_tag({one})"),
         "has_method" => format!("{receiver}.has_method({one})"),
-        "get_meta" => format!("(gd.get_meta)({receiver}, {one}, {})", args.get(1).map_or("()", String::as_str)),
-        "set_meta" => format!("(gd.set_meta)({receiver}, {}, {})", args.first()?, args.get(1)?),
+        "get_meta" => format!(
+            "(gd.get_meta)({receiver}, {one}, {})",
+            args.get(1).map_or("()", String::as_str)
+        ),
+        "set_meta" => format!(
+            "(gd.set_meta)({receiver}, {}, {})",
+            args.first()?,
+            args.get(1)?
+        ),
         "has_meta" => format!("(gd.has_meta)({receiver}, {one})"),
         "remove_meta" => format!("(gd.remove_meta)({receiver}, {one})"),
-        // `ConfigFile`'s verbs. These names are not the config's alone, so
-        // the shim checks the receiver and hands any other value to its own.
-        "load" => with_receiver("config_load"),
-        "save" => with_receiver("config_save"),
-        "get_value" => with_receiver("config_get"),
-        "set_value" => with_receiver("config_set"),
-        "has_section" => with_receiver("config_has_section"),
-        "has_section_key" => with_receiver("config_has_key"),
-        "erase_section" => with_receiver("config_erase_section"),
-        "get_sections" => with_receiver("config_sections"),
-        "get_section_keys" => with_receiver("config_keys"),
+        _ if config_verb(name).is_some() => with_receiver(config_verb(name)?),
         // `call` on a node is the engine's own verb already.
-        "call" | "call_deferred" => format!("{receiver}.call({all})"),
+        "call" | "call_deferred" => format!("(gd.call_value)({receiver}, [{all}])"),
         // The scene tree's own verbs, which Godot reached through
         // `get_tree()`. The receiver is the tree and carries nothing here.
         "get_nodes_in_group" => format!("scene::tagged({one})"),
-        "create_timer" => format!("task::wait({one})"),
+        "create_timer" => format!("(gd.timer)({one})"),
         "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
         "reload_current_scene" => "scene::switch(scene::source())".into(),
         "quit" if receiver == TREE => format!(
@@ -505,13 +783,23 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         // The viewport, which Godot reached through the node and the engine
         // reports as the screen.
         "get_visible_rect" | "get_viewport_rect" => "(gd.viewport_rect)()".into(),
+        "get_global_transform" | "get_global_transform_with_canvas" => {
+            format!("(gd.global_transform)({receiver})")
+        }
+        "get_size" if receiver != TREE => format!("(gd.size_of)({receiver})"),
         "get_size" | "get_screen_size" => "(gd.screen_size)()".into(),
+        "get_canvas_transform" => format!("(gd.canvas_transform)({receiver})"),
+        "set_notify_transform"
+        | "set_notify_local_transform"
+        | "set_process_input"
+        | "set_process_unhandled_input"
+        | "set_process_unhandled_key_input" => "()".into(),
         "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
         "get_index" => format!("{receiver}.sibling_index()"),
         "remove_child" => format!("{one}.set_parent(())"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
-            format!("{receiver}.set_component(\"widget\", #{{ \"pressed\": {one} }})")
+            format!("{receiver}.patch_component(\"widget\", #{{ \"checked\": {one} }})")
         }
         _ => return None,
     })
@@ -545,9 +833,13 @@ pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -
 /// One script calling another's method. Godot reached it off the node; here
 /// the node is asked for it, and an object answers its own field. A shim per
 /// arity, because a Rune function takes the arguments it declares.
-pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> Option<String> {
+pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> String {
     if args.len() > MOST_ARGS {
-        return None;
+        return format!(
+            "(gd.invoke_many)({receiver}, {}, [{}])",
+            quoted(method),
+            args.join(", ")
+        );
     }
     let name = if args.is_empty() {
         "invoke".to_string()
@@ -559,37 +851,83 @@ pub(crate) fn invoke(receiver: &str, method: &str, args: &[String]) -> Option<St
     } else {
         format!(", {}", args.join(", "))
     };
-    Some(format!("(gd.{name})({receiver}, {}{list})", quoted(method)))
+    format!("(gd.{name})({receiver}, {}{list})", quoted(method))
 }
 
-/// How many arguments the `invoke` shims cover. Past this a call is reported.
+/// How many arguments the `invoke` shims spell out; past this, `invoke_many`.
 pub(crate) const MOST_ARGS: usize = 3;
 
-pub(crate) fn signal_subscribe(receiver: &str, signal: &str) -> String {
-    format!(
-        "events::subscribe(this.node, {}, {receiver})",
-        quoted(signal)
-    )
+/// A node emitter is heard as an event, through the module's forwarder; a
+/// class table keeps the handler and calls it itself.
+pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
+    if ENGINE_SIGNALS.contains(&signal) {
+        return format!(
+            "(gd.listen)(this.node, {}, {receiver}, {handler})",
+            quoted(signal)
+        );
+    }
+    format!("(gd.connect)({receiver}, {}, {handler})", quoted(signal))
 }
 
 pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
-    format!("(gd.unlisten)(this.node, {}, {receiver})", quoted(signal))
+    if ENGINE_SIGNALS.contains(&signal) {
+        return format!("(gd.unlisten)(this.node, {}, {receiver})", quoted(signal));
+    }
+    format!("(gd.disconnect)({receiver}, {})", quoted(signal))
 }
 
 pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<String> {
     let name = quoted(signal);
     Some(match verb {
-        "emit" => match args.len() {
-            0 => format!("this.node.emit({name}, ())"),
-            1 => format!("this.node.emit({name}, {})", args[0]),
-            _ => format!("this.node.emit({name}, [{}])", args.join(", ")),
-        },
-        // A connection is a subscription on the emitting node; the handler is
-        // named by convention rather than passed, so the target is reported.
+        // Godot calls a signal's handlers as it is emitted; the engine's
+        // event goes out too, for a scene's rows and the engine's listeners.
+        "emit" => format!("(gd.emit_now)(this.node, {name}, [{}])", args.join(", ")),
+        "connect" if !args.is_empty() => format!("(gd.connect)(this.node, {name}, {})", args[0]),
         "connect" => format!("events::subscribe(this.node, {name}, this.node)"),
-        "disconnect" => format!("events::unsubscribe(this.node, {name}, this.node)"),
-        "is_connected" => format!("events::emitted({name})"),
+        "disconnect" => format!("(gd.disconnect)(this.node, {name})"),
+        "is_connected" => format!("(gd.is_connected)(this.node, {name})"),
         "get_connections" => format!("/* connections of {} */ []", safe(signal)),
         _ => return None,
     })
 }
+
+pub(crate) fn is_engine_signal(name: &str) -> bool {
+    ENGINE_SIGNALS.contains(&name)
+}
+
+/// Signals the engine itself sends, heard as events; a script's own are
+/// called as they are emitted.
+const ENGINE_SIGNALS: &[&str] = &[
+    "timeout",
+    "animation_finished",
+    "finished",
+    "body_entered",
+    "body_exited",
+    "area_entered",
+    "area_exited",
+    "pressed",
+    "button_up",
+    "button_down",
+    "toggled",
+    "value_changed",
+    "text_changed",
+    "text_submitted",
+    "item_selected",
+    "visibility_changed",
+    "resized",
+    "tree_entered",
+    "tree_exiting",
+    "tree_exited",
+    "ready",
+    "mouse_entered",
+    "mouse_exited",
+    "focus_entered",
+    "focus_exited",
+    "gui_input",
+    "input_event",
+    "screen_entered",
+    "screen_exited",
+    "request_completed",
+    "draw",
+    "changed",
+];

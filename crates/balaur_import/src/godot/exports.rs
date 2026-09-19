@@ -24,6 +24,11 @@ pub(crate) struct Classes {
     pub root: std::path::PathBuf,
     /// Each class's `static var`s, with the GDScript text of their default.
     pub statics: BTreeMap<String, BTreeMap<String, String>>,
+    /// `Outer.Inner` for each inner class of a named class, to its file.
+    pub inner: BTreeMap<String, String>,
+    /// Each class module's functions that take defaulted parameters, with
+    /// how many parameters each takes in all.
+    pub defaulted: BTreeMap<String, BTreeMap<String, usize>>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.
@@ -54,6 +59,8 @@ pub(crate) struct Export {
     pub hint: String,
     pub kind: Option<Kind>,
     pub default: String,
+    /// The GDScript text of its value, for a kind `exports()` cannot hold.
+    pub value: Option<String>,
 }
 
 impl Export {
@@ -190,6 +197,7 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
         hint,
         kind,
         default,
+        value: value.map(str::to_string),
     })
 }
 
@@ -390,6 +398,35 @@ pub(crate) fn scene_value(
     })
 }
 
+/// Where the class table `is` tests read is written.
+pub(crate) const CLASS_TABLE: &str = "godot_classes.rn";
+
+/// Each project class, to the scripts that are it or extend it: what a type
+/// test `x is Class` asks of a node's script at run time.
+pub(crate) fn class_table(classes: &Classes) -> String {
+    let mut entries = Vec::new();
+    for (name, file) in &classes.files {
+        let mut files = vec![file.replace(".gd", ".rn")];
+        for (other, other_file) in &classes.files {
+            let mut base = classes.bases.get(other);
+            for _ in 0..16 {
+                let Some(step) = base else { break };
+                if step == name {
+                    files.push(other_file.replace(".gd", ".rn"));
+                    break;
+                }
+                base = classes.bases.get(step);
+            }
+        }
+        let list: Vec<String> = files.iter().map(|f| format!("\"{f}\"")).collect();
+        entries.push(format!("\"{name}\": [{}]", list.join(", ")));
+    }
+    format!(
+        "// Written by `balaur import`: each class, and the scripts that are it.\n\npub fn classes() {{\n    #{{ {} }}\n}}\n",
+        entries.join(", ")
+    )
+}
+
 /// Every `class_name` in the project's scripts, to the class it extends and
 /// the file that declares it.
 pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
@@ -422,6 +459,18 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             let statics = crate::godot::script::static_vars(&source);
             if !statics.is_empty() {
                 classes.statics.insert(name.clone(), statics);
+            }
+            for (inner, _) in crate::godot::script::inner_classes(&source) {
+                classes.inner.insert(
+                    format!("{name}.{inner}"),
+                    crate::godot::script::inner_file(file, &inner),
+                );
+            }
+            let defaulted = crate::godot::script::defaulted(&source);
+            if !defaulted.is_empty() {
+                classes
+                    .defaulted
+                    .insert(file.replace(".gd", ".rn"), defaulted);
             }
             classes.files.insert(name, file.clone());
         }

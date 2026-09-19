@@ -505,11 +505,19 @@ impl Walk<'_> {
             && upward
             && let Some(handler) = handler
         {
+            // Godot's CONNECT_APPEND_SOURCE_OBJECT hands the handler its emitter.
+            let append_source = section
+                .attr("flags")
+                .and_then(crate::godot::Value::as_i64)
+                .is_some_and(|flags| flags & 16 != 0);
             if let Some(Toml::Table(widget)) = self.table(&from).map(|t| {
                 t.entry("widget")
                     .or_insert_with(|| Toml::Table(toml::Table::new()))
             }) {
                 widget.insert(handler.into(), Toml::String(method.to_string()));
+                if append_source {
+                    widget.insert("pass_node".into(), Toml::Boolean(true));
+                }
             }
             return;
         }

@@ -87,7 +87,10 @@ pub(crate) fn expression_scripts(
 ) -> std::collections::BTreeMap<String, Vec<(String, String)>> {
     let mut out: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
-    for scene in files.iter().filter(|f| f.ends_with(".tscn")) {
+    for scene in files
+        .iter()
+        .filter(|f| crate::godot::files::has_extension(f, "tscn"))
+    {
         let Ok(text) = crate::godot::io::text(&root.join(scene)) else {
             continue;
         };

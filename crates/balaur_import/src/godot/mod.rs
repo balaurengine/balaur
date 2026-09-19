@@ -18,6 +18,7 @@ pub(crate) mod machine;
 pub(crate) mod material;
 pub(crate) mod nodes;
 pub(crate) mod project;
+pub(crate) mod resource;
 pub(crate) mod scene;
 pub(crate) mod script;
 pub(crate) mod shader;
