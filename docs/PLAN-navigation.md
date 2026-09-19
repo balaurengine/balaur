@@ -11,13 +11,15 @@
   `tilemap` cells (`docs/PLAN-tilemap.md` step 1 gives them collision),
   `mesh`, `heightfield` and `voxels` assets.
 - What a baker computes with exists: `geometry2d.union`, `difference` and
-  `convex_hull` over `i_overlay`, the ear-clipper in core, `libm`, ordered
-  collections.
+  `convex_hull` over `i_overlay`; `i_overlay`'s outline offset, whose
+  integer math builds the same outline on every platform; the Delaunay
+  triangulator in core and `i_triangle`'s `to_convex_polygons`; `libm`;
+  ordered collections.
 - The fixed step, the digest and the snapshot are where an agent's state
   has to live, because where an agent goes decides the game.
 - In the registry: `polyanya` (any-angle pathfinding over a navmesh, pure
   Rust, `f32`), `dodgy_2d` (ORCA avoidance), `pathfinding` (A*, Dijkstra,
-  a grid), `cavalier_contours` (polyline offsetting). `landmass` ties agents,
+  a grid). `landmass` ties agents,
   avoidance and a navmesh together; `oxidized_navigation` is a Rust port of
   Recast's baker written against Bevy's types.
 
@@ -46,9 +48,12 @@ is `agent.velocity()`, which a script hands to `move_character` or a body,
 as a Godot script does after `NavigationAgent`. `drive = "transform" |
 "character" | "none"` lets an agent move its own node for the common case.
 
-**Two bakers.** 2D unions the obstacle polygons inflated by the agent radius
-through `i_overlay` and `cavalier_contours`, subtracts them from the walkable
-area and triangulates. 3D voxelises the static geometry and follows Recast's
+**Two bakers.** 2D grows each obstacle polygon by the agent radius with
+`i_overlay`'s `OutlineOffset` in `MathMode::Integer`, unions them, subtracts
+them from the walkable area, triangulates, and merges the triangles into
+the convex polygons `polyanya` walks. `i_overlay` already offsets, and its
+integer mode is documented as deterministic, so no offsetting crate joins
+the tree. 3D voxelises the static geometry and follows Recast's
 pipeline — regions, contours, polygons — as a Rust port in core, taking
 `oxidized_navigation`'s baker as the reference rather than its dependency.
 
