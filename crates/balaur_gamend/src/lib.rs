@@ -10,13 +10,17 @@
 //! The sequential shape reads like this:
 //!
 //! ```rune
-//! function S:init()
-//!     gamend.configure("http://localhost:4000")
-//!     local login = await(gamend.login({ device_id = "player-1" }))
-//!     self.socket = gamend.connect(self.node)
-//!     local hook = await(gamend.call_hook(self.socket, "arena", "start", {}))
-//! end
-//! function S:on_gamend_event(e) ... end  -- socket events: open/message/closed/error
+//! pub async fn init(this) {
+//!     gamend::configure(()); // [gamend] url, gamend.org by default
+//!     task::wait(gamend::login((), #{ device_id: engine::device_id() })).await;
+//!     this.socket = gamend::connect(this.node);
+//! }
+//!
+//! pub async fn on_gamend_event(this, e) {
+//!     if e["kind"] == "open" {
+//!         task::wait(gamend::call_hook(this.socket, "arena", "start", #{})).await;
+//!     }
+//! }
 //! ```
 //!
 //! One-shot operations (login, rest, call_hook, join, push, leave) wake

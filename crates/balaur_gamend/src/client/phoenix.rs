@@ -212,7 +212,7 @@ mod blocking {
     impl Socket {
         /// Connect and complete the websocket handshake. `url` must be the
         /// full endpoint with query parameters, e.g.
-        /// `ws://localhost:4000/socket/websocket?token=...&vsn=2.0.0`.
+        /// `wss://gamend.org/socket/websocket?token=...&vsn=2.0.0`.
         #[allow(
             clippy::disallowed_methods,
             reason = "connection keep-alive, not simulation"

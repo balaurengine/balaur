@@ -36,7 +36,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// `base_url` is the server root, e.g. `http://localhost:4000` — paths
+    /// `base_url` is the server root, e.g. `https://gamend.org` — paths
     /// are appended verbatim.
     pub fn new(base_url: &str) -> Self {
         Self {
