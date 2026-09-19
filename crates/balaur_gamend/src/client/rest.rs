@@ -91,16 +91,25 @@ impl Client {
 
     /// One authenticated API call. On a 401 with a refresh token in hand, the
     /// session is refreshed once and the call retried, so an expired access
-    /// token heals invisibly.
+    /// token heals invisibly. A refused refresh answers the 401 itself.
     #[cfg(not(target_family = "wasm"))]
     pub fn call(&mut self, method: &str, path: &str, body: Option<&Value>) -> Result<Reply> {
         let reply = self.call_raw(method, path, body, true)?;
         if reply.status != 401 || self.refresh_token().is_empty() {
             return Ok(reply);
         }
+        if self.renew().is_err() {
+            return Ok(reply);
+        }
+        self.call_raw(method, path, body, true)
+    }
+
+    /// Trade the refresh token for a new session, kept for the calls after.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn renew(&mut self) -> Result<()> {
         let session = super::auth::refresh(self, &self.refresh_token())?;
         self.session = Some(session);
-        self.call_raw(method, path, body, true)
+        Ok(())
     }
 
     /// The call itself, no refresh logic.

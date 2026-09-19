@@ -50,6 +50,8 @@ The engine:
 | `gamend::configure`, `login`, `rest`, `connect`, `join`, `push`, `leave`, `call_hook`, `close`: nine calls, all delivered once per tick and replayable | `crates/balaur_gamend/src/lib.rs` |
 | Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser, a refusing stub on emscripten | `client/phoenix.rs`, `browser.rs` |
 | Tests against a real server, `GAMEND_URL` or gamend.org, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
+| A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs` |
+| Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
 
 Missing:
@@ -374,13 +376,23 @@ no server dependency and can start now.
   earlier lines nor its log file. Checked against `gamend.org` (policy off)
   and a local Gamend with collection on: the run, its device and user, and
   its lobby land in `client_sessions`.
+- **E5. A connection that survives.** A socket dropped without `close`
+  reconnects with backoff, renews a stale token, rejoins its topics, and
+  tells the game `reconnecting`, then `open` or `failed`, as the Godot
+  addon's `network_reconnecting`, `network_rejoined` and `network_failed`
+  did. Beside `on_gamend_event`, a handler per event name
+  (`on_lobby_updated`) for the addon's decoded kinds. Ends with: a socket
+  the server drops comes back, and a lobby event sent after it reaches the
+  game.
 
 ## 4. What CI can prove
 
 Engine: `crates/balaur_gamend/tests` talks to a real server, never a
 stand-in: `GAMEND_URL`, or gamend.org, in the e2e suite. A test that signs
 in registers its own account by device and deletes it before it ends
-(`DELETE /api/v1/me`, with `current_password` once it has one). E2's test
+(`DELETE /api/v1/me`, with `current_password` once it has one). gamend.org
+takes ten sign-ins and 240 calls a minute from one address, so a test waits
+out a 429 and tries again. E2's test
 spawns a real `balaur run --server`. Gamend: its own suite
 (`lobbies_test.exs`, `matchmaking_test.exs`, `signaling_test.exs`) plus one
 that spawns a stub `balaur` script printing a port and a hash. What neither

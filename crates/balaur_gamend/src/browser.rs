@@ -87,7 +87,8 @@ async fn send(prepared: Prepared) -> Result<Reply, String> {
 }
 
 /// One authenticated call, refreshing once on a 401 as the native client
-/// does, so an expired access token heals invisibly here too.
+/// does, so an expired access token heals invisibly here too. A refused
+/// refresh answers the 401 itself.
 async fn call(
     client: &SharedClient,
     method: &str,
@@ -97,9 +98,16 @@ async fn call(
     let prepared = client.0.borrow().prepare(method, path, body, true);
     let reply = send(prepared).await?;
     let token = client.0.borrow().refresh_token();
-    if reply.status != 401 || token.is_empty() {
+    if reply.status != 401 || token.is_empty() || renew(client).await.is_err() {
         return Ok(reply);
     }
+    let prepared = client.0.borrow().prepare(method, path, body, true);
+    send(prepared).await
+}
+
+/// Trade the refresh token for a new session, kept for the calls after.
+async fn renew(client: &SharedClient) -> Result<(), String> {
+    let token = client.0.borrow().refresh_token();
     let (refresh_path, refresh_body) = refresh_request(&token);
     let prepared = client
         .0
@@ -109,8 +117,7 @@ async fn call(
     let session =
         session_of(&refreshed.body, refreshed.status, "refresh").map_err(|err| err.to_string())?;
     client.0.borrow_mut().set_session(Some(session));
-    let prepared = client.0.borrow().prepare(method, path, body, true);
-    send(prepared).await
+    Ok(())
 }
 
 pub(crate) fn spawn_login(
@@ -204,7 +211,36 @@ fn now() -> f64 {
     js_sys::Date::now() / 1000.0
 }
 
+/// The server reads the token once, as the socket opens, and a browser
+/// hides why a handshake failed: a stale token is renewed first.
 pub(crate) fn spawn_socket(
+    client: &SharedClient,
+    socket: u64,
+    commands: Receiver<SocketCommand>,
+    events: &Sender<GamendEvent>,
+) {
+    let client = client.clone();
+    let events = events.clone();
+    spawn_local(async move {
+        #[allow(clippy::cast_possible_truncation, reason = "seconds since 1970")]
+        let now = now() as i64;
+        let stale = client
+            .0
+            .borrow()
+            .session()
+            .is_some_and(|session| session.stale(now, RENEW_MARGIN));
+        if stale && let Err(reason) = renew(&client).await {
+            let _ = events.send(GamendEvent::SocketError { socket, reason });
+            return;
+        }
+        open_socket(&client, socket, commands, &events);
+    });
+}
+
+/// Seconds before its expiry that a token counts as stale.
+const RENEW_MARGIN: i64 = 30;
+
+fn open_socket(
     client: &SharedClient,
     socket: u64,
     commands: Receiver<SocketCommand>,

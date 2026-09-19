@@ -5,7 +5,7 @@
 //! All of it runs with the e2e suite. A test that signs in registers its own
 //! account by device and deletes it through the SDK before it ends.
 
-use balaur_testkit::{e2e_enabled, gamend_url, run_until_with};
+use balaur_testkit::{e2e_enabled, gamend_url, run_until_with, run_until_within};
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
 fn gamend_addon() -> Vec<(String, String)> {
@@ -80,7 +80,15 @@ fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
         r#"
 pub async fn init(this) {{
     gamend::configure("{url}");
+    // gamend.org takes ten sign-ins a minute from one address.
     let login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
+    while login.contains_key("error") && login["error"].contains("(429)") {{
+        let until = engine::unix_time() + 15.0;
+        while engine::unix_time() < until {{
+            task::frames(1).await;
+        }}
+        login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
+    }}
     if login.contains_key("error") {{
         log::info(format!("gamend-live login failed: {{}}", login["error"]));
         return;
@@ -102,7 +110,12 @@ pub async fn on_gamend_event(this, e) {{
     );
     // No plugin answers `sdk_probe` on a stock server, so the hook's reply is
     // an error, which still proves the whole path.
-    run_until_with(&borrowed, &source, &["gamend-live 200 error 200"]);
+    run_until_within(
+        &borrowed,
+        &source,
+        &["gamend-live 200 error 200"],
+        std::time::Duration::from_secs(300),
+    );
 }
 
 #[allow(

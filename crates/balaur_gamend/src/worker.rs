@@ -92,6 +92,43 @@ pub(crate) fn spawn_socket(
     });
 }
 
+/// Seconds before its expiry that a token counts as stale: a connection
+/// takes a moment to open.
+const RENEW_MARGIN: i64 = 30;
+
+/// The socket's url and the own-user topic, for the session in hand.
+fn socket_url(client: &SharedClient) -> anyhow::Result<(String, String)> {
+    let client = client.lock();
+    let session = client
+        .session()
+        .ok_or_else(|| anyhow::anyhow!("connect needs a logged-in session"))?;
+    let url = format!(
+        "{}/socket/websocket?token={}&client_session={}&vsn=2.0.0",
+        client.base_url().replacen("http", "ws", 1),
+        session.access_token,
+        crate::client::run_id()
+    );
+    Ok((url, format!("user:{}", session.user_id)))
+}
+
+/// Whether the handshake failed because the server refused the token.
+fn refused(err: &anyhow::Error) -> bool {
+    matches!(
+        err.downcast_ref::<tungstenite::Error>(),
+        Some(tungstenite::Error::Http(response)) if matches!(response.status().as_u16(), 401 | 403)
+    )
+}
+
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a token's expiry is wall-clock time, not simulation"
+)]
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
 /// Connect, join the own-user topic, then serve until the connection ends.
 /// The returned event is the connection's final word.
 fn open(
@@ -100,20 +137,23 @@ fn open(
     commands: &Receiver<SocketCommand>,
     events: &Sender<GamendEvent>,
 ) -> anyhow::Result<GamendEvent> {
-    let (url, user_topic) = {
-        let client = client.lock();
-        let session = client
-            .session()
-            .ok_or_else(|| anyhow::anyhow!("connect needs a logged-in session"))?;
-        let ws = format!(
-            "{}/socket/websocket?token={}&client_session={}&vsn=2.0.0",
-            client.base_url().replacen("http", "ws", 1),
-            session.access_token,
-            crate::client::run_id()
-        );
-        (ws, format!("user:{}", session.user_id))
+    // The server reads the token once, here; a stale one is renewed first,
+    // and a refused one once more.
+    let stale = client
+        .lock()
+        .session()
+        .is_some_and(|session| session.stale(unix_now(), RENEW_MARGIN));
+    if stale {
+        client.lock().renew()?;
+    }
+    let (url, user_topic) = socket_url(client)?;
+    let mut connection = match Socket::connect(&url) {
+        Err(err) if refused(&err) => {
+            client.lock().renew()?;
+            Socket::connect(&socket_url(client)?.0)?
+        }
+        other => other?,
     };
-    let mut connection = Socket::connect(&url)?;
 
     // The own-user channel carries hooks, notifications and profile pushes;
     // joining it first means `open` implies "ready for call_hook".

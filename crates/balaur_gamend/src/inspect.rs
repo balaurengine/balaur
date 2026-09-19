@@ -117,7 +117,7 @@ fn session_of(value: &Value) -> Result<Session> {
 }
 
 fn session_value(session: &Session) -> Value {
-    let expires_at = expiry(&session.access_token).map_or(Value::Nil, Value::Int);
+    let expires_at = session.expires_at().map_or(Value::Nil, Value::Int);
     Value::Map(vec![
         (String::from("user_id"), Value::Str(session.user_id.clone())),
         (
@@ -144,18 +144,6 @@ fn session_value(session: &Session) -> Value {
     ])
 }
 
-/// When a JWT stops working, in seconds since 1970, read from its own `exp`
-/// claim; `None` for a token that is not a JWT.
-fn expiry(token: &str) -> Option<i64> {
-    use base64::Engine as _;
-    let claims = token.split('.').nth(1)?;
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(claims.trim_end_matches('='))
-        .ok()?;
-    let json: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    json.get("exp")?.as_i64()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,7 +166,7 @@ mod tests {
         assert_eq!(back.access_token, session.access_token);
         assert_eq!(back.username, "tester");
         assert_eq!(back.expires_in, 900);
-        assert_eq!(expiry(&session.access_token), Some(1_790_000_000));
+        assert_eq!(session.expires_at(), Some(1_790_000_000));
     }
 
     #[test]

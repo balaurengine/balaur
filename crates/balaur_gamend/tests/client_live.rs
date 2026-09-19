@@ -44,16 +44,27 @@ fn wait_for<T>(
     panic!("timed out waiting for a socket event");
 }
 
+/// Retry while the server answers 429: gamend.org takes ten sign-ins a
+/// minute from one address.
+fn patiently<T>(mut attempt: impl FnMut() -> anyhow::Result<T>) -> T {
+    for _ in 0..6 {
+        match attempt() {
+            Err(e) if e.to_string().contains("(429)") => {
+                std::thread::sleep(std::time::Duration::from_secs(15));
+            }
+            other => return other.unwrap(),
+        }
+    }
+    attempt().unwrap()
+}
+
 /// Sign in by device on a client of its own.
 fn sign_in(server: &str, device: &str) -> (Client, Session) {
     let mut client = Client::new(server);
-    let session = auth::login(
-        &mut client,
-        &Credentials::Device {
-            device_id: device.to_string(),
-        },
-    )
-    .unwrap();
+    let credentials = Credentials::Device {
+        device_id: device.to_string(),
+    };
+    let session = patiently(|| auth::login(&mut client, &credentials));
     (client, session)
 }
 
@@ -69,13 +80,10 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     assert_eq!(health.status, 200, "is {server} up?");
 
     // Device login creates an anonymous account on first use.
-    let session = auth::login(
-        &mut client,
-        &Credentials::Device {
-            device_id: device_id(),
-        },
-    )
-    .unwrap();
+    let credentials = Credentials::Device {
+        device_id: device_id(),
+    };
+    let session = patiently(|| auth::login(&mut client, &credentials));
     assert!(!session.access_token.is_empty());
     assert!(!session.user_id.is_empty());
     assert_eq!(session.expires_in, 900);
@@ -87,7 +95,7 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     let profile = me.body.get("data").unwrap_or(&me.body);
     assert_eq!(profile["id"], json!(session.user_id));
 
-    let refreshed = auth::refresh(&client, &session.refresh_token).unwrap();
+    let refreshed = patiently(|| auth::refresh(&client, &session.refresh_token));
     assert!(!refreshed.access_token.is_empty());
     assert_eq!(refreshed.user_id, session.user_id);
 
@@ -188,6 +196,10 @@ fn a_device_registers_signs_in_again_and_deletes_its_account() {
         )
         .unwrap();
     assert_eq!(set.status, 200, "{}", set.body);
+    // A new password signs every session out; the refused refresh leaves the
+    // caller its 401.
+    let signed_out = client.call("GET", "/api/v1/me", None).unwrap();
+    assert_eq!(signed_out.status, 401, "{}", signed_out.body);
     let (mut client, _) = sign_in(&server, &device);
     let refused = client.call("DELETE", "/api/v1/me", None).unwrap();
     assert_eq!(refused.status, 401, "{}", refused.body);

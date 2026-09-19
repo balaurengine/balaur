@@ -50,11 +50,23 @@ pub fn run_until(source: &str, markers: &[&str]) {
 
 /// The same, with more files in the project: `(relative path, contents)`.
 /// An addon a script requires is what this is for.
+pub fn run_until_with(files: &[(&str, &str)], source: &str, markers: &[&str]) {
+    run_until_within(files, source, markers, Duration::from_secs(20));
+}
+
+/// The same, with a deadline of its own: a script that waits out a live
+/// server's rate limit needs minutes. Answers the first line logged with
+/// each marker, so a test can wait on a prefix and judge the whole line.
 #[allow(
     clippy::disallowed_methods,
     reason = "a test's timeout, not simulation"
 )]
-pub fn run_until_with(files: &[(&str, &str)], source: &str, markers: &[&str]) {
+pub fn run_until_within(
+    files: &[(&str, &str)],
+    source: &str,
+    markers: &[&str],
+    deadline: Duration,
+) -> Vec<String> {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -89,8 +101,8 @@ pub fn run_until_with(files: &[(&str, &str)], source: &str, markers: &[&str]) {
     // Markers accumulate across ticks: dependency debug logging (ureq's pool
     // chatter) floods the bounded buffer, so all of them are never in one
     // window together.
-    let mut seen: Vec<bool> = markers.iter().map(|_| false).collect();
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut seen: Vec<Option<String>> = markers.iter().map(|_| None).collect();
+    let deadline = Instant::now() + deadline;
     while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
         let recent = balaur_core::logbuf::recent(50);
@@ -101,13 +113,13 @@ pub fn run_until_with(files: &[(&str, &str)], source: &str, markers: &[&str]) {
         assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
         for entry in &recent {
             for (at, marker) in markers.iter().enumerate() {
-                if entry.message.contains(marker) {
-                    seen[at] = true;
+                if seen[at].is_none() && entry.message.contains(marker) {
+                    seen[at] = Some(entry.message.clone());
                 }
             }
         }
-        if seen.iter().all(|s| *s) {
-            return;
+        if seen.iter().all(Option::is_some) {
+            return seen.into_iter().flatten().collect();
         }
     }
     panic!(

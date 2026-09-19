@@ -2,8 +2,8 @@
 //!
 //! Gamend issues a short-lived access token (`expires_in` seconds, 15
 //! minutes) and a 30-day refresh token. [`super::rest::Client::call`]
-//! refreshes and retries once on a 401, so callers rarely touch this module
-//! after login.
+//! refreshes and retries once on a 401, and a socket refreshes a stale token
+//! before it connects, so callers rarely touch this module after login.
 
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
@@ -25,6 +25,26 @@ pub struct Session {
     /// Access-token lifetime in seconds. The refresh token's own 30-day
     /// lifetime is not reported by the server.
     pub expires_in: u64,
+}
+
+impl Session {
+    /// When the access token stops working, in seconds since 1970, read from
+    /// its own `exp` claim; `None` for a token that is not a JWT.
+    pub fn expires_at(&self) -> Option<i64> {
+        use base64::Engine as _;
+        let claims = self.access_token.split('.').nth(1)?;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(claims.trim_end_matches('='))
+            .ok()?;
+        let json: Value = serde_json::from_slice(&bytes).ok()?;
+        json.get("exp")?.as_i64()
+    }
+
+    /// Whether the access token is past its expiry at `now`, or within
+    /// `margin` seconds of it. A token with no expiry to read counts as stale.
+    pub fn stale(&self, now: i64, margin: i64) -> bool {
+        self.expires_at().is_none_or(|at| at - margin <= now)
+    }
 }
 
 pub enum Credentials {
