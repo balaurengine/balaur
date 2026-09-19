@@ -36,9 +36,7 @@ use crate::frame_group::FrameGroup;
 use crate::shader_material_3d::bind_group_layouts;
 use crate::shaders;
 
-/// The most bones one mesh may name. 128 `mat4` is 8 KB, which keeps the
-/// palette uniform inside the 16 KB every adapter guarantees.
-pub(crate) const MAX_JOINTS: usize = 128;
+use crate::shaders::MAX_JOINTS;
 
 /// The joint palette a skinned mesh reads each frame. Shared between the
 /// backend slot, which writes it, and the material, which uploads it.
@@ -87,7 +85,7 @@ fn linked_shader() -> String {
         "package::skinned_3d",
         &[],
     )
-    .map(|linked| shaders::wgsl(&linked))
+    .and_then(|linked| shaders::wgsl(&linked))
     .expect("the engine's own shader must link")
 }
 

@@ -799,8 +799,8 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
     fn a_feature_picks_which_variant_is_linked() {
         let on = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = true }")).unwrap();
         let off = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = false }")).unwrap();
-        assert!(compile(&on, WITH_VARIANT).unwrap().wgsl.contains("2.0"));
-        assert!(compile(&off, WITH_VARIANT).unwrap().wgsl.contains("1.0"));
+        assert!(compile(&on, WITH_VARIANT).unwrap().wgsl.contains("return 2f"));
+        assert!(compile(&off, WITH_VARIANT).unwrap().wgsl.contains("return 1f"));
     }
 
     #[test]

@@ -19,13 +19,7 @@ use kiss3d::light::{FogMode, LightCollection, LightType};
 use kiss3d::resource::{EnvLight, ProbeLighting};
 use kiss3d::wgpu;
 
-/// The most lights one frame sends. Matches `MAX_LIGHTS` in
-/// `shaders/mesh.wesl`; the two must move together.
-const MAX_LIGHTS: usize = 16;
-
-/// The most reflection probes one frame sends, matching the fork's own cap
-/// and `MAX_PROBES` in `shaders/mesh.wesl`.
-const MAX_PROBES: usize = 8;
+use crate::shaders::{MAX_LIGHTS, MAX_PROBES};
 
 /// Matches `Light` in `shaders/mesh.wesl`.
 #[repr(C)]

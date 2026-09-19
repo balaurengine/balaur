@@ -15,10 +15,10 @@ import package::mesh::{
     behind, behind_max_lod, screen_uv, mirror_at, clip,
 };
 
-const PI: f32 = 3.14159265;
-const INV_PI: f32 = 0.31830988;
+private const PI: f32 = 3.14159265;
+private const INV_PI: f32 = 0.31830988;
 /// Below this a surface is a mirror, and the maths stops being stable.
-const MIN_ROUGHNESS: f32 = 0.045;
+private const MIN_ROUGHNESS: f32 = 0.045;
 
 /// One shaded point: what the maps and the material's own numbers agree on.
 struct Surface {
@@ -51,7 +51,7 @@ fn default_surface(in: VertexOutput) -> Surface {
 }
 
 /// GGX / Trowbridge-Reitz: how much of the surface faces the halfway vector.
-@const fn distribution(ndoth: f32, roughness: f32) -> f32 {
+@const private fn distribution(ndoth: f32, roughness: f32) -> f32 {
     let a = roughness * roughness;
     let a2 = a * a;
     let d = ndoth * ndoth * (a2 - 1.0) + 1.0;
@@ -60,7 +60,7 @@ fn default_surface(in: VertexOutput) -> Surface {
 
 /// Smith's height-correlated visibility, already divided by the `4 n.l n.v`
 /// the specular term would otherwise carry.
-@const fn visibility(ndotv: f32, ndotl: f32, roughness: f32) -> f32 {
+@const private fn visibility(ndotv: f32, ndotl: f32, roughness: f32) -> f32 {
     let a = roughness * roughness;
     let a2 = a * a;
     let v = ndotl * sqrt(ndotv * ndotv * (1.0 - a2) + a2);
@@ -69,21 +69,21 @@ fn default_surface(in: VertexOutput) -> Surface {
 }
 
 /// Schlick's approximation of Fresnel reflectance at `vdoth`.
-@const fn fresnel(f0: vec3<f32>, vdoth: f32) -> vec3<f32> {
+@const private fn fresnel(f0: vec3<f32>, vdoth: f32) -> vec3<f32> {
     let f = pow(clamp(1.0 - vdoth, 0.0, 1.0), 5.0);
     return f0 + (vec3<f32>(1.0, 1.0, 1.0) - f0) * f;
 }
 
 /// Normal-incidence reflectance of this surface: what a dielectric reflects
 /// straight on, or the metal's own colour.
-fn reflectance_at_normal(s: Surface) -> vec3<f32> {
+private fn reflectance_at_normal(s: Surface) -> vec3<f32> {
     let dielectric = 0.16 * s.reflectance * s.reflectance;
     return mix(vec3<f32>(dielectric, dielectric, dielectric), s.albedo, s.metallic);
 }
 
 /// Schlick's Fresnel with roughness folded in: a rough surface cannot brighten
 /// at its edge as much as a smooth one, and plain Schlick would say it does.
-@const fn fresnel_rough(f0: vec3<f32>, ndotv: f32, roughness: f32) -> vec3<f32> {
+@const private fn fresnel_rough(f0: vec3<f32>, ndotv: f32, roughness: f32) -> vec3<f32> {
     let f = pow(clamp(1.0 - ndotv, 0.0, 1.0), 5.0);
     let ceiling = max(vec3<f32>(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), f0);
     return f0 + (ceiling - f0) * f;
@@ -102,7 +102,7 @@ fn reflectance_at_normal(s: Surface) -> vec3<f32> {
 
 /// The direction and attenuation one light puts on a point: the geometry half
 /// of `package::mesh`'s `contribution`, kept apart so the BRDF can use it.
-@const fn light_at(light: Light, world: vec3<f32>) -> vec4<f32> {
+@const private fn light_at(light: Light, world: vec3<f32>) -> vec4<f32> {
     let kind = light.position_kind.w;
     var to_light = -light.direction_radius.xyz;
     var attenuation = 1.0;
@@ -132,13 +132,13 @@ fn reflectance_at_normal(s: Surface) -> vec3<f32> {
 /// Opaque shading adds the two straight back together. Glass keeps them
 /// apart: the scene refracts through what would have scattered, while the
 /// reflections and highlights stay on top of it.
-struct Lobes {
+private struct Lobes {
     diffuse: vec3<f32>,
     specular: vec3<f32>,
 }
 
 /// What one light adds to a surface.
-fn radiance(s: Surface, light: Light, world: vec3<f32>, v: vec3<f32>) -> Lobes {
+private fn radiance(s: Surface, light: Light, world: vec3<f32>, v: vec3<f32>) -> Lobes {
     var out: Lobes;
     out.diffuse = vec3<f32>(0.0, 0.0, 0.0);
     out.specular = vec3<f32>(0.0, 0.0, 0.0);
@@ -179,7 +179,7 @@ fn radiance(s: Surface, light: Light, world: vec3<f32>, v: vec3<f32>) -> Lobes {
 /// for the same bounced light, and a scene setting each would count it twice.
 /// A probe overrides the sky by its own weight, so a surface leaving a
 /// probe's box fades back to the sky rather than jumping.
-fn ambient_light(s: Surface, in: VertexOutput, v: vec3<f32>, occlusion: f32) -> Lobes {
+private fn ambient_light(s: Surface, in: VertexOutput, v: vec3<f32>, occlusion: f32) -> Lobes {
     let n = s.normal;
     let ndotv = max(dot(n, v), 1e-4);
     let mirrored = reflect(-v, n);
@@ -232,13 +232,13 @@ fn ambient_light(s: Surface, in: VertexOutput, v: vec3<f32>, occlusion: f32) -> 
 /// The surface's own occlusion map times what the frame's prepass measured.
 /// Both are one where nothing is bound, so this is the map alone without a
 /// prepass and the prepass alone without a map.
-fn occlusion_at(s: Surface, in: VertexOutput) -> f32 {
+private fn occlusion_at(s: Surface, in: VertexOutput) -> f32 {
     return s.occlusion * screen_occlusion(in);
 }
 
 /// Everything falling on a surface, apart from its own emission: the
 /// surroundings and every light in the frame, still split.
-fn shading(s: Surface, in: VertexOutput) -> Lobes {
+private fn shading(s: Surface, in: VertexOutput) -> Lobes {
     let v = normalize(eye() - in.world);
     var out = ambient_light(s, in, v, occlusion_at(s, in));
     let count = u32(frame.ambient_count.w);
@@ -252,7 +252,7 @@ fn shading(s: Surface, in: VertexOutput) -> Lobes {
 
 /// Every light in the frame over one surface, plus the surroundings and
 /// emission.
-fn lit(s: Surface, in: VertexOutput) -> vec3<f32> {
+private fn lit(s: Surface, in: VertexOutput) -> vec3<f32> {
     let total = shading(s, in);
     return total.diffuse + total.specular + s.emissive;
 }
@@ -305,7 +305,7 @@ fn default_glass() -> Glass {
 /// The offset is anchored on the fragment's own pixel rather than on a
 /// reprojected surface point, so a thickness of zero passes the scene through
 /// exactly and refraction stays registered with it at any angle.
-fn refracted(in: VertexOutput, s: Surface, glass: Glass) -> vec3<f32> {
+private fn refracted(in: VertexOutput, s: Surface, glass: Glass) -> vec3<f32> {
     let v = normalize(eye() - in.world);
     var bent = refract(-v, s.normal, 1.0 / max(glass.ior, 1.0));
     if dot(bent, bent) < 1e-6 {

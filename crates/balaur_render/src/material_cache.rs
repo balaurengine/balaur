@@ -127,9 +127,10 @@ macro_rules! define {
                     "package::channel",
                     &features,
                 )
-                .map(|unit| {
+                .and_then(|unit| crate::shaders::wgsl(&unit))
+                .map(|wgsl| {
                     $channel_material(&crate::material::Compiled {
-                        wgsl: crate::shaders::wgsl(&unit),
+                        wgsl,
                         fields: Vec::new(),
                         params: Vec::new(),
                         probes: false,

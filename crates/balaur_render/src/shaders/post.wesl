@@ -16,7 +16,7 @@ struct PostInput {
 @group(0) @binding(0) var frame_texture: texture_2d<f32>;
 @group(0) @binding(1) var frame_sampler: sampler;
 
-struct PostFrame {
+private struct PostFrame {
     // The frame in pixels, then seconds since the run began and a spare.
     size_clock: vec4<f32>,
 }

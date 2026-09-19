@@ -2,13 +2,13 @@
 // pipeline binds, and the vertex work every sprite shader would repeat.
 import package::common::unpack_mat3;
 
-struct FrameUniforms {
+private struct FrameUniforms {
     view_0: vec4<f32>, view_1: vec4<f32>, view_2: vec4<f32>,
     proj_0: vec4<f32>, proj_1: vec4<f32>, proj_2: vec4<f32>,
     // x is seconds since the run began; y and z are the viewport in pixels.
     clock: vec4<f32>,
 }
-struct ObjectUniforms {
+private struct ObjectUniforms {
     model_0: vec4<f32>, model_1: vec4<f32>, model_2: vec4<f32>,
     scale_0: vec4<f32>, scale_1: vec4<f32>,
     color: vec4<f32>,

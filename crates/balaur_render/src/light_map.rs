@@ -170,7 +170,7 @@ fn linked_shader() -> String {
         "package::light2d",
         &[],
     )
-    .map(|linked| shaders::wgsl(&linked))
+    .and_then(|linked| shaders::wgsl(&linked))
     .expect("the engine's own shader must link")
 }
 

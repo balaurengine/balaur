@@ -206,7 +206,7 @@ pub fn compile_with(
             if v.ident.name().as_str() == "balaur_probe")
     });
     Ok(Compiled {
-        wgsl: crate::shaders::wgsl(&linked),
+        wgsl: crate::shaders::wgsl(&linked)?,
         fields,
         params,
         probes,

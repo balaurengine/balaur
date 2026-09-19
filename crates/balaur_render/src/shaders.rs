@@ -49,7 +49,7 @@ pub fn link_prepass(vertex_color: bool) -> Result<String> {
         "package::prepass",
         &[(crate::material::VERTEX_COLOR, vertex_color)],
     )?;
-    Ok(wgsl(&linked))
+    wgsl(&linked)
 }
 
 /// What a channel view draws: one entry point per channel, chosen by feature.
@@ -68,6 +68,32 @@ pub static CHANNEL_2D: &str = include_str!("shaders/channel2d.wesl");
 
 /// The channels [`CHANNEL`] can draw, in the order a menu lists them.
 pub const CHANNELS: &[&str] = &["albedo", "normals", "uv", "depth"];
+
+/// The most lights one frame sends a 3D material.
+pub(crate) const MAX_LIGHTS: usize = 16;
+
+/// The most reflection probes one frame sends, the fork's own cap.
+pub(crate) const MAX_PROBES: usize = 8;
+
+/// The most bones one skinned mesh or polygon may name. 128 `mat4` is 8 KB,
+/// which keeps a palette inside the 16 KB uniform every adapter guarantees.
+pub(crate) const MAX_JOINTS: usize = 128;
+
+/// The limits above as WESL's `constants` module, so a shader sizes its arrays
+/// with `import constants::MAX_LIGHTS` from the same number the buffer uses.
+fn constants_module() -> String {
+    use std::fmt::Write as _;
+    let limits = [
+        ("MAX_LIGHTS", MAX_LIGHTS),
+        ("MAX_PROBES", MAX_PROBES),
+        ("MAX_JOINTS", MAX_JOINTS),
+    ];
+    let mut module = String::new();
+    for (name, value) in limits {
+        let _ = writeln!(module, "public const {name}: u32 = {value}u;");
+    }
+    module
+}
 
 /// Shader modules a plugin added, mounted beside the engine's own.
 ///
@@ -186,8 +212,8 @@ pub fn plugin_modules(eng: &Engine) -> Vec<(String, String)> {
 /// Composes `(module path, source)` pairs into one WGSL translation unit,
 /// starting from `root` and keeping only what its entry points reach.
 ///
-/// `package::common`, `package::sprite` and `package::mesh` are mounted for
-/// free.
+/// `package::common`, `package::sprite`, `package::mesh` and `constants` are
+/// mounted for free.
 /// `features` toggles `@if(name)`.
 /// Errors name the line the author wrote rather than the linked output's, so
 /// a project's shader can say where it broke. The result carries the syntax
@@ -211,6 +237,10 @@ pub fn link(
             .map_err(|e| anyhow!("shader module path `{path}`: {e}"))?;
         resolver.add_module(parsed, (*source).into());
     }
+    let constants = "constants"
+        .parse()
+        .map_err(|e| anyhow!("shader constants module: {e}"))?;
+    resolver.add_module(constants, constants_module().into());
     let mut options = wesl::CompileOptions {
         // Catches a call to a name nothing declares, which otherwise reaches
         // naga and so needs a GPU to find. It does not check types; naga
@@ -230,20 +260,18 @@ pub fn link(
         .map_err(|e| anyhow!("linking {root}: {e}"))
 }
 
-/// The linked WGSL a backend compiles, with WESL's own `@const` dropped.
+/// The linked WGSL a backend compiles, lowered: constants folded, branches
+/// they decide dropped, and WESL's own `@const` gone.
 ///
 /// The attribute is what lets [`eval_floats`] call a function, so it has to
 /// survive linking; WGSL has no such thing, so it must not survive this.
-pub fn wgsl(linked: &wesl::CompileResult) -> String {
+///
+/// # Errors
+/// If a constant expression does not evaluate.
+pub fn wgsl(linked: &wesl::CompileResult) -> Result<String> {
     let mut unit = linked.syntax.clone();
-    for declaration in &mut unit.global_declarations {
-        if let wesl::syntax::GlobalDeclaration::Function(function) = declaration.node_mut() {
-            function
-                .attributes
-                .retain(|a| !matches!(a.node(), wesl::syntax::Attribute::Const));
-        }
-    }
-    unit.to_string()
+    wesl::pass::lower(&mut unit).map_err(|e| anyhow!("lowering the linked shader: {e}"))?;
+    Ok(unit.to_string())
 }
 
 /// Evaluate a WGSL expression against a linked shader, as floats.
@@ -368,7 +396,7 @@ mod tests {
                 .unwrap_or_else(|why| {
                     panic!("the imported material must link ({metallic_roughness}, {emissive}): {why:#}")
                 });
-                let wgsl = wgsl(&linked);
+                let wgsl = wgsl(&linked).unwrap();
                 assert!(wgsl.contains("fn fs_main"), "{wgsl}");
                 // Glass is a runtime branch on a constant, not a variant, so
                 // every combination carries the refraction path.
@@ -389,7 +417,7 @@ mod tests {
             let wgsl = link(&[("package::finish", FINISH)], "package::finish", &features)
                 .map_or_else(
                     |why| panic!("the '{name}' pass must link: {why:#}"),
-                    |linked| wgsl(&linked),
+                    |linked| wgsl(&linked).unwrap(),
                 );
             assert!(wgsl.contains("fn fs_main"), "{name}: {wgsl}");
             assert_eq!(
@@ -628,7 +656,10 @@ import package::pbr::{env_brdf};
         // WGSL has no `@const`; a shader carrying one is one naga rejects.
         let linked = probe();
         assert!(linked.to_string().contains("@const"), "linking keeps it");
-        assert!(!wgsl(&linked).contains("@const"), "the output drops it");
+        assert!(
+            !wgsl(&linked).unwrap().contains("@const"),
+            "the output drops it"
+        );
     }
 
     /// A light's intensity is radiance, so Lambert's `1/π` is what turns it
@@ -670,6 +701,32 @@ import package::pbr::{env_brdf};
     }
 
     #[test]
+    fn a_material_cannot_import_a_contract_s_private_helper() {
+        let source = "import package::pbr::distribution;
+        @fragment fn fs_main() -> @location(0) vec4<f32> {
+            return vec4<f32>(distribution(0.5, 0.5));
+        }";
+        let err = link(&[("package::m", source)], "package::m", &[])
+            .err()
+            .expect("a private helper must not link into a material");
+        assert!(format!("{err:#}").contains("private"), "{err:#}");
+    }
+
+    #[test]
+    fn a_shader_sizes_its_arrays_from_the_engine_s_own_limits() {
+        let source = "import constants::{MAX_LIGHTS, MAX_PROBES, MAX_JOINTS};
+        @const fn limits() -> vec3<f32> {
+            return vec3<f32>(f32(MAX_LIGHTS), f32(MAX_PROBES), f32(MAX_JOINTS));
+        }
+        @fragment fn fs_main() -> @location(0) vec4<f32> {
+            return vec4<f32>(limits(), 1.0);
+        }";
+        let linked = link(&[("package::m", source)], "package::m", &[]).unwrap();
+        let expected = [MAX_LIGHTS, MAX_PROBES, MAX_JOINTS].map(|n| n as f32);
+        assert_eq!(eval_floats(&linked, "limits()").unwrap(), expected);
+    }
+
+    #[test]
     fn a_call_to_a_name_nothing_declares_is_caught_without_a_gpu() {
         let source = "@fragment fn fs_main() -> @location(0) vec4<f32> {
             return vec4<f32>(nonesuch(1.0));
@@ -686,7 +743,7 @@ import package::pbr::{env_brdf};
             let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, c == channel)).collect();
             let unit = link(&[("package::c", CHANNEL)], "package::c", &features)
                 .unwrap_or_else(|why| panic!("channel `{channel}`: {why:#}"));
-            let wgsl = wgsl(&unit);
+            let wgsl = wgsl(&unit).unwrap();
             assert_eq!(
                 wgsl.matches("fn fs_main").count(),
                 1,
@@ -702,7 +759,7 @@ import package::pbr::{env_brdf};
             let unit = link(&[("package::c", CHANNEL_2D)], "package::c", &features)
                 .unwrap_or_else(|why| panic!("channel `{channel}`: {why:#}"));
             assert_eq!(
-                wgsl(&unit).matches("fn fs_main").count(),
+                wgsl(&unit).unwrap().matches("fn fs_main").count(),
                 1,
                 "channel `{channel}` kept more than one fragment stage"
             );
@@ -712,7 +769,8 @@ import package::pbr::{env_brdf};
     #[test]
     fn a_channel_draws_what_its_name_says() {
         let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, *c == "normals")).collect();
-        let wgsl = wgsl(&link(&[("package::c", CHANNEL)], "package::c", &features).unwrap());
+        let wgsl =
+            wgsl(&link(&[("package::c", CHANNEL)], "package::c", &features).unwrap()).unwrap();
         assert!(wgsl.contains("normalize"), "{wgsl}");
         assert!(!wgsl.contains("exp("), "the depth channel came too: {wgsl}");
     }

@@ -336,7 +336,7 @@ fn lift(x: f32) -> f32 {
 
     fn linked(source: &str) -> String {
         crate::shaders::link(&[("package::p", source)], "package::p", &[])
-            .map(|unit| crate::shaders::wgsl(&unit))
+            .and_then(|unit| crate::shaders::wgsl(&unit))
             .expect("a preview must be a shader that links")
     }
 

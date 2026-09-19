@@ -1,14 +1,13 @@
 // GPU skinning for 3D meshes, drawn against the same contract a project's
 // material uses (`package::mesh`), so a skinned mesh is lit and fogged the
-// way every other one is. `MAX_JOINTS` must match `skinned_3d.rs`.
+// way every other one is.
 import package::mesh::{VertexOutput, place_deformed, shade};
-
-const MAX_JOINTS: u32 = 128u;
+import constants::MAX_JOINTS;
 
 struct SkinUniforms {
     // Padded with identities, so a joint the rig never filled leaves the
     // vertex where it was authored — the same answer the CPU path gives.
-    joints: array<mat4x4<f32>, 128>,
+    joints: array<mat4x4<f32>, MAX_JOINTS>,
 }
 @group(3) @binding(0) var<uniform> skin: SkinUniforms;
 

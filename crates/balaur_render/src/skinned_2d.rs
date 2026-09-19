@@ -40,13 +40,11 @@ fn linked_shader() -> String {
         "package::skinned_2d",
         &[],
     )
-    .map(|linked| shaders::wgsl(&linked))
+    .and_then(|linked| shaders::wgsl(&linked))
     .expect("the engine's own shader must link")
 }
 
-/// The most bones one polygon may name. Three `vec4` per joint keeps the
-/// object uniform well inside the 16 KB every adapter guarantees.
-pub(crate) const MAX_JOINTS: usize = 128;
+use crate::shaders::MAX_JOINTS;
 
 /// The joint palette a skinned polygon reads each frame. Shared between the
 /// backend slot, which writes it, and the material, which uploads it.

@@ -1,13 +1,11 @@
 // The contract a `material` shader draws 3D against: the uniforms Balaur's
 // mesh pipeline binds, and the shading every such shader would repeat.
-// `MAX_LIGHTS` and `MAX_PROBES` must match `frame_group.rs`.
 
-const MAX_LIGHTS: u32 = 16u;
-const MAX_PROBES: u32 = 8u;
+import constants::{MAX_LIGHTS, MAX_PROBES};
 
 // Lambert's normalisation. A light's intensity is radiance, and the engine's
 // own default is 3.0, which reads as white without this.
-const INV_PI: f32 = 0.31830988;
+private const INV_PI: f32 = 0.31830988;
 
 struct Light {
     // xyz position, w kind: 0 directional, 1 point, 2 spot.
@@ -22,7 +20,7 @@ struct Light {
 
 // One reflection probe: a box the scene was captured inside, which a
 // reflective surface within it samples instead of the sky.
-struct Probe {
+private struct Probe {
     // xyz where it was captured from, w whether this slot is live.
     center_live: vec4<f32>,
     // xyz the influence box's low corner, w its layer in the array.
@@ -52,11 +50,11 @@ struct FrameUniforms {
     // xyz a world plane's normal, w its offset; a point behind it is dropped.
     // All zero draws everything, which is every pass but a mirror's own.
     clip_plane: vec4<f32>,
-    lights: array<Light, 16>,
-    probes: array<Probe, 8>,
+    lights: array<Light, MAX_LIGHTS>,
+    probes: array<Probe, MAX_PROBES>,
 }
 
-struct ObjectUniforms {
+private struct ObjectUniforms {
     model: mat4x4<f32>,
     // The model's inverse transpose, so a scaled node's normals stay normal.
     normal_matrix: mat4x4<f32>,
@@ -150,7 +148,7 @@ fn sample_albedo(uv: vec2<f32>) -> vec4<f32> {
 }
 
 // A tangent-space normal, `(0, 0, 1)` where no map is bound.
-fn sample_normal_map(uv: vec2<f32>) -> vec3<f32> {
+private fn sample_normal_map(uv: vec2<f32>) -> vec3<f32> {
     return textureSample(normal_texture, normal_sampler, uv).xyz * 2.0 - 1.0;
 }
 
@@ -169,7 +167,7 @@ fn sample_emissive(uv: vec2<f32>) -> vec3<f32> {
     return textureSample(emissive_texture, emissive_sampler, uv).rgb;
 }
 
-fn sample_height(uv: vec2<f32>) -> f32 {
+private fn sample_height(uv: vec2<f32>) -> f32 {
     return textureSample(height_texture, height_sampler, uv).r;
 }
 
@@ -208,7 +206,7 @@ fn environment_max_lod() -> f32 {
 }
 
 // Turn a direction by the sky's own rotation, so a turned sky reflects turned.
-fn environment_aim(d: vec3<f32>) -> vec3<f32> {
+private fn environment_aim(d: vec3<f32>) -> vec3<f32> {
     let turn = frame.environment.w;
     let c = cos(turn);
     let s = sin(turn);
@@ -224,7 +222,7 @@ fn environment_sample(d: vec3<f32>, lod: f32) -> vec3<f32> {
 }
 
 // Where this fragment falls on the screen, in pixels.
-fn screen_pixel(in: VertexOutput) -> vec2<i32> {
+private fn screen_pixel(in: VertexOutput) -> vec2<i32> {
     return vec2<i32>(in.clip_position.xy);
 }
 
@@ -241,7 +239,7 @@ fn screen_occlusion(in: VertexOutput) -> f32 {
 
 // How much probe `i` speaks for a point: one well inside its box, ramping to
 // nothing over the soft edge, and nothing outside.
-fn probe_weight(i: u32, world: vec3<f32>) -> f32 {
+private fn probe_weight(i: u32, world: vec3<f32>) -> f32 {
     let low = frame.probes[i].low_layer.xyz;
     let high = frame.probes[i].high_intensity.xyz;
     let to_face = min(world - low, high - world);
@@ -295,7 +293,7 @@ fn probe_max_lod() -> f32 {
 
 // Whether the resolved scene behind this surface is bound, which it is only
 // while something in the frame refracts.
-fn behind_lit() -> bool {
+private fn behind_lit() -> bool {
     return frame.screen_probes.w > 0.5;
 }
 
@@ -416,7 +414,7 @@ fn copy_index(in: VertexInput) -> u32 {
 }
 
 // The 3x3 this copy is turned and scaled by, in the node's own space.
-fn copy_deform(in: VertexInput) -> mat3x3<f32> {
+private fn copy_deform(in: VertexInput) -> mat3x3<f32> {
     return mat3x3<f32>(in.copy_x, in.copy_y, in.copy_z);
 }
 

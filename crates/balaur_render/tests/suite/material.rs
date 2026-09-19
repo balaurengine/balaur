@@ -614,7 +614,7 @@ fn the_layer_stack_links_layer_by_layer_and_all_at_once() {
             "package::layers",
             &features,
         )
-        .map(|l| wgsl(&l))
+        .and_then(|l| wgsl(&l))
     };
     let bare = link_with(&|_| false).expect("a stack with no layers must link");
     assert!(bare.contains("fn fs_main"), "{bare}");

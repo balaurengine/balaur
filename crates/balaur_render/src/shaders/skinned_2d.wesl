@@ -1,16 +1,17 @@
 // GPU skinning for 2D polygons. The uniform blocks below must match
 // `FrameUniforms` and `ObjectUniforms` in `skinned_2d.rs` field for field.
 import package::common::unpack_mat3;
+import constants::MAX_JOINTS;
 
 struct FrameUniforms {
     view_0: vec4<f32>, view_1: vec4<f32>, view_2: vec4<f32>,
     proj_0: vec4<f32>, proj_1: vec4<f32>, proj_2: vec4<f32>,
 }
-// `joints` is MAX_JOINTS * 3 columns; the two must be changed together.
+// Three columns per joint.
 struct ObjectUniforms {
     model_0: vec4<f32>, model_1: vec4<f32>, model_2: vec4<f32>,
     color: vec4<f32>,
-    joints: array<vec4<f32>, 384>,
+    joints: array<vec4<f32>, MAX_JOINTS * 3u>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniforms;
 @group(1) @binding(0) var<uniform> obj: ObjectUniforms;
