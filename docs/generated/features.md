@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,web,window` and links 396 crates.
+`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,web,window` and links 397 crates.
 Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
 
 `WEB_THREADS=1` builds the second template, which adds `parallel` to that
@@ -46,4 +46,4 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | `rapier3d` | 0.35.3 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `serde-serialize`, `std` |
 | `parry3d` | 0.30.2 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `shape-run-cache`, `std`, `swash`, `sys-locale` |
-| `wesl` | 0.4.4 | `eval` |
+| `wesl` | 0.5.0 | `eval` |
