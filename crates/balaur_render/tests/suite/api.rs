@@ -317,36 +317,42 @@ fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
     );
 }
 
-/// The stroke's joins, caps and taper come back out as they went in, so a
-/// save keeps the look.
+/// Every join and cap, and the miter limit and taper, come back out as they
+/// went in, so a save keeps the look.
 #[test]
 fn a_polyline_s_stroke_survives_the_round_trip() {
+    use balaur_core::stroke::{CAPS, JOINS};
     let app = app();
-    let e = node(&app);
-    let params: toml::Value = toml::from_str(
-        "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"miter\"\ncap = \"square\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]",
-    )
-    .unwrap();
-    components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
-    let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
-    let text = |key: &str| {
-        back.get(key)
-            .and_then(toml::Value::as_str)
-            .map(str::to_owned)
-    };
-    assert_eq!(text("join").as_deref(), Some("miter"));
-    assert_eq!(text("cap").as_deref(), Some("square"));
-    assert_eq!(
-        back.get("miter_limit").and_then(toml::Value::as_float),
-        Some(2.5)
-    );
-    let taper: Vec<f64> = back["taper"]
-        .as_array()
-        .unwrap()
+    let pairs = JOINS
         .iter()
-        .filter_map(toml::Value::as_float)
-        .collect();
-    assert_eq!(taper, vec![1.0, 0.25]);
+        .flat_map(|join| CAPS.iter().map(move |cap| (join, cap)));
+    for (join, cap) in pairs {
+        let e = node(&app);
+        let params: toml::Value = toml::from_str(&format!(
+            "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]"
+        ))
+        .unwrap();
+        components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
+        let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+        let text = |key: &str| {
+            back.get(key)
+                .and_then(toml::Value::as_str)
+                .map(str::to_owned)
+        };
+        assert_eq!(text("join").as_deref(), Some(*join));
+        assert_eq!(text("cap").as_deref(), Some(*cap));
+        assert_eq!(
+            back.get("miter_limit").and_then(toml::Value::as_float),
+            Some(2.5)
+        );
+        let taper: Vec<f64> = back["taper"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(toml::Value::as_float)
+            .collect();
+        assert_eq!(taper, vec![1.0, 0.25]);
+    }
 }
 
 /// An unknown kind names itself rather than silently drawing a cuboid.

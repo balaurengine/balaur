@@ -219,8 +219,17 @@ fn every_enum_option_a_schema_offers_round_trips() {
 
     for (name, def) in &registry.0 {
         let schema = def.schema.as_table().unwrap();
+        let exempt: &[&str] = CONDITIONAL
+            .iter()
+            .find(|(component, _)| component == name)
+            .map_or(&[], |(_, props)| *props);
         for (prop, spec) in schema {
             if spec.get("type").and_then(toml::Value::as_str) != Some("enum") {
+                continue;
+            }
+            // One variant's enum reads back only on that variant; the
+            // component's own suite round-trips it there.
+            if exempt.contains(&prop.as_str()) {
                 continue;
             }
             let options = spec.get("options").and_then(toml::Value::as_array).unwrap();
@@ -297,14 +306,18 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
     (
         "shape2d",
         &[
+            "cap",
             "closed",
             "gradient",
             "height",
             "inner_radius",
+            "join",
             "mesh",
+            "miter_limit",
             "points",
             "radius",
             "sides",
+            "taper",
             "texture",
             "width",
         ],
