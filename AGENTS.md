@@ -91,6 +91,10 @@ safe. Compute into a local first:
     let live = split || !document;
     S.viewport_live = live;
 
+`return || f` is **`(return) || f`**: it returns nothing, and `return |x| ..`,
+`return match ..` and a template string after `return` do not compile. Bind
+the value first.
+
 A `}` followed by `(` or `[` **continues the expression**: the block's value is
 called or indexed, and the error names a type from the line above. Bind first:
 

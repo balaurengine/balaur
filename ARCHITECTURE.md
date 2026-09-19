@@ -821,8 +821,10 @@ sees half of one.
 
 Identical inputs produce bit-for-bit identical simulation on every platform.
 
-Rune fits: IEEE-754 doubles and 64-bit integers that never mix, `+ - * /` and
-`sqrt` exactly specified, a single-threaded interpreter with no codegen.
+Rune fits: IEEE-754 doubles and 64-bit integers, `+ - * /` and `sqrt` exactly
+specified, a single-threaded interpreter with no codegen. Our fork lets an int
+meet a float as a float, the conversion exact, and makes values of different
+types unequal where upstream raises.
 
 | Hazard | Status |
 | --- | --- |

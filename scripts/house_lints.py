@@ -119,26 +119,54 @@ def rune_files() -> list[Path]:
 
 # `obj.field = a || b` puts the short-circuit result in `a`'s slot as well as
 # in the field when `a` is a local. Parentheses do not help; a temporary does.
-SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=].*?(\|\||&&)")
+# A closure, `x.f = || ..`, has no left operand and is not the trap.
+SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=|\s].*?(\|\||&&)")
 # `if let Some(x) = x` fails to compile with "Missing variable"; the name has
 # to differ on the two sides.
 REBOUND_LET = re.compile(r"\bif\s+let\s+\w+\(\s*(\w+)\s*\)\s*=\s*(\w+)\s*(\{|$)")
+# `return || f` is `(return) || f`, and `return match` and `return `..``
+# do not parse: the value is bound to a local first.
+RETURN_TRAP = re.compile(r"\breturn\s+(\||match\b|`)")
+# The blocks whose value is never an operand: loops and items.
+BLOCK_STATEMENT = re.compile(
+    r"\s*(}\s*)?(pub(\(\w+\))?\s+)?(async\s+)?(for|while|loop|fn|impl|mod|struct|enum)\b")
+STRING_LITERAL = re.compile(r'"(\\.|[^"\\])*"|`(\\.|[^`\\])*`')
 # A control a finger can never reach: its `visible` answers to a hover, which
 # a touch screen does not have. The shell has none and this keeps it so.
 HOVER_GATED = re.compile(r"\bvisible\s*:\s*[^,}]*\bhover")
 
 
 def check_rune(path: Path) -> list[Finding]:
-    """The two Rune 0.14 traps that have each already cost a day, and the one
+    """The Rune 0.14 traps that have each already cost a day, and the one
     control shape a touch screen cannot reach.
 
-    The first two are compiler behaviour rather than style, and `AGENTS.md`
-    writes them up: one miscompiles silently, the other refuses to compile.
+    The traps are compiler behaviour rather than style, and `AGENTS.md`
+    writes them up: some miscompile silently, the others refuse to compile.
     """
     rel = path.relative_to(ROOT)
     findings: list[Finding] = []
+    # Each open brace, and whether its block is an expression: an `if` or a
+    # `match` is, a loop or an item is not.
+    opened: list[bool] = []
+    closed_value = False
     for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
         code = line.split("//")[0]
+        # A line opening with `(` or `[` after an `if` or `match` block calls
+        # or indexes that block's value.
+        if closed_value and code.lstrip().startswith(("(", "[")):
+            findings.append(Finding(rel, i, "rune-block-call",
+                                    "a `}` then `(` or `[` calls or indexes the block above; "
+                                    "bind the value first (AGENTS.md)", "ERROR"))
+        if code.strip():
+            closed_value = False
+            bare = STRING_LITERAL.sub('""', code)
+            statement = bool(BLOCK_STATEMENT.match(bare))
+            for ch in bare:
+                if ch == "{":
+                    opened.append(not statement)
+                elif ch == "}" and opened:
+                    closed_value = opened.pop()
+            closed_value = closed_value and bare.rstrip().endswith("}")
         if SHORT_CIRCUIT.search(code):
             findings.append(Finding(rel, i, "rune-short-circuit",
                                     "`field = a || b` overwrites the local `a`; compute into a "
@@ -148,6 +176,11 @@ def check_rune(path: Path) -> list[Finding]:
             findings.append(Finding(rel, i, "rune-rebound-let",
                                     f"`if let ..({m.group(1)}) = {m.group(2)}` is a missing "
                                     "variable in Rune; bind to another name", "ERROR"))
+        if RETURN_TRAP.search(code):
+            findings.append(Finding(rel, i, "rune-return-trap",
+                                    "`return ||` returns nothing, and `return match` and a "
+                                    "template after `return` do not parse; bind the value "
+                                    "first (AGENTS.md)", "ERROR"))
         if HOVER_GATED.search(code):
             findings.append(Finding(rel, i, "hover-only-control",
                                     "a control shown only while hovered cannot be reached by a "
