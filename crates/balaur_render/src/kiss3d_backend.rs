@@ -7,7 +7,7 @@ use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
-use balaur_core::{App, GlobalAppearance, GlobalTransform};
+use balaur_core::{App, GlobalAppearance, GlobalTransform, stroke::GRADIENT_BANDS};
 use glamx::Pose3;
 use kiss3d::prelude::*;
 use kiss3d::resource::GpuMesh3d;
@@ -1071,9 +1071,6 @@ pub(crate) fn build_2d_node(
     })
 }
 
-/// How many colours a gradient steps through along a polyline.
-const GRADIENT_BANDS: usize = 32;
-
 /// A polyline stroked into one outline with its joins and caps, cut into
 /// bands along it when a gradient needs somewhere to change colour. The
 /// points come from the same mesh asset physics reads, flattened to xy.
@@ -1089,11 +1086,8 @@ pub(crate) fn build_polyline_node(
     }
     let style = renderable.line.as_ref();
     let texture = style.map(|s| s.texture.as_str()).unwrap_or_default();
-    let bands = if style.is_some_and(|s| s.gradient.is_some()) {
-        GRADIENT_BANDS
-    } else {
-        1
-    };
+    let gradient = style.is_some_and(|s| s.gradient.is_some());
+    let bands = if gradient { GRADIENT_BANDS } else { 1 };
     let mut group = scene.add_group();
     let mut pieces = Vec::new();
     for piece in balaur_core::stroke::stroke(&points, stroke, bands) {

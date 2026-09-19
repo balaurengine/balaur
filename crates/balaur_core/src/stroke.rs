@@ -26,6 +26,9 @@ pub const JOINS: &[&str] = &[ROUND, MITER, BEVEL];
 /// The caps a line may take, in the order the inspector offers them.
 pub const CAPS: &[&str] = &[ROUND, BUTT, SQUARE];
 
+/// How many colours a gradient steps through along a line.
+pub const GRADIENT_BANDS: usize = 32;
+
 /// The widest step a round join or cap takes around its arc, in radians.
 const ROUND_STEP: f32 = std::f32::consts::PI / 16.0;
 
