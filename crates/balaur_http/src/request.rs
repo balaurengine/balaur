@@ -54,7 +54,13 @@ fn perform(call: &HttpCall, events: &Sender<HttpEvent>) -> Result<Response> {
     let mut response =
         match call.method.as_str() {
             "GET" => with_headers(agent.get(&call.url), call).call()?,
-            "DELETE" => with_headers(agent.delete(&call.url), call).call()?,
+            // ureq sends a DELETE body only when forced to.
+            "DELETE" => match call.body.as_deref() {
+                Some(body) => {
+                    with_headers(agent.delete(&call.url).force_send_body(), call).send(body)?
+                }
+                None => with_headers(agent.delete(&call.url), call).call()?,
+            },
             "HEAD" => with_headers(agent.head(&call.url), call).call()?,
             "POST" => with_headers(agent.post(&call.url), call)
                 .send(call.body.as_deref().unwrap_or(""))?,

@@ -24,6 +24,62 @@ fn serve_one(response: &'static str) -> String {
     format!("http://{addr}")
 }
 
+/// Serve one request and answer with the body it carried, returning the url.
+fn echo_body() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let Ok((mut stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut seen = Vec::new();
+        let mut chunk = [0u8; 4096];
+        let body = loop {
+            let n = stream.read(&mut chunk).unwrap_or(0);
+            seen.extend_from_slice(&chunk[..n]);
+            let text = String::from_utf8_lossy(&seen).into_owned();
+            let Some(end) = text.find("\r\n\r\n") else {
+                if n == 0 {
+                    break String::new();
+                }
+                continue;
+            };
+            let length = text[..end]
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            if n == 0 || seen.len() >= end + 4 + length {
+                break text[end + 4..].to_string();
+            }
+        };
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let _ = stream.write_all(reply.as_bytes());
+    });
+    format!("http://{addr}")
+}
+
+#[test]
+fn a_delete_carries_the_body_it_was_given() {
+    if !e2e_enabled() {
+        return;
+    }
+    let url = echo_body();
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    let r = task::wait(http::request("{url}", #{{ method: "DELETE", body: "ids=7" }})).await;
+    log::info(`delete-echo ${{r["status"]}} ${{r["body"]}}`);
+}}
+"#
+    );
+    run_until(&source, &["delete-echo 200 ids=7"]);
+}
+
 /// The response handler named through `on_response`, rather than the default
 /// `on_response` method.
 #[test]
