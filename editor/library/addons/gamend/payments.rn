@@ -1,0 +1,71 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Payments: one function per operation, as `gamend::payments::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Receive App Store Server Notification v2 events
+/// `POST /api/v1/payments/webhooks/apple`
+pub fn apple_webhook(node, params) {
+    gamend::rest(node, "POST", "/api/v1/payments/webhooks/apple", params)
+}
+
+/// List active payment catalog entries
+/// `GET /api/v1/payments/catalog`
+pub fn catalog(node, options) {
+    let query = gamend::core::query(options, ["provider", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/payments/catalog${query}`)
+}
+
+/// List current user's active entitlements
+/// `GET /api/v1/payments/entitlements`
+pub fn entitlements(node, options) {
+    let query = gamend::core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/payments/entitlements${query}`)
+}
+
+/// Receive Google Play RTDN Pub/Sub push events
+/// `POST /api/v1/payments/webhooks/google`
+pub fn google_webhook(node, params) {
+    gamend::rest(node, "POST", "/api/v1/payments/webhooks/google", params)
+}
+
+/// Create a Steam MicroTxn transaction
+/// `POST /api/v1/payments/checkout/steam`
+pub fn steam_checkout(node, params) {
+    gamend::rest(node, "POST", "/api/v1/payments/checkout/steam", params)
+}
+
+/// Finalize an authorized Steam MicroTxn transaction
+/// `POST /api/v1/payments/steam/finalize`
+pub fn steam_finalize(node, params) {
+    if !gamend::core::given(params, "order_id") {
+        return gamend::core::missing("gamend::payments::steam_finalize", "order_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/payments/steam/finalize", params)
+}
+
+/// Create a Stripe Checkout Session
+/// `POST /api/v1/payments/checkout/stripe`
+pub fn stripe_checkout(node, params) {
+    gamend::rest(node, "POST", "/api/v1/payments/checkout/stripe", params)
+}
+
+/// Receive Stripe webhook events
+/// `POST /api/v1/payments/webhooks/stripe`
+pub fn stripe_webhook(node, params) {
+    gamend::rest(node, "POST", "/api/v1/payments/webhooks/stripe", params)
+}
+
+/// Validate an Apple, Google, or Steam purchase
+/// `POST /api/v1/payments/validate/{provider}`
+pub fn validate_store_purchase(node, provider, params) {
+    gamend::rest(node, "POST", `/api/v1/payments/validate/${provider}`, params)
+}

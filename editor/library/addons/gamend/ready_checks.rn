@@ -1,0 +1,51 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Ready checks: one function per operation, as `gamend::ready_checks::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Call off the ready check in the caller's lobby (host only)
+/// `DELETE /api/v1/lobbies/ready_check`
+pub fn cancel_lobby_ready_check(node) {
+    gamend::rest(node, "DELETE", "/api/v1/lobbies/ready_check")
+}
+
+/// Call off the ready check in the caller's party (leader only)
+/// `DELETE /api/v1/parties/ready_check`
+pub fn cancel_party_ready_check(node) {
+    gamend::rest(node, "DELETE", "/api/v1/parties/ready_check")
+}
+
+/// Get the caller's open ready checks
+/// `GET /api/v1/me/ready_check`
+pub fn get_my_ready_check(node) {
+    gamend::rest(node, "GET", "/api/v1/me/ready_check")
+}
+
+/// Open (or reset) the ready board in the caller's lobby (host only)
+/// `POST /api/v1/lobbies/ready_check`
+pub fn open_lobby_ready_check(node, params) {
+    gamend::rest(node, "POST", "/api/v1/lobbies/ready_check", params)
+}
+
+/// Open (or reset) the ready board in the caller's party (leader only)
+/// `POST /api/v1/parties/ready_check`
+pub fn open_party_ready_check(node, params) {
+    gamend::rest(node, "POST", "/api/v1/parties/ready_check", params)
+}
+
+/// Answer one of the caller's open ready checks
+/// `POST /api/v1/me/ready_check`
+pub fn respond_ready_check(node, params) {
+    if !gamend::core::given(params, "ready") {
+        return gamend::core::missing("gamend::ready_checks::respond_ready_check", "ready");
+    }
+    gamend::rest(node, "POST", "/api/v1/me/ready_check", params)
+}

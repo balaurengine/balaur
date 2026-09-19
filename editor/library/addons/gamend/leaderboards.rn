@@ -1,0 +1,54 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Leaderboards: one function per operation, as `gamend::leaderboards::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Get a leaderboard by ID
+/// `GET /api/v1/leaderboards/{id}`
+pub fn get_leaderboard(node, id) {
+    gamend::rest(node, "GET", `/api/v1/leaderboards/${id}`)
+}
+
+/// Get current user's record
+/// `GET /api/v1/leaderboards/{id}/records/me`
+pub fn get_my_record(node, id) {
+    gamend::rest(node, "GET", `/api/v1/leaderboards/${id}/records/me`)
+}
+
+/// List leaderboard records
+/// `GET /api/v1/leaderboards/{id}/records`
+pub fn list_leaderboard_records(node, id, options) {
+    let query = gamend::core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/leaderboards/${id}/records${query}`)
+}
+
+/// List leaderboards
+/// `GET /api/v1/leaderboards`
+pub fn list_leaderboards(node, options) {
+    let query = gamend::core::query(options, ["slug", "active", "order_by", "starts_after", "starts_before", "ends_after", "ends_before", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/leaderboards${query}`)
+}
+
+/// List records around a user
+/// `GET /api/v1/leaderboards/{id}/records/around/{user_id}`
+pub fn list_records_around_user(node, id, user_id, options) {
+    let query = gamend::core::query(options, ["limit"]);
+    gamend::rest(node, "GET", `/api/v1/leaderboards/${id}/records/around/${user_id}${query}`)
+}
+
+/// Resolve multiple slugs to active leaderboards
+/// `POST /api/v1/leaderboards/resolve`
+pub fn resolve_leaderboard_slugs(node, params) {
+    if !gamend::core::given(params, "slugs") {
+        return gamend::core::missing("gamend::leaderboards::resolve_leaderboard_slugs", "slugs");
+    }
+    gamend::rest(node, "POST", "/api/v1/leaderboards/resolve", params)
+}

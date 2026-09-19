@@ -1,0 +1,144 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Chat: one function per operation, as `gamend::admin_chat::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Add a blocklist word (admin)
+/// `POST /api/v1/admin/chat/filter_words`
+pub fn create_chat_filter_word(node, params) {
+    if !gamend::core::given(params, "word") {
+        return gamend::core::missing("gamend::admin_chat::create_chat_filter_word", "word");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/chat/filter_words", params)
+}
+
+/// Mute a player (admin)
+/// `POST /api/v1/admin/chat/mutes`
+pub fn create_chat_mute(node, params) {
+    if !gamend::core::given(params, "user_id") {
+        return gamend::core::missing("gamend::admin_chat::create_chat_mute", "user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/chat/mutes", params)
+}
+
+/// Delete all messages in a conversation (admin)
+/// `DELETE /api/v1/admin/chat/conversation`
+pub fn delete_chat_conversation(node, options) {
+    if !gamend::core::given(options, "chat_type") {
+        return gamend::core::missing("gamend::admin_chat::delete_chat_conversation", "chat_type");
+    }
+    if !gamend::core::given(options, "chat_ref_id") {
+        return gamend::core::missing("gamend::admin_chat::delete_chat_conversation", "chat_ref_id");
+    }
+    let query = gamend::core::query(options, ["chat_type", "chat_ref_id"]);
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/conversation${query}`)
+}
+
+/// Remove a blocklist word (admin)
+/// `DELETE /api/v1/admin/chat/filter_words/{id}`
+pub fn delete_chat_filter_word(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/filter_words/${id}`)
+}
+
+/// Remove an imported word list (admin)
+/// `DELETE /api/v1/admin/chat/filter_words`
+pub fn delete_chat_filter_words_by_lang(node, options) {
+    if !gamend::core::given(options, "lang") {
+        return gamend::core::missing("gamend::admin_chat::delete_chat_filter_words_by_lang", "lang");
+    }
+    let query = gamend::core::query(options, ["lang"]);
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/filter_words${query}`)
+}
+
+/// Delete a chat message (admin)
+/// `DELETE /api/v1/admin/chat/{id}`
+pub fn delete_chat_message(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/${id}`)
+}
+
+/// Lift a mute (admin)
+/// `DELETE /api/v1/admin/chat/mutes/{id}`
+pub fn delete_chat_mute(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/mutes/${id}`)
+}
+
+/// Delete a chat report (admin)
+/// `DELETE /api/v1/admin/chat/reports/{id}`
+pub fn delete_chat_report(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/chat/reports/${id}`)
+}
+
+/// Import a bundled word list (admin)
+/// `POST /api/v1/admin/chat/filter_words/import`
+pub fn import_chat_filter_words(node, params) {
+    if !gamend::core::given(params, "lang") {
+        return gamend::core::missing("gamend::admin_chat::import_chat_filter_words", "lang");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/chat/filter_words/import", params)
+}
+
+/// Languages with a bundled word list (admin)
+/// `GET /api/v1/admin/chat/filter_words/languages`
+pub fn list_chat_filter_languages(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/chat/filter_words/languages")
+}
+
+/// List blocklist words (admin)
+/// `GET /api/v1/admin/chat/filter_words`
+pub fn list_chat_filter_words(node, options) {
+    let query = gamend::core::query(options, ["word", "severity", "lang", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/chat/filter_words${query}`)
+}
+
+/// List all chat messages (admin)
+/// `GET /api/v1/admin/chat`
+pub fn list_chat_messages(node, options) {
+    let query = gamend::core::query(options, ["sender_id", "chat_type", "chat_ref_id", "content", "sort_by", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/chat${query}`)
+}
+
+/// List chat mutes (admin)
+/// `GET /api/v1/admin/chat/mutes`
+pub fn list_chat_mutes(node, options) {
+    let query = gamend::core::query(options, ["user_id", "scope", "scope_ref_id", "active", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/chat/mutes${query}`)
+}
+
+/// List chat reports (admin)
+/// `GET /api/v1/admin/chat/reports`
+pub fn list_chat_reports(node, options) {
+    let query = gamend::core::query(options, ["status", "reported_user_id", "reporter_id", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/chat/reports${query}`)
+}
+
+/// Resolve a chat report (admin)
+/// `POST /api/v1/admin/chat/reports/{id}/resolve`
+pub fn resolve_chat_report(node, id, params) {
+    if !gamend::core::given(params, "status") {
+        return gamend::core::missing("gamend::admin_chat::resolve_chat_report", "status");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/chat/reports/${id}/resolve`, params)
+}
+
+/// Test a phrase against the filter (admin)
+/// `POST /api/v1/admin/chat/filter_words/test`
+pub fn test_chat_phrase(node, params) {
+    if !gamend::core::given(params, "phrase") {
+        return gamend::core::missing("gamend::admin_chat::test_chat_phrase", "phrase");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/chat/filter_words/test", params)
+}
+
+/// Update a blocklist word (admin)
+/// `PATCH /api/v1/admin/chat/filter_words/{id}`
+pub fn update_chat_filter_word(node, id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/admin/chat/filter_words/${id}`, params)
+}

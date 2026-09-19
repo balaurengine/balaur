@@ -1,0 +1,167 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Chat: one function per operation, as `gamend::chat::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Get unread message count
+/// `GET /api/v1/chat/unread`
+pub fn unread_count(node, options) {
+    if !gamend::core::given(options, "chat_type") {
+        return gamend::core::missing("gamend::chat::unread_count", "chat_type");
+    }
+    if !gamend::core::given(options, "chat_ref_id") {
+        return gamend::core::missing("gamend::chat::unread_count", "chat_ref_id");
+    }
+    let query = gamend::core::query(options, ["chat_type", "chat_ref_id"]);
+    gamend::rest(node, "GET", `/api/v1/chat/unread${query}`)
+}
+
+/// Delete your own chat message
+/// `DELETE /api/v1/chat/messages/{id}`
+pub fn delete_chat_message(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/chat/messages/${id}`)
+}
+
+/// Get a single chat message
+/// `GET /api/v1/chat/messages/{id}`
+pub fn get_chat_message(node, id) {
+    gamend::rest(node, "GET", `/api/v1/chat/messages/${id}`)
+}
+
+/// List chat messages
+/// `GET /api/v1/chat/messages`
+pub fn list_chat_messages(node, options) {
+    if !gamend::core::given(options, "chat_type") {
+        return gamend::core::missing("gamend::chat::list_chat_messages", "chat_type");
+    }
+    if !gamend::core::given(options, "chat_ref_id") {
+        return gamend::core::missing("gamend::chat::list_chat_messages", "chat_ref_id");
+    }
+    let query = gamend::core::query(options, ["chat_type", "chat_ref_id", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/chat/messages${query}`)
+}
+
+/// List active mutes in a group
+/// `GET /api/v1/groups/{id}/mutes`
+pub fn list_group_mutes(node, id, options) {
+    let query = gamend::core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/groups/${id}/mutes${query}`)
+}
+
+/// List active mutes in your lobby
+/// `GET /api/v1/lobbies/mutes`
+pub fn list_lobby_mutes(node, options) {
+    let query = gamend::core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/lobbies/mutes${query}`)
+}
+
+/// List active mutes in your party
+/// `GET /api/v1/parties/mutes`
+pub fn list_party_mutes(node, options) {
+    let query = gamend::core::query(options, ["page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/parties/mutes${query}`)
+}
+
+/// Mark chat as read
+/// `POST /api/v1/chat/read`
+pub fn mark_chat_read(node, params) {
+    if !gamend::core::given(params, "chat_type") {
+        return gamend::core::missing("gamend::chat::mark_chat_read", "chat_type");
+    }
+    if !gamend::core::given(params, "chat_ref_id") {
+        return gamend::core::missing("gamend::chat::mark_chat_read", "chat_ref_id");
+    }
+    if !gamend::core::given(params, "message_id") {
+        return gamend::core::missing("gamend::chat::mark_chat_read", "message_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/chat/read", params)
+}
+
+/// Mute a player in a group
+/// `POST /api/v1/groups/{id}/mute`
+pub fn mute_group_member(node, id, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::mute_group_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", `/api/v1/groups/${id}/mute`, params)
+}
+
+/// Mute a player in your lobby
+/// `POST /api/v1/lobbies/mute`
+pub fn mute_lobby_member(node, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::mute_lobby_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/lobbies/mute", params)
+}
+
+/// Mute a player in your party
+/// `POST /api/v1/parties/mute`
+pub fn mute_party_member(node, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::mute_party_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/parties/mute", params)
+}
+
+/// Report a chat message
+/// `POST /api/v1/chat/messages/{id}/report`
+pub fn report_chat_message(node, id, params) {
+    gamend::rest(node, "POST", `/api/v1/chat/messages/${id}/report`, params)
+}
+
+/// Send a chat message
+/// `POST /api/v1/chat/messages`
+pub fn send_chat_message(node, params) {
+    if !gamend::core::given(params, "chat_type") {
+        return gamend::core::missing("gamend::chat::send_chat_message", "chat_type");
+    }
+    if !gamend::core::given(params, "chat_ref_id") {
+        return gamend::core::missing("gamend::chat::send_chat_message", "chat_ref_id");
+    }
+    if !gamend::core::given(params, "content") {
+        return gamend::core::missing("gamend::chat::send_chat_message", "content");
+    }
+    gamend::rest(node, "POST", "/api/v1/chat/messages", params)
+}
+
+/// Lift a mute in a group
+/// `POST /api/v1/groups/{id}/unmute`
+pub fn unmute_group_member(node, id, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::unmute_group_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", `/api/v1/groups/${id}/unmute`, params)
+}
+
+/// Lift a mute in your lobby
+/// `POST /api/v1/lobbies/unmute`
+pub fn unmute_lobby_member(node, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::unmute_lobby_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/lobbies/unmute", params)
+}
+
+/// Lift a mute in your party
+/// `POST /api/v1/parties/unmute`
+pub fn unmute_party_member(node, params) {
+    if !gamend::core::given(params, "target_user_id") {
+        return gamend::core::missing("gamend::chat::unmute_party_member", "target_user_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/parties/unmute", params)
+}
+
+/// Update your own chat message
+/// `PATCH /api/v1/chat/messages/{id}`
+pub fn update_chat_message(node, id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/chat/messages/${id}`, params)
+}

@@ -96,19 +96,21 @@ an event table, and writes the addon. It is about six hundred lines, needs
 no Docker, and `clients/generate_balaur.sh` wraps it the way
 `generate_godot.sh` wraps the other.
 
-**The addon is Rune modules, laid out like the Godot addon.** Generated:
+**The addon is Rune modules, one per tag.** Balaur mounts an addon's files,
+so `addons/gamend/lobbies.rn` is `gamend::lobbies` in every script with no
+`require`. Generated:
 
-- `addons/gamend/api.rn` — the façade. One `pub fn` per operation, named
-  `<tag>_<operationId>` exactly as `GamendApi.gd` names it, so a game ported
-  from Godot calls the same name and the translated Polyglot Pirates code
-  needs no renaming. Naming lints do not apply: this is a project script,
-  not engine API.
-- `addons/gamend/events.rn` — one constant per realtime signal
-  (`EVENT_LOBBY_MEMBER_JOINED = "lobby_member_joined"`, all 84) and
+- One file per OpenAPI tag, `lobbies.rn` to `admin_kv.rn`, 47 of them. A
+  function is the operation without its tag: `gamend::lobbies::create_lobby`,
+  `gamend::matchmaking::join`, `gamend::admin_kv::upsert_kv`. The `push` tag
+  is `push_tokens.rn`, since `gamend::push` is the engine's own call.
+  Naming lints do not apply: this is a project script, not engine API.
+- `addons/gamend/events.rn` — one `pub mod` per channel of `events.json`,
+  each event without the channel
+  (`gamend::events::lobby::MEMBER_JOINED = "lobby_member_joined"`), and
   `decode(topic, event, payload)`, which turns a raw socket message into
-  `#{ kind, ..fields }` by the event table, normalising `_at_ms` to the REST
-  name where the proto says so. A message the table does not name comes
-  back with `kind = "message"`, as the engine delivers it today.
+  `#{ kind, ..fields }` by the event table. A message the table does not
+  name comes back with `kind = "message"`, as the engine delivers it.
 - `addons/gamend/README.md` — every function with the operation's own
   `summary`, grouped by tag: the SDK's reference, as `apis/*.md` is Godot's.
 - `addons/gamend/version.rn` — `GAMEND_VERSION`, stamped by CI as the Godot
@@ -141,12 +143,12 @@ files exactly as `gamend_template` is:
   `GamendSignalingClient.gd` and `GamendWebRTC.gd`. Step 6, once the engine
   has the transport.
 
-**One call shape, under the five-argument limit.** A façade function takes
-the node, the path parameters in path order, a `params` table for the body,
-and an `options` table for the query: `(api.lobbies_quick_join)(node,
-#{ title: "duel", max_users: 2 })`, `(api.quests_my_quests)(node, (),
+**One call shape, under the five-argument limit.** A function takes the
+node, the path parameters in path order, a `params` table for the body, and
+an `options` table for the query: `gamend::lobbies::quick_join(node,
+#{ title: "duel", max_users: 2 })`, `gamend::quests::my_quests(node,
 #{ category: "daily" })`. With at most two path parameters that is at most
-five arguments, which is the trampoline's ceiling — measured, not assumed.
+five arguments, the most a mounted function takes.
 Each function checks the body's required fields against the document and
 returns `()` with a logged error naming the field before any I/O; otherwise
 it returns the id `gamend::rest` returns, so a caller awaits it with
@@ -196,7 +198,7 @@ outside the node that called it.
 
 | Piece | Count | Generated or written |
 | --- | --: | --- |
-| Façade functions, one per operation | 243 | generated, `api.rn` |
+| Functions, one per operation, in 47 modules | 259 | generated, one file per tag |
 | Of which admin, answered 403 without an admin token | 89 | generated |
 | Realtime event constants and their decoders | 84 | generated, `events.rn`, from `events.json` |
 | Proto messages the decoders shape | 31 | generated |
@@ -271,17 +273,16 @@ by where the file lives, not by who does it.
   involved. Ends with: a log line submitted from a game shows in the
   server's stream; then two engines in one lobby exchange bytes through
   `send_data` with no hook between them.
-- **7. The SDK by path.** The engine half is built: an addon's
-  `addons/<name>/<file>.rn` is the module `<name>::<file>`
-  (`crates/balaur_script_rune/src/mounts.rs`). The Gamend half waits for
-  `clients/sdkgen` to land. `api.rn` splits into one file per OpenAPI tag,
-  each function named without its tag: `gamend::lobbies::create_lobby`.
-  `events.rn` holds one `pub mod` per channel of `events.json`, each event
-  named without the channel: `gamend::events::lobby::MEMBER_JOINED`. The
-  flat constants go, so each event has one name. The hand-written files, the
-  dock and the port's Godot-signature module call by path. Ends with: the
-  addon has no `script::require` of its own files, and the flow tests name
-  their operations and events by path.
+- **7. The SDK by path — built.** The engine mounts an addon's
+  `addons/<name>/<file>.rn` as the module `<name>::<file>`
+  (`crates/balaur_script_rune/src/mounts.rs`). `clients/sdkgen/balaur.py`
+  writes one file per tag and `events.rn` as a `pub mod` per channel, and
+  removes what it no longer writes. The flat constants are gone, so each
+  event has one name. `client.rn`, `auth.rn` and `log_sink.rn` call by path,
+  and `crates/balaur_gamend/tests` names every operation and event by path.
+  Left: the port's Godot-signature module calls the old names until
+  `port/sync_gamend.sh` runs again, and the manual's Gamend page shows
+  `script::require` until this branch merges.
 
 ## 4. What CI can prove
 

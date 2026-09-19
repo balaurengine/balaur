@@ -1,157 +1,117 @@
-// Written by clients/generate_balaur.py from the OpenAPI document.
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
 // Do not edit; edit the generator or the spec and run
 // clients/generate_balaur.sh.
 
 
-//! The realtime events, one constant each, and the decoder that names
-//! a raw socket message.
+//! The realtime events, one `pub mod` per channel, and the decoder that
+//! names a raw socket message: `gamend::events::lobby::MEMBER_JOINED` is
+//! what `decode` answers as `kind` for a lobby's `user_joined`.
 //!
 //! OpenAPI does not describe the socket, so this comes from
 //! `clients/events.json`, which the Godot client's dispatch seeded. An
 //! event the table does not name still arrives, as `message`.
 
 
-pub const FRIEND_ADDED = "friend_added";
-
-pub const FRIEND_BLOCKED = "friend_blocked";
-
-pub const FRIEND_CHAT_MESSAGE = "friend_chat_message";
-
-pub const FRIEND_CHAT_MESSAGE_DELETED = "friend_chat_message_deleted";
-
-pub const FRIEND_CHAT_MESSAGE_UPDATED = "friend_chat_message_updated";
-
-pub const FRIEND_REJECTED = "friend_rejected";
-
-pub const FRIEND_REMOVED = "friend_removed";
-
-pub const FRIEND_REQUEST_CANCELLED = "friend_request_cancelled";
-
-pub const FRIEND_UNBLOCKED = "friend_unblocked";
-
-pub const FRIEND_UPDATED = "friend_updated";
-
-pub const GROUP_CHAT_MESSAGE = "group_chat_message";
-
-pub const GROUP_CHAT_MESSAGE_DELETED = "group_chat_message_deleted";
-
-pub const GROUP_CHAT_MESSAGE_UPDATED = "group_chat_message_updated";
-
-pub const GROUP_CREATED = "group_created";
-
-pub const GROUP_DELETED = "group_deleted";
-
-pub const GROUP_INVITE_ACCEPTED = "group_invite_accepted";
-
-pub const GROUP_INVITE_CANCELLED = "group_invite_cancelled";
-
-pub const GROUP_JOIN_REQUEST_APPROVED = "group_join_request_approved";
-
-pub const GROUP_JOIN_REQUEST_REJECTED = "group_join_request_rejected";
-
-pub const GROUP_LIST_UPDATED = "group_list_updated";
-
-pub const GROUP_MEMBER_DEMOTED = "group_member_demoted";
-
-pub const GROUP_MEMBER_JOINED = "group_member_joined";
-
-pub const GROUP_MEMBER_KICKED = "group_member_kicked";
-
-pub const GROUP_MEMBER_LEFT = "group_member_left";
-
-pub const GROUP_MEMBER_OFFLINE = "group_member_offline";
-
-pub const GROUP_MEMBER_ONLINE = "group_member_online";
-
-pub const GROUP_MEMBER_PROMOTED = "group_member_promoted";
-
-pub const GROUP_MEMBER_UPDATED = "group_member_updated";
-
-pub const GROUP_UPDATED = "group_updated";
-
-pub const INVENTORY_UPDATED = "inventory_updated";
-
-pub const KV_DELETED = "kv_deleted";
-
-pub const KV_UPDATED = "kv_updated";
-
-pub const LOBBY_CHAT_MESSAGE = "lobby_chat_message";
-
-pub const LOBBY_CHAT_MESSAGE_DELETED = "lobby_chat_message_deleted";
-
-pub const LOBBY_CHAT_MESSAGE_UPDATED = "lobby_chat_message_updated";
-
-pub const LOBBY_CREATED = "lobby_created";
-
-pub const LOBBY_DELETED = "lobby_deleted";
-
-pub const LOBBY_HOST_CHANGED = "lobby_host_changed";
-
-pub const LOBBY_LIST_UPDATED = "lobby_list_updated";
-
-pub const LOBBY_MEMBER_JOINED = "lobby_member_joined";
-
-pub const LOBBY_MEMBER_KICKED = "lobby_member_kicked";
-
-pub const LOBBY_MEMBER_LEFT = "lobby_member_left";
-
-pub const LOBBY_MEMBER_OFFLINE = "lobby_member_offline";
-
-pub const LOBBY_MEMBER_ONLINE = "lobby_member_online";
-
-pub const LOBBY_MEMBER_UPDATED = "lobby_member_updated";
-
-pub const LOBBY_MEMBERSHIP_CHANGED = "lobby_membership_changed";
-
-pub const LOBBY_STATE_CHANGED = "lobby_state_changed";
-
-pub const LOBBY_UPDATED = "lobby_updated";
-
-pub const NOTIFICATION_EMITTED = "notification_emitted";
-
-pub const PARTY_CHAT_MESSAGE = "party_chat_message";
-
-pub const PARTY_CHAT_MESSAGE_DELETED = "party_chat_message_deleted";
-
-pub const PARTY_CHAT_MESSAGE_UPDATED = "party_chat_message_updated";
-
-pub const PARTY_DISBANDED = "party_disbanded";
-
-pub const PARTY_INVITE_ACCEPTED = "party_invite_accepted";
-
-pub const PARTY_INVITE_CANCELLED = "party_invite_cancelled";
-
-pub const PARTY_INVITE_DECLINED = "party_invite_declined";
-
-pub const PARTY_MEMBER_JOINED = "party_member_joined";
-
-pub const PARTY_MEMBER_LEFT = "party_member_left";
-
-pub const PARTY_MEMBER_OFFLINE = "party_member_offline";
-
-pub const PARTY_MEMBER_ONLINE = "party_member_online";
-
-pub const PARTY_MEMBER_UPDATED = "party_member_updated";
-
-pub const PARTY_UPDATED = "party_updated";
-
-pub const QUEST_CLAIMED = "quest_claimed";
-
-pub const QUEST_COMPLETED = "quest_completed";
-
-pub const QUEST_PROGRESS = "quest_progress";
-
-pub const READY_CHECK_FAILED = "ready_check_failed";
-
-pub const READY_CHECK_PASSED = "ready_check_passed";
-
-pub const READY_CHECK_STARTED = "ready_check_started";
-
-pub const READY_CHECK_UPDATED = "ready_check_updated";
-
-pub const USER_UPDATED = "user_updated";
-
-pub const WALLET_UPDATED = "wallet_updated";
+/// What arrives on `group` topics, as `decode` names it.
+pub mod group {
+    pub const CHAT_MESSAGE = "group_chat_message";
+    pub const CHAT_MESSAGE_DELETED = "group_chat_message_deleted";
+    pub const CHAT_MESSAGE_UPDATED = "group_chat_message_updated";
+    pub const JOIN_REQUEST_APPROVED = "group_join_request_approved";
+    pub const JOIN_REQUEST_REJECTED = "group_join_request_rejected";
+    pub const MEMBER_DEMOTED = "group_member_demoted";
+    pub const MEMBER_JOINED = "group_member_joined";
+    pub const MEMBER_KICKED = "group_member_kicked";
+    pub const MEMBER_LEFT = "group_member_left";
+    pub const MEMBER_OFFLINE = "group_member_offline";
+    pub const MEMBER_ONLINE = "group_member_online";
+    pub const MEMBER_PROMOTED = "group_member_promoted";
+    pub const MEMBER_UPDATED = "group_member_updated";
+    pub const UPDATED = "group_updated";
+}
+
+/// What arrives on `groups` topics, as `decode` names it.
+pub mod groups {
+    pub const GROUP_CREATED = "group_created";
+    pub const GROUP_DELETED = "group_deleted";
+    pub const GROUP_LIST_UPDATED = "group_list_updated";
+}
+
+/// What arrives on `lobbies` topics, as `decode` names it.
+pub mod lobbies {
+    pub const LOBBY_CREATED = "lobby_created";
+    pub const LOBBY_DELETED = "lobby_deleted";
+    pub const LOBBY_LIST_UPDATED = "lobby_list_updated";
+    pub const LOBBY_MEMBERSHIP_CHANGED = "lobby_membership_changed";
+}
+
+/// What arrives on `lobby` topics, as `decode` names it.
+pub mod lobby {
+    pub const CHAT_MESSAGE = "lobby_chat_message";
+    pub const CHAT_MESSAGE_DELETED = "lobby_chat_message_deleted";
+    pub const CHAT_MESSAGE_UPDATED = "lobby_chat_message_updated";
+    pub const HOST_CHANGED = "lobby_host_changed";
+    pub const MEMBER_JOINED = "lobby_member_joined";
+    pub const MEMBER_KICKED = "lobby_member_kicked";
+    pub const MEMBER_LEFT = "lobby_member_left";
+    pub const MEMBER_OFFLINE = "lobby_member_offline";
+    pub const MEMBER_ONLINE = "lobby_member_online";
+    pub const MEMBER_UPDATED = "lobby_member_updated";
+    pub const STATE_CHANGED = "lobby_state_changed";
+    pub const UPDATED = "lobby_updated";
+    pub const READY_CHECK_FAILED = "ready_check_failed";
+    pub const READY_CHECK_PASSED = "ready_check_passed";
+    pub const READY_CHECK_STARTED = "ready_check_started";
+    pub const READY_CHECK_UPDATED = "ready_check_updated";
+}
+
+/// What arrives on `party` topics, as `decode` names it.
+pub mod party {
+    pub const CHAT_MESSAGE = "party_chat_message";
+    pub const CHAT_MESSAGE_DELETED = "party_chat_message_deleted";
+    pub const CHAT_MESSAGE_UPDATED = "party_chat_message_updated";
+    pub const DISBANDED = "party_disbanded";
+    pub const MEMBER_JOINED = "party_member_joined";
+    pub const MEMBER_LEFT = "party_member_left";
+    pub const MEMBER_OFFLINE = "party_member_offline";
+    pub const MEMBER_ONLINE = "party_member_online";
+    pub const MEMBER_UPDATED = "party_member_updated";
+    pub const UPDATED = "party_updated";
+    pub const READY_CHECK_FAILED = "ready_check_failed";
+    pub const READY_CHECK_PASSED = "ready_check_passed";
+    pub const READY_CHECK_STARTED = "ready_check_started";
+    pub const READY_CHECK_UPDATED = "ready_check_updated";
+}
+
+/// What arrives on `user` topics, as `decode` names it.
+pub mod user {
+    pub const FRIEND_ADDED = "friend_added";
+    pub const FRIEND_BLOCKED = "friend_blocked";
+    pub const FRIEND_CHAT_MESSAGE = "friend_chat_message";
+    pub const FRIEND_CHAT_MESSAGE_DELETED = "friend_chat_message_deleted";
+    pub const FRIEND_CHAT_MESSAGE_UPDATED = "friend_chat_message_updated";
+    pub const FRIEND_REJECTED = "friend_rejected";
+    pub const FRIEND_REMOVED = "friend_removed";
+    pub const FRIEND_REQUEST_CANCELLED = "friend_request_cancelled";
+    pub const FRIEND_UNBLOCKED = "friend_unblocked";
+    pub const FRIEND_UPDATED = "friend_updated";
+    pub const GROUP_INVITE_ACCEPTED = "group_invite_accepted";
+    pub const GROUP_INVITE_CANCELLED = "group_invite_cancelled";
+    pub const GROUP_JOIN_REQUEST_APPROVED = "group_join_request_approved";
+    pub const GROUP_JOIN_REQUEST_REJECTED = "group_join_request_rejected";
+    pub const INVENTORY_UPDATED = "inventory_updated";
+    pub const KV_DELETED = "kv_deleted";
+    pub const KV_UPDATED = "kv_updated";
+    pub const NOTIFICATION_EMITTED = "notification_emitted";
+    pub const PARTY_INVITE_ACCEPTED = "party_invite_accepted";
+    pub const PARTY_INVITE_CANCELLED = "party_invite_cancelled";
+    pub const PARTY_INVITE_DECLINED = "party_invite_declined";
+    pub const QUEST_CLAIMED = "quest_claimed";
+    pub const QUEST_COMPLETED = "quest_completed";
+    pub const QUEST_PROGRESS = "quest_progress";
+    pub const UPDATED = "user_updated";
+    pub const WALLET_UPDATED = "wallet_updated";
+}
 
 /// Every row of the table: the channel a topic belongs to, the event the
 /// server sends, and what this client calls it.

@@ -1,0 +1,56 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Storage: one function per operation, as `gamend::admin_storage::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Delete a stored object (admin)
+/// `DELETE /api/v1/admin/storage`
+pub fn delete_storage_object(node, options) {
+    if !gamend::core::given(options, "key") {
+        return gamend::core::missing("gamend::admin_storage::delete_storage_object", "key");
+    }
+    let query = gamend::core::query(options, ["key"]);
+    gamend::rest(node, "DELETE", `/api/v1/admin/storage${query}`)
+}
+
+/// Download an object by key (admin)
+/// `GET /api/v1/admin/storage/object`
+pub fn download_storage_object(node, options) {
+    if !gamend::core::given(options, "key") {
+        return gamend::core::missing("gamend::admin_storage::download_storage_object", "key");
+    }
+    let query = gamend::core::query(options, ["key"]);
+    gamend::rest(node, "GET", `/api/v1/admin/storage/object${query}`)
+}
+
+/// List stored objects with usage (admin)
+/// `GET /api/v1/admin/storage`
+pub fn list_storage_objects(node, options) {
+    let query = gamend::core::query(options, ["prefix", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/storage${query}`)
+}
+
+/// Objects and bytes stored under a prefix (admin)
+/// `GET /api/v1/admin/storage/usage`
+pub fn usage(node, options) {
+    let query = gamend::core::query(options, ["prefix"]);
+    gamend::rest(node, "GET", `/api/v1/admin/storage/usage${query}`)
+}
+
+/// Upload or overwrite an object at any key (admin)
+/// `PUT /api/v1/admin/storage/object`
+pub fn upload_storage_object(node, params, options) {
+    if !gamend::core::given(options, "key") {
+        return gamend::core::missing("gamend::admin_storage::upload_storage_object", "key");
+    }
+    let query = gamend::core::query(options, ["key"]);
+    gamend::rest(node, "PUT", `/api/v1/admin/storage/object${query}`, params)
+}

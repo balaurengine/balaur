@@ -1,0 +1,30 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Client logs: one function per operation, as `gamend::client_logs::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Client log capture policy
+/// `GET /api/v1/client_logs/policy`
+pub fn get_client_log_policy(node) {
+    gamend::rest(node, "GET", "/api/v1/client_logs/policy")
+}
+
+/// Upload a batch of client log entries
+/// `POST /api/v1/client_logs`
+pub fn upload_client_logs(node, params) {
+    if !gamend::core::given(params, "session") {
+        return gamend::core::missing("gamend::client_logs::upload_client_logs", "session");
+    }
+    if !gamend::core::given(params, "entries") {
+        return gamend::core::missing("gamend::client_logs::upload_client_logs", "entries");
+    }
+    gamend::rest(node, "POST", "/api/v1/client_logs", params)
+}

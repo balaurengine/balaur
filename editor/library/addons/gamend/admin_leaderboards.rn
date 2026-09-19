@@ -1,0 +1,87 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Leaderboards: one function per operation, as `gamend::admin_leaderboards::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Create leaderboard (admin)
+/// `POST /api/v1/admin/leaderboards`
+pub fn create_leaderboard(node, params) {
+    if !gamend::core::given(params, "slug") {
+        return gamend::core::missing("gamend::admin_leaderboards::create_leaderboard", "slug");
+    }
+    if !gamend::core::given(params, "title") {
+        return gamend::core::missing("gamend::admin_leaderboards::create_leaderboard", "title");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/leaderboards", params)
+}
+
+/// Delete leaderboard (admin)
+/// `DELETE /api/v1/admin/leaderboards/{id}`
+pub fn delete_leaderboard(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/leaderboards/${id}`)
+}
+
+/// Delete leaderboard record (admin)
+/// `DELETE /api/v1/admin/leaderboards/{id}/records/{record_id}`
+pub fn delete_leaderboard_record(node, id, record_id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/leaderboards/${id}/records/${record_id}`)
+}
+
+/// Delete a user's record (admin)
+/// `DELETE /api/v1/admin/leaderboards/{id}/records/user/{user_id}`
+pub fn delete_leaderboard_user_record(node, id, user_id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/leaderboards/${id}/records/user/${user_id}`)
+}
+
+/// End leaderboard (admin)
+/// `POST /api/v1/admin/leaderboards/{id}/end`
+pub fn end_leaderboard(node, id) {
+    gamend::rest(node, "POST", `/api/v1/admin/leaderboards/${id}/end`)
+}
+
+/// Request an upload ticket for a leaderboard icon (admin)
+/// `POST /api/v1/admin/leaderboards/{id}/icon/upload_url`
+pub fn leaderboard_icon_upload_url(node, id, params) {
+    if !gamend::core::given(params, "content_type") {
+        return gamend::core::missing("gamend::admin_leaderboards::leaderboard_icon_upload_url", "content_type");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/leaderboards/${id}/icon/upload_url`, params)
+}
+
+/// Confirm an uploaded leaderboard icon (admin)
+/// `POST /api/v1/admin/leaderboards/{id}/icon`
+pub fn set_leaderboard_icon(node, id, params) {
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_leaderboards::set_leaderboard_icon", "key");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/leaderboards/${id}/icon`, params)
+}
+
+/// Submit score (admin)
+/// `POST /api/v1/admin/leaderboards/{id}/records`
+pub fn submit_leaderboard_score(node, id, params) {
+    if !gamend::core::given(params, "score") {
+        return gamend::core::missing("gamend::admin_leaderboards::submit_leaderboard_score", "score");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/leaderboards/${id}/records`, params)
+}
+
+/// Update leaderboard (admin)
+/// `PATCH /api/v1/admin/leaderboards/{id}`
+pub fn update_leaderboard(node, id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/admin/leaderboards/${id}`, params)
+}
+
+/// Update leaderboard record (admin)
+/// `PATCH /api/v1/admin/leaderboards/{id}/records/{record_id}`
+pub fn update_leaderboard_record(node, id, record_id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/admin/leaderboards/${id}/records/${record_id}`, params)
+}

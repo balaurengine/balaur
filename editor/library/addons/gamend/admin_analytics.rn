@@ -1,0 +1,46 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Analytics: one function per operation, as `gamend::admin_analytics::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Daily counters by key or prefix (admin)
+/// `GET /api/v1/admin/analytics/counts`
+pub fn get_analytics_counts(node, options) {
+    let query = gamend::core::query(options, ["key", "days"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/counts${query}`)
+}
+
+/// Per-day active / new users and cohort retention (admin)
+/// `GET /api/v1/admin/analytics/daily`
+pub fn get_analytics_daily(node, options) {
+    let query = gamend::core::query(options, ["days"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/daily${query}`)
+}
+
+/// Currency granted / spent per day per ledger reason (admin)
+/// `GET /api/v1/admin/analytics/economy`
+pub fn get_analytics_economy(node, options) {
+    let query = gamend::core::query(options, ["days", "currency"]);
+    gamend::rest(node, "GET", `/api/v1/admin/analytics/economy${query}`)
+}
+
+/// Live counters: players, lobbies, parties, quests, matchmaking,
+/// tournaments (admin)
+/// `GET /api/v1/admin/analytics/snapshot`
+pub fn get_analytics_snapshot(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/analytics/snapshot")
+}
+
+/// DAU / WAU / MAU, D1 / D7 / D30 and payer conversion (admin)
+/// `GET /api/v1/admin/analytics`
+pub fn get_analytics_summary(node) {
+    gamend::rest(node, "GET", "/api/v1/admin/analytics")
+}

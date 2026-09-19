@@ -7,7 +7,7 @@
 
 use balaur_testkit::{e2e_enabled, gamend_url, run_until_with, run_until_within};
 
-/// The SDK addon `editor/library/addons/gamend` holds, as a game requires it.
+/// The SDK addon `editor/library/addons/gamend` holds, as a game carries it.
 fn gamend_addon() -> Vec<(String, String)> {
     let root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library/addons/gamend");
@@ -41,18 +41,16 @@ fn the_sdk_addon_reads_the_public_api_of_the_server() {
     let source = format!(
         r#"
 pub async fn init(this) {{
-    let api = script::require("addons/gamend/api.rn");
-    let events = script::require("addons/gamend/events.rn");
     gamend::configure("{url}");
-    let boards = task::wait((api.leaderboards_list_leaderboards)((), #{{ "page": 1 }})).await;
+    let boards = task::wait(gamend::leaderboards::list_leaderboards((), #{{ "page": 1 }})).await;
     let listed = boards["body"]["data"];
     let records = if listed.len() > 0 {{
-        task::wait((api.leaderboards_list_leaderboard_records)((), listed[0]["id"], #{{}})).await["status"]
+        task::wait(gamend::leaderboards::list_leaderboard_records((), listed[0]["id"], #{{}})).await["status"]
     }} else {{
         200
     }};
-    let stats = task::wait((api.lobbies_lobby_stats)(())).await;
-    let named = (events.decode)("lobby:7", "user_joined", #{{ "user_id": 3 }});
+    let stats = task::wait(gamend::lobbies::lobby_stats(())).await;
+    let named = gamend::events::decode("lobby:7", "user_joined", #{{ "user_id": 3 }});
     log::info(`sdk ${{boards["status"]}} ${{records}} ${{stats["status"]}} | ${{named["kind"]}}`);
 }}
 "#
@@ -62,32 +60,6 @@ pub async fn init(this) {{
         &source,
         &["sdk 200 200 200 | lobby_member_joined"],
     );
-}
-
-#[test]
-fn the_sdk_addon_is_reachable_by_path() {
-    if !e2e_enabled() {
-        return;
-    }
-    let url = gamend_url();
-    let files = gamend_addon();
-    let borrowed: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_str()))
-        .collect();
-    // `addons/gamend/api.rn` is `gamend::api`, beside the engine's own
-    // `gamend::configure`.
-    let source = format!(
-        r#"
-pub async fn init(this) {{
-    gamend::configure("{url}");
-    let health = task::wait(gamend::api::health_index(())).await;
-    let named = gamend::events::decode("lobby:7", "user_joined", #{{}});
-    log::info(`by-path ${{health["status"]}} ${{named["kind"]}}`);
-}}
-"#
-    );
-    run_until_with(&borrowed, &source, &["by-path 200 lobby_member_joined"]);
 }
 
 #[test]
@@ -124,11 +96,10 @@ pub async fn init(this) {{
 
 pub async fn on_gamend_event(this, e) {{
     if e["kind"] == "open" {{
-        let api = script::require("addons/gamend/api.rn");
-        let me = task::wait((api.users_get_current_user)(())).await;
+        let me = task::wait(gamend::users::get_current_user(())).await;
         let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
         gamend::close(this.socket);
-        let gone = task::wait((api.user_delete_current_user)((), ())).await;
+        let gone = task::wait(gamend::users::delete_current_user((), ())).await;
         log::info(format!("gamend-live {{}} {{}} {{}}", me["status"], hook["status"], gone["status"]));
     }}
 }}

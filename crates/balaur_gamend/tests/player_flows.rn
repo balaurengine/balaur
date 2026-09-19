@@ -8,7 +8,6 @@ const DEVICE = "@DEVICE@";
 const TAG = "@TAG@";
 const B_ID = "@B_ID@";
 const B_TOKEN = "@B_TOKEN@";
-const API = "addons/gamend/api.rn";
 /// A live server limits calls per minute; a flow waits out a 429.
 const LIMITED_WAIT = 15.0;
 const LIMITED_TRIES = 6;
@@ -44,21 +43,20 @@ pub async fn init(this) {
 }
 
 async fn profile(this, steps, me) {
-    let api = script::require(API);
     let name = `Tester ${TAG}`;
     let user = TAG;
-    call(steps, "me", || (api.users_get_current_user)(())).await;
-    call(steps, "display_name", || (api.users_update_current_user_display_name)((), #{ "display_name": name })).await;
-    call(steps, "username", || (api.users_update_current_user_username)((), #{ "username": user })).await;
-    let mine = data(call(steps, "me_again", || (api.users_get_current_user)(())).await);
+    call(steps, "me", || gamend::users::get_current_user(())).await;
+    call(steps, "display_name", || gamend::users::update_current_user_display_name((), #{ "display_name": name })).await;
+    call(steps, "username", || gamend::users::update_current_user_username((), #{ "username": user })).await;
+    let mine = data(call(steps, "me_again", || gamend::users::get_current_user(())).await);
     check(steps, "renamed", same(field(mine, "display_name"), name) && same(field(mine, "username"), user));
-    let public = data(call(steps, "get_user", || (api.users_get_user)((), me)).await);
+    let public = data(call(steps, "get_user", || gamend::users::get_user((), me)).await);
     check(steps, "public_name", same(field(public, "display_name"), name));
-    let found = data(call(steps, "search", || (api.users_search_users)((), #{ "q": user })).await);
+    let found = data(call(steps, "search", || gamend::users::search_users((), #{ "q": user })).await);
     check(steps, "found", has(found, "id", me));
 
     let session = gamend::session();
-    let fresh = data(call(steps, "refresh", || (api.authentication_refresh_token)((), #{ "refresh_token": session["refresh_token"] })).await);
+    let fresh = data(call(steps, "refresh", || gamend::authentication::refresh_token((), #{ "refresh_token": session["refresh_token"] })).await);
     check(steps, "refreshed", field(fresh, "access_token") is String);
 
     // A token the server will not take heals: a call refreshes on its 401,
@@ -66,7 +64,7 @@ async fn profile(this, steps, me) {
     let kept = gamend::session();
     kept["access_token"] = "stale";
     gamend::restore(kept);
-    call(steps, "healed", || (api.users_get_current_user)(())).await;
+    call(steps, "healed", || gamend::users::get_current_user(())).await;
     let token = field(gamend::session(), "access_token");
     check(steps, "renewed", token is String && token != "stale");
     gamend::restore(kept);
@@ -76,231 +74,233 @@ async fn profile(this, steps, me) {
 
     // Linking moves the account to the new device; the old one is a stranger.
     let second = `${DEVICE}-2`;
-    call(steps, "link_device", || (api.authentication_link_device)((), #{ "device_id": second })).await;
+    call(steps, "link_device", || gamend::authentication::link_device((), #{ "device_id": second })).await;
     let moved = sign_in(second).await;
     check(steps, "linked", same(field(moved, "user_id"), me));
-    call(steps, "unlink_last", || (api.authenticate_unlink_device)(())).await;
+    call(steps, "unlink_last", || gamend::authentication::unlink_device(())).await;
 
     // A new password signs every session out, this one included.
     let password = `pw-${TAG}-long`;
-    call(steps, "set_password", || (api.user_update_current_user_password)((), #{ "password": password })).await;
-    call(steps, "signed_out", || (api.users_get_current_user)(())).await;
+    call(steps, "set_password", || gamend::users::update_current_user_password((), #{ "password": password })).await;
+    call(steps, "signed_out", || gamend::users::get_current_user(())).await;
     sign_in(second).await;
-    call(steps, "delete_refused", || (api.user_delete_current_user)((), ())).await;
+    call(steps, "delete_refused", || gamend::users::delete_current_user((), ())).await;
     goodbye(steps, me, #{ "current_password": password }).await;
 }
 
 async fn lobby(this, steps, me) {
-    let api = script::require(API);
     let title = `lobby ${TAG}`;
-    let made = data(call(steps, "create", || (api.lobbies_create_lobby)((), #{ "title": title, "max_users": 4, "metadata": #{ "mode": "duel" } })).await);
+    let made = data(call(steps, "create", || gamend::lobbies::create_lobby((), #{ "title": title, "max_users": 4, "metadata": #{ "mode": "duel" } })).await);
     let id = field(made, "id");
     this.socket = gamend::connect(this.node);
     check(steps, "socket_open", heard(this, "open").await);
     let joined = task::wait(gamend::join(this.socket, `lobby:${id}`)).await;
     check(steps, "channel_joined", same(field(joined, "status"), "ok"));
-    let got = data(call(steps, "get", || (api.lobbies_get_lobby)((), id)).await);
+    let got = data(call(steps, "get", || gamend::lobbies::get_lobby((), id)).await);
     check(steps, "hosted", same(field(got, "host_id"), me));
-    let listed = data(call(steps, "list", || (api.lobbies_list_lobbies)((), #{ "title": title })).await);
+    let listed = data(call(steps, "list", || gamend::lobbies::list_lobbies((), #{ "title": title })).await);
     check(steps, "listed", has(listed, "id", id));
     let renamed = `renamed ${TAG}`;
-    let updated = data(call(steps, "update", || (api.lobbies_update_lobby)((), #{ "title": renamed, "metadata": #{ "mode": "ffa" } })).await);
+    let updated = data(call(steps, "update", || gamend::lobbies::update_lobby((), #{ "title": renamed, "metadata": #{ "mode": "ffa" } })).await);
     check(steps, "updated", same(field(updated, "title"), renamed) && same(field(field(updated, "metadata"), "mode"), "ffa"));
-    let playing = data(call(steps, "state", || (api.lobbies_set_lobby_state)((), #{ "state": "playing" })).await);
+    let playing = data(call(steps, "state", || gamend::lobbies::set_lobby_state((), #{ "state": "playing" })).await);
     check(steps, "playing", same(field(playing, "state"), "playing"));
     as_b(steps, "join", "POST", `/api/v1/lobbies/${id}/join`, #{}).await;
-    let full = data(call(steps, "get_full", || (api.lobbies_get_lobby)((), id)).await);
+    let full = data(call(steps, "get_full", || gamend::lobbies::get_lobby((), id)).await);
     check(steps, "two", count(field(full, "members")) == 2);
 
-    let sent = data(call(steps, "chat_send", || (api.chat_send_chat_message)((), #{ "chat_type": "lobby", "chat_ref_id": id, "content": "gg" })).await);
+    let sent = data(call(steps, "chat_send", || gamend::chat::send_chat_message((), #{ "chat_type": "lobby", "chat_ref_id": id, "content": "gg" })).await);
     let message = field(sent, "id");
     let unread = data(as_b(steps, "unread", "GET", `/api/v1/chat/unread?chat_type=lobby&chat_ref_id=${id}`, ()).await);
     check(steps, "b_unread_one", same(field(unread, "unread_count"), 1));
-    let history = data(call(steps, "chat_list", || (api.chat_list_chat_messages)((), #{ "chat_type": "lobby", "chat_ref_id": id })).await);
+    let history = data(call(steps, "chat_list", || gamend::chat::list_chat_messages((), #{ "chat_type": "lobby", "chat_ref_id": id })).await);
     check(steps, "chat_listed", has(history, "id", message));
-    call(steps, "chat_edit", || (api.chat_update_chat_message)((), message, #{ "content": "good game" })).await;
-    let edited = data(call(steps, "chat_get", || (api.chat_get_chat_message)((), message)).await);
+    call(steps, "chat_edit", || gamend::chat::update_chat_message((), message, #{ "content": "good game" })).await;
+    let edited = data(call(steps, "chat_get", || gamend::chat::get_chat_message((), message)).await);
     check(steps, "chat_edited", same(field(edited, "content"), "good game"));
-    call(steps, "chat_read", || (api.chat_mark_chat_read)((), #{ "chat_type": "lobby", "chat_ref_id": id, "message_id": message })).await;
-    call(steps, "chat_delete", || (api.chat_delete_chat_message)((), message)).await;
+    call(steps, "chat_read", || gamend::chat::mark_chat_read((), #{ "chat_type": "lobby", "chat_ref_id": id, "message_id": message })).await;
+    call(steps, "chat_delete", || gamend::chat::delete_chat_message((), message)).await;
 
-    call(steps, "ready_open", || (api.ready_checks_open_lobby)((), #{ "timeout_ms": 30000 })).await;
+    call(steps, "ready_open", || gamend::ready_checks::open_lobby_ready_check((), #{ "timeout_ms": 30000 })).await;
     let answer = data(as_b(steps, "ready", "POST", "/api/v1/me/ready_check", #{ "ready": true, "scope": "lobby" }).await);
     check(steps, "ready_passed", same(field(answer, "status"), "passed"));
-    call(steps, "mute", || (api.chat_mute_lobby_member)((), #{ "target_user_id": B_ID })).await;
-    let mutes = data(call(steps, "mutes", || (api.chat_list_lobby_mutes)((), #{})).await);
+    call(steps, "mute", || gamend::chat::mute_lobby_member((), #{ "target_user_id": B_ID })).await;
+    let mutes = data(call(steps, "mutes", || gamend::chat::list_lobby_mutes((), #{})).await);
     check(steps, "b_muted", has(mutes, "user_id", B_ID));
-    call(steps, "unmute", || (api.chat_unmute_lobby_member)((), #{ "target_user_id": B_ID })).await;
-    call(steps, "kick", || (api.lobbies_kick_user)((), #{ "target_user_id": B_ID })).await;
-    let kicked = data(call(steps, "get_kicked", || (api.lobbies_get_lobby)((), id)).await);
+    call(steps, "unmute", || gamend::chat::unmute_lobby_member((), #{ "target_user_id": B_ID })).await;
+    call(steps, "kick", || gamend::lobbies::kick_user((), #{ "target_user_id": B_ID })).await;
+    let kicked = data(call(steps, "get_kicked", || gamend::lobbies::get_lobby((), id)).await);
     check(steps, "one", count(field(kicked, "members")) == 1);
-    for kind in ["lobby_updated", "lobby_state_changed", "lobby_member_joined", "lobby_chat_message", "ready_check_passed", "lobby_member_kicked"] {
+    let expected = [
+        gamend::events::lobby::UPDATED,
+        gamend::events::lobby::STATE_CHANGED,
+        gamend::events::lobby::MEMBER_JOINED,
+        gamend::events::lobby::CHAT_MESSAGE,
+        gamend::events::lobby::READY_CHECK_PASSED,
+        gamend::events::lobby::MEMBER_KICKED,
+    ];
+    for kind in expected {
         check(steps, `heard_${kind}`, heard(this, kind).await);
     }
     gamend::close(this.socket);
-    call(steps, "leave", || (api.lobbies_leave_lobby)(())).await;
-    call(steps, "gone", || (api.lobbies_get_lobby)((), id)).await;
+    call(steps, "leave", || gamend::lobbies::leave_lobby(())).await;
+    call(steps, "gone", || gamend::lobbies::get_lobby((), id)).await;
 
-    let quick = data(call(steps, "quick_join", || (api.lobbies_quick_join)((), #{ "title": `quick ${TAG}`, "max_users": 2 })).await);
-    call(steps, "disband", || (api.lobbies_disband_lobby)(())).await;
-    call(steps, "quick_gone", || (api.lobbies_get_lobby)((), field(quick, "id"))).await;
-    call(steps, "stats", || (api.lobbies_lobby_stats)(())).await;
+    let quick = data(call(steps, "quick_join", || gamend::lobbies::quick_join((), #{ "title": `quick ${TAG}`, "max_users": 2 })).await);
+    call(steps, "disband", || gamend::lobbies::disband_lobby(())).await;
+    call(steps, "quick_gone", || gamend::lobbies::get_lobby((), field(quick, "id"))).await;
+    call(steps, "stats", || gamend::lobbies::lobby_stats(())).await;
     goodbye(steps, me, ()).await;
 }
 
 async fn friends(steps, me) {
-    let api = script::require(API);
     let asked = data(as_b(steps, "befriend", "POST", "/api/v1/friends", #{ "target_user_id": me }).await);
     let friendship = field(asked, "id");
-    let requests = data(call(steps, "requests", || (api.friends_list_friend_requests)((), #{})).await);
+    let requests = data(call(steps, "requests", || gamend::friends::list_friend_requests((), #{})).await);
     check(steps, "incoming", has(field(requests, "incoming"), "id", friendship));
-    call(steps, "accept", || (api.friends_accept_friend_request)((), friendship)).await;
-    let listed = data(call(steps, "friends", || (api.friends_list_friends)((), #{})).await);
+    call(steps, "accept", || gamend::friends::accept_friend_request((), friendship)).await;
+    let listed = data(call(steps, "friends", || gamend::friends::list_friends((), #{})).await);
     check(steps, "befriended", has(listed, "id", B_ID));
 
-    let note = data(call(steps, "notify", || (api.notifications_send_notification)((), #{ "user_id": B_ID, "title": `hello ${TAG}`, "content": "gg" })).await);
+    let note = data(call(steps, "notify", || gamend::notifications::send_notification((), #{ "user_id": B_ID, "title": `hello ${TAG}`, "content": "gg" })).await);
     let note_id = field(note, "id");
     let inbox = data(as_b(steps, "inbox", "GET", "/api/v1/notifications", ()).await);
     check(steps, "delivered", has(inbox, "id", note_id));
     as_b(steps, "dismiss", "DELETE", "/api/v1/notifications", #{ "ids": [note_id] }).await;
-    call(steps, "own_inbox", || (api.notifications_list_notifications)((), #{})).await;
+    call(steps, "own_inbox", || gamend::notifications::list_notifications((), #{})).await;
 
-    call(steps, "unfriend", || (api.friends_remove_friendship)((), friendship)).await;
-    call(steps, "block", || (api.friends_block_user)((), B_ID)).await;
-    let blocked = data(call(steps, "blacklist", || (api.friends_list_blacklisted_users)((), #{})).await);
+    call(steps, "unfriend", || gamend::friends::remove_friendship((), friendship)).await;
+    call(steps, "block", || gamend::friends::block_user((), B_ID)).await;
+    let blocked = data(call(steps, "blacklist", || gamend::friends::list_blacklisted_users((), #{})).await);
     check(steps, "b_blocked", has(blocked, "id", B_ID));
-    call(steps, "unblock", || (api.friends_unblock_user)((), B_ID)).await;
+    call(steps, "unblock", || gamend::friends::unblock_user((), B_ID)).await;
     // Parties and groups invite friends only.
     let again = data(as_b(steps, "befriend_again", "POST", "/api/v1/friends", #{ "target_user_id": me }).await);
-    call(steps, "accept_again", || (api.friends_accept_friend_request)((), field(again, "id"))).await;
+    call(steps, "accept_again", || gamend::friends::accept_friend_request((), field(again, "id"))).await;
 }
 
 async fn party(steps) {
-    let api = script::require(API);
-    let made = data(call(steps, "party", || (api.parties_create_party)((), #{ "max_size": 4 })).await);
+    let made = data(call(steps, "party", || gamend::parties::create_party((), #{ "max_size": 4 })).await);
     let party_id = field(made, "id");
-    call(steps, "invite", || (api.parties_invite_to_party)((), #{ "target_user_id": B_ID })).await;
-    let sent = data(call(steps, "sent", || (api.parties_list_sent_party_invitations)((), #{})).await);
+    call(steps, "invite", || gamend::parties::invite_to_party((), #{ "target_user_id": B_ID })).await;
+    let sent = data(call(steps, "sent", || gamend::parties::list_sent_party_invitations((), #{})).await);
     check(steps, "invite_sent", has(sent, "party_id", party_id));
     as_b(steps, "join_party", "POST", "/api/v1/parties/invite/accept", #{ "party_id": party_id }).await;
-    let shown = data(call(steps, "show", || (api.parties_show_party)(())).await);
+    let shown = data(call(steps, "show", || gamend::parties::show_party(())).await);
     check(steps, "party_of_two", count(field(shown, "members")) == 2);
-    call(steps, "party_update", || (api.parties_update_party)((), #{ "metadata": #{ "mode": "duel" } })).await;
-    call(steps, "ready_open", || (api.ready_checks_open_party)((), #{ "timeout_ms": 30000 })).await;
+    call(steps, "party_update", || gamend::parties::update_party((), #{ "metadata": #{ "mode": "duel" } })).await;
+    call(steps, "ready_open", || gamend::ready_checks::open_party_ready_check((), #{ "timeout_ms": 30000 })).await;
     let answer = data(as_b(steps, "ready", "POST", "/api/v1/me/ready_check", #{ "ready": true, "scope": "party" }).await);
     check(steps, "ready_passed", same(field(answer, "status"), "passed"));
-    let lobby = data(call(steps, "party_lobby", || (api.parties_party_create_lobby)((), #{ "title": `party ${TAG}`, "max_users": 4 })).await);
+    let lobby = data(call(steps, "party_lobby", || gamend::parties::party_create_lobby((), #{ "title": `party ${TAG}`, "max_users": 4 })).await);
     let b_me = data(as_b(steps, "me", "GET", "/api/v1/me", ()).await);
     check(steps, "b_followed", same(field(b_me, "lobby_id"), field(lobby, "id")));
     as_b(steps, "leave_lobby", "POST", "/api/v1/lobbies/leave", ()).await;
-    call(steps, "leave_lobby", || (api.lobbies_leave_lobby)(())).await;
-    call(steps, "party_kick", || (api.parties_kick_party_member)((), #{ "target_user_id": B_ID })).await;
-    call(steps, "disband", || (api.parties_disband_party)(())).await;
+    call(steps, "leave_lobby", || gamend::lobbies::leave_lobby(())).await;
+    call(steps, "party_kick", || gamend::parties::kick_party_member((), #{ "target_user_id": B_ID })).await;
+    call(steps, "disband", || gamend::parties::disband_party(())).await;
 }
 
 async fn groups(steps) {
-    let api = script::require(API);
     let title = `group ${TAG}`;
-    let made = data(call(steps, "group", || (api.groups_create_group)((), #{ "title": title, "type": "private" })).await);
+    let made = data(call(steps, "group", || gamend::groups::create_group((), #{ "title": title, "type": "private" })).await);
     let id = field(made, "id");
-    call(steps, "group_invite", || (api.groups_invite_to_group)((), id, #{ "target_user_id": B_ID })).await;
+    call(steps, "group_invite", || gamend::groups::invite_to_group((), id, #{ "target_user_id": B_ID })).await;
     let invites = data(as_b(steps, "invites", "GET", "/api/v1/groups/invitations", ()).await);
     let invite = field(first_with(invites, "group_id", id), "id");
     as_b(steps, "join_group", "POST", `/api/v1/groups/invitations/${invite}/accept`, ()).await;
-    let members = data(call(steps, "members", || (api.groups_list_group_members)((), id, #{})).await);
+    let members = data(call(steps, "members", || gamend::groups::list_group_members((), id, #{})).await);
     check(steps, "group_of_two", count(members) == 2);
-    let mine = data(call(steps, "my_groups", || (api.groups_list_my_groups)((), #{})).await);
+    let mine = data(call(steps, "my_groups", || gamend::groups::list_my_groups((), #{})).await);
     check(steps, "mine", has(mine, "id", id));
-    call(steps, "group_update", || (api.groups_update_group)((), id, #{ "description": "test" })).await;
-    call(steps, "promote", || (api.groups_promote_group_member)((), id, #{ "target_user_id": B_ID })).await;
-    call(steps, "demote", || (api.groups_demote_group_member)((), id, #{ "target_user_id": B_ID })).await;
-    call(steps, "group_mute", || (api.chat_mute_group_member)((), id, #{ "target_user_id": B_ID })).await;
-    let mutes = data(call(steps, "group_mutes", || (api.chat_list_group_mutes)((), id, #{})).await);
+    call(steps, "group_update", || gamend::groups::update_group((), id, #{ "description": "test" })).await;
+    call(steps, "promote", || gamend::groups::promote_group_member((), id, #{ "target_user_id": B_ID })).await;
+    call(steps, "demote", || gamend::groups::demote_group_member((), id, #{ "target_user_id": B_ID })).await;
+    call(steps, "group_mute", || gamend::chat::mute_group_member((), id, #{ "target_user_id": B_ID })).await;
+    let mutes = data(call(steps, "group_mutes", || gamend::chat::list_group_mutes((), id, #{})).await);
     check(steps, "b_muted", has(mutes, "user_id", B_ID));
-    call(steps, "group_unmute", || (api.chat_unmute_group_member)((), id, #{ "target_user_id": B_ID })).await;
-    call(steps, "group_chat", || (api.chat_send_chat_message)((), #{ "chat_type": "group", "chat_ref_id": id, "content": "gm" })).await;
+    call(steps, "group_unmute", || gamend::chat::unmute_group_member((), id, #{ "target_user_id": B_ID })).await;
+    call(steps, "group_chat", || gamend::chat::send_chat_message((), #{ "chat_type": "group", "chat_ref_id": id, "content": "gm" })).await;
     let unread = data(as_b(steps, "unread", "GET", `/api/v1/chat/unread?chat_type=group&chat_ref_id=${id}`, ()).await);
     check(steps, "b_unread_one", same(field(unread, "unread_count"), 1));
-    call(steps, "group_kick", || (api.groups_kick_group_member)((), id, #{ "target_user_id": B_ID })).await;
-    call(steps, "group_leave", || (api.groups_leave_group)((), id)).await;
-    let left = data(call(steps, "group_gone", || (api.groups_list_groups)((), #{ "title": title })).await);
+    call(steps, "group_kick", || gamend::groups::kick_group_member((), id, #{ "target_user_id": B_ID })).await;
+    call(steps, "group_leave", || gamend::groups::leave_group((), id)).await;
+    let left = data(call(steps, "group_gone", || gamend::groups::list_groups((), #{ "title": title })).await);
     check(steps, "no_group", count(left) == 0);
 
     // A private group takes a join request, which its admin approves.
     let asked_title = `asked ${TAG}`;
-    let asked = data(call(steps, "asked_group", || (api.groups_create_group)((), #{ "title": asked_title, "type": "private" })).await);
+    let asked = data(call(steps, "asked_group", || gamend::groups::create_group((), #{ "title": asked_title, "type": "private" })).await);
     let asked_id = field(asked, "id");
     let request = data(as_b(steps, "ask", "POST", `/api/v1/groups/${asked_id}/join`, ()).await);
-    let pending = data(call(steps, "join_requests", || (api.groups_list_join_requests)((), asked_id, #{})).await);
+    let pending = data(call(steps, "join_requests", || gamend::groups::list_join_requests((), asked_id, #{})).await);
     check(steps, "pending", has(pending, "id", field(request, "id")));
-    call(steps, "approve", || (api.groups_approve_join_request)((), asked_id, field(request, "id"))).await;
+    call(steps, "approve", || gamend::groups::approve_join_request((), asked_id, field(request, "id"))).await;
     as_b(steps, "leave_asked", "POST", `/api/v1/groups/${asked_id}/leave`, ()).await;
-    call(steps, "leave_asked", || (api.groups_leave_group)((), asked_id)).await;
-    let asked_left = data(call(steps, "asked_gone", || (api.groups_list_groups)((), #{ "title": asked_title })).await);
+    call(steps, "leave_asked", || gamend::groups::leave_group((), asked_id)).await;
+    let asked_left = data(call(steps, "asked_gone", || gamend::groups::list_groups((), #{ "title": asked_title })).await);
     check(steps, "no_asked_group", count(asked_left) == 0);
 }
 
 async fn catalog(steps, me) {
-    let api = script::require(API);
-    call(steps, "wallet", || (api.economy_get_current_user_wallet)(())).await;
-    call(steps, "inventory", || (api.economy_get_current_user_inventory)(())).await;
-    call(steps, "ledger", || (api.economy_list_current_user_ledger)((), #{})).await;
-    call(steps, "quests", || (api.quests_list_quests)((), #{})).await;
-    call(steps, "my_quests", || (api.quests_my_quests)((), #{})).await;
-    call(steps, "user_quests", || (api.quests_user_quests)((), me, #{})).await;
-    call(steps, "quest_stats", || (api.quests_quest_stats)(())).await;
-    call(steps, "store", || (api.payments_catalog)((), #{})).await;
-    call(steps, "entitlements", || (api.payments_entitlements)((), #{})).await;
-    call(steps, "kv_missing", || (api.kv_get_kv)((), `missing-${TAG}`, #{})).await;
-    call(steps, "log_policy", || (api.client_logs_get_client_log_policy)(())).await;
-    call(steps, "hooks", || (api.hooks_list_hooks)((), #{})).await;
-    let now = data(call(steps, "time", || (api.time_get_server_time)(())).await);
+    call(steps, "wallet", || gamend::economy::get_current_user_wallet(())).await;
+    call(steps, "inventory", || gamend::economy::get_current_user_inventory(())).await;
+    call(steps, "ledger", || gamend::economy::list_current_user_ledger((), #{})).await;
+    call(steps, "quests", || gamend::quests::list_quests((), #{})).await;
+    call(steps, "my_quests", || gamend::quests::my_quests((), #{})).await;
+    call(steps, "user_quests", || gamend::quests::user_quests((), me, #{})).await;
+    call(steps, "quest_stats", || gamend::quests::quest_stats(())).await;
+    call(steps, "store", || gamend::payments::catalog((), #{})).await;
+    call(steps, "entitlements", || gamend::payments::entitlements((), #{})).await;
+    call(steps, "kv_missing", || gamend::kv::get_kv((), `missing-${TAG}`, #{})).await;
+    call(steps, "log_policy", || gamend::client_logs::get_client_log_policy(())).await;
+    call(steps, "hooks", || gamend::hooks::list_hooks((), #{})).await;
+    let now = data(call(steps, "time", || gamend::time::get_server_time(())).await);
     check(steps, "clock", field(now, "server_now") is i64);
-    call(steps, "stats", || (api.stats_get_stats)(())).await;
-    call(steps, "user_stats", || (api.user_user_stats)(())).await;
-    call(steps, "signaling", || (api.signaling_stats)(())).await;
-    call(steps, "providers", || (api.authenticate_list_auth_providers)(())).await;
-    call(steps, "health", || (api.health_index)(())).await;
-    call(steps, "party_invites", || (api.parties_list_party_invitations)((), #{})).await;
-    call(steps, "group_invites", || (api.groups_list_group_invitations)((), #{})).await;
-    call(steps, "party_stats", || (api.parties_party_stats)(())).await;
+    call(steps, "stats", || gamend::stats::get_stats(())).await;
+    call(steps, "user_stats", || gamend::users::user_stats(())).await;
+    call(steps, "signaling", || gamend::signaling::stats(())).await;
+    call(steps, "providers", || gamend::authentication::list_auth_providers(())).await;
+    call(steps, "health", || gamend::health::index(())).await;
+    call(steps, "party_invites", || gamend::parties::list_party_invitations((), #{})).await;
+    call(steps, "group_invites", || gamend::groups::list_group_invitations((), #{})).await;
+    call(steps, "party_stats", || gamend::parties::party_stats(())).await;
 
-    let boards = data(call(steps, "boards", || (api.leaderboards_list_leaderboards)((), #{})).await);
+    let boards = data(call(steps, "boards", || gamend::leaderboards::list_leaderboards((), #{})).await);
     let board = field(first_with(boards, "", ""), "id");
-    call(steps, "board", || (api.leaderboards_get_leaderboard)((), board)).await;
-    call(steps, "records", || (api.leaderboards_list_leaderboard_records)((), board, #{})).await;
-    call(steps, "my_record", || (api.leaderboards_get_my_record)((), board)).await;
-    call(steps, "around_me", || (api.leaderboards_list_records_around_user)((), board, me, #{})).await;
-    call(steps, "resolve", || (api.leaderboards_resolve_leaderboard_slugs)((), #{ "slugs": [`missing-${TAG}`] })).await;
+    call(steps, "board", || gamend::leaderboards::get_leaderboard((), board)).await;
+    call(steps, "records", || gamend::leaderboards::list_leaderboard_records((), board, #{})).await;
+    call(steps, "my_record", || gamend::leaderboards::get_my_record((), board)).await;
+    call(steps, "around_me", || gamend::leaderboards::list_records_around_user((), board, me, #{})).await;
+    call(steps, "resolve", || gamend::leaderboards::resolve_leaderboard_slugs((), #{ "slugs": [`missing-${TAG}`] })).await;
 
-    let open = data(call(steps, "tournaments", || (api.tournaments_list_tournaments)((), #{ "state": "registration" })).await);
+    let open = data(call(steps, "tournaments", || gamend::tournaments::list_tournaments((), #{ "state": "registration" })).await);
     let cup = field(first_with(open, "", ""), "id");
-    call(steps, "cup", || (api.tournaments_get_tournament)((), cup)).await;
-    let entry = data(call(steps, "enter", || (api.tournaments_join_tournament)((), cup)).await);
-    let entries = data(call(steps, "entries", || (api.tournaments_tournament_entries)((), cup, #{})).await);
+    call(steps, "cup", || gamend::tournaments::get_tournament((), cup)).await;
+    let entry = data(call(steps, "enter", || gamend::tournaments::join_tournament((), cup)).await);
+    let entries = data(call(steps, "entries", || gamend::tournaments::tournament_entries((), cup, #{})).await);
     check(steps, "entered", has(entries, "id", field(entry, "id")) && same(field(entry, "leader_id"), me));
-    call(steps, "my_match", || (api.tournaments_tournament_my_match)((), cup)).await;
-    call(steps, "standings", || (api.tournaments_tournament_standings)((), cup)).await;
-    call(steps, "withdraw", || (api.tournaments_leave_tournament)((), cup)).await;
+    call(steps, "my_match", || gamend::tournaments::tournament_my_match((), cup)).await;
+    call(steps, "standings", || gamend::tournaments::tournament_standings((), cup)).await;
+    call(steps, "withdraw", || gamend::tournaments::leave_tournament((), cup)).await;
 
-    let token = data(call(steps, "push_register", || (api.push_register_push_token)((), #{ "platform": "android", "token": `t-${TAG}` })).await);
-    let tokens = data(call(steps, "push_list", || (api.push_list_push_tokens)((), #{})).await);
+    let token = data(call(steps, "push_register", || gamend::push_tokens::register_push_token((), #{ "platform": "android", "token": `t-${TAG}` })).await);
+    let tokens = data(call(steps, "push_list", || gamend::push_tokens::list_push_tokens((), #{})).await);
     check(steps, "push_listed", has(tokens, "id", field(token, "id")));
-    call(steps, "push_delete", || (api.push_delete_push_token)((), field(token, "id"))).await;
+    call(steps, "push_delete", || gamend::push_tokens::delete_push_token((), field(token, "id"))).await;
     // No ticket: a 404 from a current server, an empty 200 from an older one.
-    let ticket = fetch(|| (api.matchmaking_my_ticket)(())).await;
+    let ticket = fetch(|| gamend::matchmaking::my_ticket(())).await;
     check(steps, "no_ticket", same(field(ticket, "status"), 404) || data(ticket) is Tuple);
-    call(steps, "cancel", || (api.matchmaking_cancel)(())).await;
-    call(steps, "queues", || (api.matchmaking_stats)(())).await;
+    call(steps, "cancel", || gamend::matchmaking::cancel(())).await;
+    call(steps, "queues", || gamend::matchmaking::stats(())).await;
     goodbye(steps, me, ()).await;
 }
 
-/// Every socket event, named as `events.rn` names it, for `heard`.
+/// Every socket event, named as `gamend::events::decode` names it, for `heard`.
 pub fn on_gamend_event(this, e) {
     let kind = e["kind"];
     if kind == "message" {
-        let events = script::require("addons/gamend/events.rn");
-        kind = (events.decode)(e["topic"], e["event"], e["payload"])["kind"];
+        kind = gamend::events::decode(e["topic"], e["event"], e["payload"])["kind"];
     }
     this.heard.push(kind);
 }
@@ -328,8 +328,7 @@ async fn heard(this, kind) {
 
 /// Delete the account and prove it: nobody can look it up any more.
 async fn goodbye(steps, me, params) {
-    let api = script::require(API);
-    call(steps, "delete", || (api.user_delete_current_user)((), params)).await;
+    call(steps, "delete", || gamend::users::delete_current_user((), params)).await;
     send(steps, "lookup_deleted", "", "GET", `/api/v1/users/${me}`, ()).await;
 }
 

@@ -1,0 +1,37 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Push: one function per operation, as `gamend::admin_push::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Delete a device push token (admin)
+/// `DELETE /api/v1/admin/push/tokens/{id}`
+pub fn delete_push_token(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/push/tokens/${id}`)
+}
+
+/// List registered device push tokens (admin)
+/// `GET /api/v1/admin/push/tokens`
+pub fn list_push_tokens(node, options) {
+    let query = gamend::core::query(options, ["user_id", "platform", "provider", "status", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/push/tokens${query}`)
+}
+
+/// Send a push notification to a user (admin)
+/// `POST /api/v1/admin/push/send`
+pub fn send_push(node, params) {
+    if !gamend::core::given(params, "user_id") {
+        return gamend::core::missing("gamend::admin_push::send_push", "user_id");
+    }
+    if !gamend::core::given(params, "title") {
+        return gamend::core::missing("gamend::admin_push::send_push", "title");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/push/send", params)
+}

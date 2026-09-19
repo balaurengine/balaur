@@ -2,9 +2,6 @@
 // an email; every provider is an OAuth session the player finishes in a
 // browser and this polls until it resolves, then keeps in a `save::` slot.
 
-const CORE = "addons/gamend/core.rn";
-const API = "addons/gamend/api.rn";
-
 /// The save slot the session is kept in.
 pub const SLOT = "gamend";
 
@@ -15,66 +12,102 @@ pub const POLL_SECONDS = 1.0;
 
 /// The providers this server offers, as `list_auth_providers` reports them.
 pub async fn providers(node) {
-    let core = script::require(CORE);
-    let api = script::require(API);
-    let reply = task::wait((api.authenticate_list_auth_providers)(node)).await;
-    if !(core.ok)(reply) {
-        log::warn((core.error_of)(reply));
+    let reply = task::wait(gamend::authentication::list_auth_providers(node)).await;
+    if !gamend::core::ok(reply) {
+        log::warn(gamend::core::error_of(reply));
         return [];
     }
-    let body = (core.body)(reply);
-    if body is Vec {
-        return body;
-    }
-    if body is Object && body.contains_key("data") {
-        return body["data"];
+    let providers = data_of(gamend::core::body(reply));
+    if providers is Vec {
+        return providers;
     }
     return [];
 }
 
 /// Sign in with a provider: open its page, then wait for the server to say
-/// the session resolved. Answers the session payload, or nil when the
-/// player gave up or the wait ran out.
+/// the session resolved. Signs in with the tokens it carries, keeps them for
+/// the next run, and answers them; nil when the player gave up, the provider
+/// refused, or the wait ran out. Always a sign-in, even for a player signed
+/// in already: `link` adds a provider to their account instead.
 pub async fn sign_in(node, provider) {
-    let core = script::require(CORE);
-    let api = script::require(API);
-    let started = task::wait((api.authenticate_oauth_request)(node, #{
-        "provider": provider,
-    })).await;
-    if !(core.ok)(started) {
-        log::warn((core.error_of)(started));
+    let status = provider_page(
+        node,
+        provider,
+        |node| gamend::authentication::oauth_request(node, provider),
+        |node, session| gamend::authentication::oauth_session_status(node, session),
+    ).await;
+    if !(status is Object) {
         return ();
     }
-    let body = (core.body)(started);
-    if !(body is Object) {
+    // The tokens ride under `session`, once; signing in from them is what
+    // `restore` does for a kept session, so a fresh one goes the same way.
+    let session = status["session"];
+    if !(session is Object) {
+        log::warn(`gamend: ${provider} sign-in completed without a session`);
         return ();
     }
-    let url = format!("{}", body["url"]);
-    let session = format!("{}", body["session_id"]);
-    engine::open_url(url);
+    gamend::restore(session);
+    keep(session);
+    return session;
+}
+
+/// Link a provider to the signed-in account: open its page, then wait for
+/// the server to say the link resolved. True once linked; the user channel's
+/// `user_updated` carries the new `linked_providers`.
+pub async fn link(node, provider) {
+    let status = provider_page(
+        node,
+        provider,
+        |node| gamend::authentication::link_provider_request(node, provider),
+        |node, session| gamend::authentication::link_session_status(node, session),
+    ).await;
+    return status is Object;
+}
+
+/// Start with `start`, open the page it answers, and ask `poll` until the
+/// player is done there. The completed status, or nil.
+async fn provider_page(node, provider, start, poll) {
+    let started = task::wait(start(node)).await;
+    if !gamend::core::ok(started) {
+        log::warn(gamend::core::error_of(started));
+        return ();
+    }
+    let started = data_of(gamend::core::body(started));
+    if !(started is Object) {
+        return ();
+    }
+    let session = format!("{}", started["session_id"]);
+    engine::open_url(format!("{}", started["authorization_url"]));
     let waited = 0.0;
     while waited < SIGN_IN_TIMEOUT {
         task::wait(POLL_SECONDS).await;
         waited += POLL_SECONDS;
-        let reply = task::wait((api.authenticate_oauth_session_status)(node, session)).await;
-        if !(core.ok)(reply) {
+        let reply = task::wait(poll(node, session)).await;
+        if !gamend::core::ok(reply) {
             continue;
         }
-        let status = (core.body)(reply);
+        let status = data_of(gamend::core::body(reply));
         if !(status is Object) {
             continue;
         }
         let state = format!("{}", status["status"]);
         if state == "completed" {
-            keep(status);
             return status;
         }
-        if state == "failed" || state == "cancelled" {
-            log::warn(`gamend: ${provider} sign-in ${state}`);
+        if state != "pending" {
+            log::warn(`gamend: ${provider} ${status["error"]}: ${status["message"]}`);
             return ();
         }
     }
-    log::warn(`gamend: ${provider} sign-in timed out`);
+    log::warn(`gamend: ${provider} timed out`);
+    return ();
+}
+
+/// What `{"data": ...}` carries, or nil for any other body.
+fn data_of(body) {
+    if body is Object && body.contains_key("data") {
+        return body["data"];
+    }
     return ();
 }
 

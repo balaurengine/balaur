@@ -1,0 +1,63 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Tournaments: one function per operation, as `gamend::tournaments::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Tournament details (with the caller's participation when authenticated)
+/// `GET /api/v1/tournaments/{id}`
+pub fn get_tournament(node, id) {
+    gamend::rest(node, "GET", `/api/v1/tournaments/${id}`)
+}
+
+/// Register as an entry leader
+/// `POST /api/v1/tournaments/{id}/join`
+pub fn join_tournament(node, id) {
+    gamend::rest(node, "POST", `/api/v1/tournaments/${id}/join`)
+}
+
+/// Withdraw the caller's entry (before the draw)
+/// `DELETE /api/v1/tournaments/{id}/join`
+pub fn leave_tournament(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/tournaments/${id}/join`)
+}
+
+/// List tournaments
+/// `GET /api/v1/tournaments`
+pub fn list_tournaments(node, options) {
+    let query = gamend::core::query(options, ["state", "slug", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/tournaments${query}`)
+}
+
+/// Brackets and their matches (paginated by bracket)
+/// `GET /api/v1/tournaments/{id}/bracket`
+pub fn tournament_bracket(node, id, options) {
+    let query = gamend::core::query(options, ["index", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/tournaments/${id}/bracket${query}`)
+}
+
+/// Registered entries (paginated)
+/// `GET /api/v1/tournaments/{id}/entries`
+pub fn tournament_entries(node, id, options) {
+    let query = gamend::core::query(options, ["state", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/tournaments/${id}/entries${query}`)
+}
+
+/// The caller's current unresolved match
+/// `GET /api/v1/tournaments/{id}/my_match`
+pub fn tournament_my_match(node, id) {
+    gamend::rest(node, "GET", `/api/v1/tournaments/${id}/my_match`)
+}
+
+/// Placements, wins and champions
+/// `GET /api/v1/tournaments/{id}/standings`
+pub fn tournament_standings(node, id) {
+    gamend::rest(node, "GET", `/api/v1/tournaments/${id}/standings`)
+}

@@ -1,0 +1,96 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Tournaments: one function per operation, as `gamend::admin_tournaments::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Cancel tournament (admin; terminal, no recurrence spawn)
+/// `POST /api/v1/admin/tournaments/{id}/cancel`
+pub fn cancel_tournament(node, id) {
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/cancel`)
+}
+
+/// Create tournament (admin)
+/// `POST /api/v1/admin/tournaments`
+pub fn create_tournament(node, params) {
+    if !gamend::core::given(params, "slug") {
+        return gamend::core::missing("gamend::admin_tournaments::create_tournament", "slug");
+    }
+    if !gamend::core::given(params, "title") {
+        return gamend::core::missing("gamend::admin_tournaments::create_tournament", "title");
+    }
+    if !gamend::core::given(params, "round_window_sec") {
+        return gamend::core::missing("gamend::admin_tournaments::create_tournament", "round_window_sec");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/tournaments", params)
+}
+
+/// Delete tournament and all its entries/matches (admin)
+/// `DELETE /api/v1/admin/tournaments/{id}`
+pub fn delete_tournament(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/tournaments/${id}`)
+}
+
+/// Draw the bracket now (admin; pulls starts_at to now)
+/// `POST /api/v1/admin/tournaments/{id}/draw`
+pub fn draw_tournament(node, id) {
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/draw`)
+}
+
+/// Finish tournament now (admin; pulls ends_at to now)
+/// `POST /api/v1/admin/tournaments/{id}/finish`
+pub fn finish_tournament(node, id) {
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/finish`)
+}
+
+/// Reopen a cancelled tournament (admin)
+/// `POST /api/v1/admin/tournaments/{id}/reopen`
+pub fn reopen_tournament(node, id) {
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/reopen`)
+}
+
+/// Force a match verdict (admin)
+/// `POST /api/v1/admin/tournaments/{id}/matches/{match_id}/resolve`
+pub fn resolve_tournament_match(node, id, match_id, params) {
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/matches/${match_id}/resolve`, params)
+}
+
+/// Confirm an uploaded tournament icon (admin)
+/// `POST /api/v1/admin/tournaments/{id}/icon`
+pub fn set_tournament_icon(node, id, params) {
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_tournaments::set_tournament_icon", "key");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/icon`, params)
+}
+
+/// Request an upload ticket for a tournament icon (admin)
+/// `POST /api/v1/admin/tournaments/{id}/icon/upload_url`
+pub fn tournament_icon_upload_url(node, id, params) {
+    if !gamend::core::given(params, "content_type") {
+        return gamend::core::missing("gamend::admin_tournaments::tournament_icon_upload_url", "content_type");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/tournaments/${id}/icon/upload_url`, params)
+}
+
+/// Update tournament (admin)
+/// `PATCH /api/v1/admin/tournaments/{id}`
+pub fn update_tournament(node, id, params) {
+    if !gamend::core::given(params, "slug") {
+        return gamend::core::missing("gamend::admin_tournaments::update_tournament", "slug");
+    }
+    if !gamend::core::given(params, "title") {
+        return gamend::core::missing("gamend::admin_tournaments::update_tournament", "title");
+    }
+    if !gamend::core::given(params, "round_window_sec") {
+        return gamend::core::missing("gamend::admin_tournaments::update_tournament", "round_window_sec");
+    }
+    gamend::rest(node, "PATCH", `/api/v1/admin/tournaments/${id}`, params)
+}

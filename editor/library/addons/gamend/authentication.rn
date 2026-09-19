@@ -1,0 +1,165 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Authentication: one function per operation, as `gamend::authentication::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Device login
+/// `POST /api/v1/login/device`
+pub fn device_login(node, params) {
+    if !gamend::core::given(params, "device_id") {
+        return gamend::core::missing("gamend::authentication::device_login", "device_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/login/device", params)
+}
+
+/// Link Apple (native iOS)
+/// `POST /api/v1/me/providers/apple/ios`
+pub fn link_apple_ios(node, params) {
+    if !gamend::core::given(params, "code") {
+        return gamend::core::missing("gamend::authentication::link_apple_ios", "code");
+    }
+    gamend::rest(node, "POST", "/api/v1/me/providers/apple/ios", params)
+}
+
+/// Link device ID
+/// `POST /api/v1/me/device`
+pub fn link_device(node, params) {
+    if !gamend::core::given(params, "device_id") {
+        return gamend::core::missing("gamend::authentication::link_device", "device_id");
+    }
+    gamend::rest(node, "POST", "/api/v1/me/device", params)
+}
+
+/// Link Google with an ID token
+/// `POST /api/v1/me/providers/google/id_token`
+pub fn link_google_id_token(node, params) {
+    if !gamend::core::given(params, "id_token") {
+        return gamend::core::missing("gamend::authentication::link_google_id_token", "id_token");
+    }
+    gamend::rest(node, "POST", "/api/v1/me/providers/google/id_token", params)
+}
+
+/// Link a provider with a code
+/// `POST /api/v1/me/providers/{provider}`
+pub fn link_provider(node, provider, params) {
+    if !gamend::core::given(params, "code") {
+        return gamend::core::missing("gamend::authentication::link_provider", "code");
+    }
+    gamend::rest(node, "POST", `/api/v1/me/providers/${provider}`, params)
+}
+
+/// Start linking a provider
+/// `POST /api/v1/me/providers/{provider}/authorize`
+pub fn link_provider_request(node, provider) {
+    gamend::rest(node, "POST", `/api/v1/me/providers/${provider}/authorize`)
+}
+
+/// Poll a provider link
+/// `GET /api/v1/me/providers/sessions/{session_id}`
+pub fn link_session_status(node, session_id) {
+    gamend::rest(node, "GET", `/api/v1/me/providers/sessions/${session_id}`)
+}
+
+/// List sign-in providers
+/// `GET /api/v1/auth/providers`
+pub fn list_auth_providers(node) {
+    gamend::rest(node, "GET", "/api/v1/auth/providers")
+}
+
+/// Login
+/// `POST /api/v1/login`
+pub fn login(node, params) {
+    if !gamend::core::given(params, "email") {
+        return gamend::core::missing("gamend::authentication::login", "email");
+    }
+    if !gamend::core::given(params, "password") {
+        return gamend::core::missing("gamend::authentication::login", "password");
+    }
+    gamend::rest(node, "POST", "/api/v1/login", params)
+}
+
+/// Logout
+/// `DELETE /api/v1/logout`
+pub fn logout(node) {
+    gamend::rest(node, "DELETE", "/api/v1/logout")
+}
+
+/// Sign in with a provider code
+/// `POST /api/v1/auth/{provider}/callback`
+pub fn oauth_api_callback(node, provider, params) {
+    if !gamend::core::given(params, "code") {
+        return gamend::core::missing("gamend::authentication::oauth_api_callback", "code");
+    }
+    gamend::rest(node, "POST", `/api/v1/auth/${provider}/callback`, params)
+}
+
+/// Sign in with Apple (native iOS)
+/// `POST /api/v1/auth/apple/ios/callback`
+pub fn oauth_callback_api_apple_ios(node, params) {
+    if !gamend::core::given(params, "code") {
+        return gamend::core::missing("gamend::authentication::oauth_callback_api_apple_ios", "code");
+    }
+    gamend::rest(node, "POST", "/api/v1/auth/apple/ios/callback", params)
+}
+
+/// Sign in with a Google ID token
+/// `POST /api/v1/auth/google/id_token`
+pub fn oauth_google_id_token(node, params) {
+    if !gamend::core::given(params, "id_token") {
+        return gamend::core::missing("gamend::authentication::oauth_google_id_token", "id_token");
+    }
+    gamend::rest(node, "POST", "/api/v1/auth/google/id_token", params)
+}
+
+/// Start a provider sign-in
+/// `GET /api/v1/auth/{provider}`
+pub fn oauth_request(node, provider) {
+    gamend::rest(node, "GET", `/api/v1/auth/${provider}`)
+}
+
+/// Poll a provider sign-in
+/// `GET /api/v1/auth/session/{session_id}`
+pub fn oauth_session_status(node, session_id) {
+    gamend::rest(node, "GET", `/api/v1/auth/session/${session_id}`)
+}
+
+/// Refresh access token
+/// `POST /api/v1/refresh`
+pub fn refresh_token(node, params) {
+    if !gamend::core::given(params, "refresh_token") {
+        return gamend::core::missing("gamend::authentication::refresh_token", "refresh_token");
+    }
+    gamend::rest(node, "POST", "/api/v1/refresh", params)
+}
+
+/// Register
+/// `POST /api/v1/register`
+pub fn register(node, params) {
+    if !gamend::core::given(params, "email") {
+        return gamend::core::missing("gamend::authentication::register", "email");
+    }
+    if !gamend::core::given(params, "password") {
+        return gamend::core::missing("gamend::authentication::register", "password");
+    }
+    gamend::rest(node, "POST", "/api/v1/register", params)
+}
+
+/// Unlink device ID
+/// `DELETE /api/v1/me/device`
+pub fn unlink_device(node) {
+    gamend::rest(node, "DELETE", "/api/v1/me/device")
+}
+
+/// Unlink OAuth provider
+/// `DELETE /api/v1/me/providers/{provider}`
+pub fn unlink_provider(node, provider) {
+    gamend::rest(node, "DELETE", `/api/v1/me/providers/${provider}`)
+}

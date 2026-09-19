@@ -1,0 +1,104 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Quests: one function per operation, as `gamend::admin_quests::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Claim a completed quest on a user's behalf (admin)
+/// `POST /api/v1/admin/quests/claim`
+pub fn claim_quest(node, params) {
+    if !gamend::core::given(params, "user_id") {
+        return gamend::core::missing("gamend::admin_quests::claim_quest", "user_id");
+    }
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_quests::claim_quest", "key");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/quests/claim", params)
+}
+
+/// Create quest (admin)
+/// `POST /api/v1/admin/quests`
+pub fn create_quest(node, params) {
+    gamend::rest(node, "POST", "/api/v1/admin/quests", params)
+}
+
+/// Delete quest and all user progress (admin)
+/// `DELETE /api/v1/admin/quests/{id}`
+pub fn delete_quest(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/quests/${id}`)
+}
+
+/// Force-complete a quest for a user (admin)
+/// `POST /api/v1/admin/quests/grant`
+pub fn grant_quest(node, params) {
+    if !gamend::core::given(params, "user_id") {
+        return gamend::core::missing("gamend::admin_quests::grant_quest", "user_id");
+    }
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_quests::grant_quest", "key");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/quests/grant", params)
+}
+
+/// List quest progress rows (admin)
+/// `GET /api/v1/admin/quests/progress`
+pub fn list_quest_progress(node, options) {
+    let query = gamend::core::query(options, ["user_id", "quest_key", "status", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/quests/progress${query}`)
+}
+
+/// List all quest definitions (admin, includes inactive/hidden)
+/// `GET /api/v1/admin/quests`
+pub fn list_quests(node, options) {
+    let query = gamend::core::query(options, ["category", "search", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/quests${query}`)
+}
+
+/// Per-status progress counts for one quest (admin)
+/// `GET /api/v1/admin/quests/{key}/funnel`
+pub fn quest_funnel(node, key) {
+    gamend::rest(node, "GET", `/api/v1/admin/quests/${key}/funnel`)
+}
+
+/// Request an upload ticket for a quest icon (admin)
+/// `POST /api/v1/admin/quests/{id}/icon/upload_url`
+pub fn quest_icon_upload_url(node, id, params) {
+    if !gamend::core::given(params, "content_type") {
+        return gamend::core::missing("gamend::admin_quests::quest_icon_upload_url", "content_type");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/quests/${id}/icon/upload_url`, params)
+}
+
+/// Reset a user's current-period quest progress (admin)
+/// `POST /api/v1/admin/quests/reset`
+pub fn reset_quest(node, params) {
+    if !gamend::core::given(params, "user_id") {
+        return gamend::core::missing("gamend::admin_quests::reset_quest", "user_id");
+    }
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_quests::reset_quest", "key");
+    }
+    gamend::rest(node, "POST", "/api/v1/admin/quests/reset", params)
+}
+
+/// Confirm an uploaded quest icon (admin)
+/// `POST /api/v1/admin/quests/{id}/icon`
+pub fn set_quest_icon(node, id, params) {
+    if !gamend::core::given(params, "key") {
+        return gamend::core::missing("gamend::admin_quests::set_quest_icon", "key");
+    }
+    gamend::rest(node, "POST", `/api/v1/admin/quests/${id}/icon`, params)
+}
+
+/// Update quest (admin)
+/// `PATCH /api/v1/admin/quests/{id}`
+pub fn update_quest(node, id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/admin/quests/${id}`, params)
+}

@@ -1,22 +1,18 @@
 // Ships this run's log to Gamend: put it on a node that lives as long as the
 // game. The server comes from `[gamend]`, and its policy decides what goes.
 
-const LOGS = "addons/gamend/logs.rn";
-
 /// Where the sink reports to the Gamend dock, and where the dock asks it to
 /// flush now.
 const REPORT_KEY = "gamend:logs";
 const FLUSH_KEY = "gamend:logs_flush";
 
 pub fn init(this) {
-    let logs = script::require(LOGS);
-    this.sink = (logs.setup)(());
+    this.sink = gamend::logs::setup(());
     this.report_in = 0;
 }
 
 pub fn update(this, dt) {
-    let logs = script::require(LOGS);
-    (logs.pump)(this.sink, this.node, dt);
+    gamend::logs::pump(this.sink, this.node, dt);
     let root = scene::root();
     if root is Tuple {
         return;
@@ -24,17 +20,16 @@ pub fn update(this, dt) {
     let asked = root.meta[FLUSH_KEY];
     if asked is String && asked == "yes" {
         root.meta[FLUSH_KEY] = "";
-        (logs.flush)(this.sink, this.node);
+        gamend::logs::flush(this.sink, this.node);
     }
     // Twice a second is enough for a person reading the dock.
     this.report_in -= 1;
     if this.report_in <= 0 {
         this.report_in = 30;
-        root.meta[REPORT_KEY] = json::encode((logs.report)(this.sink));
+        root.meta[REPORT_KEY] = json::encode(gamend::logs::report(this.sink));
     }
 }
 
 pub fn on_response(this, reply) {
-    let logs = script::require(LOGS);
-    (logs.settle)(this.sink, reply);
+    gamend::logs::settle(this.sink, reply);
 }

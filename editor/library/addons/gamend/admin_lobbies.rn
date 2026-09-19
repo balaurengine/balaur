@@ -1,0 +1,31 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+
+//! Admin – Lobbies: one function per operation, as `gamend::admin_lobbies::<name>`.
+//!
+//! A call takes the node its result should reach, then the path's own
+//! parameters, then `params` for the request body and `options` for the
+//! query where the operation has them. It answers the id `gamend::rest`
+//! answers, to await with `task::wait`.
+
+
+/// Delete lobby by id (admin)
+/// `DELETE /api/v1/admin/lobbies/{id}`
+pub fn delete_lobby(node, id) {
+    gamend::rest(node, "DELETE", `/api/v1/admin/lobbies/${id}`)
+}
+
+/// List all lobbies (admin)
+/// `GET /api/v1/admin/lobbies`
+pub fn list_lobbies(node, options) {
+    let query = gamend::core::query(options, ["title", "is_hidden", "is_locked", "has_password", "min_users", "max_users", "page", "page_size"]);
+    gamend::rest(node, "GET", `/api/v1/admin/lobbies${query}`)
+}
+
+/// Update lobby by id (admin)
+/// `PATCH /api/v1/admin/lobbies/{id}`
+pub fn update_lobby(node, id, params) {
+    gamend::rest(node, "PATCH", `/api/v1/admin/lobbies/${id}`, params)
+}
