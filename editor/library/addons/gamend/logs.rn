@@ -165,7 +165,7 @@ pub fn settle(sink, reply) {
         spool(sink);
         sink.registered = true;
         let (ok, answer) = script::attempt(|| json::parse(reply["body"]));
-        let counts = if ok && answer is Object { answer } else { #{} };
+        let counts = if ok && answer is Object { unwrap(answer) } else { #{} };
         let accepted = counts.get("accepted").unwrap_or(batch.len());
         sink.accepted += accepted;
         sink.dropped = counts.get("dropped").unwrap_or(sink.dropped);
@@ -239,7 +239,17 @@ fn policy_came(sink, reply) {
         sink.state = format!("no policy ({}): asking again", describe(reply));
         return;
     }
-    apply_policy(sink, policy);
+    apply_policy(sink, unwrap(policy));
+}
+
+/// Every API answer carries its payload under `data`; a server from before
+/// that change sent it bare, so take either.
+fn unwrap(body) {
+    if body.contains_key("data") && body["data"] is Object {
+        body["data"]
+    } else {
+        body
+    }
 }
 
 /// What the server asked for: on or off, a level floor, per-category floors.
