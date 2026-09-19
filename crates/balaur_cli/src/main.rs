@@ -47,7 +47,9 @@ struct Cli {
     command: Command,
 }
 
+// Each subcommand's arguments are built only when that subcommand runs.
 #[derive(Subcommand)]
+#[command(defer = true)]
 enum Command {
     /// Create a new project directory with a starter scene and script.
     New {
