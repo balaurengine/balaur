@@ -46,7 +46,7 @@ aseprite-loader = { version = "0.4", optional = true }
 # Not optional: linking a shader is CPU work, and `eval` validates one — and
 # asserts on a `@const` function — before naga and without a GPU, which is what
 # lets a headless test catch a shader that will not link.
-wesl = { version = "0.4", features = ["eval"] }
+wesl = { version = "0.5", features = ["eval"] }
 
 # A hidden tab gets no animation frames, so the simulation is stepped on a
 # timer there instead; the page's clock and visibility come from web-sys.
