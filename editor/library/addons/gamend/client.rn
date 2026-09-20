@@ -128,6 +128,9 @@ fn forget_topics() {
 /// `#{ ok, data, error }` — the caller decides what to say about a failure,
 /// which is what the Godot client did.
 pub async fn rpc_call(socket, name, args) {
+    if !(socket is i64) {
+        return #{ "ok": false, "data": (), "error": `gamend: ${name} needs a connection` };
+    }
     let reply = task::wait(gamend::call_hook(socket, plugin(), name, args)).await;
     return unpack_hook(name, reply);
 }
@@ -136,6 +139,9 @@ pub async fn rpc_call(socket, name, args) {
 /// which is the only transport that escapes a process about to stop
 /// ticking; the caller reconciles from a later payload.
 pub fn rpc_send(socket, name, args) {
+    if !(socket is i64) {
+        return false;
+    }
     return gamend::push(socket, "user", "hook", #{
         "plugin": plugin(),
         "fn": name,
@@ -161,6 +167,9 @@ pub fn unpack_hook(name, reply) {
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
 /// when it changes, which `absorb` files into the cache.
 pub fn register_kv(socket, key) {
+    if !(socket is i64) {
+        return false;
+    }
     let held = registered();
     if !held.iter().any(|name| name == key) {
         held.push(key);
@@ -170,6 +179,9 @@ pub fn register_kv(socket, key) {
 }
 
 pub fn unregister_kv(socket, key) {
+    if !(socket is i64) {
+        return false;
+    }
     script::store(KEYS_KEY, registered().iter().filter(|name| name != key).collect::<Vec>());
     return gamend::push(socket, "user", "kv:unsubscribe", #{ "key": key });
 }
