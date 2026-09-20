@@ -132,7 +132,7 @@ three desktop platforms. Beyond `cargo test --workspace`:
 
 ## End to end, over every example
 
-`scripts/e2e.sh` runs each of the twelve examples thirty-six ways, on three
+`scripts/e2e.sh` runs each of the twelve examples thirty-eight ways, on three
 platforms:
 
 - **check** — every script a scene attaches, compiled, plus the handle calls
@@ -151,6 +151,11 @@ platforms:
   `script paths`, `assets`, `picking`, `props`, `instances`, `placing`,
   `timings`, `session`, `theme`, `selection`, `drag-in`, `events`, `library`,
   `rows`, `pen`.
+- **render**, twice — the game and the editor surface-less on a real GPU,
+  which is where a texture the backend cannot bind or a shader it rejects
+  warns. The step reads the `rendering ... offscreen` line back, so a binary
+  built without `--features window` fails rather than repeating the headless
+  run.
 
 Two bars: **a clean exit and a clean log.** A logged `ERROR` or `WARN` fails,
 bar a warning a self-test names first with `expect_warning`. The editor's
@@ -158,10 +163,10 @@ bar a warning a self-test names first with `expect_warning`. The editor's
 nodes silently had no ref, so no inspector, no gizmo, no transform read, and
 nothing else failed.
 
-Headless covers loading, mirroring, node resolution and asset rebinding, not
-drawing. `scripts/uiaudit.sh` covers drawing: one PNG per editor screen,
-offscreen, catalogued in `docs/EDITOR-SCREENS.md`. Regenerate and diff before
-reviewing a shell change.
+Headless covers loading, mirroring, node resolution and asset rebinding; the
+render steps cover what drawing reports. What a screen looks like is
+`scripts/uiaudit.sh`: one PNG per editor screen, offscreen, catalogued in
+`docs/EDITOR-SCREENS.md`. Regenerate and diff before reviewing a shell change.
 
 ## Documentation cannot drift
 

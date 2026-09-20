@@ -39,7 +39,8 @@ jobs:
         with:
           node-version: 24
       # Audio and input for the headless build; X11/Wayland/xkb for the
-      # windowed one, which links winit.
+      # windowed one, which links winit; Mesa's Vulkan for the render steps,
+      # which ask a runner with no GPU for a device.
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
@@ -50,7 +51,8 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
+            libxkbcommon-dev libwayland-dev \
+            libvulkan1 mesa-vulkan-drivers
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -76,9 +78,10 @@ jobs:
         run: |
           cargo build -p balaur_cli --no-default-features
           cargo test -p balaur_core -p balaur_physics --no-default-features
-      # examples/ are Balaur projects, not cargo examples: run, export and play
-      # each one. See scripts/e2e.sh for why all three are needed.
-      - name: E2E — run, export, play and edit every example project
+      # examples/ are Balaur projects, not cargo examples: run, export, play,
+      # edit and render each one. See scripts/e2e.sh for why all five are
+      # needed.
+      - name: E2E — run, export, play, edit and render every example project
         shell: bash
         run: ./scripts/e2e.sh
       - name: Upload pack digests

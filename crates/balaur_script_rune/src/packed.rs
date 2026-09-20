@@ -34,7 +34,7 @@ const MAGIC: &[u8; 4] = b"BLRU";
 /// reads back on a 32-bit one.
 /// 3: bincode's standard configuration in place of bincode 1's, so integers
 /// travel as varints.
-const FORMAT: u32 = 3;
+pub(crate) const FORMAT: u32 = 3;
 
 /// Serialise a compiled unit and its public signatures for the pack.
 ///
@@ -70,7 +70,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
 
 /// [`encode`]'s own encoding: bincode 2's standard one, little-endian with
 /// varint integers, so a stack offset costs the bytes it needs.
-const CONFIG: bincode::config::Configuration = bincode::config::standard();
+pub(crate) const CONFIG: bincode::config::Configuration = bincode::config::standard();
 
 /// What a length prefix inside a compiled script may ask for.
 ///
@@ -78,7 +78,7 @@ const CONFIG: bincode::config::Configuration = bincode::config::standard();
 /// validated. bincode 2 takes the bound as a const generic, so this is one
 /// ceiling rather than the exact byte count: far above any real compiled
 /// script, far below a denial of service.
-const DECODE_LIMIT: usize = 1 << 28;
+pub(crate) const DECODE_LIMIT: usize = 1 << 28;
 
 /// Decode under [`DECODE_LIMIT`].
 fn decode_bounded(

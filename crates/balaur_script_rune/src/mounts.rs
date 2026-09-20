@@ -63,6 +63,30 @@ impl std::fmt::Display for Constant {
     }
 }
 
+/// Fold what the mounts expose into `hasher`: every name a script may call
+/// and every constant folded into it at compile time.
+///
+/// A cached unit compiled against other addons would name items that are no
+/// longer there, so this is half of what `cache::stamp` covers.
+pub(crate) fn fingerprint(mounts: &[Mount], hasher: &mut balaur_core::digest::Hasher) {
+    for mount in mounts {
+        hasher.write_str(&mount.key);
+        for part in &mount.path {
+            hasher.write_str(part);
+        }
+        for function in &mount.functions {
+            hasher.write_str(&function.name);
+            hasher.write_u64(u64::try_from(function.arity).unwrap_or(u64::MAX));
+        }
+        for (path, value) in &mount.constants {
+            for part in path {
+                hasher.write_str(part);
+            }
+            hasher.write_str(&value.to_string());
+        }
+    }
+}
+
 impl RuneHost {
     /// Every addon file the host can reach. A later root replaces an earlier
     /// one at the same path: the game the editor opened last is the one

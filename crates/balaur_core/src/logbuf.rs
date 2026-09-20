@@ -130,6 +130,10 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
 /// Where gilrs times its force-feedback loop, held to errors.
 const QUIET_RUMBLE: &str = "gilrs::ff::server=error";
 
+/// Where winit's macOS backend reports an event with no handler. The module
+/// path is winit 0.30's; a later one moves it to `apple::appkit`.
+const QUIET_APPKIT: &str = "winit::platform_impl::macos::event_handler=off";
+
 /// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
 /// records from dependencies land in the same place.
 ///
@@ -143,7 +147,11 @@ pub fn capture(max_level: LevelFilter) {
         .from_env_lossy()
         // gilrs times its rumble thread and warns whenever the machine is busy:
         // a note about load, not about the game, and a warning fails a test run.
-        .add_directive(QUIET_RUMBLE.parse().expect("a fixed directive"));
+        .add_directive(QUIET_RUMBLE.parse().expect("a fixed directive"))
+        // NSApplication outlives the event loop, so AppKit delivers events
+        // before it starts and after it ends. winit logs each as an error,
+        // which puts four red rows in the editor's Output dock on every boot.
+        .add_directive(QUIET_APPKIT.parse().expect("a fixed directive"));
     #[cfg(not(target_arch = "wasm32"))]
     let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
     // A browser has no stderr and no clock for the timestamp column —

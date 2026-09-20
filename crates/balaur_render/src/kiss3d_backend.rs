@@ -77,6 +77,9 @@ pub(crate) struct Slot2d {
     pub(crate) shear: f32,
 }
 
+/// How many frames run before the application icon is handed to the desktop.
+const ICON_AFTER_FRAMES: u64 = 2;
+
 /// Everything one frame of the render loop reads and writes, so the windowed
 /// and offscreen runners share a body instead of keeping two copies in step.
 struct Frontend {
@@ -96,6 +99,10 @@ struct Frontend {
     transients: Vec<SceneNode2d>,
     text: crate::world_text::Frame,
     frame: u64,
+    /// Whether frames reach an OS window. An offscreen run has no dock entry
+    /// and no title bar, so what the desktop shows for the app is work with
+    /// nobody to see it.
+    on_screen: bool,
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
     keyboard_shown: bool,
@@ -154,6 +161,7 @@ impl Frontend {
             transients: Vec::new(),
             text: crate::world_text::Frame::default(),
             frame: 0,
+            on_screen: true,
             keyboard_shown: false,
             camera_buttons,
             device: crate::device::Probe::default(),
@@ -207,7 +215,12 @@ impl Frontend {
             &mut self.camera_2d,
             &self.camera_buttons,
         );
-        crate::app_icon::apply_app_icon(app);
+        // Not while the shell is still assembling: handing the plate to AppKit
+        // costs about 66 ms on the main thread, and the first frames are what
+        // somebody is waiting for.
+        if self.on_screen && self.frame >= ICON_AFTER_FRAMES {
+            crate::app_icon::apply_app_icon(app);
+        }
         apply_window_config(app, window);
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
@@ -489,6 +502,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
         window.set_ui_retained(true);
         let mut f = Frontend::new();
+        f.on_screen = false;
         // Nothing can close a target that was never shown, and there is no
         // vsync to block on, so the loop runs until the app asks to stop --
         // which `--frames` arranges by inserting a quit-after-N system.

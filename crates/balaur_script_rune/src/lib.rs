@@ -14,6 +14,7 @@
 
 mod api;
 mod bindings;
+mod cache;
 mod context;
 mod debugger;
 mod handles;
@@ -392,7 +393,14 @@ impl RuneHost {
             script
         } else {
             let source = self.source_of(key)?;
-            let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+            let (unit, sources) = match cache::load(self, key, &source) {
+                Some(hit) => (Arc::new(hit.unit), hit.sources),
+                None => {
+                    let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+                    cache::store(self, key, &source, &unit, &sources);
+                    (unit, sources)
+                }
+            };
             let deps = self.source_keys(&sources);
             Script::new(Rc::from(key), unit, source, sources, deps)
         };
