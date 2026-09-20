@@ -355,6 +355,13 @@ pub fn set_min_size(node, size) {
     }
 }
 
+/// `control.size = v`: the widget panel's width and height.
+pub fn set_size(node, size) {
+    if node is balaur::Node {
+        node.patch_component("widget", #{ "width": float(size.x), "height": float(size.y) });
+    }
+}
+
 /// Godot's `ProjectSettings.get`: what `project.godot` said, from the module
 /// the importer wrote beside this one.
 pub fn project_setting(path, fallback) {

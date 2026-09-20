@@ -640,6 +640,8 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
         "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
         "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
+        // A control's own size is the widget panel's width and height here.
+        "size" => format!("(gd.set_size)({receiver}, {value})"),
         "button_group" => format!(
             "{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"
         ),
