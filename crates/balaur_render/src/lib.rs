@@ -15,6 +15,7 @@ use balaur_script::Bindings;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
+mod batch_2d;
 mod boolean;
 mod camera;
 mod cloner;

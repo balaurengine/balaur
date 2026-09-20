@@ -88,6 +88,7 @@ struct Frontend {
     scene_2d: SceneNode2d,
     slots: HashMap<Entity, Slot>,
     slots_2d: HashMap<Entity, Slot2d>,
+    batches_2d: crate::sync_2d::Batches,
     tilemap_slots: HashMap<Entity, crate::tilemap::TilemapSlot>,
     emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
     materials: crate::shader_material::MaterialCache,
@@ -145,6 +146,7 @@ impl Frontend {
             scene_2d: SceneNode2d::empty(),
             slots: HashMap::new(),
             slots_2d: HashMap::new(),
+            batches_2d: crate::sync_2d::Batches::default(),
             tilemap_slots: HashMap::new(),
             emitter_slots: HashMap::new(),
             materials: crate::shader_material::MaterialCache::default(),
@@ -181,6 +183,7 @@ impl Frontend {
             app,
             &mut self.scene_2d,
             &mut self.slots_2d,
+            &mut self.batches_2d,
             &mut self.materials,
             reloaded,
         );
@@ -196,6 +199,7 @@ impl Frontend {
             app.engine.root(),
             &mut self.scene_2d,
             &mut self.slots_2d,
+            &mut self.batches_2d,
             &mut self.tilemap_slots,
             &mut self.order_2d,
         );
@@ -443,7 +447,7 @@ pub async fn run_windowed_async(
         let open = window
             .render_chains(
                 Some(&mut f.scene),
-                draws_2d.then(|| &mut f.scene_2d),
+                draws_2d.then_some(&mut f.scene_2d),
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
@@ -522,7 +526,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             let open = window
                 .render_chains(
                     Some(&mut f.scene),
-                    draws_2d.then(|| &mut f.scene_2d),
+                    draws_2d.then_some(&mut f.scene_2d),
                     Some(&mut f.camera),
                     Some(&mut f.camera_2d),
                     None,

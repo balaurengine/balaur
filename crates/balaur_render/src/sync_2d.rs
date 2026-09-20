@@ -84,20 +84,27 @@ pub(crate) fn order_layer_2d(
     root: Entity,
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
+    batches: &mut Batches,
     maps: &mut HashMap<Entity, crate::tilemap::TilemapSlot>,
     order_cache: &mut Vec<Entity>,
 ) {
+    // A run draws where its first member would have: every other member is
+    // inside it, so only the head stands in the order.
     let order = ordered_nodes(world, root, |entity| {
-        slots.contains_key(&entity) || maps.contains_key(&entity)
+        slots.contains_key(&entity) || maps.contains_key(&entity) || batches.head(entity).is_some()
     });
     let kept = order
         .iter()
         .zip(order_cache.iter())
         .take_while(|(now, before)| now == before)
         .count();
-    if kept == order.len() && order.len() == order_cache.len() {
+    let recut = std::mem::take(&mut batches.recut);
+    if !recut && kept == order.len() && order.len() == order_cache.len() {
         return;
     }
+    // A run built again this frame is a new object at the end of the scene's
+    // children, so the whole order is laid out rather than its tail.
+    let kept = if recut { 0 } else { kept };
     // A node holds its place while the prefix does; the rest is taken off
     // last-first and put back in order, which is the only move kiss3d has.
     let mut node_of = |entity: &Entity| -> Option<SceneNode2d> {
@@ -105,6 +112,7 @@ pub(crate) fn order_layer_2d(
             .get(entity)
             .map(|slot| slot.node.clone())
             .or_else(|| maps.get(entity).map(|slot| slot.node.clone()))
+            .or_else(|| batches.head(*entity).map(|run| run.node.clone()))
     };
     let moved: Vec<SceneNode2d> = order[kept..].iter().filter_map(&mut node_of).collect();
     for mut node in moved.iter().rev().cloned() {
@@ -121,6 +129,45 @@ pub(crate) fn order_layer_2d(
 /// global z coordinate (z acts as a 2D layer; equal z means later-declared
 /// nodes draw on top). When the order changes, the kiss3d nodes are rebuilt
 /// in the new order.
+/// A run of nodes drawing through one object, and who is in it.
+///
+/// The object sits at the origin unscaled and holds no colour of its own:
+/// every member's pose and tint rides in its instance.
+pub(crate) struct LiveRun {
+    key: crate::batch_2d::BatchKey,
+    node: SceneNode2d,
+    members: Vec<Entity>,
+    /// This frame's instances, one per member that is visible.
+    pending: Vec<kiss3d::scene::InstanceData2d>,
+}
+
+/// Every run this frame, in draw order. A run is addressed by the entity at
+/// its head, which is an entity no `Slot2d` is kept for.
+#[derive(Default)]
+pub(crate) struct Batches {
+    runs: Vec<LiveRun>,
+    heads: HashMap<Entity, usize>,
+    /// Whether the objects were built again since the order was last laid
+    /// out, which is what makes the cached order stale.
+    recut: bool,
+}
+
+impl Batches {
+    fn head(&self, entity: Entity) -> Option<&LiveRun> {
+        self.heads.get(&entity).and_then(|at| self.runs.get(*at))
+    }
+
+    /// Detach every object, for a sync that is cutting the runs again.
+    fn clear(&mut self) {
+        for run in &mut self.runs {
+            run.node.detach();
+        }
+        self.runs.clear();
+        self.heads.clear();
+        self.recut = true;
+    }
+}
+
 /// The scene node one 2D renderable draws through, with the handles a frame
 /// writes into it. `None` for a renderable with nothing to draw.
 pub(crate) fn build_slot_2d(
@@ -170,10 +217,116 @@ pub(crate) fn build_slot_2d(
     })
 }
 
+/// Cut the draw order into runs and answer which run each member is in.
+///
+/// The objects are rebuilt only when the cut itself moved: a frame that draws
+/// the same runs over again writes instances and nothing else.
+fn cut_runs(
+    app: &App,
+    scene: &mut SceneNode2d,
+    materials: &mut crate::shader_material::MaterialCache,
+    channel: &str,
+    world: &balaur_core::hecs::World,
+    order: &[Entity],
+    batches: &mut Batches,
+) -> HashMap<Entity, usize> {
+    let cut = crate::batch_2d::runs(order, |entity| {
+        let renderable = world.get::<&Renderable2d>(entity).ok()?;
+        if !crate::batch_2d::batchable(&renderable) {
+            return None;
+        }
+        let material = world
+            .get::<&GlobalAppearance>(entity)
+            .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
+        Some(crate::batch_2d::key_of(&renderable, material))
+    });
+    let same = cut.len() == batches.runs.len()
+        && cut
+            .iter()
+            .zip(batches.runs.iter())
+            .all(|(now, live)| now.key == live.key && now.members == live.members);
+    if !same {
+        batches.clear();
+        for run in cut {
+            let Some(head) = run.members.first().copied() else {
+                continue;
+            };
+            let Ok(renderable) = world.get::<&Renderable2d>(head) else {
+                continue;
+            };
+            let material = world
+                .get::<&GlobalAppearance>(head)
+                .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
+            let Some(slot) = build_slot_2d(app, scene, materials, channel, &renderable, material)
+            else {
+                continue;
+            };
+            let mut node = slot.node;
+            // The shader multiplies the object's colour by the instance's, so
+            // the object stays white and every member's tint rides in its own.
+            node.set_position(Vec2::ZERO)
+                .set_rotation(0.0)
+                .set_local_scale(1.0, 1.0)
+                .set_color(Color::new(1.0, 1.0, 1.0, 1.0))
+                .set_visible(true);
+            batches.runs.push(LiveRun {
+                key: run.key,
+                node,
+                members: run.members,
+                pending: Vec::new(),
+            });
+        }
+    }
+    let mut member_of = HashMap::new();
+    batches.heads.clear();
+    for (index, run) in batches.runs.iter_mut().enumerate() {
+        run.pending.clear();
+        if let Some(head) = run.members.first() {
+            batches.heads.insert(*head, index);
+        }
+        for &entity in &run.members {
+            member_of.insert(entity, index);
+        }
+    }
+    member_of
+}
+
+/// One member's pose and tint, as the instance its run draws it through.
+fn write_instance(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    run: usize,
+    batches: &mut Batches,
+) {
+    let (Ok(renderable), Ok(global)) = (
+        world.get::<&Renderable2d>(entity),
+        world.get::<&GlobalTransform>(entity),
+    ) else {
+        return;
+    };
+    let appearance = world
+        .get::<&GlobalAppearance>(entity)
+        .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+    if !appearance.visible {
+        return;
+    }
+    let (at, deformation) = crate::batch_2d::pose(&renderable, &global);
+    let color = modulate(renderable.color, appearance.tint.to_array());
+    if let Some(run) = batches.runs.get_mut(run) {
+        run.pending.push(kiss3d::scene::InstanceData2d {
+            position: at,
+            deformation,
+            color,
+            ..Default::default()
+        });
+    }
+}
+
 pub(crate) fn sync_2d(
     app: &App,
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
+    batches: &mut Batches,
     materials: &mut crate::shader_material::MaterialCache,
     reloaded: bool,
 ) {
@@ -187,8 +340,19 @@ pub(crate) fn sync_2d(
     let channel_changed = materials.channel_changed(&channel);
     materials.answer_probe(app);
 
+    let member_of = cut_runs(app, scene, materials, &channel, &world, &order, batches);
+
     let mut seen: HashSet<Entity> = HashSet::new();
     for &entity in &order {
+        if let Some(run) = member_of.get(&entity) {
+            // The run draws it. A slot from before it joined one would draw
+            // it twice.
+            if let Some(mut old) = slots.remove(&entity) {
+                old.node.detach();
+            }
+            write_instance(&world, entity, *run, batches);
+            continue;
+        }
         let Ok(renderable) = world.get::<&Renderable2d>(entity) else {
             continue;
         };
@@ -273,6 +437,19 @@ pub(crate) fn sync_2d(
             .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
             .set_color(Color::new(r, g, b, a))
             .set_visible(visible);
+    }
+    flush(batches, slots, &seen);
+}
+
+/// Hand each run the instances its members wrote, and drop the slots of the
+/// nodes that no longer draw.
+fn flush(batches: &mut Batches, slots: &mut HashMap<Entity, Slot2d>, seen: &HashSet<Entity>) {
+    for run in &mut batches.runs {
+        // Taken and put back: `set_instances` borrows the node, and the
+        // buffer is kept so a frame of the same size allocates nothing.
+        let instances = std::mem::take(&mut run.pending);
+        run.node.set_instances(&instances);
+        run.pending = instances;
     }
     slots.retain(|entity, slot| {
         if seen.contains(entity) {

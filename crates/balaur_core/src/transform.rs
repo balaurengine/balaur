@@ -129,7 +129,7 @@ fn write_property(eng: &crate::Engine, entity: Entity, key: &str, value: &toml::
         let number = |v: &toml::Value| crate::components::as_f64(v).map(|n| n as f32);
         Some(Vec3::new(number(x)?, number(y)?, number(z)?))
     };
-    let mut world = eng.world_mut();
+    let world = eng.world_mut();
     let Ok(mut held) = world.get::<&mut Transform>(entity) else {
         return false;
     };

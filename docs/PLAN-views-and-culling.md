@@ -96,6 +96,10 @@ mesh.
 
 ## 3a. What 2D batching has to do
 
+**Half built 2026-09-21:** runs of `Flat` shapes and of plain sprites draw
+as one call. A sheet, a region or a flip still draws node by node, because
+the fork has nowhere to put a per-instance UV rect yet.
+
 **Measured 2026-09-20**, `scripts/bench_load.py --only kind/shape2d`: five
 thousand sprites offscreen at 1600x1000 cost 29.3 ms of wall, of which
 21.4 ms is render CPU and 1.55 ms is GPU. A `sample` of the main thread puts
@@ -127,6 +131,12 @@ instance deformation scales.
 
 Picking is unaffected: it reads `Renderable2d` and `GlobalTransform` from the
 world, never the backend's nodes.
+
+What the run cutting cost, on the same case: render CPU went from 21.4 ms to
+0.41, and the wall from 29.3 to 4.8. Both pictures were compared pixel by
+pixel against the same scene drawn node by node, over a grid of two dozen
+rectangles turned, scaled and tinted apart, and over the `angrynerds`
+example; neither moved a channel.
 
 ## 4. What CI can prove, and what it cannot
 

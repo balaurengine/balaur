@@ -184,7 +184,7 @@ pub(crate) fn load(host: &RuneHost, key: &str, source: &str) -> Option<Hit> {
     // Before the stamp: the mounts it covers are discovered with the context,
     // and an empty set here would never match the set a compile stored.
     host.context().ok()?;
-    let path = file_of(host, key)?;
+    let path = file_of(host, key);
     let bytes = balaur_core::files::backend(&host.engine).read(&path).ok()?;
     let rest = bytes.strip_prefix(MAGIC)?;
     let (version, rest) = rest.split_first_chunk::<4>()?;
@@ -217,7 +217,7 @@ pub(crate) fn load(host: &RuneHost, key: &str, source: &str) -> Option<Hit> {
 /// Write `unit` back for the next run. A failure is not worth a line in the
 /// log: the next run compiles, which is what it would have done anyway.
 pub(crate) fn store(host: &RuneHost, key: &str, source: &str, unit: &Unit, sources: &Sources) {
-    let (Some(path), Some(origins)) = (file_of(host, key), origins_of(host, source, sources))
+    let (path, Some(origins)) = (file_of(host, key), origins_of(host, source, sources))
     else {
         return;
     };
@@ -287,13 +287,13 @@ fn text_at(host: &RuneHost, id: usize, path: &Path, source: &str) -> Option<Stri
 /// A pack is cached too. One that ships compiled units never reaches here,
 /// and one that ships source is compiled on every boot like a dev run: that
 /// is what a browser opens, where the compile is slowest.
-fn file_of(host: &RuneHost, key: &str) -> Option<PathBuf> {
+fn file_of(host: &RuneHost, key: &str) -> PathBuf {
     let root = host.state.borrow().project_root.clone();
     let mut hasher = Hasher::new();
     hasher.write_str(&root.to_string_lossy());
     hasher.write_str(key);
     let dir = balaur_core::engine_api::user_data_dir_of(&host.engine).join("units");
-    Some(dir.join(format!("{}.unit", hasher.finish())))
+    dir.join(format!("{}.unit", hasher.finish()))
 }
 
 /// What a cached unit is only valid against: the engine that compiled it, and
