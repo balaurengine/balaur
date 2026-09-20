@@ -151,9 +151,13 @@ async fn lobby(this, steps, me) {
     call(steps, "leave", || gamend::lobbies::leave_lobby(())).await;
     call(steps, "gone", || gamend::lobbies::get_lobby((), id)).await;
 
-    let quick = data(call(steps, "quick_join", || gamend::lobbies::quick_join((), #{ "title": `quick ${TAG}`, "max_users": 2 })).await);
+    // Quick-join takes whatever open lobby the server picks, which on a
+    // shared server is another run's, so leave that one and disband our own.
+    call(steps, "quick_join", || gamend::lobbies::quick_join((), #{ "title": `quick ${TAG}`, "max_users": 2 })).await;
+    call(steps, "quick_leave", || gamend::lobbies::leave_lobby(())).await;
+    let second = data(call(steps, "second", || gamend::lobbies::create_lobby((), #{ "title": `second ${TAG}`, "max_users": 2 })).await);
     call(steps, "disband", || gamend::lobbies::disband_lobby(())).await;
-    call(steps, "quick_gone", || gamend::lobbies::get_lobby((), field(quick, "id"))).await;
+    call(steps, "second_gone", || gamend::lobbies::get_lobby((), field(second, "id"))).await;
     call(steps, "stats", || gamend::lobbies::lobby_stats(())).await;
     goodbye(steps, me, ()).await;
 }
