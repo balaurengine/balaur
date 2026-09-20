@@ -109,13 +109,21 @@ UNRESOLVED='did not resolve in the mirror'
 # What a state that ran leaves in the log. See the check at the end of edit_step.
 RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
 
+# A windowed step needs a display, and a Linux CI runner has none: the editor
+# opens offscreen there rather than failing to build an event loop. Everywhere
+# else the window is real, which is the path a player's editor takes.
+windowed=()
+if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  windowed=(--offscreen)
+fi
+
 edit_step() { # edit_step <label> <project> [state]
   local label=$1 project=$2 state=${3:-} out rc
   set +e
   if [ -n "$state" ]; then
-    out=$(balaur edit "$project" --frames 90 --state "$state" 2>&1)
+    out=$(balaur edit "$project" "${windowed[@]}" --frames 90 --state "$state" 2>&1)
   else
-    out=$(balaur edit "$project" --frames 90 2>&1)
+    out=$(balaur edit "$project" "${windowed[@]}" --frames 90 2>&1)
   fi
   rc=$?
   set -e
