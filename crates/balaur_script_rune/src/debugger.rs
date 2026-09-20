@@ -10,6 +10,7 @@
 //! A unit with nothing to stop for gets no set at all and keeps the
 //! run-to-completion call.
 
+use smol_str::SmolStr;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -241,7 +242,7 @@ pub(crate) fn frames(
         {
             for (name, value) in names.iter().zip(slots) {
                 if let Some(plain) = crate::value::to_plain(value) {
-                    locals.push((name.to_string(), plain));
+                    locals.push((SmolStr::new(name), plain));
                 }
             }
         }

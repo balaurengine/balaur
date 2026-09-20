@@ -10,6 +10,7 @@ use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, Stage, replay};
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
@@ -246,11 +247,19 @@ fn settle_one(
         }
         Edit::Text(text) => {
             widget.text = text.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change))
+            Some((
+                CHANGE_EVENT,
+                Value::Str(SmolStr::new(text)),
+                &widget.on_change,
+            ))
         }
         Edit::Submit(text) => {
             widget.text = text.as_str().into();
-            Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit))
+            Some((
+                SUBMIT_EVENT,
+                Value::Str(SmolStr::new(text)),
+                &widget.on_submit,
+            ))
         }
         Edit::Value(value) => {
             widget.value = *value;
@@ -267,7 +276,11 @@ fn settle_one(
         }
         Edit::Choice(choice) => {
             widget.text = choice.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change))
+            Some((
+                CHANGE_EVENT,
+                Value::Str(SmolStr::new(choice)),
+                &widget.on_change,
+            ))
         }
         Edit::Picked(row, rows) => {
             let said = picked(widget, row, rows);
@@ -287,12 +300,16 @@ fn settle_one(
         Edit::Dropped(moved, target, side) => {
             let said = [moved, target, side]
                 .into_iter()
-                .map(|part| Value::Str(part.clone()))
+                .map(|part| Value::Str(SmolStr::new(part)))
                 .collect();
             Some((MOVE_EVENT, Value::List(said), &widget.on_move))
         }
         // Written nowhere: a link and a gutter mark are the script's to act on.
-        Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
+        Edit::Link(target) => Some((
+            LINK_EVENT,
+            Value::Str(SmolStr::new(target)),
+            &widget.on_link,
+        )),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
     };
     // The node emits its event whatever the widget carries, and the handler
@@ -312,9 +329,13 @@ fn picked(widget: &mut Widget, row: &str, rows: &[String]) -> Value {
     widget.text = row.into();
     widget.selection = rows.iter().map(|row| row.as_str().into()).collect();
     if widget.multi {
-        return Value::List(rows.iter().map(|row| Value::Str(row.clone())).collect());
+        return Value::List(
+            rows.iter()
+                .map(|row| Value::Str(SmolStr::new(row)))
+                .collect(),
+        );
     }
-    Value::Str(row.to_owned())
+    Value::Str(row.to_owned().into())
 }
 
 /// Apply a dragged seam, a chosen tab or typed text to the widget that owns

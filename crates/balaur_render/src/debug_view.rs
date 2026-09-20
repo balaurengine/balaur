@@ -103,7 +103,7 @@ pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
         Ok(balaur_script::Value::List(
             shaders::CHANNELS
                 .iter()
-                .map(|c| balaur_script::Value::Str((*c).to_string()))
+                .map(|c| balaur_script::Value::Str((*c).to_string().into()))
                 .collect(),
         ))
     });

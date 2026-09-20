@@ -3,6 +3,7 @@
 
 use balaur_core::{App, AppConfig};
 use balaur_script::Value;
+use smol_str::SmolStr;
 
 /// Each test writes to the real user data directory, keyed by the project
 /// name, so every project() call needs a name of its own.
@@ -41,7 +42,7 @@ fn table(pairs: &[(&str, Value)]) -> Value {
     Value::Map(
         pairs
             .iter()
-            .map(|(k, v)| ((*k).to_string(), v.clone()))
+            .map(|(k, v)| (SmolStr::new(*k), v.clone()))
             .collect(),
     )
 }

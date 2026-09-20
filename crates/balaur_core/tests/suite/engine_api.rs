@@ -173,7 +173,7 @@ fn fs_list_is_sorted_and_hides_dotfiles() {
                 .iter()
                 .find(|(k, _)| k == "name")
                 .map(|(_, v)| match v {
-                    Value::Str(s) => s.clone(),
+                    Value::Str(s) => s.to_string(),
                     _ => String::new(),
                 }),
             _ => None,
@@ -303,7 +303,7 @@ fn a_script_can_write_to_the_log_it_reads_back() {
             &app.engine,
             "log",
             level,
-            &[Value::Str(format!("hello from {level}"))],
+            &[Value::text(format!("hello from {level}"))],
         )
         .unwrap();
     }
@@ -479,7 +479,7 @@ fn fs_refuses_an_absolute_path_outside_every_root() {
             "fs",
             "write",
             &[
-                Value::Str(outside.to_string_lossy().into_owned()),
+                Value::Str(outside.to_string_lossy().into_owned().into()),
                 Value::Str("hi".into()),
             ],
         )
@@ -534,7 +534,7 @@ fn fs_reaches_a_second_root_the_host_declared() {
             "fs",
             "write",
             &[
-                Value::Str(target.to_string_lossy().into_owned()),
+                Value::Str(target.to_string_lossy().into_owned().into()),
                 Value::Str("hi".into()),
             ],
         )

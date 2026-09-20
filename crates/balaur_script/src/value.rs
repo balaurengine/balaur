@@ -1,6 +1,7 @@
 //! The neutral value type crossing the engine/script boundary.
 
 use anyhow::{Result, bail};
+use smol_str::SmolStr;
 
 /// A value a script can pass or receive.
 ///
@@ -14,7 +15,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Num(f64),
-    Str(String),
+    Str(SmolStr),
     /// A binary payload: a websocket frame, and later a datagram. Separate
     /// from `Str` because a frame's bytes need not be UTF-8.
     Bytes(Vec<u8>),
@@ -30,7 +31,7 @@ pub enum Value {
     /// question, no interaction with the collector.
     Callback(CallbackId),
     List(Vec<Value>),
-    Map(Vec<(String, Value)>),
+    Map(Vec<(SmolStr, Value)>),
     /// Several return values, not a list of one.
     ///
     /// Lua and Rune both let a function return more than one thing, and
@@ -40,6 +41,15 @@ pub enum Value {
 }
 
 impl Value {
+    /// A string value from anything that spells one.
+    ///
+    /// The constructor rather than the variant, for the places that hand
+    /// `Value::Str` to `map` or `map_or`: the variant takes a `SmolStr` and
+    /// those iterators yield a `String`.
+    pub fn text(text: impl Into<SmolStr>) -> Self {
+        Self::Str(text.into())
+    }
+
     pub const fn type_name(&self) -> &'static str {
         match self {
             Self::Nil => "nil",
@@ -136,7 +146,7 @@ impl FromArg for bool {
 impl FromArg for String {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         match v {
-            Some(Value::Str(s)) => Ok(s.clone()),
+            Some(Value::Str(s)) => Ok(s.to_string()),
             other => Err(want(other, "string")),
         }
     }
@@ -191,12 +201,12 @@ impl IntoValue for bool {
 }
 impl IntoValue for String {
     fn into_value(self) -> Value {
-        Value::Str(self)
+        Value::Str(self.into())
     }
 }
 impl IntoValue for &str {
     fn into_value(self) -> Value {
-        Value::Str(self.to_string())
+        Value::Str(self.into())
     }
 }
 impl IntoValue for NodeId {

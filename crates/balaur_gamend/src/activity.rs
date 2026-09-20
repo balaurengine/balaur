@@ -67,7 +67,7 @@ pub(crate) struct Activity {
 fn kept(json: &Json) -> Value {
     let size = serde_json::to_string(json).map_or(0, |text| text.len());
     if size > LARGEST {
-        return Value::Str(format!("{size} bytes, not kept"));
+        return Value::text(format!("{size} bytes, not kept"));
     }
     from_json(json).unwrap_or(Value::Nil)
 }
@@ -300,21 +300,27 @@ impl Activity {
             .rev()
             .map(|entry| {
                 Value::Map(vec![
-                    (String::from("seq"), crate::int(entry.seq)),
-                    (String::from("request"), crate::int(entry.request)),
-                    (String::from("kind"), Value::Str(entry.kind.into())),
-                    (String::from("what"), Value::Str(entry.what.clone())),
-                    (String::from("status"), Value::Str(entry.status.clone())),
+                    (String::from("seq").into(), crate::int(entry.seq)),
+                    (String::from("request").into(), crate::int(entry.request)),
+                    (String::from("kind").into(), Value::Str(entry.kind.into())),
                     (
-                        String::from("ms"),
+                        String::from("what").into(),
+                        Value::Str(entry.what.clone().into()),
+                    ),
+                    (
+                        String::from("status").into(),
+                        Value::Str(entry.status.clone().into()),
+                    ),
+                    (
+                        String::from("ms").into(),
                         entry.ms.map_or(Value::Nil, |ms| Value::Num(f64::from(ms))),
                     ),
                     (
-                        String::from("args"),
+                        String::from("args").into(),
                         entry.args.clone().unwrap_or(Value::Nil),
                     ),
                     (
-                        String::from("reply"),
+                        String::from("reply").into(),
                         entry.reply.clone().unwrap_or(Value::Nil),
                     ),
                 ])
@@ -329,31 +335,34 @@ impl Activity {
             .user
             .clone()
             .map_or((Value::Nil, Value::Nil), |(id, name)| {
-                (Value::Str(id), Value::Str(name))
+                (Value::Str(id.into()), Value::Str(name.into()))
             });
         let sockets = self
             .sockets
             .iter()
             .map(|(id, socket)| {
                 Value::Map(vec![
-                    (String::from("socket"), crate::int(*id)),
-                    (String::from("open"), Value::Bool(socket.open)),
+                    (String::from("socket").into(), crate::int(*id)),
+                    (String::from("open").into(), Value::Bool(socket.open)),
                     (
-                        String::from("topics"),
-                        Value::List(socket.topics.iter().cloned().map(Value::Str).collect()),
+                        String::from("topics").into(),
+                        Value::List(socket.topics.iter().cloned().map(Value::text).collect()),
                     ),
                     (
-                        String::from("reason"),
-                        socket.reason.clone().map_or(Value::Nil, Value::Str),
+                        String::from("reason").into(),
+                        socket.reason.clone().map_or(Value::Nil, Value::text),
                     ),
                 ])
             })
             .collect();
         Value::Map(vec![
-            (String::from("url"), Value::Str(self.url.clone())),
-            (String::from("user_id"), user_id),
-            (String::from("username"), username),
-            (String::from("sockets"), Value::List(sockets)),
+            (
+                String::from("url").into(),
+                Value::Str(self.url.clone().into()),
+            ),
+            (String::from("user_id").into(), user_id),
+            (String::from("username").into(), username),
+            (String::from("sockets").into(), Value::List(sockets)),
         ])
     }
 }

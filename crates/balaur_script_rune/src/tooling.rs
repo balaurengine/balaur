@@ -355,11 +355,11 @@ impl RuneHost {
                 continue;
             }
             out.push(Completion {
-                label: name.clone(),
+                label: name.to_string(),
                 kind: Kind::Property,
                 detail: format!("{value:?}"),
                 doc: String::new(),
-                insert: name,
+                insert: name.to_string(),
             });
         }
         for declared in crate::inspect::public_functions(source) {
@@ -722,7 +722,7 @@ impl RuneHost {
         }
         for (name, value) in self.exports(key).unwrap_or_default() {
             out.push(Symbol {
-                name,
+                name: name.to_string(),
                 kind: Kind::Property,
                 detail: format!("{value:?}"),
                 line: 0,

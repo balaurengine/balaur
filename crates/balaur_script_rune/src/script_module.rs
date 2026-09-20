@@ -58,20 +58,18 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
                 .unwrap_or_else(|| rune::to_value(()).expect("unit always converts"))
         })
         .build()?;
-    // `script::shared(f, arity)` — a callback made in this unit, callable
-    // from another unit's VM. Arity is explicit: a wrapper is typed.
+    // `script::shared(f)` — a callback made in this unit, callable from
+    // another unit's VM, with whatever arguments the caller brings.
     script
-        .function("shared", |f: Function, arity: i64| -> rune::Value {
-            let arity = usize::try_from(arity).unwrap_or(usize::MAX);
+        .function("shared", |f: Function| -> rune::Value {
             let wrapped = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
                 shared.push(f);
-                trampoline(shared.len() - 1, arity, "a shared function")
+                trampoline(shared.len() - 1, None, "a shared function")
             });
             if let Some(function) = wrapped {
                 return rune::to_value(function).expect("a function always converts");
             }
-            tracing::error!("script::shared: arity {arity} is past the five rune allows");
             rune::to_value(()).expect("unit always converts")
         })
         .build()?;

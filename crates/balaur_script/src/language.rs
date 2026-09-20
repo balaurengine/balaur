@@ -1,6 +1,7 @@
 //! What a language backend must provide.
 
 use anyhow::Result;
+use smol_str::SmolStr;
 
 use crate::bindings::Bindings;
 use crate::debug::{Pause, StepMode};
@@ -39,7 +40,8 @@ pub trait ScriptHost<C: ?Sized> {
     /// Each is written onto the instance over the default the script's
     /// `exports` declared, before `init` runs, so `init` reads tuned values
     /// rather than having to ask for them.
-    fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()>;
+    fn attach_with_props(&self, node: NodeId, path: &str, props: &[(SmolStr, Value)])
+    -> Result<()>;
 
     /// Hold every `init` the attaches from here would run, until the
     /// matching [`ScriptHost::release_inits`]: a scene attaches all its
@@ -60,7 +62,7 @@ pub trait ScriptHost<C: ?Sized> {
     ///
     /// Empty for a script without one, which is also every script that
     /// predates the convention. The file is compiled if it is not loaded.
-    fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
+    fn exports(&self, path: &str) -> Result<Vec<(SmolStr, Value)>> {
         let _ = path;
         Ok(Vec::new())
     }

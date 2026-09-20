@@ -9,6 +9,10 @@ description = "Language-neutral scripting seam: traits only, no backend."
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
+# A script string is a name, a key or a path: short, and allocated on every
+# call that carries one. `SmolStr` inlines up to 22 bytes, so most never
+# reach the allocator.
+smol_str.workspace = true
 
 [lints]
 workspace = true

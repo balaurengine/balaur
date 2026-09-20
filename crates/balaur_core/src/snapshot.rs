@@ -22,6 +22,7 @@
 use anyhow::{Context, Result};
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 
 use balaur_script::{NodeId, Value};
 
@@ -230,7 +231,7 @@ fn portable(world: &hecs::World, value: Value) -> Value {
             .ok()
             .and_then(|entity| crate::ids::of(world, entity))
             .map_or(Value::Node(bits), |id| {
-                Value::Map(vec![(String::from(NODE_REF), Value::Str(id))])
+                Value::Map(vec![(String::from(NODE_REF).into(), Value::Str(id.into()))])
             }),
         Value::List(items) => Value::List(items.into_iter().map(|v| portable(world, v)).collect()),
         Value::Many(items) => Value::Many(items.into_iter().map(|v| portable(world, v)).collect()),
@@ -251,7 +252,7 @@ fn resolved(index: &crate::DetHashMap<String, Entity>, value: Value) -> Value {
             if let [(key, Value::Str(id))] = pairs.as_slice()
                 && key == NODE_REF
             {
-                return index.get(id).map_or(Value::Nil, |entity| {
+                return index.get(id.as_str()).map_or(Value::Nil, |entity| {
                     Value::Node(crate::node_id_of(*entity).0)
                 });
             }
@@ -542,7 +543,7 @@ struct NodeFrame {
     /// What the node's `script` key set over the script's exports, so a
     /// respawn's `init` reads the tuned values.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    props: Vec<(String, balaur_script::Value)>,
+    props: Vec<(SmolStr, balaur_script::Value)>,
     components: Vec<(String, String)>,
 }
 

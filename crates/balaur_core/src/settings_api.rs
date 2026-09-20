@@ -6,6 +6,7 @@
 //! engine's own plugins make, so a game's setting is not a lesser kind.
 
 use balaur_script::{Bindings, BindingsExt, Value};
+use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::node_api::{from_toml, to_toml};
@@ -51,9 +52,9 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
             .iter()
             .map(|def| {
                 Value::Map(vec![
-                    ("path".into(), Value::Str(def.path.clone())),
-                    ("category".into(), Value::Str(def.category().to_string())),
-                    ("label".into(), Value::Str(def.label().to_string())),
+                    ("path".into(), Value::Str(SmolStr::new(&def.path))),
+                    ("category".into(), Value::Str(SmolStr::new(def.category()))),
+                    ("label".into(), Value::Str(SmolStr::new(def.label()))),
                     ("scope".into(), Value::Str(scope_name(def.scope).into())),
                     ("applies_now".into(), Value::Bool(def.applies_now())),
                     ("spec".into(), from_toml(&def.spec).unwrap_or(Value::Nil)),
@@ -93,11 +94,9 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "to_toml",
         |eng: &Engine, (scope, existing): (String, String)| {
-            Ok(Value::Str(settings::to_toml(
-                eng,
-                scope_of(&scope),
-                &existing,
-            )?))
+            Ok(Value::Str(
+                settings::to_toml(eng, scope_of(&scope), &existing)?.into(),
+            ))
         },
     );
 }
@@ -114,14 +113,14 @@ fn install_override_api(m: &mut dyn Bindings<Engine>) {
         let tags = eng.resource::<crate::tags::Tags>();
         let tags = tags.borrow();
         Ok(Value::List(
-            tags.0.iter().cloned().map(Value::Str).collect(),
+            tags.0.iter().cloned().map(Value::text).collect(),
         ))
     });
     m.function("known_tags", |eng: &Engine, (): ()| {
         Ok(Value::List(
             settings::known_tags(eng)
                 .into_iter()
-                .map(Value::Str)
+                .map(Value::text)
                 .collect(),
         ))
     });
@@ -129,7 +128,7 @@ fn install_override_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(
             settings::overrides(eng, &path)
                 .into_iter()
-                .map(Value::Str)
+                .map(Value::text)
                 .collect(),
         ))
     });

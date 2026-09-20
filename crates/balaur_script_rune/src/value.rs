@@ -10,6 +10,7 @@ pub use glam_types::{Vec2, Vec3};
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
 use rune::alloc::clone::TryClone as _;
+use smol_str::SmolStr;
 
 /// A node handle as scripts see it. Opaque on purpose: a script may store one
 /// and hand it back, but the bits are the engine's business.
@@ -212,7 +213,7 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         return Ok(Neutral::Node(n.id));
     }
     if let Ok(s) = v.borrow_string_ref() {
-        return Ok(Neutral::Str(s.to_string()));
+        return Ok(Neutral::Str(SmolStr::new(&*s)));
     }
     if let Ok(i) = v.as_signed() {
         return Ok(Neutral::Int(i));
@@ -248,7 +249,7 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     if let Ok(obj) = v.borrow_ref::<Object>() {
         let mut out = Vec::with_capacity(obj.len());
         for (k, val) in obj.iter() {
-            out.push((k.to_string(), to_neutral(val)?));
+            out.push((SmolStr::new(k.as_str()), to_neutral(val)?));
         }
         // Rune objects do not preserve insertion order; sort so a binding sees
         // the same map every run.
@@ -262,9 +263,9 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         for (k, val) in map.entries()? {
             let key = match to_neutral(&k)? {
                 Neutral::Str(s) => s,
-                Neutral::Int(i) => i.to_string(),
-                Neutral::Num(n) => n.to_string(),
-                Neutral::Bool(b) => b.to_string(),
+                Neutral::Int(i) => i.to_string().into(),
+                Neutral::Num(n) => n.to_string().into(),
+                Neutral::Bool(b) => b.to_string().into(),
                 other => return Err(anyhow!("a map key cannot be {other:?}")),
             };
             out.push((key, to_neutral(&val)?));
@@ -310,7 +311,7 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         return Some(Neutral::Num(f));
     }
     if let Ok(s) = v.borrow_string_ref() {
-        return Some(Neutral::Str(s.to_string()));
+        return Some(Neutral::Str(s.to_string().into()));
     }
     if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
         return Some(Neutral::Bytes(b.as_slice().to_vec()));
@@ -339,7 +340,7 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         let mut out = Vec::with_capacity(obj.len());
         for (k, val) in obj.iter() {
             if let Some(plain) = to_plain(val) {
-                out.push((k.to_string(), plain));
+                out.push((SmolStr::new(k.as_str()), plain));
             }
         }
         out.sort_by(|a, b| a.0.cmp(&b.0));
@@ -365,7 +366,7 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
         Neutral::Bool(b) => rune::to_value(*b)?,
         Neutral::Int(i) => rune::to_value(*i)?,
         Neutral::Num(n) => rune::to_value(*n)?,
-        Neutral::Str(s) => rune::to_value(s.clone())?,
+        Neutral::Str(s) => rune::to_value(s.as_str())?,
         // Rune has its own allocator, so a std `Vec<u8>` crosses by slice.
         Neutral::Bytes(b) => rune::to_value(rune::runtime::Bytes::from_slice(b.as_slice())?)?,
         Neutral::Node(id) => rune::to_value(Node { id: *id })?,

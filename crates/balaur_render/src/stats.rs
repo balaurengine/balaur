@@ -194,7 +194,7 @@ fn image_bytes(eng: &Engine, path: &str) -> u64 {
 
 fn cost_value(name: &str, cost: &NodeCost) -> Value {
     Value::Map(vec![
-        ("node".into(), Value::Str(name.to_string())),
+        ("node".into(), Value::Str(name.to_string().into())),
         ("draws".into(), Value::Num(f64::from(cost.draws))),
         ("triangles".into(), Value::Num(f64::from(cost.triangles))),
         (

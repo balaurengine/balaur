@@ -198,12 +198,12 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
             "max_width" => style.max_width = number(value),
             "font" => {
                 if let Value::Str(path) = value {
-                    style.font.clone_from(path);
+                    style.font = path.to_string();
                 }
             }
             "family" => {
                 if let Value::Str(chain) = value {
-                    style.family.clone_from(chain);
+                    style.family = chain.to_string();
                 }
             }
             "line_height" => style.line_height = number(value).unwrap_or(0.0).max(0.0),
@@ -263,6 +263,9 @@ mod backend {
     thread_local! {
         /// The atlas revision the texture was last written from.
         static UPLOADED: std::cell::Cell<u64> = const { std::cell::Cell::new(u64::MAX) };
+        /// The side it was made at: the atlas doubles as it fills, and a
+        /// write of the bigger image into the smaller texture is an error.
+        static MADE_AT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
 
     /// The atlas as a texture, uploaded when the shaper has drawn into it
@@ -272,10 +275,13 @@ mod backend {
         let state = state.borrow();
         let atlas = state.atlas();
         let side = atlas.side() as u32;
+        let grown = MADE_AT.with(std::cell::Cell::get) != side;
         let texture = TextureManager::get_global_manager(|tm| {
-            tm.get(ATLAS).unwrap_or_else(|| {
+            let held = if grown { None } else { tm.get(ATLAS) };
+            held.unwrap_or_else(|| {
                 let blank = image::DynamicImage::new_rgba8(side, side);
                 UPLOADED.with(|at| at.set(u64::MAX));
+                MADE_AT.with(|at| at.set(side));
                 tm.add_image(blank, ATLAS)
             })
         });

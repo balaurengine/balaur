@@ -86,7 +86,7 @@ pub(crate) fn open(id: &Path) -> Value {
     if !KEPT.with(|kept| kept.borrow().iter().any(|row| row.id == id)) {
         return Value::Map(vec![(
             "error".into(),
-            Value::Str(format!("this browser keeps no project called {id}")),
+            Value::text(format!("this browser keeps no project called {id}")),
         )]);
     }
     match ask_for(&id) {

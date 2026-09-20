@@ -7,6 +7,7 @@
 
 use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
+use smol_str::SmolStr;
 
 use crate::App;
 use crate::components::ComponentDef;
@@ -84,7 +85,7 @@ pub fn go(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
             host.call_on(
                 node,
                 hooks::ON_STATE_CHANGED,
-                &[Value::Str(was), Value::Str(name.to_string())],
+                &[Value::Str(was.into()), Value::Str(SmolStr::new(name))],
             );
         }
     }

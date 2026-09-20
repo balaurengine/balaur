@@ -31,6 +31,7 @@ mod task;
 mod tooling;
 mod value;
 
+use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -525,7 +526,7 @@ impl RuneHost {
         &self,
         entity: Entity,
         path: &str,
-        props: &[(String, balaur_script::Value)],
+        props: &[(SmolStr, balaur_script::Value)],
     ) -> Result<()> {
         let key = Self::normalize_key(path);
         self.load(&key)?;
@@ -683,7 +684,7 @@ impl RuneHost {
                     continue;
                 }
                 if let Some(plain) = value::to_plain(v) {
-                    fields.push((k.to_string(), plain));
+                    fields.push((SmolStr::new(k.as_str()), plain));
                 }
             }
             fields.sort_by(|a, b| a.0.cmp(&b.0));
@@ -893,7 +894,7 @@ impl RuneHost {
                 }
             });
             let label = format!("{key}: {}", declared.name);
-            let Some(wrapper) = trampoline(slot, declared.arity, &label) else {
+            let Some(wrapper) = trampoline(slot, Some(declared.arity), &label) else {
                 spare.push(slot);
                 continue;
             };
@@ -982,12 +983,12 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         &self,
         node: balaur_script::NodeId,
         path: &str,
-        props: &[(String, balaur_script::Value)],
+        props: &[(SmolStr, balaur_script::Value)],
     ) -> Result<()> {
         RuneHost::attach_with_props(self, balaur_core::entity_of(node)?, path, props)
     }
 
-    fn exports(&self, path: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+    fn exports(&self, path: &str) -> Result<Vec<(SmolStr, balaur_script::Value)>> {
         RuneHost::exports(self, &Self::normalize_key(path))
     }
 

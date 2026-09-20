@@ -15,7 +15,7 @@ thread_local! {
     pub(crate) static SHARED_FNS: RefCell<Vec<Function>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(crate) fn trampoline(slot: usize, arity: usize, label: &str) -> Option<Function> {
+pub(crate) fn trampoline(slot: usize, arity: Option<usize>, label: &str) -> Option<Function> {
     // The callee's error goes back to the caller, prefixed with the function
     // that failed: a logged error and a nil answer hid which call it was.
     fn relay(slot: usize, label: &str, args: Vec<rune::Value>) -> VmResult<rune::Value> {
@@ -29,9 +29,10 @@ pub(crate) fn trampoline(slot: usize, arity: usize, label: &str) -> Option<Funct
     }
     let label = label.to_string();
     let handler = move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
-        if args != arity {
+        if arity.is_some_and(|declared| declared != args) {
+            let declared = arity.unwrap_or_default();
             return VmResult::Err(VmError::panic(format!(
-                "{label} takes {arity} arguments, called with {args}"
+                "{label} takes {declared} arguments, called with {args}"
             )));
         }
         let taken = rune::vm_try!(stack.slice_at(addr, args)).to_vec();

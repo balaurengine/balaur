@@ -33,6 +33,7 @@ mod presets;
 mod primitive;
 mod replay;
 mod rng;
+mod robustness;
 mod rollback;
 mod scene;
 mod scene_ids;

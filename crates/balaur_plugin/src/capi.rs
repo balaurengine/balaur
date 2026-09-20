@@ -44,6 +44,7 @@
 //! into C is undefined behaviour. The reverse is the extension's
 //! responsibility: a C function that unwinds into Rust is equally undefined.
 
+use smol_str::SmolStr;
 use std::ffi::c_void;
 #[cfg(feature = "dylib")]
 use std::ffi::{CStr, c_char};
@@ -348,7 +349,7 @@ fn invoke(function: BalaurFn, user: UserData, args: &[Value]) -> Result<Value> {
     if status != 0 {
         let detail = match &returned {
             Ok(Value::Str(message)) if !message.is_empty() => message.clone(),
-            _ => format!("returned status {status}"),
+            _ => format!("returned status {status}").into(),
         };
         bail!("extension function failed: {detail}");
     }
@@ -454,7 +455,7 @@ unsafe fn from_c(value: &BalaurValue) -> Result<Value> {
         BALAUR_STR => {
             let text = unsafe { payload.string.as_str() }
                 .ok_or_else(|| anyhow::anyhow!("extension returned a string that is not UTF-8"))?;
-            Value::Str(text.to_string())
+            Value::Str(SmolStr::new(text))
         }
         BALAUR_BYTES => Value::Bytes(unsafe { payload.string.as_bytes() }.to_vec()),
         BALAUR_VEC2 => {
@@ -477,7 +478,7 @@ unsafe fn from_c(value: &BalaurValue) -> Result<Value> {
                 let entry = unsafe { &*map.items.add(index) };
                 let key = unsafe { entry.key.as_str() }
                     .ok_or_else(|| anyhow::anyhow!("extension returned a key that is not UTF-8"))?;
-                pairs.push((key.to_string(), unsafe { from_c(&entry.value) }?));
+                pairs.push((key.into(), unsafe { from_c(&entry.value) }?));
             }
             Value::Map(pairs)
         }

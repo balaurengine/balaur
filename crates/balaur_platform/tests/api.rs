@@ -70,7 +70,7 @@ fn kinds(app: &App) -> Vec<String> {
         .events
         .iter()
         .filter_map(|event| match field(event, "kind") {
-            Some(Value::Str(kind)) => Some(kind),
+            Some(Value::Str(kind)) => Some(kind.to_string()),
             _ => None,
         })
         .collect()

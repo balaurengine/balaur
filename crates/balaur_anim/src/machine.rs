@@ -672,7 +672,7 @@ pub(crate) fn announce(eng: &Engine, moved: &[Moved]) {
 }
 
 fn emit(eng: &Engine, entity: Entity, event: &str, method: &str, state: &str) {
-    let value = balaur_script::Value::Str(state.to_string());
+    let value = balaur_script::Value::Str(state.to_string().into());
     balaur_core::events::emit_from(eng, entity, event, value.clone());
     if let Some(host) = eng.script_host() {
         host.call_on(balaur_core::node_id_of(entity), method, &[value]);

@@ -6,6 +6,7 @@
 //! run on a thread and report through [`crate::jobs`], and the frame never
 //! waits on GitHub.
 
+use smol_str::SmolStr;
 use std::cmp::Ordering;
 
 use anyhow::Result;
@@ -81,13 +82,13 @@ impl Row {
     fn value(&self) -> Value {
         let r = &self.release;
         Value::Map(vec![
-            ("tag".into(), Value::Str(r.tag.clone())),
-            ("id".into(), Value::Str(r.id.clone())),
-            ("channel".into(), Value::Str(r.channel.clone())),
-            ("when".into(), Value::Str(ago(&r.published))),
+            ("tag".into(), Value::Str(SmolStr::new(&r.tag))),
+            ("id".into(), Value::Str(SmolStr::new(&r.id))),
+            ("channel".into(), Value::Str(SmolStr::new(&r.channel))),
+            ("when".into(), Value::Str(ago(&r.published).into())),
             ("current".into(), Value::Bool(self.order == "same")),
-            ("order".into(), Value::Str(self.order.clone())),
-            ("download".into(), Value::Str(self.download.clone())),
+            ("order".into(), Value::Str(SmolStr::new(&self.order))),
+            ("download".into(), Value::Str(SmolStr::new(&self.download))),
         ])
     }
 }
@@ -100,7 +101,7 @@ fn bytes(n: u64) -> Value {
 
 impl Reported for ReleaseEvent {
     fn value(&self) -> Value {
-        let (kind, mut pairs): (&str, Vec<(String, Value)>) = match self {
+        let (kind, mut pairs): (&str, Vec<(SmolStr, Value)>) = match self {
             Self::Listed { rows } => (
                 "listed",
                 vec![(
@@ -111,24 +112,27 @@ impl Reported for ReleaseEvent {
             Self::Downloading { tag, done, total } => (
                 "downloading",
                 vec![
-                    ("tag".into(), Value::Str(tag.clone())),
+                    ("tag".into(), Value::Str(SmolStr::new(tag))),
                     ("done".into(), bytes(*done)),
                     ("total".into(), bytes(*total)),
                 ],
             ),
-            Self::Unpacking { tag } => ("unpacking", vec![("tag".into(), Value::Str(tag.clone()))]),
+            Self::Unpacking { tag } => (
+                "unpacking",
+                vec![("tag".into(), Value::Str(SmolStr::new(tag)))],
+            ),
             Self::Installed { tag, note } => (
                 "installed",
                 vec![
-                    ("tag".into(), Value::Str(tag.clone())),
-                    ("note".into(), Value::Str(note.clone())),
+                    ("tag".into(), Value::Str(SmolStr::new(tag))),
+                    ("note".into(), Value::Str(SmolStr::new(note))),
                 ],
             ),
             Self::Failed { job, message } => (
                 "failed",
                 vec![
-                    ("job".into(), Value::Str(job.clone())),
-                    ("message".into(), Value::Str(message.clone())),
+                    ("job".into(), Value::Str(SmolStr::new(job))),
+                    ("message".into(), Value::Str(SmolStr::new(message))),
                 ],
             ),
         };
@@ -196,25 +200,34 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::Map(vec![
             (
                 "version".into(),
-                Value::Str(env!("CARGO_PKG_VERSION").to_string()),
+                Value::Str(env!("CARGO_PKG_VERSION").to_string().into()),
             ),
-            ("id".into(), Value::Str(id.unwrap_or_default().to_string())),
+            (
+                "id".into(),
+                Value::Str(SmolStr::new(id.unwrap_or_default())),
+            ),
             (
                 "channel".into(),
-                Value::Str(crate::version::channel().unwrap_or_default().to_string()),
+                Value::Str(
+                    crate::version::channel()
+                        .unwrap_or_default()
+                        .to_string()
+                        .into(),
+                ),
             ),
             (
                 "tag".into(),
                 Value::Str(
                     crate::version::release_tag()
                         .unwrap_or_default()
-                        .to_string(),
+                        .to_string()
+                        .into(),
                 ),
             ),
             ("source".into(), Value::Bool(id.is_none())),
             (
                 "held".into(),
-                Value::Str(crate::update::held().unwrap_or_default()),
+                Value::Str(crate::update::held().unwrap_or_default().into()),
             ),
         ]))
     });
@@ -222,7 +235,7 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(
             crate::version::CHANNELS
                 .iter()
-                .map(|name| Value::Str((*name).to_string()))
+                .map(|name| Value::Str((*name).to_string().into()))
                 .collect(),
         ))
     });

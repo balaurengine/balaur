@@ -65,7 +65,7 @@ fn rust_side(c: &mut Criterion) {
                 let made: Vec<_> = (0..COUNT)
                     .map(|i| {
                         let v =
-                            add_child(&app.engine, &[parent.clone(), Value::Str(format!("n{i}"))])
+                            add_child(&app.engine, &[parent.clone(), Value::text(format!("n{i}"))])
                                 .unwrap();
                         let Value::Node(id) = v else {
                             panic!("add_child gave {v:?}")

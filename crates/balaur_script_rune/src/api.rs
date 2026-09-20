@@ -220,8 +220,8 @@ fn script_tooling_entries(modules: &mut BTreeMap<String, Module>) {
         (
             "script",
             "shared",
-            "(f: fn, arity: int)",
-            "Wrap a script function so it can be called from several places with a fixed argument count.",
+            "(f: fn)",
+            "Wrap a script function so another script's code can call it, with whatever arguments the caller brings.",
         ),
         (
             "script",

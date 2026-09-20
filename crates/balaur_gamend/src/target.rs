@@ -69,10 +69,19 @@ pub(crate) fn value(eng: &Engine) -> Value {
         PRODUCTION
     };
     Value::Map(vec![
-        (String::from("name"), Value::Str(picked.into())),
-        (String::from("url"), Value::Str(url(eng))),
-        (String::from("production"), Value::Str(text(eng, "url"))),
-        (String::from("local"), Value::Str(text(eng, "local_url"))),
-        (String::from("plugin"), Value::Str(text(eng, "plugin"))),
+        (String::from("name").into(), Value::Str(picked.into())),
+        (String::from("url").into(), Value::Str(url(eng).into())),
+        (
+            String::from("production").into(),
+            Value::Str(text(eng, "url").into()),
+        ),
+        (
+            String::from("local").into(),
+            Value::Str(text(eng, "local_url").into()),
+        ),
+        (
+            String::from("plugin").into(),
+            Value::Str(text(eng, "plugin").into()),
+        ),
     ])
 }

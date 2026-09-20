@@ -513,7 +513,7 @@ fn a_constant_is_readable_from_a_script() {
         m.constant("MOUSE_LEFT", balaur_script::Value::Int(0));
         m.constant(
             "BODY_DYNAMIC",
-            balaur_script::Value::Str("dynamic".to_string()),
+            balaur_script::Value::Str("dynamic".to_string().into()),
         );
     }
     let node = spawn(&app, "K");
@@ -569,6 +569,39 @@ fn the_host_reports_a_scripts_public_functions() {
 /// A closure crosses into another unit's VM only through the Rust relay, so
 /// `script::shared` is what lets one script hand a callback to another.
 #[test]
+fn a_closure_handed_to_another_unit_runs_its_own_code() {
+    let dir = project(&[
+        ("registry.rn", "pub fn run(f, n) { f(n) }\n"),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                let registry = script::require("registry.rn");
+                let run = registry["run"];
+                let scale = 2.0;
+                this.out = run(|n| n * scale, 21.0);
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(42.0),
+        "log: {:#?}",
+        balaur_core::logbuf::recent(10)
+    );
+}
+
+#[test]
 fn a_shared_closure_is_callable_from_another_unit() {
     let dir = project(&[
         ("registry.rn", "pub fn run(f, n) { f(n) }\n"),
@@ -578,7 +611,7 @@ fn a_shared_closure_is_callable_from_another_unit() {
                 let registry = script::require("registry.rn");
                 let run = registry["run"];
                 let bare = |n| n * 2.0;
-                this.out = run(script::shared(bare, 1), 21.0);
+                this.out = run(script::shared(bare), 21.0);
             }"#,
         ),
     ]);
@@ -753,7 +786,7 @@ fn two_nodes_on_one_script_reach_another_unit_from_update() {
         host.attach_with_props(
             balaur_core::node_id_of(node),
             "caller.rn",
-            &[("seed".to_string(), balaur_script::Value::Num(seed))],
+            &[("seed".to_string().into(), balaur_script::Value::Num(seed))],
         )
         .unwrap();
     }

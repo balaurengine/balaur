@@ -44,7 +44,7 @@ pub fn handler_of(
         other => return Err(anyhow!("argument 0 should be a node or nil, got {other:?}")),
     };
     let method = match opt(opts, key) {
-        Some(Value::Str(name)) => name.clone(),
+        Some(Value::Str(name)) => name.to_string(),
         Some(other) => return Err(anyhow!("`{key}` should be a method name, got {other:?}")),
         None => default_method.to_string(),
     };
@@ -70,7 +70,7 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
         Some(Value::Map(pairs)) => pairs
             .iter()
             .map(|(k, v)| match v {
-                Value::Str(s) => Ok((k.clone(), s.clone())),
+                Value::Str(s) => Ok((k.to_string(), s.to_string())),
                 other => Err(anyhow!("header `{k}` should be a string, got {other:?}")),
             })
             .collect(),

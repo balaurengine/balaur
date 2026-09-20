@@ -86,7 +86,7 @@ anyhow = "1"
 # serialize in their insertion order, which is the order that matters.
 indexmap = { version = "2", features = ["serde"] }
 smallvec = "1"
-smol_str = "0.3"
+smol_str = { version = "0.3", features = ["serde"] }
 egui = "0.36"
 # The widget tree's layout: retained flexbox, so rects are decided before
 # anything draws. Grid and block are off; nothing in the tree asks for them.
@@ -136,7 +136,7 @@ strip = true
 # 0.14.2 made deterministic and debuggable: `powf`/`powi` and hashing off the
 # platform, break points in the VM, an instruction counter. Rune installs its
 # stdlib wholesale and nothing can be overridden, so a fork is the only way.
-rune = { path = "../rune/crates/rune" }
+rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }

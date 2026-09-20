@@ -8,6 +8,7 @@
 
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 
 /// One step of an export, crossing from wherever the work happens back to a
 /// tick.
@@ -46,9 +47,9 @@ impl crate::jobs::Reported for ExportEvent {
         ];
         match self {
             Self::Started { .. } => {}
-            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(path.clone()))),
+            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(SmolStr::new(path)))),
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
+                pairs.push(("message".into(), Value::Str(SmolStr::new(message))));
             }
         }
         Value::Map(pairs)
@@ -77,7 +78,7 @@ pub(crate) fn preview(project: &std::path::Path, path: &str, target: &str) -> Va
     let count = |n: u64| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
     let (drawn_width, drawn_height) = shown.drawn.unwrap_or((0, 0));
     Value::Map(vec![
-        ("source".into(), Value::Str(shown.source)),
+        ("source".into(), Value::Str(shown.source.into())),
         ("before".into(), count(shown.before as u64)),
         ("after".into(), count(shown.after as u64)),
         ("width".into(), count(u64::from(shown.width))),

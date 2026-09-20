@@ -11,6 +11,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, Value};
+use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number, text};
@@ -156,7 +157,7 @@ fn option<'a>(args: &'a [Value], key: &str) -> Option<&'a Value> {
 
 fn str_option(args: &[Value], key: &str) -> String {
     match option(args, key) {
-        Some(Value::Str(s)) => s.clone(),
+        Some(Value::Str(s)) => s.to_string(),
         _ => String::new(),
     }
 }
@@ -181,7 +182,7 @@ fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     let per_tick = matches!(option(args, "digest"), Some(Value::Bool(true)));
     replay::start_recording(eng, &path, &project, &str_option(args, "scripts"), per_tick)?;
-    Ok(Value::Str(path.to_string_lossy().into_owned()))
+    Ok(Value::Str(path.to_string_lossy().into_owned().into()))
 }
 
 /// `replay.stop("stop")`: close the recording, returning the file it wrote.
@@ -190,8 +191,9 @@ fn stop(eng: &Engine, args: &[Value]) -> Result<Value> {
         Value::Str(s) => s.as_str(),
         _ => "stop",
     });
-    Ok(replay::stop_recording(eng, reason)
-        .map_or(Value::Nil, |p| Value::Str(p.to_string_lossy().into_owned())))
+    Ok(replay::stop_recording(eng, reason).map_or(Value::Nil, |p| {
+        Value::Str(p.to_string_lossy().into_owned().into())
+    }))
 }
 
 /// The file being recorded into, or nil.
@@ -202,7 +204,7 @@ fn recording(eng: &Engine, _: &[Value]) -> Result<Value> {
         .0
         .as_ref()
         .map_or(Value::Nil, |r| {
-            Value::Str(r.path().to_string_lossy().into_owned())
+            Value::Str(r.path().to_string_lossy().into_owned().into())
         }))
 }
 
@@ -304,8 +306,8 @@ fn events(eng: &Engine, args: &[Value]) -> Result<Value> {
             .map(|(tick, event)| {
                 Ok(Value::Map(vec![
                     ("tick".into(), count(tick)),
-                    ("kind".into(), Value::Str(event.kind.clone())),
-                    ("label".into(), Value::Str(event.label.clone())),
+                    ("kind".into(), Value::Str(SmolStr::new(&event.kind))),
+                    ("label".into(), Value::Str(SmolStr::new(&event.label))),
                     (
                         "data".into(),
                         event
@@ -371,11 +373,11 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
                 ("tick".into(), count(d.tick)),
                 (
                     "recorded".into(),
-                    Value::Str(format!("{:016x}", d.recorded)),
+                    Value::text(format!("{:016x}", d.recorded)),
                 ),
                 (
                     "replayed".into(),
-                    Value::Str(format!("{:016x}", d.replayed)),
+                    Value::text(format!("{:016x}", d.replayed)),
                 ),
             ])
         }))
@@ -385,16 +387,19 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// characters a Windows path refuses taken out, so it still sorts by time.
 fn session_name(_: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(
-        replay::timestamp().replace(':', "-").replace(' ', "_"),
+        replay::timestamp()
+            .replace(':', "-")
+            .replace(' ', "_")
+            .into(),
     ))
 }
 
 fn header_value(session: &Session) -> Value {
     let h = &session.header;
     let mut out = vec![
-        ("project".into(), Value::Str(h.project.clone())),
-        ("started".into(), Value::Str(h.started.clone())),
-        ("scripts".into(), Value::Str(h.scripts.clone())),
+        ("project".into(), Value::Str(SmolStr::new(&h.project))),
+        ("started".into(), Value::Str(SmolStr::new(&h.started))),
+        ("scripts".into(), Value::Str(SmolStr::new(&h.scripts))),
         ("frames".into(), count(session.frames.len() as u64)),
         ("first".into(), count(session.first_tick())),
         ("last".into(), count(session.last_tick())),
@@ -404,7 +409,7 @@ fn header_value(session: &Session) -> Value {
         session
             .trailer
             .as_ref()
-            .map_or(Value::Nil, |t| Value::Str(t.reason.clone())),
+            .map_or(Value::Nil, |t| Value::Str(SmolStr::new(&t.reason))),
     ));
     Value::Map(out)
 }

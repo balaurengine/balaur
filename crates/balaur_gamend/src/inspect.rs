@@ -52,7 +52,7 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
         Ok(crate::target::value(eng))
     });
     m.function("run_id", |_: &Engine, (): ()| {
-        Ok(Value::Str(crate::client::run_id().to_string()))
+        Ok(Value::Str(crate::client::run_id().to_string().into()))
     });
 }
 
@@ -86,7 +86,7 @@ fn text_of(value: &Value, key: &str) -> Option<String> {
         .iter()
         .find(|(k, _)| k == key)
         .and_then(|(_, v)| match v {
-            Value::Str(s) => Some(s.clone()),
+            Value::Str(s) => Some(s.to_string()),
             _ => None,
         })
 }
@@ -119,28 +119,31 @@ fn session_of(value: &Value) -> Result<Session> {
 fn session_value(session: &Session) -> Value {
     let expires_at = session.expires_at().map_or(Value::Nil, Value::Int);
     Value::Map(vec![
-        (String::from("user_id"), Value::Str(session.user_id.clone())),
         (
-            String::from("username"),
-            Value::Str(session.username.clone()),
+            String::from("user_id").into(),
+            Value::Str(session.user_id.clone().into()),
         ),
         (
-            String::from("display_name"),
-            Value::Str(session.display_name.clone()),
+            String::from("username").into(),
+            Value::Str(session.username.clone().into()),
         ),
         (
-            String::from("access_token"),
-            Value::Str(session.access_token.clone()),
+            String::from("display_name").into(),
+            Value::Str(session.display_name.clone().into()),
         ),
         (
-            String::from("refresh_token"),
-            Value::Str(session.refresh_token.clone()),
+            String::from("access_token").into(),
+            Value::Str(session.access_token.clone().into()),
         ),
         (
-            String::from("expires_in"),
+            String::from("refresh_token").into(),
+            Value::Str(session.refresh_token.clone().into()),
+        ),
+        (
+            String::from("expires_in").into(),
             Value::Int(i64::try_from(session.expires_in).unwrap_or(i64::MAX)),
         ),
-        (String::from("expires_at"), expires_at),
+        (String::from("expires_at").into(), expires_at),
     ])
 }
 
@@ -171,7 +174,10 @@ mod tests {
 
     #[test]
     fn a_session_without_a_token_is_refused() {
-        let value = Value::Map(vec![(String::from("user_id"), Value::Str("u".into()))]);
+        let value = Value::Map(vec![(
+            String::from("user_id").into(),
+            Value::Str("u".into()),
+        )]);
         assert!(session_of(&value).is_err());
     }
 }

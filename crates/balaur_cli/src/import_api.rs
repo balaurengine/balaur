@@ -14,6 +14,7 @@
 //! what crossed into a tick rides in a recording and a replay hands a script
 //! the same steps without importing anything twice.
 
+use smol_str::SmolStr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -117,16 +118,19 @@ impl Reported for ImportEvent {
             Self::Wrote {
                 path, done, files, ..
             } => {
-                pairs.push(("path".into(), Value::Str(path.clone())));
+                pairs.push(("path".into(), Value::Str(SmolStr::new(path))));
                 pairs.push(("done".into(), count(*done)));
                 pairs.push(("files".into(), count(*files)));
             }
             Self::Done { scene, note, .. } => {
-                pairs.push(("scene".into(), scene.clone().map_or(Value::Nil, Value::Str)));
-                pairs.push(("note".into(), Value::Str(note.clone())));
+                pairs.push((
+                    "scene".into(),
+                    scene.clone().map_or(Value::Nil, Value::text),
+                ));
+                pairs.push(("note".into(), Value::Str(SmolStr::new(note))));
             }
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
+                pairs.push(("message".into(), Value::Str(SmolStr::new(message))));
             }
             Self::Cancelled { done, .. } => {
                 pairs.push(("done".into(), count(*done)));
@@ -836,17 +840,17 @@ fn handles(_: &Path) -> bool {
 fn import(file: &Path, project: &Path) -> Value {
     match balaur_import::import_file(file, project, &[]) {
         Ok(imported) => {
-            let files = imported.files.into_iter().map(Value::Str).collect();
+            let files = imported.files.into_iter().map(Value::text).collect();
             Value::Map(vec![
                 ("files".into(), Value::List(files)),
                 (
                     "scene".into(),
-                    imported.scene.map_or(Value::Nil, Value::Str),
+                    imported.scene.map_or(Value::Nil, Value::text),
                 ),
-                ("note".into(), Value::Str(imported.note)),
+                ("note".into(), Value::Str(imported.note.into())),
             ])
         }
-        Err(e) => Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]),
+        Err(e) => Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]),
     }
 }
 
@@ -856,7 +860,7 @@ fn import(file: &Path, project: &Path) -> Value {
 fn import(file: &Path, _project: &Path) -> Value {
     Value::Map(vec![(
         "error".into(),
-        Value::Str(format!(
+        Value::text(format!(
             "importing {} needs the desktop app; a tab has no importers",
             file.display()
         )),

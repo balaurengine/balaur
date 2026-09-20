@@ -4,6 +4,7 @@
 //! restores it. What sets one is a script, a binding or the page the game is
 //! embedded in; what reads one is any of those plus a binding's `when`.
 
+use smol_str::SmolStr;
 use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};
@@ -57,9 +58,9 @@ impl VarType {
             Self::Float => Value::Num(as_num(value)),
             Self::Text => Value::Str(match value {
                 Value::Str(s) => s.clone(),
-                Value::Bool(b) => b.to_string(),
-                Value::Num(n) => format!("{n}"),
-                _ => String::new(),
+                Value::Bool(b) => b.to_string().into(),
+                Value::Num(n) => format!("{n}").into(),
+                _ => String::new().into(),
             }),
         }
     }
@@ -93,7 +94,7 @@ pub struct Variable {
 pub struct Variables {
     declared: BTreeMap<String, Variable>,
     /// Names changed this tick, for the dispatch at the end of it.
-    pending: Vec<(String, Value)>,
+    pending: Vec<(SmolStr, Value)>,
 }
 
 impl Variables {
@@ -141,22 +142,22 @@ impl Variables {
             return Ok(());
         }
         entry.value = next.clone();
-        self.pending.push((name.to_string(), next));
+        self.pending.push((name.to_string().into(), next));
         Ok(())
     }
 
     /// Take what changed since this was last called.
-    fn drain(&mut self) -> Vec<(String, Value)> {
+    fn drain(&mut self) -> Vec<(SmolStr, Value)> {
         std::mem::take(&mut self.pending)
     }
 
     /// The names and values `save` should carry, in order.
     #[must_use]
-    pub fn persisted(&self) -> Vec<(String, Value)> {
+    pub fn persisted(&self) -> Vec<(SmolStr, Value)> {
         self.declared
             .iter()
             .filter(|(_, v)| v.persist)
-            .map(|(name, v)| (name.clone(), v.value.clone()))
+            .map(|(name, v)| (name.as_str().into(), v.value.clone()))
             .collect()
     }
 }
@@ -206,7 +207,7 @@ fn kind_of(value: &toml::Value) -> VarType {
 fn from_toml(value: &toml::Value) -> Value {
     match value {
         toml::Value::Boolean(b) => Value::Bool(*b),
-        toml::Value::String(s) => Value::Str(s.clone()),
+        toml::Value::String(s) => Value::Str(s.clone().into()),
         other => crate::components::as_f64(other).map_or(Value::Nil, Value::Num),
     }
 }

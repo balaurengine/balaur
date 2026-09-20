@@ -7,6 +7,7 @@
 
 use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
+use smol_str::SmolStr;
 
 use crate::App;
 use crate::components::ComponentDef;
@@ -216,7 +217,7 @@ fn literal(text: &str) -> Value {
     if let Ok(number) = text.parse::<f64>() {
         return Value::Num(number);
     }
-    Value::Str(text.trim_matches(['"', '\'']).to_string())
+    Value::Str(SmolStr::new(text.trim_matches(['"', '\''])))
 }
 
 impl Condition {
@@ -281,7 +282,7 @@ fn compare(held: &Value, op: Compare, against: &Value) -> bool {
 fn value_of(row: &toml::Value) -> Value {
     match row {
         toml::Value::Boolean(b) => Value::Bool(*b),
-        toml::Value::String(s) => Value::Str(s.clone()),
+        toml::Value::String(s) => Value::Str(SmolStr::new(s)),
         other => crate::components::as_f64(other).map_or(Value::Nil, Value::Num),
     }
 }
@@ -397,7 +398,7 @@ fn row_to_toml(row: &Binding) -> toml::Value {
     let value = match &row.value {
         Value::Bool(b) => Some(toml::Value::Boolean(*b)),
         Value::Num(n) => Some(toml::Value::Float(*n)),
-        Value::Str(s) => Some(toml::Value::String(s.clone())),
+        Value::Str(s) => Some(toml::Value::String(s.to_string())),
         _ => None,
     };
     if let Some(value) = value {
@@ -449,7 +450,7 @@ fn target_of(eng: &Engine, entity: Entity, row: &Binding) -> Result<Entity> {
 
 fn text_of(value: &Value) -> String {
     match value {
-        Value::Str(s) => s.clone(),
+        Value::Str(s) => s.to_string(),
         Value::Num(n) => format!("{n}"),
         Value::Bool(b) => b.to_string(),
         _ => String::new(),

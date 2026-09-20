@@ -6,6 +6,7 @@
 //! whose folder is gone stays until somebody forgets it, because a missing
 //! project is usually an unplugged disk rather than a deleted game.
 
+use smol_str::SmolStr;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -185,14 +186,15 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
             user_home()
                 .unwrap_or_else(|| home_of(eng))
                 .to_string_lossy()
-                .into_owned(),
+                .into_owned()
+                .into(),
         ))
     });
     m.function("in_tab", |_: &Engine, ()| {
         Ok(Value::Bool(cfg!(target_family = "wasm")))
     });
     m.function("version", |_: &Engine, ()| {
-        Ok(Value::Str(crate::version::long().to_string()))
+        Ok(Value::Str(crate::version::long().to_string().into()))
     });
     // A name, never a path: the directory stays under the user data base
     // whatever a script passes.
@@ -205,7 +207,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
         balaur::save::set_home(eng, home.clone());
         balaur::facts::reread(eng);
         Ok(home.map_or(Value::Nil, |dir| {
-            Value::Str(dir.to_string_lossy().into_owned())
+            Value::Str(dir.to_string_lossy().into_owned().into())
         }))
     });
     m.function("pick_folder", |eng: &Engine, ()| {
@@ -217,7 +219,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
         }
         let state = eng.resource::<ProjectState>();
         state.borrow_mut().picked.clone_from(&picked);
-        Ok(picked.map_or(Value::Nil, Value::Str))
+        Ok(picked.map_or(Value::Nil, Value::text))
     });
 }
 
@@ -276,16 +278,16 @@ fn examples() -> Vec<Value> {
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return Vec::new();
     };
-    let mut rows: Vec<(String, Value)> = entries
+    let mut rows: Vec<(SmolStr, Value)> = entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
             let path = entry.path();
             if !path.join("project.toml").is_file() {
                 return None;
             }
-            let id = entry.file_name().to_string_lossy().into_owned();
+            let id: smol_str::SmolStr = entry.file_name().to_string_lossy().as_ref().into();
             let note = notes
-                .get(&id)
+                .get(id.as_str())
                 .and_then(|table| table.get("note"))
                 .and_then(toml::Value::as_str)
                 .unwrap_or_default()
@@ -299,12 +301,12 @@ fn examples() -> Vec<Value> {
                 .unwrap_or_default();
             let row = Value::Map(vec![
                 ("id".into(), Value::Str(id.clone())),
-                ("name".into(), Value::Str(name_of(&path))),
-                ("note".into(), Value::Str(note)),
-                ("cover".into(), Value::Str(cover)),
+                ("name".into(), Value::Str(name_of(&path).into())),
+                ("note".into(), Value::Str(note.into())),
+                ("cover".into(), Value::Str(cover.into())),
                 (
                     "path".into(),
-                    Value::Str(path.to_string_lossy().into_owned()),
+                    Value::Str(path.to_string_lossy().into_owned().into()),
                 ),
             ]);
             Some((id, row))
@@ -328,18 +330,21 @@ fn copy_example(home: &Path, id: &str, into: &Path) -> Value {
     if !from.join("project.toml").is_file() {
         return Value::Map(vec![(
             "error".into(),
-            Value::Str(format!("no example named {id}")),
+            Value::text(format!("no example named {id}")),
         )]);
     }
     let to = free_name(into, id);
     if let Err(e) = copy_tree(&from, &to) {
-        return Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]);
+        return Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]);
     }
     let name = name_of(&to);
     remember(home, &to, &name);
     Value::Map(vec![
-        ("path".into(), Value::Str(to.to_string_lossy().into_owned())),
-        ("name".into(), Value::Str(name)),
+        (
+            "path".into(),
+            Value::Str(to.to_string_lossy().into_owned().into()),
+        ),
+        ("name".into(), Value::Str(name.into())),
     ])
 }
 
@@ -481,11 +486,11 @@ fn row_value(row: Row) -> Value {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs().cast_signed());
     Value::Map(vec![
-        ("path".into(), Value::Str(row.path)),
-        ("name".into(), Value::Str(row.name)),
+        ("path".into(), Value::Str(row.path.into())),
+        ("name".into(), Value::Str(row.name.into())),
         ("opened".into(), Value::Num(row.opened as f64)),
-        ("when".into(), Value::Str(said_ago(now - row.opened))),
-        ("version".into(), Value::Str(row.version)),
+        ("when".into(), Value::Str(said_ago(now - row.opened).into())),
+        ("version".into(), Value::Str(row.version.into())),
         ("exists".into(), Value::Bool(exists)),
     ])
 }
@@ -559,8 +564,8 @@ fn templates() -> Vec<Value> {
     rows.into_iter()
         .map(|(id, note)| {
             Value::Map(vec![
-                ("id".into(), Value::Str(id)),
-                ("note".into(), Value::Str(note)),
+                ("id".into(), Value::Str(id.into())),
+                ("note".into(), Value::Str(note.into())),
             ])
         })
         .collect()
@@ -569,16 +574,16 @@ fn templates() -> Vec<Value> {
 fn create(home: &Path, path: &Path, template: &str) -> Value {
     let template = (!template.is_empty()).then_some(template);
     if let Err(e) = crate::new_project::create(path, template) {
-        return Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]);
+        return Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]);
     }
     let name = name_of(path);
     remember(home, path, &name);
     Value::Map(vec![
         (
             "path".into(),
-            Value::Str(path.to_string_lossy().into_owned()),
+            Value::Str(path.to_string_lossy().into_owned().into()),
         ),
-        ("name".into(), Value::Str(name)),
+        ("name".into(), Value::Str(name.into())),
     ])
 }
 
@@ -625,7 +630,7 @@ fn open(eng: &Engine, home: &Path, path: &Path) -> Value {
     if !path.join("project.toml").is_file() {
         return Value::Map(vec![(
             "error".into(),
-            Value::Str(format!("no project.toml in {}", path.display())),
+            Value::text(format!("no project.toml in {}", path.display())),
         )]);
     }
     remember(home, path, &name_of(path));
@@ -634,7 +639,7 @@ fn open(eng: &Engine, home: &Path, path: &Path) -> Value {
             eng.request_quit();
             Value::Map(Vec::new())
         }
-        Err(e) => Value::Map(vec![("error".into(), Value::Str(format!("{e:#}")))]),
+        Err(e) => Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]),
     }
 }
 

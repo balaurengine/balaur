@@ -3,6 +3,7 @@
 use balaur_core::Engine;
 use balaur_core::rollback::{self, PlayerId};
 use balaur_script::{Bindings, BindingsExt, Value};
+use smol_str::SmolStr;
 
 use crate::options::Options;
 use crate::vocabulary::{Status, install_constants};
@@ -146,7 +147,7 @@ fn leave(state: &mut MultiplayerState) {
             state.reset();
             state.tell(
                 crate::EventKind::Closed,
-                vec![("reason", Value::Str(String::from("left")))],
+                vec![("reason", Value::Str(String::from("left").into()))],
             );
         }
         return;
@@ -160,7 +161,7 @@ fn leave(state: &mut MultiplayerState) {
     state.reset();
     state.tell(
         crate::EventKind::Closed,
-        vec![("reason", Value::Str(String::from("left")))],
+        vec![("reason", Value::Str(String::from("left").into()))],
     );
 }
 
@@ -235,14 +236,20 @@ fn players(eng: &Engine) -> Value {
                 Status::Present
             };
             Value::Map(vec![
-                (String::from("slot"), slot_value(member.slot)),
-                (String::from("name"), Value::Str(member.name.clone())),
-                (String::from("bot"), Value::Bool(member.bot)),
+                (String::from("slot").into(), slot_value(member.slot)),
                 (
-                    String::from("local"),
+                    String::from("name").into(),
+                    Value::Str(SmolStr::new(&member.name)),
+                ),
+                (String::from("bot").into(), Value::Bool(member.bot)),
+                (
+                    String::from("local").into(),
                     Value::Bool(state.local == Some(member.slot)),
                 ),
-                (String::from("status"), Value::Str(status.name().into())),
+                (
+                    String::from("status").into(),
+                    Value::Str(status.name().into()),
+                ),
             ])
         })
         .collect();
@@ -260,9 +267,21 @@ fn stats(eng: &Engine, slot: i64) -> Value {
     };
     #[allow(clippy::cast_possible_wrap, reason = "byte counts far under i64::MAX")]
     Value::Map(vec![
-        (String::from("rtt_ms"), Value::Num(f64::from(link.rtt_ms))),
-        (String::from("loss"), Value::Num(f64::from(link.loss))),
-        (String::from("bytes_in"), Value::Int(link.bytes_in as i64)),
-        (String::from("bytes_out"), Value::Int(link.bytes_out as i64)),
+        (
+            String::from("rtt_ms").into(),
+            Value::Num(f64::from(link.rtt_ms)),
+        ),
+        (
+            String::from("loss").into(),
+            Value::Num(f64::from(link.loss)),
+        ),
+        (
+            String::from("bytes_in").into(),
+            Value::Int(link.bytes_in as i64),
+        ),
+        (
+            String::from("bytes_out").into(),
+            Value::Int(link.bytes_out as i64),
+        ),
     ])
 }

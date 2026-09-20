@@ -10,6 +10,7 @@
 
 use anyhow::Result;
 use balaur_script::Value;
+use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::engine_api::text;
@@ -19,7 +20,7 @@ pub(crate) fn bindable_events(_eng: &Engine, _args: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::hooks::BINDABLE
             .iter()
-            .map(|name| Value::Str((*name).to_string()))
+            .map(|name| Value::Str((*name).to_string().into()))
             .collect(),
     ))
 }
@@ -29,7 +30,7 @@ pub(crate) fn binding_actions(_eng: &Engine, _args: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::bindings::ACTIONS
             .iter()
-            .map(|(word, _)| Value::Str((*word).to_string()))
+            .map(|(word, _)| Value::Str((*word).to_string().into()))
             .collect(),
     ))
 }
@@ -89,10 +90,10 @@ pub(crate) fn scene_variables(eng: &Engine, _args: &[Value]) -> Result<Value> {
             .map(|name| {
                 let spec = variables.spec(&name);
                 Value::Map(vec![
-                    ("name".into(), Value::Str(name.clone())),
+                    ("name".into(), Value::Str(SmolStr::new(&name))),
                     (
                         "type".into(),
-                        Value::Str(spec.map_or("float", |s| s.kind.word()).to_string()),
+                        Value::Str(spec.map_or("float", |s| s.kind.word()).to_string().into()),
                     ),
                     ("value".into(), spec.map_or(Value::Nil, |s| s.value.clone())),
                     (

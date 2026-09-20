@@ -28,7 +28,7 @@ fn field<'a>(map: &'a Value, key: &str) -> Option<&'a Value> {
 fn body_of(snapshot: &HttpSnapshot) -> Option<String> {
     let event = snapshot.responses.first()?;
     match field(event, "body")? {
-        Value::Str(s) => Some(s.clone()),
+        Value::Str(s) => Some(s.to_string()),
         _ => None,
     }
 }

@@ -60,7 +60,7 @@ fn first_kind(app: &App) -> Option<String> {
             _ => None,
         });
     match kind {
-        Some(Value::Str(kind)) => Some(kind),
+        Some(Value::Str(kind)) => Some(kind.to_string()),
         _ => None,
     }
 }

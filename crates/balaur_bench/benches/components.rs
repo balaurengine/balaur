@@ -7,6 +7,7 @@
 
 use balaur_bench::{Backend, Project, app, attach_many};
 use balaur_core::{Engine, components};
+use balaur_script::{Bindings, Value};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use hecs::Entity;
 
@@ -14,7 +15,8 @@ use hecs::Entity;
 fn one_node() -> (tempfile::TempDir, balaur_core::App, Entity) {
     let project = Project::new(Backend::Rune, "pub fn init(this) {}\n").unwrap();
     let app = app(Backend::Rune, &project).unwrap();
-    let entity = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", app.engine.root());
+    let entity =
+        balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", app.engine.root());
     let Project { dir } = project;
     (dir, app, entity)
 }
@@ -48,15 +50,20 @@ fn rust_side(c: &mut Criterion) {
     group.bench_function("lookup_last_registered", |b| {
         b.iter(|| components::is_registered(eng, "widget"));
     });
+    // On its own node: adding one puts a second component's `get` in the way
+    // of `present_on` below, which is measured over a node carrying only what
+    // the bundle gave it.
+    let widgeted =
+        balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "w", app.engine.root());
+    components::add(eng, widgeted, "widget", None).unwrap();
     // `transform` rides in the node bundle, so its `Attached` bit is clear and
     // a presence test falls through to the definition. A component the
     // registry attached answers from the bit alone.
-    components::add(eng, entity, "widget", None).unwrap();
     group.bench_function("has_bundle_attached", |b| {
-        b.iter(|| components::has(eng, entity, "transform"));
+        b.iter(|| components::has(eng, widgeted, "transform"));
     });
     group.bench_function("has_registry_attached", |b| {
-        b.iter(|| components::has(eng, entity, "widget"));
+        b.iter(|| components::has(eng, widgeted, "widget"));
     });
     group.bench_function("present_on", |b| {
         b.iter(|| components::present_on(eng, entity));
@@ -110,5 +117,45 @@ fn rune_side(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, rust_side, rune_side);
+/// What one argument costs to cross the seam, by shape.
+///
+/// Every string argument is a `String` in `balaur_script::Value`, so a
+/// component name or a property key allocates on the way in. These three say
+/// what that is worth against the call itself, which is the number a decision
+/// to intern them has to beat.
+fn seam_arg_cost(c: &mut Criterion) {
+    let mut group = c.benchmark_group("seam_arg");
+    let count = 1000usize;
+    let cases: [(&str, &str); 4] = [
+        ("none", "bench::take0()"),
+        ("int", "bench::take1(7)"),
+        ("str_short", "bench::take1(\"transform\")"),
+        (
+            "str_long",
+            "bench::take1(\"a component name far past what a small string inlines\")",
+        ),
+    ];
+    for (name, call) in cases {
+        let body = format!(
+            "pub fn init(this) {{}}\npub fn update(this, dt) {{ for i in 0..1000 {{ {call}; }} }}\n"
+        );
+        let project = Project::new(Backend::Rune, &body).unwrap();
+        let mut app = app(Backend::Rune, &project).unwrap();
+        {
+            let mut m = app.script_module("bench").unwrap();
+            let m: &mut dyn Bindings<Engine> = &mut *m;
+            m.function_raw("take0", Box::new(|_, _| Ok(Value::Nil)));
+            m.function_raw("take1", Box::new(|_, _| Ok(Value::Nil)));
+        }
+        attach_many(&app, Backend::Rune, 1).unwrap();
+        let host = app.engine.script_host().unwrap();
+        group.throughput(Throughput::Elements(count as u64));
+        group.bench_function(BenchmarkId::new(name, count), |b| {
+            b.iter(|| host.update(1.0 / 60.0));
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, rust_side, rune_side, seam_arg_cost);
 criterion_main!(benches);

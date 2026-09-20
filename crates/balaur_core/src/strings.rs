@@ -11,6 +11,7 @@
 //! visible in the game rather than blank, because a missing string is a bug
 //! to notice and an empty label is a bug to miss.
 
+use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -253,7 +254,7 @@ pub fn locales(eng: &Engine) -> Vec<String> {
 ///
 /// `args` may carry an `n`, which also picks the plural form. A key nothing
 /// has a string for comes back as itself.
-pub fn tr(eng: &Engine, key: &str, args: &[(String, balaur_script::Value)]) -> String {
+pub fn tr(eng: &Engine, key: &str, args: &[(SmolStr, balaur_script::Value)]) -> String {
     ensure_ready(eng);
     let (current, fallback) = {
         let strings = eng.resource::<Strings>();
@@ -309,7 +310,7 @@ fn lookup(eng: &Engine, locale: &str, key: &str, count: Option<i64>) -> Option<S
 
 /// `{name}` becomes the argument called `name`. A placeholder nothing was
 /// passed for is left as it is, so a translator sees the hole.
-fn interpolate(text: &str, args: &[(String, balaur_script::Value)]) -> String {
+fn interpolate(text: &str, args: &[(SmolStr, balaur_script::Value)]) -> String {
     if args.is_empty() || !text.contains('{') {
         return text.to_string();
     }
@@ -317,10 +318,10 @@ fn interpolate(text: &str, args: &[(String, balaur_script::Value)]) -> String {
     for (name, value) in args {
         let shown = match value {
             balaur_script::Value::Str(s) => s.clone(),
-            balaur_script::Value::Int(n) => n.to_string(),
-            balaur_script::Value::Num(n) => format!("{n}"),
-            balaur_script::Value::Bool(b) => b.to_string(),
-            other => other.type_name().to_string(),
+            balaur_script::Value::Int(n) => n.to_string().into(),
+            balaur_script::Value::Num(n) => format!("{n}").into(),
+            balaur_script::Value::Bool(b) => b.to_string().into(),
+            other => other.type_name().to_string().into(),
         };
         out = out.replace(&format!("{{{name}}}"), &shown);
     }

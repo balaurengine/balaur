@@ -12,6 +12,7 @@ default = []
 dylib = ["dep:libloading"]
 
 [dependencies]
+smol_str.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true

@@ -407,7 +407,7 @@ fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn process(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let mode = crate::process::own(&eng.world(), e);
-    Ok(Value::Str(mode.name().to_string()))
+    Ok(Value::Str(mode.name().to_string().into()))
 }
 
 fn set_process(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -471,7 +471,7 @@ fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| {
-        Value::Str(a.material.reference().to_string())
+        Value::Str(a.material.reference().to_string().into())
     })
 }
 
@@ -489,7 +489,8 @@ fn global_material(eng: &Engine, args: &[Value]) -> Result<Value> {
         scene::composed_appearance(&world, e)
             .material
             .reference()
-            .to_string(),
+            .to_string()
+            .into(),
     ))
 }
 
@@ -525,7 +526,7 @@ fn tags(eng: &Engine, args: &[Value]) -> Result<Value> {
     let world = eng.world();
     let list = world
         .get::<&Tags>(e)
-        .map(|t| t.0.iter().cloned().map(Value::Str).collect())
+        .map(|t| t.0.iter().cloned().map(Value::text).collect())
         .unwrap_or_default();
     Ok(Value::List(list))
 }
@@ -605,7 +606,8 @@ fn name(eng: &Engine, args: &[Value]) -> Result<Value> {
         world
             .get::<&Name>(e)
             .map(|n| n.0.clone())
-            .unwrap_or_default(),
+            .unwrap_or_default()
+            .into(),
     ))
 }
 
@@ -617,7 +619,7 @@ fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    Ok(Value::Str(scene::node_path(&eng.world(), e)))
+    Ok(Value::Str(scene::node_path(&eng.world(), e).into()))
 }
 
 fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -791,7 +793,8 @@ fn current_state(eng: &Engine, args: &[Value]) -> Result<Value> {
         world
             .get::<&crate::states::States>(entity)
             .map(|states| states.current.clone())
-            .unwrap_or_default(),
+            .unwrap_or_default()
+            .into(),
     ))
 }
 
@@ -823,7 +826,7 @@ fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::components::present_on(eng, e)
             .into_iter()
-            .map(Value::Str)
+            .map(Value::text)
             .collect(),
     ))
 }
@@ -835,7 +838,7 @@ fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn stable_id(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     Ok(Value::Str(
-        crate::ids::of(&eng.world(), e).unwrap_or_default(),
+        crate::ids::of(&eng.world(), e).unwrap_or_default().into(),
     ))
 }
 
@@ -869,7 +872,7 @@ fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(world
         .get::<&ScriptAttachment>(e)
         .ok()
-        .map_or(Value::Nil, |a| Value::Str(a.path.clone())))
+        .map_or(Value::Nil, |a| Value::Str(a.path.clone().into())))
 }
 
 /// Whether the node's script declares a method, which `call` cannot say: it
@@ -993,7 +996,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Bool(b) => toml::Value::Boolean(*b),
         Value::Int(i) => toml::Value::Integer(*i),
         Value::Num(n) => toml::Value::Float(*n),
-        Value::Str(s) => toml::Value::String(s.clone()),
+        Value::Str(s) => toml::Value::String(s.to_string()),
         Value::Node(_) | Value::Callback(_) => {
             return Err(anyhow!("a node or callback is not component data"));
         }
@@ -1008,7 +1011,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Map(pairs) => toml::Value::Table(
             pairs
                 .iter()
-                .map(|(k, val)| Ok((k.clone(), to_toml(val)?)))
+                .map(|(k, val)| Ok((k.to_string(), to_toml(val)?)))
                 .collect::<Result<_>>()?,
         ),
     })
@@ -1024,18 +1027,18 @@ fn number_list(a: &[f32]) -> toml::Value {
 
 pub fn from_toml(v: &toml::Value) -> Result<Value> {
     Ok(match v {
-        toml::Value::String(s) => Value::Str(s.clone()),
+        toml::Value::String(s) => Value::Str(s.clone().into()),
         toml::Value::Integer(i) => Value::Int(*i),
         toml::Value::Float(f) => Value::Num(*f),
         toml::Value::Boolean(b) => Value::Bool(*b),
-        toml::Value::Datetime(d) => Value::Str(d.to_string()),
+        toml::Value::Datetime(d) => Value::Str(d.to_string().into()),
         toml::Value::Array(items) => {
             Value::List(items.iter().map(from_toml).collect::<Result<_>>()?)
         }
         toml::Value::Table(table) => Value::Map(
             table
                 .iter()
-                .map(|(k, val)| Ok((k.clone(), from_toml(val)?)))
+                .map(|(k, val)| Ok((k.as_str().into(), from_toml(val)?)))
                 .collect::<Result<_>>()?,
         ),
     })

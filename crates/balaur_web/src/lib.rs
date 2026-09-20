@@ -189,12 +189,15 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => {
                     return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
                 }
-                None => "on_web_message".to_string(),
+                None => "on_web_message".to_string().into(),
             };
             eng.resource::<WebState>()
                 .borrow_mut()
                 .listeners
-                .push(Handler { node, method });
+                .push(Handler {
+                    node,
+                    method: method.to_string(),
+                });
             Ok(())
         },
     );
@@ -210,10 +213,10 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
         Ok(eng.resource::<WebState>().borrow().visible)
     });
     m.function("user_agent", |eng: &Engine, ()| {
-        Ok(fact(eng, |f| f.user_agent.clone().map(Value::Str)))
+        Ok(fact(eng, |f| f.user_agent.clone().map(Value::text)))
     });
     m.function("location", |eng: &Engine, ()| {
-        Ok(fact(eng, |f| f.location.clone().map(Value::Str)))
+        Ok(fact(eng, |f| f.location.clone().map(Value::text)))
     });
     m.function("hardware_concurrency", |eng: &Engine, ()| {
         Ok(fact(eng, |f| {

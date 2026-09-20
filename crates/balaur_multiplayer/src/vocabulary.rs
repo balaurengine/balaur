@@ -2,6 +2,7 @@
 //! script compares against `multiplayer::ROLE_HOST` rather than a string.
 
 use balaur_script::{Bindings, Value};
+use smol_str::SmolStr;
 
 /// The method every script is called with a match's events.
 pub const HOOK: &str = "on_multiplayer_event";
@@ -147,7 +148,7 @@ pub(crate) fn install_constants(m: &mut dyn Bindings<balaur_core::Engine>) {
     let mut word = |prefix: &str, name: &str| {
         m.constant(
             &format!("{prefix}_{}", name.to_uppercase()),
-            Value::Str(name.to_string()),
+            Value::Str(SmolStr::new(name)),
         );
     };
     for role in Role::ALL {

@@ -30,7 +30,7 @@ fn kinds(app: &App) -> Vec<String> {
                     .iter()
                     .find(|(k, _)| k == "kind")
                     .and_then(|(_, v)| match v {
-                        Value::Str(kind) => Some(kind.clone()),
+                        Value::Str(kind) => Some(kind.to_string()),
                         _ => None,
                     })
             }

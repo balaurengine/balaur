@@ -62,7 +62,7 @@ fn call(app: &App, node: hecs::Entity, method: &str) -> Option<Value> {
 
 fn text(v: Option<Value>) -> String {
     match v {
-        Some(Value::Str(s)) => s,
+        Some(Value::Str(s)) => s.to_string(),
         other => panic!("expected a string, got {other:?}"),
     }
 }

@@ -7,6 +7,7 @@
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use smol_str::SmolStr;
 
 use crate::bridge::{scoped, with_ctx, with_ui};
 use crate::immediate::code::code_editor;
@@ -42,8 +43,8 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
                     ("dark", Value::Bool(dark)) => config.theme.dark = *dark,
                     (_, Value::Str(text)) => {
                         if let Some(color) = parse_hex(text) {
-                            config.theme.colors.insert(key.clone(), color);
-                            hex.insert(key.clone(), text.clone());
+                            config.theme.colors.insert(key.to_string(), color);
+                            hex.insert(key.to_string(), text.to_string());
                         }
                     }
                     _ => {}
@@ -62,7 +63,7 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
                     config
                         .theme
                         .roles
-                        .insert(name.clone(), std::rc::Rc::new(resolved));
+                        .insert(name.to_string(), std::rc::Rc::new(resolved));
                 }
             }
             config.changed = true;
@@ -75,8 +76,8 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
 /// the `hover` and `active` tables inside a role name colours the same way.
 fn spelled(value: &Value, hex: &std::collections::HashMap<String, String>) -> Value {
     match value {
-        Value::Str(text) => match hex.get(text) {
-            Some(found) => Value::Str(found.clone()),
+        Value::Str(text) => match hex.get(text.as_str()) {
+            Some(found) => Value::Str(SmolStr::new(found)),
             None => value.clone(),
         },
         Value::Map(fields) => Value::Map(
@@ -354,7 +355,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
                     };
                     let text = match field(k::TEXT) {
                         Some(Value::Str(s)) => s.clone(),
-                        _ => String::new(),
+                        _ => String::new().into(),
                     };
                     let color = match field(k::COLOR) {
                         Some(Value::Str(c)) => parse_hex(c).unwrap_or(Color32::WHITE),
@@ -751,7 +752,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                     Value::List(vs) => vs
                         .iter()
                         .filter_map(|v| match v {
-                            Value::Str(s) => Some(s.clone()),
+                            Value::Str(s) => Some(s.to_string()),
                             _ => None,
                         })
                         .collect(),

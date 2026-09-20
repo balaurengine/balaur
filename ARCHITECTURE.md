@@ -83,13 +83,17 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 ### The seam
 
-`balaur_script` is traits and a neutral `Value`, two dependencies (`anyhow`,
-`serde`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
+`balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
+`serde`, `smol_str`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
 `ScriptHost<Engine>`. Rune cost one crate and changed nothing else.
 
 - Operations are declared once in core (`node_api.rs` `NODE_OPS`,
   `engine_api.rs` `ENGINE_OPS`) and reach every language. A second language
   costs the call sugar, not the operations.
+- A `Str` and a `Map` key are `SmolStr`, which holds up to 22 bytes inline.
+  Almost every string crossing the seam is a component name, a property key or
+  a node path, and each one used to reach the allocator on the way in: a short
+  string argument cost 81 ns more than an integer one.
 - `Value` is `Nil/Bool/Int/Num/Str/Bytes/Vec2/Vec3/Color/List/Map`, plus
   `Node(u64)` (opaque entity bits) and `Callback(id)`, valid only for the call
   that received it. `Many` is several return values, not a list.

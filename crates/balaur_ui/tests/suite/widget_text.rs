@@ -77,7 +77,7 @@ fn a_click_beside_a_url_span_reports_nothing() {
     consume_input(&mut app);
     assert_eq!(
         host.call_on(balaur::node_id_of(owner), "went", &[]),
-        Some(balaur_script::Value::Str(String::new())),
+        Some(balaur_script::Value::Str(smol_str::SmolStr::default())),
         "a click on the plain text reported a link"
     );
 }

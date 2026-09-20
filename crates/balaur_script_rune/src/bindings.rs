@@ -266,7 +266,7 @@ impl balaur_script::Bindings<Engine> for RuneModule {
             Value::Bool(b) => b.to_string(),
             Value::Int(i) => i.to_string(),
             Value::Num(n) => n.to_string(),
-            Value::Str(s) => s.clone(),
+            Value::Str(s) => s.to_string(),
             other => format!("{other:?}"),
         };
         record(&self.name, name, Some(shown));

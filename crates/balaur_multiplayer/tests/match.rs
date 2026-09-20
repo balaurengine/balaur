@@ -160,7 +160,7 @@ fn play(transport: &str) -> Pair {
     call(
         &guest,
         "join_match",
-        &[Value::Str(url), hash.map_or(Value::Nil, Value::Str)],
+        &[Value::Str(url.into()), hash.map_or(Value::Nil, Value::text)],
     );
     run(&mut [&mut host, &mut guest], "both play", |apps| {
         apps.iter()

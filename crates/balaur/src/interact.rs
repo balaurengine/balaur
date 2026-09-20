@@ -79,7 +79,8 @@ fn button_name(button: u8) -> Value {
             2 => "middle",
             _ => "left",
         }
-        .to_string(),
+        .to_string()
+        .into(),
     )
 }
 
@@ -182,10 +183,10 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         )
     };
     for key in down {
-        broadcast(eng, "key_down", &[Value::Str(key)]);
+        broadcast(eng, "key_down", &[Value::text(key)]);
     }
     for key in up {
-        broadcast(eng, "key_up", &[Value::Str(key)]);
+        broadcast(eng, "key_up", &[Value::text(key)]);
     }
     if let Some(actions) = eng.try_resource::<balaur_input::InputActions>() {
         let fired: Vec<String> = {
@@ -197,7 +198,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
                 .collect()
         };
         for name in fired {
-            broadcast(eng, "action", &[Value::Str(name)]);
+            broadcast(eng, "action", &[Value::text(name)]);
         }
     }
     let size = balaur_render::viewport_size(eng);
@@ -277,7 +278,7 @@ fn fill_action_runners(app: &balaur_core::App) {
 
 fn text_of(value: &Value) -> String {
     match value {
-        Value::Str(s) => s.clone(),
+        Value::Str(s) => s.to_string(),
         Value::Num(n) => format!("{n}"),
         Value::Bool(b) => b.to_string(),
         _ => String::new(),

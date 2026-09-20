@@ -573,9 +573,9 @@ fn event_value(event: GamendEvent) -> Value {
         } => vec![
             ("request".into(), int(request)),
             ("kind".into(), Value::Str("login".into())),
-            ("user_id".into(), Value::Str(user_id)),
-            ("username".into(), Value::Str(username)),
-            ("display_name".into(), Value::Str(display_name)),
+            ("user_id".into(), Value::Str(user_id.into())),
+            ("username".into(), Value::Str(username.into())),
+            ("display_name".into(), Value::Str(display_name.into())),
         ],
         GamendEvent::RestDone {
             request,
@@ -590,7 +590,7 @@ fn event_value(event: GamendEvent) -> Value {
         GamendEvent::Failed { request, message } => vec![
             ("request".into(), int(request)),
             ("kind".into(), Value::Str("error".into())),
-            ("error".into(), Value::Str(message)),
+            ("error".into(), Value::Str(message.into())),
         ],
         GamendEvent::Replied {
             request,
@@ -599,7 +599,7 @@ fn event_value(event: GamendEvent) -> Value {
         } => vec![
             ("request".into(), int(request)),
             ("kind".into(), Value::Str("reply".into())),
-            ("status".into(), Value::Str(status)),
+            ("status".into(), Value::Str(status.into())),
             ("response".into(), json_or_nil(&response)),
         ],
         GamendEvent::SocketOpen { socket } => vec![
@@ -614,19 +614,19 @@ fn event_value(event: GamendEvent) -> Value {
         } => vec![
             ("socket".into(), int(socket)),
             ("kind".into(), Value::Str("message".into())),
-            ("topic".into(), Value::Str(topic)),
-            ("event".into(), Value::Str(event)),
+            ("topic".into(), Value::Str(topic.into())),
+            ("event".into(), Value::Str(event.into())),
             ("payload".into(), json_or_nil(&payload)),
         ],
         GamendEvent::SocketClosed { socket, reason } => vec![
             ("socket".into(), int(socket)),
             ("kind".into(), Value::Str("closed".into())),
-            ("reason".into(), Value::Str(reason)),
+            ("reason".into(), Value::Str(reason.into())),
         ],
         GamendEvent::SocketError { socket, reason } => vec![
             ("socket".into(), int(socket)),
             ("kind".into(), Value::Str("error".into())),
-            ("reason".into(), Value::Str(reason)),
+            ("reason".into(), Value::Str(reason.into())),
         ],
         GamendEvent::SocketReconnecting {
             socket,
@@ -637,7 +637,7 @@ fn event_value(event: GamendEvent) -> Value {
             ("socket".into(), int(socket)),
             ("kind".into(), Value::Str("reconnecting".into())),
             ("attempt".into(), Value::Int(i64::from(attempt))),
-            ("reason".into(), Value::Str(reason)),
+            ("reason".into(), Value::Str(reason.into())),
             ("wait".into(), Value::Num(wait)),
         ],
         GamendEvent::SocketReopened { socket, lost } => vec![
@@ -645,7 +645,7 @@ fn event_value(event: GamendEvent) -> Value {
             ("kind".into(), Value::Str("reopened".into())),
             (
                 "lost".into(),
-                Value::List(lost.into_iter().map(Value::Str).collect()),
+                Value::List(lost.into_iter().map(Value::text).collect()),
             ),
         ],
     };
@@ -704,9 +704,12 @@ fn handler_of(node: &Value, opts: Option<&Value>, default_method: &str) -> Resul
     let method = match opt(opts, "on_event") {
         Some(Value::Str(name)) => name.clone(),
         Some(other) => return Err(anyhow!("`on_event` should be a method name, got {other:?}")),
-        None => default_method.to_string(),
+        None => default_method.to_string().into(),
     };
-    Ok(Some(Handler { node, method }))
+    Ok(Some(Handler {
+        node,
+        method: method.to_string(),
+    }))
 }
 
 fn credentials_of(spec: &Value) -> Result<LoginCredentials> {
@@ -715,10 +718,15 @@ fn credentials_of(spec: &Value) -> Result<LoginCredentials> {
         _ => None,
     };
     if let Some(device_id) = field("device_id") {
-        return Ok(LoginCredentials::Device { device_id });
+        return Ok(LoginCredentials::Device {
+            device_id: device_id.to_string(),
+        });
     }
     match (field("email"), field("password")) {
-        (Some(email), Some(password)) => Ok(LoginCredentials::EmailPassword { email, password }),
+        (Some(email), Some(password)) => Ok(LoginCredentials::EmailPassword {
+            email: email.to_string(),
+            password: password.to_string(),
+        }),
         _ => Err(anyhow!(
             "credentials need `device_id`, or `email` and `password`"
         )),
@@ -732,9 +740,9 @@ fn account_of(spec: &Value) -> Result<LoginCredentials> {
     };
     match (field("email"), field("password")) {
         (Some(email), Some(password)) => Ok(LoginCredentials::Register {
-            email,
-            password,
-            username: field("username"),
+            email: email.to_string(),
+            password: password.to_string(),
+            username: field("username").map(|name| name.to_string()),
         }),
         _ => Err(anyhow!("an account needs an `email` and a `password`")),
     }
@@ -768,7 +776,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
             .filter(|url| !url.is_empty())
             .unwrap_or_else(|| target::url(eng));
         eng.resource::<GamendState>().borrow_mut().configure(&url);
-        Ok(Value::Str(url))
+        Ok(Value::Str(url.into()))
     });
     // `gamend.login(node|nil, { device_id = ... } or { email = ..,
     // password = .. })` -> id. Completion: `{ request, user_id, username,

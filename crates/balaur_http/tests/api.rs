@@ -169,10 +169,13 @@ fn save_to_streams_a_body_to_disk_and_reports_progress() {
             .cloned()
     });
     assert_eq!(field(&response, "status"), Some(&Value::Int(200)));
-    assert_eq!(field(&response, "body"), Some(&Value::Str(String::new())));
+    assert_eq!(
+        field(&response, "body"),
+        Some(&Value::Str(String::new().into()))
+    );
     assert_eq!(
         field(&response, "path"),
-        Some(&Value::Str(target.display().to_string()))
+        Some(&Value::Str(target.display().to_string().into()))
     );
     assert_eq!(std::fs::read(&target).unwrap(), b"pack-of-data");
     assert!(

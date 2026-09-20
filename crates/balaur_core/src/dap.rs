@@ -25,6 +25,7 @@
 // table it is; several have nothing to fail at and some need no state.
 #![allow(clippy::unnecessary_wraps, clippy::unused_self)]
 
+use smol_str::SmolStr;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -212,7 +213,7 @@ fn read_messages(stream: TcpStream, requests: &Sender<Json>) {
 /// starts a fresh one.
 struct Stop {
     pause: Pause,
-    arena: Vec<Vec<(String, Value)>>,
+    arena: Vec<Vec<(SmolStr, Value)>>,
 }
 
 impl Stop {
@@ -224,7 +225,7 @@ impl Stop {
     }
 
     /// Number a set of named values so the client can ask for them.
-    fn reference(&mut self, values: Vec<(String, Value)>) -> i64 {
+    fn reference(&mut self, values: Vec<(SmolStr, Value)>) -> i64 {
         self.arena.push(values);
         i64::try_from(self.arena.len()).unwrap_or(i64::MAX)
     }
@@ -237,7 +238,7 @@ impl Stop {
                 let named = items
                     .iter()
                     .enumerate()
-                    .map(|(i, v)| (i.to_string(), v.clone()))
+                    .map(|(i, v)| (SmolStr::new(i.to_string()), v.clone()))
                     .collect();
                 self.reference(named)
             }

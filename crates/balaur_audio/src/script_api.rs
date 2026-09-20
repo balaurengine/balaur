@@ -149,7 +149,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.function("events", |eng: &Engine, ()| {
         event::ensure_loaded(eng);
         let names = eng.resource::<event::Events>().borrow().names();
-        Ok(Value::List(names.into_iter().map(Value::Str).collect()))
+        Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
     // The script says *what happened*; the events file says what that sounds
     // like. Tuning one never touches the other.
@@ -199,7 +199,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.function("buses", |eng: &Engine, ()| {
         bus::ensure_loaded(eng);
         let names = eng.resource::<bus::Buses>().borrow().names();
-        Ok(Value::List(names.into_iter().map(Value::Str).collect()))
+        Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
     m.function("bus_volume", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);

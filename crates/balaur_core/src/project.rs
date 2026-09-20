@@ -12,6 +12,7 @@
 //! core does not know are dispatched to plugin-registered handlers, so a
 //! plugin can teach scenes new keys (e.g. `shape = "ball"`).
 
+use smol_str::SmolStr;
 use std::collections::{BTreeMap, HashMap};
 
 use crate::assets::SceneAsset;
@@ -461,10 +462,10 @@ impl ScriptRef {
 
     /// The node's overrides, as the host takes them. Order is the table's,
     /// which `toml` keeps sorted, so two runs write the same instance.
-    fn props(&self) -> Result<Vec<(String, Value)>> {
+    fn props(&self) -> Result<Vec<(SmolStr, Value)>> {
         self.props
             .iter()
-            .map(|(k, v)| Ok((k.clone(), crate::node_api::from_toml(v)?)))
+            .map(|(k, v)| Ok((k.as_str().into(), crate::node_api::from_toml(v)?)))
             .collect()
     }
 }
@@ -504,7 +505,7 @@ pub struct ProjectRoot(pub std::path::PathBuf);
 
 /// A node's script, held until the whole tree exists: the node, the path, and
 /// the properties the scene set on it.
-type PendingScript = (Entity, String, Vec<(String, Value)>);
+type PendingScript = (Entity, String, Vec<(SmolStr, Value)>);
 
 /// Instantiate a scene document under `base`. Nodes are created in
 /// declaration order; scripts are attached (and `init` runs) after the whole

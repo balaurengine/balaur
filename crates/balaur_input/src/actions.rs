@@ -523,7 +523,7 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
     // Every declared action, so a rebinding screen can list them.
     m.function("actions", |eng: &Engine, ()| {
         let names = eng.resource::<InputActions>().borrow().names();
-        Ok(Value::List(names.into_iter().map(Value::Str).collect()))
+        Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
     // -1..1. A digital binding reads 0 or 1; `keys:A,D` and an axis read the
     // whole range, so one action serves a key, a stick and a d-pad at once.
@@ -551,7 +551,7 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
     m.function("bindings", |eng: &Engine, name: String| {
         check_action(eng, &name);
         let list = eng.resource::<InputActions>().borrow().bindings(&name);
-        Ok(Value::List(list.into_iter().map(Value::Str).collect()))
+        Ok(Value::List(list.into_iter().map(Value::text).collect()))
     });
     // `input.bind("jump", "gamepad:North")`, or a list for several. Replaces
     // what the action had and saves to the user data directory.
@@ -596,11 +596,11 @@ fn install_rebinding(m: &mut dyn Bindings<Engine>) {
 
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {
-            Value::Str(one) => vec![one],
+            Value::Str(one) => vec![one.to_string()],
             Value::List(many) => many
                 .into_iter()
                 .map(|v| match v {
-                    Value::Str(s) => Ok(s),
+                    Value::Str(s) => Ok(s.to_string()),
                     other => Err(anyhow::anyhow!(
                         "a binding is a string, got {}",
                         other.type_name()

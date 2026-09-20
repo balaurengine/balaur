@@ -13,6 +13,7 @@ use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, CallbackId, Value};
 use egui::{Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind, pos2, vec2};
+use smol_str::SmolStr;
 
 use crate::UiState;
 use crate::bridge::with_ui;
@@ -42,7 +43,7 @@ pub(crate) fn last_pill() -> Option<egui::Rect> {
 pub(crate) struct Opts(
     pub(crate) Option<Value>,
     /// The named role's own options, read where the caller said nothing.
-    Option<std::rc::Rc<Vec<(String, Value)>>>,
+    Option<std::rc::Rc<Vec<(SmolStr, Value)>>>,
     /// Which of the role's state tables paints over the rest: `hover` while
     /// the pointer is on the control, `active` while it is held.
     &'static str,
@@ -164,7 +165,7 @@ const KNOWN_KEYS: &[&str] = &[
 /// Runs on every options table of every widget of every frame, so the hit
 /// path is a binary search and nothing else: `KNOWN_KEYS` is sorted, checked
 /// by the test below, and the miss path is the only one that allocates.
-fn warn_unknown(entries: &[(String, Value)]) {
+fn warn_unknown(entries: &[(SmolStr, Value)]) {
     for (key, _) in entries {
         if KNOWN_KEYS.binary_search(&key.as_str()).is_ok() {
             continue;
@@ -555,7 +556,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
         .chain(CLASSES)
         .chain(MODIFIERS)
     {
-        m.constant(name, balaur_script::Value::Str((*value).to_string()));
+        m.constant(name, balaur_script::Value::Str((*value).to_string().into()));
     }
     crate::immediate::bindings::install_theme(m);
     crate::immediate::bindings::install_panels(m);

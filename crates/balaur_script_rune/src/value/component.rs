@@ -13,6 +13,7 @@
 //! `node.collider3d.density` reads it back, so a script names a property the
 //! way a scene file does instead of building a table for one number.
 
+use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::collections::HashSet;
 
@@ -32,7 +33,9 @@ use crate::handles::{self, GENERIC, is_identifier};
 #[rune(item = ::balaur)]
 pub struct Component {
     pub(crate) node: u64,
-    pub(crate) name: String,
+    /// Interned by [`intern`], so a handle carries a borrow rather than a
+    /// string it would copy on every property read.
+    pub(crate) name: &'static str,
 }
 
 thread_local! {
@@ -41,7 +44,7 @@ thread_local! {
     static NAMES: RefCell<HashSet<&'static str>> = RefCell::new(HashSet::new());
 }
 
-fn intern(name: &str) -> &'static str {
+pub(crate) fn intern(name: &str) -> &'static str {
     NAMES.with_borrow_mut(|names| {
         if let Some(&existing) = names.get(name) {
             return existing;
@@ -64,7 +67,7 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
         let name = intern(&component);
         m.field_function(&Protocol::GET, name, move |node: &Node| Component {
             node: node.id,
-            name: name.to_string(),
+            name,
         })?;
         // `node.meta = #{ ... }` describes the component whole, the scene
         // file's spelling; the handle's fields and index are the sparse one.
@@ -157,7 +160,7 @@ fn write_key(this: &Component, key: &str, handle: usize, value: &rune::Value) ->
         Err(err) => return fail(err),
     };
     let [node, name] = receiver(this);
-    let args = [node, name, Neutral::Map(vec![(key.to_string(), value)])];
+    let args = [node, name, Neutral::Map(vec![(SmolStr::new(key), value)])];
     match call_bound(handle, &args) {
         Some(Ok(_)) => VmResult::Ok(()),
         Some(Err(err)) => fail(err),
@@ -174,7 +177,7 @@ fn set_whole(node: Node, name: &'static str, handle: usize, value: &rune::Value)
     };
     let args = [
         Neutral::Node(node.id),
-        Neutral::Str(name.to_string()),
+        Neutral::Str(SmolStr::new(name)),
         value,
     ];
     match call_bound(handle, &args) {
@@ -240,7 +243,10 @@ fn node_op(name: &str) -> Option<NodeOp> {
 
 /// The node and the component name every property call opens with.
 fn receiver(this: &Component) -> [Neutral; 2] {
-    [Neutral::Node(this.node), Neutral::Str(this.name.clone())]
+    [
+        Neutral::Node(this.node),
+        Neutral::Str(SmolStr::new_static(this.name)),
+    ]
 }
 
 fn read_property(
@@ -251,7 +257,7 @@ fn read_property(
     fallback: &std::collections::HashMap<String, Neutral>,
     handle: usize,
 ) -> VmResult<rune::Value> {
-    if !owners.contains(&this.name) {
+    if !owners.contains(this.name) {
         return fail(format!("`{}` has no property `{prop}`", this.name));
     }
     let _scope = CallbackScope::enter();
@@ -268,12 +274,12 @@ fn read_property(
             Some((_, value)) => value,
             None => return fail(format!("`{}` does not report `{prop}`", this.name)),
         },
-        _ => match fallback.get(&this.name) {
+        _ => match fallback.get(this.name) {
             Some(value) => value.clone(),
             None => return fail(format!("the node has no `{}`", this.name)),
         },
     };
-    let value = if vectors.contains(&this.name) {
+    let value = if vectors.contains(this.name) {
         as_vec3(value)
     } else {
         value
@@ -311,7 +317,7 @@ fn write_property(
     handle: usize,
     value: &rune::Value,
 ) -> VmResult<()> {
-    if !owners.contains(&this.name) {
+    if !owners.contains(this.name) {
         return fail(format!("`{}` has no property `{prop}`", this.name));
     }
     let _scope = CallbackScope::enter();
@@ -320,7 +326,7 @@ fn write_property(
         Err(err) => return fail(err),
     };
     let [node, name] = receiver(this);
-    let args = [node, name, Neutral::Map(vec![(prop.to_string(), value)])];
+    let args = [node, name, Neutral::Map(vec![(SmolStr::new(prop), value)])];
     match call_bound(handle, &args) {
         Some(Ok(_)) => VmResult::Ok(()),
         Some(Err(err)) => fail(err),
@@ -334,18 +340,21 @@ fn fail<T>(message: impl std::fmt::Display) -> VmResult<T> {
 
 /// The receiver and the converted arguments of a handle method call, the
 /// node first and, when `with_name`, the component name second.
-fn receive(values: &[rune::Value], with_name: bool) -> Result<(String, Vec<Neutral>), String> {
+fn receive(
+    values: &[rune::Value],
+    with_name: bool,
+) -> Result<(&'static str, Vec<Neutral>), String> {
     let Some(this) = values.first() else {
         return Err("component method called without a receiver".into());
     };
     let (node, name) = match this.borrow_ref::<Component>() {
-        Ok(c) => (c.node, c.name.clone()),
+        Ok(c) => (c.node, c.name),
         Err(_) => return Err("component method called on something else".into()),
     };
     let mut neutral = Vec::with_capacity(values.len() + 1);
     neutral.push(Neutral::Node(node));
     if with_name {
-        neutral.push(Neutral::Str(name.clone()));
+        neutral.push(Neutral::Str(SmolStr::new_static(name)));
     }
     for v in &values[1..] {
         neutral.push(to_neutral(v).map_err(|e| e.to_string())?);
@@ -395,7 +404,7 @@ fn method_handler(
             Ok(r) => r,
             Err(err) => return fail(err),
         };
-        let Some(&handle) = targets.get(&name) else {
+        let Some(&handle) = targets.get(name) else {
             return fail(format!(
                 "`{name}` has no `{method}`; no module driving it declares one"
             ));
