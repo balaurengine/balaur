@@ -248,10 +248,10 @@ fn show_cards(S, k, shown) {
         items.push(util::row(kind_icon(entry.kind), entry.name,
             entry.get("note").unwrap_or(""), k.text));
     }
-    let params = util::fill(dock::CARDS_NODE, #{
+    util::fill(dock::CARDS_NODE, #{
         options: items, visible: true, columns: 5, text: "",
     });
-    let picked = util::taken(dock::CARDS_NODE, params);
+    let picked = util::taken(dock::CARDS_NODE);
     for (n, item) in items.iter().enumerate() {
         if item == picked {
             let held = shown[n];

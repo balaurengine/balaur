@@ -339,6 +339,11 @@ fn report_render_cost(app: &App, window: &Window) {
     if let Some(gpu) = timings.gpu_total() {
         balaur_core::timings::record(&app.engine, "render gpu", gpu);
     }
+    // Each pass under its own name: a frame that says the GPU spent 8 ms does
+    // not say whether that was the shadows, the transparency or the tonemap.
+    for (name, cost) in timings.gpu_steps.iter().flatten() {
+        balaur_core::timings::record(&app.engine, name, *cost);
+    }
 }
 
 /// Run the app inside a kiss3d window until the window closes or the game

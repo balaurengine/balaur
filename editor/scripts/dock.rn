@@ -200,7 +200,7 @@ pub fn show_log(items) {
 
 // What the log reports as picked, cleared once the caller has acted on it.
 fn taken_log() {
-    util::taken(LOG_NODE, util::fill(LOG_NODE, #{}))
+    util::taken(LOG_NODE)
 }
 
 // Hidden while a panel that is not a list is up.
@@ -233,8 +233,8 @@ const TABLE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTable";
 // share a column, stated only when the columns change: restating it every
 // frame would snap the reader's own drag away.
 pub fn show_table(titles, widths, items) {
-    let held = util::fill(TABLE_NODE, #{});
-    let same = util::cells(util::vec(held.get("titles").unwrap_or([]))) == util::cells(titles);
+    let held = util::prop(TABLE_NODE, "titles");
+    let same = util::cells(util::vec(if held is Vec { held } else { [] })) == util::cells(titles);
     let params = #{ titles: titles, options: items, visible: true, sortable: true };
     if !same {
         params["widths"] = widths;
@@ -251,7 +251,7 @@ pub fn hide_table() {
 
 // What the table reports as picked, cleared once the caller has acted on it.
 pub fn taken_table() {
-    util::taken(TABLE_NODE, util::fill(TABLE_NODE, #{}))
+    util::taken(TABLE_NODE)
 }
 
 pub fn output(S, k) {
@@ -493,15 +493,15 @@ fn show_cards(S, k, dir, files) {
             chosen = items[n];
         }
     }
-    let params = util::fill(CARDS_NODE, #{
+    util::fill(CARDS_NODE, #{
         options: items, visible: true, columns: 6, text: chosen,
     });
     // `clicked` rather than a changed `text`: a second click on the selected
     // card reports the same string, and that is the one that opens it.
-    if !params["clicked"] {
+    if util::prop(CARDS_NODE, "clicked") != true {
         return;
     }
-    let picked = params["text"];
+    let picked = util::prop(CARDS_NODE, "text");
     for (n, item) in items.iter().enumerate() {
         if item != picked {
             continue;
@@ -768,8 +768,8 @@ fn show_frames(S, k, p) {
             chosen = items[n];
         }
     }
-    let params = util::fill(TREE_NODE, #{ options: items, visible: true, text: chosen });
-    let picked = params["text"];
+    util::fill(TREE_NODE, #{ options: items, visible: true, text: chosen });
+    let picked = util::prop(TREE_NODE, "text");
     for (n, item) in items.iter().enumerate() {
         if item == picked {
             S.debug.frame = owners[n];

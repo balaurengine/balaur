@@ -26,8 +26,7 @@ pub fn obj(v) {
     if v is Object { v } else { #{} }
 }
 
-/// Fill a widget node from a table and answer the whole component back, so a
-/// caller writes what changed and reads what the node reports.
+/// Fill a widget node from a table.
 ///
 /// `patch_component` rather than get-mutate-set: every property the table
 /// leaves out stays where it was, and a view that only sets `options` and
@@ -35,10 +34,19 @@ pub fn obj(v) {
 pub fn fill(id, params) {
     let found = scene::get_node(id);
     if is_nil(found) {
-        return #{};
+        return;
     }
     found.patch_component("widget", params);
-    obj(found.get_component("widget"))
+}
+
+/// One property of a widget node, for a caller reading back what the reader
+/// left on it. The whole table is forty keys, and a view wants one of them.
+pub fn prop(id, key) {
+    let found = scene::get_node(id);
+    if is_nil(found) {
+        return ();
+    }
+    found.get_component("widget", key)
 }
 
 /// Stop drawing a node. Only the dock that owns one may call this: every dock
@@ -53,8 +61,9 @@ pub fn hide(id) {
 
 /// What a list or tree node reports it was picked, and a clear so the same
 /// pick is not acted on again next frame.
-pub fn taken(id, params) {
-    let picked = params["text"];
+pub fn taken(id) {
+    let picked = prop(id, "text");
+    let picked = if picked is String { picked } else { "" };
     if picked != "" {
         fill(id, #{ text: "" });
     }

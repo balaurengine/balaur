@@ -96,9 +96,18 @@ runs:
           libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
           libxkbcommon-dev libwayland-dev
 
+    # The cache key names the feature list, which is comma separated, and the
+    # action refuses a key with a comma in it.
+    - id: cachekey
+      shell: bash
+      run: |
+        set -euo pipefail
+        features='${{ inputs.features }}${{ inputs.web-features }}'
+        echo "key=${{ steps.what.outputs.artifact }}-${features//,/-}" >>"$GITHUB_OUTPUT"
+
     - uses: Swatinem/rust-cache@v2
       with:
-        key: ${{ steps.what.outputs.artifact }}-${{ inputs.features }}${{ inputs.web-features }}
+        key: ${{ steps.cachekey.outputs.key }}
         save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - if: inputs.platform == 'android'

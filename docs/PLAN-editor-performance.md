@@ -248,6 +248,12 @@ per script, and the Profiler dock has a `scripts` toggle that turns them on.
 Instructions rather than milliseconds, so two runs of the same frame report the
 same number and a change in the reading is a change in what a script does.
 
+`--timings` also names each GPU pass, which the fork already timed and the
+backend only totalled. On `examples/hello` at 1920x1080 the editor's 6.9 ms of
+GPU is tonemap 2.7, opaque 2.0, the 2D pass 1.9 and shadows 0.3, and at a
+quarter of the pixels it is 2.6 ms, so the frame's floor is fill rather than
+anything the scene holds.
+
 The editor compiles as one Rune unit, so the count is the whole shell rather
 than a figure per file. Ablation is what localises it, as §5 did: stub one call,
 re-run, take the difference.
