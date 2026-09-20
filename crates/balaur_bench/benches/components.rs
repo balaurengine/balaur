@@ -126,10 +126,15 @@ fn rune_side(c: &mut Criterion) {
 fn seam_arg_cost(c: &mut Criterion) {
     let mut group = c.benchmark_group("seam_arg");
     let count = 1000usize;
-    let cases: [(&str, &str); 4] = [
+    let cases: [(&str, &str); 5] = [
         ("none", "bench::take0()"),
         ("int", "bench::take1(7)"),
         ("str_short", "bench::take1(\"transform\")"),
+        (
+            "str_boundary",
+            // 22 bytes, the last length that still inlines.
+            "bench::take1(\"aaaaaaaaaaaaaaaaaaaaaa\")",
+        ),
         (
             "str_long",
             "bench::take1(\"a component name far past what a small string inlines\")",

@@ -320,13 +320,33 @@ fn freeing_a_node_runs_its_remove_hook_and_forgets_it() {
     let e = spawn(&app);
     components::add(&app.engine, e, "marker", None).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
-    let bit = 1u128 << registry.borrow().index_of("marker").unwrap();
-    let attached = app.engine.resource::<components::Attached>();
-    assert_eq!(attached.borrow().0.get(&e), Some(&bit));
+    let index = registry.borrow().index_of("marker").unwrap();
+    assert!(components::attached_of(&app.engine, e).has(index));
 
     components::remove_present(&app.engine, e);
     assert!(components::get(&app.engine, e, "marker").is_none());
-    assert!(attached.borrow().0.get(&e).is_none());
+    assert_eq!(
+        components::attached_of(&app.engine, e),
+        components::Attached::default()
+    );
+}
+
+/// The bundle's own `Transform` is on the node without the registry having
+/// put it there, so a free owes no hook for it and a presence test still
+/// answers yes.
+#[test]
+fn the_bundles_transform_is_present_without_being_hooked() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    let bits = components::attached_of(&app.engine, e);
+    assert_eq!(bits.present, components::TRANSFORM_BIT);
+    assert_eq!(bits.hooked, 0);
+    assert!(components::has(&app.engine, e, "transform"));
+    assert!(
+        components::present_on(&app.engine, e)
+            .iter()
+            .any(|name| name == "transform")
+    );
 }
 
 #[test]
@@ -335,8 +355,9 @@ fn removing_a_component_clears_its_bit() {
     let e = spawn(&app);
     components::add(&app.engine, e, "marker", None).unwrap();
     components::remove(&app.engine, e, "marker").unwrap();
-    let attached = app.engine.resource::<components::Attached>();
-    assert!(attached.borrow().0.get(&e).is_none());
+    let registry = app.engine.resource::<ComponentRegistry>();
+    let index = registry.borrow().index_of("marker").unwrap();
+    assert!(!components::attached_of(&app.engine, e).has(index));
 }
 
 /// A debug build still finds a component attached behind the registry's

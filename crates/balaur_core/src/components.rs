@@ -410,9 +410,16 @@ impl ComponentRegistry {
     /// would never draw. A plugin colliding with a built-in has to be told.
     pub fn insert(&mut self, name: &str, def: ComponentDef) {
         let facts = Facts::of(&def.schema);
+        let first = self.defs.is_empty();
         assert!(
             self.defs.insert(SmolStr::new(name), def).is_none(),
             "component '{name}' is registered twice; a name belongs to one definition"
+        );
+        assert!(
+            !first || name == crate::transform::COMPONENT,
+            "'{name}' registered before '{}', which owns TRANSFORM_BIT and is what \
+             the node bundle marks",
+            crate::transform::COMPONENT
         );
         self.facts.push(facts);
     }
@@ -430,16 +437,48 @@ impl<'a> IntoIterator for &'a ComponentRegistry {
 /// The most components one build may register: a bit each in [`Attached`].
 pub const MAX_COMPONENTS: usize = 128;
 
-/// Which registered components each node was given through the registry,
-/// one bit per definition in registration order.
+/// Which registered components a node carries, one bit per definition in
+/// registration order.
 ///
-/// Set by `apply`, cleared by `remove`, dropped when the node is freed. A
-/// node with no entry was never given one, so freeing fifty thousand bare
-/// nodes asks no plugin anything. A component attached behind the registry's
-/// back is not in here: a debug build still finds it on free and warns, a
-/// release build skips its hook.
-#[derive(Default)]
-pub struct Attached(pub crate::collections::DetHashMap<Entity, u128>);
+/// Two masks, because the two questions have different answers. `present` is
+/// what the node has, which is what a presence test and `component_names`
+/// read. `hooked` is what the registry attached, which is the set of `remove`
+/// hooks a free still owes. They differ for exactly one component: the node
+/// bundle carries a `Transform`, so `transform` is present on almost every
+/// node and hooked on none of them, and freeing fifty thousand nodes still
+/// asks no plugin anything.
+///
+/// A component on the entity rather than a map on the engine: the node is
+/// what the bits belong to, hecs drops them with it, and a read is an
+/// archetype lookup instead of a resource borrow and a hash.
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Attached {
+    pub present: u128,
+    pub hooked: u128,
+}
+
+/// `transform` is the first component core registers, so it owns bit 0, and
+/// the node bundle can say a node has one without reaching the registry.
+/// [`ComponentRegistry::insert`] asserts the index, so registering anything
+/// ahead of it fails at boot rather than mislabelling every node.
+pub const TRANSFORM_BIT: u128 = 1;
+
+impl Attached {
+    /// What the node bundle gives a node it spawns with a `Transform`.
+    #[must_use]
+    pub const fn with_transform() -> Self {
+        Self {
+            present: TRANSFORM_BIT,
+            hooked: 0,
+        }
+    }
+
+    /// Whether the definition at `index` is on the node.
+    #[must_use]
+    pub const fn has(&self, index: usize) -> bool {
+        self.present & (1u128 << index) != 0
+    }
+}
 
 /// What a scene or a script asked of each component, by node and definition.
 ///
@@ -499,19 +538,56 @@ fn index_of(eng: &Engine, name: &str) -> Option<usize> {
 
 /// Set or clear one node's bit for the definition at `index`.
 fn mark(eng: &Engine, entity: Entity, index: usize, on: bool) {
-    let Some(attached) = eng.try_resource::<Attached>() else {
-        return;
-    };
-    let mut attached = attached.borrow_mut();
     let bit = 1u128 << index;
-    if on {
-        *attached.0.entry(entity).or_insert(0) |= bit;
-    } else if let Some(bits) = attached.0.get_mut(&entity) {
-        *bits &= !bit;
-        if *bits == 0 {
-            attached.0.swap_remove(&entity);
+    let mut world = eng.world_mut();
+    if let Ok(mut bits) = world.get::<&mut Attached>(entity) {
+        if on {
+            bits.present |= bit;
+            bits.hooked |= bit;
+        } else {
+            bits.present &= !bit;
+            bits.hooked &= !bit;
         }
+        return;
     }
+    if !on {
+        return;
+    }
+    let _ = world.insert_one(
+        entity,
+        Attached {
+            present: bit,
+            hooked: bit,
+        },
+    );
+}
+
+/// Say the node has the definition at `index` without owing its `remove` hook.
+///
+/// For state a node acquires outside [`add`]: the bundle's `Transform`, and
+/// [`crate::transform::ensure`] giving one to a node a body was put on. The
+/// hook belongs to whoever attached it, which here is core.
+pub(crate) fn mark_present(world: &mut hecs::World, entity: Entity, bit: u128) {
+    if let Ok(mut bits) = world.get::<&mut Attached>(entity) {
+        bits.present |= bit;
+        return;
+    }
+    let _ = world.insert_one(
+        entity,
+        Attached {
+            present: bit,
+            hooked: 0,
+        },
+    );
+}
+
+/// The bits a node carries, or none when it carries nothing.
+#[must_use]
+pub fn attached_of(eng: &Engine, entity: Entity) -> Attached {
+    eng.world()
+        .get::<&Attached>(entity)
+        .map(|bits| *bits)
+        .unwrap_or_default()
 }
 
 /// A colour written either way: `[r, g, b, a]` floats, or `#rrggbb` /
@@ -772,14 +848,20 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         }
         None => toml::map::Map::new(),
     };
-    if let Some(toml::Value::Table(asked)) = asked_for_at(eng, entity, index) {
-        for (key, value) in asked {
-            out.entry(key).or_insert(value);
+    // A `get` that reported every property the schema declares has left
+    // nothing for the two fills below to find, which is the usual case: the
+    // contract on `get` is that it reports all of them. Checking is a lookup
+    // per property; the fill it skips clones the whole authored table.
+    if !defaults.keys().all(|key| out.contains_key(key)) {
+        if let Some(toml::Value::Table(asked)) = asked_for_at(eng, entity, index) {
+            for (key, value) in asked {
+                out.entry(key).or_insert(value);
+            }
         }
-    }
-    for (key, value) in defaults.iter() {
-        if !out.contains_key(key) {
-            out.insert(key.clone(), value.clone());
+        for (key, value) in defaults.iter() {
+            if !out.contains_key(key) {
+                out.insert(key.clone(), value.clone());
+            }
         }
     }
     overlay(&schema, &mut out, Some(params))?;
@@ -912,12 +994,11 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
 /// Reads [`Attached`] rather than asking every definition, so a node that
 /// was never given a component costs one lookup.
 pub fn remove_present(eng: &Engine, entity: Entity) {
-    let bits = eng
-        .try_resource::<Attached>()
-        .and_then(|attached| attached.borrow_mut().0.swap_remove(&entity))
-        .unwrap_or(0);
+    let owed = attached_of(eng, entity);
+    let bits = owed.hooked;
     #[cfg(debug_assertions)]
-    let bits = bits | untracked(eng, entity, bits);
+    let bits = bits | untracked(eng, entity, owed.present);
+    let _ = eng.world_mut().remove_one::<Attached>(entity);
     if bits == 0 {
         return;
     }
@@ -952,11 +1033,7 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
         if bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_none() {
             continue;
         }
-        // The node bundle attaches a `Transform` in the one spawn, so a node
-        // that never went through `add` carries one; freeing takes it off.
-        if name != crate::transform::COMPONENT {
-            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
-        }
+        tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
         extra |= 1u128 << i;
     }
     extra
@@ -980,6 +1057,56 @@ pub fn answers_property(eng: &Engine, name: &str, read: PropertyFn) {
     }
 }
 
+/// A component writing one property into its own live state. `false` is a
+/// property, or a node, it cannot answer for, which [`patch`] then does.
+pub type PropertyWriteFn = Box<dyn Fn(&Engine, Entity, &str, &toml::Value) -> bool>;
+
+/// The components that can write one property on their own, by name. The
+/// twin of [`PropertyReaders`], for a script driving one value over time.
+#[derive(Default)]
+pub struct PropertyWriters(std::collections::HashMap<String, PropertyWriteFn>);
+
+/// Say that `name` can write a single property, and how.
+pub fn writes_property(eng: &Engine, name: &str, write: PropertyWriteFn) {
+    if eng.try_resource::<PropertyWriters>().is_none() {
+        eng.insert_resource(PropertyWriters::default());
+    }
+    if let Some(writers) = eng.try_resource::<PropertyWriters>() {
+        writers.borrow_mut().0.insert(name.to_string(), write);
+    }
+}
+
+/// One property written, without reading the component's table back and
+/// building it again. `false` where no fast path took it and [`patch`] must.
+///
+/// The write is still recorded, so saving the scene keeps what was asked.
+pub fn set_property(
+    eng: &Engine,
+    entity: Entity,
+    name: &str,
+    key: &str,
+    value: &toml::Value,
+) -> Result<bool> {
+    let wrote = {
+        let Some(writers) = eng.try_resource::<PropertyWriters>() else {
+            return Ok(false);
+        };
+        let writers = writers.borrow();
+        match writers.0.get(name) {
+            Some(write) => write(eng, entity, key, value),
+            None => false,
+        }
+    };
+    if !wrote {
+        return Ok(false);
+    }
+    let index = resolve(eng, name)?.index;
+    let mut one = toml::map::Map::new();
+    one.insert(key.to_string(), value.clone());
+    record_at(eng, entity, index, Some(&toml::Value::Table(one)), false);
+    Ok(true)
+}
+
 /// One property of a component, without building the rest where the component
 /// knows how to answer: `get` and index is what happens otherwise.
 pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
@@ -991,28 +1118,26 @@ pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<t
             return Some(found);
         }
     }
-    get(eng, entity, name)?.get(key).cloned()
+    // Taken out of the table rather than cloned: the table was built for this
+    // call and nothing else will read it.
+    match get(eng, entity, name)? {
+        toml::Value::Table(mut table) => table.remove(key),
+        other => other.get(key).cloned(),
+    }
 }
 
 /// Whether `entity` carries `name`, without building the component's table.
 ///
-/// [`Attached`] answers on its own for anything the registry attached. A
-/// component put on a node by another path has no bit, and `transform` is the
-/// one built-in that does -- the node bundle carries it -- so a clear bit
-/// falls back to asking the definition.
+/// [`Attached`] is the whole answer: every path that gives a node a component
+/// marks a bit, `add` through the registry and the node bundle's own
+/// `Transform` alike. A definition is never asked, so this costs one
+/// archetype lookup whatever the component holds.
 #[must_use]
 pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
     let Some(index) = index_of(eng, name) else {
         return false;
     };
-    let bits = eng
-        .try_resource::<Attached>()
-        .and_then(|attached| attached.borrow().0.get(&entity).copied())
-        .unwrap_or(0);
-    if bits & (1u128 << index) != 0 {
-        return true;
-    }
-    get_at(eng, entity, index).is_some()
+    attached_of(eng, entity).has(index)
 }
 
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
@@ -1044,10 +1169,12 @@ pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {
         return Vec::new();
     };
     let registry = registry.borrow();
+    let bits = attached_of(eng, entity);
     registry
         .iter()
-        .filter(|(_, def)| (def.get)(eng, entity).is_some())
-        .map(|(n, _)| n.to_string())
+        .enumerate()
+        .filter(|(i, _)| bits.has(*i))
+        .map(|(_, (n, _))| n.to_string())
         .collect()
 }
 

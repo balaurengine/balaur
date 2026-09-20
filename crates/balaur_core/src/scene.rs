@@ -484,6 +484,7 @@ pub(crate) fn spawn_root(world: &mut World) -> Entity {
     world.spawn(node_bundle!(
         "Root",
         Transform::identity(),
+        crate::components::Attached::with_transform(),
         crate::components::StableId(String::from(ROOT_ID)),
         crate::ids::IdAllocator::default()
     ))
@@ -524,6 +525,7 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
         name,
         Parent(parent),
         Transform::identity(),
+        crate::components::Attached::with_transform(),
         crate::components::StableId(id)
     ));
     attach(world, parent, name, entity);

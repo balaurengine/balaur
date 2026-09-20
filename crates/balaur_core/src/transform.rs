@@ -97,6 +97,64 @@ fn get(eng: &crate::Engine, entity: Entity) -> Option<toml::Value> {
     Some(toml::Value::Table(out))
 }
 
+/// One property, without building the other three: what a script reading
+/// `node.transform.position` every frame asks for.
+fn read_property(eng: &crate::Engine, entity: Entity, key: &str) -> Option<toml::Value> {
+    let world = eng.world();
+    let held = world.get::<&Transform>(entity).ok()?;
+    let numbers = |v: [f32; 3]| {
+        toml::Value::Array(
+            v.iter()
+                .map(|n| toml::Value::Float(f64::from(*n)))
+                .collect(),
+        )
+    };
+    match key {
+        k::POSITION => Some(numbers(held.position.to_array())),
+        k::ROTATION_EULER => Some(numbers(euler_of(held.rotation))),
+        k::SCALE => Some(numbers(held.scale.to_array())),
+        k::SKEW => Some(toml::Value::Float(f64::from(held.skew))),
+        _ => None,
+    }
+}
+
+/// One property written into the live transform. `false` is a node without
+/// one, or a value the schema would have refused.
+fn write_property(eng: &crate::Engine, entity: Entity, key: &str, value: &toml::Value) -> bool {
+    let vec3 = || {
+        let list = value.as_array()?;
+        let [x, y, z] = list.as_slice() else {
+            return None;
+        };
+        let number = |v: &toml::Value| crate::components::as_f64(v).map(|n| n as f32);
+        Some(Vec3::new(number(x)?, number(y)?, number(z)?))
+    };
+    let mut world = eng.world_mut();
+    let Ok(mut held) = world.get::<&mut Transform>(entity) else {
+        return false;
+    };
+    match key {
+        k::POSITION => match vec3() {
+            Some(v) => held.position = v,
+            None => return false,
+        },
+        k::ROTATION_EULER => match vec3() {
+            Some(v) => held.rotation = rotation_of(v),
+            None => return false,
+        },
+        k::SCALE => match vec3() {
+            Some(v) => held.scale = v,
+            None => return false,
+        },
+        k::SKEW => match crate::components::as_f64(value) {
+            Some(n) => held.skew = n as f32,
+            None => return false,
+        },
+        _ => return false,
+    }
+    true
+}
+
 /// Give `entity` a transform if it has none, for a component that poses the
 /// node it is on.
 ///
@@ -110,9 +168,12 @@ pub fn ensure(eng: &crate::Engine, entity: Entity) {
         return;
     }
     let _ = world.insert_one(entity, Transform::identity());
+    crate::components::mark_present(&mut world, entity, crate::components::TRANSFORM_BIT);
 }
 
 pub(crate) fn register_transform_component(app: &mut App) {
+    crate::components::answers_property(&app.engine, COMPONENT, Box::new(read_property));
+    crate::components::writes_property(&app.engine, COMPONENT, Box::new(write_property));
     app.register_component(
         COMPONENT,
         ComponentDef {
