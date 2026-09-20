@@ -68,7 +68,12 @@ impl Glam for Quat {
         DQuat::from_xyzw(self.x, self.y, self.z, self.w)
     }
     fn of(g: DQuat) -> Self {
-        Self { x: g.x, y: g.y, z: g.z, w: g.w }
+        Self {
+            x: g.x,
+            y: g.y,
+            z: g.z,
+            w: g.w,
+        }
     }
 }
 
@@ -139,7 +144,10 @@ pub(crate) fn euler(name: &str) -> VmResult<EulerRot> {
 }
 
 /// A number an operator scales by: a float, or an int read as one.
-#[allow(clippy::cast_precision_loss, reason = "a script integer used as a scale")]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "a script integer used as a scale"
+)]
 fn number(value: &rune::Value) -> Option<f64> {
     value
         .as_float()
@@ -162,11 +170,21 @@ macro_rules! float_ops {
     ($m:expr, $t:ty, $glam:ty) => {{
         type T = $t;
         let s: fn(f64) -> $glam = <$glam>::splat;
-        $m.associated_function(&P::ADD, move |a: &T, b: rune::Value| vm(lanes::<T>(&b, s).map(|b| T::of(a.g() + b))))?;
-        $m.associated_function(&P::SUB, move |a: &T, b: rune::Value| vm(lanes::<T>(&b, s).map(|b| T::of(a.g() - b))))?;
-        $m.associated_function(&P::MUL, move |a: &T, b: rune::Value| vm(lanes::<T>(&b, s).map(|b| T::of(a.g() * b))))?;
-        $m.associated_function(&P::DIV, move |a: &T, b: rune::Value| vm(lanes::<T>(&b, s).map(|b| T::of(a.g() / b))))?;
-        $m.associated_function(&P::REM, move |a: &T, b: rune::Value| vm(lanes::<T>(&b, s).map(|b| T::of(a.g() % b))))?;
+        $m.associated_function(&P::ADD, move |a: &T, b: rune::Value| {
+            vm(lanes::<T>(&b, s).map(|b| T::of(a.g() + b)))
+        })?;
+        $m.associated_function(&P::SUB, move |a: &T, b: rune::Value| {
+            vm(lanes::<T>(&b, s).map(|b| T::of(a.g() - b)))
+        })?;
+        $m.associated_function(&P::MUL, move |a: &T, b: rune::Value| {
+            vm(lanes::<T>(&b, s).map(|b| T::of(a.g() * b)))
+        })?;
+        $m.associated_function(&P::DIV, move |a: &T, b: rune::Value| {
+            vm(lanes::<T>(&b, s).map(|b| T::of(a.g() / b)))
+        })?;
+        $m.associated_function(&P::REM, move |a: &T, b: rune::Value| {
+            vm(lanes::<T>(&b, s).map(|b| T::of(a.g() % b)))
+        })?;
         $m.associated_function(&P::NEG, |a: &T| T::of(-a.g()))?;
         eq_and_fmt!($m, T);
     }};
@@ -189,11 +207,22 @@ macro_rules! int_ops {
     ($m:expr, $t:ty, $glam:ty) => {{
         type T = $t;
         let s: fn(i64) -> $glam = <$glam>::splat;
-        $m.associated_function(&P::ADD, move |a: &T, b: rune::Value| vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_add(b)))))?;
-        $m.associated_function(&P::SUB, move |a: &T, b: rune::Value| vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_sub(b)))))?;
-        $m.associated_function(&P::MUL, move |a: &T, b: rune::Value| vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_mul(b)))))?;
+        $m.associated_function(&P::ADD, move |a: &T, b: rune::Value| {
+            vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_add(b))))
+        })?;
+        $m.associated_function(&P::SUB, move |a: &T, b: rune::Value| {
+            vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_sub(b))))
+        })?;
+        $m.associated_function(&P::MUL, move |a: &T, b: rune::Value| {
+            vm(ints::<T>(&b, s).map(|b| T::of(a.g().wrapping_mul(b))))
+        })?;
         $m.associated_function(&P::DIV, move |a: &T, b: rune::Value| {
-            vm(ints::<T>(&b, s).and_then(|b| a.g().checked_div(b).map(T::of).ok_or_else(|| anyhow!("division by zero"))))
+            vm(ints::<T>(&b, s).and_then(|b| {
+                a.g()
+                    .checked_div(b)
+                    .map(T::of)
+                    .ok_or_else(|| anyhow!("division by zero"))
+            }))
         })?;
         $m.associated_function(&P::REM, move |a: &T, b: rune::Value| {
             vm(ints::<T>(&b, s).and_then(|b| {
@@ -236,7 +265,10 @@ fn quat_mul(q: &Quat, other: &rune::Value) -> anyhow::Result<rune::Value> {
     if let Some(n) = number(other) {
         return Ok(rune::to_value(Quat::of(q.g() * n))?);
     }
-    Err(anyhow!("`{}` is not a Quat, a Vec3 or a number", other.type_info()))
+    Err(anyhow!(
+        "`{}` is not a Quat, a Vec3 or a number",
+        other.type_info()
+    ))
 }
 
 /// `t * other`: two transforms composed, or a point carried through.
@@ -286,8 +318,20 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.associated_function(&P::DIV, |a: &Quat, n: f64| Quat::of(a.g() / n))?;
     m.associated_function(&P::NEG, |a: &Quat| Quat::of(-a.g()))?;
     eq_and_fmt!(m, Quat);
-    transform_ops!(m, Transform2d, Vec2, transform_point2, "a Transform2d or a Vec2");
-    transform_ops!(m, Transform3d, Vec3, transform_point3, "a Transform3d or a Vec3");
+    transform_ops!(
+        m,
+        Transform2d,
+        Vec2,
+        transform_point2,
+        "a Transform2d or a Vec2"
+    );
+    transform_ops!(
+        m,
+        Transform3d,
+        Vec3,
+        transform_point3,
+        "a Transform3d or a Vec3"
+    );
     m.function("new", |x: &Vec2, y: &Vec2, t: &Vec2| {
         Transform2d::of(DAffine2::from_cols(x.g(), y.g(), t.g()))
     })
@@ -297,7 +341,25 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     })
     .build_associated::<Transform3d>()?;
     // Every maths type is a value type.
-    copy!(m, Vec2, Vec3, Vec4, IVec2, IVec3, Quat, Transform2d, Transform3d);
+    copy!(
+        m,
+        Vec2,
+        Vec3,
+        Vec4,
+        IVec2,
+        IVec3,
+        Quat,
+        Transform2d,
+        Transform3d
+    );
+    transform_fields(m)?;
+    m.function("new", |x: f64, y: f64, z: f64, w: f64| Quat { x, y, z, w })
+        .build_associated::<Quat>()?;
+    Ok(())
+}
+
+/// A transform's columns and translation, read and written by name.
+fn transform_fields(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.field_function(&P::SET, "x_axis", |t: &mut Transform2d, v: &Vec2| {
         let mut g = t.g();
         g.matrix2.x_axis = v.g();
@@ -333,15 +395,27 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
         g.translation = v.g();
         *t = Transform3d::of(g);
     })?;
-    m.field_function(&P::GET, "x_axis", |t: &Transform2d| Vec2::of(t.g().matrix2.x_axis))?;
-    m.field_function(&P::GET, "y_axis", |t: &Transform2d| Vec2::of(t.g().matrix2.y_axis))?;
-    m.field_function(&P::GET, "translation", |t: &Transform2d| Vec2::of(t.g().translation))?;
-    m.field_function(&P::GET, "x_axis", |t: &Transform3d| Vec3::of(t.g().matrix3.x_axis))?;
-    m.field_function(&P::GET, "y_axis", |t: &Transform3d| Vec3::of(t.g().matrix3.y_axis))?;
-    m.field_function(&P::GET, "z_axis", |t: &Transform3d| Vec3::of(t.g().matrix3.z_axis))?;
-    m.field_function(&P::GET, "translation", |t: &Transform3d| Vec3::of(t.g().translation))?;
-    m.function("new", |x: f64, y: f64, z: f64, w: f64| Quat { x, y, z, w })
-        .build_associated::<Quat>()?;
+    m.field_function(&P::GET, "x_axis", |t: &Transform2d| {
+        Vec2::of(t.g().matrix2.x_axis)
+    })?;
+    m.field_function(&P::GET, "y_axis", |t: &Transform2d| {
+        Vec2::of(t.g().matrix2.y_axis)
+    })?;
+    m.field_function(&P::GET, "translation", |t: &Transform2d| {
+        Vec2::of(t.g().translation)
+    })?;
+    m.field_function(&P::GET, "x_axis", |t: &Transform3d| {
+        Vec3::of(t.g().matrix3.x_axis)
+    })?;
+    m.field_function(&P::GET, "y_axis", |t: &Transform3d| {
+        Vec3::of(t.g().matrix3.y_axis)
+    })?;
+    m.field_function(&P::GET, "z_axis", |t: &Transform3d| {
+        Vec3::of(t.g().matrix3.z_axis)
+    })?;
+    m.field_function(&P::GET, "translation", |t: &Transform3d| {
+        Vec3::of(t.g().translation)
+    })?;
     Ok(())
 }
 
