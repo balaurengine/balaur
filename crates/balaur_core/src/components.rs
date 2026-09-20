@@ -76,8 +76,8 @@ use crate::engine::Engine;
 
 mod schema;
 
-pub use schema::{PROPERTY_TYPES, UNITS, validate_property};
 use schema::hex_rgba;
+pub use schema::{PROPERTY_TYPES, UNITS, validate_property};
 
 /// Read a numeric TOML value as f64, integers included: schemas say
 /// "float" but scene authors naturally write `14`, which TOML parses as an
@@ -725,7 +725,7 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     // Resolving assets can read files and reach the asset cache, so the
     // schema is cloned and the registry borrow dropped first: a parser is free
     // to look things up.
-    let (index, schema, _, _, _) = resolve(eng, name)?;
+    let Resolved { index, schema, .. } = resolve(eng, name)?;
     let full = properties(eng, &schema, params)?;
     apply_at(eng, entity, index, name, &full)?;
     // Describing the component whole replaces what was asked of it before.
@@ -753,7 +753,13 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
 /// component would otherwise work out again. Report what the component holds
 /// and nothing else.
 pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
-    let (index, schema, defaults, has_color, has_asset) = resolve(eng, name)?;
+    let Resolved {
+        index,
+        schema,
+        defaults,
+        has_color,
+        has_asset,
+    } = resolve(eng, name)?;
     let current = get_at(eng, entity, index);
     // The component's own table is the base, taken rather than copied: it
     // already holds every property the component has, so starting from the
@@ -802,13 +808,23 @@ pub fn is_registered(eng: &Engine, name: &str) -> bool {
         .is_some_and(|registry| registry.borrow().def(name).is_some())
 }
 
-/// Everything a write needs from the registry, taken in one borrow: where the
-/// component sits, its schema, and what its schema says.
+/// Everything a write needs from the registry, taken in one borrow.
+struct Resolved {
+    /// Where the component sits, which is its bit in [`Attached`].
+    index: usize,
+    schema: Rc<toml::Value>,
+    /// [`Facts::defaults`], shared rather than rebuilt.
+    defaults: Rc<toml::map::Map<String, toml::Value>>,
+    has_color: bool,
+    has_asset: bool,
+}
+
+/// Resolve `name` once.
 ///
-/// Resolving the name once is the point. A write used to look it up four
-/// times -- for the schema, for what was asked before, to apply, and to record
-/// -- and each one re-entered the resource map and the registry.
-fn resolve(eng: &Engine, name: &str) -> Result<(usize, Rc<toml::Value>, Rc<toml::map::Map<String, toml::Value>>, bool, bool)> {
+/// A write used to look the name up four times -- for the schema, for what was
+/// asked before, to apply, and to record -- and each one re-entered the
+/// resource map and the registry.
+fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
@@ -823,17 +839,15 @@ fn resolve(eng: &Engine, name: &str) -> Result<(usize, Rc<toml::Value>, Rc<toml:
     let facts = registry
         .facts(index)
         .ok_or_else(|| anyhow!("component '{name}' has no schema facts"))?;
-    Ok((
+    Ok(Resolved {
         index,
         schema,
-        facts.defaults.clone(),
-        facts.has_color,
-        facts.has_asset,
-    ))
+        defaults: facts.defaults.clone(),
+        has_color: facts.has_color,
+        has_asset: facts.has_asset,
+    })
 }
 
-/// Hand a finished property table to the component's `apply` hook, and note
-/// in [`Attached`] that the node now carries it.
 pub(crate) fn apply_full(
     eng: &Engine,
     entity: Entity,
@@ -861,8 +875,7 @@ fn apply_at(
         let (_, def) = registry
             .at(index)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (def.apply)(eng, entity, full)
-            .with_context(|| format!("applying component '{name}'"))?;
+        (def.apply)(eng, entity, full).with_context(|| format!("applying component '{name}'"))?;
     }
     mark(eng, entity, index, true);
     Ok(())
