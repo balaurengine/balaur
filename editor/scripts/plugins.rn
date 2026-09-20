@@ -19,23 +19,6 @@ pub fn state() {
     }
 }
 
-/// How many arguments the editor calls each kind of callback with. A callback
-/// made in a plugin's unit reaches the editor's VM only through
-/// `script::shared`, which needs the arity because a native wrapper is typed.
-fn arity(kind) {
-    match kind {
-        "dock" => 2,
-        "window" => 2,
-        "command" => 1,
-        "section" => 3,
-        "overlay" => 1,
-        // (S, k, #{ comp, prop }, spec, value): five, which is Rune's limit,
-        // so the component and property it edits arrive as one object.
-        "editor" => 5,
-        _ => 1,
-    }
-}
-
 /// Where a plugin lives: the editor's own, on for every project; the game's;
 /// and each addon's `editor/`, on while the game carries that addon.
 fn roots(S) {
@@ -132,7 +115,7 @@ fn add_all(S, id, declared) {
         S.registry.docks.push(#{
             id: entry.id, name: entry.name, tall: entry.get("tall").unwrap_or(false),
             scrolls: entry.get("scrolls").unwrap_or(false),
-            draw: script::shared(entry.draw, arity("dock")), owner: id,
+            draw: script::shared(entry.draw), owner: id,
         });
         // Registering a dock is not enough to reach it: a panel is drawn by
         // the dock whose tab list holds its id.
@@ -141,7 +124,7 @@ fn add_all(S, id, declared) {
     for entry in util::vec(declared.get("windows").unwrap_or([])) {
         S.registry.windows.push(#{
             id: entry.id, title: entry.title,
-            draw: script::shared(entry.draw, arity("window")), owner: id,
+            draw: script::shared(entry.draw), owner: id,
         });
     }
     for entry in util::vec(declared.get("commands").unwrap_or([])) {
@@ -149,22 +132,22 @@ fn add_all(S, id, declared) {
             label: entry.label,
             icon: entry.get("icon").unwrap_or("·"),
             key: entry.get("key").unwrap_or(""),
-            run: script::shared(entry.run, arity("command")), owner: id,
+            run: script::shared(entry.run), owner: id,
         });
     }
     for draw in util::vec(declared.get("sections").unwrap_or([])) {
-        S.registry.sections.push(#{ draw: script::shared(draw, arity("section")), owner: id });
+        S.registry.sections.push(#{ draw: script::shared(draw), owner: id });
     }
     for draw in util::vec(declared.get("overlays").unwrap_or([])) {
-        S.registry.overlays.push(#{ draw: script::shared(draw, arity("overlay")), owner: id });
+        S.registry.overlays.push(#{ draw: script::shared(draw), owner: id });
     }
     let editors = util::obj(declared.get("editors").unwrap_or(#{}));
     for (datatype, draw) in editors.iter() {
-        S.registry.editors[datatype] = #{ draw: script::shared(draw, arity("editor")), owner: id };
+        S.registry.editors[datatype] = #{ draw: script::shared(draw), owner: id };
     }
     let states = util::obj(declared.get("states").unwrap_or(#{}));
     for (name, run) in states.iter() {
-        S.registry.states[name] = #{ run: script::shared(run, 1), owner: id };
+        S.registry.states[name] = #{ run: script::shared(run), owner: id };
     }
 }
 

@@ -1,10 +1,10 @@
 // The session, the socket and the server's hooks, over the engine's
-// `gamend::` calls. A module holds no state, so the socket id is the
-// caller's and the row cache lives on the node's `meta`.
+// `gamend::` calls. The socket id is the caller's; the rows, the topics and
+// the keys are this module's own, so every script in a game sees one cache.
 
 /// Where the hook calls go. Godot's SDK called this `plugin`.
 const PLUGIN_KEY = "gamend:plugin";
-/// The rows `register_kv` asked for, as JSON on the node.
+/// The rows the server sent, by key.
 const ROWS_KEY = "gamend:rows";
 const KEYS_KEY = "gamend:keys";
 
@@ -68,6 +68,9 @@ pub fn connect(node) {
 /// took the event.
 pub fn route(node, e) {
     let kind = e["kind"];
+    if e.contains_key("socket") {
+        note_socket(kind);
+    }
     let event = e;
     let method = if e.contains_key("socket") { `on_socket_${kind}` } else { `on_${kind}` };
     if kind == "message" {
@@ -158,16 +161,48 @@ pub fn unpack_hook(name, reply) {
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
 /// when it changes, which `absorb` files into the cache.
 pub fn register_kv(socket, key) {
+    let held = registered();
+    if !held.iter().any(|name| name == key) {
+        held.push(key);
+        script::store(KEYS_KEY, held);
+    }
     return gamend::push(socket, "user", "kv:subscribe", #{ "key": key });
 }
 
 pub fn unregister_kv(socket, key) {
+    script::store(KEYS_KEY, registered().iter().filter(|name| name != key).collect::<Vec>());
     return gamend::push(socket, "user", "kv:unsubscribe", #{ "key": key });
+}
+
+/// Every key this session subscribed, in the order it asked for them.
+pub fn registered() {
+    let held = script::stored(KEYS_KEY);
+    if held is Vec {
+        return held;
+    }
+    return [];
+}
+
+/// Subscribe to exactly `keys`: what is new is subscribed, what is gone is
+/// dropped. A key that depends on the player, such as a locale pair or a
+/// lobby, changes by calling this again with the new list.
+pub fn refresh_keys(socket, keys) {
+    for key in registered() {
+        if !keys.iter().any(|want| want == key) {
+            unregister_kv(socket, key);
+        }
+    }
+    for key in keys {
+        if !registered().iter().any(|held| held == key) {
+            register_kv(socket, key);
+        }
+    }
+    return registered();
 }
 
 /// File a decoded `kv_updated` or `kv_deleted` into the node's cache. Give
 /// it what `gamend::events::decode` returned and it takes the rows it knows.
-pub fn absorb(node, event) {
+pub fn absorb(event) {
     if !(event is Object) {
         return false;
     }
@@ -176,76 +211,183 @@ pub fn absorb(node, event) {
         return false;
     }
     let key = format!("{}", event["key"]);
-    let rows = read_rows(node);
+    let rows = read_rows();
     if kind == gamend::events::user::KV_DELETED {
         rows.remove(key);
     } else {
         rows[key] = event["value"];
     }
-    write_rows(node, rows);
+    write_rows(rows);
     return true;
 }
 
 /// The row this client last saw for a key, or nil.
-pub fn row(node, key) {
-    let rows = read_rows(node);
+pub fn row(key) {
+    let rows = read_rows();
     if rows.contains_key(key) {
         return rows[key];
     }
     return ();
 }
 
-pub fn has_row(node, key) {
-    return !(row(node, key) is Tuple);
+pub fn has_row(key) {
+    return !(row(key) is Tuple);
 }
 
-/// The cached row, or the server's, fetched once and kept.
-pub async fn fetch_cached(node, key) {
-    if has_row(node, key) {
-        return row(node, key);
+/// The cached row, or the server's, fetched once and kept. `force` asks the
+/// server even when a row is cached. A key the server has no row for caches
+/// an empty table, so `has_row` answers without asking again; anything else
+/// that went wrong caches nothing and the next call retries.
+pub async fn fetch_row(node, key, force) {
+    if !force && has_row(key) {
+        return row(key);
     }
     let reply = task::wait(gamend::kv::get_kv(node, key, ())).await;
     if !gamend::core::ok(reply) {
+        let status = if reply is Object { reply["status"] } else { () };
+        if status == 404 {
+            store_row(key, #{});
+            return #{};
+        }
         log::warn(gamend::core::error_of(reply));
         return ();
     }
     let value = gamend::core::body(reply);
-    let rows = read_rows(node);
-    rows[key] = value;
-    write_rows(node, rows);
+    store_row(key, value);
     return value;
 }
 
-/// Forget one row, or all of them: what a sign-out does.
-pub fn clear_row(node, key) {
-    let rows = read_rows(node);
-    rows.remove(key);
-    write_rows(node, rows);
-    return ();
+/// The signed-in player's profile, fetched fresh: `#{ ok, data, error }`.
+pub async fn fetch_current_user(node) {
+    return gamend::core::unpack(task::wait(gamend::users::get_current_user(node)).await);
 }
 
-pub fn clear_rows(node) {
-    write_rows(node, #{});
-    return ();
+/// One lobby, fetched fresh, its members inside it as the server sends them.
+pub async fn fetch_lobby(node, lobby_id) {
+    return gamend::core::unpack(task::wait(gamend::lobbies::get_lobby(node, lobby_id)).await);
 }
 
-fn read_rows(node) {
-    if node is Tuple {
-        return #{};
+/// Where a write in flight is kept, so an identical one is not sent twice.
+const WRITES_KEY = "gamend:writes";
+
+/// Call a hook to write a key, unless the same value for that key is already
+/// on its way. Answers `#{ skipped, result }`, where `result` is what
+/// `rpc_call` answered and nil for a write that was skipped.
+pub async fn write_deduped(socket, key, value, hook, args) {
+    let sent = json::encode(value);
+    let pending = pending_writes();
+    if pending.contains_key(key) && pending[key] == sent {
+        return #{ "skipped": true, "result": () };
     }
-    let stored = node.meta[ROWS_KEY];
-    if stored is String {
-        let parsed = json::parse(stored);
-        if parsed is Object {
-            return parsed;
-        }
+    pending[key] = sent;
+    script::store(WRITES_KEY, pending);
+    let result = rpc_call(socket, hook, args).await;
+    let after = pending_writes();
+    if after.contains_key(key) && after[key] == sent {
+        after.remove(key);
+        script::store(WRITES_KEY, after);
+    }
+    return #{ "skipped": false, "result": result };
+}
+
+fn pending_writes() {
+    let held = script::stored(WRITES_KEY);
+    if held is Object {
+        return held;
     }
     return #{};
 }
 
-fn write_rows(node, rows) {
-    if !(node is Tuple) {
-        node.meta[ROWS_KEY] = json::encode(rows);
+/// Listen to one lobby's channel, or to none: `lobby:<id>` is joined and any
+/// other lobby topic this session held is left.
+pub fn sync_lobby_channel(socket, lobby_id) {
+    let topic = if lobby_id == "" { "" } else { `lobby:${lobby_id}` };
+    for held in joined() {
+        if held.starts_with("lobby:") && held != topic {
+            leave(socket, held);
+        }
     }
+    if topic != "" && !joined().iter().any(|held| held == topic) {
+        join(socket, topic);
+    }
+    return topic;
+}
+
+/// File a value under a key as if the server had sent it: what a caller with
+/// its own fetch, a hook rather than `kv`, keeps its answer with.
+pub fn keep_row(key, value) {
+    return store_row(key, value);
+}
+
+/// Forget one row, or all of them: what a sign-out does.
+pub fn clear_row(key) {
+    let rows = read_rows();
+    rows.remove(key);
+    write_rows(rows);
+    return ();
+}
+
+pub fn clear_rows() {
+    write_rows(#{});
+    return ();
+}
+
+/// What this client thinks of its connection.
+const NETWORK_KEY = "gamend:network";
+
+/// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
+/// first two as `route` sees them; `fail_network` is what moves it to the
+/// third.
+pub fn network_state() {
+    let held = script::stored(NETWORK_KEY);
+    if held is String {
+        return held;
+    }
+    return "open";
+}
+
+/// Say the connection is gone: what a game calls when a request it needed
+/// failed and it wants its offline screen. `retry_network` is the way back.
+pub fn fail_network() {
+    script::store(NETWORK_KEY, "failed");
+    return ();
+}
+
+/// Cut the socket so the worker opens it again, and report reconnecting
+/// until it does. False when the socket was already gone, which is when a
+/// caller opens a new one with `connect`.
+pub fn retry_network(socket) {
+    script::store(NETWORK_KEY, "reconnecting");
+    return gamend::interrupt(socket);
+}
+
+fn note_socket(kind) {
+    if kind == "reconnecting" {
+        script::store(NETWORK_KEY, "reconnecting");
+    } else if kind == "open" || kind == "reopened" {
+        script::store(NETWORK_KEY, "open");
+    } else if kind == "closed" {
+        script::store(NETWORK_KEY, "failed");
+    }
+    return ();
+}
+
+fn store_row(key, value) {
+    let rows = read_rows();
+    rows[key] = value;
+    write_rows(rows);
+    return ();
+}
+
+fn read_rows() {
+    let held = script::stored(ROWS_KEY);
+    if held is Object {
+        return held;
+    }
+    return #{};
+}
+
+fn write_rows(rows) {
+    script::store(ROWS_KEY, rows);
     return ();
 }

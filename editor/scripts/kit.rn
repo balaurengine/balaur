@@ -20,16 +20,16 @@ const SIDEBAR_MIN = 460.0;
 /// `script::shared` keeps its function for the life of the run.
 pub fn make() {
     #{
-        tabs: script::shared(tabs, 4),
-        pages: script::shared(pages, 5),
-        tree: script::shared(tree, 5),
-        field: script::shared(field, 5),
-        section: script::shared(section, 2),
-        empty: script::shared(empty, 2),
-        save_prefs: script::shared(save_prefs, 1),
-        files: script::shared(files, 4),
-        short_path: script::shared(short_path, 1),
-        game_data: script::shared(game_data, 1),
+        tabs: script::shared(tabs),
+        pages: script::shared(pages),
+        tree: script::shared(tree),
+        field: script::shared(field),
+        section: script::shared(section),
+        empty: script::shared(empty),
+        save_prefs: script::shared(save_prefs),
+        files: script::shared(files),
+        short_path: script::shared(short_path),
+        game_data: script::shared(game_data),
     }
 }
 
@@ -105,7 +105,7 @@ fn tabs(S, k, id, names) {
 /// A list of pages beside the open one, the way the settings page is laid
 /// out: what a panel with many views and little height wants. `groups` is
 /// `[#{ title, names }]`. `draw(S, k, name)` draws the open page, and must be
-/// wrapped once with `script::shared(f, 3)`: a plugin's closure called from
+/// wrapped once with `script::shared(f)`: a plugin's closure called from
 /// this unit runs another unit's code. Both halves scroll, so a dock using
 /// this registers with `scrolls: true`.
 fn pages(S, k, id, groups, draw) {
