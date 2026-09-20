@@ -815,9 +815,7 @@ fn get_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn has_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    Ok(Value::Bool(
-        crate::components::get(eng, e, text(args, 1)?).is_some(),
-    ))
+    Ok(Value::Bool(crate::components::has(eng, e, text(args, 1)?)))
 }
 
 fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {

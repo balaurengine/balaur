@@ -70,6 +70,7 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
 use hecs::Entity;
+use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
@@ -568,19 +569,119 @@ fn check_color_default(default: &toml::Value) -> Result<(), String> {
     check_numbers("color", default, &[3, 4])
 }
 
-/// Ordered by registration: scene keys and editor sections follow it.
+/// What a schema says once, so no write has to read it again.
+///
+/// Built at registration and held beside the definition. Everything here is a
+/// question [`patch`] would otherwise ask the schema on every call: the
+/// defaults it starts from, and whether either of the two passes over a
+/// finished table has anything to do. A component with no colour and no asset
+/// property -- which is most of them -- skips both.
+pub struct Facts {
+    /// Every declared property at its default, ready to clone.
+    pub defaults: Rc<toml::map::Map<String, toml::Value>>,
+    /// Whether any property is `type = "color"`, so a `#rrggbb` string has to
+    /// be expanded before `apply` sees it.
+    pub has_color: bool,
+    /// Whether any property is `type = "asset"`, so an inline definition has
+    /// to be cached and rewritten to the reference naming it.
+    pub has_asset: bool,
+}
+
+impl Facts {
+    fn of(schema: &toml::Value) -> Self {
+        let mut has_color = false;
+        let mut has_asset = false;
+        if let Some(table) = schema.as_table() {
+            for spec in table.values() {
+                match spec.get("type").and_then(toml::Value::as_str) {
+                    Some("color") => has_color = true,
+                    Some("asset") => has_asset = true,
+                    _ => {}
+                }
+            }
+        }
+        Self {
+            defaults: Rc::new(defaults_of(schema)),
+            has_color,
+            has_asset,
+        }
+    }
+}
+
+/// Every registered component, in registration order, addressable by name.
+///
+/// An [`crate::collections::DetHashMap`] rather than a `Vec`: a name resolves
+/// in one lookup where it used to be a scan, and the map iterates in insertion
+/// order, so registration order -- which is the scene key order, the editor's
+/// section order, and a component's bit in [`Attached`] -- is unchanged.
+/// [`Facts`] sits parallel to it, indexed the same way.
 #[derive(Default)]
-pub struct ComponentRegistry(pub Vec<(String, ComponentDef)>);
+pub struct ComponentRegistry {
+    defs: crate::collections::DetHashMap<SmolStr, ComponentDef>,
+    facts: Vec<Facts>,
+}
 
 impl ComponentRegistry {
     pub fn def(&self, name: &str) -> Option<&ComponentDef> {
-        self.0.iter().find(|(n, _)| n == name).map(|(_, def)| def)
+        self.defs.get(name)
     }
 
     /// Where `name` sits in registration order, which is its bit in
     /// [`Attached`].
     pub fn index_of(&self, name: &str) -> Option<usize> {
-        self.0.iter().position(|(n, _)| n == name)
+        self.defs.get_index_of(name)
+    }
+
+    /// The name and definition registered at `index`.
+    #[must_use]
+    pub fn at(&self, index: usize) -> Option<(&SmolStr, &ComponentDef)> {
+        self.defs.get_index(index)
+    }
+
+    /// What the schema at `index` says, worked out once at registration.
+    #[must_use]
+    pub fn facts(&self, index: usize) -> Option<&Facts> {
+        self.facts.get(index)
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.defs.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.defs.is_empty()
+    }
+
+    /// Name and definition in registration order.
+    pub fn iter(&self) -> impl Iterator<Item = (&SmolStr, &ComponentDef)> {
+        self.defs.iter()
+    }
+
+    /// Take a definition under `name`.
+    ///
+    /// # Panics
+    /// When `name` is already registered. Two definitions under one name is
+    /// not a merge and not a replacement: every lookup would answer with the
+    /// first, so the second's `apply` would never run and its inspector rows
+    /// would never draw. A plugin colliding with a built-in has to be told.
+    pub fn insert(&mut self, name: &str, def: ComponentDef) {
+        let facts = Facts::of(&def.schema);
+        assert!(
+            self.defs.insert(SmolStr::new(name), def).is_none(),
+            "component '{name}' is registered twice; a name belongs to one definition"
+        );
+        self.facts.push(facts);
+    }
+}
+
+impl<'a> IntoIterator for &'a ComponentRegistry {
+    type Item = (&'a SmolStr, &'a ComponentDef);
+    type IntoIter = indexmap::map::Iter<'a, SmolStr, ComponentDef>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.defs.iter()
     }
 }
 
@@ -606,10 +707,10 @@ pub struct Attached(pub crate::collections::DetHashMap<Entity, u128>);
 #[derive(Default)]
 pub struct Authored(pub crate::collections::DetHashMap<(Entity, usize), toml::Value>);
 
-/// Merge what is being asked for into what was asked before.
-fn record(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>, over: bool) {
-    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name))
-    else {
+/// Merge what is being asked for into what was asked before, for the
+/// definition at `index`.
+fn record_at(eng: &Engine, entity: Entity, index: usize, params: Option<&toml::Value>, over: bool) {
+    let Some(authored) = eng.try_resource::<Authored>() else {
         return;
     };
     let mut authored = authored.borrow_mut();
@@ -630,8 +731,7 @@ fn record(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>
 }
 
 /// What was asked of this component before now, if anything.
-fn asked_for(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
-    let index = index_of(eng, name)?;
+fn asked_for_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
     let authored = eng.try_resource::<Authored>()?;
     let asked = authored.borrow().0.get(&(entity, index)).cloned();
     drop(authored);
@@ -901,11 +1001,11 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     // Resolving assets can read files and reach the asset cache, so the
     // schema is cloned and the registry borrow dropped first: a parser is free
     // to look things up.
-    let schema = schema_of(eng, name)?;
+    let (index, schema, _, _, _) = resolve(eng, name)?;
     let full = properties(eng, &schema, params)?;
-    apply_full(eng, entity, name, &full)?;
+    apply_at(eng, entity, index, name, &full)?;
     // Describing the component whole replaces what was asked of it before.
-    record(eng, entity, name, params, true);
+    record_at(eng, entity, index, params, true);
     Ok(())
 }
 
@@ -929,19 +1029,44 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
 /// component would otherwise work out again. Report what the component holds
 /// and nothing else.
 pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
-    let schema = schema_of(eng, name)?;
-    let asked = asked_for(eng, entity, name);
-    let current = get(eng, entity, name);
-    let mut out = defaults_of(&schema);
-    // What was asked for first, then what the component says it holds now, so
-    // a value something else has moved since wins over the one that was set.
-    overlay(&schema, &mut out, asked.as_ref())?;
-    overlay(&schema, &mut out, current.as_ref())?;
+    let (index, schema, defaults, has_color, has_asset) = resolve(eng, name)?;
+    let current = get_at(eng, entity, index);
+    // The component's own table is the base, taken rather than copied: it
+    // already holds every property the component has, so starting from the
+    // defaults and writing over them twice was two tables built to be thrown
+    // away. What `get` leaves out is filled from what was asked before, then
+    // from the defaults -- the same order of precedence, without the copies.
+    let mut out = match current {
+        Some(toml::Value::Table(table)) => table,
+        Some(other) => {
+            let mut table = toml::map::Map::new();
+            overlay(&schema, &mut table, Some(&other))?;
+            table
+        }
+        None => toml::map::Map::new(),
+    };
+    if let Some(toml::Value::Table(asked)) = asked_for_at(eng, entity, index) {
+        for (key, value) in asked {
+            out.entry(key).or_insert(value);
+        }
+    }
+    for (key, value) in defaults.iter() {
+        if !out.contains_key(key) {
+            out.insert(key.clone(), value.clone());
+        }
+    }
     overlay(&schema, &mut out, Some(params))?;
-    expand_colors(&schema, &mut out);
-    let full = resolved(eng, &schema, toml::Value::Table(out))?;
-    apply_full(eng, entity, name, &full)?;
-    record(eng, entity, name, Some(params), false);
+    if has_color {
+        expand_colors(&schema, &mut out);
+    }
+    let full = toml::Value::Table(out);
+    let full = if has_asset {
+        resolved(eng, &schema, full)?
+    } else {
+        full
+    };
+    apply_at(eng, entity, index, name, &full)?;
+    record_at(eng, entity, index, Some(params), false);
     Ok(())
 }
 
@@ -953,17 +1078,34 @@ pub fn is_registered(eng: &Engine, name: &str) -> bool {
         .is_some_and(|registry| registry.borrow().def(name).is_some())
 }
 
-/// A registered component's schema, shared so the registry borrow ends here.
-fn schema_of(eng: &Engine, name: &str) -> Result<Rc<toml::Value>> {
+/// Everything a write needs from the registry, taken in one borrow: where the
+/// component sits, its schema, and what its schema says.
+///
+/// Resolving the name once is the point. A write used to look it up four
+/// times -- for the schema, for what was asked before, to apply, and to record
+/// -- and each one re-entered the resource map and the registry.
+fn resolve(eng: &Engine, name: &str) -> Result<(usize, Rc<toml::Value>, Rc<toml::map::Map<String, toml::Value>>, bool, bool)> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
     let registry = registry.borrow();
-    Ok(registry
-        .def(name)
-        .ok_or_else(|| anyhow!("unknown component '{name}'"))?
-        .schema
-        .clone())
+    let index = registry
+        .index_of(name)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    let (_, def) = registry
+        .at(index)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    let schema = def.schema.clone();
+    let facts = registry
+        .facts(index)
+        .ok_or_else(|| anyhow!("component '{name}' has no schema facts"))?;
+    Ok((
+        index,
+        schema,
+        facts.defaults.clone(),
+        facts.has_color,
+        facts.has_asset,
+    ))
 }
 
 /// Hand a finished property table to the component's `apply` hook, and note
@@ -974,20 +1116,40 @@ pub(crate) fn apply_full(
     name: &str,
     full: &toml::Value,
 ) -> Result<()> {
+    let index = index_of(eng, name).ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+    apply_at(eng, entity, index, name, full)
+}
+
+/// [`apply_full`] with the definition already resolved. `name` is carried for
+/// the error alone.
+fn apply_at(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    name: &str,
+    full: &toml::Value,
+) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
-    let index = {
+    {
         let registry = registry.borrow();
-        let index = registry
-            .index_of(name)
+        let (_, def) = registry
+            .at(index)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (registry.0[index].1.apply)(eng, entity, full)
+        (def.apply)(eng, entity, full)
             .with_context(|| format!("applying component '{name}'"))?;
-        index
-    };
+    }
     mark(eng, entity, index, true);
     Ok(())
+}
+
+/// [`get`] with the definition already resolved.
+fn get_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
+    let registry = eng.try_resource::<ComponentRegistry>()?;
+    let registry = registry.borrow();
+    let (_, def) = registry.at(index)?;
+    (def.get)(eng, entity)
 }
 
 pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
@@ -999,7 +1161,10 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
         let index = registry
             .index_of(name)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (registry.0[index].1.remove)(eng, entity)?;
+        let (_, def) = registry
+            .at(index)
+            .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+        (def.remove)(eng, entity)?;
         index
     };
     mark(eng, entity, index, false);
@@ -1025,9 +1190,8 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
         return;
     };
-    let names: Vec<String> = registry
+    let names: Vec<SmolStr> = registry
         .borrow()
-        .0
         .iter()
         .enumerate()
         .filter(|(i, _)| bits & (1u128 << i) != 0)
@@ -1050,7 +1214,7 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
     };
     let registry = registry.borrow();
     let mut extra = 0u128;
-    for (i, (name, def)) in registry.0.iter().enumerate() {
+    for (i, (name, def)) in registry.iter().enumerate() {
         if bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_none() {
             continue;
         }
@@ -1096,6 +1260,27 @@ pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<t
     get(eng, entity, name)?.get(key).cloned()
 }
 
+/// Whether `entity` carries `name`, without building the component's table.
+///
+/// [`Attached`] answers on its own for anything the registry attached. A
+/// component put on a node by another path has no bit, and `transform` is the
+/// one built-in that does -- the node bundle carries it -- so a clear bit
+/// falls back to asking the definition.
+#[must_use]
+pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
+    let Some(index) = index_of(eng, name) else {
+        return false;
+    };
+    let bits = eng
+        .try_resource::<Attached>()
+        .and_then(|attached| attached.borrow().0.get(&entity).copied())
+        .unwrap_or(0);
+    if bits & (1u128 << index) != 0 {
+        return true;
+    }
+    get_at(eng, entity, index).is_some()
+}
+
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
     let registry = eng.try_resource::<ComponentRegistry>()?;
     let registry = registry.borrow();
@@ -1104,7 +1289,7 @@ pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
 
 pub fn names(eng: &Engine) -> Vec<String> {
     eng.try_resource::<ComponentRegistry>()
-        .map(|r| r.borrow().0.iter().map(|(n, _)| n.clone()).collect())
+        .map(|r| r.borrow().iter().map(|(n, _)| n.to_string()).collect())
         .unwrap_or_default()
 }
 
@@ -1113,9 +1298,8 @@ pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
     eng.try_resource::<ComponentRegistry>()
         .map(|r| {
             r.borrow()
-                .0
                 .iter()
-                .map(|(n, d)| (n.clone(), d.schema.clone()))
+                .map(|(n, d)| (n.to_string(), d.schema.clone()))
                 .collect()
         })
         .unwrap_or_default()
@@ -1126,11 +1310,17 @@ pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {
         return Vec::new();
     };
     let registry = registry.borrow();
+    let bits = eng
+        .try_resource::<Attached>()
+        .and_then(|attached| attached.borrow().0.get(&entity).copied())
+        .unwrap_or(0);
     registry
-        .0
         .iter()
-        .filter(|(_, def)| (def.get)(eng, entity).is_some())
-        .map(|(n, _)| n.clone())
+        .enumerate()
+        .filter(|(i, (_, def))| {
+            bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_some()
+        })
+        .map(|(_, (n, _))| n.to_string())
         .collect()
 }
 

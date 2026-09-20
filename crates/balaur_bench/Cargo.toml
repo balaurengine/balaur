@@ -38,5 +38,9 @@ harness = false
 name = "widgets"
 harness = false
 
+[[bench]]
+name = "components"
+harness = false
+
 [lints]
 workspace = true

@@ -882,13 +882,6 @@ impl RuneHost {
                 continue;
             };
             let name = rune::alloc::String::try_from(declared.name.as_str())?;
-            // Past the five parameters a native trampoline takes, the function
-            // itself: callable from any unit, though a reload reaches it only
-            // through the module and not through a copy a caller kept.
-            if declared.arity > crate::shared::MOST_ARGS {
-                object.insert(name, rune::to_value(function)?)?;
-                continue;
-            }
             let slot = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
                 if let Some(slot) = spare.pop() {

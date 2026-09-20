@@ -271,14 +271,12 @@ fn text_at(host: &RuneHost, id: usize, path: &Path, source: &str) -> Option<Stri
 
 /// Where `key`'s unit is kept: beside the project's own data, one file per
 /// script, so a rewrite replaces it rather than adding to a pile.
+///
+/// A pack is cached too. One that ships compiled units never reaches here,
+/// and one that ships source is compiled on every boot like a dev run: that
+/// is what a browser opens, where the compile is slowest.
 fn file_of(host: &RuneHost, key: &str) -> Option<PathBuf> {
-    let root = {
-        let state = host.state.borrow();
-        if state.pack.is_some() {
-            return None;
-        }
-        state.project_root.clone()
-    };
+    let root = host.state.borrow().project_root.clone();
     let mut hasher = Hasher::new();
     hasher.write_str(&root.to_string_lossy());
     hasher.write_str(key);
@@ -289,16 +287,23 @@ fn file_of(host: &RuneHost, key: &str) -> Option<PathBuf> {
 /// What a cached unit is only valid against: the engine that compiled it, and
 /// the addons it compiled with.
 ///
-/// `None` where the engine cannot be told apart from another build of itself,
-/// which is a browser: nothing is cached there rather than risking a unit an
-/// older engine compiled.
+/// `None` where the engine cannot be told apart from another build of itself:
+/// nothing is cached then, rather than risking a unit an older engine wrote.
+///
+/// A native build is told by its own file, which every rebuild rewrites. A
+/// browser has no such file and takes the id a packaged build carries, so a
+/// released web build caches and one built straight from source does not.
 fn stamp(host: &RuneHost) -> Option<u64> {
-    let exe = std::env::current_exe().ok()?;
-    let built = balaur_core::files::backend(&host.engine).mtime(&exe)?;
     let mut hasher = Hasher::new();
     hasher.write_u64(u64::from(crate::packed::FORMAT));
-    hasher.write_str(&exe.to_string_lossy());
-    hasher.write_f64(built);
+    match std::env::current_exe().ok() {
+        Some(exe) => {
+            let built = balaur_core::files::backend(&host.engine).mtime(&exe)?;
+            hasher.write_str(&exe.to_string_lossy());
+            hasher.write_f64(built);
+        }
+        None => hasher.write_str(option_env!("BALAUR_BUILD")?),
+    }
     crate::mounts::fingerprint(&host.state.borrow().mounts, &mut hasher);
     Some(hasher.finish().0)
 }

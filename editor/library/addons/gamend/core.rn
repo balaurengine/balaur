@@ -102,3 +102,24 @@ pub fn error_of(reply) {
     }
     return "gamend: no reply";
 }
+
+/// What a REST call answered, in the shape a hook's reply takes:
+/// `#{ ok, data, error }`. A 2xx carries the body's `data` where the server
+/// wrapped it, and the body itself where it did not.
+pub fn unpack(reply) {
+    if reply is Tuple {
+        return #{ "ok": false, "data": (), "error": "gamend: the call sent no reply" };
+    }
+    let status = if reply is Object { reply["status"] } else { () };
+    let body = if reply is Object { reply["body"] } else { () };
+    if !(status is i64) || status < 200 || status >= 300 {
+        let message = if body is Object && body.contains_key("error") {
+            format!("{}", body["error"])
+        } else {
+            format!("gamend: the call answered {}", status)
+        };
+        return #{ "ok": false, "data": (), "error": message, "status": status };
+    }
+    let data = if body is Object && body.contains_key("data") { body["data"] } else { body };
+    return #{ "ok": true, "data": data, "error": "", "status": status };
+}

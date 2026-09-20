@@ -138,3 +138,25 @@ pub fn forget() {
 pub fn restorable() {
     return !(saved() is Tuple);
 }
+
+/// The signed-in session, or nil: `user_id`, `username`, `display_name` and
+/// the tokens.
+pub fn session() {
+    return gamend::session();
+}
+
+/// Whether a session is open, which is what a screen asks before it draws
+/// anything of the player's.
+pub fn signed_in() {
+    let held = session();
+    return held is Object && held.contains_key("access_token");
+}
+
+/// The signed-in user's id, or an empty string.
+pub fn user_id() {
+    let held = session();
+    if held is Object && held["user_id"] is String {
+        return held["user_id"];
+    }
+    return "";
+}

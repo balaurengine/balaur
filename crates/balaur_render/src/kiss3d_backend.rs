@@ -201,7 +201,7 @@ impl Frontend {
         );
     }
 
-    /// One frame: apply what scripts asked for, tick, mirror the world into
+    /// One frame: apply what scripts asked for, tick, mirror the world into    /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
         apply_camera(app, &mut self.camera);
@@ -436,10 +436,14 @@ pub async fn run_windowed_async(
         if !f.step(&mut app, &mut window, dt) {
             break;
         }
+        // The 2D pass is a full-screen load and store of the film whether or
+        // not anything draws into it, and the renderer skips it for a scene
+        // that is not there.
+        let draws_2d = !f.scene_2d.data().children().is_empty();
         let open = window
             .render_chains(
                 Some(&mut f.scene),
-                Some(&mut f.scene_2d),
+                draws_2d.then(|| &mut f.scene_2d),
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
@@ -514,10 +518,14 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             }
             // After the step, as the windowed loop draws: a capture of frame
             // N is then step N's shell rather than step N-1's.
+            // The 2D pass is a full-screen load and store of the film whether
+            // or not anything draws into it, and the renderer skips it for a
+            // scene that is not there.
+            let draws_2d = !f.scene_2d.data().children().is_empty();
             let open = window
                 .render_chains(
                     Some(&mut f.scene),
-                    Some(&mut f.scene_2d),
+                    draws_2d.then(|| &mut f.scene_2d),
                     Some(&mut f.camera),
                     Some(&mut f.camera_2d),
                     None,

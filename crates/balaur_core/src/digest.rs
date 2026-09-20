@@ -288,7 +288,7 @@ fn push_components(eng: &Engine, entity: Entity, label: &str, out: &mut Vec<Entr
         return;
     };
     let registry = registry.borrow();
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         let Some(value) = (def.get)(eng, entity) else {
             continue;
         };

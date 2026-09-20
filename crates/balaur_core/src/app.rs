@@ -645,11 +645,11 @@ impl App {
                 .resource::<crate::components::ComponentRegistry>();
             let mut registry = registry.borrow_mut();
             assert!(
-                registry.0.len() < crate::components::MAX_COMPONENTS,
+                registry.len() < crate::components::MAX_COMPONENTS,
                 "registering '{name}': a build may have at most {} components",
                 crate::components::MAX_COMPONENTS
             );
-            registry.0.push((name.to_string(), def));
+            registry.insert(name, def);
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {

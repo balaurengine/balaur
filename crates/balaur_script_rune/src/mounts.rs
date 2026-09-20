@@ -558,6 +558,9 @@ fn add_constant(module: &mut rune::Module, name: &str, value: &Constant) -> anyh
 }
 
 /// A native function that runs `name` from `key`'s current unit.
+///
+/// Raw, so a mounted function takes as many arguments as it declares: Rune's
+/// typed registration stops at five.
 fn forward(
     module: &mut rune::Module,
     slot: usize,
@@ -565,40 +568,27 @@ fn forward(
     name: &str,
     arity: usize,
 ) -> anyhow::Result<()> {
-    type V = rune::Value;
     let call = Call {
         slot,
         key: key.to_string(),
         name: name.to_string(),
     };
-    match arity {
-        0 => module
-            .function(name, move || call.run(Vec::new()))
-            .build()?,
-        1 => module
-            .function(name, move |a: V| call.run(vec![a]))
-            .build()?,
-        2 => module
-            .function(name, move |a: V, b: V| call.run(vec![a, b]))
-            .build()?,
-        3 => module
-            .function(name, move |a: V, b: V, c: V| call.run(vec![a, b, c]))
-            .build()?,
-        4 => module
-            .function(name, move |a: V, b: V, c: V, d: V| {
-                call.run(vec![a, b, c, d])
-            })
-            .build()?,
-        5 => module
-            .function(name, move |a: V, b: V, c: V, d: V, e: V| {
-                call.run(vec![a, b, c, d, e])
-            })
-            .build()?,
-        _ => anyhow::bail!(
-            "`{name}` takes {arity} arguments; a mounted function takes at most {}",
-            crate::shared::MOST_ARGS
-        ),
+    let handler = move |stack: &mut dyn rune::runtime::Memory,
+                        addr: rune::runtime::InstAddress,
+                        args: usize,
+                        out: rune::runtime::Output| {
+        if args != arity {
+            return VmResult::Err(VmError::panic(format!(
+                "{}: {} takes {arity} arguments, called with {args}",
+                call.key, call.name
+            )));
+        }
+        let taken = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
+        let value = rune::vm_try!(call.run(taken));
+        rune::vm_try!(out.store(stack, value));
+        VmResult::Ok(())
     };
+    module.raw_function(name, handler).build()?;
     Ok(())
 }
 

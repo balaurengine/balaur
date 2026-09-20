@@ -265,3 +265,22 @@ fn hovering_a_mounted_function_shows_its_parameters_and_doc() {
     assert_eq!(found.detail, "(x)");
     assert_eq!(found.doc, "Twice `x`.");
 }
+
+#[test]
+fn a_mounted_function_takes_as_many_arguments_as_it_declares() {
+    let dir = project(&[
+        (
+            "addons/kit/wide.rn",
+            "pub fn sum(a, b, c, d, e, f, g, h, i) { a + b + c + d + e + f + g + h + i }\n",
+        ),
+        (
+            "user.rn",
+            "pub fn init(this) { this.out = kit::wide::sum(1, 2, 3, 4, 5, 6, 7, 8, 9) as f64; }\n",
+        ),
+    ]);
+    let app = app_in(dir.path(), false, None);
+    let node = spawn(&app, "User");
+    let host = rune(&app);
+    host.attach(node, "user.rn").unwrap();
+    assert_eq!(host.number_field(node, "out"), Some(45.0));
+}

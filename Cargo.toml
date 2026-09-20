@@ -136,7 +136,7 @@ strip = true
 # 0.14.2 made deterministic and debuggable: `powf`/`powi` and hashing off the
 # platform, break points in the VM, an instruction counter. Rune installs its
 # stdlib wholesale and nothing can be overridden, so a fork is the only way.
-rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
+rune = { path = "../rune/crates/rune" }
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }

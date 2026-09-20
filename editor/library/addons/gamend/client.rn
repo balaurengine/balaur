@@ -82,7 +82,43 @@ pub fn route(node, e) {
 }
 
 pub fn close(socket) {
+    forget_topics();
     return gamend::close(socket);
+}
+
+/// Where the topics this socket joined are kept, so `joined` can answer and
+/// a caller can leave them all at once.
+const TOPICS = "gamend:topics";
+
+/// Join a topic and remember it: `party:<id>`, `group:<id>`, `lobbies`. A
+/// dropped connection rejoins what it held, so this is the whole record a
+/// game needs of what it is listening to.
+pub fn join(socket, topic) {
+    let held = joined();
+    if !held.iter().any(|name| name == topic) {
+        held.push(topic);
+        script::store(TOPICS, held);
+    }
+    return gamend::join(socket, topic);
+}
+
+/// Leave a topic and drop it from the record.
+pub fn leave(socket, topic) {
+    script::store(TOPICS, joined().iter().filter(|name| name != topic).collect::<Vec>());
+    return gamend::leave(socket, topic);
+}
+
+/// Every topic this session joined, in the order it joined them.
+pub fn joined() {
+    let held = script::stored(TOPICS);
+    if held is Vec {
+        return held;
+    }
+    return [];
+}
+
+fn forget_topics() {
+    script::store(TOPICS, []);
 }
 
 /// Call a server hook and await the reply. The result is
