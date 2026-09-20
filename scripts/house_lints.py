@@ -54,10 +54,8 @@ VOCABULARY_LITERAL = re.compile(
     r'|\b(?:params|opts|table)\.get\("'
 )
 
-# A call that can re-enter the engine: a script runs arbitrary code, and a
-# component hook reaches whatever its plugin holds. Either can ask for the
-# resource whose `RefCell` the caller is still holding, and the panic that
-# follows names neither side.
+# A call that can re-enter the engine and ask for the resource whose `RefCell`
+# the caller still holds; the panic that follows names neither side.
 REENTRANT_CALL = re.compile(
     r"\b(?:call_on|call_all|call_async|invoke|hot_reload)\s*\("
     r"|\bhost\.(?:update|fixed_update|attach|call)\s*\("
@@ -65,10 +63,8 @@ REENTRANT_CALL = re.compile(
     r"|\bcomponents::(?:add|patch|remove|remove_present)\s*\("
     r"|\binstantiate_scene\s*\("
 )
-# `let x = <something>.borrow_mut();` — the exclusive binding, not the
-# temporary. A temporary (`r.borrow_mut().push(..)`) is dropped at the end of
-# its statement and cannot span a call. A shared `.borrow()` is left alone:
-# shared borrows nest, so only the writer is a panic waiting for a hook.
+# `let x = <something>.borrow_mut();` — the exclusive binding, not a temporary,
+# which is dropped at the end of its statement and cannot span a call.
 BORROW_BINDING = re.compile(
     r"^\s*let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*\.borrow_mut\(\)\s*;"
 )
