@@ -761,11 +761,8 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         has_asset,
     } = resolve(eng, name)?;
     let current = get_at(eng, entity, index);
-    // The component's own table is the base, taken rather than copied: it
-    // already holds every property the component has, so starting from the
-    // defaults and writing over them twice was two tables built to be thrown
-    // away. What `get` leaves out is filled from what was asked before, then
-    // from the defaults -- the same order of precedence, without the copies.
+    // The component's own table is the base, taken rather than copied: what
+    // `get` leaves out is filled from the request, then from the defaults.
     let mut out = match current {
         Some(toml::Value::Table(table)) => table,
         Some(other) => {
