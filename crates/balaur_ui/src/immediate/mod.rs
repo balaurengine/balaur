@@ -6,6 +6,7 @@
 pub(crate) mod bindings;
 pub(crate) mod code;
 pub(crate) mod layout;
+pub(crate) mod rects;
 
 use anyhow::Result;
 use balaur_core::Engine;
@@ -17,6 +18,20 @@ use crate::UiState;
 use crate::bridge::with_ui;
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
+
+thread_local! {
+    /// Where the last `ui.pill` landed. An immediate control has no node to
+    /// ask, so the one that drew it leaves its box here for `ui.pill_rect`.
+    static PILL_RECT: std::cell::Cell<Option<egui::Rect>> = const { std::cell::Cell::new(None) };
+}
+
+pub(crate) fn note_pill(rect: egui::Rect) {
+    PILL_RECT.with(|cell| cell.set(Some(rect)));
+}
+
+pub(crate) fn last_pill() -> Option<egui::Rect> {
+    PILL_RECT.with(std::cell::Cell::get)
+}
 
 /// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
 ///
@@ -770,6 +785,7 @@ pub(crate) fn left_pill(
         crate::widget::theme::tip(&response, text);
     }
     crate::immediate::layout::attach_menus(eng, &response, opts);
+    note_pill(rect);
     Ok(response.clicked())
 }
 

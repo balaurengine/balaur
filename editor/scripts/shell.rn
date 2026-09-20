@@ -976,6 +976,12 @@ fn state_imports(S, list) {
 // does, into the editor's own data folder and left off the recent list.
 fn state_convert(S, folder) {
     S.manager.parent = engine::user_data_dir();
+    // A showcase presses Import project itself, so the folder waits for the
+    // frame its pointer reaches the button.
+    if crate::showcase::driving(S) {
+        S.manager.convert_from = folder;
+        return;
+    }
     crate::manager::convert(S, folder, |S, path| project::forget(path));
 }
 

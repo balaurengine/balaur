@@ -411,6 +411,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     response = hover_text(response, &opts, tip);
                 }
                 attach_menus(eng, &response, &opts);
+                crate::immediate::note_pill(response.rect);
                 Ok(response.clicked())
             })
         },

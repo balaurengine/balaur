@@ -90,15 +90,26 @@ pub fn table() {
     out
 }
 
-// The clip walks the three views the same rows are drawn in, and shuffles the
-// cards twice so the list is seen rebuilding rather than standing still.
+// The clip: a drawn cursor walking the strip, each view opening as it lands,
+// and the Shuffle button pressed at either end. `[at, target]`, where a
+// target is a page in the strip or the button.
 const TOUR = [
-    [70, "Cards"], [130, "Outline"], [220, "Table"], [310, "Cards"],
+    [50, "Shuffle"], [120, "Outline"], [200, "Table"], [280, "Cards"], [340, "Shuffle"],
 ];
-const SHUFFLE_AT = [60, 300];
+// How long the cursor takes to walk to its next target, in frames.
+const WALK = 34;
+// The click ring: how long it grows for, and how wide it starts and ends.
+const RIPPLE = 66;
+const RIPPLE_FROM = 12.0;
+const RIPPLE_TO = 90.0;
+const PAGES = "Sheet/Body/Right/Pages";
 
 pub fn init(this) {
     this.frame = 0;
+    // Where the cursor last landed, so a walk knows what it is leaving.
+    this.at = ();
+    // The click ring: where it was left and how long ago.
+    this.ring = ();
     this.order = [];
     let n = 0;
     while n < entries().len() {
@@ -158,22 +169,111 @@ pub fn update(this, dt) {
     if this.frames == "" {
         return;
     }
-    for at in SHUFFLE_AT {
-        if this.frame == at {
-            shuffle(this);
-        }
-    }
+    walk(this);
+    ring(this);
     for step in TOUR {
         if this.frame == step[0] {
-            let pages = this.node.get_node("Sheet/Body/Right/Pages");
-            if pages is balaur::Node {
-                pages.patch_component("widget", #{ active: step[1] });
-            }
+            arrive(this, step[1]);
         }
     }
     // The first frame is drawn before the sheet is laid out, so it is skipped.
     if this.frame >= 2 && this.frame <= 361 {
         render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
+    }
+}
+
+// Where a target sits, in design px: a page answers with its button in the
+// strip, the Shuffle button with its own box. Nil before it has drawn.
+fn target_at(this, name) {
+    if name == "Shuffle" {
+        let found = this.node.get_node("Sheet/Head/Shuffle");
+        if found is balaur::Node {
+            return ui::widget_rect(found);
+        }
+        return ();
+    }
+    let page = this.node.get_node(`${PAGES}/${name}`);
+    if page is balaur::Node {
+        return ui::tab_rect(page);
+    }
+    return ();
+}
+
+// The cursor walks to each target over WALK frames before the frame it is due
+// on, so it is already there when the view changes under it.
+fn walk(this) {
+    let from = this.at;
+    let to = this.at;
+    let start = 0;
+    for step in TOUR {
+        if this.frame <= step[0] {
+            to = target_at(this, step[1]);
+            start = step[0] - WALK;
+            break;
+        }
+        from = target_at(this, step[1]);
+    }
+    if !(to is Object) {
+        return;
+    }
+    let here = if from is Object { from } else { to };
+    let p = ((this.frame - start) as f64) / (WALK as f64);
+    let e = if p < 0.0 { 0.0 } else if p > 1.0 { 1.0 } else { p * p * (3.0 - 2.0 * p) };
+    let x = here.x + here.w / 2.0 + (to.x + to.w / 2.0 - here.x - here.w / 2.0) * e;
+    let y = here.y + here.h / 2.0 + (to.y + to.h / 2.0 - here.y - here.h / 2.0) * e;
+    let cursor = this.node.get_node("Cursor");
+    if cursor is balaur::Node {
+        cursor.patch_component("widget", #{ x: x, y: y, visible: true });
+    }
+}
+
+// A ring spreading from the last click, so the press is not one frame of a
+// cursor that never moved.
+fn ring(this) {
+    let held = this.ring;
+    let node = this.node.get_node("Ripple");
+    if !(held is Object) || !(node is balaur::Node) {
+        return;
+    }
+    let p = (held.age as f64) / (RIPPLE as f64);
+    let back = 1.0 - p;
+    let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
+    let left = back * back;
+    node.patch_component("widget", #{
+        x: held.x - d / 2.0, y: held.y - d / 2.0,
+        width: d, height: d, radius: d / 2.0,
+        fill: alpha("#6fa4d8", 0.30 * left), stroke: alpha("#ffffff", left),
+        visible: true,
+    });
+    held.age = held.age + 1;
+    if held.age >= RIPPLE {
+        this.ring = ();
+        node.patch_component("widget", #{ visible: false });
+    }
+}
+
+// `#rrggbb` with an alpha byte appended, for a ring that fades as it grows.
+fn alpha(hex, a) {
+    let v = ((if a < 0.0 { 0.0 } else if a > 1.0 { 1.0 } else { a }) * 255.0) as i64;
+    let digits = ["0", "1", "2", "3", "4", "5", "6", "7",
+                  "8", "9", "a", "b", "c", "d", "e", "f"];
+    hex + digits[v / 16] + digits[v % 16]
+}
+
+// The cursor has landed: the button it is on does its own thing.
+fn arrive(this, name) {
+    this.at = target_at(this, name);
+    let box = this.at;
+    if box is Object {
+        this.ring = #{ x: box.x + box.w / 2.0, y: box.y + box.h / 2.0, age: 0 };
+    }
+    if name == "Shuffle" {
+        shuffle(this);
+        return;
+    }
+    let pages = this.node.get_node(PAGES);
+    if pages is balaur::Node {
+        pages.patch_component("widget", #{ active: name });
     }
 }
 

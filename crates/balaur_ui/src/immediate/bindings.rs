@@ -500,12 +500,6 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
         "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
     ),
     (
-        "widget_rect",
-        &[],
-        "",
-        "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
-    ),
-    (
         "set_keyboard_focus",
         &[],
         "",
@@ -561,25 +555,8 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                 Ok(())
             },
         );
-        m.function(
-            "widget_rect",
-            |_eng: &Engine, node: balaur_script::NodeId| {
-                Ok(
-                    crate::widget::arrange::drawn_at(balaur_core::entity_of(node)?).map_or(
-                        Value::Nil,
-                        |r| {
-                            Value::Map(vec![
-                                (k::X.into(), Value::Num(f64::from(r.min.x))),
-                                (k::Y.into(), Value::Num(f64::from(r.min.y))),
-                                (k::W.into(), Value::Num(f64::from(r.width()))),
-                                (k::H.into(), Value::Num(f64::from(r.height()))),
-                            ])
-                        },
-                    ),
-                )
-            },
-        );
     }
+    crate::immediate::rects::install_rects(m);
     install_focus(m);
 }
 

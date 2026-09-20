@@ -637,6 +637,9 @@ pub fn draw_ui(this) {
     // is no scene to draw behind it and no dock to put over it.
     if manager::showing(S) {
         manager::draw(S, S.theme);
+        if S.show_input {
+            inputview::draw(S);
+        }
         return;
     }
     // Stage: decide what is showing, size every sheet once, then draw them.

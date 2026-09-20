@@ -60,6 +60,8 @@ pub fn start(S, name) {
         "shaders" => shaders(S, q),
         "focus" => focusing(S, q),
         "manager" => manager_pages(S, q),
+        "godot" => godot(S, q),
+        "importing" => importing(S, q),
         _ => {
             log::warn(format!("show:{}: no such showcase", name));
             return;
@@ -431,14 +433,78 @@ fn open_newest(S) {
     }
 }
 
-// The screen the editor starts on. No drawn cursor: its pages are pills an
-// immediate-mode row lays out, and nothing publishes where one lands.
+// Where a control on the start screen sits, in design px; the middle of the
+// window before it has drawn once.
+fn manager_spot(S, name) {
+    match manager::spot(S, name) {
+        Some(at) => at,
+        None => (S.screen_w / 2.0, S.screen_h / 2.0),
+    }
+}
+
+// The screen the editor starts on: its pages in turn, then the sheet that
+// makes a project from a template.
 fn manager_pages(S, q) {
-    act(q, 1, || {
-        S.show_input = false;
-        manager::open_examples(S);
+    act(q, 1, || manager::open(S));
+    click(S, q, 50, || manager_spot(S, "examples"), || S.manager.tab = "examples");
+    click(S, q, 210, || manager_spot(S, "projects"), || S.manager.tab = "projects");
+    click(S, q, 330, || manager_spot(S, "new"), || manager::open_new(S));
+}
+
+// A Godot project converted from the start screen: the pointer on Import
+// project, then the count climbing where a folder picker would have been.
+fn godot(S, q) {
+    act(q, 1, || manager::open(S));
+    click(S, q, 60, || manager_spot(S, "import"), || {
+        // Nothing to convert without a `convert:` beside this state, which is
+        // what `scripts/showcase.sh` gives it.
+        let from = S.manager.convert_from;
+        if from != "" {
+            manager::convert(S, from, |S, path| S.manager.converted = path);
+        }
     });
-    act(q, 320, || manager::open_new(S));
+    // Forgotten past the last frame the clip takes: the row the conversion
+    // leaves in the list is what it ends on.
+    act(q, 839, || {
+        let landed = S.manager.converted;
+        if landed != "" {
+            project::forget(landed);
+        }
+    });
+    // The note and the bar the import puts up push the toolbar down, so the
+    // pointer rides the button rather than staying where it was pressed.
+    over(q, 72, 400, |p| {
+        let (x, y) = manager_spot(S, "import");
+        feed_pointer(S, x, y);
+    });
+}
+
+// Files arriving one at a time, each let go where the pointer is: the editor
+// keeps drawing while the job writes them.
+fn importing(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "scene");
+        crate::docks::show(S, "assets");
+        // The queue's own drip is off; the pointer takes one file per beat.
+        S.import_from = 1000000;
+    });
+    drop_file(S, q, 70, 0.34, 0.44);
+    drop_file(S, q, 190, 0.56, 0.34);
+    drop_file(S, q, 310, 0.44, 0.62);
+    drop_file(S, q, 430, 0.62, 0.54);
+}
+
+// The pointer walks somewhere in the viewport and lets the next file go.
+fn drop_file(S, q, frame, fx, fy) {
+    click(S, q, frame, || {
+        let v = S.viewport;
+        (util::f(v.x) + util::f(v.w) * fx, util::f(v.y) + util::f(v.h) * fy)
+    }, || {
+        if !S.import_queue.is_empty() {
+            let next = S.import_queue.remove(0);
+            crate::dropin::take(S, next);
+        }
+    });
 }
 
 // The code pane taking the window: a node with a script, the Focus chip

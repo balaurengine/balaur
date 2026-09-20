@@ -6,22 +6,53 @@ use crate::style;
 use crate::util;
 
 // The keys worth a chip; the rest of the key list is media and numpad keys.
+// The punctuation is here because a shortcut is built on it: `⇧⌘\` showed
+// its two modifiers and nothing to press with them.
 const KEYS = [
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
     "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
     "Key0", "Key1", "Key2", "Key3", "Key4", "Key5", "Key6", "Key7", "Key8", "Key9",
-    "Space", "Return", "Escape", "Tab", "Back", "Left", "Right", "Up", "Down",
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    "Space", "Return", "Escape", "Tab", "Back", "Delete", "Home", "End",
+    "PageUp", "PageDown", "Insert", "Left", "Right", "Up", "Down",
+    "Backslash", "Slash", "Comma", "Period", "Semicolon", "Apostrophe",
+    "LBracket", "RBracket", "Minus", "Equals", "Grave",
     "LShift", "RShift", "LControl", "RControl", "LAlt", "RAlt", "LWin", "RWin",
 ];
 const BUTTONS = ["LMB", "RMB", "MMB"];
-// How many frames a click's ripple grows for, and how wide it ends.
-const RIPPLE = 30;
-const RIPPLE_TO = 120.0;
+// How many frames a click's ripple grows for, and how wide it starts and
+// ends. A clip is taken every other frame, so 66 is a little over a second
+// of it: half that and the ring is gone before a viewer has found it.
+const RIPPLE = 66;
+const RIPPLE_FROM = 18.0;
+const RIPPLE_TO = 140.0;
+// How long a chip stays up after its key or button went back up. A tap is a
+// few frames, which nobody watching a clip would catch.
+const CHIP_HOLD = 60;
 // The drawn cursor, in design px. The image's tip is its top-left corner.
 const CURSOR = 36.0;
 
 pub fn state() {
-    #{ ripples: [] }
+    #{ ripples: [], keys: #{}, acts: #{} }
+}
+
+// What to show and what is left of each hold: everything down now, plus what
+// went up within the last CHIP_HOLD frames.
+fn holding(map, down) {
+    for name in down {
+        map[name] = CHIP_HOLD;
+    }
+    let shown = [];
+    let left = #{};
+    for name in util::keys_sorted(map) {
+        shown.push(name);
+        let n = map[name] - 1;
+        if n > 0 {
+            left[name] = n;
+        }
+    }
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return (shown, left);
 }
 
 fn key_label(key) {
@@ -36,6 +67,19 @@ fn key_label(key) {
         "RAlt" => "Alt",
         "LWin" => "Cmd",
         "RWin" => "Cmd",
+        "Backslash" => "\\",
+        "Slash" => "/",
+        "Comma" => ",",
+        "Period" => ".",
+        "Semicolon" => ";",
+        "Apostrophe" => "'",
+        "LBracket" => "[",
+        "RBracket" => "]",
+        "Minus" => "-",
+        "Equals" => "=",
+        "Grave" => "`",
+        "PageUp" => "Page up",
+        "PageDown" => "Page down",
         _ => if key.starts_with("Key") { key[3..] } else { key },
     }
 }
@@ -49,10 +93,15 @@ pub fn pointer(S) {
 
 pub fn draw(S) {
     let k = S.theme;
+    // The chips sit under the viewport, where there is one. The start screen
+    // lays out none and focus mode gives the code the window, and the rect
+    // left from before is stale, so in both they go by the window instead.
     let v = S.viewport;
-    let vx = util::f(v.x);
-    let vy = util::f(v.y);
-    let vh = util::f(v.h);
+    let (_, sh) = ui::screen_size();
+    let staged = !crate::manager::showing(S) && !S.focus && util::f(v.w) > 0.0;
+    let vx = if staged { util::f(v.x) } else { 0.0 };
+    let vy = if staged { util::f(v.y) } else { 0.0 };
+    let vh = if staged { util::f(v.h) } else { sh };
     let iv = S.inputview;
     let (x, y) = pointer(S);
     for b in 0..3 {
@@ -60,23 +109,27 @@ pub fn draw(S) {
             iv.ripples.push(#{ x: x, y: y, age: 0 });
         }
     }
-    let chips = [];
+    let down = [];
     for key in KEYS {
         if input::is_down(key) {
-            chips.push(key_label(key));
+            down.push(key_label(key));
         }
     }
     for (i, name) in BUTTONS.iter().enumerate() {
         if input::is_mouse_down(i) {
-            chips.push(name);
+            down.push(name);
         }
     }
-    let actions = [];
+    let pressed = [];
     for name in util::vec(input::actions()) {
         if input::action_pressed(name) {
-            actions.push(name);
+            pressed.push(name);
         }
     }
+    let (chips, keys_left) = holding(iv.keys, down);
+    iv.keys = keys_left;
+    let (actions, acts_left) = holding(iv.acts, pressed);
+    iv.acts = acts_left;
     if chips.len() > 0 || actions.len() > 0 {
         ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0 }, || {
             ui::horizontal(#{ height: 30 }, || {
@@ -97,20 +150,26 @@ pub fn draw(S) {
             });
         });
     }
-    // Rings first, so the cursor sits on top of the click it made. Three
-    // circles a pixel apart: a stroke is one pixel wide, and one is invisible
-    // over a selected row.
+    // Rings first, so the cursor sits on top of the click it made. The disc
+    // leaves fast and settles wide; the rings are a pixel apart because a
+    // stroke is one pixel wide, and one alone is invisible over a lit row.
     let kept = [];
     for (i, r) in iv.ripples.iter().enumerate() {
         let p = (r.age as f64) / (RIPPLE as f64);
-        let d = 16.0 + (RIPPLE_TO - 16.0) * p;
-        let left = 1.0 - p;
-        for (band, hue) in [(0.0, "#ffffff"), (2.0, "#ffffff"), (4.0, k.accent)].iter().enumerate() {
-            let w = d - hue.0;
+        let back = 1.0 - p;
+        let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
+        let left = back * back;
+        ui::overlay(format!("input-wash-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
+            ui::frame(#{ fill: alpha(k.accent, 0.30 * left), radius: d / 2.0 }, || {
+                ui::horizontal(#{ width: d, height: d }, || {});
+            });
+        });
+        for band in 0..3 {
+            let w = d - (band as f64) * 2.0;
+            let hue = if band == 2 { k.accent } else { "#ffffff" };
             ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
                 ui::frame(#{
-                    fill: if band == 2 { alpha(k.accent, 0.18 * left) } else { "#00000000" },
-                    stroke: alpha(hue.1, left), radius: w / 2.0,
+                    fill: "#00000000", stroke: alpha(hue, left), radius: w / 2.0,
                 }, || {
                     ui::horizontal(#{ width: w, height: w }, || {});
                 });

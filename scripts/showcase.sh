@@ -129,7 +129,7 @@ godot_clip() { # godot_clip <name> <frames>
   mkdir -p "$into"
   rsync -a --exclude .git --exclude .godot --exclude .cache --exclude 'store_*' \
     --exclude export --exclude packs --exclude docs "$src/" "$into/"
-  clip "$1" examples/hello "$2" "manager,convert:$into"
+  clip "$1" examples/hello "$2" "manager,show:godot,convert:$into"
   rm -rf "$into" "$into-balaur"
 }
 
@@ -368,7 +368,7 @@ clip project_start     examples/hello      600  "show:manager"
 godot_clip godot_import 840
 # Four files importing at once, the dock's list filling while the editor keeps
 # drawing: the whole point of the job that writes a few files a frame.
-import_clip import_async examples/angrynerds 620 "scene,select:Bird,dock:assets" \
+import_clip import_async examples/angrynerds 620 "show:importing" \
   crates/balaur_render/tests/fixtures/walk.aseprite examples/rig3d/models/column.glb \
   crates/balaur_render/tests/fixtures/sprite_200x100.png \
   crates/balaur_render/tests/fixtures/sprite_drawn.png

@@ -24,6 +24,13 @@ pub fn state() {
         // A project being converted: the manifest it reads, where it lands,
         // how far along, and what to do once it is done. Empty when none is.
         importing: #{},
+        // Where each control this screen draws last landed, keyed by the name
+        // the showcase points at: an immediate pill has no node to ask.
+        spots: #{},
+        // A folder a showcase will convert once its pointer reaches the
+        // button, and where it landed; empty for every other run.
+        convert_from: "",
+        converted: "",
         // The release feed, asked for once when the Engine tab or About opens,
         // and whether a read is out.
         releases: [],
@@ -132,6 +139,20 @@ pub fn close(S) {
 
 /// Whether the screen has the window. A run with no project is the screen
 /// whether or not anybody asked for it: there is nothing else to hold.
+/// Where a control this screen drew last landed, in design px, by the name
+/// the showcase knows it as; `None` before it has drawn.
+pub fn spot(S, name) {
+    let found = S.manager.spots.get(name);
+    match found {
+        Some(box) => if box is Object {
+            Some((box.x + box.w / 2.0, box.y + box.h / 2.0))
+        } else {
+            None
+        },
+        None => None,
+    }
+}
+
 pub fn showing(S) {
     S.manager.on || S.game_root == ""
 }
@@ -274,6 +295,7 @@ fn tab_row(S, k, w) {
             }) {
                 S.manager.tab = id;
             }
+            S.manager.spots[id] = ui::pill_rect();
             ui::add_space(6);
         }
     });
@@ -301,6 +323,7 @@ fn toolbar(S, k, w) {
                     import_project(S, picked);
                 }
             }
+            S.manager.spots["import"] = ui::pill_rect();
             ui::add_space(6);
             if ui::pill(icons::panel("assets") + " Open folder", #{
                 height: h, size: style::MD, radius: 8, padding_x: 14, min_width: room,
@@ -319,6 +342,7 @@ fn toolbar(S, k, w) {
         }) {
             crate::window::show(S, NEW_SHEET);
         }
+        S.manager.spots["new"] = ui::pill_rect();
     };
     ui::horizontal(#{ height: h, width: w }, || {
         let field_w = if tight || !acting { w } else { w - 420.0 };
@@ -547,7 +571,7 @@ fn engine_page(S, k, col, tall) {
             ui::label("Follow", #{ size: style::MD, color: k.dim });
         });
         ui::scroll("manager-follow", #{
-            axis: "horizontal", max_width: col - 66.0, max_height: h + 6.0, deadzone: 6,
+            axis: "horizontal", max_width: col - 66.0, max_height: h + 6.0,
         }, || {
             ui::horizontal(#{ height: h }, || {
                 ui::spacing(4, 0);
@@ -928,6 +952,8 @@ pub fn report(S, e) {
     if kind == "done" {
         S.manager.note = ev.get("note").unwrap_or("");
         log::info(format!("imported {} into {}: {}", job.source, job.path, S.manager.note));
+        // The list was read before the project existed, so it is read again.
+        S.manager.read = false;
         let after = job.after;
         after(S, job.path);
     } else if kind == "failed" {

@@ -107,6 +107,7 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     visuals.widgets.active.bg_stroke = Stroke::new(1.0, accent);
     visuals.widgets.active.fg_stroke = Stroke::new(1.0, text);
 
+    sharp_text(&mut visuals);
     ctx.set_visuals(visuals);
     ctx.all_styles_mut(|style| {
         // 4 px base grid; panels/widgets add their own padding.
@@ -120,6 +121,17 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
         style.visuals.menu_corner_radius = CornerRadius::same(16);
         style.visuals.window_corner_radius = CornerRadius::same(16);
     });
+}
+
+/// Sharp stems over even kerning, wherever the visuals are set.
+///
+/// `subpixel_binning` draws a glyph at four fractional offsets and picks the
+/// nearest, which epaint's own note says makes text look blurrier: a stem then
+/// straddles two pixels instead of landing on one. It is read fresh from the
+/// style every pass and `Visuals::dark()` brings it back, so a theme has to
+/// state it or the next `set_theme` undoes this.
+fn sharp_text(visuals: &mut egui::Visuals) {
+    visuals.text_options.subpixel_binning = false;
 }
 
 /// The named family for a widget option value.
@@ -136,6 +148,7 @@ pub(crate) fn family(name: &str) -> FontFamily {
 /// come first, then what the editor bundles, then the system's — so a game
 /// can ship the face its language needs without patching the editor.
 pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
+    ctx.all_styles_mut(|style| sharp_text(&mut style.visuals));
     let mut fonts = egui::FontDefinitions::default();
     let mut heading_chain: Vec<String> = Vec::new();
     let mut ui_chain: Vec<String> = Vec::new();

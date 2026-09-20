@@ -22,12 +22,21 @@ thread_local! {
     /// Where each widget was drawn, for a script that has to place something
     /// against it — the editor's own chrome reads its shell back this way.
     static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    /// Where a `tab` page's own button in the strip was drawn, keyed by the
+    /// page: the strip is painted inline and has no node to ask.
+    static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.
 pub(crate) fn drawn_at(entity: Entity) -> Option<egui::Rect> {
     PLACED.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
+}
+
+/// Where a tab page's button in the strip was last drawn, or `None` before
+/// the strip has drawn.
+pub(crate) fn tab_head_at(entity: Entity) -> Option<egui::Rect> {
+    TAB_HEADS.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
 }
 
 /// The rect a widget took in the pass being drawn now, for what has to
@@ -321,6 +330,9 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget);
     let gap = gap_of(&widget, &at.style_of(&widget));
 
+    // The page each strip button stands for, read before the strip borrows
+    // the arena, so the button can leave its box under that page's entity.
+    let heads: Vec<Entity> = pages.iter().map(|(i, _, _)| at.arena[*i].entity).collect();
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     let chosen = strip
         .horizontal(|ui| {
@@ -341,7 +353,12 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                     (true, None) => button.fill(Color32::from_black_alpha(96)),
                     (false, _) => button.fill(Color32::TRANSPARENT),
                 };
-                if ui.add(button).clicked() {
+                let response = ui.add(button);
+                TAB_HEADS.with(|m| {
+                    m.borrow_mut()
+                        .insert(heads[slot].to_bits().get(), response.rect);
+                });
+                if response.clicked() {
                     chosen = Some(name.clone());
                 }
             }
