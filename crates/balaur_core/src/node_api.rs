@@ -775,7 +775,17 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
         args.get(2)
             .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?,
     )?;
-    crate::components::patch(eng, e, text(args, 1)?, &params)?;
+    let name = text(args, 1)?;
+    // One property is what a script driving a value over time writes, and the
+    // component that can take it that way saves reading its table back.
+    if let Some(table) = params.as_table()
+        && table.len() == 1
+        && let Some((key, value)) = table.iter().next()
+        && crate::components::set_property(eng, e, name, key, value)?
+    {
+        return Ok(Value::Nil);
+    }
+    crate::components::patch(eng, e, name, &params)?;
     Ok(Value::Nil)
 }
 

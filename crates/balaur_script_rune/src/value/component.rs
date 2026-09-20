@@ -261,23 +261,21 @@ fn read_property(
         return fail(format!("`{}` has no property `{prop}`", this.name));
     }
     let _scope = CallbackScope::enter();
-    let got = match call_bound(handle, &receiver(this)) {
+    let [node, name] = receiver(this);
+    let keyed = [node, name, Neutral::Str(SmolStr::new_static(prop))];
+    let got = match call_bound(handle, &keyed) {
         Some(Ok(v)) => v,
         Some(Err(err)) => return fail(err),
         None => return fail("component property was registered on another thread"),
     };
-    // A node that does not carry the component reads as the component's
-    // declared defaults: a scene leaving one out means exactly that, and a
-    // node with no `transform` does sit at its parent.
+    // Nil is the node carrying no such component, and a component whose
+    // reader leaves the property out; the whole table tells those apart.
     let value = match got {
-        Neutral::Map(props) => match props.into_iter().find(|(key, _)| key == prop) {
-            Some((_, value)) => value,
-            None => return fail(format!("`{}` does not report `{prop}`", this.name)),
+        Neutral::Nil => match absent(this, prop, fallback, handle) {
+            Ok(value) => value,
+            Err(err) => return err,
         },
-        _ => match fallback.get(this.name) {
-            Some(value) => value.clone(),
-            None => return fail(format!("the node has no `{}`", this.name)),
-        },
+        value => value,
     };
     let value = if vectors.contains(this.name) {
         as_vec3(value)
@@ -287,6 +285,32 @@ fn read_property(
     match from_neutral(&value) {
         Ok(v) => VmResult::Ok(v),
         Err(err) => fail(err),
+    }
+}
+
+/// What a keyed read answering nil means: the component's declared default
+/// where the node does not carry it, an error where it does.
+fn absent(
+    this: &Component,
+    prop: &str,
+    fallback: &std::collections::HashMap<String, Neutral>,
+    handle: usize,
+) -> Result<Neutral, VmResult<rune::Value>> {
+    let [node, name] = receiver(this);
+    let whole = match call_bound(handle, &[node, name]) {
+        Some(Ok(v)) => v,
+        Some(Err(err)) => return Err(fail(err)),
+        None => return Err(fail("component property was registered on another thread")),
+    };
+    if let Neutral::Map(props) = whole {
+        return match props.into_iter().find(|(key, _)| key == prop) {
+            Some((_, value)) => Ok(value),
+            None => Err(fail(format!("`{}` does not report `{prop}`", this.name))),
+        };
+    }
+    match fallback.get(this.name) {
+        Some(value) => Ok(value.clone()),
+        None => Err(fail(format!("the node has no `{}`", this.name))),
     }
 }
 

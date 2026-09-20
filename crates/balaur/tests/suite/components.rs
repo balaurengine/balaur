@@ -393,6 +393,39 @@ fn every_component_emits_every_key_its_schema_declares() {
     }
 }
 
+/// Writing one property leaves the component's others where they were.
+///
+/// `transform` takes a single property without reading its table back, so
+/// this covers the fast path and that what it wrote is what a read answers.
+#[test]
+fn a_one_property_write_leaves_the_rest() {
+    let (dir, app) = app_with_every_component();
+    run_script(
+        dir.path(),
+        &app,
+        r#"
+        pub fn init(this) {
+            let n = scene::root().add_child("Moved");
+            n.set_component("transform", #{ position: [1.0, 2.0, 3.0], scale: [4.0, 4.0, 4.0] });
+            n.patch_component("transform", #{ position: [9.0, 0.0, 0.0] });
+
+            let at = n.get_component("transform", "position");
+            assert!(at[0] == 9.0, "position moved");
+            let size = n.get_component("transform", "scale");
+            assert!(size[0] == 4.0, "scale survived the write");
+            assert!(n.transform.position.x == 9.0, "the handle reads it back");
+
+            // A node with no transform of its own reads the declared default.
+            let bare = scene::root().add_child("Bare");
+            bare.remove_component("transform");
+            assert!(bare.transform.scale.x == 1.0, "the default scale");
+
+            this.done = 1.0;
+        }
+        "#,
+    );
+}
+
 /// A keyed read answers the one property, and the same value the table holds.
 ///
 /// Two components: `widget` reads its properties one at a time without

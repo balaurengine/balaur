@@ -267,9 +267,14 @@ pub fn under_pointer(eng: &Engine) -> Option<hecs::Entity> {
 /// editor's own picker uses, so what a click selects and what a hook fires on
 /// are the same node.
 fn under_pointer_2d(eng: &Engine) -> Option<hecs::Entity> {
+    // A zoom of zero is a viewport no windowed backend ever published into,
+    // so there is no pointer and the scan below would answer about (0, 0).
     let point = {
         let vp = eng.resource::<crate::ViewportSnapshot2d>();
         let vp = vp.borrow();
+        if vp.zoom <= 0.0 {
+            return None;
+        }
         vp.mouse_world
     };
     let world = eng.world();

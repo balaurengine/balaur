@@ -73,12 +73,12 @@ pub(crate) struct Measured {
     subtree: Vec<balaur_core::hecs::Entity>,
 }
 
-/// Count what the scene would draw, once per frame.
+/// Count what the scene would draw, and leave it in [`Stats`].
 ///
-/// Walks the same components the backend syncs from, so the numbers are the
-/// scene's rather than the backend's bookkeeping; a build with no renderer
-/// still reports them, which is what lets an export budget be a test.
-pub fn measure_system(eng: &Engine, _dt: f32) {
+/// Called by `render.stats` rather than by a system: the walk builds a path
+/// per node that draws, which was a ninth of a frame with five thousand
+/// sprites and nobody reading it.
+pub fn measure(eng: &Engine) {
     let mut fresh = Stats::default();
     let mut seen: BTreeMap<String, u64> = BTreeMap::new();
     let cache = eng.resource::<Measured>();
@@ -214,6 +214,7 @@ pub(crate) fn install_stats_api(m: &mut dyn Bindings<Engine>) {
         "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
     )]);
     m.function("stats", |eng: &Engine, ()| {
+        measure(eng);
         let stats = eng.resource::<Stats>();
         let stats = stats.borrow();
         let total = stats.total();

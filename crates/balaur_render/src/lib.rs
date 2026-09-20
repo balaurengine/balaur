@@ -895,8 +895,6 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
         // After the booleans: a cloner may multiply their result too.
         reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
-        // After the cloners, so a node's copies are counted with it.
-        reg.add_system(Stage::Render, stats::measure_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

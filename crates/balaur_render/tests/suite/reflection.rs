@@ -233,6 +233,9 @@ fn the_frame_counts_every_triangle_it_draws() {
     settle(&mut app);
 
     let counted = {
+        // Counted when asked for rather than every frame, which is what
+        // `render.stats` does for the dock that reads it.
+        balaur_render::stats::measure(&app.engine);
         let stats = app.engine.resource::<balaur_render::stats::Stats>();
         let stats = stats.borrow();
         stats.total().triangles
