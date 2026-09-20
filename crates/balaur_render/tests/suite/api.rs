@@ -329,7 +329,7 @@ fn a_polyline_s_stroke_survives_the_round_trip() {
     for (join, cap) in pairs {
         let e = node(&app);
         let params: toml::Value = toml::from_str(&format!(
-            "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]"
+            "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]\nsegments = 12\ngradient = [1.0, 0.0, 0.0, 1.0]\ngradient_steps = 7"
         ))
         .unwrap();
         components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
@@ -352,6 +352,9 @@ fn a_polyline_s_stroke_survives_the_round_trip() {
             .filter_map(toml::Value::as_float)
             .collect();
         assert_eq!(taper, vec![1.0, 0.25]);
+        let whole = |key: &str| back.get(key).and_then(toml::Value::as_integer);
+        assert_eq!(whole("segments"), Some(12));
+        assert_eq!(whole("gradient_steps"), Some(7));
     }
 }
 

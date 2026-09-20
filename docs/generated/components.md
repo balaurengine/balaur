@@ -386,7 +386,7 @@ A filled, textured 2D polygon from the `mesh` asset's points and triangles. With
 
 ### `shape2d`
 
-`2d` · `render` · 20 properties · 1 method
+`2d` · `render` · 21 properties · 1 method
 
 An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.
 
@@ -398,6 +398,7 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the corners are rounded off, when kind is rect; zero is a square corner At least 0.0.</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
+<tr><td><code>gradient_steps</code></td><td>int</td><td><code>32</code></td><td>How many colours a polyline&#x27;s gradient steps through along its length At least 1.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes, when kind is rect or ellipse</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.2</code></td><td>How far the notches between a star&#x27;s tips reach At least 0.01.</td></tr>
@@ -408,7 +409,7 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `
 <tr><td><code>miter_limit</code></td><td>float</td><td><code>4.0</code></td><td>How far a miter join may reach, in half-widths, before its corner is cut to a bevel At least 1.0.</td></tr>
 <tr><td><code>points</code></td><td>int</td><td><code>5</code></td><td>Tips, when kind is star At least 3.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
-<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse or a rounded corner At least 3.</td></tr>
+<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse, a rounded corner, or a polyline&#x27;s round joins and caps At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
 <tr><td><code>taper</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Multipliers on `width` at a polyline&#x27;s start and end, blended along it; anything but [1, 1] draws round joins and caps</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length</td></tr>

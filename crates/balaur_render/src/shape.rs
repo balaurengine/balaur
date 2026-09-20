@@ -3,7 +3,7 @@
 
 use crate::shape::keys as k;
 use anyhow::Result;
-use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str, prop_vec2};
+use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_i64, prop_str, prop_vec2};
 use balaur_core::primitive::{Flat, Solid};
 use balaur_core::stroke::{self, Cap, Join, Stroke};
 use balaur_core::{Engine, entity_of};
@@ -235,6 +235,7 @@ pub(crate) mod keys {
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
     pub(crate) const FRAME: &str = "frame";
     pub(crate) const GRADIENT: &str = "gradient";
+    pub(crate) const GRADIENT_STEPS: &str = "gradient_steps";
     pub(crate) const GRAVITY: &str = "gravity";
     pub(crate) const HALF_EXTENTS: &str = p::HALF_EXTENTS;
     pub(crate) const HEIGHT: &str = p::HEIGHT;
@@ -405,6 +406,7 @@ fn line_style_from_params(params: &toml::Value) -> crate::LineStyle {
     });
     crate::LineStyle {
         gradient: gradient.filter(|c| c[3] > 0.0),
+        gradient_steps: prop_i64(params, k::GRADIENT_STEPS).clamp(1, i64::from(u32::MAX)) as u32,
         texture: params
             .get(k::TEXTURE)
             .and_then(toml::Value::as_str)
@@ -432,6 +434,7 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
             cap: Cap::from_word(prop_str(params, k::CAP)).unwrap_or_default(),
             miter_limit: prop_f32(params, k::MITER_LIMIT),
             taper: prop_vec2(params, k::TAPER),
+            segments: prop_i64(params, k::SEGMENTS).max(1).cast_unsigned() as u32,
         });
         return Ok((shape, Some(source)));
     }
@@ -452,6 +455,8 @@ fn polyline_params(
     map.insert(k::JOIN.into(), word(stroke.join.word()));
     map.insert(k::CAP.into(), word(stroke.cap.word()));
     map.insert(k::MITER_LIMIT.into(), float(stroke.miter_limit));
+    let whole = |v: u32| toml::Value::Integer(i64::from(v));
+    map.insert(k::SEGMENTS.into(), whole(stroke.segments));
     map.insert(
         k::TAPER.into(),
         toml::Value::Array(stroke.taper.map(float).to_vec()),
@@ -462,6 +467,7 @@ fn polyline_params(
     if let Some(style) = &renderable.line {
         if let Some(gradient) = style.gradient {
             map.insert(k::GRADIENT.into(), color_to_toml(gradient));
+            map.insert(k::GRADIENT_STEPS.into(), whole(style.gradient_steps));
         }
         if !style.texture.is_empty() {
             map.insert(k::TEXTURE.into(), word(&style.texture));
@@ -489,13 +495,14 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     (k::MITER_LIMIT, r#"{ type = "float", default = 4.0, min = 1.0, description = "How far a miter join may reach, in half-widths, before its corner is cut to a bevel" }"#),
                     (k::TAPER, r#"{ type = "vec2", default = [1.0, 1.0], description = "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps" }"#),
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
+                    (k::GRADIENT_STEPS, &format!(r#"{{ type = "int", default = {}, min = 1, description = "How many colours a polyline's gradient steps through along its length" }}"#, stroke::GRADIENT_STEPS)),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes, when kind is rect or ellipse" }"#),
                     (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach" }"#),
                     (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rect; zero is a square corner" }"#),
                     (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star" }"#),
                     (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon" }"#),
-                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse or a rounded corner" }"#),
+                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                 ]),

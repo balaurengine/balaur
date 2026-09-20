@@ -309,6 +309,7 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
             "cap",
             "closed",
             "gradient",
+            "gradient_steps",
             "height",
             "inner_radius",
             "join",

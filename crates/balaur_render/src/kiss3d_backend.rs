@@ -7,7 +7,7 @@ use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
-use balaur_core::{App, GlobalAppearance, GlobalTransform, stroke::GRADIENT_BANDS};
+use balaur_core::{App, GlobalAppearance, GlobalTransform};
 use glamx::Pose3;
 use kiss3d::prelude::*;
 use kiss3d::resource::GpuMesh3d;
@@ -1086,8 +1086,8 @@ pub(crate) fn build_polyline_node(
     }
     let style = renderable.line.as_ref();
     let texture = style.map(|s| s.texture.as_str()).unwrap_or_default();
-    let gradient = style.is_some_and(|s| s.gradient.is_some());
-    let bands = if gradient { GRADIENT_BANDS } else { 1 };
+    let gradient = style.filter(|s| s.gradient.is_some());
+    let bands = gradient.map_or(1, |s| s.gradient_steps);
     let mut group = scene.add_group();
     let mut pieces = Vec::new();
     for piece in balaur_core::stroke::stroke(&points, stroke, bands) {

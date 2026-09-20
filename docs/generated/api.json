@@ -3016,6 +3016,12 @@
         "description": "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient",
         "type": "color"
       },
+      "gradient_steps": {
+        "default": 32,
+        "description": "How many colours a polyline's gradient steps through along its length",
+        "min": 1,
+        "type": "int"
+      },
       "half_extents": {
         "default": [
           0.5,
@@ -3092,7 +3098,7 @@
       },
       "segments": {
         "default": 32,
-        "description": "Cuts around a circle, an ellipse or a rounded corner",
+        "description": "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps",
         "min": 3,
         "type": "int"
       },

@@ -607,6 +607,8 @@ impl SpriteTexture {
 pub struct LineStyle {
     /// The colour at the chain's end, blended from `color` along it.
     pub gradient: Option<[f32; 4]>,
+    /// How many colours that blend steps through along the chain.
+    pub gradient_steps: u32,
     /// An image drawn along the chain, `u` in world units along it.
     pub texture: String,
 }

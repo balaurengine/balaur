@@ -26,11 +26,9 @@ pub const JOINS: &[&str] = &[ROUND, MITER, BEVEL];
 /// The caps a line may take, in the order the inspector offers them.
 pub const CAPS: &[&str] = &[ROUND, BUTT, SQUARE];
 
-/// How many colours a gradient steps through along a line.
-pub const GRADIENT_BANDS: usize = 32;
-
-/// The widest step a round join or cap takes around its arc, in radians.
-const ROUND_STEP: f32 = std::f32::consts::PI / 16.0;
+/// How many colours a gradient steps through along a line, unless the line
+/// asks for another number.
+pub const GRADIENT_STEPS: u32 = 32;
 
 /// How two segments meet.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -105,6 +103,8 @@ pub struct Stroke {
     /// Multipliers on `width` at the start and at the end, blended along the
     /// length. Anything but `[1, 1]` draws round joins and caps.
     pub taper: [f32; 2],
+    /// Cuts a round join or cap takes around a whole turn.
+    pub segments: u32,
 }
 
 impl Default for Stroke {
@@ -116,6 +116,7 @@ impl Default for Stroke {
             cap: Cap::Round,
             miter_limit: 4.0,
             taper: [1.0, 1.0],
+            segments: 32,
         }
     }
 }
@@ -200,7 +201,7 @@ impl Chain {
 /// The stroke of `points`, cut into at most `bands` pieces along its length.
 /// One band is one piece; more give a gradient somewhere to change colour.
 #[must_use]
-pub fn stroke(points: &[Vec2], style: &Stroke, bands: usize) -> Vec<Piece> {
+pub fn stroke(points: &[Vec2], style: &Stroke, bands: u32) -> Vec<Piece> {
     let chain = Chain::new(points, style.closed);
     if chain.points.len() < 2 || chain.total <= f32::EPSILON || style.width <= 0.0 {
         return Vec::new();
@@ -221,6 +222,11 @@ pub fn stroke(points: &[Vec2], style: &Stroke, bands: usize) -> Vec<Piece> {
     }
     pieces.sort_by(|a, b| a.along.total_cmp(&b.along));
     pieces
+}
+
+/// The widest step a round join or cap takes around its arc, in radians.
+fn round_step(style: &Stroke) -> f32 {
+    std::f32::consts::TAU / style.segments.max(1) as f32
 }
 
 #[allow(
@@ -248,17 +254,17 @@ fn outline(chain: &Chain, style: &Stroke) -> Vec<Vec<Vec<[f32; 2]>>> {
                 StrokeVertex::new(p.to_array(), width.max(0.0))
             })
             .collect();
-        return vertices.variable_stroke(VariableStrokeStyle::new().round_angle(ROUND_STEP));
+        return vertices.variable_stroke(VariableStrokeStyle::new().round_angle(round_step(style)));
     }
     let join = match style.join {
-        Join::Round => LineJoin::Round(ROUND_STEP),
+        Join::Round => LineJoin::Round(round_step(style)),
         // A miter reaching `limit` half-widths turns through the interior
         // angle whose half has sine `1 / limit`.
         Join::Miter => LineJoin::Miter(2.0 * libm::asinf(1.0 / style.miter_limit.max(1.0))),
         Join::Bevel => LineJoin::Bevel,
     };
     let cap = match style.cap {
-        Cap::Round => LineCap::Round(ROUND_STEP),
+        Cap::Round => LineCap::Round(round_step(style)),
         Cap::Butt => LineCap::Butt,
         Cap::Square => LineCap::Square,
     };
@@ -276,7 +282,7 @@ fn outline(chain: &Chain, style: &Stroke) -> Vec<Vec<Vec<[f32; 2]>>> {
 
 /// Short lines across the chain at even steps along it, reaching past the
 /// edge on both sides so each cuts the outline in two.
-fn cuts(chain: &Chain, bands: usize, width_at: &dyn Fn(f32) -> f32) -> Vec<Vec<[f32; 2]>> {
+fn cuts(chain: &Chain, bands: u32, width_at: &dyn Fn(f32) -> f32) -> Vec<Vec<[f32; 2]>> {
     (1..bands)
         .map(|i| {
             let s = chain.total * i as f32 / bands as f32;
@@ -441,6 +447,27 @@ mod tests {
         assert!(
             pointed < even * 0.75 && pointed > even * 0.4,
             "{pointed} vs {even}"
+        );
+    }
+
+    /// `segments` is the whole turn, so a round join cut at 64 carries more
+    /// corners than one cut at 8, and both cover about the same area.
+    #[test]
+    fn more_segments_round_a_join_more_finely() {
+        let corners = |segments| {
+            let style = Stroke {
+                segments,
+                ..line(Join::Round, Cap::Round)
+            };
+            let piece = stroke(&ELBOW, &style, 1).remove(0);
+            (piece.coords.len(), area(&piece))
+        };
+        let (coarse, coarse_area) = corners(8);
+        let (fine, fine_area) = corners(64);
+        assert!(fine > coarse + 8, "{fine} is not finer than {coarse}");
+        assert!(
+            (fine_area - coarse_area).abs() < 0.1,
+            "{fine_area} {coarse_area}"
         );
     }
 
