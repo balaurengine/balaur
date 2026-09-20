@@ -52,6 +52,10 @@ pub(crate) fn replace(
 }
 
 #[cfg(target_family = "wasm")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the native `held` answers None when an install may replace itself"
+)]
 pub(crate) fn held() -> Option<String> {
     Some("a browser tab runs the build the page served it".to_string())
 }
