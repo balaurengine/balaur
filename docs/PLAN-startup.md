@@ -113,9 +113,9 @@ ships with bloom on pays at start-up exactly as it did; one that never uses it
 pays nothing; one that turns it on mid-game pays on the frame it asked, not
 inside a render pass. It is the shape `set_ssao_enabled` already had.
 
-Landing this needs the kiss3d fork pushed, `Cargo.lock` moved onto the new
-commit, and the `window.prepare_post()` line put back into `apply_post`: it
-names a method the pinned fork has not got, so the three go together.
+**Landed 2026-09-20.** The fork carries it, `Cargo.lock` is on that commit,
+and `apply_post` calls `window.prepare_post()`. A boot of `examples/hello`
+creates 8 render pipelines and 20 shader modules where it created 13 and 23.
 
 ## 4. The instrument
 
@@ -130,8 +130,12 @@ for. `balaur_core::timings::boot` files a phase and `mark_start` is called by
 - The renderer's eager pipelines, in §3.
 - The 21 ms dyld floor on a 63 MB binary. Nothing here touches it, and it is a
   linking question rather than an engine one.
-- The web editor, which boots from a pack and so pays the deserialise rather
-  than the compile. Its own boot has not been measured.
+- The web editor's first boot. It opens a pack that ships script sources, so
+  the browser compiles them: the cache now covers a pack as well as a dev run,
+  reading a `mod` back out of the pack, and stamps on `BALAUR_BUILD` where
+  there is no executable to fingerprint. A released web build therefore caches
+  its units in the browser's store and a source build does not. Measured on a
+  60,000-line project packed with its sources: 311 ms cold, 46 ms warm.
 
 ## Open questions
 

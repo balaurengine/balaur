@@ -64,7 +64,7 @@ fn every_registered_component_is_tagged() {
     balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
     let registry = app.engine.resource::<components::ComponentRegistry>();
     let registry = registry.borrow();
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         assert!(!def.tags.is_empty(), "`{name}` has no tags");
     }
 }

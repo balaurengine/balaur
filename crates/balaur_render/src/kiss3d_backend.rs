@@ -518,9 +518,6 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             }
             // After the step, as the windowed loop draws: a capture of frame
             // N is then step N's shell rather than step N-1's.
-            // The 2D pass is a full-screen load and store of the film whether
-            // or not anything draws into it, and the renderer skips it for a
-            // scene that is not there.
             let draws_2d = !f.scene_2d.data().children().is_empty();
             let open = window
                 .render_chains(

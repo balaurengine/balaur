@@ -111,9 +111,9 @@ fn every_component_emits_only_keys_its_schema_declares() {
         .engine
         .resource::<balaur::components::ComponentRegistry>();
     let registry = registry.borrow();
-    assert!(registry.0.len() > 4, "the standard plugins registered none");
+    assert!(registry.len() > 4, "the standard plugins registered none");
 
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         let entity = spawn(&app, name);
         // `color` writes into a renderable rather than owning storage, so
         // seed both; every other component applies on a bare node.
@@ -185,7 +185,7 @@ fn every_component_round_trips_through_get_and_apply() {
         .resource::<balaur::components::ComponentRegistry>();
     let registry = registry.borrow();
 
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         let entity = spawn(&app, name);
         // `color` writes into a renderable rather than owning storage, so
         // seed both; every other component applies on a bare node.
@@ -217,7 +217,7 @@ fn every_enum_option_a_schema_offers_round_trips() {
     let registry = registry.borrow();
     let mut checked = 0;
 
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         let schema = def.schema.as_table().unwrap();
         let exempt: &[&str] = CONDITIONAL
             .iter()
@@ -355,7 +355,7 @@ fn every_component_emits_every_key_its_schema_declares() {
         .resource::<balaur::components::ComponentRegistry>();
     let registry = registry.borrow();
 
-    for (name, def) in &registry.0 {
+    for (name, def) in &*registry {
         let entity = spawn(&app, name);
         // `color` writes into a renderable rather than owning storage, so
         // seed both; every other component applies on a bare node.

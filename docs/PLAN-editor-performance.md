@@ -241,6 +241,63 @@ A sampled profile of the same run puts 63% of the main thread in
 `balaur_ui::pass` and almost all of that in the Rune VM, so §2's kinds are
 still where the rest is.
 
+## 6d. What the registry costs every read and every write
+
+**Built 2026-09-20.** §6b made the read of one property cheap for `widget`.
+This is the half underneath it, which every component pays and no component
+had to be taught.
+
+Four things were wrong. `ComponentRegistry` was a `Vec` scanned by string, and
+a single `patch` resolved the name four times: for the schema, for what was
+asked before, to apply, and to record. `patch` then rebuilt the schema's
+defaults into a fresh table on every call, wrote the component's own table over
+them, and ran the colour pass and the asset pass over the result whether or not
+the schema declared either. `has_component` built the whole table to answer a
+bool.
+
+The registry is now a `DetHashMap` keyed by name, so a lookup is a hash and
+iteration is still registration order, which is what a component's bit in
+`Attached` and the editor's section order both read. Registration works out
+each schema's defaults, and whether it has any colour or any asset property,
+once and holds them in `Facts`. A write resolves the name once and carries the
+index. `patch` starts from the component's own table instead of from the
+defaults, fills only the keys that table left out, and skips the colour and
+asset passes a schema does not need. `has_component` reads the `Attached` bit.
+
+Registering one name twice now panics naming it. Two definitions under one name
+was silent before: every lookup answered with the first, so the second's
+`apply` never ran.
+
+Measured with `cargo bench -p balaur_bench --bench components`, release, Apple
+M1, three-second samples.
+
+| | before | after |
+| --- | ---: | ---: |
+| `node.transform.position = [..]` from a script | 2.42 µs | 1.74 µs |
+| `components::patch`, one property | 1.41 µs | 1.17 µs |
+| `components::get`, whole table | 344 ns | 283 ns |
+| `node.get_component(name, key)` | 1.08 µs | 1.00 µs |
+| `node.transform.position` read | 1.06 µs | 1.03 µs |
+
+The write is what moved, and it is the one animation pays: a track drives one
+property through `patch` every tick.
+
+What is left, in the order the numbers rank it:
+
+- **The seam, not the table.** A script reading `node.transform.position`
+  spends 283 ns building the table and about 750 ns crossing the seam. Every
+  string argument is a `String` in `balaur_script::Value`, so a component name
+  and a property key each allocate per call. A `SmolStr` payload would inline
+  both, and `Value::Str` has 764 construction sites, so measure what one string
+  argument actually costs before taking that on.
+- **`patch` still reads the whole table.** `get` is a quarter of what a write
+  costs and cannot be skipped: the component may have moved since, which is the
+  reason `patch` consults it rather than trusting what was asked for.
+- **`present_on` asks every definition.** It runs every component's `get` over
+  one node to learn which are there. `Attached` would answer in one read, but
+  `transform` rides in the node bundle and has no bit, so the bitmask cannot be
+  trusted on its own yet.
+
 ## 6c. The shell writes what changed
 
 **Built 2026-09-20.** `pool.rn` patched every widget it drives on every pass:

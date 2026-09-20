@@ -110,10 +110,8 @@ UNRESOLVED='did not resolve in the mirror'
 RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
 
 # A windowed step needs a display, and a Linux CI runner has none: the editor
-# opens offscreen there rather than failing to build an event loop. Everywhere
-# else the window is real, which is the path a player's editor takes.
-# A scalar rather than an array: `set -u` under bash 3.2, which is what macOS
-# ships, calls an empty array's expansion an unbound variable.
+# opens offscreen there rather than failing to build an event loop. A scalar
+# rather than an array, which bash 3.2 calls unbound when it is empty.
 offscreen=
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
   offscreen=--offscreen
