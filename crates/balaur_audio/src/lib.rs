@@ -29,23 +29,9 @@ pub mod cache;
 pub mod event;
 mod script_api;
 pub mod spatial;
+pub mod vocabulary;
 
-/// The `sound` and `listener` components' keys, for their schemas and readers alike.
-pub(crate) mod keys {
-    pub(crate) const AUTOPLAY: &str = "autoplay";
-    pub(crate) const BUS: &str = "bus";
-    pub(crate) const CURRENT: &str = "current";
-    pub(crate) const DOPPLER: &str = "doppler";
-    pub(crate) const FILE: &str = "file";
-    pub(crate) const LOOP: &str = "loop";
-    pub(crate) const MAX_DISTANCE: &str = "max_distance";
-    pub(crate) const MIN_DISTANCE: &str = "min_distance";
-    pub(crate) const PITCH: &str = "pitch";
-    pub(crate) const POSITIONAL: &str = "positional";
-    pub(crate) const VOLUME: &str = "volume";
-}
-
-use crate::keys as k;
+use crate::vocabulary::keys as k;
 use bus::Buses;
 use spatial::{Emitter, Listener, ListenerPose, Placement};
 

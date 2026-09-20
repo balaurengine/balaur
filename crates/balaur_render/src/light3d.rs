@@ -12,7 +12,7 @@ use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use crate::{color_from_params, color_to_toml};
 
 /// Which way a `light3d` throws light.
@@ -104,7 +104,7 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
 }
 
 fn light_schema() -> String {
-    let kinds = crate::shape::options(words::LIGHT_KINDS_3D);
+    let kinds = crate::vocabulary::options(words::LIGHT_KINDS_3D);
     let default = words::DIRECTIONAL;
     format!(
         r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims" }}
@@ -299,8 +299,8 @@ pub fn environment(world: &World, root: Entity) -> Option<Environment> {
 }
 
 fn environment_schema() -> String {
-    let fogs = crate::shape::options(words::FOG_KINDS);
-    let tonemaps = crate::shape::options(words::TONEMAPS);
+    let fogs = crate::vocabulary::options(words::FOG_KINDS);
+    let tonemaps = crate::vocabulary::options(words::TONEMAPS);
     format!(
         r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
 sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}

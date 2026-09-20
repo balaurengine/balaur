@@ -17,7 +17,7 @@ use balaur_core::hecs::Entity;
 use balaur_core::mesh::MeshSkin;
 use glamx::Vec2;
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
 
 /// What a `Shape2d::Polygon` draws: resolved geometry, its texture, and the

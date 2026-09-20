@@ -6,7 +6,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use crate::{CameraConfig2d, CameraConfig3d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`

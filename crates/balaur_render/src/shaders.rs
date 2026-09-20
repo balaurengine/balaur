@@ -409,8 +409,8 @@ mod tests {
     /// entry point and the other three stripped.
     #[test]
     fn every_finishing_pass_links_to_one_variant() {
-        for name in crate::shape::words::FINISHES {
-            let features: Vec<(&str, bool)> = crate::shape::words::FINISHES
+        for name in crate::vocabulary::words::FINISHES {
+            let features: Vec<(&str, bool)> = crate::vocabulary::words::FINISHES
                 .iter()
                 .map(|other| (*other, other == name))
                 .collect();

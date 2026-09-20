@@ -11,8 +11,8 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
-use crate::shape::keys as k;
-use crate::shape::words;
+use crate::vocabulary::keys as k;
+use crate::vocabulary::words;
 use crate::world_text::{Align, TextRenderable, TextStyle};
 
 /// The alignment words a scene and a script both spell.
@@ -58,7 +58,7 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold" }"#.into()),
         (k::FONT_STYLE, r#"{ type = "enum", default = "normal", options = ["normal", "italic"], description = "Upright or italic" }"#.into()),
         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
-        (k::ALIGN, format!(r#"{{ type = "enum", default = "center", options = [{}], description = "Where the block sits across the node's origin" }}"#, crate::shape::options(ALIGNMENTS))),
+        (k::ALIGN, format!(r#"{{ type = "enum", default = "center", options = [{}], description = "Where the block sits across the node's origin" }}"#, crate::vocabulary::options(ALIGNMENTS))),
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),

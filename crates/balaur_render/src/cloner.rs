@@ -99,7 +99,7 @@ pub(crate) fn register_cloner_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 "cloner",
                 &ComponentDef::schema(&[
-                    (ck::MODE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How the copies are laid out" }}"#, cw::LINEAR, crate::shape::options(cw::MODES))),
+                    (ck::MODE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How the copies are laid out" }}"#, cw::LINEAR, crate::vocabulary::options(cw::MODES))),
                     (ck::COUNT, r#"{ type = "int", default = 4, min = 1, description = "How many copies, when mode is linear or radial" }"#),
                     (ck::COUNTS, r#"{ type = "vec3", default = [3, 1, 3], description = "How many along each axis, when mode is grid" }"#),
                     (ck::STEP, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "The gap between copies, when mode is linear or grid" }"#),

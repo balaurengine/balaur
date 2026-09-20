@@ -19,7 +19,7 @@ use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
 use glamx::Vec3;
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 
 /// The `reflection_probe` component's authored state. The node's position
 /// places the box; `half_extents` is in world units and does not follow the

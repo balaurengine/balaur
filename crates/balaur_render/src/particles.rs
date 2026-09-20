@@ -6,7 +6,7 @@
 //! seeded from its entity bits, so the engine's `rng` stream is untouched and
 //! a headless run ticks bit-identically to a windowed one.
 
-use crate::shape::keys as k;
+use crate::vocabulary::keys as k;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;

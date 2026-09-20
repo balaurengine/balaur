@@ -311,7 +311,7 @@ fn build(
     format: wgpu::TextureFormat,
     finish: &crate::Finish,
 ) -> anyhow::Result<Pass> {
-    use crate::shape::words;
+    use crate::vocabulary::words;
     // Two the fork already owns, drawn where the list puts them rather than
     // at a fixed place in the pipeline.
     match reference {

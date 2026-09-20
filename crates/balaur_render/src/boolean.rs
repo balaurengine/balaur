@@ -17,7 +17,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
-use crate::shape::keys as k;
+use crate::vocabulary::keys as k;
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
 
 /// The `boolean3d` component: which operation, and what the operands looked
@@ -46,7 +46,7 @@ fn schema(name: &str) -> ComponentDef {
                 &format!(
                     r#"{{ type = "enum", default = "{}", options = [{}], description = "How the children are combined, in the order they are declared" }}"#,
                     csg::words::UNION,
-                    crate::shape::options(csg::words::OPS)
+                    crate::vocabulary::options(csg::words::OPS)
                 ),
             )]),
         ),
@@ -72,7 +72,7 @@ fn op_from_params(params: &toml::Value) -> Result<Op> {
 pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
     let mut def = schema("boolean3d");
     def.doc = "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.";
-    def.tags = &[crate::shape::words::PERSPECTIVE, "render"];
+    def.tags = &[crate::vocabulary::words::PERSPECTIVE, "render"];
     def.apply = Box::new(|eng, entity, params| {
         let op = op_from_params(params)?;
         let mut world = eng.world_mut();
@@ -106,7 +106,7 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
 pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
     let mut def = schema("boolean2d");
     def.doc = "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.";
-    def.tags = &[crate::shape::words::ORTHOGRAPHIC, "render"];
+    def.tags = &[crate::vocabulary::words::ORTHOGRAPHIC, "render"];
     def.apply = Box::new(|eng, entity, params| {
         let op = op_from_params(params)?;
         let mut world = eng.world_mut();

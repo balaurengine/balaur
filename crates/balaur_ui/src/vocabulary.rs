@@ -139,6 +139,7 @@ pub(crate) mod keys {
     pub(crate) const ACTIVE: &str = "active";
     pub(crate) const ALIGN: &str = "align";
     pub(crate) const ARROWS: &str = "arrows";
+    pub(crate) const COLORS: &str = "colors";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const AUTOFOCUS: &str = "autofocus";
     pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
@@ -265,6 +266,7 @@ pub(crate) mod keys {
     pub(crate) const ROW_HEAD: &str = "row_head";
     pub(crate) const ROW_RULE: &str = "row_rule";
     pub(crate) const ROW_GUIDE: &str = "row_guide";
+    pub(crate) const ROLES: &str = "roles";
     pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";

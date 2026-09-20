@@ -19,7 +19,7 @@ use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalTransform, scene};
 
 use crate::bus::{self, Buses};
-use crate::keys as k;
+use crate::vocabulary::keys as k;
 use crate::{AudioState, MIN_PITCH};
 
 /// Metres per second. A game whose unit is not a metre tunes `doppler` per

@@ -4,7 +4,7 @@
 use balaur_core::components::ComponentDef;
 use balaur_plugin::Registry;
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
 /// The `sprite` component's property schema, lifted out so the

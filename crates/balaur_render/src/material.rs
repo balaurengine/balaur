@@ -394,14 +394,14 @@ fn parse_surface(value: &toml::Value) -> Result<Surface> {
         alpha: match table
             .get("alpha")
             .and_then(toml::Value::as_str)
-            .unwrap_or(crate::shape::words::OPAQUE)
+            .unwrap_or(crate::vocabulary::words::OPAQUE)
         {
-            crate::shape::words::OPAQUE => AlphaMode::Opaque,
-            crate::shape::words::MASK => AlphaMode::Mask,
-            crate::shape::words::BLEND => AlphaMode::Blend,
+            crate::vocabulary::words::OPAQUE => AlphaMode::Opaque,
+            crate::vocabulary::words::MASK => AlphaMode::Mask,
+            crate::vocabulary::words::BLEND => AlphaMode::Blend,
             other => bail!(
                 "a material's `surface.alpha` is {}, not '{other}'",
-                crate::shape::words::ALPHA_MODES.join(", ")
+                crate::vocabulary::words::ALPHA_MODES.join(", ")
             ),
         },
         alpha_cutoff: num("alpha_cutoff", base.alpha_cutoff).clamp(0.0, 1.0),
@@ -419,7 +419,7 @@ fn parse_surface(value: &toml::Value) -> Result<Surface> {
             .unwrap_or(base.attenuation_color),
         attenuation_distance: num("attenuation_distance", 0.0).max(0.0),
         mirror: table
-            .get(crate::shape::keys::MIRROR)
+            .get(crate::vocabulary::keys::MIRROR)
             .and_then(toml::Value::as_bool)
             .unwrap_or(base.mirror),
         mirror_intensity: num("mirror_intensity", base.mirror_intensity).clamp(0.0, 1.0),
@@ -537,7 +537,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 MATERIAL_COMPONENT,
                 &ComponentDef::schema(&[(
-                    crate::shape::keys::SOURCE,
+                    crate::vocabulary::keys::SOURCE,
                     &format!(
                         r#"{{ type = "asset", asset = "{MATERIAL_ASSET_TYPE}", default = "", description = "The material asset; empty takes the parent's" }}"#
                     ),
@@ -547,7 +547,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let reference = params
-                    .get(crate::shape::keys::SOURCE)
+                    .get(crate::vocabulary::keys::SOURCE)
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default();
                 let mut world = eng.world_mut();
@@ -577,7 +577,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                 }
                 let mut map = toml::map::Map::new();
                 map.insert(
-                    crate::shape::keys::SOURCE.into(),
+                    crate::vocabulary::keys::SOURCE.into(),
                     toml::Value::String(material.reference().to_string()),
                 );
                 Some(toml::Value::Table(map))

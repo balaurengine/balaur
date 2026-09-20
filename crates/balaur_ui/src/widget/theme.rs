@@ -476,7 +476,7 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
     let Some(table) = value.as_table() else {
         return theme;
     };
-    if let Some(colors) = table.get("colors").and_then(toml::Value::as_table) {
+    if let Some(colors) = table.get(k::COLORS).and_then(toml::Value::as_table) {
         for (name, value) in colors {
             if let Some(parsed) = value.as_str().and_then(parse_color) {
                 theme.colors.insert(name.clone(), parsed);
@@ -494,7 +494,7 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
             .kinds
             .insert(kind.clone(), style_of(body, &theme.colors, kind));
     }
-    if let Some(roles) = table.get("roles").and_then(toml::Value::as_table) {
+    if let Some(roles) = table.get(k::ROLES).and_then(toml::Value::as_table) {
         for (name, body) in roles {
             let Some(body) = body.as_table() else {
                 continue;

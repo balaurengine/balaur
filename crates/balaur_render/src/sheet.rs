@@ -6,7 +6,7 @@
 use anyhow::{Result, anyhow, bail};
 use balaur_plugin::Registry;
 
-use crate::shape::keys as k;
+use crate::vocabulary::keys as k;
 
 pub const SPRITE_SHEET_ASSET_TYPE: &str = "sprite_sheet";
 

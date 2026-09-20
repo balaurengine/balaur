@@ -2,7 +2,7 @@
 //! from one atlas texture. The component and parser are backend-free; the
 //! feature-gated kiss3d mirror is in `tilemap_mesh`.
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;

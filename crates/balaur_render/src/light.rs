@@ -13,7 +13,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
-use crate::shape::{keys as k, words};
+use crate::vocabulary::{keys as k, words};
 use crate::{Flat, Renderable2d, Shape2d, color_from_params, color_to_toml};
 
 /// Which way a `light2d` throws light.
@@ -215,7 +215,7 @@ fn set_light(eng: &Engine, entity: Entity, next: Light2d) -> Result<()> {
 }
 
 fn light_schema() -> String {
-    let kinds = crate::shape::options(words::LIGHT_KINDS);
+    let kinds = crate::vocabulary::options(words::LIGHT_KINDS);
     let default = words::POINT;
     format!(
         r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }}
@@ -250,7 +250,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                         color: color_from_params(params),
                         radius: prop_f32(params, k::RADIUS).max(0.0),
                         intensity: prop_f32(params, k::INTENSITY).max(0.0),
-                        shadows: prop_bool(params, "shadows"),
+                        shadows: prop_bool(params, k::SHADOWS),
                     },
                 )
             }),
@@ -308,7 +308,7 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let mesh = prop_str(params, "mesh").to_string();
+                let mesh = prop_str(params, k::MESH).to_string();
                 let closed = prop_bool(params, k::CLOSED);
                 let points = if mesh.is_empty() {
                     Vec::new()
