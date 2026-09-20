@@ -241,6 +241,31 @@ A sampled profile of the same run puts 63% of the main thread in
 `balaur_ui::pass` and almost all of that in the Rune VM, so §2's kinds are
 still where the rest is.
 
+## 6c. The shell writes what changed
+
+**Built 2026-09-20.** `pool.rn` patched every widget it drives on every pass:
+the bars, the rail, the tabs, each inspector row and each of its controls. A
+patch rebuilds the widget and dirties the layout, and a shell that nobody
+touched asks for the same table it asked for last pass.
+
+The pool now remembers what it last asked each control to hold and writes only
+when the table differs. What was asked for is forgotten when a node is made,
+when a host's children are rebuilt, and on the pass a reader's own edit landed,
+since the value on the node is then not the one in the table.
+
+Measured on 300 frames, offscreen at 1920x1080, interleaved pairs, min of
+three:
+
+| | before | after |
+| --- | ---: | ---: |
+| `examples/hello`, docks open | 11.33 ms | 6.04 ms |
+| `examples/hello`, every dock shut | 5.18 ms | 2.88 ms |
+| `examples/angrynerds` | 10.85 ms | 6.14 ms |
+
+Where the rest of it sits, on `examples/hello` before this landed: the chrome
+with every dock shut was 5.8 ms of the 12.3, the inspector 2.7, the Output
+dock 2.4 and the outliner 1.5.
+
 ## 7. The instrument
 
 `engine.profile_scripts(on)` and `engine.script_costs()` count VM instructions

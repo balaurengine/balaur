@@ -50,6 +50,26 @@ fn remember(S, host, key, value) {
     S.pool[host] = table;
 }
 
+// Write a widget only when what is asked for differs from what was asked for
+// last pass. A patch rebuilds the widget and dirties the layout, and a shell
+// that did not change asks for the same table every frame.
+fn patched(S, host, key, node, set) {
+    let table = memo(S, host);
+    let mark = key + "#";
+    if table.get(mark) == Some(set) {
+        return;
+    }
+    table[mark] = set;
+    S.pool[host] = table;
+    node.patch_component("widget", set);
+}
+
+// Forget what a host was asked for: a node just made holds none of it, and a
+// reader's edit is a value the next pass has to write over.
+fn forget(S, host) {
+    S.pool[host] = #{};
+}
+
 // A label's line where a row is stacked: the label role's text and its air.
 const LABEL_H = 16.0;
 
@@ -127,8 +147,11 @@ fn apply_control(S, host, key, node, want) {
     set.remove("clicked");
     if fired {
         set.remove(carries);
+        // The reader's value is on the node and not in `set`, so the pass
+        // after this one has to write rather than match what it wrote before.
+        forget(S, host);
     }
-    node.patch_component("widget", set);
+    patched(S, host, key, node, set);
     // Remembered as the node holds it, not as it was asked for: a float goes
     // through the component as an f32, and 0.2 does not come back as 0.2.
     if carries != "" && carries != "clicked" && !fired {
@@ -152,8 +175,11 @@ pub fn strip(S, host_path, controls) {
     if util::is_nil(host) {
         return;
     }
-    host.patch_component("widget", #{ visible: true });
+    patched(S, host_path, "host", host, #{ visible: true });
     let made = host.children().len();
+    if made < controls.len() {
+        forget(S, host_path);
+    }
     while made < controls.len() {
         let node = host.add_child(format!("C{}", made));
         node.set_component("widget", #{ kind: "label" });
@@ -161,7 +187,7 @@ pub fn strip(S, host_path, controls) {
     }
     for (i, node) in host.children().iter().enumerate() {
         if i >= controls.len() {
-            node.patch_component("widget", #{ visible: false });
+            patched(S, host_path, format!("{}", i), node, #{ visible: false });
             continue;
         }
         // A control that carries its own controls is a group: one box with no
@@ -179,8 +205,11 @@ pub fn strip(S, host_path, controls) {
 fn group(S, host, i, node, want, inner) {
     let set = util::merge(want, #{ kind: "row", visible: true, gap: 0 });
     set.remove("controls");
-    node.patch_component("widget", set);
+    patched(S, host, format!("{}", i), node, set);
     let made = node.children().len();
+    if made < inner.len() {
+        forget(S, host);
+    }
     while made < inner.len() {
         let kid = node.add_child(format!("C{}", made));
         kid.set_component("widget", #{ kind: "label" });
@@ -188,7 +217,7 @@ fn group(S, host, i, node, want, inner) {
     }
     for (n, kid) in node.children().iter().enumerate() {
         if n >= inner.len() {
-            kid.patch_component("widget", #{ visible: false });
+            patched(S, host, format!("{}:{}", i, n), kid, #{ visible: false });
             continue;
         }
         apply_control(S, host, format!("{}:{}", i, n), kid, util::merge(SHAPELESS, inner[n]));
@@ -206,15 +235,18 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
     if util::is_nil(host) {
         return;
     }
-    host.patch_component("widget", #{ visible: true });
+    patched(S, host_path, "host", host, #{ visible: true });
     let made = host.children().len();
+    if made < specs.len() {
+        forget(S, host_path);
+    }
     while made < specs.len() {
         make_row(host, made);
         made += 1;
     }
     for (i, row) in host.children().iter().enumerate() {
         if i >= specs.len() {
-            row.patch_component("widget", #{ visible: false });
+            patched(S, host_path, format!("r{}", i), row, #{ visible: false });
             continue;
         }
         let spec = specs[i];
@@ -224,7 +256,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         // column, a label's line taller; a full or unlabelled row spans both.
         let stack = stacked && !full && text != "";
         let h = util::f(spec.get("height").unwrap_or(24.0));
-        row.patch_component("widget", #{
+        patched(S, host_path, format!("r{}", i), row, #{
             visible: true,
             kind: if stack { "column" } else { "row" },
             gap: if stack { 2 } else { 6 },
@@ -232,7 +264,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         });
         let label = row.get_node("L");
         if !util::is_nil(label) {
-            label.patch_component("widget", #{
+            patched(S, host_path, format!("r{}:L", i), label, #{
                 visible: !full && (text != "" || !stacked),
                 text: text,
                 width: if stack { 0.0 } else { label_w },
@@ -250,20 +282,24 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         let drawn = spec.get("draw");
         let hatch = column.get_node("D");
         if !util::is_nil(hatch) {
-            match drawn {
-                Some(name) => hatch.patch_component("widget", #{ visible: true, draw: name }),
-                None => hatch.patch_component("widget", #{ visible: false }),
-            }
+            let want = match drawn {
+                Some(name) => #{ visible: true, draw: name },
+                None => #{ visible: false },
+            };
+            patched(S, host_path, format!("r{}:D", i), hatch, want);
         }
         let slot = column.get_node("C");
         if util::is_nil(slot) {
             continue;
         }
-        slot.patch_component("widget", #{ visible: drawn.is_none() });
+        patched(S, host_path, format!("r{}:C", i), slot, #{ visible: drawn.is_none() });
         if drawn.is_some() {
             continue;
         }
         let controls = util::vec(spec.get("controls").unwrap_or([]));
+        if slot.children().len() < controls.len() {
+            forget(S, host_path);
+        }
         let n = 0;
         while n < controls.len() {
             let node = control_at(slot, n);
@@ -274,7 +310,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         // selection may be a vector again.
         for (c, node) in slot.children().iter().enumerate() {
             if c >= controls.len() {
-                node.patch_component("widget", #{ visible: false });
+                patched(S, host_path, format!("{}:{}", i, c), node, #{ visible: false });
             }
         }
     }
