@@ -244,7 +244,11 @@ pub(crate) fn bare_document(class: &str, name: &str) -> Option<String> {
         project: &project,
     };
     let mapped = map(class, &section, "", &res);
-    if mapped.notes.iter().any(|note| note.contains("no balaur equivalent")) {
+    if mapped
+        .notes
+        .iter()
+        .any(|note| note.contains("no balaur equivalent"))
+    {
         return None;
     }
     let mut node = toml::Table::new();

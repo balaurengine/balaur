@@ -69,9 +69,8 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
         "is_item_disabled",
     ];
     // A method the shim maps is its verb; any other goes to the node's own.
-    NODE.contains(&name).then(|| {
-        method("this.node", name, args).unwrap_or_else(|| invoke("this.node", name, args))
-    })
+    NODE.contains(&name)
+        .then(|| method("this.node", name, args).unwrap_or_else(|| invoke("this.node", name, args)))
 }
 
 /// Godot's numeric globals: the `i` forms answer an int, and the plain ones
@@ -491,8 +490,8 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "current_scene" | "root" => "scene::root()".into(),
         "selected" => format!("(gd.option_index)({receiver})"),
         "item_count" => format!("(gd.option_count)({receiver})"),
-        "text" | "disabled" | "pressed" | "button_pressed" | "editable"
-        | "placeholder_text" | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
+        "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "placeholder_text"
+        | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
             let key = widget_key(field);
             format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
         }

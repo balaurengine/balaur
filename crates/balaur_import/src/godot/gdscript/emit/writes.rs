@@ -69,7 +69,10 @@ impl Emitter<'_> {
                 let text = if op == "=" {
                     text
                 } else {
-                    format!("(gd.get)({base}, {key}, ()) {} ({text})", op.trim_end_matches('='))
+                    format!(
+                        "(gd.get)({base}, {key}, ()) {} ({text})",
+                        op.trim_end_matches('=')
+                    )
                 };
                 self.uses_shim = true;
                 let _ = writeln!(out, "{pad}let _ = (gd.set)({base}, {key}, {text});");
@@ -232,7 +235,11 @@ impl Emitter<'_> {
                 && matches!(&**object, Expr::Name(n) if *n == root)
                 && op == "="
             {
-                let _ = writeln!(out, "{pad}let _ = (gd.set_field)({name}, {}, {text});", quoted(field));
+                let _ = writeln!(
+                    out,
+                    "{pad}let _ = (gd.set_field)({name}, {}, {text});",
+                    quoted(field)
+                );
                 return Some(out);
             }
             let place = self.place(&replace_root(target, &name));
@@ -346,9 +353,7 @@ impl Emitter<'_> {
         let write = format!("(gd.set_field)({object}, {}, {text})", quoted(&field));
         Some(format!("{pad}{};\n", discardable(&write)))
     }
-
 }
 
 /// The fields of a vector or a colour.
 const LANES: &[&str] = &["x", "y", "z", "w", "r", "g", "b", "a"];
-

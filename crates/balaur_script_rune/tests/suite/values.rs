@@ -44,7 +44,13 @@ fn a_transform_2d_decomposes_and_refuses_a_flat_inverse() {
     near("refused", 1.0);
 }
 
-fn run(body: &str) -> (App, hecs::Entity, Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>) {
+fn run(
+    body: &str,
+) -> (
+    App,
+    hecs::Entity,
+    Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>,
+) {
     let dir = project(&[("v.rn", &format!("pub fn init(this) {{\n{body}\n}}\n"))]);
     let mut app = app_in(dir.path());
     let host = app.engine.script_host().unwrap();
@@ -55,7 +61,11 @@ fn run(body: &str) -> (App, hecs::Entity, Rc<dyn balaur_script::ScriptHost<balau
     (app, node, host)
 }
 
-fn field(host: &Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>, node: hecs::Entity, name: &str) -> f64 {
+fn field(
+    host: &Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>,
+    node: hecs::Entity,
+    name: &str,
+) -> f64 {
     host.as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
         .expect("the app is running Rune")
@@ -65,8 +75,7 @@ fn field(host: &Rc<dyn balaur_script::ScriptHost<balaur_core::Engine>>, node: he
 
 #[test]
 fn a_vector_is_a_value_copied_wherever_it_is_bound_or_stored() {
-    let (_app, node, host) = run(
-        "let a = balaur::Vec2::new(1.0, 2.0);\n\
+    let (_app, node, host) = run("let a = balaur::Vec2::new(1.0, 2.0);\n\
          let b = a;\n\
          b.x = 9.0;\n\
          b += balaur::Vec2::new(1.0, 0.0);\n\
@@ -88,14 +97,29 @@ fn a_vector_is_a_value_copied_wherever_it_is_bound_or_stored() {
          let d = c;\n\
          d.a = 0.5;\n\
          this.colour = c.a + d.a;\n\
-         this.negated = (-a).x;",
-    );
+         this.negated = (-a).x;");
     assert_eq!(field(&host, node, "a"), 1.0, "b's writes stay in b");
     assert_eq!(field(&host, node, "b"), 10.0, "b took both writes");
-    assert_eq!(field(&host, node, "stored"), 1.0, "a field keeps what was stored");
-    assert_eq!(field(&host, node, "in_place"), 3.0, "a field's lane writes in place");
-    assert_eq!(field(&host, node, "listed"), 14.0, "a list keeps its own copies");
-    assert_eq!(field(&host, node, "param"), 58.0, "a parameter is the callee's copy");
+    assert_eq!(
+        field(&host, node, "stored"),
+        1.0,
+        "a field keeps what was stored"
+    );
+    assert_eq!(
+        field(&host, node, "in_place"),
+        3.0,
+        "a field's lane writes in place"
+    );
+    assert_eq!(
+        field(&host, node, "listed"),
+        14.0,
+        "a list keeps its own copies"
+    );
+    assert_eq!(
+        field(&host, node, "param"),
+        58.0,
+        "a parameter is the callee's copy"
+    );
     assert_eq!(field(&host, node, "colour"), 1.5, "a colour is a value too");
     assert_eq!(field(&host, node, "negated"), -8.0);
 }
@@ -121,22 +145,28 @@ fn glam_constants_quaternions_and_int_vectors_reach_scripts() {
     assert!((field(&host, node, "turned") - 1.0).abs() < 1e-12);
     assert!((field(&host, node, "euler") - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
     assert_eq!(field(&host, node, "int"), 10.0, "(15, -5) plus one each");
-    assert_eq!(field(&host, node, "divided"), 0.0, "a zero divisor is an error");
-    assert_eq!(field(&host, node, "text"), 1.0, "a vector prints as glam does");
+    assert_eq!(
+        field(&host, node, "divided"),
+        0.0,
+        "a zero divisor is an error"
+    );
+    assert_eq!(
+        field(&host, node, "text"),
+        1.0,
+        "a vector prints as glam does"
+    );
 }
 
 #[test]
 fn objects_and_maps_iterate_in_the_order_they_were_written() {
-    let (_app, node, host) = run(
-        "let o = #{};\n\
+    let (_app, node, host) = run("let o = #{};\n\
          for k in [\"zeta\", \"alpha\", \"mid\"] { o[k] = 1; }\n\
          let m = std::collections::HashMap::new();\n\
          for k in [35, 0, 14] { m.insert(k, 1); }\n\
          let order = \"\";\n\
          for (k, _) in o { order += k; }\n\
          for (k, _) in m { order += `${k}`; }\n\
-         this.ordered = if order == \"zetaalphamid35014\" { 1.0 } else { 0.0 };",
-    );
+         this.ordered = if order == \"zetaalphamid35014\" { 1.0 } else { 0.0 };");
     assert_eq!(field(&host, node, "ordered"), 1.0);
 }
 

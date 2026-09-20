@@ -335,8 +335,7 @@ func poke(box):\n\
 \tbox.pressed.emit()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(
-        out.rune
-            .contains(r#"(gd.emit_engine)(box, "pressed", [])"#),
+        out.rune.contains(r#"(gd.emit_engine)(box, "pressed", [])"#),
         "{}",
         out.rune
     );

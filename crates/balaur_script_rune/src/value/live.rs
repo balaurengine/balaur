@@ -25,7 +25,10 @@ impl RuneHost {
             let key = instance.key.clone();
             let stepped = state.break_on_error
                 || state.break_next
-                || state.breakpoints.get(&*key).is_some_and(|b| !b.ips.is_empty());
+                || state
+                    .breakpoints
+                    .get(&*key)
+                    .is_some_and(|b| !b.ips.is_empty());
             if stepped || self.is_held(entity, &state) {
                 return None;
             }
@@ -89,7 +92,9 @@ where
                 .and_then(|v| v.borrow_ref::<super::Node>().ok().map(|n| n.id))
                 .and_then(|id| balaur_core::entity_of(balaur_script::NodeId(id)).ok());
             let host = crate::bindings::engine_of(handle).and_then(|e| e.script_host());
-            let rune_host = host.as_ref().and_then(|h| h.as_any().downcast_ref::<RuneHost>());
+            let rune_host = host
+                .as_ref()
+                .and_then(|h| h.as_any().downcast_ref::<RuneHost>());
             match (entity, rune_host) {
                 (Some(entity), Some(rune_host)) => live(rune_host, entity, &values[1..]),
                 _ => None,

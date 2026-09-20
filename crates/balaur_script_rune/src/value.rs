@@ -2,8 +2,8 @@
 
 pub(crate) mod component;
 mod glam_api;
-mod live;
 pub(crate) mod glam_types;
+mod live;
 
 pub use glam_types::{Vec2, Vec3};
 

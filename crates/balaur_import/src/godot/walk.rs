@@ -137,7 +137,8 @@ impl Walk {
             // Every converted body calls into the shim, so it ships with them.
             self.sink.put("gd.rn", super::gdscript::SHIM.as_bytes())?;
             let classes = super::exports::class_table(&self.lookups.classes);
-            self.sink.put(super::exports::CLASS_TABLE, classes.as_bytes())?;
+            self.sink
+                .put(super::exports::CLASS_TABLE, classes.as_bytes())?;
         }
         let (scenes, scripts, failed) = (self.scenes, self.scripts, self.failed);
         let lines = self.report.write(&mut self.sink)?;
