@@ -284,19 +284,44 @@ property through `patch` every tick.
 
 What is left, in the order the numbers rank it:
 
-- **The seam, not the table.** A script reading `node.transform.position`
-  spends 283 ns building the table and about 750 ns crossing the seam. Every
-  string argument is a `String` in `balaur_script::Value`, so a component name
-  and a property key each allocate per call. A `SmolStr` payload would inline
-  both, and `Value::Str` has 764 construction sites, so measure what one string
-  argument actually costs before taking that on.
 - **`patch` still reads the whole table.** `get` is a quarter of what a write
   costs and cannot be skipped: the component may have moved since, which is the
   reason `patch` consults it rather than trusting what was asked for.
 - **`present_on` asks every definition.** It runs every component's `get` over
   one node to learn which are there. `Attached` would answer in one read, but
   `transform` rides in the node bundle and has no bit, so the bitmask cannot be
-  trusted on its own yet.
+  trusted on its own yet. The same gap is why a presence test costs 370 ns on
+  `transform` and 30 ns on a component the registry attached.
+
+## 6e. What a string costs to cross the seam
+
+**Built 2026-09-20.** §6d left a script read of `node.transform.position`
+spending 283 ns building the table and about 750 ns crossing the seam. This is
+the seam half.
+
+The cost was measured before it was paid for. A binding call taking nothing
+costs 142 ns; the same call taking one integer costs 171 ns; taking the string
+`"transform"` costs 252 ns. So a string argument cost **81 ns more than an
+integer**, and a 54-byte string cost only 24 ns more than a 9-byte one, which
+says the cost is the allocation rather than the copy.
+
+`balaur_script::Value::Str` and a `Value::Map` key now hold a `SmolStr`, which
+keeps up to 22 bytes in the value itself. A component name, a property key and
+a node path all fit. The Rune component handle holds the `&'static str` it was
+interned from rather than a `String` it cloned on every property read.
+
+**The gain is not yet measured.** Every run since has been taken on a machine
+building three other checkouts, where the control case that carries no string
+at all reads 40% slow, so criterion's own comparison says nothing. Within one
+contaminated run the string-minus-integer difference is 72 ns against 81 ns
+before. Re-run `cargo bench -p balaur_bench --bench components` on a quiet
+machine and write the number here.
+
+One thing that run does raise: the 54-byte case sits further above the integer
+case than it did. A string past 22 bytes cannot inline, so it allocates and
+carries a length check besides. Most of what the seam moves is a name or a key;
+a widget's text and a log line are not. Measure that case on its own before
+deciding it matters.
 
 ## 6c. The shell writes what changed
 
