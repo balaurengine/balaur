@@ -2382,12 +2382,6 @@ pub fn rows_step(S) {
     }
     let widget = util::obj(tree.get_component("widget"));
     let rows = util::vec(widget.get("options").unwrap_or([]));
-    // The query and the second selection both want a row to leave out.
-    if S.doc.len() < 2 {
-        S.rows_demo = -1;
-        log::info("selftest rowsdemo: one node in this project, skipped");
-        return;
-    }
     if rows.len() == 0 {
         S.rows_waited = S.rows_waited + 1;
         if S.rows_waited > 60 {
@@ -2420,8 +2414,10 @@ pub fn rows_step(S) {
     } else {
         S.rows_demo = -1;
         let lit = util::vec(widget.get("selection").unwrap_or([]));
-        check(lit.len() == selection::count(S) && lit.len() > 1,
-            format!("a second selected node lights a second row ({} lit)", lit.len()));
+        // A project with one node has no second node to add to the set.
+        let want = if S.doc.len() > 1 { 2 } else { 1 };
+        check(lit.len() == selection::count(S) && lit.len() == want,
+            format!("every selected node lights a row ({} lit, {} wanted)", lit.len(), want));
         log::info("selftest rowsdemo: done");
     }
 }
@@ -2499,7 +2495,9 @@ fn rows_narrowed(S, rows) {
             want += 1;
         }
     }
-    check(rows.len() == want && want < S.doc.len(),
+    // The query leaves fewer rows than the document has, unless it holds one.
+    let narrowed = want < S.doc.len() || S.doc.len() == 1;
+    check(rows.len() == want && narrowed,
         format!("a query narrows the same tree node ({} of {})", rows.len(), S.doc.len()));
     let named = 0;
     for row in rows {
