@@ -83,6 +83,7 @@ fails if that file is stale.
 | `abbreviation` | `str`, `cfg`, `buf`, `idx`, `pos` where a user reads them |
 | `module-plural` | a plural module that is not a keyed store |
 | `schema-vocabulary` | a schema departing from the closed set — the discriminant is `kind`, the meta key is `type` |
+| `vocabulary-literal` | a params key spelled at a call site in a crate that keeps a `vocabulary.rs` |
 | `module-undocumented`, `function-undocumented`, `component-undocumented`, `asset-undocumented` | anything the generated reference could not describe |
 | `describes-nothing` | a doc entry for a function no longer registered |
 | `acts-on-unknown` | a function documented as acting on a component nobody registers |

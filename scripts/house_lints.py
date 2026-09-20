@@ -47,6 +47,13 @@ PLATFORM_FLOAT_RS = re.compile(rf"(?:\.|\bf(?:32|64)::)(?:{_INEXACT_FLOAT})\(")
 # glam's own methods, which the workspace builds with glam's `libm` feature.
 GLAM_BOUND = {"crates/balaur_script_rune/src/value/glam_api.rs"}
 
+# A literal key is a second spelling of what the crate's vocabulary already
+# names (NAMING.md N17), and the reader takes the default instead of saying so.
+VOCABULARY_LITERAL = re.compile(
+    r'\bprop_(?:str|f32|f64|bool|i64|vec2|vec3)\([A-Za-z_][A-Za-z0-9_]*,\s*"'
+    r'|\b(?:params|opts|table)\.get\("'
+)
+
 # Type suffixes a typemap entry may never take (NAMING.md N2). A denylist, not
 # an allowlist: "no suffix" is a legal category, so `ClearColor` and
 # `DebugLineBuffer` would both pass any permissive check.
@@ -500,6 +507,13 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
         for one in lines
     )
 
+    # The rule below only binds a crate that keeps one.
+    has_vocabulary = (
+        (ROOT / "crates" / crate / "src" / "vocabulary.rs").exists()
+        and rel.name != "vocabulary.rs"
+        and not is_test_file(rel)
+    )
+
     in_test_mod = False
     test_brace_depth = None
     test_attr_line = 0
@@ -512,6 +526,11 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
 
     for i, raw in enumerate(lines, start=1):
         line = raw.strip()
+
+        if has_vocabulary and not in_test_mod and VOCABULARY_LITERAL.search(line):
+            findings.append(Finding(rel, i, "vocabulary-literal",
+                                    "a params key spelled at the call site; name it in "
+                                    "the crate's vocabulary.rs", "ERROR"))
 
         is_comment = line.startswith("//")
         # Doc comments (/// and //!) are API documentation and should be as long

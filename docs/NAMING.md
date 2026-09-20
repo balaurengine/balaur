@@ -97,6 +97,7 @@ module name (`register_shape2d_component`).
 | N14 | Enum option strings are Balaur's vocabulary, not the backend crate's. If the editor, docs or a test carries a translation for an option, that option has the wrong name | scene-file | — |
 | N15 | `*_system` is reserved for anything passed to `App::add_system`. A backend loop step takes a verb bound to the N2 category it touches: `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (fill a Snapshot from the OS), `sync_*` (mirror ECS into the backend) | rust-internal | ERROR |
 | N16 | A component key names what the scene author manipulates, and its registration says in a doc comment what state it writes — the mapping from key to storage is neither one-to-one nor total | rust-internal | REPORT |
+| N17 | A crate's words and keys live in one `vocabulary.rs`: the strings a schema, its reader, a matcher and a read-back all spell, as `words` and `keys` modules with the script constants beside them. A call site names a constant, never the string | rust-internal | ERROR |
 
 ## Deliberate exemptions
 
@@ -110,6 +111,7 @@ Recorded so each stops being cited as precedent for the next.
 | `input.is_mouse_down` | `is_down(key)` and `is_mouse_down(button)` are one question about a held button and must agree |
 | `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
+| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `cloner`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
 | `"ball"` / `"cuboid"` | parry's words, but nothing in the tree translates them and no bug traces to them. 2D's `circle`/`rect` are already design words |
 | `render.set_ball` / `set_cuboid` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
