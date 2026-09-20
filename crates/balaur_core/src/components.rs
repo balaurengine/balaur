@@ -848,10 +848,8 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         }
         None => toml::map::Map::new(),
     };
-    // A `get` that reported every property the schema declares has left
-    // nothing for the two fills below to find, which is the usual case: the
-    // contract on `get` is that it reports all of them. Checking is a lookup
-    // per property; the fill it skips clones the whole authored table.
+    // A `get` reporting every property the schema declares, which is its
+    // contract, leaves the two fills below nothing to find and a table to clone.
     if !defaults.keys().all(|key| out.contains_key(key)) {
         if let Some(toml::Value::Table(asked)) = asked_for_at(eng, entity, index) {
             for (key, value) in asked {

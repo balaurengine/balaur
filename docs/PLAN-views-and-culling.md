@@ -94,6 +94,40 @@ mesh.
 7. 2D batching.
 8. `multimesh`.
 
+## 3a. What 2D batching has to do
+
+**Measured 2026-09-20**, `scripts/bench_load.py --only kind/shape2d`: five
+thousand sprites offscreen at 1600x1000 cost 29.3 ms of wall, of which
+21.4 ms is render CPU and 1.55 ms is GPU. A `sample` of the main thread puts
+40% of it in `CommandEncoder::finish` replaying the pass into Metal and 13% in
+`Object2d::render` recording it. The GPU is idle; the cost is one draw per
+node.
+
+The fork already draws instanced: `Object2d` owns an `InstancesBuffer2d`, and
+`draw_indexed` takes the instance range. `InstanceData2d` carries a position,
+a 2x2 deformation and a colour, which is a sprite's whole world pose, shear
+and tint.
+
+What it does not carry is the UV rect. A sprite's atlas frame is written onto
+that node's own mesh by `sync_sprite_uvs`, so two nodes on different frames
+cannot share a draw. The fork needs a per-instance UV rect and the 2D shader
+needs to multiply by it; that is the first half of this step.
+
+The second half is the run. `sync_2d` keeps one `SceneNode2d` per entity,
+ordered by layer then z. A batch has to be contiguous in that order, or it
+changes what covers what, so the sync walks the order and cuts a run wherever
+the material, the texture, the mesh or the blend changes. A run becomes one
+object with an instance per node; a node that is hidden leaves the run's
+instance list.
+
+What breaks a run, and stays one draw each: a `polygon`, a tile map, world
+text, a node with its own material, and a shape whose mesh is not the run's.
+A circle and a rectangle each batch with their own kind, from a unit mesh the
+instance deformation scales.
+
+Picking is unaffected: it reads `Renderable2d` and `GlobalTransform` from the
+world, never the backend's nodes.
+
 ## 4. What CI can prove, and what it cannot
 
 The headless-versus-offscreen digest job proves culling and instancing
