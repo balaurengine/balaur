@@ -205,6 +205,15 @@ ignored.
 `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a real run, case for
 case against Godot with Rapier, Box2D v3 and Jolt.
 
+`scripts/bench_load.py` asks a different question: what one kind of node, or
+one shape of script, costs a frame. Each case is N of one thing under
+`examples/benchmark`, built once and then measured as it sits, and the table
+says where the frame went — the script, the mirror, the UI pass, the
+renderer's two halves. It reports instructions a node beside the
+milliseconds, because that number is the same on every machine and the
+milliseconds are not. Run on demand, never in CI, and add a case by writing
+one entry in `cases_kinds.rn` or `cases_scripts.rn`.
+
 ## Supply chain and releases
 
 - `cargo-deny` on every push: advisories, bans and sources, with `all-features`

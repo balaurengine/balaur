@@ -1,0 +1,20 @@
+// Work every thirtieth frame instead of every one: the shape of an actor
+// that thinks on a tick rather than on a frame.
+pub fn init(this) {
+    this.n = 0;
+    this.out = 0.0;
+}
+
+pub fn update(this, dt) {
+    this.n += 1;
+    if this.n % 30 != 0 {
+        return;
+    }
+    let total = 0.0;
+    let i = 0;
+    while i < 100 {
+        total = total + (i as f64) * dt;
+        i += 1;
+    }
+    this.out = total;
+}

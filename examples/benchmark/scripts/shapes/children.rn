@@ -1,0 +1,12 @@
+// Walking what is under the node, which a controller does to find its parts.
+pub fn init(this) {
+    this.seen = 0;
+}
+
+pub fn update(this, dt) {
+    let seen = 0;
+    for kid in this.node.children() {
+        seen += 1;
+    }
+    this.seen = seen;
+}

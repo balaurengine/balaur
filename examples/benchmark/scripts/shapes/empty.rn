@@ -1,0 +1,4 @@
+// A script with no `update`: what attaching one costs when it does nothing.
+pub fn init(this) {
+    this.n = 0.0;
+}

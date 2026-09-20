@@ -4,6 +4,9 @@
 
 mod cases2d;
 mod cases3d;
+mod cases_kinds;
+mod cases_scripts;
+mod load;
 mod nodes;
 mod stats;
 mod world;
@@ -27,6 +30,9 @@ pub fn init(this) {
     this.samples = #{};
     this.status = "pick a case";
     this.out = "";
+    // `--count` overrides what a load case declares, so one case answers at
+    // any size: it is how a capacity is found.
+    this.count = 0;
     this.shot = "";
     this.draw = true;
     this.steps = STEPS;
@@ -45,7 +51,10 @@ pub fn init(this) {
 /// later one gets, never what it measures.
 fn catalogue() {
     let out = [];
-    for (prefix, group) in [("3d", cases3d::all()), ("2d", cases2d::all()), ("nodes", nodes::all())] {
+    for (prefix, group) in [
+        ("3d", cases3d::all()), ("2d", cases2d::all()), ("nodes", nodes::all()),
+        ("kind", cases_kinds::all()), ("script", cases_scripts::all()),
+    ] {
         for c in group {
             out.push(#{ key: format!("{}/{}", prefix, c.name), case: c, seed: 8191 + out.len() * 131 });
         }
@@ -72,10 +81,18 @@ fn read_args(this) {
             this.steps = value.parse::<i64>().unwrap_or(STEPS);
         } else if key == "--warmup" {
             this.warmup = value.parse::<i64>().unwrap_or(WARMUP);
+        } else if key == "--count" {
+            this.count = value.parse::<i64>().unwrap_or(0);
         } else if key == "--out" {
             this.out = value;
         } else if key == "--shot" {
             this.shot = value;
+        } else if key == "--list" {
+            for c in this.cases {
+                println!("CASE {}", c.key);
+            }
+            engine::quit();
+            return;
         }
     }
     if wanted.is_empty() {
@@ -147,6 +164,10 @@ fn sample(this) {
         push(this, "loop_ms", total);
         return;
     }
+    if is_load(this.case.case) {
+        sample_load(this, t, stages, spans);
+        return;
+    }
     let steps = t.fixed_steps;
     if steps < 1 {
         return;
@@ -157,6 +178,31 @@ fn sample(this) {
     push(this, "physics_ms", secs(spans.get(span)) * per);
     push(this, "script_ms", secs(spans.get("scripts/fixed_update")) * per);
     push(this, "frame_ms", (t.frame as f64) * 1000.0);
+}
+
+/// One frame of a load case: the whole frame, and the four places its work
+/// lands. `scripts/update` is where a shape case spends itself, the mirror is
+/// where a kind case does, and the two render spans are what the GPU was
+/// asked for.
+fn sample_load(this, t, stages, spans) {
+    push(this, "frame_ms", (t.frame as f64) * 1000.0);
+    push(this, "update_ms", ms(stages.get("update")));
+    push(this, "sync_ms", ms(stages.get("scene_sync")));
+    push(this, "script_ms", ms(spans.get("scripts/update")));
+    push(this, "mirror_ms", ms(spans.get("scene mirror")));
+    push(this, "ui_ms", ms(spans.get("ui")));
+    push(this, "render_cpu_ms", ms(spans.get("render cpu")));
+    push(this, "render_gpu_ms", ms(spans.get("render gpu")));
+    push(this, "wall_ms", (t.wall as f64) * 1000.0);
+    // Instructions rather than milliseconds: the same frame runs the same
+    // instructions on every machine, so this is the half a baseline can hold.
+    let costs = engine::script_costs();
+    let total = 0;
+    for row in costs {
+        total = total + row.instructions;
+    }
+    engine::profile_scripts(true);
+    push(this, "instructions", total as f64);
 }
 
 fn push(this, key, value) {
@@ -202,6 +248,9 @@ fn advance(this) {
     }
     let c = this.case.case;
     if state == "setup" {
+        if this.count > 0 && is_load(c) {
+            c.count = this.count;
+        }
         rng::seed(this.case.seed);
         tune(this, c);
         frame_view(dimensions_of(c), c.get("view"));
@@ -214,12 +263,21 @@ fn advance(this) {
             this.state = "prep";
             this.build_ms = 0.0;
         } else {
-            (c.setup)(this.world);
+            if is_load(c) {
+                engine::profile_scripts(true);
+            }
+            // Bound first: a `}` followed by `(` calls the block's value.
+            let setup = c.setup;
+            setup(this.world);
             this.state = "place";
         }
         return;
     }
     if state == "place" {
+        if is_load(c) {
+            chunk(this, c.count, |i| { (c.make)(this.world, i) }, "after");
+            return;
+        }
         chunk(this, c.count, |i| { (c.place)(this.world, i) }, if c.links > 0 { "link" } else { "after" });
         return;
     }
@@ -249,7 +307,7 @@ fn advance(this) {
         return;
     }
     if state == "time" {
-        let taken = this.samples.get("step_ms");
+        let taken = this.samples.get(if is_load(c) { "frame_ms" } else { "step_ms" });
         let have = if let Some(list) = taken { list.len() } else { 0 };
         if have >= this.steps {
             finish(this);
@@ -316,7 +374,13 @@ fn chunk(this, total, step, next) {
 
 fn finish(this) {
     let c = this.case.case;
-    let result = if is_nodes(c) { node_result(this, c) } else { physics_result(this, c) };
+    let result = if is_nodes(c) {
+        node_result(this, c)
+    } else if is_load(c) {
+        load_result(this, c)
+    } else {
+        physics_result(this, c)
+    };
     this.results.push(result);
     let text = json::encode(result);
     println!("BENCH {}", text);
@@ -347,6 +411,33 @@ fn physics_result(this, c) {
         physics_ms: summary(this, "physics_ms"),
         script_ms: summary(this, "script_ms"),
         frame_ms: summary(this, "frame_ms"),
+        platform: engine::platform(),
+    }
+}
+
+/// What a load case reports: how many there were, the frame they produced,
+/// and where that frame went.
+fn load_result(this, c) {
+    #{
+        case: c.name,
+        dimensions: "load",
+        engine_label: "Balaur",
+        steps: this.steps,
+        warmup: this.warmup,
+        count: c.count,
+        script: c.script,
+        build_ms: this.build_ms,
+        frame_ms: summary(this, "frame_ms"),
+        wall_ms: summary(this, "wall_ms"),
+        update_ms: summary(this, "update_ms"),
+        sync_ms: summary(this, "sync_ms"),
+        script_ms: summary(this, "script_ms"),
+        mirror_ms: summary(this, "mirror_ms"),
+        ui_ms: summary(this, "ui_ms"),
+        render_cpu_ms: summary(this, "render_cpu_ms"),
+        render_gpu_ms: summary(this, "render_gpu_ms"),
+        instructions: summary(this, "instructions"),
+        extra_metrics: (c.extra)(this.world),
         platform: engine::platform(),
     }
 }
@@ -407,7 +498,7 @@ fn frame_view(dimensions, view) {
 /// Godot's gravity, so `length_unit` is 100 as godot-rapier's 2D default is;
 /// without it every tolerance in the solver is a hundred times too loose.
 fn tune(this, c) {
-    if is_nodes(c) {
+    if is_nodes(c) || is_load(c) {
         return;
     }
     physics::set_sleeping_allowed(false);
@@ -418,6 +509,15 @@ fn tune(this, c) {
         physics::set_tuning(#{ length_unit: 1.0 });
         physics3d::set_gravity(0.0, -9.81, 0.0);
     }
+}
+
+/// A load case: N of one kind or one script shape, measured as they sit.
+fn is_load(c) {
+    let kind = c.get("kind");
+    if let Some(name) = kind {
+        return name == "load";
+    }
+    false
 }
 
 fn is_nodes(c) {

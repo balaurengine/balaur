@@ -64,6 +64,30 @@ pub fn wall(w, at, shape) {
     node
 }
 
+/// A node of the case's own, in a row group like a body's, carrying nothing.
+///
+/// What a load case builds on: the grouping is the same reason a body has it,
+/// a flat container of twenty thousand siblings makes every lookup a scan.
+pub fn plain(w, i) {
+    let node = row_for(w, i).add_child(format!("n{}", i % ROW));
+    w.made.push(node);
+    node
+}
+
+/// Where the `i`th of `count` things goes: a square grid in the plane, its
+/// middle on the origin, `pitch` apart. The same spot every run, because a
+/// load case measures what is drawn and stepped, not where chance put it.
+pub fn grid(i, count, pitch) {
+    let side = 1;
+    while side * side < count {
+        side = side + 1;
+    }
+    let half = (side as f64) * pitch * 0.5;
+    let x = ((i % side) as f64) * pitch - half;
+    let y = ((i / side) as f64) * pitch - half;
+    [x, y]
+}
+
 /// Tie two bodies at the point half way between them.
 ///
 /// The joint sits on a child of `a`, because a joint component is one per

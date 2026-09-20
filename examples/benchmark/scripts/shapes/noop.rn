@@ -1,0 +1,2 @@
+// The floor: an `update` the host calls every frame that does nothing.
+pub fn update(this, dt) {}

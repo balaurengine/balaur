@@ -1,0 +1,15 @@
+// A hundred arithmetic steps a frame: the interpreter's own speed, with no
+// binding and no allocation in the way.
+pub fn init(this) {
+    this.out = 0.0;
+}
+
+pub fn update(this, dt) {
+    let total = 0.0;
+    let i = 0;
+    while i < 100 {
+        total = total + (i as f64) * dt;
+        i += 1;
+    }
+    this.out = total;
+}

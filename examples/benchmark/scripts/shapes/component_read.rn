@@ -1,0 +1,14 @@
+// One property read and one written, the seam a control or a tweak crosses.
+pub fn init(this) {
+    this.seen = 0.0;
+}
+
+pub fn update(this, dt) {
+    let held = this.node.get_component("shape2d", "radius");
+    this.seen = util_f(held);
+    this.node.patch_component("shape2d", #{ radius: this.seen });
+}
+
+fn util_f(value) {
+    if value is f64 { value } else { 0.0 }
+}

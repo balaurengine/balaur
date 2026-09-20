@@ -1,0 +1,9 @@
+// Reading the pointer and an action, which every player-controlled node does.
+pub fn init(this) {
+    this.x = 0.0;
+}
+
+pub fn update(this, dt) {
+    let (mx, my) = input::mouse_position();
+    this.x = input::action_value("ui_right") + mx * 0.0 + my * 0.0;
+}

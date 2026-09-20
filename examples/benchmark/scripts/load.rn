@@ -1,0 +1,58 @@
+// What a kind of node costs a frame: N of one thing, made once, then every
+// frame measured while they sit there. A case says what one of them is and
+// how many, and adding one is a single `case(...)` in the two modules below.
+
+use crate::world;
+
+/// The shape every load case fills in. `make` builds the `i`th thing under
+/// the case's world, `step` is the per-frame work a case wants and most want
+/// none, and `extra` adds whatever the case counts for itself.
+pub fn case(name, parts) {
+    let out = #{
+        name: name,
+        kind: "load",
+        dimensions: 2,
+        count: 10000,
+        // The script every made node carries, for the script shapes; empty
+        // for a kind that is measured without one.
+        script: "",
+        setup: |w| {},
+        make: |w, i| {},
+        step: |w, tick| {},
+        extra: |w| #{},
+        // What the runner's own states ask of every case. A load case builds
+        // in `make` and settles for the warmup alone, so these stay empty.
+        after: |w| {},
+        place: |w, i| {},
+        link: |w, i| {},
+        links: 0,
+        settle: 0,
+    };
+    for (key, value) in parts {
+        out.insert(key, value);
+    }
+    out
+}
+
+/// A node with one component, which is most of what a kind case is.
+pub fn with(w, i, pitch, component, params) {
+    let node = world::plain(w, i);
+    let at = world::grid(i, 20000, pitch);
+    if w.dimensions == 2 {
+        node.transform.position = [at[0], at[1], 0.0];
+    } else {
+        node.transform.position = [at[0], 0.0, at[1]];
+    }
+    node.set_component(component, params);
+    node
+}
+
+/// A node carrying the script under `scripts/shapes/`, for the shapes that
+/// measure the interpreter rather than a component.
+pub fn scripted(w, i, pitch, script) {
+    let node = world::plain(w, i);
+    let at = world::grid(i, 20000, pitch);
+    node.transform.position = [at[0], at[1], 0.0];
+    node.attach_script(script);
+    node
+}

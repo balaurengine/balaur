@@ -1,0 +1,11 @@
+// Vector maths through the glam bindings, which is what a movement or a
+// look-at does several times a frame.
+pub fn init(this) {
+    this.out = balaur::Vec3::ZERO;
+}
+
+pub fn update(this, dt) {
+    let a = balaur::Vec3::new(1.0, 2.0, 3.0);
+    let b = balaur::Vec3::new(dt, 0.5, 1.0);
+    this.out = (a + b).normalize() * 2.0;
+}

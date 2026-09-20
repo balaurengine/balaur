@@ -1,0 +1,9 @@
+// One `format!` a frame: a label that follows a number, and the allocation
+// that comes with it.
+pub fn init(this) {
+    this.text = "";
+}
+
+pub fn update(this, dt) {
+    this.text = format!("{:.2} fps", 1.0 / dt);
+}

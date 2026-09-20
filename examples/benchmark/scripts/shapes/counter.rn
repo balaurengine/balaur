@@ -1,0 +1,8 @@
+// One field, read and written. The smallest thing a script actually does.
+pub fn init(this) {
+    this.t = 0.0;
+}
+
+pub fn update(this, dt) {
+    this.t += dt;
+}

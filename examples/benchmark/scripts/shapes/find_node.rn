@@ -1,0 +1,8 @@
+// A path lookup every frame, which is the lazy way to reach another node.
+pub fn init(this) {
+    this.found = false;
+}
+
+pub fn update(this, dt) {
+    this.found = !this.node.get_node("../..").is_nil();
+}

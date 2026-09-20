@@ -1,0 +1,18 @@
+// The same property, read as the whole table: the spelling `component_read`
+// replaced, kept so the pair prices it.
+pub fn init(this) {
+    this.seen = 0.0;
+}
+
+pub fn update(this, dt) {
+    let held = this.node.get_component("shape2d");
+    this.seen = if held is Object { util_f(held.get("radius")) } else { 0.0 };
+    this.node.patch_component("shape2d", #{ radius: this.seen });
+}
+
+fn util_f(value) {
+    match value {
+        Some(found) => if found is f64 { found } else { 0.0 },
+        None => 0.0,
+    }
+}
