@@ -269,10 +269,16 @@ def main():
         body.append(f"    {name}(m)?;")
     body += ["    Ok(())", "}", ""]
     for name, chunk in parts:
+        # One call per line is what keeps a chunk inside the house line limit;
+        # rustfmt would wrap each into three and blow past it.
+        body.append("#[rustfmt::skip]")
         body.append(f"fn {name}(m: &mut rune::Module) -> Result<(), rune::ContextError> {{")
         body += chunk
         body += ["    Ok(())", "}", ""]
     OUT.write_text("\n".join(head + body))
+    # Written in whatever shape the loops above leave; CI's rustfmt job reads
+    # this file like any other.
+    subprocess.run(["rustfmt", "--edition", "2024", str(OUT)], check=True)
     print(f"wrote {OUT.relative_to(ROOT)}")
 
 

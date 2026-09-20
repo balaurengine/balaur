@@ -10,7 +10,9 @@ use glamx::glam::{DAffine2, DAffine3, DQuat, DVec2, DVec3, DVec4, I64Vec2, I64Ve
 use rune::runtime::VmResult;
 use rune::vm_try;
 
-use super::glam_types::{Glam as _, IVec2, IVec3, Quat, Transform2d, Transform3d, Vec4, euler as euler_order};
+use super::glam_types::{
+    Glam as _, IVec2, IVec3, Quat, Transform2d, Transform3d, Vec4, euler as euler_order,
+};
 use super::{Vec2, Vec3};
 
 pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
@@ -28,6 +30,7 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec2_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", Vec2::of(DVec2::ZERO))
         .build_associated::<Vec2>()?;
@@ -122,6 +125,7 @@ fn vec2_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec2_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.associated_function("clamp_length_min", |this: &Vec2, min: f64| -> Vec2 { Vec2::of(this.g().clamp_length_min(min)) })?;
     m.associated_function("mul_add", |this: &Vec2, a: &Vec2, b: &Vec2| -> Vec2 { Vec2::of(this.g().mul_add(a.g(), b.g())) })?;
@@ -140,6 +144,7 @@ fn vec2_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec3_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", Vec3::of(DVec3::ZERO))
         .build_associated::<Vec3>()?;
@@ -234,6 +239,7 @@ fn vec3_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec3_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.associated_function("cos", |this: &Vec3| -> Vec3 { Vec3::of(this.g().cos()) })?;
     m.associated_function("sin", |this: &Vec3| -> Vec3 { Vec3::of(this.g().sin()) })?;
@@ -264,6 +270,7 @@ fn vec3_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec4_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", Vec4::of(DVec4::ZERO))
         .build_associated::<Vec4>()?;
@@ -358,6 +365,7 @@ fn vec4_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn vec4_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.associated_function("sqrt", |this: &Vec4| -> Vec4 { Vec4::of(this.g().sqrt()) })?;
     m.associated_function("cos", |this: &Vec4| -> Vec4 { Vec4::of(this.g().cos()) })?;
@@ -377,6 +385,7 @@ fn vec4_2(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn quat_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("IDENTITY", Quat::of(DQuat::IDENTITY))
         .build_associated::<Quat>()?;
@@ -433,6 +442,7 @@ fn quat_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn transform_2d_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", Transform2d::of(DAffine2::ZERO))
         .build_associated::<Transform2d>()?;
@@ -462,6 +472,7 @@ fn transform_2d_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn transform_3d_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", Transform3d::of(DAffine3::ZERO))
         .build_associated::<Transform3d>()?;
@@ -498,6 +509,7 @@ fn transform_3d_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn ivec2_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", IVec2::of(I64Vec2::ZERO))
         .build_associated::<IVec2>()?;
@@ -561,6 +573,7 @@ fn ivec2_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     Ok(())
 }
 
+#[rustfmt::skip]
 fn ivec3_1(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     m.constant("ZERO", IVec3::of(I64Vec3::ZERO))
         .build_associated::<IVec3>()?;
