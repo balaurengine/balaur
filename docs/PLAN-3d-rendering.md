@@ -59,7 +59,8 @@ Missing:
   lets a material declare one. See question 6.
 - **The clustered light buffers.** `MAX_LIGHTS` is sixteen and the frame group
   binds no storage buffers; a scene with more lights lights with the first
-  sixteen.
+  sixteen. Step 9 makes the sixteen a project's own number; clustering is what
+  would let it stop being a number at all.
 - **Screen-space reflections off a Balaur material.** The prepass writes
   geometry, and writes a neutral roughness for it: the pass reads a material's
   surface as diffuse. Occlusion, depth of field and the depth glass tests
@@ -222,7 +223,21 @@ the module.
    bringing its own knobs, over the same physically based surface. It ships in
    the library rather than the engine because a project copies it and edits
    it. Not built: the inspector folds that would group a layer's knobs.
-9. **Decals and volumetrics.** A `decal` component projecting onto the depth
+9. **Limits a project sets.** `MAX_LIGHTS`, `MAX_PROBES` and `MAX_JOINTS`
+   live in `shaders.rs` and reach a shader as the `constants` module, so the
+   numbers a `project.toml` names would reach WESL with nothing new in
+   between. The Rust half is what holds: `frame_group.rs` declares
+   `lights: [GpuLight; MAX_LIGHTS]` and `probes: [GpuProbe; MAX_PROBES]` in a
+   `Pod` struct whose size the compiler fixes, and `skinned_2d.rs` and
+   `skinned_3d.rs` do the same for the joint palette. The layout is already
+   free of it: `bind_layout::uniform_entry` passes `min_binding_size: None`.
+   Read `[render] max_lights`, `max_probes` and `max_joints` into a resource
+   at boot, write the frame uniform as bytes whose length is the limit times
+   the row, hand the same numbers to `shaders::link`, and refuse one the
+   adapter's `max_uniform_buffer_binding_size` cannot hold, naming its figure.
+   A game that wants sixty-four lights then pays for sixty-four and one that
+   wants four pays for four, at one relink per run.
+10. **Decals and volumetrics.** A `decal` component projecting onto the depth
    buffer, and a froxel march for fog a light shafts through. Both are new
    passes rather than fork features, and both want step 1's shadow atlas.
 
