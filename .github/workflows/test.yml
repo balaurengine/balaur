@@ -140,20 +140,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # The same set the test job takes: coverage runs the e2e suite, which
-      # renders on a real adapter, and a runner without the software Vulkan
-      # driver has none to find.
       - name: Linux build deps
         run: |
           # The image's Chrome and Microsoft repos, which nothing here installs
           # from: a hash mismatch in one fails the whole `apt-get update`.
           sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
           sudo apt-get update
-          sudo apt-get install -y \
-            libasound2-dev libudev-dev \
-            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev \
-            libvulkan1 mesa-vulkan-drivers
+          sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -168,13 +161,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The same set the test job takes: coverage runs the e2e suite, which
+      # renders on a real adapter, and a runner without the software Vulkan
+      # driver has none to find.
       - name: Linux build deps
         run: |
           # The image's Chrome and Microsoft repos, which nothing here installs
           # from: a hash mismatch in one fails the whole `apt-get update`.
           sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev \
+            libvulkan1 mesa-vulkan-drivers
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
