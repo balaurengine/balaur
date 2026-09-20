@@ -2382,6 +2382,12 @@ pub fn rows_step(S) {
     }
     let widget = util::obj(tree.get_component("widget"));
     let rows = util::vec(widget.get("options").unwrap_or([]));
+    // The query and the second selection both want a row to leave out.
+    if S.doc.len() < 2 {
+        S.rows_demo = -1;
+        log::info("selftest rowsdemo: one node in this project, skipped");
+        return;
+    }
     if rows.len() == 0 {
         S.rows_waited = S.rows_waited + 1;
         if S.rows_waited > 60 {
