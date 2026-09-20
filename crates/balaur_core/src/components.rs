@@ -1310,17 +1310,10 @@ pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {
         return Vec::new();
     };
     let registry = registry.borrow();
-    let bits = eng
-        .try_resource::<Attached>()
-        .and_then(|attached| attached.borrow().0.get(&entity).copied())
-        .unwrap_or(0);
     registry
         .iter()
-        .enumerate()
-        .filter(|(i, (_, def))| {
-            bits & (1u128 << i) != 0 || (def.get)(eng, entity).is_some()
-        })
-        .map(|(_, (n, _))| n.to_string())
+        .filter(|(_, def)| (def.get)(eng, entity).is_some())
+        .map(|(n, _)| n.to_string())
         .collect()
 }
 

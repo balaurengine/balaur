@@ -54,6 +54,25 @@ VOCABULARY_LITERAL = re.compile(
     r'|\b(?:params|opts|table)\.get\("'
 )
 
+# A call that can re-enter the engine: a script runs arbitrary code, and a
+# component hook reaches whatever its plugin holds. Either can ask for the
+# resource whose `RefCell` the caller is still holding, and the panic that
+# follows names neither side.
+REENTRANT_CALL = re.compile(
+    r"\b(?:call_on|call_all|call_async|invoke|hot_reload)\s*\("
+    r"|\bhost\.(?:update|fixed_update|attach|call)\s*\("
+    r"|\(\s*def\.(?:apply|get|remove)\s*\)\s*\("
+    r"|\bcomponents::(?:add|patch|remove|remove_present)\s*\("
+    r"|\binstantiate_scene\s*\("
+)
+# `let x = <something>.borrow_mut();` — the exclusive binding, not the
+# temporary. A temporary (`r.borrow_mut().push(..)`) is dropped at the end of
+# its statement and cannot span a call. A shared `.borrow()` is left alone:
+# shared borrows nest, so only the writer is a panic waiting for a hook.
+BORROW_BINDING = re.compile(
+    r"^\s*let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*\.borrow_mut\(\)\s*;"
+)
+
 # Type suffixes a typemap entry may never take (NAMING.md N2). A denylist, not
 # an allowlist: "no suffix" is a legal category, so `ClearColor` and
 # `DebugLineBuffer` would both pass any permissive check.
@@ -517,6 +536,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
     in_test_mod = False
     test_brace_depth = None
     test_attr_line = 0
+    # Live `.borrow()`/`.borrow_mut()` bindings: (name, depth it was taken at).
+    held: list[tuple[str, int]] = []
     depth = 0
     fn_start = None
     fn_depth = None
@@ -619,6 +640,21 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "(ARCHITECTURE, 'What determinism is still missing', 4)",
                                             "ERROR"))
 
+            if not in_test_mod:
+                m = BORROW_BINDING.match(raw)
+                if m:
+                    held.append((m.group(1), depth))
+                for dropped in re.findall(r"\bdrop\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)", line):
+                    held = [h for h in held if h[0] != dropped]
+                call = REENTRANT_CALL.search(line)
+                if held and call and not m:
+                    names = ", ".join(f"`{n}`" for n, _ in held)
+                    findings.append(Finding(
+                        rel, i, "borrow-across-reentry",
+                        f"{names} still borrows a RefCell here, and "
+                        f"`{call.group(0).rstrip('(').strip()}` can re-enter the engine; "
+                        "read what is needed, drop the borrow, then call", "ERROR"))
+
             # `log` records carry no fields, so nothing downstream can filter on
             # them; tracing-log bridges dependencies, our own code uses tracing.
             if re.search(r"\blog::(info|warn|error|debug|trace)!", line):
@@ -656,6 +692,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                 fn_depth = depth
             code = LITERAL.sub("", raw)
             depth += code.count("{") - code.count("}")
+            held = [h for h in held if h[1] <= depth]
             if fn_start is not None and fn_depth is not None and depth <= fn_depth and i > fn_start:
                 length = i - fn_start + 1
                 if length > MAX_FN_LINES:

@@ -141,7 +141,7 @@ impl Request {
 /// owned its strings allocated three times on every one of them.
 type Key = u64;
 
-fn key_of(request: &RequestRef<'_>, generation: u64) -> Key {
+fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     use std::hash::{Hash as _, Hasher as _};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     request.text.hash(&mut hasher);
@@ -156,6 +156,7 @@ fn key_of(request: &RequestRef<'_>, generation: u64) -> Key {
     request.line_height.to_bits().hash(&mut hasher);
     request.letter_spacing.to_bits().hash(&mut hasher);
     generation.hash(&mut hasher);
+    scale.to_bits().hash(&mut hasher);
     hasher.finish()
 }
 
@@ -311,7 +312,7 @@ impl TextState {
     /// Shape for the widget layer: lays out, then hands egui whatever the
     /// atlas gained, so the texture behind `texture` holds these glyphs.
     pub fn shape_for_egui(&mut self, ctx: &egui::Context, request: &RequestRef<'_>) -> Rc<Shaped> {
-        let shaped = self.shape_ref(request);
+        let shaped = self.shape_at(request, ctx.pixels_per_point());
         self.atlas.flush_egui(ctx);
         shaped
     }
@@ -375,7 +376,16 @@ impl TextState {
     /// [`Self::shape`], for a caller holding the text rather than owning it:
     /// a hit costs the hash and no allocation at all.
     pub fn shape_ref(&mut self, request: &RequestRef<'_>) -> Rc<Shaped> {
-        let key = key_of(request, self.atlas.generation);
+        self.shape_at(request, 1.0)
+    }
+
+    /// The same, rasterising the glyphs at `scale` device pixels per point.
+    ///
+    /// The layout stays in points; only the atlas is denser. Drawn at one
+    /// raster pixel per point instead, a caption is magnified by the UI scale
+    /// and filtered, which is what made the editor's own labels soft at 1.25.
+    fn shape_at(&mut self, request: &RequestRef<'_>, scale: f32) -> Rc<Shaped> {
+        let key = key_of(request, self.atlas.generation, scale);
         if let Some(found) = self.layouts.get(&key) {
             return Rc::clone(found);
         }
@@ -384,7 +394,7 @@ impl TextState {
         if self.layouts.len() > 4096 {
             self.layouts.clear();
         }
-        let shaped = Rc::new(self.layout(request));
+        let shaped = Rc::new(self.layout(request, scale));
         self.layouts.insert(key, Rc::clone(&shaped));
         shaped
     }
@@ -427,7 +437,7 @@ impl TextState {
         )
     }
 
-    fn layout(&mut self, request: &RequestRef<'_>) -> Shaped {
+    fn layout(&mut self, request: &RequestRef<'_>, scale: f32) -> Shaped {
         // A bitmap font has one glyph per character and no contextual forms,
         // so it lays out rather than shapes.
         if !request.font.is_empty()
@@ -438,7 +448,7 @@ impl TextState {
         let parsed = spans_of(request);
         let family = self.family_for(request);
         let buffer = shape_into(&mut self.fonts, family.as_deref(), request);
-        self.place(&buffer, &parsed, request.width)
+        self.place(&buffer, &parsed, request.width, scale)
     }
 
     /// Lay a run out in a bitmap font, placing its page in the atlas the
@@ -486,7 +496,13 @@ impl TextState {
     }
 
     /// Every laid-out glyph as a quad on the atlas, and every picture's box.
-    fn place(&mut self, buffer: &Buffer, parsed: &markup::Markup, width: Option<f32>) -> Shaped {
+    fn place(
+        &mut self,
+        buffer: &Buffer,
+        parsed: &markup::Markup,
+        width: Option<f32>,
+        scale: f32,
+    ) -> Shaped {
         let mut quads = Vec::new();
         let mut pictures = Vec::new();
         let mut extent = Vec2::ZERO;
@@ -506,7 +522,7 @@ impl TextState {
                     });
                     continue;
                 }
-                let physical = glyph.physical((0.0, 0.0), 1.0);
+                let physical = glyph.physical((0.0, 0.0), scale);
                 let hard = self.aliased.contains(&physical.cache_key.font_id);
                 let Some(slot) =
                     self.atlas
@@ -514,10 +530,12 @@ impl TextState {
                 else {
                     continue;
                 };
-                let x = physical.x as f32 + slot.offset.x;
-                let y = run.line_y + physical.y as f32 - slot.offset.y;
+                // Back to points: the glyph was placed and rasterised in
+                // device pixels, and everything around it is in points.
+                let x = (physical.x as f32 + slot.offset.x) / scale;
+                let y = run.line_y + (physical.y as f32 - slot.offset.y) / scale;
                 quads.push(Quad {
-                    rect: Rect::from_min_size(pos2(x, y), slot.size),
+                    rect: Rect::from_min_size(pos2(x, y), slot.size / scale),
                     uv: slot.uv,
                     color: span.and_then(|s| s.color),
                     colored: slot.colored,

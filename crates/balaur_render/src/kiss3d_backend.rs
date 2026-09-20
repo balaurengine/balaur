@@ -590,6 +590,10 @@ fn apply_post(app: &App, window: &mut Window) {
     }
     window.set_ssr_enabled(post.ssr);
     window.set_dof_enabled(post.dof);
+    // Bloom and auto-exposure compile on demand, so a project that never uses
+    // them never builds them. Here is where the settings changed, which is a
+    // better place to wait for a compiler than the first frame that draws one.
+    window.prepare_post();
 }
 
 /// Ground-plane grid, drawn as per-frame lines on the XZ plane.

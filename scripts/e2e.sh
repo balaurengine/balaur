@@ -112,18 +112,20 @@ RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
 # A windowed step needs a display, and a Linux CI runner has none: the editor
 # opens offscreen there rather than failing to build an event loop. Everywhere
 # else the window is real, which is the path a player's editor takes.
-windowed=()
+# A scalar rather than an array: `set -u` under bash 3.2, which is what macOS
+# ships, calls an empty array's expansion an unbound variable.
+offscreen=
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  windowed=(--offscreen)
+  offscreen=--offscreen
 fi
 
 edit_step() { # edit_step <label> <project> [state]
   local label=$1 project=$2 state=${3:-} out rc
   set +e
   if [ -n "$state" ]; then
-    out=$(balaur edit "$project" "${windowed[@]}" --frames 90 --state "$state" 2>&1)
+    out=$(balaur edit "$project" ${offscreen:+"$offscreen"} --frames 90 --state "$state" 2>&1)
   else
-    out=$(balaur edit "$project" "${windowed[@]}" --frames 90 2>&1)
+    out=$(balaur edit "$project" ${offscreen:+"$offscreen"} --frames 90 2>&1)
   fi
   rc=$?
   set -e

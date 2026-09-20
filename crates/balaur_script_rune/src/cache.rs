@@ -259,13 +259,25 @@ fn origins_of(host: &RuneHost, source: &str, sources: &Sources) -> Option<Vec<Or
     Some(origins)
 }
 
-/// The text an id stands for: the root as the compiler saw it, or the file on
-/// disk for a `mod` the compiler loaded beside it.
+/// The text an id stands for: the root as the compiler saw it, or what a
+/// `mod` was loaded from, which is the pack for a packed run and the file
+/// beside the root for a dev one.
 fn text_at(host: &RuneHost, id: usize, path: &Path, source: &str) -> Option<String> {
     if id == 0 {
         return Some(with_constants(source).into_owned());
     }
-    let bytes = balaur_core::files::backend(&host.engine).read(path).ok()?;
+    let key = path.to_string_lossy().replace('\\', "/");
+    let packed = {
+        let state = host.state.borrow();
+        state
+            .pack
+            .as_ref()
+            .and_then(|pack| pack.scripts.get(key.as_str()).cloned())
+    };
+    let bytes = match packed {
+        Some(bytes) => bytes,
+        None => balaur_core::files::backend(&host.engine).read(path).ok()?,
+    };
     String::from_utf8(bytes).ok()
 }
 

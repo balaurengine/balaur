@@ -43,9 +43,8 @@ pub(crate) fn dump_api() -> Result<()> {
         .map(|registry| {
             registry
                 .borrow()
-                .0
                 .iter()
-                .map(|(name, def)| (name.clone(), def.doc))
+                .map(|(name, def)| (name.to_string(), def.doc))
                 .collect()
         })
         .unwrap_or_default();
@@ -56,9 +55,8 @@ pub(crate) fn dump_api() -> Result<()> {
         .map(|registry| {
             registry
                 .borrow()
-                .0
                 .iter()
-                .map(|(name, def)| (name.clone(), def.tags.to_vec()))
+                .map(|(name, def)| (name.to_string(), def.tags.to_vec()))
                 .collect()
         })
         .unwrap_or_default();

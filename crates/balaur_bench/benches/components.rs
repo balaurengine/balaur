@@ -39,8 +39,24 @@ fn rust_side(c: &mut Criterion) {
     group.bench_function("property_one_key", |b| {
         b.iter(|| components::property(eng, entity, "transform", "position"));
     });
-    group.bench_function("is_registered", |b| {
+    // `transform` registers first and `widget` last, so the two together say
+    // what a name lookup costs at both ends of the registry rather than at
+    // the end a scan happens to be quickest at.
+    group.bench_function("lookup_first_registered", |b| {
         b.iter(|| components::is_registered(eng, "transform"));
+    });
+    group.bench_function("lookup_last_registered", |b| {
+        b.iter(|| components::is_registered(eng, "widget"));
+    });
+    // `transform` rides in the node bundle, so its `Attached` bit is clear and
+    // a presence test falls through to the definition. A component the
+    // registry attached answers from the bit alone.
+    components::add(eng, entity, "widget", None).unwrap();
+    group.bench_function("has_bundle_attached", |b| {
+        b.iter(|| components::has(eng, entity, "transform"));
+    });
+    group.bench_function("has_registry_attached", |b| {
+        b.iter(|| components::has(eng, entity, "widget"));
     });
     group.bench_function("present_on", |b| {
         b.iter(|| components::present_on(eng, entity));
