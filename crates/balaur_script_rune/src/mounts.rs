@@ -10,6 +10,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use rune::alloc::clone::TryClone as _;
+use rune::runtime::ToConstValue as _;
 use rune::runtime::{VmError, VmResult};
 
 use crate::inspect::public_functions;
@@ -43,23 +44,33 @@ pub(crate) struct Mounted {
     pub(crate) doc: String,
 }
 
-/// A value a native module can hold as a constant.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Constant {
-    Bool(bool),
-    Int(i64),
-    Num(f64),
-    Str(String),
+/// A value a native module can hold as a constant: a bool, a number, a
+/// string, or a list or table of them.
+#[derive(Debug)]
+pub(crate) struct Constant {
+    value: rune::runtime::ConstValue,
+    /// What the editor shows beside the name, and what the fingerprint folds.
+    text: String,
+}
+
+impl Clone for Constant {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.try_clone().expect("a constant is small"),
+            text: self.text.clone(),
+        }
+    }
+}
+
+impl PartialEq for Constant {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
 }
 
 impl std::fmt::Display for Constant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Bool(b) => write!(f, "{b}"),
-            Self::Int(i) => write!(f, "{i}"),
-            Self::Num(n) => write!(f, "{n}"),
-            Self::Str(s) => write!(f, "{s:?}"),
-        }
+        f.write_str(&self.text)
     }
 }
 
@@ -409,7 +420,7 @@ fn constants(key: &str, source: &str) -> Vec<(Vec<String>, Constant)> {
                 let constant = constant_of(&value);
                 if constant.is_none() {
                     tracing::error!(
-                        "{key}: `{}` is not a bool, number or string, so it is not mounted",
+                        "{key}: `{}` is not a value a constant can hold, so it is not mounted",
                         path.join("::")
                     );
                 }
@@ -494,18 +505,40 @@ fn evaluate(snippet: &str) -> anyhow::Result<Vec<rune::Value>> {
 }
 
 fn constant_of(value: &rune::Value) -> Option<Constant> {
+    // Rendering takes the value apart, so the constant is built first.
+    let held = value.try_clone().ok()?.to_const_value().ok()?;
+    Some(Constant {
+        value: held,
+        text: render(value)?,
+    })
+}
+
+/// A constant as the editor shows it, and as the fingerprint folds it. A
+/// value with no rendering here is one a constant cannot hold.
+fn render(value: &rune::Value) -> Option<String> {
     let owned = || value.try_clone().ok();
     if let Some(Ok(b)) = owned().map(rune::from_value::<bool>) {
-        return Some(Constant::Bool(b));
+        return Some(b.to_string());
     }
     if let Some(Ok(i)) = owned().map(rune::from_value::<i64>) {
-        return Some(Constant::Int(i));
+        return Some(i.to_string());
     }
     if let Some(Ok(n)) = owned().map(rune::from_value::<f64>) {
-        return Some(Constant::Num(n));
+        return Some(n.to_string());
     }
     if let Some(Ok(s)) = owned().map(rune::from_value::<String>) {
-        return Some(Constant::Str(s));
+        return Some(format!("{s:?}"));
+    }
+    if let Some(Ok(list)) = owned().map(rune::from_value::<Vec<rune::Value>>) {
+        let parts = list.iter().map(render).collect::<Option<Vec<_>>>()?;
+        return Some(format!("[{}]", parts.join(", ")));
+    }
+    if let Some(Ok(table)) = owned().map(rune::from_value::<rune::runtime::Object>) {
+        let mut parts = Vec::new();
+        for (key, held) in table.iter() {
+            parts.push(format!("{key:?}: {}", render(held)?));
+        }
+        return Some(format!("#{{{}}}", parts.join(", ")));
     }
     None
 }
@@ -548,12 +581,7 @@ fn module_of(mount: &Mount, slot: usize) -> anyhow::Result<Vec<rune::Module>> {
 }
 
 fn add_constant(module: &mut rune::Module, name: &str, value: &Constant) -> anyhow::Result<()> {
-    match value {
-        Constant::Bool(b) => module.constant(name, *b).build()?,
-        Constant::Int(i) => module.constant(name, *i).build()?,
-        Constant::Num(n) => module.constant(name, *n).build()?,
-        Constant::Str(s) => module.constant(name, s.as_str()).build()?,
-    };
+    module.constant_value(name, value.value.try_clone()?)?;
     Ok(())
 }
 

@@ -68,7 +68,8 @@ Balaur:
   the SDK needs; it is the `core/` the Godot generator has to emit.
 - `script::require(path)` loads a module by project-relative path and hands
   back its `pub fn`s as fields, called `(m.f)(..)`. A required function takes
-  at most five arguments (`shared.rs`'s trampoline).
+  as many arguments as it declares: `shared.rs`'s trampoline is a raw
+  handler over the stack.
 - `editor/library/` holds what the Library dock offers a project —
   materials, models, rigs, scenes, scripts, shaders, skies, templates — each
   an entry in `manifest.toml` with a `kind`, a `file` and a card line.
@@ -143,12 +144,12 @@ files exactly as `gamend_template` is:
   `GamendSignalingClient.gd` and `GamendWebRTC.gd`. Step 6, once the engine
   has the transport.
 
-**One call shape, under the five-argument limit.** A function takes the
+**One call shape.** A function takes the
 node, the path parameters in path order, a `params` table for the body, and
 an `options` table for the query: `gamend::lobbies::quick_join(node,
 #{ title: "duel", max_users: 2 })`, `gamend::quests::my_quests(node,
-#{ category: "daily" })`. With at most two path parameters that is at most
-five arguments, the most a mounted function takes.
+#{ category: "daily" })`. With at most two path parameters that is five
+arguments at most.
 Each function checks the body's required fields against the document and
 returns `()` with a logged error naming the field before any I/O; otherwise
 it returns the id `gamend::rest` returns, so a caller awaits it with

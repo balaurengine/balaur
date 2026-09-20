@@ -102,7 +102,7 @@ signature broken over two lines is invisible to `script::functions`, to
 decides whether to run through the breakpoint executor by finding the
 function in that list (`pause.rs:45-53`): one it cannot find is treated as
 async and runs with its breakpoints ignored. Separately, `trampoline`
-(`lib.rs:247-282`) and `script::shared` cap at five arguments.
+(`lib.rs:247-282`) and `script::shared` capped at five arguments.
 
 **Shape.** Read the unit, not the text: `Unit::debug_info().functions`
 carries every function with its `DebugArgs::Named` list, which the debugger
@@ -112,12 +112,12 @@ today, computed from the dev unit at export. Lift the arity cap by building a
 shared function as a raw handler over `Memory` and an argument count, the
 shape `RuneModule::function_raw` already uses (`bindings.rs:184-214`).
 
-Status: **done** for the scan, which now spans lines, and for the stepping
-decision, which asks the unit rather than the scan. The five-argument cap
-**cannot** be lifted here: Rune's `permute!` generates `Function::new` impls
-up to arity 5 and no further, so a six-argument callback needs a change in the
-fork. Bundling the extra arguments into one object is the workaround, and
-`editor/scripts/plugins.rn` already takes it.
+Status: **done** for the scan, which now spans lines, for the stepping
+decision, which asks the unit rather than the scan, and for the arity cap.
+Rune's `permute!` generates `Function::new` impls up to arity 5 and no
+further, so the fork makes `Function::from_handler` public and both
+`shared::trampoline` and `mounts::forward` are raw handlers over the stack:
+a mounted or shared function takes as many arguments as it declares.
 
 ### 1.5 Warts
 
