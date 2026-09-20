@@ -19,10 +19,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 // The job and what it reports on: both are what `import` brings, and a build
 // without it has the verbs that answer for their absence and nothing else.
-#[cfg(feature = "import")]
-use std::sync::mpsc::Sender;
 #[cfg(all(feature = "import", target_family = "wasm", target_feature = "atomics"))]
 use std::sync::mpsc::Receiver;
+#[cfg(feature = "import")]
+use std::sync::mpsc::Sender;
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
@@ -399,7 +399,9 @@ fn picked(with: &Picked, uri: &str) -> Result<Vec<u8>> {
     with.iter()
         .find(|(name, _)| name == uri)
         .map(|(_, bytes)| bytes.clone())
-        .ok_or_else(|| anyhow::anyhow!("'{uri}' was not among the files picked, so it cannot be read"))
+        .ok_or_else(|| {
+            anyhow::anyhow!("'{uri}' was not among the files picked, so it cannot be read")
+        })
 }
 
 /// Where a job's bytes come from.
@@ -768,7 +770,7 @@ impl ImportJob {
     }
 }
 
-#[cfg(all(target_family = "wasm", target_feature = "atomics"))]
+#[cfg(all(feature = "import", target_family = "wasm", target_feature = "atomics"))]
 impl ImportJob {
     /// Wait for the worker's plan without holding the frame, then write it.
     fn await_plan(&mut self) -> Progress {
@@ -937,18 +939,31 @@ mod tests {
             Cancel::default(),
         ));
         let mut seen = Vec::new();
-        while !matches!(seen.last(), Some(ImportEvent::Done { .. } | ImportEvent::Failed { .. })) {
+        while !matches!(
+            seen.last(),
+            Some(ImportEvent::Done { .. } | ImportEvent::Failed { .. })
+        ) {
             let event = events
                 .recv_timeout(Duration::from_secs(20))
                 .expect("the threaded import never finished");
             seen.push(event);
         }
         let kinds: Vec<&str> = seen.iter().map(ImportEvent::kind).collect();
-        assert_eq!(kinds, ["started", "wrote", "wrote", "wrote", "wrote", "done"]);
-        assert_eq!(running.load(Ordering::Relaxed), 0, "it let go before it said so");
+        assert_eq!(
+            kinds,
+            ["started", "wrote", "wrote", "wrote", "wrote", "done"]
+        );
+        assert_eq!(
+            running.load(Ordering::Relaxed),
+            0,
+            "it let go before it said so"
+        );
         for event in &seen {
             if let ImportEvent::Wrote { path, .. } = event {
-                assert!(project.path().join(path).exists(), "{path} was reported, not written");
+                assert!(
+                    project.path().join(path).exists(),
+                    "{path} was reported, not written"
+                );
             }
         }
     }
@@ -957,15 +972,24 @@ mod tests {
     #[test]
     fn a_stop_before_the_first_slice_writes_nothing() {
         let project = tempfile::tempdir().unwrap();
-        let (events, slices, running) =
-            run_cancelled(Source::Beside(PathBuf::from(ASEPRITE)), project.path(), true);
+        let (events, slices, running) = run_cancelled(
+            Source::Beside(PathBuf::from(ASEPRITE)),
+            project.path(),
+            true,
+        );
         assert_eq!(slices, 1);
         assert_eq!(running, 0, "a stopped job let go of its place");
         let [ImportEvent::Cancelled { done, .. }] = events.as_slice() else {
-            panic!("expected one cancelled report, got {:?}", events.iter().map(ImportEvent::kind).collect::<Vec<_>>());
+            panic!(
+                "expected one cancelled report, got {:?}",
+                events.iter().map(ImportEvent::kind).collect::<Vec<_>>()
+            );
         };
         assert_eq!(*done, 0);
-        assert!(std::fs::read_dir(project.path()).unwrap().next().is_none(), "it wrote a file");
+        assert!(
+            std::fs::read_dir(project.path()).unwrap().next().is_none(),
+            "it wrote a file"
+        );
     }
 
     /// The sequence a progress bar reads: what is coming, each file as it
