@@ -234,8 +234,11 @@ pub fn field(owner, name) {
             }
         }
         if owner.contains_key(CLASS_KEY) && !owner.contains_key(name) {
-            // A method named without a call is Godot's `Callable`: bound here.
-            let method = get(script::require(owner[CLASS_KEY]), name, ());
+            // A method named without a call is Godot's `Callable`: bound
+            // here, to the form that takes no arguments of its own, since
+            // that is how a bound one is called.
+            let module = script::require(owner[CLASS_KEY]);
+            let method = get(module, `${name}__0`, get(module, name, ()));
             if !is_nil(method) {
                 let bound = || method(owner);
                 return bound;
