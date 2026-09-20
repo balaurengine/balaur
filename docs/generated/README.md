@@ -11,3 +11,4 @@ drift. Do not edit these by hand.
 - [crate-graph.md](crate-graph.md)
 - [features.md](features.md)
 - [script-api.md](script-api.md)
+- [script-types.md](script-types.md)

@@ -97,7 +97,11 @@ fn a_vector_is_a_value_copied_wherever_it_is_bound_or_stored() {
          let d = c;\n\
          d.a = 0.5;\n\
          this.colour = c.a + d.a;\n\
-         this.negated = (-a).x;");
+         this.negated = (-a).x;\n\
+         let held = a;\n\
+         let read = || held.x;\n\
+         held.x = 99.0;\n\
+         this.captured = read() + held.x;");
     assert_eq!(field(&host, node, "a"), 1.0, "b's writes stay in b");
     assert_eq!(field(&host, node, "b"), 10.0, "b took both writes");
     assert_eq!(
@@ -122,6 +126,11 @@ fn a_vector_is_a_value_copied_wherever_it_is_bound_or_stored() {
     );
     assert_eq!(field(&host, node, "colour"), 1.5, "a colour is a value too");
     assert_eq!(field(&host, node, "negated"), -8.0);
+    assert_eq!(
+        field(&host, node, "captured"),
+        107.0,
+        "a closure captured the vector by value"
+    );
 }
 
 #[test]

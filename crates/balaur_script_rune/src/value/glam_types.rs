@@ -12,6 +12,20 @@ use rune::runtime::{Formatter, Protocol as P, VmResult};
 
 use super::vm;
 
+/// The value types this module installs, for the API probe: a script reads
+/// them as `balaur::Vec2` and the rest.
+pub(crate) const VALUE_TYPES: &[&str] = &[
+    "Vec2",
+    "Vec3",
+    "Vec4",
+    "IVec2",
+    "IVec3",
+    "Quat",
+    "Transform2d",
+    "Transform3d",
+    "Color",
+];
+
 /// A script type and the glam type it stands for.
 pub(crate) trait Glam: Sized {
     type G;

@@ -277,7 +277,7 @@ fn record(modules: &mut BTreeMap<String, Module>, module: &str, name: &str, args
 /// Every module scripts can reach, with its functions and its constants:
 /// `{"modules": [{"name", "functions": [..], "constants": [{"name", "value"}],
 /// "signatures": {name: "args -> returns"}, "components": [..]}]}`.
-pub fn api_json(_host: &RuneHost) -> Result<String> {
+pub fn api_json(host: &RuneHost) -> Result<String> {
     let modules = collect_modules();
     let mut out = String::from("{\n  \"modules\": [\n");
     let last = modules.len();
@@ -353,8 +353,55 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
         }
         out.push('\n');
     }
-    out.push_str("  ]\n}");
+    out.push_str("  ],\n  \"types\": ");
+    out.push_str(&types_json(host));
+    out.push_str("\n}");
     Ok(out)
+}
+
+/// The value types scripts hold (`balaur::Vec2` and the rest), each with the
+/// methods and constants it carries. Read from the built context, so this
+/// cannot drift from what a script can call.
+fn types_json(host: &RuneHost) -> String {
+    let Ok((context, _)) = host.context() else {
+        return String::from("[]");
+    };
+    let mut types: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
+    for meta in context.iter_items() {
+        let Some(item) = meta.item.as_deref() else {
+            continue;
+        };
+        let parts: Vec<&str> = item.iter().filter_map(|c| c.as_str()).collect();
+        // An item arrives without its module, so the type's own name is what
+        // says it is one of ours.
+        let [name, member] = parts[..] else {
+            continue;
+        };
+        if !crate::value::glam_types::VALUE_TYPES.contains(&name) {
+            continue;
+        }
+        let entry = types.entry(name.to_string()).or_default();
+        if meta.kind.as_signature().is_some() {
+            entry.0.insert(member.to_string());
+        } else {
+            entry.1.insert(member.to_string());
+        }
+    }
+    let rows: Vec<String> = types
+        .iter()
+        .map(|(name, (functions, constants))| {
+            let list = |set: &BTreeSet<String>| {
+                set.iter().map(|s| quote(s)).collect::<Vec<_>>().join(", ")
+            };
+            format!(
+                "    {{\n      \"name\": {},\n      \"functions\": [{}],\n      \"constants\": [{}]\n    }}",
+                quote(name),
+                list(functions),
+                list(constants)
+            )
+        })
+        .collect();
+    format!("[\n{}\n  ]", rows.join(",\n"))
 }
 
 fn quote(s: &str) -> String {
