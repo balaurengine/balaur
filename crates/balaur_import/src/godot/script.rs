@@ -312,6 +312,7 @@ fn context(
             .iter()
             .map(|(name, file)| (name.clone(), file.replace(".gd", ".rn")))
             .collect(),
+        class_methods: classes.methods.clone(),
         class_statics: classes
             .statics
             .iter()
@@ -630,6 +631,14 @@ pub(crate) fn inner_classes(source: &str) -> Vec<(String, String)> {
 }
 
 /// A file's functions with defaulted parameters, and how many each takes.
+/// Every function a file declares, under the Rune name it is emitted with.
+pub(crate) fn function_names(source: &str) -> std::collections::BTreeSet<String> {
+    split_functions(source)
+        .into_iter()
+        .map(|f| if f.name == "_init" { "new".to_string() } else { f.name })
+        .collect()
+}
+
 pub(crate) fn defaulted(source: &str) -> BTreeMap<String, usize> {
     split_functions(source)
         .into_iter()

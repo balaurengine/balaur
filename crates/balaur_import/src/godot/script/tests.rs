@@ -215,6 +215,30 @@ fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
 }
 
 #[test]
+fn another_classs_function_handed_over_is_the_function_itself() {
+    let classes = Classes {
+        files: [("Codec".to_string(), "scripts/codec.gd".to_string())]
+            .into_iter()
+            .collect(),
+        methods: [(
+            "Codec".to_string(),
+            ["decode".to_string()].into_iter().collect(),
+        )]
+        .into_iter()
+        .collect(),
+        ..Classes::default()
+    };
+    let source = "extends Node\n\nfunc wire():\n\tvar f = Codec.decode\n\treturn f\n";
+    let out = convert(source, "scripts/a.gd", &classes);
+    assert!(
+        out.rune.contains("script::require(\"scripts/codec.rn\").decode"),
+        "{}",
+        out.rune
+    );
+    assert!(!out.rune.contains("gd.constant"), "{}", out.rune);
+}
+
+#[test]
 fn another_class_static_var_reads_and_writes_its_store() {
     let classes = Classes {
         files: [("Settings".to_string(), "scripts/settings.gd".to_string())]
@@ -261,6 +285,7 @@ fn super_reaches_the_base_copy_of_an_overridden_function() {
         statics: BTreeMap::default(),
         inner: BTreeMap::default(),
         defaulted: BTreeMap::default(),
+        methods: BTreeMap::default(),
     };
     let source = "extends Fish\n\nfunc swim(speed):\n\treturn super(speed) * 2\n";
     let out = convert(source, "scripts/shark.gd", &classes);

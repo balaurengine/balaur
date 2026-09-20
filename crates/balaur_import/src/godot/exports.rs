@@ -6,7 +6,7 @@
 //! each one is. A Godot type with no counterpart here — a Dictionary, a
 //! Callable, an array of numbers — is not exported, and the report says so.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use balaur_plugin::toml;
@@ -29,6 +29,9 @@ pub(crate) struct Classes {
     /// Each class module's functions that take defaulted parameters, with
     /// how many parameters each takes in all.
     pub defaulted: BTreeMap<String, BTreeMap<String, usize>>,
+    /// Every function each class declares, so `Class.name` is known to be
+    /// one rather than a constant to read.
+    pub methods: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.
@@ -455,6 +458,10 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         if let Some(name) = word("class_name ") {
             if let Some(base) = word("extends ") {
                 classes.bases.insert(name.clone(), base);
+            }
+            let methods = crate::godot::script::function_names(&source);
+            if !methods.is_empty() {
+                classes.methods.insert(name.clone(), methods);
             }
             let statics = crate::godot::script::static_vars(&source);
             if !statics.is_empty() {

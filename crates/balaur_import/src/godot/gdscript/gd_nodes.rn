@@ -329,6 +329,11 @@ fn detached() {
 /// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
 /// name makes a new child, as the engine's own `add_child` does.
 pub fn add_child(parent, child) {
+    // A class that was a Node in Godot and is a table here owns no place in
+    // the tree, so adding it is nothing.
+    if child is Object {
+        return child;
+    }
     if child is balaur::Node {
         child.set_parent(parent);
         if child.has_tag(REMOVED) {
