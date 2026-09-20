@@ -260,7 +260,7 @@ def check_modules(api: dict) -> list[Finding]:
 
 def property_types() -> list[str]:
     """The closed set, read from the const balaur_core makes public for it."""
-    text = (ROOT / "crates" / "balaur_core" / "src" / "components.rs").read_text()
+    text = (ROOT / "crates" / "balaur_core" / "src" / "components" / "schema.rs").read_text()
     m = re.search(r"PROPERTY_TYPES:\s*\[&str;\s*\d+\]\s*=\s*\[([^\]]*)\]", text)
     if not m:
         print("balaur_core::components::PROPERTY_TYPES not found", file=sys.stderr)
