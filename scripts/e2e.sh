@@ -6,8 +6,7 @@
 #   play    the exported pack, with no sources and no compiler present
 #   edit    open it in the editor, which is itself a Balaur project
 #   render  the game and the editor surface-less, on a real GPU
-# A script error is logged rather than fatal, so a clean exit is not enough:
-# every step reads the log too.
+# A script error is logged, not fatal, so every step reads the log too.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,10 +19,9 @@ mkdir -p "$out_dir"
 digests="$out_dir/digests.txt"
 : >"$digests"
 
-# Built once, then run directly. `cargo run` re-resolves the workspace and takes
-# the build lock on every call, and the loop below calls once per step.
-# `--features window` for the render steps below. Without it `--offscreen`
-# falls back to headless, and the GPU path is checked by nothing at all.
+# Built once, then run directly: `cargo run` takes the build lock on every
+# call, and the loop below calls once per step. `--features window` because
+# `--offscreen` falls back to headless without it, checking nothing.
 cargo build -q -p balaur_cli --features window --bin balaur
 built=${CARGO_TARGET_DIR:-target}/debug/balaur
 # A copy of its own: another build writing target/debug/balaur mid-run would

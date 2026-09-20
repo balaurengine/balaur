@@ -19,13 +19,22 @@ type Composited = (Option<Vec<u8>>, String);
 static PENDING: std::sync::Mutex<Option<std::sync::mpsc::Receiver<Composited>>> =
     std::sync::Mutex::new(None);
 
+/// How many frames run before the icon is handed to the desktop.
+const AFTER_FRAMES: u64 = 2;
+
 /// Apply a requested dock/application icon (macOS only for now).
 ///
 /// The compositing runs on its own thread: decoding the picture, resizing it
 /// and encoding a 1024-square plate took the whole of the first frame, which
 /// is the frame a window has nothing else to show. Only the hand-over to
 /// AppKit stays here, on the main thread it insists on.
-pub(crate) fn apply_app_icon(app: &App) {
+pub(crate) fn apply_app_icon(app: &App, on_screen: bool, frame: u64) {
+    // An offscreen run has no dock entry, and a shell still assembling is
+    // what somebody is waiting for: handing the plate to AppKit costs about
+    // 66 ms on the main thread.
+    if !on_screen || frame < AFTER_FRAMES {
+        return;
+    }
     let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
         return;
     };

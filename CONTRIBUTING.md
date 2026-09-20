@@ -58,7 +58,7 @@ times, so read yours rather than this.
 | `scripts/precommit.sh --lints` | a full build | 6 s | six clippy shapes on macOS, five elsewhere, a target tree each |
 | `scripts/precommit.sh` | a full build | 48 m | every test, one process each |
 | `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project, every editor state each |
-| `scripts/e2e.sh target/e2e hello` | n/a | 96 s | one project through run, export, play and edit |
+| `scripts/e2e.sh target/e2e hello` | n/a | 8 m | one project through run, export, play, edit and render |
 | `node scripts/web_smoke.mjs dist/play` | n/a | 2 m | every pack of a web bundle, 8 s each in headless Chrome |
 
 Cold is a build, and a build is the dependency tree. The two feature shapes a

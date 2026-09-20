@@ -3,6 +3,8 @@
 //! events into [`balaur_input::InputSnapshot`], ticks the [`App`], then mirrors
 //! renderables into the kiss3d scene graph.
 
+mod screenshot;
+
 use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
@@ -17,8 +19,8 @@ use crate::kiss3d_camera::{
     publish_camera_2d,
 };
 use crate::{
-    ClearColorConfig, GridConfig, PostConfig, Renderable2d, Renderable3d, ScreenshotRequest,
-    Shape2d, Shape3d, WindowConfig, WindowedBackend,
+    ClearColorConfig, GridConfig, PostConfig, Renderable2d, Renderable3d, Shape2d, Shape3d,
+    WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -77,9 +79,6 @@ pub(crate) struct Slot2d {
     pub(crate) shear: f32,
 }
 
-/// How many frames run before the application icon is handed to the desktop.
-const ICON_AFTER_FRAMES: u64 = 2;
-
 /// Everything one frame of the render loop reads and writes, so the windowed
 /// and offscreen runners share a body instead of keeping two copies in step.
 struct Frontend {
@@ -99,9 +98,7 @@ struct Frontend {
     transients: Vec<SceneNode2d>,
     text: crate::world_text::Frame,
     frame: u64,
-    /// Whether frames reach an OS window. An offscreen run has no dock entry
-    /// and no title bar, so what the desktop shows for the app is work with
-    /// nobody to see it.
+    /// Whether frames reach an OS window, which an offscreen run's do not.
     on_screen: bool,
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
@@ -215,12 +212,7 @@ impl Frontend {
             &mut self.camera_2d,
             &self.camera_buttons,
         );
-        // Not while the shell is still assembling: handing the plate to AppKit
-        // costs about 66 ms on the main thread, and the first frames are what
-        // somebody is waiting for.
-        if self.on_screen && self.frame >= ICON_AFTER_FRAMES {
-            crate::app_icon::apply_app_icon(app);
-        }
+        crate::app_icon::apply_app_icon(app, self.on_screen, self.frame);
         apply_window_config(app, window);
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
@@ -311,7 +303,7 @@ impl Frontend {
             window.set_keyboard_visible(wants_keyboard);
         }
         self.frame += 1;
-        take_screenshot_if_due(app, window, self.frame);
+        screenshot::take_if_due(app, window, self.frame);
         !app.engine.quit_requested()
     }
 }
@@ -392,8 +384,10 @@ pub async fn run_windowed_async(
         }),
         ..CanvasSetup::default()
     };
+    let phase = balaur_core::timings::Phase::start();
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
+    phase.note("renderer");
     // A lazy UI builds no widgets on an idle frame, so the last pass's shapes
     // have to be drawn again. kiss3d stopped doing that by default.
     window.set_ui_retained(true);
@@ -498,8 +492,10 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
     pollster::block_on(async move {
         // Not `new_hidden_*`: a hidden window still needs a display server.
         // Surface-less rendering runs on a CI box with no display at all.
+        let phase = balaur_core::timings::Phase::start();
         let mut window =
             Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
+        phase.note("renderer");
         window.set_ui_retained(true);
         let mut f = Frontend::new();
         f.on_screen = false;
@@ -652,54 +648,6 @@ fn apply_window_config(app: &App, window: &Window) {
     window.set_cursor_grab(config.cursor_grabbed);
     window.hide_cursor(config.cursor_hidden);
     crate::device::keep_awake(config.keep_awake);
-}
-
-/// The snapped frame as PNG bytes, so the backend writes them wherever it
-/// keeps files.
-fn encoded_png(image: &image::RgbImage) -> std::result::Result<Vec<u8>, image::ImageError> {
-    let mut bytes = std::io::Cursor::new(Vec::new());
-    image.write_to(&mut bytes, image::ImageFormat::Png)?;
-    Ok(bytes.into_inner())
-}
-
-fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
-    let Some(request) = app.engine.try_resource::<ScreenshotRequest>() else {
-        return;
-    };
-    let due = {
-        let request = request.borrow();
-        frame >= request.after_frame
-    };
-    if !due {
-        return;
-    }
-    let path = request.borrow().path.clone();
-    {
-        let world = app.engine.world();
-        for (entity, renderable, global) in
-            &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
-        {
-            let _ = renderable;
-            tracing::debug!("renderable {entity:?} at {}", global.position);
-        }
-    }
-    let image = window.snap_image();
-    // Encoded here and handed to the backend: a browser has no disk to save
-    // to, and the path may name a directory that is not there yet.
-    match encoded_png(&image) {
-        Ok(bytes) => {
-            let fs = balaur_core::files::backend(&app.engine);
-            if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
-                let _ = fs.mkdir(dir);
-            }
-            match fs.write(&path, &bytes) {
-                Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
-                Err(err) => tracing::error!("screenshot failed: {err:#}"),
-            }
-        }
-        Err(err) => tracing::error!("screenshot failed: {err:#}"),
-    }
-    app.engine.remove_resource::<ScreenshotRequest>();
 }
 
 /// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.

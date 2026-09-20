@@ -8,3 +8,9 @@ main_scene = "scenes/main.toml"
 [time]
 tick_hz = 60
 interpolate = true
+
+# The size the manual's clip is taken at, which is what the website's player
+# expects of every clip on a page.
+[window]
+width = 1920
+height = 1080

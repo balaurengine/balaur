@@ -166,8 +166,8 @@ shapes_stream() {
 }
 
 # The suites that boot an app over real sockets, and the example pipeline:
-# minutes, so they are their own tier rather than part of every commit. These
-# build in `target/`, so they keep its incremental state rather than voiding it.
+# minutes, so they are their own tier rather than part of every commit. Both
+# build in `target/`, where e2e.sh's `window` feature costs the CLI a rebuild.
 e2e_stream() {
   export CARGO_BUILD_JOBS=$side_jobs RUST_TEST_THREADS=$side_jobs
   local bad=0

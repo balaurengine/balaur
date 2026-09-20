@@ -393,13 +393,17 @@ impl RuneHost {
             script
         } else {
             let source = self.source_of(key)?;
-            let (unit, sources) = match cache::load(self, key, &source) {
+            // Filed under the outcome, so `--timings` says which of the two
+            // a boot paid for rather than how long it spent asking.
+            let cached =
+                balaur_core::timings::boot_hit("scripts/cached", || cache::load(self, key, &source));
+            let (unit, sources) = match cached {
                 Some(hit) => (Arc::new(hit.unit), hit.sources),
-                None => {
+                None => balaur_core::timings::boot("scripts/compiled", || {
                     let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
                     cache::store(self, key, &source, &unit, &sources);
-                    (unit, sources)
-                }
+                    Ok::<_, anyhow::Error>((unit, sources))
+                })?,
             };
             let deps = self.source_keys(&sources);
             Script::new(Rc::from(key), unit, source, sources, deps)
@@ -766,6 +770,7 @@ impl RuneHost {
             return Ok(());
         }
         let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+        cache::store(self, key, &source, &unit, &sources);
         let deps = self.source_keys(&sources);
         let paused = {
             let mut state = self.state.borrow_mut();

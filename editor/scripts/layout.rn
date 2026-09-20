@@ -38,6 +38,9 @@ pub fn state() {
         // How tall the tool rail's column is, read back a frame late; the
         // rail flows into a second column rather than overrun it.
         rail_room: 400.0,
+        // Passes in a row that wrote no box. Every rect is read back a pass
+        // late, so the shell settles over several: this is what says it has.
+        quiet: 0,
         // The scene's own numbers, adopted before anything writes over them.
         // Zero until `adopt` has run, which is what `asked` says.
         asked: false,
@@ -169,6 +172,18 @@ fn eased(mark) {
         .any(|m| m == mark)
 }
 
+/// Whether every box has held still for two passes and nothing is moving.
+///
+/// Two rather than one: a rect read back this pass can change what the next
+/// one writes, so a single quiet pass is not proof the shell has stopped.
+pub fn settled(S) {
+    let m = S.layout;
+    if !m.asked || m.quiet < 2 {
+        return false;
+    }
+    !animating(S)
+}
+
 /// Whether an eased box is still travelling. A tween moves the widget from
 /// the animation stage, which no UI pass follows: the shell asks for one.
 pub fn animating(S) {
@@ -217,9 +232,11 @@ fn size(S, id, key, value) {
         return;
     }
     // The first write places the box; a later one moves it. Easing the first
-    // would mean watching the shell assemble itself on every start.
-    let settled = m.sent.contains_key(mark);
+    // would mean watching the shell assemble itself on every start, and so
+    // would easing the corrections it takes before the shell is formed.
+    let settled = m.sent.contains_key(mark) && S.formed;
     m.sent[mark] = value;
+    m.quiet = 0;
     if settled && eased(mark) {
         let running = m.tweens.get(mark);
         if let Some(handle) = running {
@@ -247,6 +264,7 @@ fn show(S, id, on) {
         return;
     }
     m.sent[mark] = want;
+    m.quiet = 0;
     found.patch_component("widget", #{ visible: on });
 }
 
@@ -294,6 +312,8 @@ pub fn compute(S) {
     if !m.asked {
         return;
     }
+    // Counted before the writes below, each of which puts it back to zero.
+    m.quiet = m.quiet + 1;
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.

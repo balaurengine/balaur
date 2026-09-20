@@ -7,6 +7,7 @@ use crate::chrome;
 use crate::defs;
 use crate::history;
 use crate::left;
+use crate::manager;
 use crate::model;
 use crate::session;
 use crate::shell;
@@ -57,6 +58,8 @@ pub fn start(S, name) {
         "input" => input_clip(S, q),
         "determinism" => determinism(S, q),
         "shaders" => shaders(S, q),
+        "focus" => focusing(S, q),
+        "manager" => manager_pages(S, q),
         _ => {
             log::warn(format!("show:{}: no such showcase", name));
             return;
@@ -236,6 +239,7 @@ fn spot(S, name) {
         "anim_tab" => chrome::persona_spot(S, "anim"),
         "phys_tab" => chrome::persona_spot(S, "phys"),
         "ui_tab" => chrome::persona_spot(S, "ui"),
+        "focus_chip" => chrome::focus_spot(S),
         "play" => chrome::transport_spot(S, 0),
         "stop" => chrome::transport_spot(S, 2),
         // The newest recording's play button in the session list.
@@ -425,6 +429,25 @@ fn open_newest(S) {
     if rows.len() > 0 {
         session::open(S, rows[0].name);
     }
+}
+
+// The screen the editor starts on. No drawn cursor: its pages are pills an
+// immediate-mode row lays out, and nothing publishes where one lands.
+fn manager_pages(S, q) {
+    act(q, 1, || {
+        S.show_input = false;
+        manager::open_examples(S);
+    });
+    act(q, 320, || manager::open_new(S));
+}
+
+// The code pane taking the window: a node with a script, the Focus chip
+// folding the three docks away, and the shortcut putting them back.
+fn focusing(S, q) {
+    act(q, 1, || shell::set_persona(S, "script"));
+    click_row(S, q, 40, "Spinner");
+    click(S, q, 200, || spot(S, "focus_chip"), || shell::toggle_focus(S));
+    chord(S, q, 480, ["LShift", "LWin", "Backslash"], || shell::toggle_focus(S));
 }
 
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the

@@ -11,6 +11,11 @@ command -v cargo-llvm-cov >/dev/null || {
   exit 1
 }
 
+# Its own target directory, as every other shape has one: instrumented
+# binaries left in `target/debug` are reused by the next plain cargo run,
+# which writes a `default_*.profraw` into whatever directory it started in.
+export CARGO_TARGET_DIR=target/shape/coverage
+
 html=0
 if [ "${1:-}" = "--html" ]; then
   html=1

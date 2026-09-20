@@ -60,6 +60,9 @@ mod viewport;
 // already says.
 const COMPACT_W = 1240.0;
 
+// The frame the splash comes off whether or not the shell has stopped moving.
+const FORM_BY = 30;
+
 pub fn init(this) {
     let S = #{
         persona: "scene",
@@ -302,15 +305,16 @@ pub fn update(this, dt) {
     }
     S.frame += 1;
     shell::release_world(S);
-    // The splash holds until the shell has settled: the first pass places
-    // the docks, the second fills the tree once the mirror resolves, the
-    // third is the first drawn with everything in place.
+    // The splash holds until the shell stops moving: every box is read back a
+    // pass after it was written, so the sizes correct themselves for several.
+    // `FORM_BY` is where it gives up waiting.
     if !S.formed {
-        if S.frame >= 3 && S.refs.len() == S.doc.len() {
+        let ready = S.frame >= 3 && S.refs.len() == S.doc.len() && layout::settled(S);
+        if ready || S.frame >= FORM_BY {
             S.formed = true;
             ui::loaded();
         } else {
-            ui::set_loading(0.4 + 0.2 * util::f(S.frame), "");
+            ui::set_loading(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
         }
     }
     let shot_some = S.shot;
@@ -320,17 +324,21 @@ pub fn update(this, dt) {
             report_view(S);
         }
     }
-    // The start screen has no scene to step, no selection to follow and no
-    // gizmo to drag: what it needs from a frame is the shot and the states.
-    if manager::showing(S) {
-        apply_start_states(S);
-        ui::request_repaint();
-        return;
-    }
+    // Above the start screen's own return: a clip of a project converting is
+    // taken on that screen, and it has no other frame to be caught on.
     let cap = S.capture;
     if cap is Object && S.frame >= cap.from && (S.frame - cap.from) % cap.every == 0 {
         render::screenshot(format!("{}/{}.png", cap.dir, padded(cap.n)));
         cap.n = cap.n + 1;
+    }
+    // The start screen has no scene to step, no selection to follow and no
+    // gizmo to drag: what it needs from a frame is the shot, the states and
+    // the showcase, whose sequence turns this screen's own pages.
+    if manager::showing(S) {
+        showcase::step(S);
+        apply_start_states(S);
+        ui::request_repaint();
+        return;
     }
     let paused = debugger::paused();
     if paused is Object && !(S.debug.paused is Object) {

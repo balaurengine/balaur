@@ -94,8 +94,9 @@ enum Command {
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
         trace_digest: Option<PathBuf>,
-        /// Print what each frame stage cost when the run ends: mean, worst
-        /// and share of a 60 Hz frame. What a budget is set against.
+        /// Print what the boot and each frame stage cost when the run ends:
+        /// the phases on the way to the first frame, then mean, worst and
+        /// share of a 60 Hz frame. What a budget is set against.
         #[arg(long)]
         timings: bool,
         /// Record the session — every tick's input and digest — to a file
@@ -345,6 +346,7 @@ fn log_level() -> tracing::level_filters::LevelFilter {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<()> {
+    balaur::timings::mark_start();
     // The capturing logger tees to stderr and to the in-engine ring buffer
     // that powers `log.recent` (the editor's Output dock).
     balaur::logbuf::capture(log_level());
@@ -619,10 +621,21 @@ struct EditOpts {
     /// touch half without a phone.
     #[arg(long)]
     touch: bool,
-    /// Print what each frame cost when the editor closes. The editor's
-    /// own shell is most of a frame, so this is how a slow one is read.
+    /// Print what the boot and each frame cost when the editor closes. The
+    /// editor's own shell is most of a frame, so this is how a slow one is
+    /// read, and the boot table is where a slow start is.
     #[arg(long)]
     timings: bool,
+}
+
+/// What `--timings` prints: the boot on the way to the first frame, then what
+/// each frame cost.
+fn print_timings(log: &std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>>) {
+    print!(
+        "{}{}",
+        balaur::timings::boot_report(),
+        log.borrow().report()
+    );
 }
 
 /// Fold every frame's timings into one log, kept by the caller so it survives
@@ -746,7 +759,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let (display, frames) = (*display, *frames);
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
-    let mut app = balaur::standard_app(config)?;
+    let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
     let _debugger = debugger::start_debugger(&mut app, *debug, *debug_wait)?;
@@ -767,7 +780,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     if *touch {
         pretend_touchscreen(&app);
     }
-    app.load_project()?;
+    balaur::timings::boot("project", || app.load_project())?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::fixed_dt()));
     }
@@ -800,7 +813,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         }
         balaur::logbuf::flush_file();
         if let Some(log) = &timings {
-            print!("{}", log.borrow().report());
+            print_timings(log);
         }
         exit_with(engine.exit_code());
         return Ok(());
@@ -832,7 +845,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         balaur::run(app, &title)
     };
     if let Some(log) = &timings {
-        print!("{}", log.borrow().report());
+        print_timings(log);
     }
     ran?;
     exit_with(engine.exit_code());
@@ -962,11 +975,13 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if let Some(state) = opening {
         config.script_args.push(state);
     }
-    let mut app = balaur::standard_app(config)?;
+    let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
     // Registered here rather than in the engine: these are the CLI's library,
     // and the editor is the only app with a button for them.
     #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load_all(&mut app, &mut own_modules(&game))?;
+    balaur::timings::boot("plugins", || {
+        balaur_plugin::load_all(&mut app, &mut own_modules(&game))
+    })?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it. With no
     // project there is no second root until one is opened.
@@ -978,7 +993,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if *touch {
         pretend_touchscreen(&app);
     }
-    app.load_project()?;
+    balaur::timings::boot("project", || app.load_project())?;
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]
@@ -1010,7 +1025,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         balaur::run(app, "balaur editor")
     };
     if let Some(log) = &log {
-        print!("{}", log.borrow().report());
+        print_timings(log);
     }
     ran
 }

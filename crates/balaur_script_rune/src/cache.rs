@@ -16,8 +16,10 @@
 use std::path::{Path, PathBuf};
 
 use balaur_core::digest::Hasher;
-use rune::runtime::{DebugInfo, Logic, Unit};
-use rune::{Source, Sources};
+use rune::item::ComponentRef;
+use rune::runtime::debug::{DebugArgs, DebugSignature};
+use rune::runtime::{DebugInfo, DebugInst, Logic, Unit};
+use rune::{Hash, ItemBuf, Source, Sources};
 use serde::{Deserialize, Serialize};
 
 use crate::RuneHost;
@@ -38,7 +40,126 @@ struct Entry {
     logic: Logic,
     /// A dev unit keeps its debug info, so a cached one has to carry it:
     /// without it a breakpoint has no line and a runtime error has no span.
-    debug: Option<DebugInfo>,
+    debug: Option<Spans>,
+}
+
+/// Rune's [`DebugInfo`], in a shape a length-prefixed format can write.
+///
+/// Its maps and the `ItemBuf` inside a signature serialise as sequences of
+/// unknown length, which bincode refuses, so each is written as a list and the
+/// whole is rebuilt on the way back in.
+#[derive(Deserialize)]
+struct Spans {
+    instructions: Vec<(usize, DebugInst)>,
+    functions: Vec<(Hash, Signature)>,
+    functions_rev: Vec<(usize, Hash)>,
+    idents: Vec<(Hash, String)>,
+}
+
+#[derive(Deserialize)]
+struct Signature {
+    path: Vec<Part>,
+    args: DebugArgs,
+}
+
+/// One component of an item path.
+#[derive(Serialize, Deserialize)]
+enum Part {
+    Crate(String),
+    Str(String),
+    Id(usize),
+}
+
+/// What [`Spans`] is written from: the unit's own debug info, borrowed.
+#[derive(Serialize)]
+struct SpansOf<'a> {
+    instructions: Vec<(usize, &'a DebugInst)>,
+    functions: Vec<(Hash, SignatureOf<'a>)>,
+    functions_rev: Vec<(usize, Hash)>,
+    idents: Vec<(Hash, &'a str)>,
+}
+
+#[derive(Serialize)]
+struct SignatureOf<'a> {
+    path: Vec<Part>,
+    args: &'a DebugArgs,
+}
+
+impl<'a> SpansOf<'a> {
+    fn of(debug: &'a DebugInfo) -> Self {
+        Self {
+            instructions: debug.instructions.iter().map(|(ip, i)| (*ip, i)).collect(),
+            functions: debug
+                .functions
+                .iter()
+                .map(|(hash, sig)| {
+                    (
+                        *hash,
+                        SignatureOf {
+                            path: parts_of(&sig.path),
+                            args: &sig.args,
+                        },
+                    )
+                })
+                .collect(),
+            functions_rev: debug
+                .functions_rev
+                .iter()
+                .map(|(ip, h)| (*ip, *h))
+                .collect(),
+            idents: debug
+                .hash_to_ident
+                .iter()
+                .map(|(hash, name)| (*hash, &**name))
+                .collect(),
+        }
+    }
+}
+
+fn parts_of(item: &ItemBuf) -> Vec<Part> {
+    item.iter()
+        .map(|component| match component {
+            ComponentRef::Crate(name) => Part::Crate(name.to_string()),
+            ComponentRef::Str(name) => Part::Str(name.to_string()),
+            ComponentRef::Id(id) => Part::Id(id),
+        })
+        .collect()
+}
+
+fn item_of(parts: &[Part]) -> Option<ItemBuf> {
+    let mut item = ItemBuf::new();
+    for part in parts {
+        let component = match part {
+            Part::Crate(name) => ComponentRef::Crate(name),
+            Part::Str(name) => ComponentRef::Str(name),
+            Part::Id(id) => ComponentRef::Id(*id),
+        };
+        item.push(component).ok()?;
+    }
+    Some(item)
+}
+
+/// Rebuild rune's own debug info from what was written.
+fn debug_of(read: Spans) -> Option<DebugInfo> {
+    let mut debug = DebugInfo::default();
+    for (ip, instruction) in read.instructions {
+        debug.instructions.try_insert(ip, instruction).ok()?;
+    }
+    for (hash, signature) in read.functions {
+        let path = item_of(&signature.path)?;
+        debug
+            .functions
+            .try_insert(hash, DebugSignature::new(path, signature.args))
+            .ok()?;
+    }
+    for (ip, hash) in read.functions_rev {
+        debug.functions_rev.try_insert(ip, hash).ok()?;
+    }
+    for (hash, ident) in read.idents {
+        let ident = rune::alloc::Box::try_from(ident.as_str()).ok()?;
+        debug.hash_to_ident.try_insert(hash, ident).ok()?;
+    }
+    Some(debug)
 }
 
 /// One source a unit was compiled from, at the `SourceId` its position stands
@@ -72,7 +193,7 @@ pub(crate) fn load(host: &RuneHost, key: &str, source: &str) -> Option<Hit> {
     }
     let config = CONFIG.with_limit::<DECODE_LIMIT>();
     let (entry, _): (Entry, usize) = bincode::serde::decode_from_slice(rest, config).ok()?;
-    if entry.stamp != stamp(host) {
+    if entry.stamp != stamp(host)? {
         return None;
     }
     let mut sources = Sources::new();
@@ -85,7 +206,11 @@ pub(crate) fn load(host: &RuneHost, key: &str, source: &str) -> Option<Hit> {
             .insert(Source::with_path(&origin.name, &text, &origin.path).ok()?)
             .ok()?;
     }
-    let unit = Unit::from_parts(entry.logic, entry.debug).ok()?;
+    let debug = match entry.debug {
+        Some(spans) => Some(debug_of(spans)?),
+        None => None,
+    };
+    let unit = Unit::from_parts(entry.logic, debug).ok()?;
     Some(Hit { unit, sources })
 }
 
@@ -97,10 +222,14 @@ pub(crate) fn store(host: &RuneHost, key: &str, source: &str, unit: &Unit, sourc
         return;
     };
 
+    let Some(stamp) = stamp(host) else {
+        return;
+    };
     let mut bytes = Vec::from(*MAGIC);
     bytes.extend_from_slice(&FORMAT.to_le_bytes());
-    let entry = (stamp(host), &origins, unit.logic(), unit.debug_info());
-    if bincode::serde::encode_into_std_write(&entry, &mut bytes, CONFIG).is_err() {
+    let debug = unit.debug_info().map(SpansOf::of);
+    let entry = &(stamp, &origins, unit.logic(), &debug);
+    if bincode::serde::encode_into_std_write(entry, &mut bytes, CONFIG).is_err() {
         return;
     }
     let fs = balaur_core::files::backend(&host.engine);
@@ -159,22 +288,19 @@ fn file_of(host: &RuneHost, key: &str) -> Option<PathBuf> {
 
 /// What a cached unit is only valid against: the engine that compiled it, and
 /// the addons it compiled with.
-fn stamp(host: &RuneHost) -> u64 {
+///
+/// `None` where the engine cannot be told apart from another build of itself,
+/// which is a browser: nothing is cached there rather than risking a unit an
+/// older engine compiled.
+fn stamp(host: &RuneHost) -> Option<u64> {
+    let exe = std::env::current_exe().ok()?;
+    let built = balaur_core::files::backend(&host.engine).mtime(&exe)?;
     let mut hasher = Hasher::new();
     hasher.write_u64(u64::from(crate::packed::FORMAT));
-    if let Ok(exe) = std::env::current_exe()
-        && let Ok(meta) = std::fs::metadata(&exe)
-    {
-        hasher.write_str(&exe.to_string_lossy());
-        hasher.write_u64(meta.len());
-        if let Ok(modified) = meta.modified()
-            && let Ok(since) = modified.duration_since(std::time::UNIX_EPOCH)
-        {
-            hasher.write_u64(u64::try_from(since.as_nanos()).unwrap_or(u64::MAX));
-        }
-    }
+    hasher.write_str(&exe.to_string_lossy());
+    hasher.write_f64(built);
     crate::mounts::fingerprint(&host.state.borrow().mounts, &mut hasher);
-    hasher.finish().0
+    Some(hasher.finish().0)
 }
 
 fn hash_of(text: &str) -> u64 {

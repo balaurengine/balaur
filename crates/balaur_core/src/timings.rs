@@ -25,6 +25,7 @@
     reason = "an observer, never a simulation input"
 )]
 
+use std::cell::RefCell;
 use std::fmt::Write as _;
 use std::time::Duration;
 
@@ -32,6 +33,101 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::time::Instant;
+
+thread_local! {
+    /// What the run spent before its first frame, summed by name in the order
+    /// the spans finished.
+    ///
+    /// Process-wide rather than a resource on the engine: the engine is one of
+    /// the things being measured, and the first span is filed before there is
+    /// an engine to file it in.
+    static BOOT: RefCell<Vec<(SmolStr, Duration)>> = const { RefCell::new(Vec::new()) };
+    /// When the process started, as the tool that owns `main` measured it.
+    static STARTED: RefCell<Option<Instant>> = const { RefCell::new(None) };
+}
+
+/// The name the first frame's own row carries.
+const TO_FIRST_FRAME: &str = "to first frame";
+
+/// Note that the process has started, for the row the first frame files.
+pub fn mark_start() {
+    STARTED.with_borrow_mut(|at| *at = Some(Instant::now()));
+}
+
+/// Time `body` and file it as boot work under `name`.
+pub fn boot<T>(name: &str, body: impl FnOnce() -> T) -> T {
+    let started = Instant::now();
+    let out = body();
+    note_boot(name, started.elapsed());
+    out
+}
+
+/// Time `body` and file it under `name` only when it answers: a lookup that is
+/// a phase of the boot when it hits and noise when it misses.
+pub fn boot_hit<T>(name: &str, body: impl FnOnce() -> Option<T>) -> Option<T> {
+    let started = Instant::now();
+    let out = body();
+    if out.is_some() {
+        note_boot(name, started.elapsed());
+    }
+    out
+}
+
+/// A boot phase in progress, for work no closure can wrap: an awaited window,
+/// or anything else between two statements rather than inside one call.
+pub struct Phase(Instant);
+
+impl Phase {
+    #[must_use]
+    pub fn start() -> Self {
+        Self(Instant::now())
+    }
+
+    /// File what has passed since [`Phase::start`] under `name`.
+    pub fn note(self, name: &str) {
+        note_boot(name, self.0.elapsed());
+    }
+}
+
+/// File boot work already measured, for a phase no closure can wrap.
+pub fn note_boot(name: &str, elapsed: Duration) {
+    BOOT.with_borrow_mut(
+        |spans| match spans.iter_mut().find(|(n, _)| n.as_str() == name) {
+            Some(slot) => slot.1 += elapsed,
+            None => spans.push((name.into(), elapsed)),
+        },
+    );
+}
+
+/// The table `--timings` prints for the boot, empty when nothing measured one.
+///
+/// A sequence rather than a ranking: boot phases run in order, and what a
+/// reader wants is where the time went on the way to the first frame.
+#[must_use]
+pub fn boot_report() -> String {
+    let spans = BOOT.with_borrow(Clone::clone);
+    if spans.is_empty() {
+        return String::new();
+    }
+    let width = spans.iter().map(|(n, _)| n.len()).max().unwrap_or(0).max(5);
+    let mut out = format!("\n{:width$}  {:>9}\n", "boot", "cost");
+    for (name, cost) in &spans {
+        let _ = writeln!(out, "{name:width$}  {:>9}", millis(*cost));
+    }
+    out
+}
+
+/// File the first frame's own row, once. Called as a frame publishes, which
+/// is the first moment a run can say the boot is over.
+fn note_first_frame() {
+    let Some(started) = STARTED.with_borrow(|at| *at) else {
+        return;
+    };
+    let filed = BOOT.with_borrow(|spans| spans.iter().any(|(n, _)| n == TO_FIRST_FRAME));
+    if !filed {
+        note_boot(TO_FIRST_FRAME, started.elapsed());
+    }
+}
 
 /// The stages, in the order [`crate::app::Stage`] declares them, so a table
 /// reads the way a frame runs.
@@ -110,6 +206,7 @@ pub fn measure<T>(eng: &Engine, name: &str, body: impl FnOnce() -> T) -> T {
 
 /// Publish the frame that just ended. Called by `App::tick` and nobody else.
 pub(crate) fn publish(eng: &Engine, frame: Duration, stages: [Duration; 8], fixed_steps: u32) {
+    note_first_frame();
     let Some(timings) = eng.try_resource::<Timings>() else {
         return;
     };

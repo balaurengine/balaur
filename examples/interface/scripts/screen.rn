@@ -4,10 +4,10 @@
 
 const SEP = "\u{1f}";
 
-/// Where a picture of the screen goes, for the manual's shot. Empty is a
-/// normal run, which is what a reader gets.
+/// Where a picture of the screen goes, for the manual's shot, and where the
+/// clip's frames go. Both empty is a normal run, which is what a reader gets.
 pub fn exports() {
-    #{ shot: "" }
+    #{ shot: "", frames: "" }
 }
 
 // What a card, an outline row and a table row are made of. One table, three
@@ -90,6 +90,13 @@ pub fn table() {
     out
 }
 
+// The clip walks the three views the same rows are drawn in, and shuffles the
+// cards twice so the list is seen rebuilding rather than standing still.
+const TOUR = [
+    [70, "Cards"], [130, "Outline"], [220, "Table"], [310, "Cards"],
+];
+const SHUFFLE_AT = [60, 300];
+
 pub fn init(this) {
     this.frame = 0;
     this.order = [];
@@ -147,5 +154,36 @@ pub fn update(this, dt) {
     this.frame += 1;
     if this.frame == 30 && this.shot != "" {
         render::screenshot(this.shot);
+    }
+    if this.frames == "" {
+        return;
+    }
+    for at in SHUFFLE_AT {
+        if this.frame == at {
+            shuffle(this);
+        }
+    }
+    for step in TOUR {
+        if this.frame == step[0] {
+            let pages = this.node.get_node("Sheet/Body/Right/Pages");
+            if pages is balaur::Node {
+                pages.patch_component("widget", #{ active: step[1] });
+            }
+        }
+    }
+    // The first frame is drawn before the sheet is laid out, so it is skipped.
+    if this.frame >= 2 && this.frame <= 361 {
+        render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
+    }
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n) {
+    if n < 10 {
+        `00${n}`
+    } else if n < 100 {
+        `0${n}`
+    } else {
+        `${n}`
     }
 }

@@ -121,6 +121,18 @@ pub fn doc_spot(S, id) {
     return (first + slot * (TAB_W + 4.0) + TAB_W / 2.0, bar.y + bar.h / 2.0);
 }
 
+/// Where the Focus chip sits, so the showcase's drawn cursor lands on the
+/// control its verb presses. The strip runs personas, documents, split,
+/// focus, the spring, then the transport, so it is two slots back.
+pub fn focus_spot(S) {
+    let bar = S.layout.bar;
+    let found = strip_spot(S, transport_slot(S) - 2);
+    if let Some(spot) = found {
+        return spot;
+    }
+    return (bar.x + bar.w / 2.0, bar.y + bar.h / 2.0);
+}
+
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(S, n) {
     let bar = S.layout.bar;

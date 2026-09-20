@@ -70,6 +70,7 @@ being built, marked `done`, never back in the shipped one.
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
+| **What a boot costs** — a dev run keeps the units it compiled, so the next start reads them back instead of compiling again. | (0.2) | [PLAN-startup.md](PLAN-startup.md) |
 | **What the editor's frame costs** — the docks rebuild every row every frame, so the shell costs more than a 60 Hz budget; a list draws only what is visible. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **The editor on a tablet and a phone** — the docks fold away on a small screen and open one at a time, and every control clears a finger. | 0.8 | [PLAN-responsive.md](PLAN-responsive.md) |
@@ -180,7 +181,7 @@ can do today, in the batches it would be built in.
 | --- | :-: | --- |
 | **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record, replay and rollback, and three transports behind one trait. | 0.1 done | no plan |
 | **WebTransport in the browser** — native QUIC datagrams, binary frames, stable ids and rollback are built, and the browser side is not. | 0.4 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
-| **Multiplayer from a script** — a `multiplayer` module to host, join and leave a match from Rune, on a player's machine or a headless server. | 0.2 | [PLAN-multiplayer.md](PLAN-multiplayer.md) |
+| **Multiplayer from a script** — a `multiplayer` module to host, join and leave a match from Rune, on a player's machine or a headless server. | 0.4 | [PLAN-multiplayer.md](PLAN-multiplayer.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **State replication and RPC** — deltas generated off the component registry, addressed by `StableId` rather than by path. | 0.4 | [PLAN-networking.md#3-steps](PLAN-networking.md#3-steps) |
 | **Client prediction and reconciliation** — the client runs ahead and is corrected against the server, with nodes it does not own interpolated a send interval behind. | 0.4 | [PLAN-networking.md#hiding-latency](PLAN-networking.md#hiding-latency) |
