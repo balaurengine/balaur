@@ -395,8 +395,9 @@ impl RuneHost {
             let source = self.source_of(key)?;
             // Filed under the outcome, so `--timings` says which of the two
             // a boot paid for rather than how long it spent asking.
-            let cached =
-                balaur_core::timings::boot_hit("scripts/cached", || cache::load(self, key, &source));
+            let cached = balaur_core::timings::boot_hit("scripts/cached", || {
+                cache::load(self, key, &source)
+            });
             let (unit, sources) = match cached {
                 Some(hit) => (Arc::new(hit.unit), hit.sources),
                 None => balaur_core::timings::boot("scripts/compiled", || {

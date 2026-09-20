@@ -212,6 +212,10 @@ pub type ApplyFn = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
 pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
 /// Read a component's property table, or `None` when the entity lacks it.
 pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
+/// Read one of a component's properties, for a component that can answer
+/// without building its whole table. `None` means "ask the whole table",
+/// which is also the answer for a property the component does not hold.
+pub type PropertyFn = Box<dyn Fn(&Engine, Entity, &str) -> Option<toml::Value>>;
 
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs). Shared, because a
@@ -1058,6 +1062,38 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
         extra |= 1u128 << i;
     }
     extra
+}
+
+/// The components that can answer one property on their own, by name.
+///
+/// A resource rather than a field on [`ComponentDef`]: every component builds
+/// its whole table today, and this is the fast path for the one or two that a
+/// UI pass reads a single property of, hundreds of times a frame.
+#[derive(Default)]
+pub struct PropertyReaders(std::collections::HashMap<String, PropertyFn>);
+
+/// Say that `name` can answer a single property, and how.
+pub fn answers_property(eng: &Engine, name: &str, read: PropertyFn) {
+    if eng.try_resource::<PropertyReaders>().is_none() {
+        eng.insert_resource(PropertyReaders::default());
+    }
+    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
+        readers.borrow_mut().0.insert(name.to_string(), read);
+    }
+}
+
+/// One property of a component, without building the rest where the component
+/// knows how to answer: `get` and index is what happens otherwise.
+pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
+    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
+        let readers = readers.borrow();
+        if let Some(read) = readers.0.get(name)
+            && let Some(found) = read(eng, entity, key)
+        {
+            return Some(found);
+        }
+    }
+    get(eng, entity, name)?.get(key).cloned()
 }
 
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {

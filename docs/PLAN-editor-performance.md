@@ -219,6 +219,28 @@ This is not §1's `render cpu` line. That one is the tessellation a row
 genuinely causes. This is the same work repeated on frames that drew nothing
 new, and it is fixed in the fork rather than here.
 
+## 6b. What a control costs to read
+
+**Built 2026-09-20.** A pooled control read its whole `widget` component twice
+a frame to learn the one property it carries, and a control that carries
+nothing read it once for nothing. Each read built a TOML table of about forty
+keys with the widget's class tables cloned into it, then converted that table
+into script values.
+
+`node.get_component(component, key)` now answers one property, and the `widget`
+component answers the common keys straight off the struct through
+`components::answers_property`. `pool.rn` asks for the one property it wants,
+and asks for nothing at all where a control carries nothing.
+
+Measured on `examples/hello`, offscreen, 600 frames, three pairs run back to
+back on a machine that was also building: the `ui` pass reads 16.2, 18.9 and
+16.9 ms against 20.4, 20.6 and 23.7 ms before, so about a fifth off. The
+absolute numbers are inflated by the load; the ratio is what to read.
+
+A sampled profile of the same run puts 63% of the main thread in
+`balaur_ui::pass` and almost all of that in the Rune VM, so §2's kinds are
+still where the rest is.
+
 ## 7. The instrument
 
 `engine.profile_scripts(on)` and `engine.script_costs()` count VM instructions

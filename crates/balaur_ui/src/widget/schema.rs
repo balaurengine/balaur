@@ -19,6 +19,7 @@ use crate::widget::node::Widget;
     reason = "one line per property a scene may state; the list is the schema"
 )]
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
+    balaur_core::components::answers_property(reg.engine(), "widget", Box::new(read_property));
     reg.register_component(
         "widget",
         ComponentDef {
@@ -188,6 +189,36 @@ fn remove_widget(eng: &balaur_core::Engine, entity: balaur_core::hecs::Entity) -
     crate::widget::arena::widget_changed(entity);
     let _ = eng.world_mut().remove_one::<Widget>(entity);
     Ok(())
+}
+
+/// One property, straight off the component, for the properties a control
+/// reports. A pooled control reads what it now holds twice a frame, and
+/// building the whole table for that was a twelfth of the editor's frame.
+///
+/// `None` for anything else, which reads the table and indexes it as before.
+fn read_property(
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+    key: &str,
+) -> Option<toml::Value> {
+    let world = eng.world();
+    let widget = world.get::<&Widget>(entity).ok()?;
+    match key {
+        k::TEXT => Some(toml::Value::String(widget.text.to_string())),
+        k::KIND => Some(toml::Value::String(widget.kind.to_string())),
+        k::VALUE => Some(toml::Value::Float(f64::from(widget.value))),
+        k::CHECKED => Some(toml::Value::Boolean(widget.checked)),
+        k::CLICKED => Some(toml::Value::Boolean(widget.clicked)),
+        k::VISIBLE => Some(toml::Value::Boolean(widget.visible)),
+        k::COLOR => Some(toml::Value::Array(
+            widget
+                .color
+                .iter()
+                .map(|c| toml::Value::Float(f64::from(*c)))
+                .collect(),
+        )),
+        _ => None,
+    }
 }
 
 fn read_widget(

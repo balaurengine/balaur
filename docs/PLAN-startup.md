@@ -88,10 +88,34 @@ From a wgpu trace of that boot, the pipelines cost 6 ms and the shader modules
 `Option` and built on demand; the shadow mapper, the HDR pipeline's bloom and
 autoexposure halves, the point and polyline renderers and the skybox are not.
 
-The step is to make each of those an `Option` in the fork, built where it is
-first used, and to measure the boot table before and after. It is worth about
-15 ms of a 135 ms game boot on this machine, and more where a driver compiles
-shaders slowly.
+**Built in the fork, not yet pinned.** Bloom and auto-exposure are off by
+default, and their five pipelines and three shader modules are now compiled on
+the first frame that draws them: `HdrPipeline` keeps them in a `OnceLock`
+rather than building them in `new`. A boot of `examples/hello` creates 8 render
+pipelines and 20 shader modules where it created 13 and 23, and the `renderer`
+phase reads 18 to 20 ms where it read 20 to 24 ms.
+
+That is 2 to 3 ms, an order less than the wgpu trace suggested: a trace
+inflates what it measures, and most of what the renderer's phase costs is the
+adapter and the device rather than the pipelines.
+
+The shadow mapper's four pipelines are the next candidate and are not worth
+taking: every frame binds `shadow_mapper.resources()` whether or not anything
+casts, so building it lazily would build it on the first frame anyway. The
+point and polyline renderers are the same shape.
+
+A pass built on demand is a pass that compiles on the frame it first draws,
+which is a stutter where a game turns bloom on mid-level. So the compile is
+tied to the settings rather than to the draw: `HdrPipeline::prepare` builds
+whatever the current settings will use, `Window::prepare_post` exposes it, and
+`apply_post` calls it where it writes a changed `PostConfig`. A project that
+ships with bloom on pays at start-up exactly as it did; one that never uses it
+pays nothing; one that turns it on mid-game pays on the frame it asked, not
+inside a render pass. It is the shape `set_ssao_enabled` already had.
+
+Landing this needs the kiss3d fork pushed, `Cargo.lock` moved onto the new
+commit, and the `window.prepare_post()` line put back into `apply_post`: it
+names a method the pinned fork has not got, so the three go together.
 
 ## 4. The instrument
 

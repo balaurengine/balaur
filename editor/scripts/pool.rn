@@ -92,19 +92,19 @@ fn apply_control(S, host, key, node, want) {
     // node the next selection gives another kind left a value of another type
     // under its slot, and comparing across the two is not a comparison.
     let held = format!("{}:{}", key, carries);
-    let params = util::obj(node.get_component("widget"));
     let fired = false;
-    // A press is not a value: it is true for one frame and the layer clears
-    // it, so there is nothing to remember and nothing to write back.
+    // One property rather than the table, which is forty keys the pool has no
+    // use for. A press is not a value: it is true for one frame and the layer
+    // clears it, so there is nothing to write back.
     if carries == "clicked" {
-        if params["clicked"] == true {
+        if node.get_component("widget", "clicked") == true {
             let found = want.get("on");
             if let Some(act) = found {
                 act(true);
             }
         }
     } else if carries != "" {
-        let seen = params[carries];
+        let seen = node.get_component("widget", carries);
         let table = memo(S, host);
         let before = table.get(held);
         let known = match before {
@@ -132,7 +132,7 @@ fn apply_control(S, host, key, node, want) {
     // Remembered as the node holds it, not as it was asked for: a float goes
     // through the component as an f32, and 0.2 does not come back as 0.2.
     if carries != "" && carries != "clicked" && !fired {
-        remember(S, host, held, util::obj(node.get_component("widget"))[carries]);
+        remember(S, host, held, node.get_component("widget", carries));
     }
 }
 

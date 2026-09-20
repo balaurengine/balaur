@@ -1580,7 +1580,10 @@ fn check_dock_tools(S) {
                 continue;
             }
         };
-        check(box.w > 20.0 && box.h > 12.0,
+        // Zero is the tools giving way to the tabs, which is what a dock too
+        // narrow for both does. What this catches is the state between: a
+        // hatch a pixel or two wide, drawing what the row then clips.
+        check(box.w == 0.0 || (box.w > 20.0 && box.h > 12.0),
             format!("the {} dock's tools have room to draw ({} × {})",
                 side, box.w as i64, box.h as i64));
     }

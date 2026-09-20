@@ -392,3 +392,38 @@ fn every_component_emits_every_key_its_schema_declares() {
         }
     }
 }
+
+/// A keyed read answers the one property, and the same value the table holds.
+///
+/// Two components: `widget` reads its properties one at a time without
+/// building the table, and `collider3d` has no such fast path, so this also
+/// covers the fallback that reads the table and indexes it.
+#[test]
+fn a_keyed_read_answers_one_property() {
+    let (dir, app) = app_with_every_component();
+    run_script(
+        dir.path(),
+        &app,
+        r#"
+        pub fn init(this) {
+            let n = scene::root().add_child("Keyed");
+            n.set_component("widget", #{ text: "hi", kind: "button" });
+            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
+
+            assert!(n.get_component("widget", "text") == "hi", "widget text");
+            assert!(n.get_component("widget", "kind") == "button", "widget kind");
+            assert!(n.get_component("widget", "clicked") == false, "widget clicked");
+            let table = n.get_component("widget");
+            assert!(n.get_component("widget", "value") == table.value, "same as the table");
+
+            // No fast path: the table is read and indexed.
+            assert!(n.get_component("collider3d", "kind") == "ball", "collider kind");
+
+            assert!(n.get_component("widget", "no_such_property") == (), "unknown property");
+            assert!(n.get_component("body3d", "kind") == (), "component the node lacks");
+
+            this.done = 1.0;
+        }
+        "#,
+    );
+}

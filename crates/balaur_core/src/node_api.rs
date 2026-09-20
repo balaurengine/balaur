@@ -279,7 +279,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
         ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
-        ("get_component", &[], "(component: string)", "The named component's properties as a table, nil when the node does not carry it."),
+        ("get_component", &[], "(component: string, key: string?)", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
         ("component_names", &[], "()", "The names of every component on the node."),
         ("stable_id", &[], "()", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not."),
@@ -803,9 +803,14 @@ fn remove_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn get_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    crate::components::get(eng, e, text(args, 1)?)
-        .as_ref()
-        .map_or(Ok(Value::Nil), from_toml)
+    let name = text(args, 1)?;
+    // With a key, one property: a control reading what it now holds asked for
+    // the whole table, and building that was a twelfth of the editor's frame.
+    let found = match args.get(2) {
+        Some(Value::Str(key)) => crate::components::property(eng, e, name, key),
+        _ => crate::components::get(eng, e, name),
+    };
+    found.as_ref().map_or(Ok(Value::Nil), from_toml)
 }
 
 fn has_component(eng: &Engine, args: &[Value]) -> Result<Value> {
