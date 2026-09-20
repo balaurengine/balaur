@@ -310,18 +310,52 @@ keeps up to 22 bytes in the value itself. A component name, a property key and
 a node path all fit. The Rune component handle holds the `&'static str` it was
 interned from rather than a `String` it cloned on every property read.
 
-**The gain is not yet measured.** Every run since has been taken on a machine
-building three other checkouts, where the control case that carries no string
-at all reads 40% slow, so criterion's own comparison says nothing. Within one
-contaminated run the string-minus-integer difference is 72 ns against 81 ns
-before. Re-run `cargo bench -p balaur_bench --bench components` on a quiet
-machine and write the number here.
+**It did not pay off, and the measurement says so.** On a quiet machine the
+same three cases read 190 ns, 216 ns and 298 ns. A short string argument still
+costs 82 ns more than an integer one, against 81 ns before. The allocation the
+number was blamed on is Rune's, not the seam's: the script builds a string
+value for the literal on every call, and what the seam then does with it is
+beneath the noise.
 
-One thing that run does raise: the 54-byte case sits further above the integer
-case than it did. A string past 22 bytes cannot inline, so it allocates and
-carries a length check besides. Most of what the seam moves is a name or a key;
-a widget's text and a log line are not. Measure that case on its own before
-deciding it matters.
+What the change did remove is real but narrower. The component handle no
+longer clones a `String` for the component name on every property access, and
+a binding that answers with a name no longer allocates one. Neither shows up
+in `seam_arg`, which measures the way in.
+
+It also made a long string worse. A 54-byte argument now costs 52 ns more than
+a 22-byte one, where the gap used to be 24 ns: past 22 bytes a `SmolStr`
+allocates and carries a length check besides. A name, a key and a path all
+inline; a widget's text and a log line do not.
+
+So the seam is not where the script path's time goes. Keep the change or drop
+it on its own merits, and read §6f for where the time actually went.
+
+## 6f. What all of it was worth
+
+**Measured 2026-09-21**, release, Apple M1, five-second samples, load average
+under six. Everything in §6d, §6e and this section together, against the
+numbers §6d opened with.
+
+| | before | after |
+| --- | ---: | ---: |
+| `node.transform.position = [..]` from a script | 2.42 µs | 1.28 µs |
+| `node.transform.position` read from a script | 1.06 µs | 541 ns |
+| `node.get_component(name, key)` | 1.08 µs | 805 ns |
+| `node.has_component(name)` | 612 ns | 447 ns |
+| `components::patch`, one property | 1.41 µs | 838 ns |
+| `components::property`, one key | 372 ns | 100 ns |
+| `components::present_on` | 947 ns | 149 ns |
+| a presence test on the bundle's `transform` | 370 ns | 39 ns |
+| a presence test on a registry-attached component | 37 ns | 43 ns |
+
+The two presence tests now cost the same, which is the point of §6d's second
+mask: there is no longer a component the bitmask cannot answer for.
+
+One thing got slower. A name lookup is a hash at 19.5 ns where the scan it
+replaced took 9.3 ns for `transform`, which registers first and was found on
+the scan's first comparison. The scan was linear, so the last of the
+forty-eight cost far more; the hash reads 20.4 ns there. A write pays one
+lookup now instead of four, so it comes out ahead either way.
 
 ## 6c. The shell writes what changed
 
