@@ -140,6 +140,19 @@ fn stated(S, id, key) {
     }
 }
 
+/// One number off a theme role, or `fallback` where the role says nothing.
+fn role_num(S, role, key, fallback) {
+    let roles = S.theme.roles;
+    let found = roles.get(role);
+    if let Some(entry) = found {
+        let value = entry.get(key);
+        if let Some(number) = value {
+            return util::f(number);
+        }
+    }
+    fallback
+}
+
 /// The scene's own numbers, read back once before anything writes over them.
 /// Nothing outside `scenes/main.toml` may spell a resting shell size.
 fn adopt(S) {
@@ -151,8 +164,10 @@ fn adopt(S) {
     if shell.is_empty() {
         return;
     }
-    m.gutter = stated(S, "shell", "padding");
-    m.gap = util::f(widget_of(S, "body").get("gap").unwrap_or(0.0));
+    // The shell's gutter and seam are the theme's, so one file holds them and
+    // a role a node takes cannot drift from the number this arithmetic uses.
+    m.gutter = role_num(S, "shell", "padding", 14.0);
+    m.gap = role_num(S, "shell", "gap", 12.0);
     m.pad = stated(S, "leftsheet", "padding");
     m.tree_w = stated(S, "left", "width");
     m.insp_w = stated(S, "right", "width");
@@ -346,8 +361,6 @@ pub fn compute(S) {
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
         size(S, id, "gap", if tight { TIGHT_GAP } else { m.gap });
     }
-    size(S, "shell", "width", w);
-    size(S, "shell", "height", S.screen_h);
     size(S, "left", "width", tree_w);
     size(S, "right", "width", insp_w);
     // Folded, a side dock's whole column goes. Not the sheet inside it: a
@@ -471,6 +484,21 @@ pub fn floors(S) {
     let spent = chrome(S);
     (util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.w,
         BAR_H_GUESS + BOTTOM_MIN + crate::center::stage_floor().h + spent.h)
+}
+
+/// The box the engine gave the shell, in design px, or zeros before it has
+/// drawn. `fill` and `safe_area` decide it, so nothing here restates it.
+pub fn shell_room(S) {
+    let node = scene::get_node(SHELL);
+    if util::is_nil(node) {
+        return (0.0, 0.0);
+    }
+    let box = ui::widget_rect(node);
+    if util::is_nil(box) {
+        return (0.0, 0.0);
+    }
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return (util::f(box.w), util::f(box.h));
 }
 
 /// Whether three columns fit across: both side docks and the stage at their

@@ -125,6 +125,25 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
     clickable
 }
 
+/// Submit a `field` as Enter would, settled at the next tick: the text lands
+/// on the widget and `submitted` is true for one frame. What a headless
+/// harness types with, and what proves a pooled row hears it.
+pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
+    let writable = eng
+        .world()
+        .get::<&Widget>(entity)
+        .is_ok_and(|widget| !widget.disabled);
+    if writable {
+        record(
+            eng,
+            &[],
+            vec![(entity, Edit::Submit(text.to_owned()))],
+            None,
+        );
+    }
+    writable
+}
+
 /// What a widget emits from its own node when its value changes, and when a
 /// field is submitted, with the new value: a `[[nodes.bindings.rows]]` row answers
 /// `emitted:change` on any node's script, as a Godot signal connected in a
@@ -163,8 +182,8 @@ fn apply_system(eng: &Engine, _dt: f32) {
         )
     };
     let mut emitted = Vec::new();
-    let mut typed = settle_edits(eng, &edits, &mut emitted);
-    let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
+    let (mut typed, submitted) = settle_edits(eng, &edits, &mut emitted);
+    let signals = settle_clicks(eng, &clicked, &submitted, &mut typed, &mut emitted);
     for (entity, event, value) in emitted {
         balaur_core::events::emit_from(eng, entity, event, value);
     }
@@ -323,12 +342,16 @@ fn settle_edits(
     eng: &Engine,
     edits: &[(WidgetKey, Edit)],
     emitted: &mut Vec<(Entity, &'static str, Value)>,
-) -> Vec<(Entity, String, Value)> {
+) -> (Vec<(Entity, String, Value)>, Vec<Entity>) {
     let mut signals = Vec::new();
+    let mut submitted = Vec::new();
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
             continue;
         };
+        if matches!(edit, Edit::Submit(_)) {
+            submitted.push(entity);
+        }
         let world = eng.world();
         let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             continue;
@@ -338,16 +361,18 @@ fn settle_edits(
         crate::widget::arena::widget_changed(entity);
         settle_one(entity, &mut widget, edit, emitted, &mut signals);
     }
-    signals
+    (signals, submitted)
 }
 
-/// Write this frame's `clicked` onto every widget, and collect the handlers.
+/// Write this frame's `clicked` and `submitted` onto every widget, and collect
+/// the handlers.
 ///
-/// Every widget, not only the ones hit: `clicked` is true for one frame, and a
+/// Every widget, not only the ones hit: both are true for one frame, and a
 /// button nobody pressed this tick has to say so.
 fn settle_clicks(
     eng: &Engine,
     clicked: &[WidgetKey],
+    submitted: &[Entity],
     changes: &mut Vec<(Entity, String, Value)>,
     emitted: &mut Vec<(Entity, &'static str, Value)>,
 ) -> Vec<(Entity, String)> {
@@ -363,6 +388,11 @@ fn settle_clicks(
         // write that put the same `false` back would rebuild the whole arena.
         if widget.clicked != struck {
             widget.clicked = struck;
+            crate::widget::arena::widget_changed(entity);
+        }
+        let said = submitted.contains(&entity);
+        if widget.submitted != said {
+            widget.submitted = said;
             crate::widget::arena::widget_changed(entity);
         }
         if !struck {
@@ -418,7 +448,7 @@ fn settle_clicks(
 
 /// A widget a click ticks and unticks: a `check`, or a `toggle` button.
 fn flips(widget: &Widget) -> bool {
-    widget.kind == w::CHECK || widget.toggle
+    widget.kind == w::CHECK || widget.kind == w::SWITCH || widget.toggle
 }
 
 /// Tell the newly focused widget's script that focus arrived.

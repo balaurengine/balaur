@@ -203,23 +203,17 @@ fn kind_icon(kind) {
 /// The dock. One chip row, then a grid of cards for the chosen kind.
 pub fn panel(S, k) {
     let known = catalogue(S);
-    ui::add_space(6);
-    ui::horizontal(#{ height: 24 }, || {
-        ui::add_space(8);
-        ui::spacing(4, 0);
-        for chip in kinds() {
-            let id = chip[0];
-            let on = S.library.kind == id;
-            if ui::pill(chip[1], #{
-                height: 20, size: style::SM, radius: 4,
-                fill: if on { k.accent_soft } else { k.sunken },
-                color: if on { k.accent } else { k.faint },
-            }) {
-                S.library.kind = id;
-            }
-        }
-    });
-    ui::add_space(6);
+    let chips = [];
+    for chip in kinds() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let id = chip[0];
+        chips.push(#{
+            kind: "button", text: chip[1],
+            role: if S.library.kind == id { "chip_on" } else { "chip" },
+            on: |_| { S.library.kind = id; },
+        });
+    }
+    crate::docks::chrome_strip(S, chips);
     if S.library.kind == "template" {
         dock::hide_cards();
         templates(S, k, known);

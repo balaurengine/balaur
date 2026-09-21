@@ -19,6 +19,7 @@ pub(crate) mod words {
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const FIELD: &str = "field";
     pub(crate) const CHECK: &str = "check";
+    pub(crate) const SWITCH: &str = "switch";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const DROPDOWN: &str = "dropdown";
     pub(crate) const MENU: &str = "menu";
@@ -39,8 +40,8 @@ pub(crate) mod words {
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, TEXT_AREA, CHECK,
-        COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW, FOLD,
-        DIALOG, TOAST, WINDOW, SEPARATOR, CODE, STACK,
+        SWITCH, COLOR, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, DRAG_VALUE, PROGRESS, GRID, FLOW,
+        FOLD, DIALOG, TOAST, WINDOW, SEPARATOR, CODE, STACK,
     ];
 
     pub(crate) const CONTAIN: &str = "contain";
@@ -288,6 +289,7 @@ pub(crate) mod keys {
     pub(crate) const STICK_TO_BOTTOM: &str = "stick_to_bottom";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STRONG: &str = "strong";
+    pub(crate) const SUBMITTED: &str = "submitted";
     pub(crate) const SUFFIX: &str = "suffix";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";

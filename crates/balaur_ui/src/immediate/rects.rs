@@ -34,6 +34,12 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
             "Where a `tab` page's own button in the strip was last drawn, as `#{ x, y, w, h }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         ),
         (
+            "scroll_offset",
+            &[],
+            "",
+            "How far a `scroll` node has been scrolled, as `#{ x, y }` in design pixels; zero before it has drawn. What a list building only the rows in view reads to know which ones they are.",
+        ),
+        (
             "pill_rect",
             &[],
             "",
@@ -56,4 +62,15 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
     m.function("pill_rect", |_eng: &Engine, (): ()| {
         Ok(rect_value(crate::immediate::last_pill()))
     });
+    m.function(
+        "scroll_offset",
+        |_eng: &Engine, node: balaur_script::NodeId| {
+            let entity = balaur_core::entity_of(node)?;
+            let offset = crate::widget::scroll::offset_of(entity);
+            Ok(Value::Map(vec![
+                (k::X.into(), Value::Num(f64::from(offset.x))),
+                (k::Y.into(), Value::Num(f64::from(offset.y))),
+            ]))
+        },
+    );
 }

@@ -28,7 +28,7 @@ pub(crate) fn text_request<'a>(
         weight: weight_of(style, widget).clamp(100.0, 900.0) as u16,
         italic: widget.font_style == w::ITALIC,
         width,
-        align: match widget.text_align.as_str() {
+        align: match crate::widget::theme::text_align_of(style, widget) {
             w::CENTER => balaur_text::Align::Center,
             w::END => balaur_text::Align::End,
             _ => balaur_text::Align::Start,
@@ -79,10 +79,18 @@ pub(crate) fn shaped_label(
     let placed = &at.arena[index];
     let entity = placed.entity;
     let widget = &placed.widget;
-    let (wrap, stated, align, selectable) = (
+    // A grown child was squeezed by the layout, so the box it was given is its
+    // column: it cannot run past what taffy left beside it.
+    let stated = if widget.width > 0.0 {
+        widget.width
+    } else if widget.grow > 0.0 {
+        at.assigned.x
+    } else {
+        0.0
+    };
+    let (wrap, align, selectable) = (
         widget.wrap,
-        widget.width,
-        widget.text_align.clone(),
+        crate::widget::theme::text_align_of(style, widget).to_owned(),
         widget.selectable,
     );
     let on_link = widget.on_link.clone();

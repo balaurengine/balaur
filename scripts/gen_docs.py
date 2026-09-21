@@ -266,11 +266,7 @@ def component_row(prop, spec):
         notes.append(f"Scene shorthand: <code>{html.escape(prop)}</code>'s value can be given as the component's whole value.")
     if spec.get("readonly"):
         notes.append("Read-only: engine output the inspector shows but never writes.")
-    kind = spec.get("type", "")
-    if kind == "asset":
-        kind = f"asset · <code>{html.escape(spec.get('asset', ''))}</code>"
-    else:
-        kind = html.escape(kind)
+    kind = datatype_of(spec)
     default = json.dumps(spec.get("default", "")).strip('"')
     cells = (
         f"<code>{html.escape(prop)}</code>",
@@ -279,6 +275,20 @@ def component_row(prop, spec):
         " ".join(n for n in notes if n),
     )
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
+
+
+def datatype_of(spec):
+    """A property's type as the reference names it, a composite saying what it
+    holds: the column is the answer to "what may I write here?"."""
+    kind = spec.get("type", "")
+    if kind == "asset":
+        return f"asset · <code>{html.escape(spec.get('asset', ''))}</code>"
+    if kind in ("list", "map"):
+        return f"{kind} of {datatype_of(spec.get('of', {}))}"
+    if kind == "record":
+        fields = ", ".join(sorted(spec.get("fields", {})))
+        return f"record · <code>{html.escape(fields)}</code>"
+    return html.escape(kind)
 
 
 # Section order for the component reference. A component lands in the first

@@ -10,6 +10,7 @@ use crate::pen;
 use crate::importer;
 use crate::library;
 use crate::history;
+use crate::inspector;
 use crate::lint;
 use crate::model;
 use crate::newnode;
@@ -925,6 +926,91 @@ pub fn script_props(S) {
         "undo brings the override back");
     check(mirror_resolves(S), "the mirror still resolves after editing properties");
     log::info("selftest props: done");
+}
+
+// A node carrying a `list` property that holds what is written to it: some
+// are read back from a backend that only keeps what its own kind uses, and a
+// test of the editors needs one whose value stays put.
+fn writable_list(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        for comp in found.component_names() {
+            let schema = model::schema(S, comp);
+            for prop in util::keys_sorted(schema) {
+                let spec = schema[prop];
+                let writable = spec.get("readonly").unwrap_or(false) != true;
+                if spec["type"] != "list" || !writable {
+                    continue;
+                }
+                let of = util::obj(spec.get("of").unwrap_or(#{}));
+                if of.get("type").unwrap_or("") != "string" {
+                    continue;
+                }
+                shell::choose(S, i);
+                model::set_component_prop(S, comp, prop, ["one", "two"]);
+                if list_now(S, i, comp, prop).len() == 2 {
+                    return Some((i, comp, prop, spec));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn list_now(S, i, comp, prop) {
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return [],
+    };
+    util::vec(util::obj(found.get_component(comp)).get(prop).unwrap_or([]))
+}
+
+// A property that holds other properties: what the inspector writes when a
+// row inside one is edited, which is the whole value with that one part of it
+// replaced.
+pub fn composite_props(S) {
+    let found = writable_list(S);
+    let (i, comp, prop, spec) = match found {
+        Some(hit) => hit,
+        None => {
+            log::info("selftest composites: no component here holds a list that sticks; skipped");
+            return;
+        }
+    };
+    let of = util::obj(spec.get("of").unwrap_or(#{}));
+    check(of.contains_key("type"), format!("{}.{} says what it holds", comp, prop));
+    check(of.contains_key("default"),
+        format!("{}.{} holds a default for a new entry", comp, prop));
+
+    let at = inspector::at_top(comp, prop, ["one", "two"]);
+    inspector::write_at(S, inspector::at_step(at, 1, "1"), "three");
+    let now = list_now(S, i, comp, prop);
+    check(now.len() == 2, format!("{}.{} still holds two ({})", comp, prop, now.len()));
+    check(now.get(0).unwrap_or("") == "one", "the entry beside it is untouched");
+    check(now.get(1).unwrap_or("") == "three",
+        format!("the edited entry took the write ({:?})", now));
+
+    inspector::drop_entry(S, at, 0);
+    let left = list_now(S, i, comp, prop);
+    check(left.len() == 1, format!("an entry taken out leaves one ({})", left.len()));
+    check(left.get(0).unwrap_or("") == "three", "the one left is the one that stayed");
+
+    inspector::add_entry(S, at, of, "");
+    let grown = list_now(S, i, comp, prop);
+    check(grown.len() == 2, format!("an added entry makes two ({})", grown.len()));
+    check(grown.get(1).unwrap_or("?") == of["default"], "a new entry starts at the spec's default");
+
+    undo_all(S);
+    check(mirror_resolves(S), "the mirror still resolves after editing a list");
+
+    // Left where a picture of it is worth taking: three entries, the fold
+    // they sit in open, and the rest of the schema searched away.
+    model::set_component_prop(S, comp, prop, ["ssao", "bloom", "tonemap"]);
+    S.search["inspector"] = prop;
+    log::info("selftest composites: done");
 }
 
 // The first script the scene attaches, which is what a lint sweep starts from.

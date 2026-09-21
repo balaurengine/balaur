@@ -1009,7 +1009,8 @@ fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// One property a script declared, against the component schema vocabulary.
+/// One property a script declared, against the component schema vocabulary,
+/// and back with every nested `default` filled in.
 ///
 /// Here rather than in `components` because the spec arrives as a script
 /// value, and this is the module that converts one: a backend asking whether
@@ -1017,9 +1018,22 @@ fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
 ///
 /// # Errors
 /// The reason, for a caller that prefixes the script and the property.
-pub fn validate_property_spec(spec: &Value) -> std::result::Result<(), String> {
-    let table = to_toml(spec).map_err(|e| e.to_string())?;
-    crate::components::validate_property(&table)
+pub fn checked_property_spec(spec: &Value) -> std::result::Result<Value, String> {
+    let mut table = to_toml(spec).map_err(|e| e.to_string())?;
+    crate::components::validate_property(&table)?;
+    crate::components::complete_property(&mut table);
+    from_toml(&table).map_err(|e| e.to_string())
+}
+
+/// One value against the spec that governs it, for a caller holding a list's
+/// entries to what its first one said.
+///
+/// # Errors
+/// The reason the value is not what the spec declares.
+pub fn check_property_value(spec: &Value, value: &Value) -> std::result::Result<(), String> {
+    let spec = to_toml(spec).map_err(|e| e.to_string())?;
+    let value = to_toml(value).map_err(|e| e.to_string())?;
+    crate::components::validate_value(&spec, &value)
 }
 
 /// Component parameters travel as TOML, so a script table and a scene file

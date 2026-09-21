@@ -343,48 +343,48 @@ fn asset_verbs(S, k) {
     let chosen = S.assets.sel != "";
     // One button, two jobs: an import to start, or the one running to stop.
     let importing = crate::dropin::in_flight(S) > 0;
-    let label = if importing { " cancel" } else { " import" };
-    if ui::pill(icons::panel("import") + label, #{
-        height: 20, size: style::SM, strong: true,
-        tooltip: if importing { "Stop the import after the file it is writing" }
-            else { "Bring in a model, a sprite or a level" },
-        fill: k.sunken, color: if importing { k.accent } else { k.dim },
-    }) {
-        if importing {
-            import::cancel();
-        } else {
-            // Asks and imports: a dialog on a desktop, the page's own chooser
-            // in a tab, and the same reports either way.
-            import::choose();
-        }
-    }
-    ui::add_space(6);
-    if ui::pill(icons::ui("add") + " folder", #{
-        height: 20, size: style::SM, strong: true, tooltip: "Make a folder here",
-        fill: k.sunken, color: k.dim,
-    }) {
-        new_folder(S);
-    }
-    ui::add_space(6);
-    if ui::pill("rename", #{
-        height: 20, size: style::SM, strong: true,
-        tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
-        fill: k.sunken, color: if chosen { k.dim } else { k.line },
-    }) {
-        if chosen {
-            S.assets.renaming = !S.assets.renaming;
-        }
-    }
-    ui::add_space(6);
-    if ui::pill("delete", #{
-        height: 20, size: style::SM, strong: true,
-        tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
-        fill: k.sunken, color: if chosen { k.accent } else { k.line },
-    }) {
-        if chosen {
-            delete_asset(S);
-        }
-    }
+    [
+        #{
+            kind: "button", text: icons::panel("import") + if importing { " cancel" } else { " import" },
+            role: if importing { "chrome_verb_on" } else { "chrome_verb" },
+            tooltip: if importing { "Stop the import after the file it is writing" }
+                else { "Bring in a model, a sprite or a level" },
+            on: |_| {
+                if importing {
+                    import::cancel();
+                } else {
+                    // Asks and imports: a dialog on a desktop, the page's own
+                    // chooser in a tab, and the same reports either way.
+                    import::choose();
+                }
+            },
+        },
+        #{
+            kind: "button", role: "chrome_verb", text: icons::ui("add") + " folder",
+            tooltip: "Make a folder here",
+            on: |_| { new_folder(S); },
+        },
+        #{
+            kind: "button", text: "rename",
+            role: if chosen { "chrome_verb" } else { "chrome_verb_off" },
+            tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
+            on: |_| {
+                if chosen {
+                    S.assets.renaming = !S.assets.renaming;
+                }
+            },
+        },
+        #{
+            kind: "button", text: "delete",
+            role: if chosen { "chrome_verb_warn" } else { "chrome_verb_off" },
+            tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
+            on: |_| {
+                if chosen {
+                    delete_asset(S);
+                }
+            },
+        },
+    ]
 }
 
 fn asset_path(S, rel) {
@@ -447,33 +447,35 @@ pub fn assets(S, k) {
             files.push(f);
         }
     }
-    ui::horizontal(#{ height: 24 }, || {
-        ui::add_space(12);
-        if dir != "" {
-            if ui::pill("↑", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
-                S.assets.dir = parent_dir(dir);
-            }
-            ui::add_space(6);
-        }
-        if S.assets.renaming {
-            let (name, _, submitted) = ui::text_field("asset-rename", "new name",
-                util::merge(style::field(k, 180.0), #{ value: util::last_segment(S.assets.sel) }));
-            if submitted {
-                rename_asset(S, name);
-            }
-        } else {
-            ui::label(format!("res://{}", dir), style::mono_sm(k.faint));
-        }
-        ui::right(|| {
-            ui::add_space(12);
-            ui::label(format!("{} items", files.len()), style::mono_sm(k.faint));
-            ui::add_space(12);
-            asset_verbs(S, k);
-            ui::add_space(8);
-            crate::search::field(S, k, "assets", "Search", 140.0);
-        });
-    });
+    crate::docks::chrome_strip(S, assets_chrome(S, k, dir, files.len()));
     show_cards(S, k, dir, files);
+}
+
+/// The Assets strip: where the browser is, what is in it, and the verbs.
+fn assets_chrome(S, k, dir, count) {
+    let out = [];
+    if dir != "" {
+        out.push(#{
+            kind: "button", role: "chrome_verb", text: "↑", tooltip: "Up one folder",
+            on: |_| { S.assets.dir = parent_dir(dir); },
+        });
+    }
+    if S.assets.renaming {
+        out.push(#{
+            kind: "field", role: "chrome_field", width: 180,
+            text: util::last_segment(S.assets.sel), placeholder: "new name",
+            on_submit: |name| { rename_asset(S, name); },
+        });
+    } else {
+        out.push(#{ kind: "label", role: "meta", text: format!("res://{}", dir) });
+    }
+    out.push(#{ kind: "row", grow: 1 });
+    out.push(#{ kind: "label", role: "meta", text: format!("{} items", count) });
+    for verb in asset_verbs(S, k) {
+        out.push(verb);
+    }
+    out.push(crate::search::control(S, "assets", "Search", 140.0));
+    out
 }
 
 // The cards themselves, on the bottom dock's `list` node in its icon mode.

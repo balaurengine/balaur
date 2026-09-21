@@ -76,6 +76,9 @@ pub struct Widget {
     /// Method called with the 1-based line a click on the gutter landed on.
     pub on_gutter: SmolStr,
     pub clicked: bool,
+    /// True for the one frame a `field` was submitted, as `clicked` is for the
+    /// frame a button was pressed.
+    pub submitted: bool,
     /// Space inside a container's edge, in design pixels.
     /// Space inside a container's edge: left, top, right and bottom, in
     /// design pixels. Below zero on every side takes the theme's.
@@ -238,6 +241,9 @@ pub struct Widget {
     pub tooltip: SmolStr,
     /// A glyph from the theme's icon family, drawn before `text`.
     pub icon: SmolStr,
+    /// The ink that glyph is tinted with, as `#rrggbb` or a name from the
+    /// theme's `[colors]`; empty takes the role's own.
+    pub icon_color: SmolStr,
     /// Greyed out, and deaf to clicks.
     pub disabled: bool,
     /// A fill and an outline this one widget states, as `#rrggbb` or a name

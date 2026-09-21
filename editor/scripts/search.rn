@@ -16,6 +16,16 @@ pub fn field(S, k, id, placeholder, width) {
     text
 }
 
+/// A search control a pooled strip holds, rather than one drawn: the same
+/// state under the same `id`, so `query` answers for either.
+pub fn control(S, id, placeholder, width) {
+    #{
+        kind: "field", role: "chrome_field", width: width,
+        text: S.search.get(id).unwrap_or(""), placeholder: placeholder,
+        on: |text| { S.search[id] = text; },
+    }
+}
+
 /// The query a dock is filtering by, "" when it is not.
 pub fn query(S, id) {
     S.search.get(id).unwrap_or("")

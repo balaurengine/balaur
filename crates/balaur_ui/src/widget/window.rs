@@ -4,7 +4,7 @@
 
 use egui::{Color32, Sense, Stroke};
 
-use crate::widget::arrange::{Axis, solved_of, hold_to, lay_out, padding_of};
+use crate::widget::arrange::{Axis, hold_to, lay_out, padding_of, solved_of};
 use crate::widget::layer::{Edit, Painting};
 
 /// The cross on the title bar.

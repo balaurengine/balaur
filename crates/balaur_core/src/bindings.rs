@@ -340,7 +340,7 @@ pub(crate) fn register_bindings_component(app: &mut App) {
             // property, like every other component.
             schema: ComponentDef::parse_schema(
                 "bindings",
-                r#"rows = { type = "strings", default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
+                r#"rows = { type = "list", of = { type = "string" }, default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
             ),
             tags: &["interaction"],
             expects: &[],

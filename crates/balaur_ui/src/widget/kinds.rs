@@ -8,7 +8,7 @@ use balaur_core::Engine;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::{Axis, solved_of, lay_out, padding_of, record_measure, record_rect};
+use crate::widget::arrange::{Axis, lay_out, padding_of, record_measure, record_rect, solved_of};
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
@@ -39,6 +39,38 @@ pub(crate) fn check(
             egui::StrokeKind::Outside,
         );
     }
+}
+
+/// An on/off switch: a track the theme fills and a knob at one end of it.
+///
+/// `checked` is what it holds, so a role dresses the two states as a button's
+/// are dressed: `[roles.x]` while it is off and `[roles.x.active]` while it is
+/// on, because a checked widget wears the held look.
+pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let (entity, on) = {
+        let placed = &at.arena[index];
+        (placed.entity, placed.widget.checked)
+    };
+    let look = at.resting(index);
+    let height = look.style.height.unwrap_or(18.0);
+    let (rect, response) = ui.allocate_exact_size(vec2(height * 1.75, height), Sense::click());
+    if response.clicked() {
+        at.clicked.push(entity);
+    }
+    let dressed = look.style.in_state(response.hovered() || on, on);
+    let track = dressed.fill.unwrap_or(Color32::TRANSPARENT);
+    let knob = dressed
+        .text_color
+        .unwrap_or(crate::widget::theme::DEFAULT_INK);
+    ui.painter().rect_filled(rect, height / 2.0, track);
+    let inset = height / 2.0;
+    let x = if on {
+        rect.max.x - inset
+    } else {
+        rect.min.x + inset
+    };
+    ui.painter()
+        .circle_filled(pos2(x, rect.center().y), height * 0.34, knob);
 }
 
 /// One of the widget's `options`, chosen from a list that drops down.

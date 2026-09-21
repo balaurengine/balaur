@@ -431,6 +431,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_FIELD", w::FIELD),
     ("WIDGET_TEXT_AREA", w::TEXT_AREA),
     ("WIDGET_CHECK", w::CHECK),
+    ("WIDGET_SWITCH", w::SWITCH),
     ("WIDGET_COLOR", w::COLOR),
     ("WIDGET_DROPDOWN", w::DROPDOWN),
     ("WIDGET_MENU", w::MENU),

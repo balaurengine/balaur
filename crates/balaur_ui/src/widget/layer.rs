@@ -11,8 +11,8 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
 use crate::widget::arrange::{
-    Axis, solved_of, contain, hold_to, lay_out, padding_of, record_measure, record_rect,
-    roll_measurements, scroller, settle_rects, tabs,
+    Axis, contain, hold_to, lay_out, padding_of, record_measure, record_rect, roll_measurements,
+    scroller, settle_rects, solved_of, tabs,
 };
 use crate::widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::theme::{Style, WidgetTheme, face, styled, theme_of};
@@ -171,6 +171,11 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
     }
     let [left, top, right, bottom] = cover;
     let screen = facts.design_size();
+    // A device that has not reported its size yet answers zero, and an
+    // intersection with that is an empty root rather than an uninset one.
+    if screen[0] <= 0.0 || screen[1] <= 0.0 {
+        return area;
+    }
     let safe = egui::Rect::from_min_max(
         egui::pos2(left, top),
         egui::pos2(screen[0] - right, screen[1] - bottom),
@@ -711,6 +716,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::PANEL | w::DIALOG | w::TOAST => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
         w::CHECK => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
+        w::SWITCH => crate::widget::kinds::switch(ui, at, index),
         w::COLOR => crate::widget::kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget::kinds::dropdown(ui, at, index, &font, color),
         w::MENU => crate::widget::kinds::menu(ui, at, index, &caption, &font, color),

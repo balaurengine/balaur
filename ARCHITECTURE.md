@@ -225,7 +225,7 @@ Breakpoints, stepping and a call stack with locals, for scripts in the editor.
 
 `App::register_component` takes a TOML schema — a `type` per property from the
 closed set (`float`, `int`, `bool`, `string`, `enum`, `flags`, `vec2`,
-`vec3`, `vec4`, `color`, `asset`, `node`, `nodes`, `strings`), defaults,
+`vec3`, `vec4`, `color`, `asset`, `node`, `list`, `map`, `record`), defaults,
 options, ranges, `readonly`, `description`, `unit`, `group` — plus apply, get
 and remove hooks.
 
@@ -236,6 +236,15 @@ and remove hooks.
   property: a bad schema fails at boot, not at the first inspector row.
 - A tagged union's discriminant is always `kind`; `type` is always the datatype
   (N6). A `color` takes floats or `#rrggbb[aa]`, expanded before `apply`.
+- Three types hold others: a `list` and a `map` name what they hold in `of`, a
+  `record` names one spec per field in `fields`, and each of those is a whole
+  spec, so `min`, `options`, `asset` and `component` work at any depth. A
+  nested spec may leave its `default` out and registration writes the type's
+  zero in. A `map`'s `key` is `"string"` or `"int"`, and the file spells a
+  number key `"7"` either way. A `record` may name a script `class`, and the
+  host hands that script an instance of its own struct: the fork carries
+  `Value::struct_parts` and `Unit::new_struct` for it, because Rune keeps a
+  dynamic struct private to its crate.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the

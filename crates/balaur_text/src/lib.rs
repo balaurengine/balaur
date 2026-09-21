@@ -729,19 +729,22 @@ mod tests {
 
     fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
         let mut state = TextState::new(&faces(), "en-US");
-        let shaped = state.layout(&RequestRef {
-            text,
-            size: 20.0,
-            weight: 400,
-            italic: false,
-            width,
-            align: Align::Start,
-            markup: true,
-            font: "",
-            family: "",
-            line_height: 0.0,
-            letter_spacing: 0.0,
-        });
+        let shaped = state.layout(
+            &RequestRef {
+                text,
+                size: 20.0,
+                weight: 400,
+                italic: false,
+                width,
+                align: Align::Start,
+                markup: true,
+                font: "",
+                family: "",
+                line_height: 0.0,
+                letter_spacing: 0.0,
+            },
+            1.0,
+        );
         (state, shaped)
     }
 
@@ -807,6 +810,54 @@ mod tests {
         let inked = (y0..y1)
             .any(|row| (x0..x1).any(|column| atlas.rgba()[(row * side + column) * 4 + 3] > 0));
         assert!(inked, "the glyph's box in the atlas is blank");
+    }
+
+    /// Filling the page doubles it rather than starting over, so a glyph
+    /// already rasterised keeps its pixels and is never drawn again.
+    #[test]
+    fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
+        let mut state = TextState::new(&faces(), "en-US");
+        let ask = |state: &mut TextState, text: String| {
+            state.shape(&Request {
+                text,
+                size: 64.0,
+                weight: 400,
+                italic: false,
+                width: None,
+                align: Align::Start,
+                markup: false,
+                font: String::new(),
+                family: String::new(),
+                line_height: 0.0,
+                letter_spacing: 0.0,
+            })
+        };
+        let opened = state.atlas().side();
+        // Enough distinct glyphs at a size that fills a small page.
+        for c in 'a'..='z' {
+            ask(&mut state, c.to_string());
+        }
+        for c in 'A'..='Z' {
+            ask(&mut state, c.to_string());
+        }
+        let grown = state.atlas().side();
+        assert!(
+            grown > opened,
+            "the atlas stayed at {opened} and wiped instead"
+        );
+        assert_eq!(state.atlas().rgba().len(), grown * grown * 4);
+        // The first glyph still has ink where its UV says, which a reset
+        // would have taken away.
+        let shaped = ask(&mut state, "a".to_owned());
+        let uv = shaped.quads[0].uv;
+        let rgba = state.atlas().rgba();
+        let x0 = (uv.min.x * grown as f32) as usize;
+        let y0 = (uv.min.y * grown as f32) as usize;
+        let x1 = (uv.max.x * grown as f32).ceil() as usize;
+        let y1 = (uv.max.y * grown as f32).ceil() as usize;
+        let inked =
+            (y0..y1).any(|row| (x0..x1).any(|column| rgba[(row * grown + column) * 4 + 3] > 0));
+        assert!(inked, "the glyph's box in the grown atlas is blank");
     }
 
     /// A second consumer must see a stable atlas: shaping the same run twice

@@ -155,8 +155,11 @@ fn paint_face(
     }
     if let Some(icon) = &face.icon {
         let y = rect.center().y - icon.size().y / 2.0;
+        // A glyph icon answers `icon_color` as a picture does, so a row that
+        // tints its mark per component does not have to draw itself.
+        let tint = style.icon_color.unwrap_or(ink);
         ui.painter()
-            .galley(pos2(at_x, y), std::sync::Arc::clone(icon), ink);
+            .galley(pos2(at_x, y), std::sync::Arc::clone(icon), tint);
         at_x += icon.size().x + face.gap;
     }
     if let Some((shaped, texture)) = &face.shaped {

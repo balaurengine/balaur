@@ -78,8 +78,9 @@ pub struct Style {
     pub font: Option<String>,
     /// Weight on the CSS scale; a role's `strong = true` is 700.
     pub weight: Option<f32>,
-    /// A floor on the box, in design pixels, for a role that carries its own
-    /// control height the way the editor's `tab` and `chip` do.
+    /// The box a role asks for, in design pixels, for a role that carries its
+    /// own control size the way the editor's `tab` and `chip` do. A node that
+    /// states one of its own wins; this is not a floor.
     pub height: Option<f32>,
     pub width: Option<f32>,
     /// The gap either side of a caption, in design pixels.
@@ -634,6 +635,7 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     // styles repeated.
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
+        && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && widget.padding_x < 0.0
     {
@@ -646,6 +648,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     if !widget.stroke.is_empty() {
         style.stroke = theme.token(&widget.stroke);
     }
+    if !widget.icon_color.is_empty() {
+        style.icon_color = theme.token(&widget.icon_color);
+    }
     if widget.radius >= 0.0 {
         style.radius = Some(widget.radius);
     }
@@ -657,6 +662,17 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
 
 /// The near-white a caption takes when neither the widget nor its theme says.
 pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
+
+/// Where a caption sits across the width it was given: the node's own
+/// `text_align`, else its role's `align`. `start` is the schema's default and
+/// means the node asked for nothing.
+pub(crate) fn text_align_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
+    if widget.text_align.is_empty() || widget.text_align == w::START {
+        style.align.as_deref().unwrap_or(w::START)
+    } else {
+        widget.text_align.as_str()
+    }
+}
 
 /// The theme family a widget draws in: the one it names, else its role's,
 /// else `ui`. The shaper needs the name as well as the face.

@@ -12,7 +12,7 @@ fn carrier(kind) {
     if kind == "drag_value" || kind == "slider" || kind == "progress" {
         return "value";
     }
-    if kind == "check" {
+    if kind == "check" || kind == "switch" {
         return "checked";
     }
     if kind == "field" || kind == "dropdown" || kind == "text_area" || kind == "list" {
@@ -61,7 +61,19 @@ fn patched(S, host, key, node, set) {
     }
     table[mark] = set;
     S.pool[host] = table;
-    node.patch_component("widget", set);
+    // A patch keeps every key the new table leaves out, so a pooled slot that
+    // changes kind or role wears the last one's. Replacing it drops them.
+    let wanted = set.get("kind");
+    let swapped = match wanted {
+        Some(kind) => kind != node.get_component("widget", "kind")
+            || set.get("role").unwrap_or("") != node.get_component("widget", "role"),
+        None => false,
+    };
+    if swapped {
+        node.set_component("widget", set);
+    } else {
+        node.patch_component("widget", set);
+    }
 }
 
 // Forget what a host was asked for: a node just made holds none of it, and a
@@ -82,8 +94,10 @@ fn make_row(host, index) {
     label.set_component("widget", #{ kind: "label", role: "label" });
     let column = row.add_child("H");
     column.set_component("widget", #{ kind: "row", gap: 0, grow: 1 });
+    // No `gap`: the row's `slot_role` carries it, and a number here would win
+    // over the theme.
     let slot = column.add_child("C");
-    slot.set_component("widget", #{ kind: "row", gap: 1, grow: 1 });
+    slot.set_component("widget", #{ kind: "row", grow: 1 });
     let hatch = column.add_child("D");
     hatch.set_component("widget", #{ kind: "draw", visible: false, grow: 1 });
     row
@@ -105,6 +119,9 @@ fn control_at(slot, index) {
 ///
 /// Read before write, because a node reports the frame before: the value on
 /// it now is either what this wrote or the reader's edit over the top.
+///
+/// `on` hears every change; `on_submit` hears only Enter and a field losing
+/// focus, which is what a row writing a path wants.
 fn apply_control(S, host, key, node, want) {
     let kind = want.get("kind").unwrap_or("label");
     let carries = carrier(kind);
@@ -113,6 +130,15 @@ fn apply_control(S, host, key, node, want) {
     // under its slot, and comparing across the two is not a comparison.
     let held = format!("{}:{}", key, carries);
     let fired = false;
+    // A submit is a press with a value: true for one frame, and the text the
+    // reader left. Read before the value below, so a row that writes on Enter
+    // hears it rather than every keystroke.
+    if node.get_component("widget", "submitted") == true {
+        let found = want.get("on_submit");
+        if let Some(act) = found {
+            act(node.get_component("widget", "text"));
+        }
+    }
     // One property rather than the table, which is forty keys the pool has no
     // use for. A press is not a value: it is true for one frame and the layer
     // clears it, so there is nothing to write back.
@@ -144,7 +170,9 @@ fn apply_control(S, host, key, node, want) {
     }
     let set = util::merge(want, #{ visible: true });
     set.remove("on");
+    set.remove("on_submit");
     set.remove("clicked");
+    set.remove("submitted");
     if fired {
         set.remove(carries);
         // The reader's value is on the node and not in `set`, so the pass
@@ -176,6 +204,12 @@ pub fn strip(S, host_path, controls) {
         return;
     }
     patched(S, host_path, "host", host, #{ visible: true });
+    fill_children(S, host_path, host, controls);
+}
+
+/// Put `controls` on a host's children, making what is missing and hiding
+/// what is spare. What `strip` and `window` both do once they know the list.
+fn fill_children(S, host_path, host, controls) {
     let made = host.children().len();
     if made < controls.len() {
         forget(S, host_path);
@@ -203,7 +237,10 @@ pub fn strip(S, host_path, controls) {
 }
 
 fn group(S, host, i, node, want, inner) {
-    let set = util::merge(want, #{ kind: "row", visible: true, gap: 0 });
+    // A group states its own kind where it is a column of rows rather than a
+    // row of controls; `row` is what a tile and its mark are.
+    let set = util::merge(#{ kind: "row", gap: 0 }, want);
+    set.visible = true;
     set.remove("controls");
     patched(S, host, format!("{}", i), node, set);
     let made = node.children().len();
@@ -216,17 +253,28 @@ fn group(S, host, i, node, want, inner) {
         made += 1;
     }
     for (n, kid) in node.children().iter().enumerate() {
+        let key = format!("{}:{}", i, n);
         if n >= inner.len() {
-            patched(S, host, format!("{}:{}", i, n), kid, #{ visible: false });
+            patched(S, host, key, kid, #{ visible: false });
             continue;
         }
-        apply_control(S, host, format!("{}:{}", i, n), kid, util::merge(SHAPELESS, inner[n]));
+        // Groups nest: a project row is a column of two rows, and each of
+        // those is a row of controls.
+        let held = util::merge(SHAPELESS, inner[n]);
+        let deeper = held.get("controls");
+        match deeper {
+            Some(deeper) => group(S, host, key, kid, held, deeper),
+            None => apply_control(S, host, key, kid, held),
+        }
     }
 }
 
 /// Put `specs` on the host's children, making what is missing and hiding what
 /// is spare. A spec is `#{ label, controls }`, and a control is a widget
 /// property table plus an `on` the pool calls with the reader's edit.
+///
+/// `slot_role` dresses the row's control column, so the air between a caret
+/// and the heading beside it is a theme entry rather than a number here.
 ///
 /// The rows are as wide as the host: `stacked` puts each label above its
 /// control column instead of beside it, for a host too narrow for both.
@@ -292,7 +340,10 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         if util::is_nil(slot) {
             continue;
         }
-        patched(S, host_path, format!("r{}:C", i), slot, #{ visible: drawn.is_none() });
+        patched(S, host_path, format!("r{}:C", i), slot, #{
+            visible: drawn.is_none(),
+            role: spec.get("slot_role").unwrap_or("cells"),
+        });
         if drawn.is_some() {
             continue;
         }
@@ -303,7 +354,15 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         let n = 0;
         while n < controls.len() {
             let node = control_at(slot, n);
-            apply_control(S, host_path, format!("{}:{}", i, n), node, controls[n]);
+            let want = controls[n];
+            let key = format!("{}:{}", i, n);
+            // A control carrying controls is a box with others inside it: the
+            // sage frame an instance's prefab path and its verb share.
+            let inner = want.get("controls");
+            match inner {
+                Some(inner) => group(S, host_path, key, node, want, inner),
+                None => apply_control(S, host_path, key, node, want),
+            }
             n += 1;
         }
         // Whatever a longer row left behind. Hidden, not freed: the next
@@ -314,6 +373,53 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
             }
         }
     }
+}
+
+/// A long list of rows, built as nodes but only where they can be seen.
+///
+/// `row(i)` answers the control table for row `i`, and is called only for the
+/// rows in view. A spacer above and below stands in for the rest, so the bar
+/// is the length of the whole list while the nodes are the length of the
+/// window. Every row is `row_h` tall: a list of one height is what a window
+/// can find a row in without measuring the ones above it.
+///
+/// `host_path` is a `column` inside a `scroll`; the scroll is what says how
+/// much room there is and how far down the reader has gone.
+pub fn window(S, host_path, count, row_h, row) {
+    let host = scene::get_node(host_path);
+    if util::is_nil(host) {
+        return;
+    }
+    patched(S, host_path, "host", host, #{ visible: true });
+    let (first, shown) = in_view(host, count, row_h);
+    let controls = [#{ kind: "row", height: util::f(first) * row_h }];
+    let n = 0;
+    while n < shown {
+        controls.push(row(first + n));
+        n += 1;
+    }
+    let after = count - first - shown;
+    controls.push(#{ kind: "row", height: util::f(after) * row_h });
+    fill_children(S, host_path, host, controls);
+}
+
+/// Which rows a windowed list has to build: the first the scroll has reached
+/// and how many fit below it, with one either side so a part-row at each edge
+/// is drawn rather than missing.
+fn in_view(host, count, row_h) {
+    let scroll = host.parent();
+    let box = if util::is_nil(scroll) { () } else { ui::widget_rect(scroll) };
+    let room = if util::is_nil(box) { 0.0 } else { util::f(box.h) };
+    if row_h <= 0.0 || room <= 0.0 {
+        // Nothing measured yet: the first pass builds a screenful at a guess,
+        // and the pass after it knows the room.
+        let guess = util::i(util::min(util::f(count), 40.0));
+        return (0, guess);
+    }
+    let moved = ui::scroll_offset(scroll);
+    let first = util::i(util::max(0.0, util::f(moved.y) / row_h - 1.0));
+    let fits = util::i(room / row_h) + 2;
+    (first, util::i(util::min(util::f(count - first), util::f(fits))))
 }
 
 /// Stop drawing the whole pool, for a panel that has nothing to show.

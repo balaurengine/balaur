@@ -53,9 +53,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
                     (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
                     (k::SELECTABLE, r#"{ type = "bool", default = false, description = "Let a drag over this label select its text, and the platform's copy key take it", group = "type" }"#),
-                    (k::BREAKPOINTS, r#"{ type = "strings", default = [], description = "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means", group = "value" }"#),
-                    (k::PROBLEMS, r#"{ type = "strings", default = [], description = "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter", group = "value" }"#),
-                    (k::WARNINGS, r#"{ type = "strings", default = [], description = "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it", group = "value" }"#),
+                    (k::BREAKPOINTS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means", group = "value" }"#),
+                    (k::PROBLEMS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter", group = "value" }"#),
+                    (k::WARNINGS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it", group = "value" }"#),
                     (k::CURRENT_LINE, r#"{ type = "int", default = 0, min = 0, description = "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none", group = "value" }"#),
                     (k::GUTTER_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits", group = "layout" }"#),
                     (k::ON_GUTTER, r#"{ type = "string", default = "", description = "Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
@@ -90,6 +90,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::NUMERIC, r#"{ type = "bool", default = false, description = "Keep a `field` to digits, a sign and a point", group = "value" }"#),
                     (k::ON_CHANGE, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::ON_SUBMIT, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::SUBMITTED, r#"{ type = "bool", default = false, description = "True for the one frame a `field` was submitted, the way `clicked` reports a press", group = "events" }"#),
                     (k::CHECKED, r#"{ type = "bool", default = false, description = "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look" }"#),
                     (k::GROUP, r#"{ type = "string", default = "", description = "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
                     (k::TOGGLE, r#"{ type = "bool", default = false, description = "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode", group = "value" }"#),
@@ -100,12 +101,12 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color` swatch holds; `on_change` hears the new one", group = "paint" }"#),
                     (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height", group = "layout" }"#),
                     (k::FONT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in", group = "type" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
-                    (k::OPTIONS, r#"{ type = "strings", default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
+                    (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
                     (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list. A `table`'s columns are its `titles`", group = "layout" }"#),
-                    (k::SELECTION, r#"{ type = "strings", default = [], description = "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one", group = "value" }"#),
+                    (k::SELECTION, r#"{ type = "list", of = { type = "string" }, default = [], description = "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one", group = "value" }"#),
                     (k::MULTI, r#"{ type = "bool", default = false, description = "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked", group = "value" }"#),
-                    (k::TITLES, r#"{ type = "strings", default = [], description = "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names", group = "value" }"#),
-                    (k::WIDTHS, r#"{ type = "strings", default = [], description = "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back", group = "layout" }"#),
+                    (k::TITLES, r#"{ type = "list", of = { type = "string" }, default = [], description = "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names", group = "value" }"#),
+                    (k::WIDTHS, r#"{ type = "list", of = { type = "string" }, default = [], description = "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back", group = "layout" }"#),
                     (k::HEADER, r#"{ type = "bool", default = true, description = "Draw the strip that names a `table`'s columns. Off, the columns are still `titles`', and a table that names none keeps its first row as a row", group = "layout" }"#),
                     (k::SORT, r#"{ type = "string", default = "", description = "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`", group = "value" }"#),
                     (k::SORTABLE, r#"{ type = "bool", default = false, description = "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret", group = "events" }"#),
@@ -120,6 +121,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled", group = "paint" }"#),
                     (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why", group = "type" }"#),
                     (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`", group = "paint" }"#),
+                    (k::ICON_COLOR, r#"{ type = "string", default = "", description = "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own", group = "paint" }"#),
                     (k::DISABLED, r#"{ type = "bool", default = false, description = "Grey the widget out and swallow its clicks" }"#),
                     (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
                     (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
@@ -456,6 +458,7 @@ fn text_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::ON_SUBMIT.into(),
         toml::Value::String(widget.on_submit.to_string()),
     );
+    map.insert(k::SUBMITTED.into(), toml::Value::Boolean(widget.submitted));
 }
 
 /// The keys a widget's look carries: the role it names, the marks and hover
@@ -467,6 +470,10 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         toml::Value::String(widget.tooltip.to_string()),
     );
     map.insert(k::ICON.into(), toml::Value::String(widget.icon.to_string()));
+    map.insert(
+        k::ICON_COLOR.into(),
+        toml::Value::String(widget.icon_color.to_string()),
+    );
     map.insert(k::DISABLED.into(), toml::Value::Boolean(widget.disabled));
     map.insert(k::FILL.into(), toml::Value::String(widget.fill.to_string()));
     map.insert(
@@ -785,9 +792,11 @@ fn widget_from(params: &toml::Value) -> Widget {
         numeric: r.flag(k::NUMERIC),
         on_change: s(k::ON_CHANGE),
         on_submit: s(k::ON_SUBMIT),
+        submitted: r.flag(k::SUBMITTED),
         role: s(k::ROLE),
         tooltip: s(k::TOOLTIP),
         icon: s(k::ICON),
+        icon_color: s(k::ICON_COLOR),
         disabled: r.flag(k::DISABLED),
         fill: s(k::FILL),
         stroke: s(k::STROKE),
@@ -984,6 +993,15 @@ fn four(values: [f32; 4]) -> toml::Value {
     )
 }
 
+/// Which of the four edges a `flags` property names, in `EDGES` order.
+fn edges_of(value: Option<&toml::Value>) -> [bool; 4] {
+    let mut out = [false; 4];
+    for (slot, name) in out.iter_mut().zip(w::EDGES) {
+        *slot = balaur_core::components::has_flag(value, name);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1036,13 +1054,4 @@ mod tests {
         let request = crate::widget::text::text_request(&widget, "x", None, &font, &style);
         assert_eq!(request.family, "heading");
     }
-}
-
-/// Which of the four edges a `flags` property names, in `EDGES` order.
-fn edges_of(value: Option<&toml::Value>) -> [bool; 4] {
-    let mut out = [false; 4];
-    for (slot, name) in out.iter_mut().zip(w::EDGES) {
-        *slot = balaur_core::components::has_flag(value, name);
-    }
-    out
 }

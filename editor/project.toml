@@ -10,3 +10,10 @@ splash_seconds = 0.0
 # not a line in the output someone might read.
 [check]
 strict = true
+
+# `layout.rn`'s own floors, not a phone's and a tablet's: what asks
+# `ui::width_class` in here, a plugin's dock among it, gets the shell's answer.
+[ui]
+narrow_below = 532
+wide_from = 712
+short_below = 321

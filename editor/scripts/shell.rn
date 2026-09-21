@@ -728,6 +728,7 @@ fn states() {
         "importdemo": crate::selftest::imports,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
+        "listdemo": crate::selftest::composite_props,
         "scriptdemo": crate::selftest::script_paths,
         "instancedemo": crate::selftest::instances,
         "timingsdemo": crate::selftest::timings,

@@ -303,6 +303,7 @@ for ex in examples/*/; do
   # written onto one node, and the sparseness that drops it again.
   printf '  props ...  '
   edit_step "$name: props" "$ex" propsdemo
+  edit_step "$name: composites" "$ex" listdemo
   printf 'ok\n'
 
   # Prefabs: an instance's rows are in the tree, an edit inside one becomes an

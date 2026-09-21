@@ -317,7 +317,11 @@
       "rows": {
         "default": [],
         "description": "The binding rows, each `{ event, when, action, target, value }`",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       }
     },
     "body2d": {
@@ -716,7 +720,11 @@
       "post": {
         "default": [],
         "description": "The frame's passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "ssao_bias": {
         "default": 0.025,
@@ -811,7 +819,11 @@
       "post": {
         "default": [],
         "description": "The frame's passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine's own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "ssao_bias": {
         "default": 0.025,
@@ -4419,7 +4431,11 @@
         "default": [],
         "description": "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "checked": {
         "default": false,
@@ -4631,6 +4647,12 @@
         "group": "paint",
         "type": "string"
       },
+      "icon_color": {
+        "default": "",
+        "description": "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own",
+        "group": "paint",
+        "type": "string"
+      },
       "inset": {
         "default": [
           0.0,
@@ -4678,6 +4700,7 @@
           "field",
           "text_area",
           "check",
+          "switch",
           "color",
           "dropdown",
           "menu",
@@ -4808,7 +4831,11 @@
         "default": [],
         "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "padding": {
         "default": [
@@ -4855,7 +4882,11 @@
         "default": [],
         "description": "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "radius": {
         "default": -1.0,
@@ -4889,10 +4920,16 @@
         "type": "float"
       },
       "safe_area": {
-        "default": false,
-        "description": "Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not",
+        "default": [],
+        "description": "The edges this root keeps clear of what a notch, a status bar or a home bar covers. Empty by default: a backdrop is meant to reach the edge and a control is not, and a screen often wants content above the notch and its background under the gesture bar",
         "group": "placement",
-        "type": "bool"
+        "options": [
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "type": "flags"
       },
       "secret": {
         "default": false,
@@ -4910,7 +4947,11 @@
         "default": [],
         "description": "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "shortcut": {
         "default": "",
@@ -4965,6 +5006,12 @@
         "group": "paint",
         "type": "string"
       },
+      "submitted": {
+        "default": false,
+        "description": "True for the one frame a `field` was submitted, the way `clicked` reports a press",
+        "group": "events",
+        "type": "bool"
+      },
       "suffix": {
         "default": "",
         "description": "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it",
@@ -5015,7 +5062,11 @@
         "default": [],
         "description": "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "toggle": {
         "default": false,
@@ -5049,7 +5100,11 @@
         "default": [],
         "description": "The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it",
         "group": "value",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "width": {
         "default": 0.0,
@@ -5062,7 +5117,11 @@
         "default": [],
         "description": "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back",
         "group": "layout",
-        "type": "strings"
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "wrap": {
         "default": false,
@@ -7455,7 +7514,7 @@
         "set_process": "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"when_paused\" runs only while paused; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
         "set_tint": "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.",
-        "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
+        "set_visible": "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides.",
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
         "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.",
@@ -9894,6 +9953,10 @@
           "value": "stack"
         },
         {
+          "name": "WIDGET_SWITCH",
+          "value": "switch"
+        },
+        {
           "name": "WIDGET_TAB",
           "value": "tab"
         },
@@ -9962,6 +10025,7 @@
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
         "screen_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states.",
         "scroll": "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels along.",
+        "scroll_offset": "How far a `scroll` node has been scrolled, as `#{ x, y }` in design pixels; zero before it has drawn. What a list building only the rows in view reads to know which ones they are.",
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
@@ -10030,6 +10094,7 @@
         "scale",
         "screen_size",
         "scroll",
+        "scroll_offset",
         "separator",
         "set_clipboard",
         "set_focus",
@@ -10099,6 +10164,7 @@
         "scale": "() -> f32",
         "screen_size": "() -> (f32, f32)",
         "scroll": "(String, Option<Value>, CallbackId) -> ()",
+        "scroll_offset": "NodeId -> Value",
         "separator": "Option<String> -> ()",
         "set_clipboard": "String -> ()",
         "set_focus": "NodeId -> ()",

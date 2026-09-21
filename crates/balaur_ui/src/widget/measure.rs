@@ -12,7 +12,6 @@ use crate::widget::arrange::padding_of;
 use crate::widget::layer::caption;
 use crate::widget::node::{Widget, lays_out};
 use crate::widget::theme::WidgetTheme;
-use crate::widget::theme::theme_of;
 use balaur_core::Engine;
 use egui::vec2;
 use rustc_hash::FxHashMap;
@@ -58,7 +57,10 @@ impl<'a> Measure<'a> {
         if !widget.visible {
             return egui::Vec2::ZERO;
         }
-        let theme = theme_of(self.eng, &widget.theme, theme);
+        // The whole chain, not this widget's own `theme`: a measure caches the
+        // look it resolves, and a solve that starts below the node carrying
+        // the theme would cache one dressed by no theme at all.
+        let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
         let size = self.natural(index, &theme);
         self.leaves.insert(index, size);
         size
@@ -76,7 +78,7 @@ impl<'a> Measure<'a> {
         // arena is built from one and a bad one should not hang the frame.
         self.seen.insert(index, egui::Vec2::ZERO);
         let widget = &self.arena[index].widget;
-        let theme = theme_of(self.eng, &widget.theme, theme);
+        let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
         let size = if widget.visible {
             self.natural(index, &theme)
         } else {
@@ -132,6 +134,13 @@ impl<'a> Measure<'a> {
                 let text = self.text(index, widget, theme);
                 let line = widget.font_size;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
+            }
+            // A track and its knob: as tall as the role asks, and most of twice
+            // that across.
+            w::SWITCH => {
+                let look = crate::widget::arena::look_of(self.arena, index, theme);
+                let height = look.style.height.unwrap_or(18.0);
+                vec2(height * 1.75, height)
             }
             // The widest option, and room for the arrow.
             w::DROPDOWN => {

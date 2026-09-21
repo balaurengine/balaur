@@ -2,8 +2,10 @@
 //! into once and quoted by UV from then on.
 //!
 //! Separate from egui's own font texture, which is filled by `char` and has
-//! no way in for a glyph a shaper chose. When this one fills up it starts
-//! over; a layout that quoted the old one is rebuilt by its generation.
+//! no way in for a glyph a shaper chose. When this one fills up it doubles,
+//! the way egui's own atlas does, and only starts over once it has reached
+//! `SIDE_MAX`; either way a layout that quoted the old one is rebuilt by its
+//! generation, since a UV is a fraction of a side that just changed.
 //!
 //! The pixels live here rather than in a texture, because two consumers draw
 //! from them: the widget layer through egui, and the world through the
@@ -17,7 +19,11 @@ use cosmic_text::{CacheKey, FontSystem, SwashCache, SwashContent};
 use egui::epaint::ImageDelta;
 use egui::{Color32, ColorImage, ImageData, Rect, TextureId, TextureOptions, Vec2};
 
-const SIDE: usize = 1024;
+/// The side it opens at, and the one past which it starts over instead of
+/// doubling again. Small to begin with, because an atlas is uploaded whole
+/// the first time and most projects never outgrow one page of glyphs.
+const SIDE_START: usize = 256;
+const SIDE_MAX: usize = 4096;
 /// A pixel of clearance so linear filtering never bleeds a neighbour in.
 const PAD: usize = 1;
 
@@ -41,15 +47,19 @@ struct Pixels {
 impl Default for Pixels {
     fn default() -> Self {
         Self {
-            rgba: vec![0; SIDE * SIDE * 4],
+            rgba: vec![0; SIDE_START * SIDE_START * 4],
         }
     }
 }
 
-#[derive(Default)]
 pub struct GlyphAtlas {
     pixels: Pixels,
+    /// The square's side now. Doubles when a glyph no longer fits.
+    side: usize,
     texture: Option<TextureId>,
+    /// The side the egui texture was allocated at, so a grown atlas knows to
+    /// hand back the old one and take a bigger.
+    texture_side: usize,
     cursor: (usize, usize),
     row_height: usize,
     slots: HashMap<CacheKey, Option<Slot>>,
@@ -63,6 +73,23 @@ pub struct GlyphAtlas {
     dirty: Option<[usize; 4]>,
 }
 
+impl Default for GlyphAtlas {
+    fn default() -> Self {
+        Self {
+            pixels: Pixels::default(),
+            side: SIDE_START,
+            texture: None,
+            texture_side: 0,
+            cursor: (0, 0),
+            row_height: 0,
+            slots: HashMap::new(),
+            generation: 0,
+            revision: 0,
+            dirty: None,
+        }
+    }
+}
+
 impl GlyphAtlas {
     pub(crate) fn texture(&self) -> Option<TextureId> {
         self.texture
@@ -70,15 +97,20 @@ impl GlyphAtlas {
 
     fn open(&mut self, ctx: &egui::Context) -> TextureId {
         if let Some(id) = self.texture {
-            return id;
+            if self.texture_side == self.side {
+                return id;
+            }
+            ctx.tex_manager().write().free(id);
+            self.texture = None;
         }
-        let blank = ColorImage::filled([SIDE, SIDE], Color32::TRANSPARENT);
+        let blank = ColorImage::filled([self.side, self.side], Color32::TRANSPARENT);
         let id = ctx.tex_manager().write().alloc(
             "balaur text atlas".into(),
             ImageData::Color(Arc::new(blank)),
             TextureOptions::LINEAR,
         );
         self.texture = Some(id);
+        self.texture_side = self.side;
         id
     }
 
@@ -90,14 +122,40 @@ impl GlyphAtlas {
         self.slots.clear();
         self.generation += 1;
         self.revision += 1;
-        self.dirty = Some([0, 0, SIDE, SIDE]);
+        self.dirty = Some([0, 0, self.side, self.side]);
+    }
+
+    /// Double the square, keeping every glyph where it already sits.
+    ///
+    /// The rows move, because a wider atlas has a longer stride, but no glyph
+    /// changes pixel coordinates, so the slots stay good. A UV does not: it
+    /// is a fraction of a side that just changed, which is what `generation`
+    /// makes a cached layout rebuild for.
+    fn grow(&mut self) -> bool {
+        let side = self.side * 2;
+        if side > SIDE_MAX {
+            return false;
+        }
+        let mut wider = vec![0u8; side * side * 4];
+        for row in 0..self.side {
+            let from = row * self.side * 4;
+            let to = row * side * 4;
+            wider[to..to + self.side * 4]
+                .copy_from_slice(&self.pixels.rgba[from..from + self.side * 4]);
+        }
+        self.pixels.rgba = wider;
+        self.side = side;
+        self.generation += 1;
+        self.revision += 1;
+        self.dirty = Some([0, 0, side, side]);
+        true
     }
 
     /// Copy one rasterised glyph in, and note the box it landed in.
     fn write(&mut self, x: usize, y: usize, width: usize, height: usize, pixels: &[Color32]) {
         for row in 0..height {
             let from = row * width;
-            let to = ((y + row) * SIDE + x) * 4;
+            let to = ((y + row) * self.side + x) * 4;
             for column in 0..width {
                 let [r, g, b, a] = pixels[from + column].to_array();
                 let at = to + column * 4;
@@ -120,7 +178,7 @@ impl GlyphAtlas {
     /// A page is one allocation rather than one per glyph: its glyphs are
     /// already packed, and re-packing them would only move them about.
     pub(crate) fn place_image(&mut self, rgba: &[u8], width: usize, height: usize) -> Option<Rect> {
-        if width == 0 || height == 0 || width + 2 * PAD > SIDE || height + 2 * PAD > SIDE {
+        if width == 0 || height == 0 || width + 2 * PAD > SIDE_MAX || height + 2 * PAD > SIDE_MAX {
             return None;
         }
         let (x, y) = if let Some(at) = self.allocate(width + 2 * PAD, height + 2 * PAD) {
@@ -139,7 +197,7 @@ impl GlyphAtlas {
             return None;
         }
         self.write(x + PAD, y + PAD, width, height, &pixels);
-        let side = SIDE as f32;
+        let side = self.side as f32;
         Some(Rect::from_min_max(
             egui::pos2((x + PAD) as f32 / side, (y + PAD) as f32 / side),
             egui::pos2(
@@ -154,9 +212,11 @@ impl GlyphAtlas {
         &self.pixels.rgba
     }
 
-    /// The atlas is square; this is its side in pixels.
+    /// The atlas is square; this is its side in pixels now. It doubles as the
+    /// atlas fills, so a consumer holding a texture re-makes it when
+    /// `revision` moves and this does not match.
     pub fn side(&self) -> usize {
-        SIDE
+        self.side
     }
 
     /// Bumped by every glyph written and by every reset: a consumer holding
@@ -175,7 +235,7 @@ impl GlyphAtlas {
         let mut patch = Vec::with_capacity(width * height);
         for row in y0..y1 {
             for column in x0..x1 {
-                let at = (row * SIDE + column) * 4;
+                let at = (row * self.side + column) * 4;
                 let p = &self.pixels.rgba[at..at + 4];
                 patch.push(Color32::from_rgba_premultiplied(p[0], p[1], p[2], p[3]));
             }
@@ -212,7 +272,7 @@ impl GlyphAtlas {
             self.slots.insert(key, None);
             return None;
         }
-        if width + 2 * PAD > SIDE || height + 2 * PAD > SIDE {
+        if width + 2 * PAD > SIDE_MAX || height + 2 * PAD > SIDE_MAX {
             tracing::warn!("a glyph larger than the atlas was skipped");
             self.slots.insert(key, None);
             return None;
@@ -239,7 +299,7 @@ impl GlyphAtlas {
             self.allocate(width + 2 * PAD, height + 2 * PAD)?
         };
         self.write(x + PAD, y + PAD, width, height, &pixels);
-        let side = SIDE as f32;
+        let side = self.side as f32;
         let min = egui::pos2((x + PAD) as f32 / side, (y + PAD) as f32 / side);
         let max = egui::pos2(
             (x + PAD + width) as f32 / side,
@@ -257,12 +317,16 @@ impl GlyphAtlas {
 
     /// A shelf packer: rows left to right, rows top to bottom.
     fn allocate(&mut self, width: usize, height: usize) -> Option<(usize, usize)> {
-        if self.cursor.0 + width > SIDE {
+        if self.cursor.0 + width > self.side {
             self.cursor = (0, self.cursor.1 + self.row_height);
             self.row_height = 0;
         }
-        if self.cursor.1 + height > SIDE {
-            return None;
+        // Doubling is cheaper than starting over: every glyph already
+        // rasterised keeps its place, where a reset re-rasterises the lot.
+        while self.cursor.0 + width > self.side || self.cursor.1 + height > self.side {
+            if !self.grow() {
+                return None;
+            }
         }
         let at = self.cursor;
         self.cursor.0 += width;

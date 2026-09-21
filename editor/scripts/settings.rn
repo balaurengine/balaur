@@ -445,7 +445,7 @@ fn edit(S, k, def, path) {
         if changed {
             write(S, path, v);
         }
-    } else if datatype == "strings" {
+    } else if datatype == "list" {
         // Comma-separated: a list of globs or ranges is short, and a row of
         // its own per entry would be a page per setting.
         let (text, _, submitted) = ui::text_field("set:" + path, "",

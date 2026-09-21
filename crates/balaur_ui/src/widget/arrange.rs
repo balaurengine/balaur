@@ -251,7 +251,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         if let Some(offset) = dragged {
             area = area.scroll_offset(offset);
         }
-        area.show(ui, |ui| {
+        let out = area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
             let room = crate::widget::taffy::Room::scrolling(
@@ -271,6 +271,8 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
         });
+        // Where it sits now, for a list that builds only the rows in view.
+        crate::widget::scroll::remember_offset(entity, out.state.offset);
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
         let used = pad.around(inner_ui.min_rect());

@@ -92,3 +92,25 @@ fn fling(state: &mut crate::UiState, key: u64, dt: f32) -> Option<egui::Vec2> {
     }
     Some(out)
 }
+
+/// How far a scroll has been moved, for a caller building only what is in
+/// view. What the last draw recorded, so a fling, a drag and the bar all
+/// answer the same way.
+pub(crate) fn offset_of(entity: balaur_core::hecs::Entity) -> egui::Vec2 {
+    OFFSETS
+        .with(|held| held.borrow().get(&entity.to_bits().get()).copied())
+        .unwrap_or(egui::Vec2::ZERO)
+}
+
+thread_local! {
+    /// What each scroll was moved to last pass, by entity bits.
+    static OFFSETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, egui::Vec2>> =
+        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+}
+
+/// Remember where a scroll sits, from inside the draw that knows.
+pub(crate) fn remember_offset(entity: balaur_core::hecs::Entity, offset: egui::Vec2) {
+    OFFSETS.with(|held| {
+        held.borrow_mut().insert(entity.to_bits().get(), offset);
+    });
+}

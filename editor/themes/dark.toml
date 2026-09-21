@@ -344,6 +344,7 @@ color = "text"
 # The mark at the head of the bar, which is the shell's one menu. The disc
 # is white in both themes: the mark is dark, and so is half the sheets.
 [roles.brand]
+height = 26
 font = "heading"
 size = 17
 strong = true
@@ -352,44 +353,399 @@ fill = "sunken"
 radius = 6
 padding_x = 3
 plate = "#ffffff"
+[roles.brand.touch]
+height = 33
+
 [roles.brand.hover]
 fill = "raised"
 
-# A row in a menu: an action, or a panel that is open.
-[roles.menu_row]
-height = 22
-radius = 5
-size = 12
-align = "left"
-color = "text"
-[roles.menu_row.hover]
-fill = "raised"
+# The shell itself: the gutter round the whole editor, and the seam between
+# its sheets. `layout.rn` reads them back rather than stating them twice.
+[roles.shell]
+padding = 14
+gap = 12
 
-# A panel that is shut: the same row, one level quieter.
-[roles.menu_row_off]
-height = 22
-radius = 5
-size = 12
-align = "left"
-color = "faint"
-[roles.menu_row_off.hover]
-fill = "raised"
+# A row in a dock's head: the tabs, and the tools at its tail.
+[roles.dock_strip]
+gap = 3
 
-# A section heading inside a menu.
-[roles.menu_heading]
+# The head strip itself, and the tab scroll inside it: one height, taller
+# where a finger reaches them.
+[roles.dock_head]
+height = 24
+gap = 3
+[roles.dock_head.touch]
+height = 33
+
+# The bar across the top, and the brand that opens its menu.
+[roles.head_strip]
+height = 26
+[roles.head_strip.touch]
+height = 33
+
+# A verb in the outliner's menu, sized so the column does not jump as the
+# labels change.
+[roles.tree_verb]
+width = 170
+height = 24
+
+# An inspector fold: the caret column, the heading beside it, and the air
+# between them. A subsection is the same row a step further in.
+[roles.section_fold]
+gap = 4
+[roles.section_caret]
+font = "ui"
 size = 11
-height = 18
+color = "faint"
+width = 16
+align = "end"
+[roles.section_head]
+font = "heading"
+size = 11
+strong = true
+color = "dim"
+height = 20
+radius = 4
+align = "left"
+[roles.section_head.touch]
+height = 29
+
+[roles.subsection_fold]
+gap = 4
+[roles.subsection_caret]
+font = "ui"
+size = 11
+color = "faint"
+width = 28
+align = "end"
+[roles.subsection_head]
+font = "mono"
+size = 11
+color = "dim"
+fill = "sunken"
+height = 20
+radius = 4
+align = "left"
+[roles.subsection_head.touch]
+height = 29
+
+# A flag in a set, one button an option, filled while it is held.
+[roles.flag]
+font = "ui"
+size = 11
+color = "dim"
+fill = "sunken"
+height = 20
+radius = 4
+[roles.flag.touch]
+height = 29
+[roles.flag_on]
+font = "ui"
+size = 11
+strong = true
+color = "on_accent"
+fill = "accent_fill"
+height = 20
+radius = 4
+[roles.flag_on.touch]
+height = 29
+
+# A property the schema will not let anybody edit: what it holds, and the
+# word saying so.
+[roles.readonly_value]
+font = "mono"
+size = 12
+color = "faint"
+[roles.readonly_tag]
+font = "ui"
+size = 11
 color = "faint"
 
-# The shell's own boxes, as `scenes/main.toml` holds them. `panel` is the
-# sheet a dock is drawn on; the two containers only round what clips inside.
-[panel]
+# A note inside a form that is also a way in: the Bindings row opening the
+# Events view.
+[roles.note_action]
+font = "ui"
+size = 11
+color = "text"
+fill = "sunken"
+height = 24
+radius = 4
+align = "left"
+[roles.note_action.touch]
+height = 33
+
+# An instance node's prefab: the path it builds, and the way into it.
+[roles.prefab_box]
+fill = "sage_soft"
+stroke = "sage"
+height = 24
+radius = 14
+padding = 4
+[roles.prefab_box.touch]
+height = 33
+[roles.prefab_name]
+font = "mono"
+size = 12
+color = "sage"
+padding_x = 7
+[roles.prefab_open]
+font = "ui"
+size = 11
+strong = true
+color = "dim"
 fill = "panel"
-radius = 8
-padding = 8
+height = 20
+radius = 4
+[roles.prefab_open.touch]
+height = 29
 
-[row]
-radius = 8
+# The verb beside a clip's source: promote it to a file, or copy it back.
+[roles.clip_verb]
+font = "ui"
+size = 11
+strong = true
+color = "sage"
+fill = "sage_soft"
+height = 20
+radius = 4
+[roles.clip_verb.touch]
+height = 29
 
-[column]
-radius = 8
+# A derived answer a form reports rather than takes: yes in the accent the
+# rest of the shell reads as "on", no in the ink a disabled row takes.
+[roles.answer_yes]
+font = "mono"
+size = 12
+color = "sage"
+[roles.answer_no]
+font = "mono"
+size = 12
+color = "faint"
+
+# A row of verbs in a form, and the sage variant a destructive-ish one takes.
+[roles.verb_row]
+gap = 6
+
+# The control column of a form row: the air between a vector's cells.
+[roles.cells]
+gap = 1
+[roles.row_action_sage]
+height = 20
+radius = 4
+size = 12
+strong = true
+fill = "sage_soft"
+color = "sage"
+[roles.row_action_sage.hover]
+fill = "raised"
+color = "text"
+
+# A bone in the polygon's weight list: the whole row, lit while it is picked.
+[roles.bone_row]
+height = 24
+radius = 4
+size = 11
+strong = true
+align = "left"
+fill = "sunken"
+color = "text"
+[roles.bone_row.hover]
+fill = "raised"
+[roles.bone_row.touch]
+height = 33
+[roles.bone_row_on]
+height = 24
+radius = 4
+size = 11
+strong = true
+align = "left"
+fill = "accent_soft"
+color = "accent"
+[roles.bone_row_on.touch]
+height = 33
+
+# A derived answer that is on rather than merely true.
+[roles.answer_on]
+font = "mono"
+size = 11
+color = "accent"
+
+# A verb that undoes something: the same tile, in the accent a warning takes.
+[roles.row_action_warn]
+height = 20
+radius = 4
+size = 12
+strong = true
+fill = "sunken"
+color = "accent"
+[roles.row_action_warn.hover]
+fill = "raised"
+color = "text"
+
+# A note that is also a box: what an instance came from, and the way in.
+[roles.note_box]
+fill = "sunken"
+radius = 12
+padding = 4
+height = 24
+[roles.note_box.touch]
+height = 33
+[roles.note_line]
+font = "mono"
+size = 11
+color = "dim"
+padding_x = 7
+
+# The one verb a section with nothing in it offers: make the thing.
+[roles.make_row]
+height = 30
+radius = 4
+size = 12
+strong = true
+fill = "accent_soft"
+color = "accent"
+[roles.make_row.hover]
+fill = "accent"
+color = "on_accent"
+
+# A material's shader: the way into the file, and the picker beside it.
+[roles.shader_row]
+gap = 4
+[roles.shader_open]
+height = 24
+width = 22
+radius = 4
+size = 12
+fill = "sage_soft"
+color = "sage"
+[roles.shader_open.hover]
+fill = "raised"
+color = "text"
+[roles.shader_open.touch]
+height = 33
+width = 30
+
+# The cross that takes a component off the node, and the line saying one is
+# missing what it needs.
+[roles.section_drop]
+height = 20
+width = 22
+radius = 4
+size = 11
+strong = true
+fill = "sunken"
+color = "faint"
+[roles.section_drop.hover]
+fill = "raised"
+color = "text"
+[roles.section_drop.touch]
+height = 29
+# No `warn` token exists, and the row it replaced fell back to `faint`.
+[roles.warn_note]
+font = "ui"
+size = 11
+color = "faint"
+
+# The note saying an edit reaches more than the active node.
+[roles.multi_note]
+font = "ui"
+size = 11
+align = "left"
+height = 24
+radius = 4
+fill = "accent_soft"
+color = "accent"
+icon_color = "accent"
+[roles.multi_note.touch]
+height = 33
+
+# A path a reader types, and the picker beside it.
+[roles.path_field]
+font = "mono"
+size = 12
+color = "sage"
+height = 24
+radius = 4
+fill = "sunken"
+stroke = "line"
+[roles.path_field.touch]
+height = 33
+[roles.pick]
+font = "ui"
+size = 11
+height = 20
+radius = 4
+fill = "sunken"
+color = "text"
+[roles.pick.touch]
+height = 29
+
+# An on/off switch: the track while it is off, and while it is on.
+[roles.switch]
+height = 18
+fill = "sunken"
+color = "faint"
+[roles.switch.active]
+fill = "accent_fill"
+color = "on_accent"
+[roles.switch.touch]
+height = 24
+
+# A panel's own strip over the node it fills.
+[roles.dock_chrome]
+height = 26
+gap = 6
+padding_x = 12
+[roles.dock_chrome.touch]
+height = 33
+
+# A verb in a panel's own strip, and the two states one takes.
+[roles.chrome_verb]
+height = 20
+radius = 4
+size = 11
+strong = true
+fill = "sunken"
+color = "dim"
+[roles.chrome_verb.hover]
+fill = "raised"
+color = "text"
+[roles.chrome_verb.touch]
+height = 29
+[roles.chrome_verb_on]
+height = 20
+radius = 4
+size = 11
+strong = true
+fill = "sunken"
+color = "accent"
+[roles.chrome_verb_on.touch]
+height = 29
+[roles.chrome_verb_warn]
+height = 20
+radius = 4
+size = 11
+strong = true
+fill = "sunken"
+color = "accent"
+[roles.chrome_verb_warn.touch]
+height = 29
+[roles.chrome_verb_off]
+height = 20
+radius = 4
+size = 11
+strong = true
+fill = "sunken"
+color = "line"
+[roles.chrome_verb_off.touch]
+height = 29
+[roles.chrome_field]
+font = "mono"
+size = 11
+height = 22
+radius = 4
+fill = "sunken"
+stroke = "line"
+color = "text"
+[roles.chrome_field.touch]
+height = 31

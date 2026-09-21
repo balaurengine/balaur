@@ -15,11 +15,11 @@ parent = "n_editor"
 theme = "themes/dark.toml"
 kind = "column"
 layer = "shell"
-anchor = "top_left"
-x = 0
-y = 0
-padding = 14
-gap = 12
+# What a notch or a home bar covers is not the shell's to draw in. Anchored
+# `fill`, the engine sizes and places it, insets and all; nothing patches it.
+safe_area = ["left", "top", "right", "bottom"]
+anchor = "fill"
+role = "shell"
 
 # The one bar across the top: brand, personas, the open documents, and the
 # transport. It floats over this row, which holds the height and pushes the
@@ -62,10 +62,7 @@ parent = "head_row"
 kind = "menu"
 role = "brand"
 tooltip = "Menu"
-height = 26
 gap = 0
-[nodes.widget.touch]
-height = 33
 
 # Longer than a narrow window, and than any window once enough documents are
 # open, so it clips and drags sideways rather than drawing past the bar. A
@@ -76,12 +73,10 @@ name = "HeadScroll"
 parent = "head_row"
 [nodes.widget]
 kind = "scroll"
+role = "head_strip"
 axis = "horizontal"
 grow = 1
-height = 26
 deadzone = 6
-[nodes.widget.touch]
-height = 33
 
 [[nodes]]
 id = "head_strip"
@@ -132,10 +127,7 @@ name = "LeftHead"
 parent = "left_sheet"
 [nodes.widget]
 kind = "row"
-height = 24
-gap = 3
-[nodes.widget.touch]
-height = 33
+role = "dock_head"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -145,12 +137,10 @@ name = "LeftTabs"
 parent = "left_head"
 [nodes.widget]
 kind = "scroll"
+role = "dock_head"
 axis = "horizontal"
 grow = 1
-height = 24
 deadzone = 6
-[nodes.widget.touch]
-height = 33
 
 [[nodes]]
 id = "left_tabs_row"
@@ -158,7 +148,7 @@ name = "LeftTabsRow"
 parent = "left_tabs"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
 align = "center"
 
 [[nodes]]
@@ -167,7 +157,7 @@ name = "LeftTail"
 parent = "left_head"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
 align = "center"
 
 [[nodes]]
@@ -209,10 +199,9 @@ name = "TreeAdd"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Add child"
 on_click = "tree_add_child"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_up"
@@ -220,10 +209,9 @@ name = "TreeUp"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Move up"
 on_click = "tree_move_up"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_down"
@@ -231,10 +219,9 @@ name = "TreeDown"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Move down"
 on_click = "tree_move_down"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_rename"
@@ -242,10 +229,9 @@ name = "TreeRename"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Rename"
 on_click = "tree_rename"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_script"
@@ -253,10 +239,9 @@ name = "TreeScript"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Attach script"
 on_click = "tree_attach_script"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_duplicate"
@@ -264,10 +249,9 @@ name = "TreeDuplicate"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Duplicate"
 on_click = "tree_duplicate"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_hidden"
@@ -275,10 +259,9 @@ name = "TreeHidden"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Hide or show"
 on_click = "tree_toggle_hidden"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_locked"
@@ -286,10 +269,9 @@ name = "TreeLocked"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Lock or unlock"
 on_click = "tree_toggle_locked"
-width = 170
-height = 24
 
 [[nodes]]
 id = "tree_delete"
@@ -297,10 +279,9 @@ name = "TreeDelete"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
+role = "tree_verb"
 text = "Delete"
 on_click = "tree_delete"
-width = 170
-height = 24
 
 [[nodes]]
 id = "left_outline"
@@ -363,10 +344,7 @@ name = "RightHead"
 parent = "right_sheet"
 [nodes.widget]
 kind = "row"
-height = 24
-gap = 3
-[nodes.widget.touch]
-height = 33
+role = "dock_head"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -376,12 +354,10 @@ name = "RightTabs"
 parent = "right_head"
 [nodes.widget]
 kind = "scroll"
+role = "dock_head"
 axis = "horizontal"
 grow = 1
-height = 24
 deadzone = 6
-[nodes.widget.touch]
-height = 33
 
 [[nodes]]
 id = "right_tabs_row"
@@ -389,7 +365,7 @@ name = "RightTabsRow"
 parent = "right_tabs"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
 align = "center"
 
 [[nodes]]
@@ -398,7 +374,7 @@ name = "RightTail"
 parent = "right_head"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
 align = "center"
 
 [[nodes]]
@@ -512,10 +488,7 @@ name = "BottomHead"
 parent = "bottom"
 [nodes.widget]
 kind = "row"
-height = 24
-gap = 3
-[nodes.widget.touch]
-height = 33
+role = "dock_head"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -525,12 +498,10 @@ name = "BottomTabs"
 parent = "bottom_head"
 [nodes.widget]
 kind = "scroll"
+role = "dock_head"
 axis = "horizontal"
 grow = 1
-height = 24
 deadzone = 6
-[nodes.widget.touch]
-height = 33
 
 [[nodes]]
 id = "bottom_tabs_row"
@@ -538,7 +509,7 @@ name = "BottomTabsRow"
 parent = "bottom_tabs"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
 align = "center"
 
 [[nodes]]
@@ -547,7 +518,19 @@ name = "BottomTail"
 parent = "bottom_head"
 [nodes.widget]
 kind = "row"
-gap = 3
+role = "dock_strip"
+align = "center"
+
+# A panel's own strip over the node it fills: the Assets path and verbs, the
+# Library's chips. One row, filled by whichever panel is up.
+[[nodes]]
+id = "bottom_chrome"
+name = "BottomChrome"
+parent = "bottom"
+[nodes.widget]
+kind = "row"
+role = "dock_chrome"
+visible = false
 align = "center"
 
 [[nodes]]

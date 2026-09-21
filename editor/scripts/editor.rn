@@ -95,8 +95,7 @@ pub fn init(this) {
         compact: false,
         // Empty until the first frame reads the screen, so whatever class it
         // turns out to be is a change and folds the docks accordingly.
-        width_class: "",
-        height_class: "",
+
         // The room's answers the docks were last folded for: a change is a
         // new screen, whatever the class words did.
         screen_key: "",
@@ -417,10 +416,10 @@ pub fn update(this, dt) {
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
-    // The shell is on its own surface, declared rather than assumed: an
-    // unconfigured layer takes the default one, and the default is off
-    // whenever the game's widgets are.
-    ui::set_widget_surface("shell", true, 0.0, 0.0, S.screen_w, S.screen_h);
+    // The window, never `S.screen_w`: that is the shell's own solved rect, and
+    // a surface taken from it shrinks the shell it sizes, frame by frame.
+    let (surface_w, surface_h) = ui::screen_size();
+    ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
     if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
         anim::add_key(S, S.anim.time);
     }
@@ -492,16 +491,20 @@ pub fn draw_ui(this) {
     if pasted != "" {
         model::paste_nodes(S, pasted);
     }
+    // The room the shell has, which the engine solved: the window less what
+    // a notch covers. Read back a pass late, as every other rect here is;
+    // the window stands in until it has drawn once.
     let (sw, sh) = ui::screen_size();
-    S.screen_w = sw;
-    S.screen_h = sh;
+    let (rw, rh) = crate::layout::shell_room(S);
+    S.screen_w = if rw > 0.0 { rw } else { sw };
+    S.screen_h = if rh > 0.0 { rh } else { sh };
     // Either forces it on: the setting asks for it at any width, and a narrow
     // window asks for it whatever the setting says.
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
     let first = !S.platform_read;
     S.platform_read = true;
-    docks::follow_screen(S, ui::width_class(), ui::height_class());
+    docks::follow_screen(S);
     if first {
         apply_start_states(S);
     }

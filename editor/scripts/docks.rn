@@ -55,9 +55,7 @@ pub fn apply_persona(S, id) {
 ///
 /// Applied on the change, not every frame, so a reader who opens a dock on a
 /// phone keeps it open until the screen itself changes.
-pub fn follow_screen(S, width, height) {
-    S.width_class = width;
-    S.height_class = height;
+pub fn follow_screen(S) {
     // A string, since Rune compares no tuples: two words for two answers.
     let key = format!("{} {}", crate::layout::three_fit(S), one_at_a_time(S));
     if S.screen_key == key {
@@ -128,14 +126,14 @@ pub fn panels(S) {
         "import": #{ name: "Import", icon: icons::panel("import"), tall: false },
         "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
         "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
-        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false },
+        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false , chrome: 28.0 },
         "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
         "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
         "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
-        "library": #{ name: "Library", icon: icons::panel("library"), tall: false },
+        "library": #{ name: "Library", icon: icons::panel("library"), tall: false , chrome: 28.0 },
         "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
         "weights": #{ name: "Weights", icon: icons::panel("weights"), tall: true },
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
@@ -328,13 +326,33 @@ fn sync_canvas(S, d) {
         util::fill(BOTTOM + name, #{ visible: on });
     }
     // The hatch draws whatever panel has no node of its own, so it gives its
-    // room up to one that has. A stated height, not just a grow of zero: a
-    // `draw` measures what it was last given, not what it drew.
+    // room up to one that has, less the strip that panel's chrome wants.
     let owned = painting || owns_a_node(S, "bottom", d);
     util::fill(BOTTOM + "DockBody", #{
         grow: if owned { 0.0 } else { 1.0 },
         height: if owned { 1.0 } else { 0.0 },
     });
+    // The strip is a row of nodes now, not a share of the hatch: hidden for
+    // every panel that keeps none, and the panel itself fills it.
+    if chrome_h(S, d.active) <= 1.0 {
+        util::hide(BOTTOM + "BottomChrome");
+    }
+}
+
+/// Fill the strip a panel keeps over the node it fills, and show it. A panel
+/// that names no chrome leaves it hidden.
+pub fn chrome_strip(S, controls) {
+    crate::pool::strip(S, BOTTOM + "BottomChrome", controls);
+}
+
+/// The strip a panel draws its own chrome into, over the node it fills. One
+/// pixel is none: the hatch is still there, and nothing is drawn in it.
+fn chrome_h(S, id) {
+    let found = panels(S).get(id);
+    match found {
+        Some(entry) => util::f(entry.get("chrome").unwrap_or(1.0)),
+        None => 1.0,
+    }
 }
 
 /// Whether the panel showing has a node of its own, which the shared hatch
