@@ -791,10 +791,14 @@ pub fn set_property_at(
     key: &str,
     value: &Value,
 ) -> Result<()> {
-    let params = toml::Value::Table(toml::map::Map::from_iter([(
-        key.to_string(),
-        to_toml(value)?,
-    )]));
+    let value = to_toml(value)?;
+    // The component that can take one property saves reading its whole table
+    // back and building it again, which is what a script driving a value over
+    // time would otherwise pay every tick.
+    if crate::components::set_property_at(eng, entity, index, key, &value)? {
+        return Ok(());
+    }
+    let params = toml::Value::Table(toml::map::Map::from_iter([(key.to_string(), value)]));
     crate::components::patch_at(eng, entity, index, &params)
 }
 

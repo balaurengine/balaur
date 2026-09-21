@@ -334,30 +334,36 @@ names it resolved at startup.
 
 ## 6f. What all of it was worth
 
-**Measured 2026-09-21**, release, Apple M1, five-second samples, load average
-under six. Everything in §6d, §6e and this section together, against the
-numbers §6d opened with.
+**Measured 2026-09-21**, release, Apple M1, five-second samples. The machine
+builds three other checkouts of this repository, so each figure below was
+taken with the load average under six and the case's own interval inside one
+percent. Anything measured while the load climbed is left out rather than
+reported wide.
 
 | | before | after |
 | --- | ---: | ---: |
-| `node.transform.position = [..]` from a script | 2.42 µs | 1.28 µs |
-| `node.transform.position` read from a script | 1.06 µs | 541 ns |
-| `node.get_component(name, key)` | 1.08 µs | 805 ns |
-| `node.has_component(name)` | 612 ns | 447 ns |
+| `components::property`, one key | 372 ns | 89 ns |
+| `components::present_on` | 947 ns | 135 ns |
+| a presence test on the bundle's `transform` | 370 ns | 37 ns |
+| a presence test on a registry-attached component | 37 ns | 38 ns |
 | `components::patch`, one property | 1.41 µs | 838 ns |
-| `components::property`, one key | 372 ns | 100 ns |
-| `components::present_on` | 947 ns | 149 ns |
-| a presence test on the bundle's `transform` | 370 ns | 39 ns |
-| a presence test on a registry-attached component | 37 ns | 43 ns |
+| `components::get`, whole table | 344 ns | 352 ns |
+| a component name resolved | 9.3 ns first, linear after | 17 ns, flat |
 
 The two presence tests now cost the same, which is the point of §6d's second
-mask: there is no longer a component the bitmask cannot answer for.
+mask: no component is outside what the bits can answer. `get` is unchanged
+because nothing here made building a whole table cheaper; what changed is how
+rarely anything has to.
 
-One thing got slower. A name lookup is a hash at 19.5 ns where the scan it
-replaced took 9.3 ns for `transform`, which registers first and was found on
-the scan's first comparison. The scan was linear, so the last of the
-forty-eight cost far more; the hash reads 20.4 ns there. A write pays one
-lookup now instead of four, so it comes out ahead either way.
+The name lookup is the one thing that got slower, and only at one end. A hash
+costs 17 ns where the scan it replaced found `transform` on its first
+comparison in 9.3 ns, because `transform` registers first. The scan was linear
+and the hash is flat, so the last of the forty-eight went the other way, and a
+write resolves one name where it used to resolve four.
+
+Script-side figures move with the same work and are not repeated here: the
+path from Rune now reaches the registry by index, so what it costs is the row
+above it plus the call.
 
 ## 6c. The shell writes what changed
 
