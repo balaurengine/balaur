@@ -251,6 +251,16 @@ and remove hooks.
   `scene.component_types`, `scene.component_schema`) and the editor: the
   Add-component palette and every inspector row are generated from the registry,
   so a third-party component needs no editor change.
+- **A build may register 128**, one bit each in `components::Attached`, and
+  registering the 129th panics naming it. 48 are in tree, so 80 are left for
+  plugins; the cap is a `u128` per node that carries any, which is what makes
+  a presence test a shift and a free ask only the plugins it owes.
+- **A name is a number at run time.** Registration order is the component's
+  index, and `index_of`, `property_at`, `patch_at` and the `Attached` bits all
+  take that number. A backend resolves a name once, when it builds its
+  handles, the way `MaterialId::intern` does for materials: dispatch costs
+  neither a hash nor a string. `transform` registers first and owns bit 0, so
+  the node bundle can say a node has one without reaching the registry.
 - In tree: 48, from `transform` in core through physics, render, UI and
   animation; `docs/generated/components.md` lists them. `shape3d`, `shape2d`
   and `sprite` each carry their own `color` property, since a tint needs

@@ -1046,51 +1046,62 @@ pub fn writes_property(eng: &Engine, name: &str, write: PropertyWriteFn) {
     }
 }
 
-/// One property written, without reading the component's table back and
-/// building it again. `false` where no fast path took it and [`patch`] must.
+/// Write one property of a component.
 ///
-/// The write is still recorded, so saving the scene keeps what was asked.
+/// The component's own fast path where it registered one, and a whole-table
+/// [`patch`] where it did not. One entry point rather than two, so no caller
+/// has to know which components can take a property on its own: animation
+/// drives one property per track per tick and a script writing
+/// `node.transform.position` does the same thing once.
+///
+/// # Errors
+/// What [`patch`] errors on.
 pub fn set_property(
     eng: &Engine,
     entity: Entity,
     name: &str,
     key: &str,
     value: &toml::Value,
-) -> Result<bool> {
-    let Some(index) = index_of(eng, name) else {
-        return Ok(false);
-    };
+) -> Result<()> {
+    let index = index_of(eng, name).ok_or_else(|| anyhow!("unknown component '{name}'"))?;
     set_property_at(eng, entity, index, key, value)
 }
 
 /// [`set_property`] with the definition already resolved.
 ///
 /// # Errors
-/// What [`patch`] errors on, for the record it keeps.
+/// What [`patch`] errors on.
 pub fn set_property_at(
     eng: &Engine,
     entity: Entity,
     index: usize,
     key: &str,
     value: &toml::Value,
-) -> Result<bool> {
-    let wrote = {
-        let Some(writers) = eng.try_resource::<PropertyWriters>() else {
-            return Ok(false);
-        };
-        let writers = writers.borrow();
-        match writers.by_index.get(index) {
-            Some(Some(write)) => write(eng, entity, key, value),
-            _ => false,
+) -> Result<()> {
+    let took = {
+        match eng.try_resource::<PropertyWriters>() {
+            Some(writers) => {
+                let writers = writers.borrow();
+                match writers.by_index.get(index) {
+                    Some(Some(write)) => write(eng, entity, key, value),
+                    _ => false,
+                }
+            }
+            None => false,
         }
     };
-    if !wrote {
-        return Ok(false);
+    if !took {
+        let params = toml::Value::Table(toml::map::Map::from_iter([(
+            key.to_string(),
+            value.clone(),
+        )]));
+        return patch_at(eng, entity, index, &params);
     }
+    // The fast path wrote the component but not the record a save reads.
     let mut one = toml::map::Map::new();
     one.insert(key.to_string(), value.clone());
     record_at(eng, entity, index, Some(&toml::Value::Table(one)), false);
-    Ok(true)
+    Ok(())
 }
 
 /// One property of a component, without building the rest where the component

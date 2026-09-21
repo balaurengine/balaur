@@ -791,15 +791,7 @@ pub fn set_property_at(
     key: &str,
     value: &Value,
 ) -> Result<()> {
-    let value = to_toml(value)?;
-    // The component that can take one property saves reading its whole table
-    // back and building it again, which is what a script driving a value over
-    // time would otherwise pay every tick.
-    if crate::components::set_property_at(eng, entity, index, key, &value)? {
-        return Ok(());
-    }
-    let params = toml::Value::Table(toml::map::Map::from_iter([(key.to_string(), value)]));
-    crate::components::patch_at(eng, entity, index, &params)
+    crate::components::set_property_at(eng, entity, index, key, &to_toml(value)?)
 }
 
 fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -809,13 +801,13 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
             .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?,
     )?;
     let name = text(args, 1)?;
-    // One property is what a script driving a value over time writes, and the
-    // component that can take it that way saves reading its table back.
+    // One property is what a script driving a value over time writes, and
+    // `set_property` is the path that does not read the table back for it.
     if let Some(table) = params.as_table()
         && table.len() == 1
         && let Some((key, value)) = table.iter().next()
-        && crate::components::set_property(eng, e, name, key, value)?
     {
+        crate::components::set_property(eng, e, name, key, value)?;
         return Ok(Value::Nil);
     }
     crate::components::patch(eng, e, name, &params)?;

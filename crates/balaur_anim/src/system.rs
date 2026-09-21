@@ -551,11 +551,10 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 property,
                 value,
             } => {
-                let params = toml::Value::Table(toml::map::Map::from_iter([(
-                    property.clone(),
-                    value.clone(),
-                )]));
-                if let Err(why) = components::patch(eng, *entity, component, &params) {
+                // One property per track per tick, so this takes the
+                // component's own single-property path where it has one.
+                if let Err(why) = components::set_property(eng, *entity, component, property, value)
+                {
                     tracing::debug!(
                         component = component.as_str(),
                         property = property.as_str(),
