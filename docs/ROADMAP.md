@@ -99,6 +99,7 @@ being built, marked `done`, never back in the shipped one.
 | **Rune compiled to WebAssembly** — a script unit built to a `.wasm` module ahead of time and run over the same host calls, in place of the interpreter. | 0.7 | no plan |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
+| **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |
 
 ## Physics and animation
 
@@ -163,8 +164,9 @@ can do today, in the batches it would be built in.
 | **Decals and volumetric fog** — a `decal` component projected onto the depth buffer, and fog a light throws shafts through. | 0.4 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Lit normal-mapped sprites** — 2D lights and shadows are built, and the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
-| **2D batching** — `balaur_render` draws the sprites that share a texture and a material in one call rather than one call each. | 0.2 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
-| **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, automatic instancing, MSAA, level of detail in the mesh asset, and `multimesh`. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **2D batching** — `balaur_render` draws the sprites and shapes that share a texture and a material in one call rather than one each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **Automatic instancing** — meshes sharing geometry, a texture and a material draw as one call with an instance each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, MSAA, level of detail in the mesh asset, and `multimesh`. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Voxels and terrain** — block types in a `voxel_set`, a greedy chunk mesher, a chunked grid file, a Voxels tool, `.vox` import, and heightfield meshing. | 0.3 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture, and picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus, render-side only. | 0.3 | no plan |

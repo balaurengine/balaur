@@ -1,4 +1,4 @@
-> **Status:** not started. Written 2026-09-05 from the Godot parity
+> **Status:** steps 3 and 7 are built; the rest is not started. Written 2026-09-05 from the Godot parity
 > investigation: the renderer draws every node it is handed, once, from one
 > camera, into the window.
 
@@ -87,11 +87,11 @@ mesh.
 
 1. Camera projection; bounds, frustum culling, `render.in_view`.
 2. Layers and cull masks.
-3. Automatic instancing.
+3. Automatic instancing. **Built**, and 3b says what it holds to.
 4. `viewport` on a window rect, and the fork hook.
 5. `viewport` to a texture.
 6. Level of detail and ranges.
-7. 2D batching.
+7. 2D batching. **Built**, and 3a says what it holds to.
 8. `multimesh`.
 
 ## 3a. What 2D batching has to do
