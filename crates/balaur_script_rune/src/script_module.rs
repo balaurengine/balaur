@@ -67,10 +67,7 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
                 shared.push(f);
                 trampoline(shared.len() - 1, None, "a shared function")
             });
-            if let Some(function) = wrapped {
-                return rune::to_value(function).expect("a function always converts");
-            }
-            rune::to_value(()).expect("unit always converts")
+            rune::to_value(wrapped).expect("a function always converts")
         })
         .build()?;
     // `let (ok, value) = script::attempt(|| risky())`: the closure's

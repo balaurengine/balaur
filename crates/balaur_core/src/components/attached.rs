@@ -33,7 +33,7 @@ pub struct Attached {
 
 /// `transform` is the first component core registers, so it owns bit 0, and
 /// the node bundle can say a node has one without reaching the registry.
-/// [`ComponentRegistry::insert`] asserts the index, so registering anything
+/// [`super::ComponentRegistry::insert`] asserts the index, so registering anything
 /// ahead of it fails at boot rather than mislabelling every node.
 pub const TRANSFORM_BIT: u128 = 1;
 

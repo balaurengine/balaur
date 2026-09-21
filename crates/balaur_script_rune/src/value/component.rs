@@ -216,10 +216,8 @@ fn property_fields(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Conte
         defaults,
     } = handles::properties(eng);
     let index_of = |component: &str| balaur_core::components::index_of(eng, component);
-    // A property belongs to a set of components, and a handle knows which one
-    // it is by number. So the set is a bitmask and the answer for a node that
-    // carries none of them is a table indexed the same way: dispatch is a
-    // shift and a test, not a hash of the component's name.
+    // A handle knows its component by number, so the set a property belongs
+    // to is a bitmask: dispatch is a shift and a test, not a hash of a name.
     let mask = |names: &HashSet<String>| {
         names
             .iter()

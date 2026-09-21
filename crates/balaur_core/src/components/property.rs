@@ -17,7 +17,7 @@ use crate::engine::Engine;
 
 /// The components that can answer one property on their own, by name.
 ///
-/// A resource rather than a field on [`ComponentDef`]: every component builds
+/// A resource rather than a field on [`super::ComponentDef`]: every component builds
 /// its whole table today, and this is the fast path for the one or two that a
 /// UI pass reads a single property of, hundreds of times a frame.
 #[derive(Default)]
@@ -104,7 +104,7 @@ pub(crate) fn resolve_property_hooks(eng: &Engine, name: &str, index: usize) {
 }
 
 /// A component writing one property into its own live state. `false` is a
-/// property, or a node, it cannot answer for, which [`patch`] then does.
+/// property, or a node, it cannot answer for, which [`super::patch`] then does.
 pub type PropertyWriteFn = Box<dyn Fn(&Engine, Entity, &str, &toml::Value) -> bool>;
 
 /// The components that can write one property on their own, by name. The
@@ -134,13 +134,13 @@ pub fn writes_property(eng: &Engine, name: &str, write: PropertyWriteFn) {
 /// Write one property of a component.
 ///
 /// The component's own fast path where it registered one, and a whole-table
-/// [`patch`] where it did not. One entry point rather than two, so no caller
+/// [`super::patch`] where it did not. One entry point rather than two, so no caller
 /// has to know which components can take a property on its own: animation
 /// drives one property per track per tick and a script writing
 /// `node.transform.position` does the same thing once.
 ///
 /// # Errors
-/// What [`patch`] errors on.
+/// What [`super::patch`] errors on.
 pub fn set_property(
     eng: &Engine,
     entity: Entity,
@@ -155,7 +155,7 @@ pub fn set_property(
 /// [`set_property`] with the definition already resolved.
 ///
 /// # Errors
-/// What [`patch`] errors on.
+/// What [`super::patch`] errors on.
 pub fn set_property_at(
     eng: &Engine,
     entity: Entity,

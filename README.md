@@ -115,7 +115,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Balaur is [MIT licensed](LICENSE).
 
 ## AI Usage
 
-This project uses AI to aid in software development (and accepts AI contributions). In order for the code quality to remain high, and to not have a ton of bugs, crashes, etc. We use a set of best practices, that are used all throughout the industry, such as: manual testing, automated testing, architecting it, creating spec docs, linting, benchmarking, etc. More can be found out here: https://balaurengine.org/docs/quality/
+This project uses AI to aid in software development, and accepts AI contributions. What keeps the code sound is what the industry already does: manual testing, automated testing, an architecture written down, spec docs, linting and benchmarking. [The quality page](https://balaurengine.org/docs/quality/) says what each one covers.
 
 Every bit of code is tested against this pipeline / process.
 

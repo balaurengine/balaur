@@ -182,7 +182,7 @@ impl Emitter<'_> {
         );
         // A signal carrying fewer than the method needs fills the rest with
         // nothing, which is what Godot's own call would have passed.
-        for _ in names.len()..passes + 1 {
+        for _ in names.len()..=passes {
             names.push("()".to_string());
         }
         let method = if passes < takes {

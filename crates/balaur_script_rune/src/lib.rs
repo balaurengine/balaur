@@ -878,10 +878,7 @@ impl RuneHost {
                 }
             });
             let label = format!("{key}: {}", declared.name);
-            let Some(wrapper) = trampoline(slot, Some(declared.arity), &label) else {
-                spare.push(slot);
-                continue;
-            };
+            let wrapper = trampoline(slot, Some(declared.arity), &label);
             held.push(slot);
             object.insert(name, rune::to_value(wrapper)?)?;
         }

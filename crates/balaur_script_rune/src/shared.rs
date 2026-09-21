@@ -15,7 +15,7 @@ thread_local! {
     pub(crate) static SHARED_FNS: RefCell<Vec<Function>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(crate) fn trampoline(slot: usize, arity: Option<usize>, label: &str) -> Option<Function> {
+pub(crate) fn trampoline(slot: usize, arity: Option<usize>, label: &str) -> Function {
     // The callee's error goes back to the caller, prefixed with the function
     // that failed: a logged error and a nil answer hid which call it was.
     fn relay(slot: usize, label: &str, args: Vec<rune::Value>) -> VmResult<rune::Value> {
@@ -40,8 +40,5 @@ pub(crate) fn trampoline(slot: usize, arity: Option<usize>, label: &str) -> Opti
         rune::vm_try!(out.store(stack, value));
         VmResult::Ok(())
     };
-    Some(Function::from_handler(
-        std::sync::Arc::new(handler),
-        rune::Hash::EMPTY,
-    ))
+    Function::from_handler(std::sync::Arc::new(handler), rune::Hash::EMPTY)
 }

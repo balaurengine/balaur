@@ -535,7 +535,7 @@ fn render(value: &rune::Value) -> Option<String> {
     }
     if let Some(Ok(table)) = owned().map(rune::from_value::<rune::runtime::Object>) {
         let mut parts = Vec::new();
-        for (key, held) in table.iter() {
+        for (key, held) in &table {
             parts.push(format!("{key:?}: {}", render(held)?));
         }
         return Some(format!("#{{{}}}", parts.join(", ")));
