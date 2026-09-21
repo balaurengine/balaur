@@ -798,6 +798,11 @@ fn sync(
         crate::instancing::set_instances_3d(&mut slot.node, clones.as_deref(), global);
     }
     crate::batch_3d::flush(batches);
+    drop_unseen(slots, &seen);
+}
+
+/// Take away the nodes of everything that no longer draws.
+fn drop_unseen(slots: &mut HashMap<Entity, Slot>, seen: &HashSet<Entity>) {
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
             true
