@@ -257,7 +257,7 @@ fn build_group(
     let head = *members.first()?;
     let renderable = world.get::<&Renderable3d>(head).ok()?;
     let (mut node, skin, _geometry, lods) =
-        crate::kiss3d_backend::build_node(app, scene, &renderable)?;
+        crate::kiss3d_backend::geometry::build_node(app, scene, &renderable)?;
     // A skinned mesh is posed on its own node and a model with levels of
     // detail swaps geometry as the eye moves; neither can share an object.
     if skin.is_some() || lods.is_some() {
