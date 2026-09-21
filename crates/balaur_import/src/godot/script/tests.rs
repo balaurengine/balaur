@@ -312,6 +312,7 @@ fn super_reaches_the_base_copy_of_an_overridden_function() {
         inner: BTreeMap::default(),
         defaulted: BTreeMap::default(),
         methods: BTreeMap::default(),
+        signal_arity: BTreeMap::default(),
     };
     let source = "extends Fish\n\nfunc swim(speed):\n\treturn super(speed) * 2\n";
     let out = convert(source, "scripts/shark.gd", &classes);

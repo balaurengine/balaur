@@ -8,14 +8,17 @@ use super::{Classes, Function, gdscript, safe, shim_binding};
 /// The `init` hook a class with no `_ready` still needs, when it has
 /// defaults to set or a `_init` to run: nothing else would call them, and a
 /// member read before its default is set is an error at run time.
-pub(super) fn write_default_init(out: &mut String, functions: &[Function], defaults: bool) -> bool {
-    let _ = defaults;
-    // The members are the engine's to set; what is left for `init` is a
-    // Godot `_init`, which ran when the node was made.
-    if !constructs(functions) || functions.iter().any(|f| f.name == "_ready") {
+pub(super) fn write_default_init(out: &mut String, functions: &[Function], scened: bool) -> bool {
+    // The plain members are the engine's to set; what is left for `init` is
+    // the half that waits for the scene, and a Godot `_init`.
+    if !(scened || constructs(functions)) || functions.iter().any(|f| f.name == "_ready") {
         return false;
     }
-    let set = "";
+    let set = if scened {
+        "    scene_defaults(this);\n"
+    } else {
+        ""
+    };
     let init = if constructs(functions) {
         init_call(functions)
     } else {

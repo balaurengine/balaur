@@ -32,6 +32,9 @@ pub(crate) struct Classes {
     /// Every function each class declares, so `Class.name` is known to be
     /// one rather than a constant to read.
     pub methods: BTreeMap<String, BTreeSet<String>>,
+    /// How many values each signal carries, by name across the project: a
+    /// handler is connected to a signal another class declares.
+    pub signal_arity: BTreeMap<String, usize>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.
@@ -465,6 +468,9 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         if let Some(name) = word("class_name ") {
             if let Some(base) = word("extends ") {
                 classes.bases.insert(name.clone(), base);
+            }
+            for (signal, takes) in crate::godot::script::signal_arities(&source) {
+                classes.signal_arity.entry(signal).or_insert(takes);
             }
             let methods = crate::godot::script::function_names(&source);
             if !methods.is_empty() {

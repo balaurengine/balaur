@@ -101,7 +101,12 @@ impl Emitter<'_> {
             return Some(map::signal_unsubscribe(&receiver, &signal));
         }
         let handler = handler?;
-        let closure = self.callable(args.first()?)?;
+        // A handler is called with what the signal carries, whatever its own
+        // defaulted tail says it could take.
+        self.wanted_args = self.context.signal_arity.get(&signal).copied();
+        let closure = self.callable(args.first()?);
+        self.wanted_args = None;
+        let closure = closure?;
         // Godot's `hidden` is the engine's visibility event, heard only when
         // the flag went away.
         let hid = signal == map::HIDDEN_SIGNAL;
@@ -155,18 +160,33 @@ impl Emitter<'_> {
         // shorter call is the `__N` forwarder.
         let method = self.method_name(&name);
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
-        let required = self
+        // A defaulted parameter is one the caller may leave out, and the
+        // shorter call is the `__N` forwarder.
+        let declared = self
             .context
             .param_defaults
             .get(&name)
             .and_then(|defaults| defaults.iter().position(Option::is_some))
             .unwrap_or(takes);
-        let open: Vec<String> = (0..required.saturating_sub(bound.len()))
+        // A handler takes what the signal carries; what it passes on is what
+        // the method has a form for.
+        let carried = self.wanted_args.unwrap_or(declared);
+        let passes = carried.clamp(declared, takes);
+        let open: Vec<String> = (0..carried.saturating_sub(bound.len()))
             .map(|i| format!("arg{i}"))
             .collect();
-        names.extend(open.iter().cloned());
-        let method = if required < takes {
-            format!("{method}__{required}")
+        names.extend(
+            open.iter()
+                .take(passes.saturating_sub(bound.len()))
+                .cloned(),
+        );
+        // A signal carrying fewer than the method needs fills the rest with
+        // nothing, which is what Godot's own call would have passed.
+        for _ in names.len()..passes + 1 {
+            names.push("()".to_string());
+        }
+        let method = if passes < takes {
+            format!("{method}__{passes}")
         } else {
             method
         };

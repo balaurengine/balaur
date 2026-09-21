@@ -354,6 +354,11 @@ fn context(
     context
         .signals
         .extend(gdscript::BUILTIN_SIGNALS.iter().map(|s| (*s).to_string()));
+    // A handler is connected to a signal another class declares, so the
+    // project's own arities stand behind this file's.
+    for (signal, takes) in &classes.signal_arity {
+        context.signal_arity.insert(signal.clone(), *takes);
+    }
     collect_bools(&mut context, functions);
     for text in chain(source, classes) {
         bool_members(&mut context, &text);
@@ -365,6 +370,7 @@ fn context(
             context.static_vars.entry(name).or_insert(default);
         }
         context.signals.extend(level.signals);
+        context.signal_arity.extend(level.signal_arity);
         context.methods.extend(level.methods);
         context.statics.extend(level.statics);
         // `const Flows = preload("res://flows.gd")` names a class as surely
@@ -568,6 +574,9 @@ struct Declarations {
     consts: BTreeSet<String>,
     lazy: BTreeSet<String>,
     signals: BTreeSet<String>,
+    /// How many values each signal carries, so a handler bound to one takes
+    /// as many as it is called with.
+    signal_arity: BTreeMap<String, usize>,
     methods: BTreeSet<String>,
     statics: BTreeSet<String>,
 }
@@ -631,6 +640,11 @@ pub(crate) fn inner_classes(source: &str) -> Vec<(String, String)> {
 }
 
 /// A file's functions with defaulted parameters, and how many each takes.
+/// Every signal a file declares, with how many values it carries.
+pub(crate) fn signal_arities(source: &str) -> BTreeMap<String, usize> {
+    declarations(source).signal_arity
+}
+
 /// Every function a file declares, under the Rune name it is emitted with.
 pub(crate) fn function_names(source: &str) -> std::collections::BTreeSet<String> {
     split_functions(source)
@@ -709,7 +723,15 @@ fn declarations(source: &str) -> Declarations {
                 out.lazy.insert(name);
             }
         } else if let Some(rest) = body.strip_prefix("signal ") {
-            out.signals.insert(name_of(rest));
+            let name = name_of(rest);
+            let takes = rest
+                .split_once('(')
+                .and_then(|(_, args)| args.split_once(')'))
+                .map_or(0, |(args, _)| {
+                    args.split(',').filter(|a| !a.trim().is_empty()).count()
+                });
+            out.signal_arity.insert(name.clone(), takes);
+            out.signals.insert(name);
         } else if let Some(rest) = body.strip_prefix("static func ") {
             out.statics.insert(name_of(rest));
         } else if let Some(rest) = body.strip_prefix("func ") {

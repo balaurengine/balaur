@@ -37,6 +37,9 @@ pub(crate) struct Context {
     pub bases: BTreeSet<String>,
     /// Signals, so `sig.emit(x)` and `sig.connect(f)` are known to be signals.
     pub signals: BTreeSet<String>,
+    /// How many values a signal carries: a handler connected to one is
+    /// called with that many, whatever its own defaults say.
+    pub signal_arity: BTreeMap<String, usize>,
     /// Functions the async pass found, so a call to one gets `.await`.
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
@@ -138,6 +141,9 @@ pub(crate) struct Emitter<'a> {
     /// Signal to the handler it forwards to, and whether the handler runs
     /// only when the node hid, which is what Godot's `hidden` means.
     pub forwarders: BTreeMap<String, (String, bool)>,
+    /// How many values the signal a handler is being connected to carries,
+    /// while that connect is being written.
+    pub wanted_args: Option<usize>,
     /// False inside a hook the engine calls synchronously, where a wait
     /// cannot be emitted at all.
     pub allow_await: bool,
@@ -166,6 +172,7 @@ impl<'a> Emitter<'a> {
             awaits: false,
             uses_shim: false,
             forwarders: BTreeMap::new(),
+            wanted_args: None,
             allow_await: true,
             in_static: false,
             bool_locals: BTreeSet::new(),

@@ -1423,6 +1423,25 @@ fn drawn_rect(node, origin) {
 }
 
 /// Godot's `Array` methods that are not collection verbs of the shim's own.
+/// How many arguments a module's function takes, `this` included; nil when
+/// it declares none of that name. Asked once per module.
+fn method_arity(path, name) {
+    let key = `gd:arity:${path}`;
+    let known = script::stored(key);
+    if !(known is Object) {
+        let found = #{};
+        for row in script::functions(path) {
+            found[row["name"]] = row["arity"];
+        }
+        script::store(key, found);
+        known = found;
+    }
+    if known.contains_key(name) {
+        return known[name];
+    }
+    return ();
+}
+
 fn array_method(list, name, args) {
     let count = args.len();
     let a0 = if count > 0 { args[0] } else { () };
@@ -1740,7 +1759,20 @@ pub fn invoke_many(owner, name, args) {
         if is_nil(f) {
             return ();
         }
-        return spread_self(f, owner, args);
+        // Godot lets a Callable take fewer arguments than the signal carries,
+        // so the extra ones are dropped here rather than failing the call.
+        let takes = method_arity(owner[CLASS_KEY], name);
+        let wanted = if takes is i64 { math::max(0, takes - 1) } else { count as i64 };
+        let sent = if wanted < count as i64 {
+            let kept = [];
+            for item in args.iter().take(wanted) {
+                kept.push(item);
+            }
+            kept
+        } else {
+            args
+        };
+        return spread_self(f, owner, sent);
     }
     if owner is Object {
         let f = get(owner, `${name}/${count}`, get(owner, name, ()));
