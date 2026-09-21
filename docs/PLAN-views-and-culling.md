@@ -164,6 +164,11 @@ Everything else a node holds is the object's and so is the key's: the shape
 or the `mesh` asset, the texture, the material, the shadow flag and the light
 layers.
 
+An uneven scale could join later. It needs a second 3x3 on the instance, read
+at the locations `mesh.wesl` has free, or an inverse transpose worked out in
+the vertex stage. Neither is hard, and neither has a measurement behind it:
+nobody has counted how much of a real scene repeats a mesh and stretches it.
+
 ## 4. What CI can prove, and what it cannot
 
 The headless-versus-offscreen digest job proves culling and instancing

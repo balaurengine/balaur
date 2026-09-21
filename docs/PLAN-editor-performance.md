@@ -415,6 +415,23 @@ The editor compiles as one Rune unit, so the count is the whole shell rather
 than a figure per file. Ablation is what localises it, as §5 did: stub one call,
 re-run, take the difference.
 
+## 8. What was measured and left alone
+
+**2026-09-21.** Two leads were priced and not taken, so the next reader does
+not price them again.
+
+- **The pointer's hit test in a window.** `pick::under_pointer_2d` now answers
+  nothing on a viewport no backend published into, which covers headless and
+  offscreen. A windowed game with no pointer hook still scans every renderable
+  a tick. Gating that needs the set of subscribing nodes kept as scripts attach
+  and bindings change, because a cache keyed on a revision recomputes every
+  frame in any game that spawns. It was 3% of a frame holding five thousand
+  sprites.
+- **A smaller film, and post fused into one pass.** Both trade bandwidth, and
+  bandwidth is not what the frame is short of: the GPU was 1.55 ms of a 29 ms
+  frame before batching. `Rgba16Float` is also the format SSAO, SSR and the
+  probes share, so the change is not one line.
+
 ## Phases
 
 1. The `table` kind and the inspector on it. Built without a crate: the kind
