@@ -256,8 +256,9 @@ mod backend {
     use kiss3d::resource::{GpuMesh2d, GpuMesh3d, Texture, TextureManager};
     use kiss3d::wgpu;
 
-    /// One name for the atlas: it is written in place when it grows, so a
-    /// second texture never has to be made for it.
+    /// The atlas's name carries its side: a texture manager hands back what
+    /// it already holds under a name, so a grown atlas needs a new one or the
+    /// write overruns the texture made for the smaller side.
     const ATLAS: &str = "balaur text atlas";
 
     thread_local! {
@@ -276,13 +277,14 @@ mod backend {
         let atlas = state.atlas();
         let side = atlas.side() as u32;
         let grown = MADE_AT.with(std::cell::Cell::get) != side;
+        let name = format!("{ATLAS} {side}");
         let texture = TextureManager::get_global_manager(|tm| {
-            let held = if grown { None } else { tm.get(ATLAS) };
+            let held = if grown { None } else { tm.get(&name) };
             held.unwrap_or_else(|| {
                 let blank = image::DynamicImage::new_rgba8(side, side);
                 UPLOADED.with(|at| at.set(u64::MAX));
                 MADE_AT.with(|at| at.set(side));
-                tm.add_image(blank, ATLAS)
+                tm.add_image(blank, &name)
             })
         });
         if UPLOADED.with(std::cell::Cell::get) != atlas.revision() {

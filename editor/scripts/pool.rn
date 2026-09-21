@@ -208,7 +208,7 @@ pub fn strip(S, host_path, controls) {
 }
 
 /// Put `controls` on a host's children, making what is missing and hiding
-/// what is spare. What `strip` and `window` both do once they know the list.
+/// what is spare. What `strip` does once it knows the list.
 fn fill_children(S, host_path, host, controls) {
     let made = host.children().len();
     if made < controls.len() {
@@ -375,52 +375,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
     }
 }
 
-/// A long list of rows, built as nodes but only where they can be seen.
-///
-/// `row(i)` answers the control table for row `i`, and is called only for the
-/// rows in view. A spacer above and below stands in for the rest, so the bar
-/// is the length of the whole list while the nodes are the length of the
-/// window. Every row is `row_h` tall: a list of one height is what a window
-/// can find a row in without measuring the ones above it.
-///
-/// `host_path` is a `column` inside a `scroll`; the scroll is what says how
-/// much room there is and how far down the reader has gone.
-pub fn window(S, host_path, count, row_h, row) {
-    let host = scene::get_node(host_path);
-    if util::is_nil(host) {
-        return;
-    }
-    patched(S, host_path, "host", host, #{ visible: true });
-    let (first, shown) = in_view(host, count, row_h);
-    let controls = [#{ kind: "row", height: util::f(first) * row_h }];
-    let n = 0;
-    while n < shown {
-        controls.push(row(first + n));
-        n += 1;
-    }
-    let after = count - first - shown;
-    controls.push(#{ kind: "row", height: util::f(after) * row_h });
-    fill_children(S, host_path, host, controls);
-}
 
-/// Which rows a windowed list has to build: the first the scroll has reached
-/// and how many fit below it, with one either side so a part-row at each edge
-/// is drawn rather than missing.
-fn in_view(host, count, row_h) {
-    let scroll = host.parent();
-    let box = if util::is_nil(scroll) { () } else { ui::widget_rect(scroll) };
-    let room = if util::is_nil(box) { 0.0 } else { util::f(box.h) };
-    if row_h <= 0.0 || room <= 0.0 {
-        // Nothing measured yet: the first pass builds a screenful at a guess,
-        // and the pass after it knows the room.
-        let guess = util::i(util::min(util::f(count), 40.0));
-        return (0, guess);
-    }
-    let moved = ui::scroll_offset(scroll);
-    let first = util::i(util::max(0.0, util::f(moved.y) / row_h - 1.0));
-    let fits = util::i(room / row_h) + 2;
-    (first, util::i(util::min(util::f(count - first), util::f(fits))))
-}
 
 /// Stop drawing the whole pool, for a panel that has nothing to show.
 pub fn hide(host_path) {

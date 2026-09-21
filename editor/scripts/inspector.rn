@@ -101,43 +101,8 @@ pub fn form_row(S, label, controls) {
     push(S, #{ label: label, controls: controls });
 }
 
-/// A row the caller draws: a label column and a `draw` node beside it, so the
-/// bespoke rows a control table cannot describe are nodes like the rest.
-fn row(S, k, label, body) {
-    tip_row(S, k, label, "", body);
-}
 
-/// A drawn row whose label says more on hover: the label column is 82 px and
-/// cuts what does not fit, so the tooltip is where the whole of it lives.
-fn tip_row(S, k, label, tooltip, body) {
-    // A drawn row draws its own trailing control: the pooled path appends a
-    // table to `controls`, and there is no table to append to here.
-    let extra = S.get("row_after").unwrap_or(());
-    let drawn = body;
-    if extra is Object {
-        S.row_after = ();
-        drawn = || {
-            body();
-            ui::add_space(4.0);
-            let take = ui::pill(extra.text, #{
-                height: control_h(S), size: style::SM,
-                tooltip: extra.tooltip, role: "row_action",
-            });
-            // Bound first: `extra.on(..)` reads as a method on the table.
-            let act = extra.on;
-            if take {
-                act(true);
-            }
-        };
-    }
-    S.form_draws.push(drawn);
-    push(S, #{ label: label, tooltip: tooltip, height: row_h(S), draw: ROW_HATCH });
-}
 
-/// A drawn row for one schema property, labelled and described from its spec.
-fn spec_row(S, k, at, spec, body) {
-    tip_row(S, k, at.label, row_tip(at, spec), body);
-}
 
 /// A property's value as its row draws it. `unit` is display only: the
 /// component, the scene file and a script all hold what the schema declares,
@@ -190,11 +155,6 @@ fn label_w(S) {
     util::clamp(form_w(S) * 0.34, 46.0, LABEL_W)
 }
 
-/// The control column, as the row's hatch was handed it. Read before the body
-/// places anything: it is what is left of the hatch, not what the hatch was.
-fn control_w() {
-    ui::available_width()
-}
 
 // The form's own width, as its rows were last drawn: a frame late, like every
 // box the layout reads back, and the sheet's inside until there is a frame.
@@ -219,15 +179,6 @@ pub fn stacked(S) {
     form_w(S) - label_w(S) - 6.0 < CONTROL_MIN
 }
 
-fn value_field(k, value, opts) {
-    ui::drag_value(value, #{
-        width: opts.get("width").unwrap_or(184.0),
-        speed: opts.get("speed").unwrap_or(0.02),
-        decimals: opts.get("decimals").unwrap_or(2),
-        suffix: opts.get("suffix").unwrap_or(()),
-        fill: k.sunken, stroke: k.line, color: k.text,
-    })
-}
 
 // A row that came from a prefab says so, and says where an edit will land.
 // The rows below belong to the active node; an edit reaches every selected
@@ -733,14 +684,6 @@ pub fn at_step(at, step, label) {
     #{ comp: at.comp, prop: at.prop, path: path, label: label, whole: at.whole }
 }
 
-/// A cursor as a widget id: two entries of one list need two.
-fn at_id(at) {
-    let out = format!("{}:{}", at.comp, at.prop);
-    for step in at.path {
-        out += format!("/{}", step);
-    }
-    out
-}
 
 /// A row's label, and what its spec says it is under it.
 fn row_tip(at, spec) {

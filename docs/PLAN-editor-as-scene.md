@@ -375,8 +375,8 @@ What the editor gives the plugin:
   dock under the side it asked for, and hides it while another panel is up.
 - **`host.strip(name, controls)`**, which is `pool::strip` against a named
   child. A control is the table the pool already takes, `on` and all.
-- **`host.rows(name, count, height, row)`**, which is `pool::window`: only the
-  rows in view are built, and `row(i)` answers the control table for one.
+- **`host.rows(name, count, row)`**, a pooled list: `row(i)` answers the
+  control table for one, and the pool makes and reuses the nodes.
 - **`host.node(name)`**, for a plugin that wants the node itself, to
   `add_child` or to read a rect back.
 
@@ -386,8 +386,12 @@ Three things this settles that the call kit could not:
   `widget_rect`, and are laid out by the same solve as the editor's own.
 - **A plugin cannot draw outside its dock.** The host is its subtree; there is
   no `ui` handle to reach past it.
-- **A long list costs what is on screen**, because `rows` is the windowed
-  pool rather than a loop the plugin writes.
+- **A long list of plain rows is already a kind.** `list`, `tree` and `table`
+  build only the rows in view, on egui's `show_rows`. `rows` is for a list
+  whose rows carry controls a kind cannot express, and it builds all of them:
+  the pool writes only on a change, so a settled list costs nothing a frame.
+  A dock that proves it needs a window over hundreds of such rows is what
+  brings `pool::window` back; nothing does yet.
 
 The scene fragments §8 used to ask for are how the editor makes the subtree:
 one `scene::instantiate` of a `dock.toml` fragment per registered dock, with
