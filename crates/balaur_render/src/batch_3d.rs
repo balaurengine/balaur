@@ -11,6 +11,8 @@
     allow(dead_code, reason = "the grouping is the backend's, and the tests'")
 )]
 
+// Only the grouping names an entity, and that is the backend's half.
+#[cfg(feature = "kiss3d")]
 use balaur_core::hecs::Entity;
 use balaur_core::scene::GlobalTransform;
 use glamx::{Mat3, Vec3};
