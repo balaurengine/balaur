@@ -4,7 +4,7 @@
 use egui::vec2;
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::box_of;
+use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::theme::weight_of;
@@ -418,7 +418,7 @@ fn edit(
     };
     let look = at.look(index);
     crate::widget::theme::dress(ui, &look.style, color);
-    let want = box_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style_of(widget), at.assigned);
     let mut edit = if multiline {
         egui::TextEdit::multiline(&mut buffer)
     } else {

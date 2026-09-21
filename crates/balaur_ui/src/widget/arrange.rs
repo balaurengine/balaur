@@ -205,7 +205,7 @@ fn themed_frame(style: &crate::widget::theme::Style, fill: Option<Color32>) -> e
 pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
+    let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
     let room = ui.max_rect();
     let size = vec2(
         if box_size.x > 0.0 {
@@ -398,28 +398,42 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     ui.advance_cursor_after_rect(rect);
 }
 
-/// The box a widget occupies: what it states, else what its parent gave it.
+/// The size the layout settles on: what the widget asks for, else the box it
+/// was handed, never below its own floor.
 ///
 /// Godot's container contract — a child fills the rect it was assigned unless
 /// it names a size of its own. 0 on an axis means "hug", which is what a root
 /// and every scene written before `grow` gets.
-pub(crate) fn box_of(
+pub(crate) fn solved_of(
     widget: &Widget,
     style: &crate::widget::theme::Style,
     assigned: egui::Vec2,
 ) -> egui::Vec2 {
-    let stated = vec2(widget.width, widget.height);
-    // A role's size floors the box, so a container takes its height from the
-    // theme the way a button already does. A floor rather than the box: one
-    // measured by its content lands on it anyway, and one that grows keeps
-    // the share the layout gave it.
-    let floor = vec2(
-        widget.min_width.max(style.width.unwrap_or(0.0)),
-        widget.min_height.max(style.height.unwrap_or(0.0)),
-    );
+    let stated = size_of(widget, style);
+    let floor = vec2(widget.min_width, widget.min_height);
     vec2(
         if stated.x > 0.0 { stated.x } else { assigned.x }.max(floor.x),
         if stated.y > 0.0 { stated.y } else { assigned.y }.max(floor.y),
+    )
+}
+
+/// The size a widget asks for before the layout offers it one: what the node
+/// states, else what its role does, and zero for "measure me".
+///
+/// The node wins outright. A theme is where a size lives by default, never
+/// something a node has to fight. Both sizing paths read this: `solved_of` for
+/// the kinds that place themselves, and `taffy::style_of` for the containers.
+pub(crate) fn size_of(widget: &Widget, style: &crate::widget::theme::Style) -> egui::Vec2 {
+    let pick = |stated: f32, role: Option<f32>| {
+        if stated > 0.0 {
+            stated
+        } else {
+            role.unwrap_or(0.0)
+        }
+    };
+    vec2(
+        pick(widget.width, style.width),
+        pick(widget.height, style.height),
     )
 }
 

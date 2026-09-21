@@ -185,15 +185,14 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
             user_home()
                 .unwrap_or_else(|| home_of(eng))
                 .to_string_lossy()
-                .into_owned()
-                .into(),
+                .into_owned(),
         ))
     });
     m.function("in_tab", |_: &Engine, ()| {
         Ok(Value::Bool(cfg!(target_family = "wasm")))
     });
     m.function("version", |_: &Engine, ()| {
-        Ok(Value::Str(crate::version::long().to_string().into()))
+        Ok(Value::Str(crate::version::long().to_string()))
     });
     // A name, never a path: the directory stays under the user data base
     // whatever a script passes.
@@ -206,7 +205,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
         balaur::save::set_home(eng, home.clone());
         balaur::facts::reread(eng);
         Ok(home.map_or(Value::Nil, |dir| {
-            Value::Str(dir.to_string_lossy().into_owned().into())
+            Value::Str(dir.to_string_lossy().into_owned())
         }))
     });
     m.function("pick_folder", |eng: &Engine, ()| {
@@ -300,12 +299,12 @@ fn examples() -> Vec<Value> {
                 .unwrap_or_default();
             let row = Value::Map(vec![
                 ("id".into(), Value::Str(id.clone())),
-                ("name".into(), Value::Str(name_of(&path).into())),
-                ("note".into(), Value::Str(note.into())),
-                ("cover".into(), Value::Str(cover.into())),
+                ("name".into(), Value::Str(name_of(&path))),
+                ("note".into(), Value::Str(note)),
+                ("cover".into(), Value::Str(cover)),
                 (
                     "path".into(),
-                    Value::Str(path.to_string_lossy().into_owned().into()),
+                    Value::Str(path.to_string_lossy().into_owned()),
                 ),
             ]);
             Some((id, row))
@@ -339,11 +338,8 @@ fn copy_example(home: &Path, id: &str, into: &Path) -> Value {
     let name = name_of(&to);
     remember(home, &to, &name);
     Value::Map(vec![
-        (
-            "path".into(),
-            Value::Str(to.to_string_lossy().into_owned().into()),
-        ),
-        ("name".into(), Value::Str(name.into())),
+        ("path".into(), Value::Str(to.to_string_lossy().into_owned())),
+        ("name".into(), Value::Str(name)),
     ])
 }
 
@@ -485,11 +481,11 @@ fn row_value(row: Row) -> Value {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs().cast_signed());
     Value::Map(vec![
-        ("path".into(), Value::Str(row.path.into())),
-        ("name".into(), Value::Str(row.name.into())),
+        ("path".into(), Value::Str(row.path)),
+        ("name".into(), Value::Str(row.name)),
         ("opened".into(), Value::Num(row.opened as f64)),
-        ("when".into(), Value::Str(said_ago(now - row.opened).into())),
-        ("version".into(), Value::Str(row.version.into())),
+        ("when".into(), Value::Str(said_ago(now - row.opened))),
+        ("version".into(), Value::Str(row.version)),
         ("exists".into(), Value::Bool(exists)),
     ])
 }
@@ -563,8 +559,8 @@ fn templates() -> Vec<Value> {
     rows.into_iter()
         .map(|(id, note)| {
             Value::Map(vec![
-                ("id".into(), Value::Str(id.into())),
-                ("note".into(), Value::Str(note.into())),
+                ("id".into(), Value::Str(id)),
+                ("note".into(), Value::Str(note)),
             ])
         })
         .collect()
@@ -580,9 +576,9 @@ fn create(home: &Path, path: &Path, template: &str) -> Value {
     Value::Map(vec![
         (
             "path".into(),
-            Value::Str(path.to_string_lossy().into_owned().into()),
+            Value::Str(path.to_string_lossy().into_owned()),
         ),
-        ("name".into(), Value::Str(name.into())),
+        ("name".into(), Value::Str(name)),
     ])
 }
 

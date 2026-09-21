@@ -689,6 +689,9 @@ fn sync(
     materials.answer_probe(app);
 
     let eye = crate::lods::eye(&app.engine);
+    if relinked || channel_changed || reloaded {
+        batches.reconsider();
+    }
     let member_of = crate::batch_3d::cut_groups(app, scene, materials, &channel, batches);
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in

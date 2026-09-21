@@ -117,7 +117,7 @@ impl Reported for ImportEvent {
             Self::Wrote {
                 path, done, files, ..
             } => {
-                pairs.push(("path".into(), Value::Str(path.to_string())));
+                pairs.push(("path".into(), Value::Str(path.clone())));
                 pairs.push(("done".into(), count(*done)));
                 pairs.push(("files".into(), count(*files)));
             }
@@ -126,10 +126,10 @@ impl Reported for ImportEvent {
                     "scene".into(),
                     scene.clone().map_or(Value::Nil, Value::text),
                 ));
-                pairs.push(("note".into(), Value::Str(note.to_string())));
+                pairs.push(("note".into(), Value::Str(note.clone())));
             }
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.to_string())));
+                pairs.push(("message".into(), Value::Str(message.clone())));
             }
             Self::Cancelled { done, .. } => {
                 pairs.push(("done".into(), count(*done)));
@@ -846,7 +846,7 @@ fn import(file: &Path, project: &Path) -> Value {
                     "scene".into(),
                     imported.scene.map_or(Value::Nil, Value::text),
                 ),
-                ("note".into(), Value::Str(imported.note.into())),
+                ("note".into(), Value::Str(imported.note)),
             ])
         }
         Err(e) => Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]),

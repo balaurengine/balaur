@@ -100,8 +100,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
                 .output_for(&project, &target, "")
                 .unwrap_or_else(|| project.clone())
                 .to_string_lossy()
-                .into_owned()
-                .into(),
+                .into_owned(),
         ))
     });
     m.function("running", |_: &Engine, ()| {
@@ -166,7 +165,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
             state.0.project.clone(),
             matches!(opt(opts, "download"), Some(Value::Bool(true))),
             match opt(opts, "sign") {
-                Some(Value::Str(identity)) => Some(identity.to_string()),
+                Some(Value::Str(identity)) => Some(identity.clone()),
                 _ => None,
             },
             match opt(opts, "output") {

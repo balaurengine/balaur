@@ -4,7 +4,7 @@
 
 use egui::{Color32, Sense, Stroke};
 
-use crate::widget::arrange::{Axis, box_of, hold_to, lay_out, padding_of};
+use crate::widget::arrange::{Axis, solved_of, hold_to, lay_out, padding_of};
 use crate::widget::layer::{Edit, Painting};
 
 /// The cross on the title bar.
@@ -26,7 +26,7 @@ pub(crate) fn window(
     }
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
+    let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
     let plate = ui.painter().add(egui::Shape::Noop);
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(ui.max_rect())));

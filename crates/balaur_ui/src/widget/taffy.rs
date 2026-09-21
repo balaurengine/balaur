@@ -142,6 +142,7 @@ fn floor_or_none(px: f32) -> LengthPercentageAuto {
 /// a change that never reaches taffy.
 fn style_key(
     widget: &Widget,
+    style: &crate::widget::theme::Style,
     pad: crate::widget::arrange::Pad,
     gap: f32,
     drawn: bool,
@@ -150,6 +151,11 @@ fn style_key(
 ) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
     let mut hasher = rustc_hash::FxHasher::default();
+    // The role's own size is part of the shape, or a theme swap leaves the
+    // node styled by the one before it.
+    let asked = crate::widget::arrange::size_of(widget, style);
+    asked.x.to_bits().hash(&mut hasher);
+    asked.y.to_bits().hash(&mut hasher);
     shown.hash(&mut hasher);
     widget.kind.hash(&mut hasher);
     widget.grow.to_bits().hash(&mut hasher);
@@ -174,13 +180,14 @@ fn style_key(
 /// The style a node takes, with the box it was handed already applied.
 fn styled(
     widget: &Widget,
+    style: &crate::widget::theme::Style,
     pad: crate::widget::arrange::Pad,
     gap: f32,
     drawn: bool,
     fills: Fill,
     shown: bool,
 ) -> Style {
-    let mut want = style_of(widget, pad, gap, drawn, shown);
+    let mut want = style_of(widget, style, pad, gap, drawn, shown);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -201,11 +208,13 @@ fn styled(
 
 fn style_of(
     widget: &Widget,
+    style: &crate::widget::theme::Style,
     pad: crate::widget::arrange::Pad,
     gap: f32,
     drawn: bool,
     shown: bool,
 ) -> Style {
+    let asked = crate::widget::arrange::size_of(widget, style);
     if !shown {
         return Style {
             display: Display::None,
@@ -234,8 +243,8 @@ fn style_of(
         flex_shrink: if grow > 0.0 { 1.0 } else { 0.0 },
         flex_basis: if grow > 0.0 { length(0.0) } else { auto() },
         size: Size {
-            width: size_or_auto(widget.width),
-            height: size_or_auto(widget.height),
+            width: size_or_auto(asked.x),
+            height: size_or_auto(asked.y),
         },
         min_size: Size {
             width: floor_or_none(widget.min_width),
@@ -479,7 +488,7 @@ fn sync(
     // its own: a hidden menu still opens its rows from a `context`.
     let shown = widget.visible || is_root;
     let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
-    let stamp = style_key(widget, pad, gap, drawn, fills, shown);
+    let stamp = style_key(widget, &look.style, pad, gap, drawn, fills, shown);
     // A kind that places its own children is measured as a leaf, and so is an
     // empty container. Neither recurses, so the measure can happen here.
     let owns = is_root || owns_children(&widget.kind);
@@ -490,7 +499,7 @@ fn sync(
         let kept = nodes.entry(key).or_insert_with(|| {
             kept_of(
                 tree,
-                styled(widget, pad, gap, drawn, fills, shown),
+                styled(widget, &look.style, pad, gap, drawn, fills, shown),
                 index,
                 stamp,
             )
@@ -499,7 +508,7 @@ fn sync(
         if tree.style(kept.id).is_err() {
             *kept = kept_of(
                 tree,
-                styled(widget, pad, gap, drawn, fills, shown),
+                styled(widget, &look.style, pad, gap, drawn, fills, shown),
                 index,
                 stamp,
             );
@@ -508,7 +517,10 @@ fn sync(
         // that is not moving should re-solve nothing. The stamp is what
         // says so without building a style to compare against.
         if kept.style != stamp {
-            let _ = tree.set_style(kept.id, styled(widget, pad, gap, drawn, fills, shown));
+            let _ = tree.set_style(
+                kept.id,
+                styled(widget, &look.style, pad, gap, drawn, fills, shown),
+            );
             kept.style = stamp;
         }
         // Only on a change, because setting a context marks the node dirty and

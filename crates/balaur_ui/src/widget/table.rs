@@ -4,7 +4,7 @@
 use egui::{Align2, Color32, Rect, Sense, Stroke, pos2, vec2};
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::box_of;
+use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::rows::{
@@ -40,7 +40,7 @@ pub(crate) fn table(
 ) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, &at.style_of(&widget), at.assigned);
+    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
     let items = strings_of(&widget);
     let (heads, first) = header(&widget, &items);
     // The order the rows are drawn in, which is the order given unless a

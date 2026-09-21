@@ -954,26 +954,67 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
 /// its whole table today, and this is the fast path for the one or two that a
 /// UI pass reads a single property of, hundreds of times a frame.
 #[derive(Default)]
-pub struct PropertyReaders(Vec<Option<PropertyFn>>);
+pub struct PropertyReaders {
+    by_index: Vec<Option<PropertyFn>>,
+    /// Declared before the component registered, waiting for its number.
+    pending: Vec<(String, PropertyFn)>,
+}
 
 /// Say that `name` can answer a single property, and how.
 ///
 /// The name is resolved to its registration index here, once, so a read costs
 /// an index rather than a hash. Called after the component registers.
 pub fn answers_property(eng: &Engine, name: &str, read: PropertyFn) {
-    let Some(index) = index_of(eng, name) else {
-        tracing::warn!(component = name, "no such component to answer a property");
-        return;
-    };
     if eng.try_resource::<PropertyReaders>().is_none() {
         eng.insert_resource(PropertyReaders::default());
     }
+    let Some(readers) = eng.try_resource::<PropertyReaders>() else {
+        return;
+    };
+    let mut readers = readers.borrow_mut();
+    match index_of(eng, name) {
+        Some(index) => slot(&mut readers.by_index, index, read),
+        // Declared before the component itself, which is how the built-ins
+        // read: `register_component` comes back for these.
+        None => readers.pending.push((name.to_string(), read)),
+    }
+}
+
+impl PropertyReaders {
+    /// Whether the component at `index` can answer one property on its own.
+    #[must_use]
+    pub fn reads(&self, index: usize) -> bool {
+        matches!(self.by_index.get(index), Some(Some(_)))
+    }
+}
+
+/// Put `hook` at `index`, growing the table to reach it.
+fn slot<T>(table: &mut Vec<Option<T>>, index: usize, hook: T) {
+    if table.len() <= index {
+        table.resize_with(index + 1, || None);
+    }
+    table[index] = Some(hook);
+}
+
+/// Give the component that just registered any hook that named it first.
+///
+/// Declaring a fast path before the component is the order every built-in
+/// writes, and an index cannot be handed out before there is one. So the
+/// hooks wait here rather than the caller having to know.
+pub(crate) fn resolve_property_hooks(eng: &Engine, name: &str, index: usize) {
     if let Some(readers) = eng.try_resource::<PropertyReaders>() {
         let mut readers = readers.borrow_mut();
-        if readers.0.len() <= index {
-            readers.0.resize_with(index + 1, || None);
+        while let Some(at) = readers.pending.iter().position(|(n, _)| n == name) {
+            let (_, read) = readers.pending.swap_remove(at);
+            slot(&mut readers.by_index, index, read);
         }
-        readers.0[index] = Some(read);
+    }
+    if let Some(writers) = eng.try_resource::<PropertyWriters>() {
+        let mut writers = writers.borrow_mut();
+        while let Some(at) = writers.pending.iter().position(|(n, _)| n == name) {
+            let (_, write) = writers.pending.swap_remove(at);
+            slot(&mut writers.by_index, index, write);
+        }
     }
 }
 
@@ -984,15 +1025,24 @@ pub type PropertyWriteFn = Box<dyn Fn(&Engine, Entity, &str, &toml::Value) -> bo
 /// The components that can write one property on their own, by name. The
 /// twin of [`PropertyReaders`], for a script driving one value over time.
 #[derive(Default)]
-pub struct PropertyWriters(std::collections::HashMap<String, PropertyWriteFn>);
+pub struct PropertyWriters {
+    by_index: Vec<Option<PropertyWriteFn>>,
+    /// Declared before the component registered, waiting for its number.
+    pending: Vec<(String, PropertyWriteFn)>,
+}
 
 /// Say that `name` can write a single property, and how.
 pub fn writes_property(eng: &Engine, name: &str, write: PropertyWriteFn) {
     if eng.try_resource::<PropertyWriters>().is_none() {
         eng.insert_resource(PropertyWriters::default());
     }
-    if let Some(writers) = eng.try_resource::<PropertyWriters>() {
-        writers.borrow_mut().0.insert(name.to_string(), write);
+    let Some(writers) = eng.try_resource::<PropertyWriters>() else {
+        return;
+    };
+    let mut writers = writers.borrow_mut();
+    match index_of(eng, name) {
+        Some(index) => slot(&mut writers.by_index, index, write),
+        None => writers.pending.push((name.to_string(), write)),
     }
 }
 
@@ -1007,20 +1057,36 @@ pub fn set_property(
     key: &str,
     value: &toml::Value,
 ) -> Result<bool> {
+    let Some(index) = index_of(eng, name) else {
+        return Ok(false);
+    };
+    set_property_at(eng, entity, index, key, value)
+}
+
+/// [`set_property`] with the definition already resolved.
+///
+/// # Errors
+/// What [`patch`] errors on, for the record it keeps.
+pub fn set_property_at(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    key: &str,
+    value: &toml::Value,
+) -> Result<bool> {
     let wrote = {
         let Some(writers) = eng.try_resource::<PropertyWriters>() else {
             return Ok(false);
         };
         let writers = writers.borrow();
-        match writers.0.get(name) {
-            Some(write) => write(eng, entity, key, value),
-            None => false,
+        match writers.by_index.get(index) {
+            Some(Some(write)) => write(eng, entity, key, value),
+            _ => false,
         }
     };
     if !wrote {
         return Ok(false);
     }
-    let index = resolve(eng, name)?.index;
     let mut one = toml::map::Map::new();
     one.insert(key.to_string(), value.clone());
     record_at(eng, entity, index, Some(&toml::Value::Table(one)), false);
@@ -1052,7 +1118,7 @@ pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
 pub fn property_at(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option<toml::Value> {
     if let Some(readers) = eng.try_resource::<PropertyReaders>() {
         let readers = readers.borrow();
-        if let Some(Some(read)) = readers.0.get(index)
+        if let Some(Some(read)) = readers.by_index.get(index)
             && let Some(found) = read(eng, entity, key)
         {
             return Some(found);

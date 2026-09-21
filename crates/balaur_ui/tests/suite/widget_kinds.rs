@@ -420,6 +420,45 @@ fn face_theme(dir: &std::path::Path) {
     .unwrap();
 }
 
+/// A role sizes a container that states nothing, and a node that states a
+/// size keeps it. The theme is where a size lives by default, never something
+/// a node has to fight: the first cut of this floored the box with the role,
+/// so a node asking for less was quietly given the role's.
+#[test]
+fn a_node_s_own_size_wins_over_the_role_that_would_size_it() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/sized.toml"),
+        "type = \"widget_theme\"\n\n[roles.tall]\nheight = 40.0\n",
+    )
+    .unwrap();
+    let sheet = add_widget(
+        &app,
+        &toml::toml! { kind = "column" theme = "themes/sized.toml" x = 0.0 y = 0.0 width = 200.0 height = 300.0 }
+            .into(),
+    );
+    let kid = |params: toml::Value| {
+        let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Kid", sheet);
+        balaur::components::add(&app.engine, node, "widget", Some(&params)).unwrap();
+        node
+    };
+    let from_role = kid(toml::toml! { kind = "row" role = "tall" }.into());
+    let stated = kid(toml::toml! { kind = "row" role = "tall" height = 20.0 }.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let high = balaur_ui::widget_rect(from_role).expect("it drew").height();
+    let low = balaur_ui::widget_rect(stated).expect("it drew").height();
+    assert!(
+        (high - 40.0).abs() < 1.0,
+        "the role did not size a container that states none: {high}"
+    );
+    assert!(
+        (low - 20.0).abs() < 1.0,
+        "the role overrode a node that stated its own height: {low}"
+    );
+}
+
 /// A role's `align = "left"` reaches a node button. It reached script pills
 /// only, so a node `row` drew its caption in the middle of the row.
 #[test]

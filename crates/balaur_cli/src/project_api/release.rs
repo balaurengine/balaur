@@ -84,7 +84,7 @@ impl Row {
             ("tag".into(), Value::Str(r.tag.clone())),
             ("id".into(), Value::Str(r.id.clone())),
             ("channel".into(), Value::Str(r.channel.clone())),
-            ("when".into(), Value::Str(ago(&r.published).into())),
+            ("when".into(), Value::Str(ago(&r.published))),
             ("current".into(), Value::Bool(self.order == "same")),
             ("order".into(), Value::Str(self.order.clone())),
             ("download".into(), Value::Str(self.download.clone())),
@@ -111,27 +111,24 @@ impl Reported for ReleaseEvent {
             Self::Downloading { tag, done, total } => (
                 "downloading",
                 vec![
-                    ("tag".into(), Value::Str(tag.to_string())),
+                    ("tag".into(), Value::Str(tag.clone())),
                     ("done".into(), bytes(*done)),
                     ("total".into(), bytes(*total)),
                 ],
             ),
-            Self::Unpacking { tag } => (
-                "unpacking",
-                vec![("tag".into(), Value::Str(tag.to_string()))],
-            ),
+            Self::Unpacking { tag } => ("unpacking", vec![("tag".into(), Value::Str(tag.clone()))]),
             Self::Installed { tag, note } => (
                 "installed",
                 vec![
-                    ("tag".into(), Value::Str(tag.to_string())),
-                    ("note".into(), Value::Str(note.to_string())),
+                    ("tag".into(), Value::Str(tag.clone())),
+                    ("note".into(), Value::Str(note.clone())),
                 ],
             ),
             Self::Failed { job, message } => (
                 "failed",
                 vec![
-                    ("job".into(), Value::Str(job.to_string())),
-                    ("message".into(), Value::Str(message.to_string())),
+                    ("job".into(), Value::Str(job.clone())),
+                    ("message".into(), Value::Str(message.clone())),
                 ],
             ),
         };
@@ -199,34 +196,25 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::Map(vec![
             (
                 "version".into(),
-                Value::Str(env!("CARGO_PKG_VERSION").to_string().into()),
+                Value::Str(env!("CARGO_PKG_VERSION").to_string()),
             ),
-            (
-                "id".into(),
-                Value::Str(SmolStr::new(id.unwrap_or_default())),
-            ),
+            ("id".into(), Value::Str(id.unwrap_or_default().to_string())),
             (
                 "channel".into(),
-                Value::Str(
-                    crate::version::channel()
-                        .unwrap_or_default()
-                        .to_string()
-                        .into(),
-                ),
+                Value::Str(crate::version::channel().unwrap_or_default().to_string()),
             ),
             (
                 "tag".into(),
                 Value::Str(
                     crate::version::release_tag()
                         .unwrap_or_default()
-                        .to_string()
-                        .into(),
+                        .to_string(),
                 ),
             ),
             ("source".into(), Value::Bool(id.is_none())),
             (
                 "held".into(),
-                Value::Str(crate::update::held().unwrap_or_default().into()),
+                Value::Str(crate::update::held().unwrap_or_default()),
             ),
         ]))
     });
@@ -234,7 +222,7 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(
             crate::version::CHANNELS
                 .iter()
-                .map(|name| Value::Str((*name).to_string().into()))
+                .map(|name| Value::Str((*name).to_string()))
                 .collect(),
         ))
     });

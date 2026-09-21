@@ -649,6 +649,9 @@ impl App {
                 crate::components::MAX_COMPONENTS
             );
             registry.insert(name, def);
+            let index = registry.len() - 1;
+            drop(registry);
+            crate::components::resolve_property_hooks(&self.engine, name, index);
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {

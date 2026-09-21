@@ -394,3 +394,26 @@ fn a_bare_value_on_a_component_is_an_error() {
     let err = components::merge_defaults(&schema, Some(&given)).unwrap_err();
     assert!(err.to_string().contains(r#"{ kind = "static" }"#), "{err}");
 }
+
+/// A component declares its fast paths before it registers, which is the
+/// order every built-in writes them in. The hook has to survive that.
+#[test]
+fn a_property_reader_declared_before_its_component_still_answers() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    components::add(&app.engine, e, "transform", None).unwrap();
+    let readers = app
+        .engine
+        .try_resource::<components::PropertyReaders>()
+        .expect("the transform registers a reader");
+    let index = components::index_of(&app.engine, "transform").unwrap();
+    assert!(
+        readers.borrow().reads(index),
+        "the reader transform declared before registering was dropped"
+    );
+    assert_eq!(
+        components::property(&app.engine, e, "transform", "position"),
+        components::get(&app.engine, e, "transform").and_then(|t| t.get("position").cloned()),
+        "the fast path and the whole table answer the same"
+    );
+}

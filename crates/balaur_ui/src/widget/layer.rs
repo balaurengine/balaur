@@ -11,7 +11,7 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
 use crate::widget::arrange::{
-    Axis, box_of, contain, hold_to, lay_out, padding_of, record_measure, record_rect,
+    Axis, solved_of, contain, hold_to, lay_out, padding_of, record_measure, record_rect,
     roll_measurements, scroller, settle_rects, tabs,
 };
 use crate::widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
@@ -743,7 +743,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             if widget.draw.is_empty() {
                 return;
             }
-            let want = box_of(widget, &at.style_of(widget), at.assigned);
+            let want = solved_of(widget, &at.style_of(widget), at.assigned);
             let room = ui.max_rect();
             let size = vec2(
                 if want.x > 0.0 { want.x } else { room.width() },
@@ -884,7 +884,7 @@ fn panel(
     let widget = &at.arena[index].widget;
     let style = at.style_of(widget);
     let pad = padding_of(widget, &style);
-    let box_size = box_of(widget, &at.style_of(widget), at.assigned);
+    let box_size = solved_of(widget, &at.style_of(widget), at.assigned);
     let plate = ui.painter().add(egui::Shape::Noop);
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(ui.max_rect())));
@@ -945,7 +945,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     match crate::images::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => {
             let native = crate::images::native_size(at.eng, &widget.source, &texture);
-            let size = image_size(box_of(widget, &at.style_of(widget), at.assigned), native);
+            let size = image_size(solved_of(widget, &at.style_of(widget), at.assigned), native);
             if widget.slice.iter().any(|v| *v > 0.0) {
                 // The borders stay the picture's own size; only the middle
                 // stretches to the box.
@@ -964,7 +964,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                     at.clicked.push(entity);
                 }
             } else {
-                let box_size = box_of(widget, &at.style_of(widget), at.assigned).max(size);
+                let box_size = solved_of(widget, &at.style_of(widget), at.assigned).max(size);
                 let (rect, response) = ui.allocate_exact_size(box_size, sense);
                 let held = fitted(&widget.fit, rect, texture.size_vec2());
                 ui.painter().image(
