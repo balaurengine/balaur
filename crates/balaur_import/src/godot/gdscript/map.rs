@@ -894,6 +894,12 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
 
 /// Signals the engine itself sends, heard as events; a script's own are
 /// called as they are emitted.
+/// Godot's "it went away", which the engine reports as the visibility event.
+pub(crate) const HIDDEN_SIGNAL: &str = "hidden";
+
+/// The engine's own name for it, carrying the new value.
+pub(crate) const VISIBILITY_SIGNAL: &str = "visibility_changed";
+
 const ENGINE_SIGNALS: &[&str] = &[
     "timeout",
     "animation_finished",

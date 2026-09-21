@@ -635,7 +635,13 @@ pub(crate) fn inner_classes(source: &str) -> Vec<(String, String)> {
 pub(crate) fn function_names(source: &str) -> std::collections::BTreeSet<String> {
     split_functions(source)
         .into_iter()
-        .map(|f| if f.name == "_init" { "new".to_string() } else { f.name })
+        .map(|f| {
+            if f.name == "_init" {
+                "new".to_string()
+            } else {
+                f.name
+            }
+        })
         .collect()
 }
 
@@ -779,7 +785,7 @@ fn write_functions(
     static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
-    let mut forwarders: std::collections::BTreeMap<String, String> =
+    let mut forwarders: std::collections::BTreeMap<String, (String, bool)> =
         std::collections::BTreeMap::new();
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
@@ -917,9 +923,9 @@ fn write_forwarders(
     out: &mut String,
     functions: &[Function],
     context: &Context,
-    forwarders: &std::collections::BTreeMap<String, String>,
+    forwarders: &std::collections::BTreeMap<String, (String, bool)>,
 ) {
-    for (signal, handler) in forwarders {
+    for (signal, (handler, hid)) in forwarders {
         if functions.iter().any(|f| f.name == format!("on_{signal}")) {
             continue;
         }
@@ -933,9 +939,16 @@ fn write_forwarders(
                 all
             }),
         };
+        // Godot's `hidden` rides the visibility event: the handler runs on
+        // the pass that took the node away.
+        let guard = if *hid {
+            "    if payload {\n        return;\n    }\n"
+        } else {
+            ""
+        };
         let _ = write!(
             out,
-            "\n/// `{signal}`, as the engine delivers it.\npub fn on_{signal}(this, payload) {{\n    {handler}(this{args});\n}}\n"
+            "\n/// `{signal}`, as the engine delivers it.\npub fn on_{signal}(this, payload) {{\n{guard}    {handler}(this{args});\n}}\n"
         );
     }
 }

@@ -34,7 +34,7 @@ pub(crate) struct Body {
     /// Signal name to handler, for every cross-script `connect` the body
     /// made: the engine calls `on_<name>`, so the module needs one that
     /// forwards to the handler Godot named.
-    pub forwarders: std::collections::BTreeMap<String, String>,
+    pub forwarders: std::collections::BTreeMap<String, (String, bool)>,
 }
 
 /// Translate the lines of one function body, already stripped of its

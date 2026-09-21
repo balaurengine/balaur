@@ -102,8 +102,16 @@ impl Emitter<'_> {
         }
         let handler = handler?;
         let closure = self.callable(args.first()?)?;
-        self.forwarders.insert(signal.clone(), handler);
-        Some(map::signal_subscribe(&receiver, &signal, &closure))
+        // Godot's `hidden` is the engine's visibility event, heard only when
+        // the flag went away.
+        let hid = signal == map::HIDDEN_SIGNAL;
+        let event = if hid {
+            map::VISIBILITY_SIGNAL.to_string()
+        } else {
+            signal.clone()
+        };
+        self.forwarders.insert(event.clone(), (handler, hid));
+        Some(map::signal_subscribe(&receiver, &event, &closure))
     }
 
     /// A Godot `Callable` as a Rune closure: a lambda as itself, a method of

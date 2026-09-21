@@ -541,3 +541,53 @@ fn a_script_finds_nodes_by_id_and_by_component() {
     );
     assert_eq!(balaur_core::ids::find(&world, child, "n_parent"), None);
 }
+
+/// Godot's `hidden` and `visibility_changed` are this one event, so a
+/// translated screen still hears itself go away.
+#[test]
+fn hiding_a_node_tells_whoever_is_listening() {
+    let dir = project(&[(
+        "panel.rn",
+        "pub fn init(this) {\n\
+         \x20   this.hidings = 0.0;\n\
+         \x20   this.showings = 0.0;\n\
+         \x20   events::subscribe(this.node, \"visibility_changed\", this.node);\n\
+         }\n\
+         pub fn on_visibility_changed(this, payload) {\n\
+         \x20   if payload { this.showings = this.showings + 1.0; } else { this.hidings = this.hidings + 1.0; }\n\
+         }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let panel = spawn(&app, "Panel");
+    {
+        let host = app.engine.script_host().unwrap();
+        host.attach(balaur_core::node_id_of(panel), "panel.rn")
+            .unwrap();
+    }
+    let call = |app: &balaur_core::App, on: bool| {
+        let op = balaur_core::node_api::NODE_OPS
+            .iter()
+            .find(|d| d.name == "set_visible")
+            .expect("set_visible is a node operation");
+        (op.call)(
+            &app.engine,
+            &[
+                balaur_script::Value::Node(balaur_core::node_id_of(panel).0),
+                balaur_script::Value::Bool(on),
+            ],
+        )
+        .unwrap();
+    };
+    call(&app, false);
+    call(&app, false);
+    app.tick(0.016);
+    let host = rune(&app);
+    assert_eq!(
+        host.number_field(panel, "hidings"),
+        Some(1.0),
+        "a repeat is not a change"
+    );
+    call(&app, true);
+    app.tick(0.016);
+    assert_eq!(host.number_field(panel, "showings"), Some(1.0));
+}

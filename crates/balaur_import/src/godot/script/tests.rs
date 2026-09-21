@@ -215,6 +215,24 @@ fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
 }
 
 #[test]
+fn godots_hidden_signal_is_the_engines_visibility_event() {
+    let source = "extends Control\n\nfunc _ready():\n\thidden.connect(_on_hidden)\n\nfunc _on_hidden():\n\tprint(\"gone\")\n";
+    let out = convert(source, "scripts/panel.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains("(gd.listen)(this.node, \"visibility_changed\""),
+        "{}",
+        out.rune
+    );
+    assert!(
+        out.rune
+            .contains("pub fn on_visibility_changed(this, payload) {\n    if payload {"),
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
 fn another_classs_function_handed_over_is_the_function_itself() {
     let classes = Classes {
         files: [("Codec".to_string(), "scripts/codec.gd".to_string())]
@@ -231,7 +249,8 @@ fn another_classs_function_handed_over_is_the_function_itself() {
     let source = "extends Node\n\nfunc wire():\n\tvar f = Codec.decode\n\treturn f\n";
     let out = convert(source, "scripts/a.gd", &classes);
     assert!(
-        out.rune.contains("script::require(\"scripts/codec.rn\").decode"),
+        out.rune
+            .contains("script::require(\"scripts/codec.rn\").decode"),
         "{}",
         out.rune
     );

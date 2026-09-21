@@ -135,7 +135,9 @@ pub(crate) struct Emitter<'a> {
     /// Set when the body reached a shim call, so the caller binds `gd`.
     pub uses_shim: bool,
     /// Signal name to handler for each cross-script `connect`.
-    pub forwarders: BTreeMap<String, String>,
+    /// Signal to the handler it forwards to, and whether the handler runs
+    /// only when the node hid, which is what Godot's `hidden` means.
+    pub forwarders: BTreeMap<String, (String, bool)>,
     /// False inside a hook the engine calls synchronously, where a wait
     /// cannot be emitted at all.
     pub allow_await: bool,
@@ -645,7 +647,12 @@ impl<'a> Emitter<'a> {
             if self.context.classes.contains_key(class) {
                 let module = self.class_module(class);
                 // Another class's function handed over as a callable.
-                if self.context.class_methods.get(class).is_some_and(|names| names.contains(field)) {
+                if self
+                    .context
+                    .class_methods
+                    .get(class)
+                    .is_some_and(|names| names.contains(field))
+                {
                     return format!("{module}.{}", safe(field));
                 }
                 // A constant another module computes is a function there.
