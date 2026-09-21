@@ -155,7 +155,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         static_init,
     );
     write_accessors(&mut out, &context, &functions);
-    write_constructor(&mut out, source, path, classes, &functions, defaults.scened);
+    write_constructor(&mut out, source, path, classes, &functions, &defaults);
     if source.contains("_input(") || source.contains("_unhandled_input(") {
         notes
             .push("an `_input` handler: read the `input` module from `update` instead".to_string());

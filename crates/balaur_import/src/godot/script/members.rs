@@ -111,7 +111,7 @@ pub(super) fn write_members(
 }
 
 /// Which halves of a class's members were written.
-pub(super) struct Members {
+pub(crate) struct Members {
     pub defaults: bool,
     pub scened: bool,
 }

@@ -81,7 +81,7 @@ pub(super) fn write_constructor(
     path: &str,
     classes: &Classes,
     functions: &[Function],
-    defaults: bool,
+    members: &super::members::Members,
 ) {
     if functions.iter().any(|f| f.name == "new") {
         return;
@@ -129,8 +129,13 @@ pub(super) fn write_constructor(
         params.join(", "),
         gdscript::quoted(&module),
     );
-    if defaults {
+    // A class that is a table has no node to attach, so its constructor is
+    // where the members it declared are set.
+    if members.defaults {
         out.push_str("    defaults(this);\n");
+    }
+    if members.scened {
+        out.push_str("    scene_defaults(this);\n");
     }
     if init.is_some() {
         let mut args = vec!["this".to_string()];
